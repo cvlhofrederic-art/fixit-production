@@ -166,36 +166,6 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
 
   const subTasksOnly = ganttRows.filter(r => !r.isChantier)
 
-  // Today line position (% of timeline)
-  const todayPct = months.length > 0 ? Math.max(0, Math.min(100, ((Date.now() - timelineStart) / timelineSpan) * 100)) : 0
-
-  // Per-month bar segments for a row
-  const getMonthSegments = (row: GanttRow) => {
-    const rowStart = new Date(row.debut).getTime()
-    const rowEnd = new Date(row.fin).getTime()
-    return months.map(m => {
-      const mStart = m.start.getTime()
-      const mEnd = m.end.getTime()
-      // No overlap
-      if (rowEnd <= mStart || rowStart >= mEnd) return null
-      // Clamp to month boundaries
-      const segStart = Math.max(rowStart, mStart)
-      const segEnd = Math.min(rowEnd, mEnd)
-      const left = ((segStart - mStart) / (mEnd - mStart)) * 100
-      const right = ((mEnd - segEnd) / (mEnd - mStart)) * 100
-      return { left, right }
-    })
-  }
-
-  // Check if "today" falls within a month
-  const getTodayInMonth = (m: { start: Date; end: Date }) => {
-    const now = Date.now()
-    const mStart = m.start.getTime()
-    const mEnd = m.end.getTime()
-    if (now < mStart || now > mEnd) return null
-    return ((now - mStart) / (mEnd - mStart)) * 100
-  }
-
   return (
     <div>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
@@ -257,7 +227,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
         </div>
       )}
 
-      {/* Gantt Chart — HTML mockup design */}
+      {/* Gantt Chart */}
       {chantiersLoading ? (
         <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: '48px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar obras...' : 'Chargement des chantiers...'}</div>
@@ -270,121 +240,116 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
         </div>
       ) : (
         <>
-          {/* Gantt grid container */}
+          {/* Gantt container */}
           <div style={{ overflowX: 'auto', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: `180px repeat(${months.length}, 1fr)`, minWidth: 900 }}>
-
-              {/* Header row */}
-              <div style={{ display: 'contents' }}>
-                <div style={{ padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'left' }}>
-                  {isPt ? 'Obra' : 'Chantier'}
-                </div>
+            {/* Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: `180px 1fr`, minWidth: 900 }}>
+              <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>
+                {isPt ? 'Obra' : 'Chantier'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${months.length}, 1fr)`, background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>
                 {months.map((m, i) => (
-                  <div key={i} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'center' }}>
+                  <div key={i} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', textAlign: 'center', borderLeft: i > 0 ? '1px solid #E8E8E8' : 'none' }}>
                     {m.label}
                   </div>
                 ))}
               </div>
+            </div>
 
-              {/* Data rows */}
-              {ganttRows.map(row => {
-                const color = row.couleur || statusColor(row.statut)
-                const isRetard = row.statut === 'en_retard'
-                const isTermine = row.statut === 'terminé'
-                const isPlanifie = row.statut === 'planifié'
-                const segments = getMonthSegments(row)
+            {/* Data rows — continuous bar spanning all months */}
+            {ganttRows.map(row => {
+              const color = row.couleur || statusColor(row.statut)
+              const isRetard = row.statut === 'en_retard'
+              const isTermine = row.statut === 'terminé'
+              const isPlanifie = row.statut === 'planifié'
+              const pos = getBarPosition(row)
 
-                // Find which month contains the widest segment to place the label
-                let labelMonthIdx = -1
-                let maxWidth = 0
-                segments.forEach((seg, i) => {
-                  if (seg) {
-                    const w = 100 - seg.left - seg.right
-                    if (w > maxWidth) { maxWidth = w; labelMonthIdx = i }
-                  }
-                })
+              return (
+                <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', minWidth: 900, borderBottom: '1px solid #F0F0F0' }}>
+                  {/* Name cell */}
+                  <div style={{
+                    padding: '8px 12px', fontSize: 11, fontWeight: 600,
+                    display: 'flex', alignItems: 'center',
+                    ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
+                    ...(isRetard ? { color: '#C62828' } : {}),
+                    ...(isPlanifie ? { color: '#999' } : {}),
+                    ...(!row.isChantier ? { paddingLeft: 24, fontWeight: 400 } : {}),
+                  }}>
+                    {!row.isChantier && <span style={{ marginRight: 4, color: '#ccc' }}>└</span>}
+                    {row.nom}
+                    {isTermine && row.isChantier && ' ✓'}
+                    {isRetard && ' ⚠️'}
+                    {!row.isChantier && (
+                      <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title="Supprimer">✕</button>
+                    )}
+                  </div>
 
-                return (
-                  <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={{ display: 'contents' }}>
-                    {/* Name cell */}
-                    <div style={{
-                      padding: 8, paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11,
-                      fontWeight: 600, display: 'flex', alignItems: 'center',
-                      ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
-                      ...(isRetard ? { color: '#C62828' } : {}),
-                      ...(isPlanifie ? { color: '#999' } : {}),
-                      ...(!row.isChantier ? { paddingLeft: 24, fontWeight: 400 } : {}),
-                    }}>
-                      {!row.isChantier && <span style={{ marginRight: 4, color: '#ccc' }}>└</span>}
-                      {row.nom}
-                      {isTermine && row.isChantier && ' ✓'}
-                      {isRetard && ' ⚠️'}
-                      {!row.isChantier && (
-                        <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title="Supprimer">✕</button>
-                      )}
+                  {/* Timeline area — single continuous zone */}
+                  <div style={{ position: 'relative', minHeight: 36 }}>
+                    {/* Month separator lines */}
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${months.length}, 1fr)`, pointerEvents: 'none' }}>
+                      {months.map((_, i) => (
+                        <div key={i} style={{ borderLeft: i > 0 ? '1px solid #F0F0F0' : 'none' }} />
+                      ))}
                     </div>
 
-                    {/* Month cells with bar segments */}
-                    {months.map((m, mi) => {
-                      const seg = segments[mi]
-                      const todayInMonth = getTodayInMonth(m)
+                    {/* Continuous bar */}
+                    <div style={{
+                      position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                      left: pos.left, right: pos.right,
+                      height: 20, borderRadius: 3, minWidth: 4,
+                      background: isTermine ? '#BDBDBD' : color,
+                      opacity: isPlanifie ? 0.5 : 1,
+                    }}>
+                      {/* % label inside bar, left-aligned */}
+                      <span style={{
+                        position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                        left: 6, fontSize: 9, fontWeight: 600,
+                        color: color === '#FFCA28' ? '#333' : '#fff',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {row.avancement}%
+                      </span>
+                    </div>
 
+                    {/* Red vertical line at avancement % position within the bar */}
+                    {row.isChantier && row.avancement > 0 && row.avancement < 100 && (() => {
+                      const barLeftPct = parseFloat(pos.left)
+                      const barRightPct = parseFloat(pos.right)
+                      const barWidthPct = 100 - barLeftPct - barRightPct
+                      const linePct = barLeftPct + barWidthPct * (row.avancement / 100)
                       return (
-                        <div key={mi} style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, position: 'relative' }}>
-                          {seg && (
-                            <div style={{
-                              position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                              left: `${Math.max(4, seg.left)}%`,
-                              right: `${Math.max(4, seg.right)}%`,
-                              height: 20, borderRadius: 3, minWidth: 4,
-                              background: isTermine ? '#BDBDBD' : color,
-                              opacity: isPlanifie ? 0.5 : 1,
-                            }}>
-                              {/* Label on the widest segment */}
-                              {mi === labelMonthIdx && (
-                                <span style={{
-                                  position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                                  left: 6, fontSize: 9, fontWeight: 600,
-                                  color: color === '#FFCA28' ? '#333' : '#fff',
-                                  whiteSpace: 'nowrap',
-                                }}>
-                                  {row.avancement}%
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Today red line */}
-                          {row.isChantier && todayInMonth !== null && (
-                            <div style={{
-                              position: 'absolute', top: 0, bottom: 0,
-                              left: `${todayInMonth}%`, width: 2,
-                              background: '#E53935', zIndex: 2,
-                            }} />
-                          )}
-
-                          {/* Diamond milestone — at end of bar if this is the last month with a segment */}
-                          {row.isChantier && seg && mi > 0 && !segments[mi + 1] && seg.right > 10 && (
-                            <div style={{
-                              width: 10, height: 10, background: '#FFC107',
-                              transform: 'rotate(45deg)', position: 'absolute',
-                              top: '50%', marginTop: -5,
-                              right: `${Math.max(2, seg.right - 5)}%`,
-                              zIndex: 3,
-                            }} />
-                          )}
-                        </div>
+                        <div style={{
+                          position: 'absolute', top: 0, bottom: 0,
+                          left: `${linePct}%`, width: 2,
+                          background: '#E53935', zIndex: 2,
+                        }} />
                       )
-                    })}
+                    })()}
+
+                    {/* Diamond milestone at end of bar */}
+                    {row.isChantier && row.avancement < 100 && (() => {
+                      const barRightPct = parseFloat(pos.right)
+                      if (barRightPct < 2) return null
+                      return (
+                        <div style={{
+                          width: 10, height: 10, background: '#FFC107',
+                          transform: 'rotate(45deg)', position: 'absolute',
+                          top: '50%', marginTop: -5,
+                          right: `${barRightPct - 1}%`,
+                          zIndex: 3,
+                        }} />
+                      )
+                    })()}
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Legend */}
           <div style={{ marginTop: 8, fontSize: 10, color: '#999' }}>
-            🔴 {isPt ? 'Linha vermelha = hoje' : 'Ligne rouge = aujourd\'hui'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = marco' : 'Losange = jalon clé'}
+            🔴 {isPt ? 'Linha vermelha = avanço' : 'Ligne rouge = avancement'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = fim prevista' : 'Losange = fin prévue'}
           </div>
 
           {/* Sub-task advancement table */}
@@ -396,7 +361,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
+                    <th style={{ textAlign: 'left', padding: '6px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
                     <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Obra' : 'Chantier'}</th>
                     <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Estado' : 'Statut'}</th>
                     <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Avanço' : 'Avancement'}</th>
@@ -407,7 +372,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                     const chantier = chantiers.find(c => c.id === row.chantierId)
                     return (
                       <tr key={row.id}>
-                        <td style={{ padding: 8, paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 }}>
+                        <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 }}>
                           {row.nom}
                           <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{row.responsable}</div>
                         </td>
