@@ -18,6 +18,9 @@ export function useNotifications(
   callbacks: RealtimeCallbacks
 ) {
   const { onNavigate, onNewBooking, getAuthToken, t, isPt } = callbacks
+  // Refs stables pour éviter les closures stale dans le channel Realtime
+  const callbacksRef = useRef(callbacks)
+  callbacksRef.current = callbacks
   const [notifications, setNotifications] = useState<any[]>([])
   const [showNotifDropdown, setShowNotifDropdown] = useState(false)
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
@@ -131,33 +134,34 @@ export function useNotifications(
         filter: `artisan_id=eq.${userId}`,
       }, (payload) => {
         const n = payload.new as any
+        const { t: _t, isPt: _isPt, onNavigate: _onNav } = callbacksRef.current
         if (n.artisan_id === userId) {
           setNotifications(prev => [n, ...prev].slice(0, 30))
           setUnreadNotifCount(prev => prev + 1)
           const typeLabels: Record<string, string> = {
-            new_mission: `📋 ${t('proDash.notifs.newMission')}`,
-            mission_update: `🔄 ${t('proDash.notifs.missionUpdate')}`,
-            planning_change: `📅 ${t('proDash.notifs.planningChange')}`,
-            message: `💬 ${t('proDash.notifs.message')}`,
-            new_booking: `📅 ${t('proDash.notifs.newBooking')}`,
-            marche_new: isPt ? '🏛️ Novo mercado disponível' : '🏛️ Nouveau marché disponible',
-            marche_message: isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
-            marche_won: isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
-            marche_rejected: isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
-            tva_threshold: isPt ? '🧾 Alerta de IVA' : '🧾 Alerte TVA',
-            marketplace_demande: isPt ? '🏗️ Nova solicitação — Marketplace BTP' : '🏗️ Nouvelle demande — Marketplace BTP',
-            marketplace_accepte: isPt ? '✅ Solicitação aceite — Marketplace BTP' : '✅ Demande acceptée — Marketplace BTP',
-            marketplace_refuse: isPt ? '❌ Solicitação recusada — Marketplace BTP' : '❌ Demande refusée — Marketplace BTP',
+            new_mission: `📋 ${_t('proDash.notifs.newMission')}`,
+            mission_update: `🔄 ${_t('proDash.notifs.missionUpdate')}`,
+            planning_change: `📅 ${_t('proDash.notifs.planningChange')}`,
+            message: `💬 ${_t('proDash.notifs.message')}`,
+            new_booking: `📅 ${_t('proDash.notifs.newBooking')}`,
+            marche_new: _isPt ? '🏛️ Novo mercado disponível' : '🏛️ Nouveau marché disponible',
+            marche_message: _isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
+            marche_won: _isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
+            marche_rejected: _isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
+            tva_threshold: _isPt ? '🧾 Alerta de IVA' : '🧾 Alerte TVA',
+            marketplace_demande: _isPt ? '🏗️ Nova solicitação — Marketplace BTP' : '🏗️ Nouvelle demande — Marketplace BTP',
+            marketplace_accepte: _isPt ? '✅ Solicitação aceite — Marketplace BTP' : '✅ Demande acceptée — Marketplace BTP',
+            marketplace_refuse: _isPt ? '❌ Solicitação recusada — Marketplace BTP' : '❌ Demande refusée — Marketplace BTP',
           }
           sendBrowserNotif(
             typeLabels[n.type] || '🔔 Notification Vitfix',
-            n.message || n.title || t('proDash.notifs.newNotif'),
+            n.message || n.title || _t('proDash.notifs.newNotif'),
             () => {
-              if (n.type === 'new_mission') onNavigate('missions')
-              else if (n.type === 'message') onNavigate('messages')
-              else if (n.type === 'new_booking') onNavigate('calendar')
-              else if (n.type?.startsWith('marche_')) onNavigate('marches')
-              else if (n.type?.startsWith('marketplace_')) onNavigate('marketplace_btp')
+              if (n.type === 'new_mission') _onNav('missions')
+              else if (n.type === 'message') _onNav('messages')
+              else if (n.type === 'new_booking') _onNav('calendar')
+              else if (n.type?.startsWith('marche_')) _onNav('marches')
+              else if (n.type?.startsWith('marketplace_')) _onNav('marketplace_btp')
             }
           )
         }
@@ -168,12 +172,13 @@ export function useNotifications(
         table: 'conversation_messages',
       }, (payload) => {
         const msg = payload.new as any
+        const { t: _t, onNavigate: _onNav } = callbacksRef.current
         if (msg.sender_id !== userId) {
           setUnreadMsgCount(prev => prev + 1)
           sendBrowserNotif(
             '💬 Nouveau message',
-            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : t('proDash.notifs.newMsgReceived'),
-            () => onNavigate('messages')
+            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : _t('proDash.notifs.newMsgReceived'),
+            () => _onNav('messages')
           )
         }
       })
@@ -184,12 +189,13 @@ export function useNotifications(
         filter: `artisan_id=eq.${artisanId}`,
       }, (payload) => {
         const b = payload.new as any
+        const { isPt: _isPt, onNavigate: _onNav, onNewBooking: _onNew } = callbacksRef.current
         if (b.artisan_id === artisanId) {
-          onNewBooking(b)
+          _onNew(b)
           sendBrowserNotif(
-            isPt ? '📅 Nova marcação' : '📅 Nouveau rendez-vous',
-            `${b.booking_date || (isPt ? 'Data a confirmar' : 'Date à confirmer')} — ${b.client_name || (isPt ? 'Novo cliente' : 'Nouveau client')}`,
-            () => onNavigate('calendar')
+            _isPt ? '📅 Nova marcação' : '📅 Nouveau rendez-vous',
+            `${b.booking_date || (_isPt ? 'Data a confirmar' : 'Date à confirmer')} — ${b.client_name || (_isPt ? 'Novo cliente' : 'Nouveau client')}`,
+            () => _onNav('calendar')
           )
         }
       })

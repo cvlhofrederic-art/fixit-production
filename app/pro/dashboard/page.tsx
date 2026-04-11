@@ -236,7 +236,9 @@ function DashboardPage() {
   const DAY_SHORT = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
 
   // ══════════ AUTH INIT + DATA LOAD ══════════
+  const isMountedRef = useRef(true)
   useEffect(() => {
+    isMountedRef.current = true
     let didLoad = false
 
     const initAuth = async () => {
@@ -255,7 +257,7 @@ function DashboardPage() {
         didLoad = true; loadDashboardData(session.user)
       }
     })
-    return () => subscription.unsubscribe()
+    return () => { isMountedRef.current = false; subscription.unsubscribe() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -321,6 +323,7 @@ function DashboardPage() {
       supabase.from('bookings').select('*, services(name)').eq('artisan_id', aid).order('booking_date', { ascending: false }).limit(20),
       supabase.from('services').select('*').eq('artisan_id', aid),
     ])
+    if (!isMountedRef.current) return // Composant démonté pendant le fetch
     setBookings(bookingsRes.data || [])
     setServices(servicesRes.data || [])
 
@@ -1343,7 +1346,7 @@ function DashboardPage() {
               price_ttc: service?.price_ttc || 0,
             }).select('*, services(name)').single()
             if (!error && newBooking) {
-              setBookings([newBooking, ...bookings])
+              setBookings(prev => [newBooking, ...prev])
             }
           }}
           onCreateDevis={(data) => {

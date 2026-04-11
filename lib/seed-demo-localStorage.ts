@@ -19,14 +19,8 @@ function isAlreadySeeded(artisanId: string): boolean {
 
 export function seedDemoLocalStorage(artisanId: string): void {
   if (isAlreadySeeded(artisanId)) return
-  // Only seed for the known demo account OR for accounts with no existing documents
-  const hasExistingDocs = (() => {
-    try {
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-      return docs.length > 0
-    } catch { return false }
-  })()
-  if (artisanId !== DEMO_ARTISAN_ID && hasExistingDocs) return
+  // Seed UNIQUEMENT pour le compte demo — jamais pour les vrais utilisateurs
+  if (artisanId !== DEMO_ARTISAN_ID) return
 
   // ═══════════════════════════════════════
   // DEVIS + FACTURES (fixit_documents_*)

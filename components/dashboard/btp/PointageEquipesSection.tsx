@@ -29,8 +29,11 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
     const [ah, am] = a.split(':').map(Number); const [dh, dm] = d.split(':').map(Number)
     return Math.max(0, ((dh * 60 + dm) - (ah * 60 + am) - p) / 60)
   }
+  const heuresCalculees = Math.round(calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes) * 100) / 100
+  const horairesInvalides = form.heureDepart <= form.heureArrivee
   const addPointage = () => {
-    save([...pointages, { id: Date.now().toString(), ...form, heuresTravaillees: Math.round(calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes) * 100) / 100 }])
+    if (horairesInvalides) return
+    save([...pointages, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...form, heuresTravaillees: heuresCalculees }])
     setShowForm(false)
   }
   const deleteP = (id: string) => save(pointages.filter(p => p.id !== id))
@@ -83,10 +86,11 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
               <div className={isV5 ? 'v5-fg' : undefined} style={{ gridColumn: 'span 2' }}><label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.pointage.notes')}</label><input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
             </div>
             <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
-              <Clock size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.heures')} <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+              <Clock size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.heures')} <strong>{heuresCalculees.toFixed(2)}h</strong>
+              {horairesInvalides && <span style={{ color: '#e53935', marginLeft: 8, fontSize: 13 }}>Heure de départ doit être après l&apos;arrivée</span>}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addPointage} disabled={!form.employe}>{t('proDash.btp.pointage.enregistrer')}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addPointage} disabled={!form.employe || horairesInvalides}>{t('proDash.btp.pointage.enregistrer')}</button>
               <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: tv.bg, color: tv.text, border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{t('proDash.btp.pointage.annuler')}</button>
             </div>
           </div>

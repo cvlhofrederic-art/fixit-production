@@ -261,7 +261,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     })
   }, [authUserIdProp])
 
-  const { items: chantiers, loading: chantiersLoading, error: chantiersError } = useBTPData<ChantierItem>({
+  const { items: chantiers, loading: chantiersLoading, error: chantiersError, update: updateChantier } = useBTPData<ChantierItem>({
     table: 'chantiers',
     artisanId: userId,
     userId: authUserId,
@@ -300,8 +300,8 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
                 return null
               }
               lat = geo.lat; lng = geo.lng
-              // Persist coordinates in Supabase so we never re-geocode this chantier
-              supabase.from('chantiers_btp').update({ latitude: lat, longitude: lng }).eq('id', chantier.id).then(() => {})
+              // Persist coordinates via useBTPData (route /api/btp avec owner_id check)
+              updateChantier(chantier.id, { latitude: lat, longitude: lng }).catch(err => console.warn('[MeteoChantier] Coord persist failed:', err))
             }
             const res = await fetch(
               `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`

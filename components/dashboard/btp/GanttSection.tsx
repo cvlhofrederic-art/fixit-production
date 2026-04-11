@@ -166,7 +166,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <h1>{isV5 ? '' : <span className="v22-page-title" />}Planification Gantt</h1>
-          <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
+          <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} ${months[months.length - 1].start.getFullYear()}` : ''}</p>
         </div>
         {active.length > 0 && (
           <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
@@ -296,7 +296,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                           )}
 
                           {/* Diamond milestone at end of last segment */}
-                          {row.isChantier && seg && !getSegment(rStart, rEnd, months[mi + 1]?.start.getTime() || Infinity, months[mi + 1]?.end.getTime() || Infinity) && seg.right > 5 && (
+                          {row.isChantier && seg && mi < months.length - 1 && !getSegment(rStart, rEnd, months[mi + 1].start.getTime(), months[mi + 1].end.getTime()) && seg.right > 5 && (
                             <div style={{ ...S.diamond, right: `${Math.max(1, seg.right - 3)}%` }} />
                           )}
                         </div>

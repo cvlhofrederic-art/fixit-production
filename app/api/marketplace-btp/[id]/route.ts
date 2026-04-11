@@ -25,18 +25,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params
     const supabase = getAdmin()
 
+    // Vérifier si l'appelant est authentifié (pour inclure ses demandes)
+    const token = req.headers.get('authorization')?.replace('Bearer ', '')
+    let userId: string | null = null
+    if (token) {
+      const { data: { user } } = await getAnon().auth.getUser(token)
+      userId = user?.id || null
+    }
+
+    // Listing public sans demandes par défaut
     const { data, error } = await supabase
       .from('marketplace_listings')
-      .select('*, marketplace_demandes(id, type_demande, status, created_at)')
+      .select('*')
       .eq('id', id)
       .single()
 
     if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Incrémenter vues (fire & forget)
-    supabase.from('marketplace_listings').update({ vues: (data.vues || 0) + 1 }).eq('id', id).then(() => {})
+    // Inclure les demandes UNIQUEMENT si l'appelant est le propriétaire
+    let demandes = null
+    if (userId && data.user_id === userId) {
+      const { data: d } = await supabase
+        .from('marketplace_demandes')
+        .select('id, type_demande, status, created_at')
+        .eq('listing_id', id)
+      demandes = d
+    }
 
-    return NextResponse.json({ listing: data })
+    // Incrémenter vues atomiquement via RPC (évite race condition read-modify-write)
+    supabase.rpc('increment_listing_vues', { listing_id: id }).then(() => {}).catch(() => {})
+
+    return NextResponse.json({ listing: { ...data, marketplace_demandes: demandes } })
   } catch (e) {
     logger.error('[MPL GET ID]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -53,7 +72,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const raw = await req.json()
-    const ALLOWED_FIELDS = ['titre', 'description', 'categorie', 'prix', 'unite', 'stock', 'images', 'region', 'livraison', 'specifications'] as const
+    // Aligné sur les colonnes réelles du schema POST (listingBodySchema)
+    const ALLOWED_FIELDS = [
+      'title', 'description', 'categorie', 'type_annonce', 'etat',
+      'prix_vente', 'prix_location_jour', 'prix_location_semaine', 'prix_location_mois',
+      'disponible_de', 'disponible_jusqu', 'localisation', 'country',
+      'marque', 'modele', 'annee', 'caracteristiques',
+      'vendeur_nom', 'vendeur_phone', 'status',
+    ] as const
     const body: Record<string, unknown> = {}
     for (const key of ALLOWED_FIELDS) {
       if (key in raw) body[key] = raw[key]

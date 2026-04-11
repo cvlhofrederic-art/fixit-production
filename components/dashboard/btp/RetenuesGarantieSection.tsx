@@ -136,7 +136,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addRetenue} disabled={!form.chantier || !form.client}>{t('proDash.btp.retenues.enregistrer')}</button>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addRetenue} disabled={!form.chantier || !form.client || !form.montantMarche || form.montantMarche <= 0 || !form.dateFinTravaux}>{t('proDash.btp.retenues.enregistrer')}</button>
             <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{t('proDash.btp.retenues.annuler')}</button>
           </div>
         </div>

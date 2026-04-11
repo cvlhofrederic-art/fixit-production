@@ -9,7 +9,7 @@ import { useBTPData } from '@/lib/hooks/use-btp-data'
 interface Lot { numero: string; designation: string; montantHT: number }
 interface AppelOffre { id: string; titre: string; client: string; dateRemise: string; montantEstime: number; statut: 'en_cours' | 'soumis' | 'gagné' | 'perdu'; lots: Lot[] }
 
-export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
+export function DPGFSection({ userId, orgRole, country }: { userId: string; orgRole?: string; country?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -41,9 +41,13 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
     await update(id, { statut })
     if (selected?.id === id) setSelected(prev => prev ? { ...prev, statut } : null)
   }
+  // Taux TVA dynamique selon le pays (France 20%, Portugal 23% standard)
+  const tauxTVA = country === 'PT' ? 0.23 : 0.20
+  const tvaTxt = country === 'PT' ? 'IVA' : 'TVA'
+
   const exportDPGF = (a: AppelOffre) => {
-    const rows = a.lots.map(l => `LOT ${l.numero} — ${l.designation.padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} € HT`).join('\n')
-    const content = `DPGF — ${a.titre}\nClient : ${a.client}\nDate remise : ${a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : ''}\n\n${rows}\n\nTOTAL HT : ${getTotal(a).toLocaleString(dateLocale)} €\nTVA 20% : ${(getTotal(a) * 0.2).toLocaleString(dateLocale)} €\nTOTAL TTC : ${(getTotal(a) * 1.2).toLocaleString(dateLocale)} €`
+    const rows = a.lots.map(l => `LOT ${l.numero} — ${l.designation.substring(0, 40).padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} € HT`).join('\n')
+    const content = `DPGF — ${a.titre}\nClient : ${a.client}\nDate remise : ${a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : ''}\n\n${rows}\n\nTOTAL HT : ${getTotal(a).toLocaleString(dateLocale)} €\n${tvaTxt} ${(tauxTVA * 100).toFixed(0)}% : ${(getTotal(a) * tauxTVA).toLocaleString(dateLocale)} €\nTOTAL TTC : ${(getTotal(a) * (1 + tauxTVA)).toLocaleString(dateLocale)} €`
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a'); link.href = url; link.download = `DPGF_${a.titre.replace(/\s+/g, '_')}.txt`; link.click()
@@ -198,8 +202,8 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
                   <td style={{ fontWeight: 600, color: isV5 ? 'var(--v5-primary-yellow-dark)' : tv.primary, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{getTotal(selected).toLocaleString(dateLocale)} €</td>
                 </tr>
                 <tr>
-                  <td colSpan={2} style={{ textAlign: 'right', fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{t('proDash.btp.dpgf.totalTTC')}</td>
-                  <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{(getTotal(selected) * 1.2).toLocaleString(dateLocale)} €</td>
+                  <td colSpan={2} style={{ textAlign: 'right', fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{t('proDash.btp.dpgf.totalTTC')} ({tvaTxt} {(tauxTVA * 100).toFixed(0)}%)</td>
+                  <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{(getTotal(selected) * (1 + tauxTVA)).toLocaleString(dateLocale)} €</td>
                 </tr>
               </tfoot>
             </table>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { BarChart3 } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
@@ -21,6 +21,14 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
 
   const { items: situations, loading, add, update } = useBTPData<Situation>({ table: 'situations', artisanId: userId, userId })
   const [selected, setSelected] = useState<Situation | null>(null)
+  // Synchroniser selected avec les items frais apres chaque refresh
+  useEffect(() => {
+    if (selected) {
+      const fresh = situations.find(s => s.id === selected.id)
+      if (fresh) setSelected(fresh)
+      else setSelected(null) // supprimé entre-temps
+    }
+  }, [situations]) // eslint-disable-line react-hooks/exhaustive-deps
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ chantier: '', client: '', montantMarche: 0 })
   const [newPoste, setNewPoste] = useState<Poste>({ poste: '', quantite: 0, unite: 'u', prixUnit: 0, avancement: 0 })

@@ -504,8 +504,10 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
   const annualHT = quarterData.reduce((s, v) => s + v, 0)
   const isEntreprise = orgRole === 'pro_societe'
-  // Micro-entrepreneur only if artisan role AND under threshold
-  const isAutoEntrepreneur = !isEntreprise && (isPt ? annualHT < 200000 : annualHT < 77700)
+  // Micro-entrepreneur : seuil BTP (vente/fourniture) = 188 700 € ; services = 77 700 € (2024+)
+  // Pour les artisans BTP, le seuil applicable est celui du commerce (art. 293B CGI)
+  const seuilMicroFR = 188700 // Seuil BTP (activités mixtes vente + prestation)
+  const isAutoEntrepreneur = !isEntreprise && (isPt ? annualHT < 200000 : annualHT < seuilMicroFR)
 
   // Fiscal calculations differ by status
   let cotisationsSociales: number

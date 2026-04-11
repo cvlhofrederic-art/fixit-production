@@ -81,6 +81,8 @@ export async function GET(request: NextRequest) {
       } else if (table === 'dpgf') {
         const { data } = await supabaseAdmin.from('dpgf_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
         result.dpgf = data || []
+      } else {
+        return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
       }
       return NextResponse.json(result)
     }
@@ -136,7 +138,12 @@ export async function POST(request: NextRequest) {
   try {
     // ── Import from localStorage (batch insert) ──────────────────────────────
     if (action === 'import' && Array.isArray(data)) {
-      const rows = data.map((d: Record<string, unknown>) => ({ ...d, owner_id: user.id }))
+      if (data.length > 500) return NextResponse.json({ error: 'Import limité à 500 lignes max' }, { status: 400 })
+      const rows = data.map((d: Record<string, unknown>) => {
+        const clean = { ...d, owner_id: user.id }
+        delete clean.created_at; delete clean.updated_at
+        return clean
+      })
       const { data: inserted, error } = await supabaseAdmin
         .from(table)
         .insert(rows)
@@ -179,7 +186,8 @@ export async function POST(request: NextRequest) {
     // ── Insert ───────────────────────────────────────────────────────────────
     if (action === 'insert') {
       const row = { ...data, owner_id: user.id }
-      // Handle equipe membreIds separately
+      // Strip dangerous/system keys
+      delete row.id; delete row.created_at
       const membreIds = row.membreIds
       delete row.membreIds
       delete row.equipe_membres_btp

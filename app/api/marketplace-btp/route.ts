@@ -69,8 +69,16 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(limit)
 
-    if (user_id)   query = query.eq('user_id', user_id)
-    else           query = query.eq('status', 'active')    // publiques = actives seulement
+    if (user_id) {
+      // "Mes annonces" — requiert auth et vérifie que c'est bien l'utilisateur
+      const token = req.headers.get('authorization')?.replace('Bearer ', '')
+      if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      const { data: { user }, error: authErr } = await getAnon().auth.getUser(token)
+      if (authErr || !user || user.id !== user_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      query = query.eq('user_id', user_id)
+    } else {
+      query = query.eq('status', 'active')    // publiques = actives seulement
+    }
     if (categorie) query = query.eq('categorie', categorie)
     if (country)   query = query.eq('country', country)
     if (type)      query = query.or(`type_annonce.eq.${type},type_annonce.eq.vente_location`)

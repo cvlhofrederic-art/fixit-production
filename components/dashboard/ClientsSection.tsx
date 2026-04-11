@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
+import { supabase } from '@/lib/supabase'
 
 interface InterventionAddress {
   id: string
@@ -102,13 +103,18 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   useEffect(() => {
     if (!artisan?.id) return
     setLoading(true)
-    fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-      .then(r => r.json())
-      .then(data => {
-        setAuthClients(data.clients || [])
-        setLoading(false)
+    supabase.auth.getSession().then(({ data: sess }) => {
+      const token = sess.session?.access_token
+      fetch(`/api/artisan-clients?artisan_id=${artisan.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      .catch(() => setLoading(false))
+        .then(r => r.json())
+        .then(data => {
+          setAuthClients(data.clients || [])
+          setLoading(false)
+        })
+        .catch(() => setLoading(false))
+    })
   }, [artisan?.id])
 
   // Save manual clients to localStorage

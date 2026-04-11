@@ -186,8 +186,6 @@ export default function RFQSection({ artisan, orgRole }: Props) {
       }
       showToast(isFR ? 'Offre acceptée !' : 'Proposta aceite!')
       await loadRFQs()
-      const updated = rfqs.find(r => r.id === selectedRFQ?.id)
-      if (updated) setSelectedRFQ(updated)
       setSelectedRFQ(null)
     } catch {
       showToast(isFR ? 'Erreur' : 'Erro', false)

@@ -122,8 +122,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
+      if (!token) { toast.error('Session expirée'); setUploading(false); return }
       let successCount = 0
       for (const file of Array.from(files)) {
+        // Validation MIME côté client
+        if (!file.type.startsWith('image/')) { toast.error(`${file.name} : type non supporté`); continue }
         const formData = new FormData()
         formData.append('file', file)
         formData.append('artisan_id', artisan.id)
