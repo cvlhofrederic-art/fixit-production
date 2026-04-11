@@ -103,7 +103,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       } else {
         const defaults = isSociete ? INITIAL_SOCIETE : INITIAL_ARTISAN
         setItems(defaults)
-        localStorage.setItem(storageKey, JSON.stringify(defaults))
+        try { localStorage.setItem(storageKey, JSON.stringify(defaults)) } catch (e) { console.warn('[storage] biblio init', e) }
       }
     } catch {
       setItems(isSociete ? INITIAL_SOCIETE : INITIAL_ARTISAN)
@@ -114,7 +114,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
   function persist(newItems: BiblioItem[]) {
     setItems(newItems)
     if (artisan?.id) {
-      localStorage.setItem(storageKey, JSON.stringify(newItems))
+      try { localStorage.setItem(storageKey, JSON.stringify(newItems)) } catch (e) { console.warn('[storage] biblio persist', e) }
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { cacheable } from '@/lib/cache'
+import { logger } from '@/lib/logger'
 
 // Mapping service slug → metiers in artisans_catalogue
 const SERVICE_TO_METIERS: Record<string, string[]> = {
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
       { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } }
     )
   } catch (err) {
-    console.error('[artisans-catalogue/GET] Unexpected error:', err)
+    logger.error('[artisans-catalogue/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

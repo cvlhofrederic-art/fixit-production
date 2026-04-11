@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { auditLog } from '@/lib/audit'
 import { validateBody, loginAttemptSchema } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // POST /api/auth/log-attempt
 // Enregistre les tentatives de connexion (succès/échec) pour audit sécurité
@@ -53,8 +54,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ logged: true })
-  } catch {
+  } catch (e) {
     // Non-critical — ne pas bloquer le flow d'auth
+    logger.warn('[auth/log-attempt] Failed to log attempt:', e)
     return NextResponse.json({ logged: false }, { status: 200 })
   }
 }

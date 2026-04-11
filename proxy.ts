@@ -81,7 +81,18 @@ export async function proxy(request: NextRequest) {
       'http://localhost',          // Android Capacitor
     ]
     // Permettre les requêtes server-to-server (pas d'origin) et les requêtes valides
-    if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+    const isOriginAllowed = (o: string): boolean => {
+      try {
+        const parsed = new URL(o)
+        return allowedOrigins.some(allowed => {
+          const allowedUrl = new URL(allowed)
+          return parsed.protocol === allowedUrl.protocol && parsed.hostname === allowedUrl.hostname && parsed.port === allowedUrl.port
+        })
+      } catch {
+        return false
+      }
+    }
+    if (origin && !isOriginAllowed(origin)) {
       return new NextResponse(JSON.stringify({ error: 'CSRF: Origin non autorisé' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json', 'Content-Security-Policy': cspHeader },
@@ -150,9 +161,13 @@ export async function proxy(request: NextRequest) {
 
   // IMPORTANT: DO NOT remove this line — it refreshes the auth token
   // DO NOT add any code between createServerClient and getUser()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Supabase unreachable — treat as unauthenticated and continue
+  }
 
   // Helper: check if role is a syndic role
   const isSyndicRole = (role: string | undefined) =>
@@ -191,7 +206,7 @@ export async function proxy(request: NextRequest) {
     if (role === 'artisan') return localeRedirect('/pro/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
-    if (role === 'coproprietaire') return localeRedirect('/coproprietaire/dashboard')
+    if (role === 'coproprio') return localeRedirect('/coproprietaire/dashboard')
     return localeRedirect('/client/dashboard')
   }
 

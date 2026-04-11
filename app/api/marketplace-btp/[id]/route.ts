@@ -5,12 +5,19 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
 function getAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Missing Supabase env vars')
+  return createClient(url, key)
 }
 function getAnon() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) throw new Error('Missing Supabase env vars')
+  return createClient(url, key)
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -31,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ listing: data })
   } catch (e) {
-    console.error('[MPL GET ID]', e)
+    logger.error('[MPL GET ID]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -45,9 +52,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: { user }, error: authErr } = await getAnon().auth.getUser(token)
     if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await req.json()
+    const raw = await req.json()
+    const ALLOWED_FIELDS = ['titre', 'description', 'categorie', 'prix', 'unite', 'stock', 'images', 'region', 'livraison', 'specifications'] as const
+    const body: Record<string, unknown> = {}
+    for (const key of ALLOWED_FIELDS) {
+      if (key in raw) body[key] = raw[key]
+    }
     const AE_CATS = ['mini_engins', 'materiel_leger']
-    if (body.categorie) body.accessible_ae = AE_CATS.includes(body.categorie)
+    if (body.categorie && typeof body.categorie === 'string') body.accessible_ae = AE_CATS.includes(body.categorie)
 
     const { data, error } = await getAdmin()
       .from('marketplace_listings')
@@ -61,7 +73,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!data) return NextResponse.json({ error: 'Not found or not owner' }, { status: 404 })
     return NextResponse.json({ listing: data })
   } catch (e) {
-    console.error('[MPL PUT]', e)
+    logger.error('[MPL PUT]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -84,7 +96,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (error) throw error
     return NextResponse.json({ success: true })
   } catch (e) {
-    console.error('[MPL DELETE]', e)
+    logger.error('[MPL DELETE]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

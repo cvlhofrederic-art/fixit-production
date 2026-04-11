@@ -1,14 +1,17 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Artisan pages', () => {
+  // The i18n proxy redirects /path → /{locale}/path/ with a 307.
+  // Tests use the locale-prefixed URL directly to avoid redirect issues.
+
   test('/recherche page loads', async ({ page }) => {
-    const response = await page.goto('/recherche')
+    const response = await page.goto('/fr/recherche/', { waitUntil: 'networkidle' })
     expect(response).not.toBeNull()
     expect(response!.status()).toBe(200)
   })
 
   test('search functionality is present on /recherche', async ({ page }) => {
-    await page.goto('/recherche')
+    await page.goto('/fr/recherche/', { waitUntil: 'networkidle' })
 
     // The search page should have a search input or a filter mechanism
     // The page imports the Search icon and uses SlidersHorizontal for filters
@@ -20,20 +23,20 @@ test.describe('Artisan pages', () => {
     // Clear any auth cookies/session
     await page.context().clearCookies()
 
-    const response = await page.goto('/pro/dashboard', { waitUntil: 'domcontentloaded' })
+    await page.goto('/fr/pro/dashboard', { waitUntil: 'networkidle' })
 
-    // The middleware redirects unauthenticated users to /auth/login
-    await page.waitForURL('**/auth/login**', { timeout: 10000 })
-    expect(page.url()).toContain('/auth/login')
+    // The proxy redirects unauthenticated users to /{locale}/auth/login
+    await page.waitForURL('**/fr/auth/login**', { timeout: 15000 })
+    expect(page.url()).toContain('/fr/auth/login')
   })
 
   test('/client/dashboard redirects to login when not authenticated', async ({ page }) => {
     await page.context().clearCookies()
 
-    await page.goto('/client/dashboard', { waitUntil: 'domcontentloaded' })
+    await page.goto('/fr/client/dashboard', { waitUntil: 'networkidle' })
 
-    // Middleware redirects to /auth/login for client routes
-    await page.waitForURL('**/auth/login**', { timeout: 10000 })
-    expect(page.url()).toContain('/auth/login')
+    // Proxy redirects to /{locale}/auth/login for client routes
+    await page.waitForURL('**/fr/auth/login**', { timeout: 15000 })
+    expect(page.url()).toContain('/fr/auth/login')
   })
 })

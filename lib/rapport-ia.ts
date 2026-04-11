@@ -122,7 +122,8 @@ Réponds UNIQUEMENT en JSON valide avec cette structure :
   const raw = groqResponse.choices[0]?.message?.content
   if (!raw) throw new Error('Réponse Groq vide')
 
-  const contenu = JSON.parse(raw)
+  let contenu
+  try { contenu = JSON.parse(raw) } catch (e) { throw new Error(`Réponse Groq JSON invalide: ${e instanceof Error ? e.message : String(e)}`) }
 
   // Validation : tous les champs requis présents et non vides
   const champsRequis = ['introduction', 'travaux_realises', 'observations', 'conclusion'] as const

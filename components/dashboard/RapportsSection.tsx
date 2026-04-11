@@ -304,7 +304,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   const saveRapports = (updated: RapportIntervention[]) => {
     setRapports(updated)
-    localStorage.setItem(storageKey, JSON.stringify(updated))
+    try { localStorage.setItem(storageKey, JSON.stringify(updated)) } catch (e) { console.warn('[storage] saveRapports', e) }
   }
 
   const nextNumber = () => {

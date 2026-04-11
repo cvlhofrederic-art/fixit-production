@@ -305,7 +305,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
         }
         const updated = [search, ...savedSearches].slice(0, 20)
         setSavedSearches(updated)
-        localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
+        try { localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated)) } catch (e) { console.warn('[storage] materiaux save', e) }
       }
 
       setMessages(prev => [...prev, {
@@ -1296,7 +1296,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                         onClick={() => {
                           const updated = savedSearches.filter(x => x.id !== s.id)
                           setSavedSearches(updated)
-                          localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
+                          try { localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated)) } catch (e) { console.warn('[storage] materiaux delete', e) }
                         }}
                         className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'} style={isV5 ? undefined : { color: tv.red }}
                       >

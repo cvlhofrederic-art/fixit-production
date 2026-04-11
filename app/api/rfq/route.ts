@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
+import { logger } from '@/lib/logger'
 
 const rfqItemSchema = z.object({
   product_name: z.string().min(1),
@@ -22,10 +23,16 @@ const rfqBodySchema = z.object({
 
 // Lazy init — évite le crash au build CI quand SUPABASE_SERVICE_ROLE_KEY n'est pas défini
 function getSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Missing Supabase env vars')
+  return createClient(url, key)
 }
 function getSupabaseAnon() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) throw new Error('Missing Supabase env vars')
+  return createClient(url, key)
 }
 
 export async function GET(req: NextRequest) {
@@ -48,7 +55,7 @@ export async function GET(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ rfqs })
   } catch (e) {
-    console.error('[RFQ GET]', e)
+    logger.error('[RFQ GET]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -118,7 +125,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ rfq, itemCount: rfqItems?.length ?? 0 }, { status: 201 })
   } catch (e) {
-    console.error('[RFQ POST]', e)
+    logger.error('[RFQ POST]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

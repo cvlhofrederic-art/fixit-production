@@ -478,7 +478,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
     const newExpense = { ...expenseForm, id: Date.now().toString(), amount: parseFloat(expenseForm.amount) }
     const updated = [...expenses, newExpense]
     setExpenses(updated)
-    localStorage.setItem(`fixit_expenses_${artisan?.id}`, JSON.stringify(updated))
+    try { localStorage.setItem(`fixit_expenses_${artisan?.id}`, JSON.stringify(updated)) } catch (e) { console.warn('[storage] saveExpense', e) }
     setShowAddExpense(false)
     setExpenseForm({ label: '', amount: '', category: 'materiel', date: new Date().toISOString().split('T')[0], notes: '' })
   }
@@ -486,7 +486,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const deleteExpense = (id: string) => {
     const updated = expenses.filter(e => e.id !== id)
     setExpenses(updated)
-    localStorage.setItem(`fixit_expenses_${artisan?.id}`, JSON.stringify(updated))
+    try { localStorage.setItem(`fixit_expenses_${artisan?.id}`, JSON.stringify(updated)) } catch (e) { console.warn('[storage] deleteExpense', e) }
   }
 
   // Declaration data
@@ -549,7 +549,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
           const data = await res.json()
           setTvaAutoActivate(data.tva_auto_activate ?? false)
         }
-      } catch {}
+      } catch (e) { console.warn('[compta] TVA settings error:', e) }
     }
     loadTvaSettings()
   }, [])
@@ -567,7 +567,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ ca_ht: annualHT, country: tvaCountry }),
         })
-      } catch {}
+      } catch (e) { console.warn('[compta] TVA check error:', e) }
     }
     checkTva()
   }, [annualHT, tvaCountry, tvaCheckDone])

@@ -11,9 +11,12 @@ import { validateBody, serviceEtapesPostSchema, serviceEtapesPatchSchema } from 
 
 async function getUser() {
   const cookieStore = await cookies()
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) throw new Error('Missing Supabase env vars')
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     { cookies: { getAll: () => cookieStore.getAll() } }
   )
   const { data: { user } } = await supabase.auth.getUser()

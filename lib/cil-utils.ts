@@ -52,7 +52,8 @@ export function generateCILEntries(
   bookings: Booking[],
   labels: { warrantyBiennial: string; warrantyAnnual: string }
 ): CILEntry[] {
-  const proofs: ProofEntry[] = JSON.parse(localStorage.getItem('fixit_proofs') || '[]')
+  let proofs: ProofEntry[] = []
+  try { proofs = JSON.parse(localStorage.getItem('fixit_proofs') || '[]') } catch (e) { console.warn('[storage] fixit_proofs parse', e) }
 
   return bookings
     .filter(b => b.status === 'completed')

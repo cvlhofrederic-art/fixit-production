@@ -44,8 +44,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${APP_URL}/syndic/dashboard?email_error=state_expired`)
   }
 
-  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!
-  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    logger.error('Missing Google OAuth env vars')
+    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+  }
 
   try {
     // 1. Échanger le code contre des tokens

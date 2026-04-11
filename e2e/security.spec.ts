@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Security Headers', () => {
   test('homepage returns all required security headers', async ({ request }) => {
-    const response = await request.get('/')
+    // Use locale-prefixed URL to avoid 307 redirect from i18n proxy
+    const response = await request.get('/fr/')
     const headers = response.headers()
 
     // HSTS with preload
