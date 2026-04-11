@@ -653,14 +653,16 @@ export function useBTPSettings() {
 export function useGeoPointage() {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
   const [watching, setWatching] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
   const watchId = useRef<number | null>(null)
 
   const start = useCallback(() => {
     if (!navigator.geolocation) return
     setWatching(true)
+    setGeoError(null)
     watchId.current = navigator.geolocation.watchPosition(
-      (pos) => setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => { /* silent */ },
+      (pos) => { setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoError(null) },
+      (err) => { setGeoError(err.code === 1 ? 'Permission GPS refusée' : err.code === 2 ? 'GPS indisponible' : 'GPS timeout'); console.warn('[geo] watchPosition error:', err.message) },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     )
   }, [])
@@ -687,5 +689,5 @@ export function useGeoPointage() {
 
   useEffect(() => { return () => stop() }, [stop])
 
-  return { position, watching, start, stop, distanceTo }
+  return { position, watching, geoError, start, stop, distanceTo }
 }

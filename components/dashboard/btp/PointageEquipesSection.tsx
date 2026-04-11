@@ -5,6 +5,11 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
 import { Clock } from 'lucide-react'
 
+interface Pointage {
+  id: string; employe: string; poste: string; chantier: string; date: string
+  heureArrivee: string; heureDepart: string; pauseMinutes: number; heuresTravaillees: number; notes: string
+}
+
 export function PointageEquipesSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -12,10 +17,6 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
   const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `pointage_${userId}`
-  interface Pointage {
-    id: string; employe: string; poste: string; chantier: string; date: string
-    heureArrivee: string; heureDepart: string; pauseMinutes: number; heuresTravaillees: number; notes: string
-  }
   const [pointages, setPointages] = useState<Pointage[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
   })

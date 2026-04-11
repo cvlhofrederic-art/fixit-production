@@ -28,13 +28,13 @@ interface PortalClient {
   lastConsultation: string | null
 }
 
-// Derive clients from chantiers with contact info from seed data
-const CLIENT_CONTACTS: Record<string, { email: string; phone: string; type: 'particulier' | 'syndic' | 'societe' }> = {
-  'Mme Dupont Catherine': { email: 'c.dupont@email.fr', phone: '06 11 22 33 44', type: 'particulier' },
-  'Syndic Foncia — Résidence Les Pins': { email: 'foncia.pins@foncia.fr', phone: '04 91 00 00 00', type: 'syndic' },
-  'M. et Mme Garcia': { email: 'garcia.fam@email.fr', phone: '06 77 88 99 00', type: 'particulier' },
-  'M. Rossi Antoine': { email: 'a.rossi@email.fr', phone: '06 44 55 66 77', type: 'particulier' },
-  'SCI Les Terrasses du Sud': { email: 'contact@terrasses-sud.fr', phone: '04 91 55 66 77', type: 'societe' },
+// Contact info dérivé des champs du chantier (plus de données fictives hardcodées)
+function getContactFromChantier(ch: ChantierItem): { email: string; phone: string; type: 'particulier' | 'syndic' | 'societe' } {
+  const name = (ch.client || '').toLowerCase()
+  const type = name.includes('syndic') || name.includes('copro') ? 'syndic' as const
+    : name.includes('sci') || name.includes('sas') || name.includes('sarl') ? 'societe' as const
+    : 'particulier' as const
+  return { email: (ch as any).client_email || '', phone: (ch as any).client_phone || '', type }
 }
 
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -69,7 +69,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
     if (existing) {
       existing.chantiers.push(ch)
     } else {
-      const contact = CLIENT_CONTACTS[ch.client] || { email: '', phone: '', type: 'particulier' as const }
+      const contact = getContactFromChantier(ch)
       const client: PortalClient = {
         name: ch.client,
         email: contact.email,

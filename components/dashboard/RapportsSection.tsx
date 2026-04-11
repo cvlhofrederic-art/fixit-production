@@ -252,7 +252,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
         gest.forEach((m: MissionRecord) => allMissions.push({ ...m, source: 'gestionnaire' }))
       } catch {}
       // 2. Ordres de mission syndic (canal artisan)
-      const artisanKey = `canal_artisan_${(artisan.company_name || artisan.nom || artisan.id || 'artisan').replace(/\s+/g, '_').toLowerCase()}`
+      // Utiliser artisan.id comme clé stable (company_name peut changer)
+      const artisanKey = `canal_artisan_${artisan.id}`
       try {
         const ordres = JSON.parse(localStorage.getItem(artisanKey) || '[]')
         ordres.forEach((m: MissionRecord) => allMissions.push({ ...m, source: 'syndic' }))
@@ -310,7 +311,11 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const nextNumber = () => {
     const year = new Date().getFullYear()
     const existing = rapports.filter(r => r.rapportNumber?.startsWith(`RAP-${year}`))
-    return `RAP-${year}-${String(existing.length + 1).padStart(3, '0')}`
+    const maxNum = existing.reduce((max, r) => {
+      const n = parseInt(r.rapportNumber?.split('-').pop() || '0', 10)
+      return n > max ? n : max
+    }, 0)
+    return `RAP-${year}-${String(maxNum + 1).padStart(3, '0')}`
   }
 
   const openNew = () => {

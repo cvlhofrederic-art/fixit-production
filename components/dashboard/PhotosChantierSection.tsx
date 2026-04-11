@@ -195,7 +195,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
               background: 'rgba(0,0,0,0.5)', borderRadius: '50%', width: 36, height: 36,
               display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer'
             }}
-          >✕</button>
+          aria-label="Fermer la photo">✕</button>
         </div>
       )}
 
@@ -371,7 +371,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                           <button onClick={() => setAssigningRapport(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
                             {'📋'} {t('proDash.photos.rapport')}
                           </button>
-                          <button onClick={() => deletePhoto(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10, color: tv.red }}>
+                          <button onClick={() => deletePhoto(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label="Supprimer la photo">
                             {'🗑️'}
                           </button>
                         </>

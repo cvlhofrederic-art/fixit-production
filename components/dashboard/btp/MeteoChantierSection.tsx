@@ -351,17 +351,17 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     fetchedRef.current = false
   }, [authUserId])
 
-  // Auto-fetch weather when chantiers are loaded
+  // Auto-fetch weather when chantiers are loaded (hash IDs+adresses to detect content changes)
+  const chantiersKey = chantiersAvecLocalisation.map(c => `${c.id}:${c.ville || c.adresse}`).join(',')
   useEffect(() => {
     if (chantiersLoading) return
     if (chantiersAvecLocalisation.length === 0) return
     if (fetchedRef.current) return
     fetchedRef.current = true
-    // Small delay to ensure Supabase data is settled
     const timer = setTimeout(() => fetchMeteo(chantiersAvecLocalisation), 300)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chantiersLoading, chantiersAvecLocalisation.length])
+  }, [chantiersLoading, chantiersKey])
 
   const nbOk = meteoData.filter(m => m.alert === 'ok').length
   const nbVigilance = meteoData.filter(m => m.alert === 'vigilance').length

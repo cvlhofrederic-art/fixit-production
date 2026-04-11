@@ -90,6 +90,12 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
     setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] })
   }
 
+  const openEditEquipe = (eq: EquipeBTP) => {
+    setEditingEquipe(eq)
+    setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds })
+    setShowEquipeModal(true)
+  }
+
   const deleteEquipe = (id: string) => {
     setConfirmDelete({ type: 'equipe', id })
   }
@@ -254,7 +260,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds }); setShowEquipeModal(true) }} aria-label="Modifier cette équipe"><Pencil size={14} /></button>
+                      <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ flex: 1 }} onClick={() => openEditEquipe(eq)} aria-label="Modifier cette équipe"><Pencil size={14} /></button>
                       <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? { color: '#C0392B' } : { background: tv.redBg, color: tv.red }} onClick={() => deleteEquipe(eq.id)} aria-label="Supprimer cette équipe"><Trash2 size={14} /></button>
                     </div>
                   </div>

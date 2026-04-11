@@ -51,8 +51,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const user = await auth(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { type_demande, date_debut, date_fin, message, prix_propose } = await req.json()
-    if (!type_demande) return NextResponse.json({ error: 'type_demande requis' }, { status: 400 })
+    const body = await req.json()
+    const { type_demande, date_debut, date_fin, prix_propose } = body
+    const message = typeof body.message === 'string' ? body.message.slice(0, 2000) : ''
+    if (!type_demande || !['achat', 'location'].includes(type_demande)) return NextResponse.json({ error: 'type_demande requis (achat ou location)' }, { status: 400 })
+    if (prix_propose !== undefined && (typeof prix_propose !== 'number' || prix_propose < 0)) return NextResponse.json({ error: 'prix_propose invalide' }, { status: 400 })
 
     // Vérifier que l'acheteur n'est pas le vendeur
     const { data: listing } = await getAdmin()

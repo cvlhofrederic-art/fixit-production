@@ -240,11 +240,13 @@ function DashboardPage() {
     let didLoad = false
 
     const initAuth = async () => {
+      // getSession suffit côté client — getUser (round-trip réseau) n'est nécessaire
+      // que si la session locale est corrompue, ce qui est géré par onAuthStateChange
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) { didLoad = true; loadDashboardData(session.user); return }
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (currentUser) { didLoad = true; loadDashboardData(currentUser) }
-      else { window.location.href = '/auth/login' }
+      if (session?.user) { didLoad = true; loadDashboardData(session.user) }
+      // Si pas de session, on attend INITIAL_SESSION de onAuthStateChange
+      // qui va soit fournir un user, soit on redirige après un timeout
+      else { setTimeout(() => { if (!didLoad) window.location.href = '/auth/login' }, 3000) }
     }
 
     initAuth()

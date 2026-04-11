@@ -34,7 +34,8 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
   const [newPoste, setNewPoste] = useState<Poste>({ poste: '', quantite: 0, unite: 'u', prixUnit: 0, avancement: 0 })
 
   const createSit = async () => {
-    const numero = situations.filter(s => s.chantier === form.chantier).length + 1
+    const existing = situations.filter(s => s.chantier === form.chantier)
+    const numero = existing.length > 0 ? Math.max(...existing.map(s => s.numero)) + 1 : 1
     const created = await add({ ...form, numero, date: new Date().toISOString().split('T')[0], travaux: [], statut: 'brouillon' })
     if (created) { setSelected(created); setShowForm(false) }
   }
