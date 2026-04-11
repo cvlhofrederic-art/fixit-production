@@ -79,7 +79,7 @@ export async function proxy(request: NextRequest) {
       'https://vitfix.io',
       'https://fixit-production.vercel.app',  // Vercel preview/staging
       'capacitor://localhost',     // iOS Capacitor
-      'http://localhost',          // Android Capacitor
+      'https://localhost',         // F13: Android Capacitor (androidScheme: https)
     ]
     // Permettre les requêtes server-to-server (pas d'origin) et les requêtes valides
     const isOriginAllowed = (o: string): boolean => {

@@ -18,10 +18,16 @@ const ALLOWED_TAGS = new Set([
  * No jsdom/DOMPurify — works server + client without ESM issues.
  */
 export function purifyHTML(html: string): string {
-  // Strip any tag not in the allowlist (keeps allowed tags intact)
-  return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tag) => {
-    if (ALLOWED_TAGS.has(tag.toLowerCase())) return match
-    return ''
+  // Strip any tag not in the allowlist, then remove dangerous attributes on allowed tags
+  return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/g, (match, tag, attrs) => {
+    if (!ALLOWED_TAGS.has(tag.toLowerCase())) return ''
+    if (!attrs) return match
+    // F04: strip event handlers (onclick, onerror, etc.) and javascript: hrefs
+    const safeAttrs = attrs
+      .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+      .replace(/\s+href\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, '')
+      .replace(/\s+src\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, '')
+    return `<${match.startsWith('</') ? '/' : ''}${tag}${safeAttrs}>`
   })
 }
 

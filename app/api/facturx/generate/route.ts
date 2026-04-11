@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateFacturXML } from '@/lib/facturx-mapper'
 import { embedFacturX } from '@/lib/facturx'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // ── Validation Zod (facture FR uniquement) ──
 const facturxRequestSchema = z.object({
@@ -63,7 +65,13 @@ const facturxRequestSchema = z.object({
     })).min(1),
     notes: z.string().default(''),
     acomptesEnabled: z.boolean().optional(),
-    acomptes: z.array(z.any()).optional(),
+    // F16: schema strict au lieu de z.any()
+    acomptes: z.array(z.object({
+      label: z.string().max(200).default(''),
+      percentage: z.number().min(0).max(100).optional(),
+      amount: z.number().min(0).optional(),
+      dueDate: z.string().optional(),
+    })).optional(),
   }),
   // PDF base64 optionnel — si fourni, on embed le XML dedans
   // Sinon on génère un PDF minimaliste
@@ -71,6 +79,13 @@ const facturxRequestSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  // F03: auth + rate limit obligatoires (CPU-intensive)
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+  const ip = getClientIP(req)
+  if (!(await checkRateLimit(`facturx_${ip}`, 10, 60_000))) return rateLimitResponse()
+
   try {
     const body = await req.json()
     const parsed = facturxRequestSchema.safeParse(body)

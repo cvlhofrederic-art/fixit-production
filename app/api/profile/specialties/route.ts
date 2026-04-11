@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
 
 const specialtiesBodySchema = z.object({
   user_id: z.string().uuid(),
@@ -9,6 +10,9 @@ const specialtiesBodySchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
   let rawBody: unknown
   try {
     rawBody = await req.json()
@@ -20,6 +24,9 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
   const { user_id, slugs, verified_source } = parsed.data
+
+  // F01: vérifier que l'utilisateur ne modifie que son propre profil
+  if (user.id !== user_id) return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
 
   // Resolve slugs → specialty UUIDs
   const { data: specialties, error: fetchError } = await supabaseAdmin

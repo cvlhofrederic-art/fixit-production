@@ -93,8 +93,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Générer un nom de fichier unique
-    const ext = file.name.split('.').pop() || 'bin'
+    // F11: whitelist d'extensions au lieu du nom fourni par le client
+    const EXT_MAP: Record<string, string> = {
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+      'application/pdf': 'pdf', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg',
+      'audio/webm': 'webm', 'audio/mp4': 'm4a',
+    }
+    const ext = EXT_MAP[file.type] || file.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '') || 'bin'
     const timestamp = Date.now()
     const randomSuffix = Math.random().toString(36).substring(2, 8)
     const filename = `${folder}/${timestamp}_${randomSuffix}.${ext}`

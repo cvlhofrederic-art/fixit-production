@@ -43,9 +43,9 @@ CREATE POLICY "audit_logs_super_admin_read" ON audit_logs
     )
   );
 
--- Cleanup automatique : supprimer les logs > 1 an (RGPD proportionnalité)
--- À exécuter via cron job Supabase ou pg_cron
--- SELECT cron.schedule('audit_logs_cleanup', '0 3 * * 0', $$DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '1 year'$$);
+-- F15: Cleanup automatique des logs > 1 an (RGPD proportionnalité)
+-- Activé via pg_cron : tous les dimanches à 3h du matin
+SELECT cron.schedule('audit_logs_cleanup', '0 3 * * 0', $$DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '1 year'$$);
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Stripe webhook event deduplication

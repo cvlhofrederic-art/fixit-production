@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache serveur pour éviter un round-trip Supabase par requête API
 const _userCache = new Map<string, { user: User; ts: number }>()
-const AUTH_CACHE_TTL = 30_000 // 30s
+const AUTH_CACHE_TTL = 15_000 // F19: réduit de 30s à 15s pour fenêtre de révocation plus courte
 
 export async function getAuthUser(request: NextRequest) {
   try {
@@ -81,7 +81,7 @@ export function isSuperAdmin(user: User): boolean {
 // ── Cache cabinet_id en mémoire (TTL 5min) pour éviter les requêtes DB répétées ──
 // Chaque requête API syndic appelle resolveCabinetId() → sans cache, c'est 1 query DB / requête
 const cabinetIdCache = new Map<string, { value: string; expiresAt: number }>()
-const CABINET_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const CABINET_CACHE_TTL = 60 * 1000 // F12: réduit à 60s pour limiter la fenêtre après retrait d'un membre
 
 // ── Résout le cabinet_id d'un utilisateur syndic de façon sécurisée ──────────
 // Ne fait PAS confiance à user_metadata (modifiable côté client).

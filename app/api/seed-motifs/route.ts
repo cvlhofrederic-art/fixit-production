@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import defaultMotifs from '@/lib/default-motifs.json'
 import { validateBody, seedMotifsSchema } from '@/lib/validation'
+import { getAuthUser } from '@/lib/auth-helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,9 @@ const CATEGORY_TO_METIER: Record<string, string> = {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`seed_motifs_${ip}`, 5, 60_000))) return rateLimitResponse()
 
@@ -60,15 +64,19 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { artisan_id, categories } = v.data
 
-    // Vérifier que l'artisan existe
+    // F02: vérifier que l'artisan appartient à l'utilisateur connecté
     const { data: artisan } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('id')
+      .select('id, user_id')
       .eq('id', artisan_id)
       .single()
 
     if (!artisan) {
       return NextResponse.json({ error: 'Artisan non trouvé' }, { status: 404 })
+    }
+
+    if (artisan.user_id !== user.id) {
+      return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
     }
 
     // Vérifier qu'il n'a pas déjà des motifs (éviter les doublons)

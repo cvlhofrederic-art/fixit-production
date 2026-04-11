@@ -123,9 +123,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Photo trop volumineuse (max 15 Mo)' }, { status: 400 })
     }
 
-    // Upload vers Supabase Storage
+    // F10: validation magic bytes (ne pas faire confiance au file.type client)
     const buffer = await file.arrayBuffer()
-    const ext = file.name.split('.').pop() || 'jpg'
+    const magicBytes = new Uint8Array(buffer.slice(0, 12))
+    const matchMagic = (sig: number[]) => sig.every((b, i) => magicBytes[i] === b)
+    const isJPEG = matchMagic([0xFF, 0xD8, 0xFF])
+    const isPNG = matchMagic([0x89, 0x50, 0x4E, 0x47])
+    const isGIF = matchMagic([0x47, 0x49, 0x46])
+    let isWebP = false
+    if (buffer.byteLength >= 12 && matchMagic([0x52, 0x49, 0x46, 0x46])) {
+      isWebP = magicBytes[8] === 0x57 && magicBytes[9] === 0x45 && magicBytes[10] === 0x42 && magicBytes[11] === 0x50
+    }
+    if (!isJPEG && !isPNG && !isGIF && !isWebP) {
+      return NextResponse.json({ error: 'Format image invalide (JPEG, PNG, GIF, WebP acceptés)' }, { status: 400 })
+    }
+
+    // F11: whitelist d'extensions au lieu du nom fourni par le client
+    const ALLOWED_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
+    const ext = ALLOWED_EXT[file.type] || 'jpg'
     const timestamp = Date.now()
     const randomSuffix = Math.random().toString(36).substring(2, 8)
     const filename = `${artisanId}/${timestamp}_${randomSuffix}.${ext}`

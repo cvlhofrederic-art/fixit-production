@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -201,22 +202,9 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
       }
       if (!part.trim()) return null
 
-      // Render markdown-like formatting
+      // F05: utiliser safeMarkdownToHTML au lieu du regex inline non-securise
       return (
-        <div key={i} className="whitespace-pre-wrap">
-          {part.split('\n').map((line, j) => {
-            // Bold
-            const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            if (formatted !== line) {
-              return <div key={j} dangerouslySetInnerHTML={{ __html: formatted }} />
-            }
-            // Separator lines
-            if (line.match(/^[━─═]{3,}/)) {
-              return <hr key={j} className="my-2 border-gray-300" />
-            }
-            return <div key={j}>{line || '\u00A0'}</div>
-          })}
-        </div>
+        <div key={i} className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(part) }} />
       )
     })
   }
