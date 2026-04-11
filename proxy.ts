@@ -53,9 +53,10 @@ export async function proxy(request: NextRequest) {
 
   // ── CSP nonce (replaces static unsafe-inline for script-src) ──
   const nonce = btoa(crypto.randomUUID())
+  const isDev = process.env.NODE_ENV === 'development'
   const cspHeader = [
     "default-src 'self'",
-    `script-src 'nonce-${nonce}' 'strict-dynamic'`,
+    isDev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : `script-src 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",

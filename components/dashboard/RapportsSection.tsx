@@ -924,18 +924,18 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
       {/* ── Compteurs ── */}
       {rapports.length > 0 && (
-        <div className={isV5 ? 'v5-kpi-g' : 'v22-stats'}>
+        <div className={isV5 ? 'v5-kpi-g' : 'v22-stats'} style={isV5 ? { gridTemplateColumns: 'repeat(3, 1fr)' } : undefined}>
           <div className={isV5 ? 'v5-kpi' : 'v22-stat'}>
             <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>Total rapports</div>
             <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{rapports.length}</div>
           </div>
           <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? { borderLeft: '3px solid #4CAF50' } : undefined}>
             <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>Envoyés</div>
-            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: tv.green }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
+            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: '#4CAF50' }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
           </div>
           <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? { borderLeft: '3px solid #FF9800' } : undefined}>
             <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>Non envoyés</div>
-            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: tv.primary }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
+            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: '#FF9800' }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
           </div>
         </div>
       )}
