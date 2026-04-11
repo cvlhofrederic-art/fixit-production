@@ -58,7 +58,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
     try {
       const geo = form.ville ? await geocodeVille(form.ville) : null
       const c: ChantierItem = {
-        id: Date.now().toString(), ...form, createdAt: new Date().toISOString(),
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...form, createdAt: new Date().toISOString(),
         ...(geo ? { latitude: geo.lat, longitude: geo.lng } : {}),
       }
       const updated = [c, ...chantiers]
@@ -77,7 +77,8 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
     localStorage.setItem(storageKey, JSON.stringify(updated))
   }
 
-  const filtered = filter === 'Tous' ? chantiers : chantiers.filter(c => c.statut === filter)
+  const filterStatut = filter === 'Terminés' ? 'Terminé' : filter
+  const filtered = filter === 'Tous' ? chantiers : chantiers.filter(c => c.statut === filterStatut)
   const isPt = locale === 'pt'
 
   const STATUS_V22: Record<string, string> = {

@@ -58,8 +58,14 @@ function validateDCERequest(body: unknown): { success: true; data: DCERequest } 
   if (!b.projectDescription || typeof b.projectDescription !== 'string') {
     return { success: false, error: 'projectDescription requis' }
   }
+  if ((b.projectDescription as string).length > 5000) {
+    return { success: false, error: 'projectDescription trop long (max 5000 caractères)' }
+  }
   if (!Array.isArray(b.lots) || b.lots.length === 0) {
     return { success: false, error: 'lots requis (tableau non vide)' }
+  }
+  if (b.lots.length > 50) {
+    return { success: false, error: 'Trop de lots (max 50)' }
   }
   if (typeof b.budget !== 'number' || b.budget <= 0) {
     return { success: false, error: 'budget requis (nombre positif)' }

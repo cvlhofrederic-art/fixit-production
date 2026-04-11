@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
 
+function safeJsonParse(val: unknown, fallback: any = []) {
+  if (typeof val !== 'string') return val || fallback
+  try { return JSON.parse(val) } catch { return fallback }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // useBTPData — Hook universel pour les données BTP
 // Remplace localStorage par Supabase, avec import automatique des données
@@ -280,7 +285,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
         numero: item.numero,
         date: item.date,
         montantMarche: item.montant_marche || 0,
-        travaux: typeof item.travaux === 'string' ? JSON.parse(item.travaux) : (item.travaux || []),
+        travaux: safeJsonParse(item.travaux, []),
         statut: item.statut,
       }
     case 'retenues':
@@ -321,7 +326,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
         projectType: item.project_type || '',
         createdAt: item.created_at,
         status: item.status,
-        result: typeof item.result === 'string' ? JSON.parse(item.result) : (item.result || {}),
+        result: safeJsonParse(item.result, {}),
       }
     case 'dpgf':
       return {
@@ -331,7 +336,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
         dateRemise: item.date_remise || '',
         montantEstime: item.montant_estime || 0,
         statut: item.statut,
-        lots: typeof item.lots === 'string' ? JSON.parse(item.lots) : (item.lots || []),
+        lots: safeJsonParse(item.lots, []),
       }
     default:
       return item
@@ -355,7 +360,7 @@ export async function prefetchBTPTables(tables: ShortName[], userId: string) {
         const json = await res.json()
         const raw = json[table] || []
         _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
-      } catch { /* silent */ }
+      } catch (err) { console.warn(`[btp] prefetch ${table} failed:`, err) }
     })
   )
 }
@@ -394,8 +399,9 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError(null)
       return raw
     } catch (err) {
+      console.warn(`[btp] refresh ${table} failed:`, err)
       setError('Erreur de chargement')
-      return []
+      return null // null = erreur réseau (distinct de [] = table vide)
     } finally {
       setLoading(false)
     }
@@ -419,8 +425,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
 
       const data = await refresh()
 
-      // If Supabase is empty and localStorage has data → import
-      if (autoImport && !imported.current && data.length === 0 && artisanId) {
+      // If Supabase is empty and localStorage has data → import (skip if refresh failed)
+      if (autoImport && !imported.current && data !== null && data.length === 0 && artisanId) {
         const lsKey = LS_KEYS[table](artisanId)
         try {
           const raw = localStorage.getItem(lsKey)
@@ -462,11 +468,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'insert', data: mapped }),
       })
-      if (!res.ok) throw new Error('Insert failed')
+      if (!res.ok) throw new Error(`Insert ${tableName} failed: ${res.status}`)
       const json = await res.json()
       await refresh()
       return json.row ? mapFromSupabase(table, json.row) : null
-    } catch {
+    } catch (err) {
+      console.error(`[btp] add ${tableName}:`, err)
       setError('Erreur lors de la création')
       return null
     }
@@ -480,10 +487,11 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })
-      if (!res.ok) throw new Error('Update failed')
+      if (!res.ok) throw new Error(`Update ${tableName} failed: ${res.status}`)
       await refresh()
       return true
-    } catch {
+    } catch (err) {
+      console.error(`[btp] update ${tableName}:`, err)
       setError('Erreur lors de la mise à jour')
       return false
     }
@@ -496,10 +504,11 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'delete', id }),
       })
-      if (!res.ok) throw new Error('Delete failed')
+      if (!res.ok) throw new Error(`Delete ${tableName} failed: ${res.status}`)
       await refresh()
       return true
-    } catch {
+    } catch (err) {
+      console.error(`[btp] remove ${tableName}:`, err)
       setError('Erreur lors de la suppression')
       return false
     }
@@ -618,16 +627,22 @@ export function useBTPSettings() {
   }, [refresh])
 
   const save = useCallback(async (changes: Partial<BTPSettings>) => {
+    const prev = settings
     const updated = { ...settings, ...changes }
     setSettings(updated)
     _settingsCache = { data: updated, at: Date.now() }
     try {
-      await fetch('/api/btp', {
+      const res = await fetch('/api/btp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: 'settings_btp', action: 'upsert_settings', data: changes }),
       })
-    } catch { /* silent */ }
+      if (!res.ok) throw new Error(`Settings save failed: ${res.status}`)
+    } catch (err) {
+      console.error('[btp] settings save failed, rolling back:', err)
+      setSettings(prev)
+      _settingsCache = { data: prev, at: Date.now() }
+    }
   }, [settings])
 
   return { settings, loading, save, refresh }

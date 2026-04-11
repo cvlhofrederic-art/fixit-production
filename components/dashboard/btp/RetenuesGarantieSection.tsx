@@ -33,7 +33,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
 
   const totalRetenu = retenues.filter(r => r.statut === 'active').reduce((s, r) => s + r.montantRetenu, 0)
   const totalLib\u00E9r\u00E9 = retenues.filter(r => r.statut === 'libérée').reduce((s, r) => s + r.montantRetenu, 0)
-  const imminentRetenue = retenues.find(r => {
+  const imminentRetenues.length > 0s = retenues.filter(r => {
     if (r.statut !== 'active' || !r.dateFinTravaux) return false
     const lib = new Date(r.dateFinTravaux)
     lib.setFullYear(lib.getFullYear() + 1)
@@ -81,8 +81,8 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           </div>
           <div className="v5-kpi">
             <div className="v5-kpi-l">{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
-            <div className="v5-kpi-v">{imminentRetenue ? `${imminentRetenue.montantRetenu.toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
-            <div className="v5-kpi-s">{imminentRetenue ? imminentRetenue.chantier : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
+            <div className="v5-kpi-v">{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
+            <div className="v5-kpi-s">{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
           </div>
         </div>
       ) : (
@@ -94,8 +94,8 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           </div>
           <div className="v22-card" style={{ padding: 16 }}>
             <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{imminentRetenue ? `${imminentRetenue.montantRetenu.toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
-            <div style={{ fontSize: 11, color: tv.textMid }}>{imminentRetenue ? imminentRetenue.chantier : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
+            <div style={{ fontSize: 11, color: tv.textMid }}>{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
           </div>
         </div>
       )}

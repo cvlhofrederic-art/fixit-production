@@ -159,10 +159,11 @@ function DashboardPage() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  // ── Dynamic tab title: show company name ──
+  // ── Dynamic tab title: show company name (reset on unmount) ──
   useEffect(() => {
     if (artisan?.company_name) {
       document.title = `Vitfix — ${artisan.company_name}`
+      return () => { document.title = 'Vitfix' }
     }
   }, [artisan?.company_name])
 
@@ -192,9 +193,6 @@ function DashboardPage() {
 
   const setHook = useSettings(artisan, setArtisan, dayServices, isPt, t)
   const { settingsForm, setSettingsForm, savingSettings, profilePhotoFile, setProfilePhotoFile, profilePhotoPreview, setProfilePhotoPreview, profilePhotoUploading, setProfilePhotoUploading, uploadMsg, setUploadMsg, saveSettings, uploadDocument, initSettingsForm } = setHook
-
-  // ── Communication tabs ──
-  const [commTab, setCommTab] = useState<'particuliers' | 'pro'>('particuliers')
 
   // ── Modules config ──
   const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t)
@@ -231,9 +229,9 @@ function DashboardPage() {
     unreadMsgCount, refreshUnreadMsgCount,
   } = useNotifications(artisan?.user_id, artisan?.id, notifCallbacks)
 
-  // ── Day names for calendar/horaires ──
-  const DAY_NAMES = [t('proDash.days.sunday'), t('proDash.days.monday'), t('proDash.days.tuesday'), t('proDash.days.wednesday'), t('proDash.days.thursday'), t('proDash.days.friday'), t('proDash.days.saturday')]
-  const DAY_SHORT = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
+  // ── Day names for calendar/horaires (memoized to avoid re-renders) ──
+  const DAY_NAMES = useMemo(() => [t('proDash.days.sunday'), t('proDash.days.monday'), t('proDash.days.tuesday'), t('proDash.days.wednesday'), t('proDash.days.thursday'), t('proDash.days.friday'), t('proDash.days.saturday')], [t])
+  const DAY_SHORT = useMemo(() => [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')], [t])
 
   // ══════════ AUTH INIT + DATA LOAD ══════════
   const isMountedRef = useRef(true)
@@ -375,7 +373,7 @@ function DashboardPage() {
 
   const firstName = artisan?.company_name?.split(' ')[0] || 'Pro'
   const initials = artisan?.company_name
-    ? artisan.company_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+    ? artisan.company_name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'PR'
     : 'PR'
 
   // V5 layout applies to pro_societe AND artisan
@@ -474,7 +472,7 @@ function DashboardPage() {
                           await fetch('/api/syndic/notify-artisan', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                            body: JSON.stringify({ mark_all_read: true, artisan_id: artisan?.user_id }),
+                            body: JSON.stringify({ mark_all_read: true, artisan_id: artisan?.user_id || '' }),
                           })
                           setNotifications(prev => prev.map(n => ({ ...n, read: true })))
                           setUnreadNotifCount(0)
@@ -519,7 +517,8 @@ function DashboardPage() {
                           if (n.type === 'message' || n.type === 'booking_message') navigateTo('messages')
                           else if (n.type === 'new_booking') {
                             // Ouvrir le booking detail directement
-                            const dataJson = typeof n.data_json === 'string' ? JSON.parse(n.data_json || '{}') : (n.data_json || {})
+                            let dataJson: Record<string, unknown> = {}
+                            try { dataJson = typeof n.data_json === 'string' ? JSON.parse(n.data_json || '{}') : (n.data_json || {}) } catch { /* malformed JSON */ }
                             const bookingId = dataJson.booking_id
                             const found = bookingId ? bookings.find((b: Booking) => b.id === bookingId) : null
                             if (found) {
@@ -787,145 +786,6 @@ function DashboardPage() {
               }}
             />
               </div>
-            </div>
-          )}
-
-          {/* ────── MESSAGERIE LEGACY (hidden) ────── */}
-          {false && (
-            <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h1 className="text-lg font-semibold">💬 Messagerie</h1>
-                  </div>
-                  {commTab === 'particuliers' && pendingBookings.length > 0 && (
-                    <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold">{pendingBookings.length} en attente</span>
-                  )}
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => setCommTab('particuliers')}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition ${commTab === 'particuliers' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                  >
-                    {isPt ? '🏠 Particulares' : '🏠 Particuliers'}
-                  </button>
-                  <button
-                    onClick={() => setCommTab('pro')}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition ${commTab === 'pro' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                  >
-                    🏢 Pro
-                  </button>
-                </div>
-              </div>
-
-              {/* ── Onglet Particuliers ── */}
-              {commTab === 'particuliers' && (
-                <div className="p-4 lg:p-5">
-                  {pendingBookings.length > 0 ? (
-                    <div className="space-y-3">
-                      {pendingBookings.map((b) => (
-                        <div key={b.id} className="bg-white p-4 rounded-md border-l-2 border-[#FFC107] border border-[#E8E8E8]">
-                          <div className="flex flex-col sm:flex-row justify-between gap-3">
-                            <div>
-                              <div className="font-semibold text-sm">{b.services?.name || 'Demande de RDV'}</div>
-                              <div className="text-sm text-gray-600 mt-1">📅 {b.booking_date} à {b.booking_time?.substring(0, 5)}</div>
-                              <div className="text-sm text-gray-500">📍 {b.address}</div>
-                              {b.notes && <div className="text-sm text-gray-500 mt-2 bg-gray-50 p-2 rounded">{b.notes}</div>}
-                            </div>
-                            <div className="flex flex-wrap gap-2 self-start">
-                              <button onClick={() => openDashMessages(b)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded font-medium text-xs transition">💬</button>
-                              <button onClick={() => handleTransformBookingToDevis(b)} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded font-medium text-xs transition flex items-center gap-1">📄 Devis</button>
-                              <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded font-medium text-xs transition">✓ Accepter</button>
-                              <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-medium text-xs transition">✕ Refuser</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-white p-8 rounded-md text-center border border-[#E8E8E8]">
-                      <div className="text-4xl mb-3">✅</div>
-                      <h3 className="text-base font-semibold mb-2">{isPt ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</h3>
-                      <p className="text-gray-500 text-sm">{isPt ? 'Todos os pedidos de clientes foram tratados' : 'Toutes les demandes clients ont été traitées'}</p>
-                    </div>
-                  )}
-
-                  {/* Historique conversations clients */}
-                  {bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').length > 0 && (
-                    <div className="mt-8">
-                      <h3 className="font-semibold text-gray-700 mb-3 text-sm">{isPt ? '📨 Conversas de clientes ativas' : '📨 Conversations clients actives'}</h3>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').slice(0, 12).map(b => {
-                          const rawNotes = b.notes || ''
-                          const hasPipes = rawNotes.includes('|')
-                          const clientNameMatch = hasPipes ? rawNotes.match(/Client:\s*([^|\n]+)/i) : rawNotes.match(/Client:\s*([^.\n]+)/i)
-                          const clientLabel = clientNameMatch ? clientNameMatch[1].trim() : 'Client'
-                          return (
-                            <button key={b.id} onClick={() => openDashMessages(b)}
-                              className="bg-white p-3 rounded-md border border-[#E8E8E8] hover:border-[#FFC107] transition text-left">
-                              <div className="font-semibold text-sm text-gray-900 truncate">{clientLabel}</div>
-                              <div className="text-xs text-gray-500 mt-1">{b.services?.name || 'Intervention'} — {b.booking_date}</div>
-                              <div className="text-xs text-gray-300 mt-1">💬 Ouvrir la conversation</div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── Onglet Pro ── */}
-              {commTab === 'pro' && (
-                <div className="p-4 lg:p-5">
-                  {/* Canal Pro */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-blue-900 text-sm mb-1">📡 Canal Pro</h3>
-                        <p className="text-sm text-blue-600">{isPt ? 'Mensagens diretas com os seus contactos profissionais' : 'Messagerie directe avec vos contacts professionnels'}</p>
-                      </div>
-                      <button onClick={() => navigateTo('canal')} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded font-medium text-xs transition">
-                        {isPt ? 'Abrir o canal →' : 'Ouvrir le canal →'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Ordres de mission */}
-                  <div className="bg-purple-50 border border-purple-200 rounded-md p-4 mb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-purple-900 text-sm mb-1">{isPt ? '📋 Ordens de trabalho' : '📋 Ordres de mission'}</h3>
-                        <p className="text-sm text-purple-600">{isPt ? 'Missões recebidas de condomínios e gestores' : 'Missions reçues des syndics et gestionnaires'}</p>
-                      </div>
-                      <button onClick={() => navigateTo('messages')} className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded font-medium text-xs transition">
-                        {isPt ? 'Ver na mensagem →' : 'Voir dans la messagerie →'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Types de contacts pro */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    {(isPt ? [
-                      { icon: '🏛️', label: 'Condomínios', desc: 'Propriedades em condomínio' },
-                      { icon: '🏗️', label: 'Empresas de Construção', desc: 'Subcontratação' },
-                      { icon: '🏠', label: 'Proprietários Sociais', desc: 'Habitação social' },
-                      { icon: '🔑', label: 'Gestão de Propriedades', desc: 'Aluguéis de curta duração' },
-                    ] : [
-                      { icon: '🏛️', label: 'Syndics', desc: 'Copropriétés' },
-                      { icon: '🏗️', label: 'Entreprises BTP', desc: 'Sous-traitance' },
-                      { icon: '🏠', label: 'Bailleurs sociaux', desc: 'Logements sociaux' },
-                      { icon: '🔑', label: 'Conciergeries', desc: 'Locations courtes' },
-                    ]).map((t) => (
-                      <div key={t.label} className="bg-white rounded-md p-3 border border-[#E8E8E8] text-center">
-                        <div className="text-lg mb-1">{t.icon}</div>
-                        <div className="font-semibold text-sm text-gray-900">{t.label}</div>
-                        <div className="text-xs text-gray-500">{t.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -1593,23 +1453,6 @@ function DashboardPage() {
 
 /* ══════════ SUB-COMPONENTS ══════════ */
 
-function SidebarItem({ icon, label, active, badge, onClick }: {
-  icon: string; label: string; active?: boolean; badge?: number; onClick: () => void
-}) {
-  return (
-    <div onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-all text-xs ${
-        active ? 'bg-[#FFC107]/25 border-l-2 border-[#FFC107]' : 'hover:bg-[#FFC107]/15 hover:pl-6'
-      }`}>
-      <span>{icon}</span>
-      <span>{label}</span>
-      {badge && badge > 0 && (
-        <span className="ml-auto bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-semibold">{badge}</span>
-      )}
-    </div>
-  )
-}
-
 function V22SidebarItem({ label, active, badge, badgeRed, onClick }: {
   label: string; active?: boolean; badge?: number; badgeRed?: boolean; onClick: () => void
 }) {
@@ -1624,16 +1467,4 @@ function V22SidebarItem({ label, active, badge, badgeRed, onClick }: {
   )
 }
 
-/** V5 sidebar item — light theme for pro_societe dashboard */
-function V5SidebarItem({ icon, label, active, badge, onClick }: {
-  icon: string; label: string; active?: boolean; badge?: number; onClick: () => void
-}) {
-  return (
-    <div onClick={onClick} className={`v5-sb-i${active ? ' active' : ''}`}>
-      <span className="v5-sb-icon">{icon}</span>
-      <span className="v5-sb-label">{label}</span>
-      {badge != null && badge > 0 && <span className="v5-sb-badge">{badge}</span>}
-    </div>
-  )
-}
 

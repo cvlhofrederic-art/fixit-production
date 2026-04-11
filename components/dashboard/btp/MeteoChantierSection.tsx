@@ -525,7 +525,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             {/* BTP impact alert message */}
             {impactMsg && worstDayLabel && (
               <div
-                className={m.alert === 'rouge' ? 'v5-al' : 'v5-al'}
+                className="v5-al"
                 style={{
                   marginTop: '.65rem',
                   background: m.alert === 'rouge' ? '#FFEBEE' : '#FFF3E0',
