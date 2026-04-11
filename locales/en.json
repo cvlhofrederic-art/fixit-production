@@ -673,7 +673,7 @@
       "semaine": "Week",
       "mois": "Month",
       "absence": "Absence",
-      "nouveauRendezVous": "+ New appointment",
+      "nouveauRendezVous": "New appointment",
       "rdvEnAttente": "Appointments awaiting validation",
       "messages": "Messages",
       "accepter": "Accept",

@@ -2316,7 +2316,7 @@
       "semaine": "Semaine",
       "mois": "Mois",
       "absence": "Absence",
-      "nouveauRendezVous": "+ Nouveau rendez-vous",
+      "nouveauRendezVous": "Nouveau rendez-vous",
       "rdvEnAttente": "RDV en attente de validation",
       "messages": "Messages",
       "accepter": "Accepter",
@@ -2948,7 +2948,7 @@
       "situations": {
         "title": "Situations de Travaux",
         "subtitle": "Facturation progressive par avancement",
-        "nouvelleSituation": "+ Nouvelle situation",
+        "nouvelleSituation": "Nouvelle situation",
         "chantier": "Chantier *",
         "client": "Client *",
         "montantMarche": "Montant marché (€)",
@@ -2977,7 +2977,7 @@
       "retenues": {
         "title": "Retenues de Garantie",
         "subtitle": "Suivi des 5% retenus et mainlevées",
-        "nouvelleRetenue": "+ Nouvelle retenue",
+        "nouvelleRetenue": "Nouvelle retenue",
         "retenuEnAttente": "Retenu (en attente)",
         "libere": "Libéré",
         "chantiersConcernes": "Chantiers concernés",
@@ -3072,7 +3072,7 @@
       "dpgf": {
         "title": "Appels d'offres — DPGF",
         "subtitle": "Décomposition du Prix Global et Forfaitaire",
-        "nouvelAppel": "+ Nouvel appel",
+        "nouvelAppel": "Nouvel appel",
         "titre": "Titre *",
         "clientMaitreOuvrage": "Client maître d'ouvrage",
         "dateRemise": "Date de remise",

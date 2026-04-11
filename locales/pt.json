@@ -2308,7 +2308,7 @@
       "semaine": "Semana",
       "mois": "Mês",
       "absence": "Ausência",
-      "nouveauRendezVous": "+ Nova marcação",
+      "nouveauRendezVous": "Nova marcação",
       "rdvEnAttente": "Marcações pendentes de validação",
       "messages": "Mensagens",
       "accepter": "Aceitar",
@@ -2934,7 +2934,7 @@
       "situations": {
         "title": "Situações de Obra",
         "subtitle": "Faturação progressiva por avanço",
-        "nouvelleSituation": "+ Nova situação",
+        "nouvelleSituation": "Nova situação",
         "chantier": "Obra *",
         "client": "Cliente *",
         "montantMarche": "Montante do contrato (€)",
@@ -2963,7 +2963,7 @@
       "retenues": {
         "title": "Retenções de Garantia",
         "subtitle": "Acompanhamento dos 5% retidos e libertações",
-        "nouvelleRetenue": "+ Nova retenção",
+        "nouvelleRetenue": "Nova retenção",
         "retenuEnAttente": "Retido (pendente)",
         "libere": "Libertado",
         "chantiersConcernes": "Obras abrangidas",
@@ -3058,7 +3058,7 @@
       "dpgf": {
         "title": "Concursos — DPGF",
         "subtitle": "Decomposição do Preço Global e Forfetário",
-        "nouvelAppel": "+ Novo concurso",
+        "nouvelAppel": "Novo concurso",
         "titre": "Título *",
         "clientMaitreOuvrage": "Cliente dono de obra",
         "dateRemise": "Data de entrega",
