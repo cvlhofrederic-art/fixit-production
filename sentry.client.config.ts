@@ -9,8 +9,8 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Performance Monitoring — 100% during launch phase — reduce to 0.1 when traffic > 1000 users/day
-  tracesSampleRate: 1.0,
+  // Performance Monitoring — 5% sampling (was 100% during launch)
+  tracesSampleRate: 0.05,
 
   // Session Replay disabled — not needed, adds ~50KB to bundle
   replaysSessionSampleRate: 0,

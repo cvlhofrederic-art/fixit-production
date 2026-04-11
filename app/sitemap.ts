@@ -1,3 +1,6 @@
+// Revalidate sitemap every hour (avoid DB hit on every crawl request)
+export const revalidate = 3600
+
 import { MetadataRoute } from 'next'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { getAllPageCombos, getAllUrgencyCombos, BLOG_ARTICLES, CITIES, SERVICES } from '@/lib/data/seo-pages-data'
@@ -345,7 +348,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from('profiles_artisan')
       .select('id, slug, updated_at')
       .eq('is_verified', true)
-      .limit(500)
+      .limit(2000)
 
     const artisanPages: MetadataRoute.Sitemap = (artisans || []).map((a) => ({
       url: `${baseUrl}/fr/artisan/${a.slug || a.id}/`,

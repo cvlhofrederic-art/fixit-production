@@ -43,16 +43,19 @@ export async function GET(request: NextRequest) {
   let clientNames = new Map<string, string>()
 
   if (clientIds.length > 0) {
-    const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000, page: 1 })
-    if (authData?.users) {
-      for (const u of authData.users) {
-        if (clientIds.includes(u.id)) {
-          const fullName = u.user_metadata?.full_name || u.email?.split('@')[0] || 'Client'
-          const firstName = fullName.split(' ')[0]
-          clientNames.set(u.id, firstName)
+    // Fetch only the users we need (max ~50) instead of listing 1000 users
+    const entries = await Promise.all(
+      clientIds.map(async (id) => {
+        try {
+          const { data } = await supabaseAdmin.auth.admin.getUserById(id)
+          const fullName = data?.user?.user_metadata?.full_name || data?.user?.email?.split('@')[0] || 'Client'
+          return [id, fullName.split(' ')[0]] as [string, string]
+        } catch {
+          return [id, 'Client'] as [string, string]
         }
-      }
-    }
+      })
+    )
+    clientNames = new Map(entries)
   }
 
   const formatted = (reviews || []).map(r => ({

@@ -43,7 +43,7 @@ export function FixyAvatar({ size = 40 }: { size?: number }) {
 export function MaxAvatar({ size = 40 }: { size?: number }) {
   return (
     <img
-      src="/max-avatar.png"
+      src="/max-avatar.webp"
       alt="Max — Expert-Conseil IA"
       width={size}
       height={size}
@@ -57,7 +57,7 @@ export function MaxAvatar({ size = 40 }: { size?: number }) {
 export function LeaAvatar({ size = 40 }: { size?: number }) {
   return (
     <img
-      src="/lea-avatar.png"
+      src="/lea-avatar.webp"
       alt="Léa — Experte Comptable IA"
       width={size}
       height={size}

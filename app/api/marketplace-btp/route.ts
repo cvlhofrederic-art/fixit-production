@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     const type        = searchParams.get('type')          // vente | location
     const ae_only     = searchParams.get('ae_only')       // true → only accessible_ae
     const user_id     = searchParams.get('user_id')       // mes annonces
-    const limit       = parseInt(searchParams.get('limit') || '50')
+    const limit       = Math.min(parseInt(searchParams.get('limit') || '50') || 50, 100)
 
     let query = getAdmin()
       .from('marketplace_listings')
@@ -86,7 +86,9 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query
     if (error) throw error
-    return NextResponse.json({ listings: data ?? [] })
+    return NextResponse.json({ listings: data ?? [] }, {
+      headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
+    })
   } catch (e) {
     console.error('[MPL GET]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

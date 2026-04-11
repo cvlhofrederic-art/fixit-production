@@ -18,31 +18,31 @@
     },
     {
       "path": "/api/sync/decp-13",
-      "schedule": "0 7 * * 1"
+      "schedule": "0 7 * * 2"
     },
     {
       "path": "/api/sync/sitadel-13",
-      "schedule": "0 7 * * 1"
+      "schedule": "0 7 * * 3"
     },
     {
       "path": "/api/sync/mairies-13",
-      "schedule": "30 7 * * 1"
+      "schedule": "30 7 * * 2"
     },
     {
       "path": "/api/sync/base-gov-pt",
-      "schedule": "0 8 * * 1"
+      "schedule": "0 8 * * 4"
     },
     {
       "path": "/api/sync/ted-porto",
-      "schedule": "30 8 * * 1"
+      "schedule": "30 8 * * 3"
     },
     {
       "path": "/api/sync/obras-porto",
-      "schedule": "0 9 * * 1"
+      "schedule": "0 9 * * 4"
     },
     {
       "path": "/api/tenders/scan",
-      "schedule": "0 5 * * 1"
+      "schedule": "0 5 * * 5"
     }
   ]
 }

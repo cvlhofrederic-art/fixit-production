@@ -23,7 +23,8 @@
     "scan:code": "semgrep scan --config security/.semgrep.yml --json --output security/outputs/semgrep.json",
     "scan:web": "nuclei -u https://vitfix.io -config security/nuclei-config.yml -o security/outputs/nuclei.txt",
     "scan:all": "npm run scan:secrets && npm run scan:deps && npm run scan:code",
-    "scan:lighthouse": "lhci autorun"
+    "scan:lighthouse": "lhci autorun",
+    "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -78,6 +79,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.3",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",

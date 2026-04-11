@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
       .select('id, artisan_id, artisan_user_id, price, timeline, description, disponibilites, experience_years, artisan_company_name, artisan_rating, artisan_phone, materials_included, guarantee, status, created_at')
       .eq('marche_id', offerId)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
       logger.error('[st] GET candidatures error', { error: error.message })

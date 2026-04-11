@@ -133,13 +133,36 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll) ──
-  // Inject nonce into request headers so the app (layout.tsx) can read it via headers()
+  // ── Inject nonce/locale into request headers so the app (layout.tsx) can read them ──
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('x-locale', locale)
   const supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
+  // ── PERF: Skip auth for public routes that never need authentication ──
+  // These are SEO pages, blog, static content — no auth check saves 50-200ms per request
+  const needsAuth = !isInternalRoute && (
+    strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' ||
+    strippedPathname.startsWith('/client/dashboard') ||
+    strippedPathname.startsWith('/pro/dashboard') ||
+    strippedPathname.startsWith('/pro/mobile') ||
+    strippedPathname.startsWith('/pro/login') ||
+    strippedPathname.startsWith('/pro/espace-pro') ||
+    strippedPathname.startsWith('/syndic/') ||
+    strippedPathname.startsWith('/admin/') ||
+    strippedPathname.startsWith('/coproprietaire/')
+  )
+
+  if (!needsAuth) {
+    if (!isInternalRoute) {
+      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    }
+    supabaseResponse.headers.set('X-API-Version', '1.0.0')
+    supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    return supabaseResponse
+  }
+
+  // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll) ──
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -300,6 +323,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public files (images, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|woff2|woff|ico|mp4)$).*)',
   ],
 }
