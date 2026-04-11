@@ -52,7 +52,7 @@ export default function StatsRevenusSection({
     return <StatsV5 bookings={bookings} totalRevenue={totalRevenue} services={services} artisan={artisan} locale={locale} />
   }
   if (isV5 && activePage === 'revenus') {
-    return <RevenusV5 bookings={bookings} completedBookings={completedBookings} pendingBookings={pendingBookings} totalRevenue={totalRevenue} locale={locale} t={t} />
+    return <RevenusV5 bookings={bookings} completedBookings={completedBookings} pendingBookings={pendingBookings} totalRevenue={totalRevenue} locale={locale} t={t} artisan={artisan} />
   }
 
   /* ═══════════════════════════════════════════
@@ -297,7 +297,35 @@ function PageHeader({ title, subtitle, actionLabel, onAction }: { title: string;
 
 /* ═══════════════════════════════════════════════════════
    V5 sub-component — Stats for pro_societe
+   Uses Supabase bookings when available, falls back to
+   localStorage documents/chantiers for demo accounts.
    ═══════════════════════════════════════════════════════ */
+interface LocalDoc { docType: string; docDate?: string; status?: string; total_ht_cents?: number; total_ttc_cents?: number; docTitle?: string; clientName?: string }
+interface LocalExpense { amount?: string | number; date?: string; category?: string }
+
+function useLocalStats(artisanId: string) {
+  const [docs, setDocs] = useState<LocalDoc[]>([])
+  const [expenses, setExpenses] = useState<LocalExpense[]>([])
+  const [chantierCount, setChantierCount] = useState(0)
+
+  useState(() => {
+    try {
+      const raw = localStorage.getItem(`fixit_documents_${artisanId}`)
+      if (raw) setDocs(JSON.parse(raw))
+    } catch { /* ignore */ }
+    try {
+      const raw = localStorage.getItem(`fixit_expenses_${artisanId}`)
+      if (raw) setExpenses(JSON.parse(raw))
+    } catch { /* ignore */ }
+    try {
+      const raw = localStorage.getItem(`chantiers_${artisanId}`)
+      if (raw) setChantierCount(JSON.parse(raw).length)
+    } catch { /* ignore */ }
+  })
+
+  return { docs, expenses, chantierCount }
+}
+
 function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
   bookings: import('@/lib/types').Booking[]
   totalRevenue: number
@@ -305,28 +333,83 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
   artisan: import('@/lib/types').Artisan
   locale: string
 }) {
-  const activeChantiers = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
-  const completedCount = bookings.filter(b => b.status === 'completed').length
-  const totalOffers = bookings.length
-  const signedCount = completedCount
+  const aid = artisan?.user_id || artisan?.id || ''
+  const { docs, expenses, chantierCount } = useLocalStats(aid)
+
+  // Merge data: prefer Supabase bookings, fall back to localStorage documents
+  const hasBookings = bookings.length > 0
+  const devis = docs.filter(d => d.docType === 'devis')
+  const factures = docs.filter(d => d.docType === 'facture')
+  const signedDevis = devis.filter(d => d.status === 'signed')
+  const paidFactures = factures.filter(d => d.status === 'paid')
+
+  // KPIs — computed from best available source
+  const caTotal = hasBookings
+    ? totalRevenue
+    : paidFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+  const activeChantiers = hasBookings
+    ? bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
+    : chantierCount || signedDevis.length
+  const totalOffers = hasBookings ? bookings.length : devis.length
+  const signedCount = hasBookings
+    ? bookings.filter(b => b.status === 'completed').length
+    : signedDevis.length
   const tauxTransformation = totalOffers > 0 ? Math.round((signedCount / totalOffers) * 100) : 0
-  const panierMoyen = completedCount > 0 ? Math.round(totalRevenue / completedCount) : 0
+  const panierMoyen = signedCount > 0 ? Math.round((hasBookings ? totalRevenue : signedDevis.reduce((s, d) => s + (d.total_ht_cents || 0) / 100, 0)) / signedCount) : 0
 
   // Monthly revenue for last 6 months
   const now = new Date()
+  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const months: { label: string; value: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const monthLabel = d.toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { month: 'short' })
-    const monthBookings = bookings.filter(b => {
-      if (!b.booking_date) return false
-      const bd = new Date(b.booking_date)
-      return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
-    })
-    const rev = monthBookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
+    const monthLabel = d.toLocaleDateString(dateLocale, { month: 'short' })
+    let rev = 0
+    if (hasBookings) {
+      rev = bookings.filter(b => {
+        if (!b.booking_date) return false
+        const bd = new Date(b.booking_date)
+        return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
+      }).reduce((s, b) => s + (b.price_ttc || 0), 0)
+    } else {
+      rev = factures.filter(f => {
+        if (!f.docDate) return false
+        const fd = new Date(f.docDate)
+        return fd.getMonth() === d.getMonth() && fd.getFullYear() === d.getFullYear()
+      }).reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+    }
     months.push({ label: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1), value: rev })
   }
   const maxMonthly = Math.max(...months.map(m => m.value), 1)
+
+  // Pie chart data — from devis by client/project
+  const pieColors = ['#FFC107', '#FF9800', '#4CAF50', '#2196F3', '#9C27B0', '#E91E63']
+  const pieData: { label: string; value: number }[] = []
+  if (hasBookings && services.length > 0) {
+    services.filter(s => s.active).slice(0, 6).forEach(s => {
+      const sRev = bookings.filter(b => b.services?.name === s.name).reduce((sum, b) => sum + (b.price_ttc || 0), 0)
+      pieData.push({ label: s.name, value: sRev })
+    })
+  } else {
+    signedDevis.slice(0, 6).forEach(d => {
+      pieData.push({ label: d.docTitle?.replace(/^.*?—\s*/, '') || 'Chantier', value: (d.total_ht_cents || 0) / 100 })
+    })
+  }
+  const pieTotal = pieData.reduce((s, p) => s + p.value, 0) || 1
+
+  // Total dépenses
+  const totalExpenses = expenses.reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)
+
+  // Build conic-gradient from real data
+  let gradientCss = ''
+  let cumPct = 0
+  pieData.forEach((p, i) => {
+    const pct = Math.round((p.value / pieTotal) * 100)
+    const start = cumPct
+    cumPct += pct
+    gradientCss += `${pieColors[i % pieColors.length]} ${start}% ${cumPct}%${i < pieData.length - 1 ? ',' : ''}`
+  })
+  if (!gradientCss) gradientCss = '#e0e0e0 0% 100%'
 
   return (
     <div className="v5-fade">
@@ -335,24 +418,24 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
         <div className="v5-kpi hl">
-          <div className="v5-kpi-l">CA mensuel</div>
-          <div className="v5-kpi-v">{formatPrice(months[months.length - 1]?.value || 0, locale)}</div>
-          <div className="v5-kpi-s">{months[months.length - 1]?.label || ''} {now.getFullYear()}</div>
+          <div className="v5-kpi-l">CA facturé</div>
+          <div className="v5-kpi-v">{formatPrice(caTotal, locale)}</div>
+          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => f.status === 'envoye').length} factures émises</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Chantiers actifs</div>
           <div className="v5-kpi-v">{activeChantiers}</div>
-          <div className="v5-kpi-s">ce mois</div>
+          <div className="v5-kpi-s">{devis.length} devis au total</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Taux transformation</div>
           <div className="v5-kpi-v">{tauxTransformation}%</div>
-          <div className="v5-kpi-s">offres → signées</div>
+          <div className="v5-kpi-s">{signedCount}/{totalOffers} devis signés</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Panier moyen</div>
           <div className="v5-kpi-v">{formatPrice(panierMoyen, locale)}</div>
-          <div className="v5-kpi-s">par chantier</div>
+          <div className="v5-kpi-s">par chantier signé</div>
         </div>
       </div>
 
@@ -386,43 +469,54 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
           </div>
         </div>
 
-        {/* Pie chart — Répartition CA par service */}
+        {/* Pie chart — Répartition CA par chantier */}
         <div className="v5-card">
-          <div className="v5-st">Répartition CA par service</div>
+          <div className="v5-st">Répartition CA par chantier</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', padding: '1rem 0' }}>
-            {/* Pie placeholder */}
             <div style={{
               width: 100, height: 100, borderRadius: '50%',
-              background: `conic-gradient(
-                #FFC107 0% 32%,
-                #FF9800 32% 52%,
-                #4CAF50 52% 68%,
-                #2196F3 68% 82%,
-                #9C27B0 82% 92%,
-                #E91E63 92% 100%
-              )`,
+              background: `conic-gradient(${gradientCss})`,
               flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <div style={{ width: 50, height: 50, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600 }}>
-                100%
+                {formatPrice(pieTotal, locale).replace(/\s/g, '')}
               </div>
             </div>
-            {/* Legend */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
-              {services.filter(s => s.active).slice(0, 6).map((s, i) => {
-                const colors = ['#FFC107', '#FF9800', '#4CAF50', '#2196F3', '#9C27B0', '#E91E63']
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 2, background: colors[i % colors.length], flexShrink: 0 }} />
-                    <span style={{ color: '#666' }}>{s.name}</span>
-                  </div>
-                )
-              })}
+              {pieData.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: pieColors[i % pieColors.length], flexShrink: 0 }} />
+                  <span style={{ color: '#666' }}>{p.label} — {formatPrice(p.value, locale)}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Dépenses + marges */}
+      {totalExpenses > 0 && (
+        <div className="v5-card" style={{ marginTop: 16 }}>
+          <div className="v5-st">Synthèse financière</div>
+          <div style={{ display: 'flex', gap: 16, padding: '12px 0', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 140, padding: '12px 16px', background: '#f0fdf4', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: '#666' }}>CA facturé</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#2E7D32' }}>{formatPrice(caTotal, locale)}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 140, padding: '12px 16px', background: '#fff7ed', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: '#666' }}>Dépenses</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#E65100' }}>{formatPrice(totalExpenses, locale)}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 140, padding: '12px 16px', background: caTotal - totalExpenses > 0 ? '#f0fdf4' : '#fef2f2', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: '#666' }}>Marge brute</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: caTotal - totalExpenses > 0 ? '#2E7D32' : '#C62828' }}>
+                {formatPrice(caTotal - totalExpenses, locale)} ({caTotal > 0 ? Math.round(((caTotal - totalExpenses) / caTotal) * 100) : 0}%)
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -430,33 +524,71 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 /* ═══════════════════════════════════════════════════════
    V5 sub-component — Revenus for pro_societe
    ═══════════════════════════════════════════════════════ */
-function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue, locale, t }: {
+function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue, locale, t, artisan }: {
   bookings: import('@/lib/types').Booking[]
   completedBookings: import('@/lib/types').Booking[]
   pendingBookings: import('@/lib/types').Booking[]
   totalRevenue: number
   locale: string
   t: (k: string) => string
+  artisan: import('@/lib/types').Artisan
 }) {
-  const pendingAmount = pendingBookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
+  const aid = artisan?.user_id || artisan?.id || ''
+  const { docs } = useLocalStats(aid)
+  const hasBookings = completedBookings.length > 0 || pendingBookings.length > 0
+
+  const factures = docs.filter(d => d.docType === 'facture')
+  const paidFactures = factures.filter(d => d.status === 'paid')
+  const pendingFactures = factures.filter(d => d.status === 'envoye')
+
+  const caYear = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+  const pendingAmount = hasBookings
+    ? pendingBookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
+    : pendingFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+
   const now = new Date()
   const currentMonth = now.getMonth()
   const currentYear = now.getFullYear()
-  const monthlyEncaissements = completedBookings.filter(b => {
-    if (!b.booking_date) return false
-    const bd = new Date(b.booking_date)
-    return bd.getMonth() === currentMonth && bd.getFullYear() === currentYear
-  }).reduce((s, b) => s + (b.price_ttc || 0), 0)
 
-  // Recouvrement rate
-  const totalBilled = bookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
-  const recouvrementPct = totalBilled > 0 ? Math.round((totalRevenue / totalBilled) * 100) : 100
+  let monthlyEncaissements = 0
+  let monthlyCount = 0
+  if (hasBookings) {
+    const monthlyBk = completedBookings.filter(b => {
+      if (!b.booking_date) return false
+      const bd = new Date(b.booking_date)
+      return bd.getMonth() === currentMonth && bd.getFullYear() === currentYear
+    })
+    monthlyEncaissements = monthlyBk.reduce((s, b) => s + (b.price_ttc || 0), 0)
+    monthlyCount = monthlyBk.length
+  } else {
+    const monthlyFac = paidFactures.filter(f => {
+      if (!f.docDate) return false
+      const fd = new Date(f.docDate)
+      return fd.getMonth() === currentMonth && fd.getFullYear() === currentYear
+    })
+    monthlyEncaissements = monthlyFac.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+    monthlyCount = monthlyFac.length
+  }
 
-  // Recent encaissements (completed bookings sorted by date desc)
-  const recentEncaissements = completedBookings
-    .filter(b => b.price_ttc && b.price_ttc > 0)
-    .sort((a, b) => new Date(b.booking_date || '').getTime() - new Date(a.booking_date || '').getTime())
-    .slice(0, 10)
+  const totalBilled = hasBookings
+    ? bookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
+    : factures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+  const totalPaid = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+  const recouvrementPct = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 100
+
+  // Recent encaissements — from bookings or factures
+  type EncRow = { date: string; client: string; chantier: string; amount: number }
+  const recentRows: EncRow[] = []
+  if (hasBookings) {
+    completedBookings.filter(b => b.price_ttc && b.price_ttc > 0)
+      .sort((a, b) => new Date(b.booking_date || '').getTime() - new Date(a.booking_date || '').getTime())
+      .slice(0, 10)
+      .forEach(b => recentRows.push({ date: b.booking_date || '', client: b.client_name || b.client_email || 'Client', chantier: b.services?.name || 'Service', amount: b.price_ttc || 0 }))
+  } else {
+    factures.sort((a, b) => new Date(b.docDate || '').getTime() - new Date(a.docDate || '').getTime())
+      .slice(0, 10)
+      .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || 'Client', chantier: f.docTitle || 'Facture', amount: (f.total_ttc_cents || 0) / 100 }))
+  }
 
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
 
@@ -468,22 +600,18 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
       <div className="v5-kpi-g">
         <div className="v5-kpi hl">
           <div className="v5-kpi-l">CA {currentYear}</div>
-          <div className="v5-kpi-v">{formatPrice(totalRevenue, locale)}</div>
+          <div className="v5-kpi-v">{formatPrice(caYear, locale)}</div>
           <div className="v5-kpi-s">cumulé</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Encaissements {now.toLocaleDateString(dateLocale, { month: 'long' })}</div>
           <div className="v5-kpi-v">{formatPrice(monthlyEncaissements, locale)}</div>
-          <div className="v5-kpi-s">{completedBookings.filter(b => {
-            if (!b.booking_date) return false
-            const bd = new Date(b.booking_date)
-            return bd.getMonth() === currentMonth && bd.getFullYear() === currentYear
-          }).length} opérations</div>
+          <div className="v5-kpi-s">{monthlyCount} opération{monthlyCount > 1 ? 's' : ''}</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Factures en attente</div>
           <div className="v5-kpi-v">{formatPrice(pendingAmount, locale)}</div>
-          <div className="v5-kpi-s">{pendingBookings.length} facture{pendingBookings.length > 1 ? 's' : ''}</div>
+          <div className="v5-kpi-s">{hasBookings ? pendingBookings.length : pendingFactures.length} facture{(hasBookings ? pendingBookings.length : pendingFactures.length) > 1 ? 's' : ''}</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Recouvrement</div>
@@ -505,12 +633,12 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
             </tr>
           </thead>
           <tbody>
-            {recentEncaissements.length > 0 ? recentEncaissements.map((b, i) => (
+            {recentRows.length > 0 ? recentRows.map((r, i) => (
               <tr key={`v5-enc-${i}`}>
-                <td>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' }) : '-'}</td>
-                <td>{b.client_name || b.client_email || 'Client'}</td>
-                <td>{b.services?.name || 'Service'}</td>
-                <td style={{ fontWeight: 600, color: '#2E7D32' }}>+{formatPrice(b.price_ttc || 0, locale)}</td>
+                <td>{r.date ? new Date(r.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' }) : '-'}</td>
+                <td>{r.client}</td>
+                <td>{r.chantier}</td>
+                <td style={{ fontWeight: 600, color: '#2E7D32' }}>+{formatPrice(r.amount, locale)}</td>
               </tr>
             )) : (
               <tr>
