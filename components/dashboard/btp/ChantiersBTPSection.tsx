@@ -97,8 +97,8 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        <div>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
           <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
           <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
         </div>

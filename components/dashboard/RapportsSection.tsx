@@ -499,8 +499,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
       {/* ── Header ── */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        <div>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
           <h1 className={isV5 ? '' : 'v22-page-title'}>Rapports d&apos;Intervention</h1>
           <p className={isV5 ? '' : 'v22-page-sub'}>Compte-rendus BTP, liés à vos interventions</p>
         </div>

@@ -163,8 +163,8 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        <div>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
           <h1>{isV5 ? '' : <span className="v22-page-title" />}Planification Gantt</h1>
           <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
         </div>

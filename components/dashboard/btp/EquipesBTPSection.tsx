@@ -120,8 +120,8 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
   return (
     <div style={{ padding: '0' }}>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        <div>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
           <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
         </div>

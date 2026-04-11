@@ -372,11 +372,13 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t">
+      <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
           <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
           <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
+        </div>
         {(meteoData.length > 0 || chantiersAvecLocalisation.length > 0) && (
-          <button className="v5-btn v5-btn-p" style={{ marginTop: 8 }} onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
+          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
             {meteoLoading ? (isPt ? 'A carregar...' : 'Chargement...') : (isPt ? 'Atualizar' : 'Actualiser')}
           </button>
         )}
