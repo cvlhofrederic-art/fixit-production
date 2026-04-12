@@ -20,7 +20,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }] },
-    alternates: { canonical: `https://vitfix.io/fr/urgence/${slug}/` },
+    alternates: {
+      canonical: `https://vitfix.io/fr/urgence/${slug}/`,
+      languages: {
+        'fr': `https://vitfix.io/fr/urgence/${slug}/`,
+        'pt': 'https://vitfix.io/pt/urgencia/',
+        'en': 'https://vitfix.io/en/',
+        'x-default': `https://vitfix.io/fr/urgence/${slug}/`,
+      },
+    },
   }
 }
 
