@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 // Suspense removed from root layout to fix React hydration error #419
-import { PHONE_FR, PHONE_PT } from "@/lib/constants";
+
 import { cookies, headers } from "next/headers";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
@@ -125,150 +125,6 @@ export default async function RootLayout({
   const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
 
 
-  // NL and ES investor pages target Porto (same as EN)
-  const jsonLd = (locale === 'en' || locale === 'nl' || locale === 'es') ? {
-    '@context': 'https://schema.org',
-    '@type': 'HomeAndConstructionBusiness',
-    name: 'VITFIX',
-    description: 'English-speaking home service professionals in Porto. Plumbing, electrical, handyman, property maintenance.',
-    url: 'https://vitfix.io',
-    logo: 'https://vitfix.io/og-image.png',
-    image: 'https://vitfix.io/og-image.png',
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: 'Porto',
-      addressRegion: 'Porto',
-      addressCountry: 'PT',
-    },
-    geo: {
-      '@type': 'GeoCoordinates',
-      latitude: 41.1579,
-      longitude: -8.6291,
-    },
-    areaServed: [
-      { '@type': 'City', name: 'Porto' },
-      { '@type': 'City', name: 'Vila Nova de Gaia' },
-      { '@type': 'City', name: 'Matosinhos' },
-      { '@type': 'City', name: 'Maia' },
-      { '@type': 'City', name: 'Gondomar' },
-      { '@type': 'City', name: 'Valongo' },
-    ],
-    serviceType: ['Plumbing', 'Electrician', 'Handyman', 'Home Repair', 'Property Maintenance'],
-    availableLanguage: ['English', 'Portuguese'],
-    openingHoursSpecification: {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      opens: '08:00',
-      closes: '20:00',
-    },
-    telephone: PHONE_PT,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '127',
-      bestRating: '5',
-      worstRating: '1',
-    },
-    priceRange: '\u20ac\u20ac',
-  } : locale === 'pt' ? {
-    '@context': 'https://schema.org',
-    '@type': 'HomeAndConstructionBusiness',
-    name: 'VITFIX',
-    description: 'Serviços de canalização, eletricidade, desentupimento, pintura, remodelação e manutenção em Marco de Canaveses, Penafiel, Amarante e região do Tâmega e Sousa.',
-    url: 'https://vitfix.io',
-    logo: 'https://vitfix.io/og-image.png',
-    image: 'https://vitfix.io/og-image.png',
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: 'Marco de Canaveses',
-      addressRegion: 'Porto',
-      postalCode: '4630',
-      addressCountry: 'PT',
-    },
-    geo: {
-      '@type': 'GeoCoordinates',
-      latitude: 41.1842,
-      longitude: -8.1503,
-    },
-    areaServed: [
-      { '@type': 'City', name: 'Marco de Canaveses' },
-      { '@type': 'City', name: 'Penafiel' },
-      { '@type': 'City', name: 'Amarante' },
-      { '@type': 'City', name: 'Baião' },
-      { '@type': 'City', name: 'Felgueiras' },
-      { '@type': 'City', name: 'Lousada' },
-      { '@type': 'City', name: 'Paços de Ferreira' },
-      { '@type': 'City', name: 'Paredes' },
-    ],
-    serviceType: ['Canalização', 'Eletricidade', 'Desentupimento', 'Pintura', 'Pladur', 'Remodelação', 'Isolamento Térmico', 'Impermeabilização', 'Faz Tudo'],
-    openingHoursSpecification: {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      opens: '08:00',
-      closes: '20:00',
-    },
-    telephone: PHONE_PT,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '127',
-      bestRating: '5',
-      worstRating: '1',
-    },
-    priceRange: '€€',
-  } : {
-    '@context': 'https://schema.org',
-    '@type': 'HomeAndConstructionBusiness',
-    name: 'VITFIX',
-    description: 'Trouvez et réservez un artisan vérifié à Marseille et en PACA : plombier, électricien, peintre, serrurier. Devis gratuit, réponse en 2h, 7j/7.',
-    url: 'https://vitfix.io',
-    logo: 'https://vitfix.io/og-image.png',
-    image: 'https://vitfix.io/og-image.png',
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: 'Marseille',
-      addressRegion: 'Provence-Alpes-Côte d\'Azur',
-      postalCode: '13000',
-      addressCountry: 'FR',
-    },
-    geo: {
-      '@type': 'GeoCoordinates',
-      latitude: 43.2965,
-      longitude: 5.3698,
-    },
-    areaServed: [
-      { '@type': 'City', name: 'Marseille' },
-      { '@type': 'City', name: 'Aix-en-Provence' },
-      { '@type': 'City', name: 'Aubagne' },
-      { '@type': 'City', name: 'La Ciotat' },
-      { '@type': 'City', name: 'Cassis' },
-      { '@type': 'City', name: 'Martigues' },
-      { '@type': 'City', name: 'Salon-de-Provence' },
-      { '@type': 'City', name: 'Allauch' },
-    ],
-    serviceType: [
-      'Plomberie', 'Électricité', 'Serrurerie', 'Peinture', 'Plaquiste',
-      'Chauffage', 'Climatisation', 'Menuiserie', 'Maçonnerie', 'Carrelage',
-      'Jardinage', 'Paysagiste', 'Nettoyage', 'Vitrerie', 'Toiture',
-      'Rénovation', 'Débroussaillage', 'Élagage', 'Débarras', 'Traitement nuisibles',
-    ],
-    openingHoursSpecification: {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      opens: '07:00',
-      closes: '22:00',
-    },
-    telephone: PHONE_FR,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '12000',
-      bestRating: '5',
-      worstRating: '1',
-    },
-    priceRange: '€€',
-  }
-
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
@@ -283,10 +139,6 @@ export default async function RootLayout({
         <link rel="alternate" hrefLang="nl" href="https://vitfix.io/nl/" />
         <link rel="alternate" hrefLang="es" href="https://vitfix.io/es/" />
         <link rel="alternate" hrefLang="x-default" href="https://vitfix.io/" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
