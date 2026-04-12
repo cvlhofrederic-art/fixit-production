@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, proChannelPostSchema } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
@@ -22,6 +23,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const contactId = searchParams.get('contact_id')
+
+    // Valider format UUID si contactId fourni
+    const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i
+    if (contactId && !VALID_UUID.test(contactId)) {
+      return NextResponse.json({ error: 'contact_id invalide' }, { status: 400 })
+    }
 
     // Cherche les messages entre user.id et contactId dans la table syndic_messages
     // On réutilise la table syndic_messages avec cabinet_id = pro user_id
@@ -52,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ messages: data || [] })
   } catch (err) {
-    console.error('[pro/channel/GET] Unexpected error:', err)
+    logger.error('[pro/channel/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { content, contact_id, type = 'text', metadata = {} } = validation.data as any
+    const { content, contact_id, type = 'text', metadata = {} } = validation.data
 
     if (!content?.trim() && type === 'text') {
       return NextResponse.json({ error: 'Contenu requis' }, { status: 400 })
@@ -99,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: data })
   } catch (err) {
-    console.error('[pro/channel/POST] Unexpected error:', err)
+    logger.error('[pro/channel/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

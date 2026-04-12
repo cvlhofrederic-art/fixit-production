@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const kycEmailSchema = z.object({
   to: z.string().email(),
@@ -76,6 +77,9 @@ export async function POST(request: NextRequest) {
   if (!secret || secret !== process.env.INTERNAL_API_SECRET) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`kyc_email_${ip}`, 5, 60_000))) return rateLimitResponse()
 
   let rawBody: unknown
   try {

@@ -3,6 +3,7 @@ import { getAuthUser, isSuperAdmin, unauthorizedResponse } from '@/lib/auth-help
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { adminSubscriptionsQuerySchema } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     const { data: subs, count, error } = await query
 
     if (error) {
-      console.error('[admin/subscriptions] Query error:', error.message)
+      logger.error('[admin/subscriptions] Query error:', error.message)
       return NextResponse.json({ error: 'Failed to fetch subscriptions' }, { status: 500 })
     }
 
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
       pagination: { page, limit, total, totalPages },
     })
   } catch (error) {
-    console.error('[admin/subscriptions] Error:', error instanceof Error ? error.message : error)
+    logger.error('[admin/subscriptions] Error:', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

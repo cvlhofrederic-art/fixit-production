@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { planningEventSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // ── Planning Events partagés — table syndic_planning_events
 // SQL pour créer la table (à exécuter une fois dans Supabase SQL Editor) :
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
     return response
   } catch (err) {
-    console.error('[syndic/planning-events/GET] Unexpected error:', err)
+    logger.error('[syndic/planning-events/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
       }
     })
   } catch (err) {
-    console.error('[syndic/planning-events/POST] Unexpected error:', err)
+    logger.error('[syndic/planning-events/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -166,7 +167,7 @@ export async function DELETE(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[syndic/planning-events/DELETE] Unexpected error:', err)
+    logger.error('[syndic/planning-events/DELETE] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

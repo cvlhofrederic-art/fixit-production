@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { action } = validation.data as any
+    const { action } = validation.data
 
     // ═════════════════════════════════════════════════════════════════════
     // ACTION : PARSE (preview)

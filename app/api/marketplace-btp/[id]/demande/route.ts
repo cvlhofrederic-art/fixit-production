@@ -5,6 +5,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { VALID_UUID } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 function getAdmin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -22,7 +25,11 @@ async function auth(req: NextRequest) {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`mpl_dem_${ip}`, 20, 60_000))) return rateLimitResponse()
+
     const { id } = await params
+    if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
     const user = await auth(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -40,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ demandes: demandes ?? [] })
   } catch (e) {
-    console.error('[MPL DEMANDE GET]', e)
+    logger.error('[MPL DEMANDE GET]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -48,6 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
     const user = await auth(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -85,7 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ demande }, { status: 201 })
   } catch (e) {
-    console.error('[MPL DEMANDE POST]', e)
+    logger.error('[MPL DEMANDE POST]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -93,11 +101,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
     const user = await auth(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { demande_id, status, reponse_vendeur } = await req.json()
     if (!demande_id || !status) return NextResponse.json({ error: 'demande_id et status requis' }, { status: 400 })
+
+    const validStatuses = ['pending', 'accepted', 'rejected', 'cancelled']
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Statut invalide' }, { status: 400 })
+    }
 
     // Vérifier que c'est bien le vendeur
     const { data: listing } = await getAdmin()
@@ -128,7 +142,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json({ demande: data })
   } catch (e) {
-    console.error('[MPL DEMANDE PATCH]', e)
+    logger.error('[MPL DEMANDE PATCH]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, serviceEtapesPostSchema, serviceEtapesPatchSchema } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // ══════════════════════════════════════════════════════════════
 // API /api/service-etapes
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ etapes: data || [] })
   } catch (err) {
-    console.error('[service-etapes] GET error:', err)
+    logger.error('[service-etapes] GET error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ etape: data })
   } catch (err) {
-    console.error('[service-etapes] POST error:', err)
+    logger.error('[service-etapes] POST error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -174,7 +175,7 @@ export async function PATCH(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ etape: data })
   } catch (err) {
-    console.error('[service-etapes] PATCH error:', err)
+    logger.error('[service-etapes] PATCH error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -204,7 +205,7 @@ export async function DELETE(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[service-etapes] DELETE error:', err)
+    logger.error('[service-etapes] DELETE error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

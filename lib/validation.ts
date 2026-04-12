@@ -1002,3 +1002,6 @@ export const emailAgentPollGetSchema = z.object({
   urgence: z.enum(['haute', 'moyenne', 'basse']).optional(),
   statut: z.string().max(50).optional(),
 })
+
+/** UUID v4 format validator for URL parameters */
+export const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i

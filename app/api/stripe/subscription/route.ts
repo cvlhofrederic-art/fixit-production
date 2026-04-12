@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { getUserSubscription } from '@/lib/subscription'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const subscriptionBodySchema = z.object({
   plan: z.string().min(1),
@@ -13,6 +14,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+    if (!(await checkRateLimit(`stripe_sub_${user.id}`, 10, 60_000))) return rateLimitResponse()
 
     const sub = await getUserSubscription(user.id)
     return NextResponse.json({
@@ -28,6 +31,8 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+    if (!(await checkRateLimit(`stripe_sub_${user.id}`, 10, 60_000))) return rateLimitResponse()
 
     const body = await request.json()
     const parsed = subscriptionBodySchema.safeParse(body)

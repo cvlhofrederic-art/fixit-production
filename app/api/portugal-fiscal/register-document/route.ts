@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       lines,            // Array of { description, quantity, unitPrice, taxRate, lineTotal }
       issueDate,        // YYYY-MM-DD
       isSimplified,     // boolean
-    } = validation.data as any
+    } = validation.data
 
     if (!validateNIF(issuerNIF)) {
       return NextResponse.json({ error: 'NIF do emitente inválido' }, { status: 400 })

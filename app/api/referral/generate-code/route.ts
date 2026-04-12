@@ -3,11 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { generateReferralCode } from '@/lib/referral'
 import { SITE_URL } from '@/lib/constants'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!(await checkRateLimit(`ref_code_${user.id}`, 5, 60_000))) return rateLimitResponse()
 
     const { data: artisan } = await supabaseAdmin
       .from('profiles_artisan')

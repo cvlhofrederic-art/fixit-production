@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       validationCode,    // AT-assigned code
       fiscalYear,
       fiscalSpace = 'PT',
-    } = validation.data as any
+    } = validation.data
 
     // Valid doc types
     const validTypes = ['FT', 'FR', 'FS', 'NC', 'ND', 'OR']

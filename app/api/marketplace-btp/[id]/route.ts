@@ -5,7 +5,33 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { VALID_UUID } from '@/lib/validation'
+
+const marketplaceUpdateSchema = z.object({
+  title: z.string().max(200).optional(),
+  description: z.string().max(5000).optional(),
+  categorie: z.string().max(100).optional(),
+  type_annonce: z.enum(['vente', 'location']).optional(),
+  etat: z.string().max(50).optional(),
+  prix_vente: z.number().nonnegative().optional(),
+  prix_location_jour: z.number().nonnegative().optional(),
+  prix_location_semaine: z.number().nonnegative().optional(),
+  prix_location_mois: z.number().nonnegative().optional(),
+  disponible_de: z.string().max(50).optional(),
+  disponible_jusqu: z.string().max(50).optional(),
+  localisation: z.string().max(200).optional(),
+  country: z.string().max(5).optional(),
+  marque: z.string().max(100).optional(),
+  modele: z.string().max(100).optional(),
+  annee: z.number().int().min(1900).max(2100).optional(),
+  caracteristiques: z.string().max(2000).optional(),
+  vendeur_nom: z.string().max(200).optional(),
+  vendeur_phone: z.string().max(30).optional(),
+  status: z.enum(['active', 'vendu', 'suspendu', 'archive']).optional(),
+}).strict()
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -22,7 +48,11 @@ function getAnon() {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`mpl_${ip}`, 30, 60_000))) return rateLimitResponse()
+
     const { id } = await params
+    if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
     const supabase = getAdmin()
 
     // Vérifier si l'appelant est authentifié (pour inclure ses demandes)
@@ -65,6 +95,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
     const token = req.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -72,18 +103,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const raw = await req.json()
-    // Aligné sur les colonnes réelles du schema POST (listingBodySchema)
-    const ALLOWED_FIELDS = [
-      'title', 'description', 'categorie', 'type_annonce', 'etat',
-      'prix_vente', 'prix_location_jour', 'prix_location_semaine', 'prix_location_mois',
-      'disponible_de', 'disponible_jusqu', 'localisation', 'country',
-      'marque', 'modele', 'annee', 'caracteristiques',
-      'vendeur_nom', 'vendeur_phone', 'status',
-    ] as const
-    const body: Record<string, unknown> = {}
-    for (const key of ALLOWED_FIELDS) {
-      if (key in raw) body[key] = raw[key]
+    const parsed = marketplaceUpdateSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
     }
+    const body: Record<string, unknown> = { ...parsed.data }
     const AE_CATS = ['mini_engins', 'materiel_leger']
     if (body.categorie && typeof body.categorie === 'string') body.accessible_ae = AE_CATS.includes(body.categorie)
 
@@ -107,6 +131,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
     const token = req.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

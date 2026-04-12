@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const rfqItemSchema = z.object({
   product_name: z.string().min(1),
@@ -37,6 +38,9 @@ function getSupabaseAnon() {
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`rfq_${ip}`, 15, 60_000))) return rateLimitResponse()
+
     const authHeader = req.headers.get('authorization')
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

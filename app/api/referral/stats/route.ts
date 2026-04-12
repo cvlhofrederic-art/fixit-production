@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { SITE_URL } from '@/lib/constants'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!(await checkRateLimit(`ref_stats_${user.id}`, 15, 60_000))) return rateLimitResponse()
 
     const { data: artisan } = await supabaseAdmin
       .from('profiles_artisan')

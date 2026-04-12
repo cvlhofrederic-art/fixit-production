@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // Vercel serverless timeout (2 Tavily + 1 Groq = peut dépasser 10s)
 export const maxDuration = 30
@@ -411,6 +412,10 @@ export async function POST(request: NextRequest) {
     // ── Auth obligatoire ──
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+
+    // ── Rate limit : 10 req/min par user (appels Groq + Tavily coûteux) ──
+    const ip = getClientIP(request)
+    if (!(await checkRateLimit(`materiaux_ai_${user.id || ip}`, 10, 60_000))) return rateLimitResponse()
 
     const body = await request.json()
     const { query, city, mode, locale } = body

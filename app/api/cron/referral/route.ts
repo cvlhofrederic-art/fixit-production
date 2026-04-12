@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { distributeReferralReward } from '@/lib/referral'
 import { sendReferralRewardConfirmed, sendReferralReminderFilleul } from '@/lib/email-referral'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 60 secondes max
@@ -104,10 +105,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log('[cron/referral] Results:', results)
+    logger.info('[cron/referral] Results:', results)
     return NextResponse.json({ success: true, ...results })
   } catch (err) {
-    console.error('[cron/referral] Error:', err)
+    logger.error('[cron/referral] Error:', err)
     return NextResponse.json({ error: 'Cron failed', details: String(err) }, { status: 500 })
   }
 }
@@ -138,7 +139,7 @@ async function sendRewardEmail(parrainId: string, filleulId: string, code: strin
       referralCode: parrain.referral_code || code,
     })
   } catch (err) {
-    console.error('[cron/referral] Reward email error:', err)
+    logger.error('[cron/referral] Reward email error:', err)
   }
 }
 
@@ -165,6 +166,6 @@ async function sendReminderEmail(parrainId: string, filleulId: string, code: str
       referralCode: parrain.referral_code || code,
     })
   } catch (err) {
-    console.error('[cron/referral] Reminder email error:', err)
+    logger.error('[cron/referral] Reminder email error:', err)
   }
 }

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getResumeActivite } from '@/lib/stats-resume'
 import { genererPhrases } from '@/lib/stats-phrases'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 15
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       }
     )
   } catch (err) {
-    console.error('[stats/resume] Error:', err)
+    logger.error('[stats/resume] Error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

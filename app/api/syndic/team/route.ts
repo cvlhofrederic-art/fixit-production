@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   if (!validation.success) {
     return NextResponse.json({ error: validation.error }, { status: 400 })
   }
-  const { email, full_name, memberRole, customModules } = validation.data as any
+  const { email, full_name, memberRole, customModules } = validation.data
 
   const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
   if (!validRoles.includes(memberRole)) {

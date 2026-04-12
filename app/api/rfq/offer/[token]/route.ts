@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { VALID_UUID } from '@/lib/validation'
 
 // Lazy init — évite le crash au build CI quand les env vars ne sont pas définies
 function getSupabase() {
@@ -28,7 +29,7 @@ const offerSubmitSchema = z.object({
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    if (!token || token.length < 10) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
+    if (!VALID_UUID.test(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
     const supabase = getSupabase()
 
     const { data: offer, error } = await supabase
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    if (!token || token.length < 10) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
+    if (!VALID_UUID.test(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
     const supabase = getSupabase()
 
     // Valider les inputs

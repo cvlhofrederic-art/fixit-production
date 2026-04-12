@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       if (skippedFields.length > 0) {
         return NextResponse.json({
           error: `Les champs suivants ne sont pas encore disponibles en base de données : ${skippedFields.join(', ')}. Contactez le support technique.`,
-        }, { status: 500 })
+        }, { status: 400 })
       }
       return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 })
     }
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       knownColumns = null
 
       return NextResponse.json({
-        error: updateError.message || 'Erreur lors de la sauvegarde',
+        error: 'Erreur lors de la sauvegarde',
       }, { status: 500 })
     }
 

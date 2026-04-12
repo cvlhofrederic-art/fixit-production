@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
-import { validateBody } from '@/lib/validation'
+import { validateBody, VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
@@ -21,6 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!(await checkRateLimit(`marches_messages_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const { id: marcheId } = await params
+  if (!VALID_UUID.test(marcheId)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
   const url = new URL(request.url)
   const token = url.searchParams.get('token')
   const candidatureIdFilter = url.searchParams.get('candidature_id')
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!(await checkRateLimit(`marches_messages_post_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const { id: marcheId } = await params
+  if (!VALID_UUID.test(marcheId)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
 
   let body: unknown
   try {

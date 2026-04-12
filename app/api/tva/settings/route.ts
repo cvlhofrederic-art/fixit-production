@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const tvaSettingsSchema = z.object({
   tva_auto_activate: z.boolean(),
@@ -28,6 +29,9 @@ async function authenticate(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`tva_set_${ip}`, 15, 60_000))) return rateLimitResponse()
+
     const user = await authenticate(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -47,6 +51,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`tva_set_${ip}`, 15, 60_000))) return rateLimitResponse()
+
     const user = await authenticate(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -3,10 +3,13 @@ import { stripe } from '@/lib/stripe'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { getUserSubscription } from '@/lib/subscription'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+  if (!(await checkRateLimit(`stripe_portal_${user.id}`, 5, 60_000))) return rateLimitResponse()
 
   const sub = await getUserSubscription(user.id)
   if (!sub?.stripe_customer_id) {

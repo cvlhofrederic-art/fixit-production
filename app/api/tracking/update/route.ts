@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { token, lat, lng, status, artisanNom, artisanInitiales, missionTitre, missionAdresse, photos, startedAt } = validation.data as any
+    const { token, lat, lng, status, artisanNom, artisanInitiales, missionTitre, missionAdresse, photos, startedAt } = validation.data
 
     // Créer le bucket "tracking" s'il n'existe pas
     await supabaseAdmin.storage.createBucket('tracking', { public: false }).catch(err => logger.error('[tracking/update] Failed to create storage bucket:', err))

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
-import { updateCandidatureStatusSchema, validateBody } from '@/lib/validation'
+import { updateCandidatureStatusSchema, validateBody, VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -11,6 +11,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; cid: string }> }
 ) {
   const { id: marcheId, cid: candidatureId } = await params
+  if (!VALID_UUID.test(marcheId) || !VALID_UUID.test(candidatureId)) {
+    return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
+  }
 
   // ── Rate limit: 10 requests/min per IP ──
   const ip = getClientIP(request)

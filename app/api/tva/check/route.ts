@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { getTvaStatus, shouldNotify, type TvaCountry, type TvaNotifiedLevel } from '@/lib/tva-thresholds'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const tvaCheckSchema = z.object({
   ca_ht: z.number().nonnegative(),
@@ -22,6 +23,9 @@ function getSupabaseAnon() {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`tva_chk_${ip}`, 10, 60_000))) return rateLimitResponse()
+
     const token = req.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

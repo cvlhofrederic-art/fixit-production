@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { email_id, syndic_id, action, note } = validation.data as any
+    const { email_id, syndic_id, action, note } = validation.data
 
     // Sécurité : le syndic_id du body DOIT correspondre à l'utilisateur authentifié
     // ou être un membre du même cabinet

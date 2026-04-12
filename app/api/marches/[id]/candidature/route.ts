@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
-import { createCandidatureSchema, validateBody } from '@/lib/validation'
+import { createCandidatureSchema, validateBody, VALID_UUID } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { id: marcheId } = await params
+  if (!VALID_UUID.test(marcheId)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
 
   // Vérifier que le marché existe et est ouvert
   const { data: marche, error: marcheError } = await supabaseAdmin
@@ -160,6 +161,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id: marcheId } = await params
+  if (!VALID_UUID.test(marcheId)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
   const url = new URL(request.url)
   const myBids = url.searchParams.get('my') === 'true'
   const { from, to } = parsePagination(url)

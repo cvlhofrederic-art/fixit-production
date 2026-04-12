@@ -45,11 +45,15 @@ export async function POST(request: NextRequest) {
       }, { onConflict: 'email' })
       .select()
 
+    if (insertError) {
+      logger.error('[admin/init-team-table] Upsert error:', insertError)
+      return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
+    }
+
     return NextResponse.json({
-      success: !insertError,
-      member_inserted: !insertError,
+      success: true,
+      member_inserted: true,
       member_data: insertData,
-      error: insertError?.message,
     })
   } catch (err) {
     logger.error('[admin/init-team-table/POST] Unexpected error:', err)

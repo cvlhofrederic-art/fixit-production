@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { proMessagerieSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
@@ -12,6 +13,8 @@ export async function GET(req: NextRequest) {
     // ── Auth obligatoire ──
     const user = await getAuthUser(req)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+
+    if (!(await checkRateLimit(`pro_msg_${user.id}`, 60, 60_000))) return rateLimitResponse()
 
     const role = user.user_metadata?.role || ''
     if (!PRO_ROLES.includes(role)) {

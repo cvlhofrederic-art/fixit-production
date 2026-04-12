@@ -4,7 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
-import { validateBody } from '@/lib/validation'
+import { validateBody, VALID_UUID } from '@/lib/validation'
 
 const marchesPatchSchema = z.object({
   access_token: z.string().max(200).optional(),
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!(await checkRateLimit(`marches_detail_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const { id } = await params
+  if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
   const url = new URL(request.url)
   const token = url.searchParams.get('token')
 
@@ -62,6 +63,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!(await checkRateLimit(`marches_patch_${ip}`, 10, 60_000))) return rateLimitResponse()
 
   const { id } = await params
+  if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
 
   let body: Record<string, unknown>
   try {

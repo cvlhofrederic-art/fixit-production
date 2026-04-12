@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { scanDepartment } from '@/lib/tenders/scanner'
 import { getAuthUser } from '@/lib/auth-helpers'
+
+const scanBodySchema = z.object({
+  department: z.string().regex(/^\d{2,3}$/, 'Code département invalide').default('13'),
+})
 
 export const maxDuration = 300 // 5 min for full scan
 
@@ -32,8 +37,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const body = await request.json().catch(() => ({}))
-  const department = body.department || '13'
+  const rawBody = await request.json().catch(() => ({}))
+  const parsed = scanBodySchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Code département invalide' }, { status: 400 })
+  }
+  const { department } = parsed.data
 
   try {
     logger.info(`[tenders/scan] Starting scan for department ${department}`)
@@ -42,7 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, ...result.meta })
   } catch (err: unknown) {
     logger.error('[tenders/scan] Fatal error:', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Erreur interne du scan' }, { status: 500 })
   }
 }
 

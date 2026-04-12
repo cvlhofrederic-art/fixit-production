@@ -2,11 +2,22 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicMissionReportSchema } from '@/lib/validation'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
 // Stocke dans syndic_emails_analysed + syndic_notifications + Supabase Storage
 
 export async function POST(request: NextRequest) {
+  // ── Auth : seuls les artisans assignés ou les membres du syndic ──
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`mission_report_${ip}`, 10, 60_000))) return rateLimitResponse()
+
   try {
     const _body = await request.json()
     const validation = validateBody(syndicMissionReportSchema, _body)
@@ -29,7 +40,20 @@ export async function POST(request: NextRequest) {
       started_at,
       completed_at,
       booking_id,
-    } = validation.data as any
+    } = validation.data
+
+    // ── Ownership check : l'appelant doit être l'artisan ou un membre du syndic ──
+    const isOwnerArtisan = user.id === artisan_id
+    const isSyndic = isSyndicRole(user)
+    if (!isOwnerArtisan && !isSyndic) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
+    if (isSyndic) {
+      const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+      if (cabinetId !== syndic_id) {
+        return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+      }
+    }
 
     const now = new Date().toISOString()
     const reportId = `rapport_${Date.now()}`

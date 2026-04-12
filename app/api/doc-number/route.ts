@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, docNumberSchema } from '@/lib/validation'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // POST /api/doc-number — Génère le prochain numéro séquentiel (devis/facture/avoir)
 // Utilise la fonction DB next_doc_number() pour garantir l'atomicité (art. L441-3 C. com.)
@@ -10,6 +11,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
+
+  if (!(await checkRateLimit(`doc_num_${user.id}`, 30, 60_000))) return rateLimitResponse()
 
   let raw: unknown
   try {
