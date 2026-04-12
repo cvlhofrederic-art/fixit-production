@@ -1,9 +1,9 @@
-import { DM_Sans, Montserrat } from "next/font/google";
+import { Outfit, Montserrat } from "next/font/google";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
-  weight: ["300", "400", "500"],
+  weight: ["300", "400", "500", "600"],
 });
 
 const montserrat = Montserrat({
@@ -12,13 +12,13 @@ const montserrat = Montserrat({
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
-export default function DashboardLayout({
+export default function CoproDashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <div className={`${dmSans.variable} ${montserrat.variable}`}>
+    <div className={`${outfit.variable} ${montserrat.variable}`}>
       {children}
     </div>
   )
