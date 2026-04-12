@@ -15,13 +15,20 @@ export const metadata: Metadata = {
     locale: 'es_ES',
     images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Servicios para Viviendas en Oporto | VITFIX',
+    description: 'Profesionales verificados para todas sus necesidades inmobiliarias en Oporto. Presupuesto gratis.',
+  },
   alternates: {
     canonical: 'https://vitfix.io/es/',
     languages: {
       'fr': 'https://vitfix.io/fr/',
+      'pt': 'https://vitfix.io/pt/',
       'en': 'https://vitfix.io/en/',
       'nl': 'https://vitfix.io/nl/',
       'es': 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
     },
   },
 }

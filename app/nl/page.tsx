@@ -15,13 +15,20 @@ export const metadata: Metadata = {
     locale: 'nl_NL',
     images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Vastgoeddiensten Porto | VITFIX',
+    description: 'Geverifieerde vakmensen voor al uw vastgoedbehoeften in Porto. Gratis offerte.',
+  },
   alternates: {
     canonical: 'https://vitfix.io/nl/',
     languages: {
       'fr': 'https://vitfix.io/fr/',
+      'pt': 'https://vitfix.io/pt/',
       'en': 'https://vitfix.io/en/',
       'nl': 'https://vitfix.io/nl/',
       'es': 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
     },
   },
 }
