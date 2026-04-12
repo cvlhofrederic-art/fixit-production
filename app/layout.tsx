@@ -349,10 +349,10 @@ export default async function RootLayout({
               potentialAction: {
                 '@type': 'SearchAction',
                 target: locale === 'pt'
-                  ? 'https://vitfix.io/pesquisar/?q={search_term_string}'
+                  ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
                   : locale === 'en'
                     ? 'https://vitfix.io/en/?q={search_term_string}'
-                    : 'https://vitfix.io/recherche/?q={search_term_string}',
+                    : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
                 'query-input': 'required name=search_term_string',
               },
             }),

@@ -11,92 +11,93 @@ import { FR_CITIES, FR_SERVICES, getAllFrPageCombos, getAllFrUrgencyCombos } fro
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
+  const now = new Date()
 
   // Pages statiques (avec prefixe locale)
   const staticPages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 1.0 },
-    { url: `${baseUrl}/pt/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 1.0 },
-    { url: `${baseUrl}/fr/recherche/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 0.9 },
-    { url: `${baseUrl}/pt/pesquisar/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 0.9 },
-    { url: `${baseUrl}/pt/avaliacoes/`, lastModified: new Date('2026-03-16'), changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${baseUrl}/`, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
+    { url: `${baseUrl}/pt/`, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
+    { url: `${baseUrl}/fr/recherche/`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/pt/pesquisar/`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/pt/avaliacoes/`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     // Pages contenu FR — relation client/professionnel
-    { url: `${baseUrl}/fr/comment-ca-marche/`, lastModified: new Date('2026-03-16'), changeFrequency: 'monthly', priority: 0.85 },
-    { url: `${baseUrl}/fr/devenir-partenaire/`, lastModified: new Date('2026-03-16'), changeFrequency: 'monthly', priority: 0.85 },
-    { url: `${baseUrl}/fr/artisans-verifies/`, lastModified: new Date('2026-03-16'), changeFrequency: 'monthly', priority: 0.85 },
+    { url: `${baseUrl}/fr/comment-ca-marche/`, lastModified: now, changeFrequency: 'monthly', priority: 0.85 },
+    { url: `${baseUrl}/fr/devenir-partenaire/`, lastModified: now, changeFrequency: 'monthly', priority: 0.85 },
+    { url: `${baseUrl}/fr/artisans-verifies/`, lastModified: now, changeFrequency: 'monthly', priority: 0.85 },
   ]
 
   // Hub pages PT
   const seoHubPages: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/pt/servicos/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.9,
     },
     {
       url: `${baseUrl}/pt/blog/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
     {
       url: `${baseUrl}/pt/urgencia/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.9,
     },
     {
       url: `${baseUrl}/pt/perto-de-mim/`,
-      lastModified: new Date('2026-03-17'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.9,
     },
     // Pages contenu PT — relation client/professionnel
     {
       url: `${baseUrl}/pt/como-funciona/`,
-      lastModified: new Date('2026-03-16'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     {
       url: `${baseUrl}/pt/torne-se-parceiro/`,
-      lastModified: new Date('2026-03-16'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     {
       url: `${baseUrl}/pt/profissionais-verificados/`,
-      lastModified: new Date('2026-03-16'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     {
       url: `${baseUrl}/pt/especialidades/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     {
       url: `${baseUrl}/pt/condominio/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     {
       url: `${baseUrl}/pt/simulador-orcamento/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     {
       url: `${baseUrl}/pt/mercados/publicar/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.8,
     },
     {
       url: `${baseUrl}/pt/mercados/gerir/`,
-      lastModified: new Date('2026-03-18'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.7,
     },
@@ -105,7 +106,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages SEO programmatiques — services x villes (9 services x 8 cities = 72 pages)
   const seoServicePages: MetadataRoute.Sitemap = getAllPageCombos().map(combo => ({
     url: `${baseUrl}/pt/servicos/${combo.slug}/`,
-    lastModified: new Date('2026-03-18'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
@@ -113,7 +114,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages urgence (9 services x 8 cities = 72 pages)
   const seoUrgencyPages: MetadataRoute.Sitemap = getAllUrgencyCombos().map(combo => ({
     url: `${baseUrl}/pt/urgencia/${combo.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
@@ -121,7 +122,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages ville (8 pages)
   const seoCityPages: MetadataRoute.Sitemap = CITIES.map(city => ({
     url: `${baseUrl}/pt/cidade/${city.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   }))
@@ -136,7 +137,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Generic service pages (4)
     ...SERVICES.map(service => ({
       url: `${baseUrl}/pt/perto-de-mim/${service.slug}/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.85,
     })),
@@ -144,7 +145,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...SERVICES.flatMap(service =>
       CITIES.map(city => ({
         url: `${baseUrl}/pt/perto-de-mim/${service.slug}-${city.slug}/`,
-        lastModified: new Date('2026-03-15'),
+        lastModified: now,
         changeFrequency: 'weekly' as const,
         priority: 0.82,
       }))
@@ -152,14 +153,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Picheleiro generic (1)
     {
       url: `${baseUrl}/pt/perto-de-mim/picheleiro/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.85,
     },
     // Picheleiro × city (8)
     ...CITIES.map(city => ({
       url: `${baseUrl}/pt/perto-de-mim/picheleiro-${city.slug}/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.82,
     })),
@@ -169,13 +170,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const seoPrecosPages: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/pt/precos/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
     ...['canalizador', 'eletricista', 'pintor'].map(slug => ({
       url: `${baseUrl}/pt/precos/${slug}/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.8,
     })),
@@ -192,21 +193,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages EN — service pages for Porto expats (hub + 8 services + ads landing = 10 pages)
   const enHubPage: MetadataRoute.Sitemap = [{
     url: `${baseUrl}/en/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.9,
   }]
 
   const enServicePages: MetadataRoute.Sitemap = EN_SERVICE_PAGES.map(page => ({
     url: `${baseUrl}/en/${page.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
 
   const enAdsPage: MetadataRoute.Sitemap = [{
     url: `${baseUrl}/en/emergency-home-repair-porto/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.7,
   }]
@@ -214,7 +215,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages FR investisseurs (4 pages — accessible via /fr/slug/ grâce au rewrite)
   const frInvestorPages: MetadataRoute.Sitemap = FR_INVESTOR_PAGES.map(page => ({
     url: `${baseUrl}/fr/${page.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
@@ -222,14 +223,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages NL investisseurs (hub + 4 services = 5 pages)
   const nlHubPage: MetadataRoute.Sitemap = [{
     url: `${baseUrl}/nl/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.9,
   }]
 
   const nlServicePages: MetadataRoute.Sitemap = NL_INVESTOR_PAGES.map(page => ({
     url: `${baseUrl}/nl/${page.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
@@ -237,29 +238,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages ES investisseurs (hub + 4 services = 5 pages)
   const esHubPage: MetadataRoute.Sitemap = [{
     url: `${baseUrl}/es/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.9,
   }]
 
   const esServicePages: MetadataRoute.Sitemap = ES_INVESTOR_PAGES.map(page => ({
     url: `${baseUrl}/es/${page.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
 
   // ── Pages FR Marseille (hub + services + urgence + ville + près de chez moi) ──
   const frMarseilleHub: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/fr/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.9 },
-    { url: `${baseUrl}/fr/services/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.9 },
-    { url: `${baseUrl}/fr/urgence/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.9 },
+    { url: `${baseUrl}/fr/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.9 },
+    { url: `${baseUrl}/fr/services/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.9 },
+    { url: `${baseUrl}/fr/urgence/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.9 },
   ]
 
   // 32 service × ville pages
   const frMarseilleServicePages: MetadataRoute.Sitemap = getAllFrPageCombos().map(combo => ({
     url: `${baseUrl}/fr/services/${combo.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
@@ -267,7 +268,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 32 urgence × ville pages
   const frMarseilleUrgencePages: MetadataRoute.Sitemap = getAllFrUrgencyCombos().map(combo => ({
     url: `${baseUrl}/fr/urgence/${combo.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.85,
   }))
@@ -275,7 +276,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 8 ville pages
   const frMarseilleVillePages: MetadataRoute.Sitemap = FR_CITIES.map(city => ({
     url: `${baseUrl}/fr/ville/${city.slug}/`,
-    lastModified: new Date('2026-03-15'),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   }))
@@ -284,14 +285,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const frMarseillePresPages: MetadataRoute.Sitemap = [
     ...FR_SERVICES.map(service => ({
       url: `${baseUrl}/fr/pres-de-chez-moi/${service.slug}/`,
-      lastModified: new Date('2026-03-15'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.85,
     })),
     ...FR_SERVICES.flatMap(service =>
       FR_CITIES.map(city => ({
         url: `${baseUrl}/fr/pres-de-chez-moi/${service.slug}-${city.slug}/`,
-        lastModified: new Date('2026-03-15'),
+        lastModified: now,
         changeFrequency: 'weekly' as const,
         priority: 0.82,
       }))
@@ -300,10 +301,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Pages copropriété FR (hub + 3 services = 4 pages)
   const frCoproprietePages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/fr/copropriete/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.88 },
-    { url: `${baseUrl}/fr/copropriete/nettoyage-encombrants/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.85 },
-    { url: `${baseUrl}/fr/copropriete/espaces-verts/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.85 },
-    { url: `${baseUrl}/fr/copropriete/plomberie/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/copropriete/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.88 },
+    { url: `${baseUrl}/fr/copropriete/nettoyage-encombrants/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/copropriete/espaces-verts/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/copropriete/plomberie/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.85 },
   ]
 
   // Pages blog FR (6 articles)
@@ -316,10 +317,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Page simulateur devis FR (hub + 15 villes = 16 pages)
   const frSimulateurPages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/fr/simulateur-devis/`, lastModified: new Date('2026-03-17'), changeFrequency: 'weekly' as const, priority: 0.88 },
+    { url: `${baseUrl}/fr/simulateur-devis/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.88 },
     ...['marseille', 'aix-en-provence', 'aubagne', 'la-ciotat', 'cassis', 'martigues', 'allauch', 'salon-de-provence', 'saint-cyr-sur-mer', 'bandol', 'gemenos', 'sanary-sur-mer', 'six-fours-les-plages', 'ceyreste', 'la-seyne-sur-mer'].map(city => ({
       url: `${baseUrl}/fr/simulateur-devis/${city}/`,
-      lastModified: new Date('2026-03-17'),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.85,
     })),
@@ -327,18 +328,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Page blog FR hub
   const frBlogHubPage: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/fr/blog/`, lastModified: new Date('2026-03-17'), changeFrequency: 'weekly' as const, priority: 0.8 },
+    { url: `${baseUrl}/fr/blog/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.8 },
   ]
 
   // Pages spécialités ultra-niche FR (hub + 6 pages = 7 pages)
   const frSpecialitesPages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/fr/specialites/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.88 },
-    { url: `${baseUrl}/fr/specialites/elagage-palmier/`, lastModified: new Date('2026-03-15'), changeFrequency: 'monthly' as const, priority: 0.85 },
-    { url: `${baseUrl}/fr/specialites/debroussaillage-paca/`, lastModified: new Date('2026-03-15'), changeFrequency: 'monthly' as const, priority: 0.85 },
-    { url: `${baseUrl}/fr/specialites/debarras-succession/`, lastModified: new Date('2026-03-15'), changeFrequency: 'monthly' as const, priority: 0.85 },
-    { url: `${baseUrl}/fr/specialites/chauffe-eau/`, lastModified: new Date('2026-03-15'), changeFrequency: 'monthly' as const, priority: 0.85 },
-    { url: `${baseUrl}/fr/specialites/fuite-eau-urgence/`, lastModified: new Date('2026-03-15'), changeFrequency: 'weekly' as const, priority: 0.88 },
-    { url: `${baseUrl}/fr/specialites/renovation-salle-de-bain/`, lastModified: new Date('2026-03-15'), changeFrequency: 'monthly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/specialites/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.88 },
+    { url: `${baseUrl}/fr/specialites/elagage-palmier/`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/specialites/debroussaillage-paca/`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/specialites/debarras-succession/`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/specialites/chauffe-eau/`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.85 },
+    { url: `${baseUrl}/fr/specialites/fuite-eau-urgence/`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.88 },
+    { url: `${baseUrl}/fr/specialites/renovation-salle-de-bain/`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.85 },
   ]
 
   // Pages artisans dynamiques

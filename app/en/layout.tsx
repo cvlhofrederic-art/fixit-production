@@ -17,6 +17,9 @@ export const metadata: Metadata = {
       'pt': 'https://vitfix.io/pt/',
       'fr': 'https://vitfix.io/fr/',
       'en': 'https://vitfix.io/en/',
+      'nl': 'https://vitfix.io/nl/',
+      'es': 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
     },
   },
 }
