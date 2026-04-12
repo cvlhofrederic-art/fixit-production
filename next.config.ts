@@ -8,7 +8,7 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 const nextConfig: NextConfig = {
   trailingSlash: true,
   experimental: {
-    optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js'],
+    optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js', 'date-fns', 'lucide-react', 'pdf-lib', 'zod'],
   },
   images: {
     remotePatterns: [
