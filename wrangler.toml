@@ -1,0 +1,121 @@
+# ═══��══════════════════════════════════════════════════════════════════════════
+# Vitfix.io — Cloudflare Pages Configuration
+# ═��════════════════════════════════════════════════════��═══════════════════════
+# This file configures Cloudflare Workers/Pages for the fixit-production project.
+# Used with @opennextjs/cloudflare for Next.js deployment.
+
+name = "vitfix"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".open-next"
+
+# ── Workers Limits ───────────────────────────────────────────────────────────
+# Workers Paid: 30s CPU time, 128 MB memory, 10 MB compressed bundle
+# Queues consumers get up to 15 minutes per batch
+
+# ── KV Namespace Bindings ──────────────���─────────────────────────────────────
+# App cache layer (replaces in-memory Map for stateless Workers)
+# Create with: wrangler kv namespace create CACHE
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "<KV_NAMESPACE_ID>"
+
+# ── Cron Triggers ─────────��──────────────────────────────────────────────────
+# Migrated from vercel.json crons.
+# Routes < 30s CPU can be triggered directly.
+# Routes > 30s must use Queues (see queue bindings below).
+[triggers]
+crons = [
+  # Health check — daily 6 AM UTC
+  "0 6 * * *",
+  # Referral processing — daily 2 AM UTC
+  "0 2 * * *",
+  # Booking reminders — daily 7 AM UTC
+  "0 7 * * *",
+  # Devis reminders — daily 7:30 AM UTC
+  "30 7 * * *",
+  # Email agent poll — daily 8 AM UTC (must be batched < 30s)
+  "0 8 * * *",
+]
+
+# ── Queue Bindings ─────────────────────────────────────��─────────────────────
+# For long-running jobs that exceed Workers 30s CPU limit.
+# Producers enqueue, consumers process in background (up to 15 min).
+
+# Create with: wrangler queues create fixit-sync-jobs
+# [[queues.producers]]
+# binding = "SYNC_QUEUE"
+# queue = "fixit-sync-jobs"
+
+# [[queues.consumers]]
+# queue = "fixit-sync-jobs"
+# max_batch_timeout = 30
+# max_retries = 2
+
+# ── Long-Running Jobs (require Queues or external service) ──────────────────
+# These were Vercel crons with maxDuration > 30s:
+#
+# | Job                    | Old Schedule    | maxDuration | Strategy           |
+# |------------------------|-----------------|-------------|---------------------|
+# | /api/tenders/scan      | 0 5 * * 5       | 300s        | Queue consumer      |
+# | /api/cron/scan-marches | 0 6 * * 1       | 300s        | Queue consumer      |
+# | /api/marches/scan      | (on-demand)     | 120s        | Queue consumer      |
+# | /api/sync/decp-13      | 0 7 * * 2       | 60s         | Queue consumer      |
+# | /api/sync/sitadel-13   | 0 7 * * 3       | 60s         | Queue consumer      |
+# | /api/sync/mairies-13   | 30 7 * * 2      | 60s         | Queue consumer      |
+# | /api/sync/base-gov-pt  | 0 8 * * 4       | 60s         | Queue consumer      |
+# | /api/sync/ted-porto    | 30 8 * * 3      | 60s         | Queue consumer      |
+# | /api/sync/obras-porto  | 0 9 * * 4       | 60s         | Queue consumer      |
+# | /api/email-agent/poll  | 0 8 * * *       | 60s         | Batched pagination  |
+# | /api/user/export-data  | (on-demand)     | 60s         | Queue consumer      |
+#
+# Implementation: Create a queue producer API route that enqueues the job,
+# and a queue consumer that processes it with up to 15 min execution time.
+
+# ── Environment Variables ────────────────────────────────────────────────────
+# Set via Cloudflare Dashboard > Pages > Settings > Environment Variables
+# or via: wrangler pages secret put <NAME>
+#
+# CRITICAL (required):
+#   NEXT_PUBLIC_SUPABASE_URL
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   SUPABASE_SERVICE_ROLE_KEY
+#   NEXT_PUBLIC_APP_URL
+#   GROQ_API_KEY
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+#   STRIPE_PRICE_ARTISAN_PRO
+#   STRIPE_PRICE_SYNDIC_ESSENTIAL
+#   STRIPE_PRICE_SYNDIC_PREMIUM
+#
+# HIGH:
+#   UPSTASH_REDIS_REST_URL
+#   UPSTASH_REDIS_REST_TOKEN
+#   RESEND_API_KEY
+#   RESEND_FROM_EMAIL
+#   CRON_SECRET
+#   ENCRYPTION_KEY
+#   ADMIN_EMAIL
+#   INTERNAL_API_SECRET
+#
+# MEDIUM:
+#   TAVILY_API_KEY
+#   OPENROUTER_API_KEY
+#   GOOGLE_CLIENT_ID
+#   GOOGLE_CLIENT_SECRET
+#   NEXT_PUBLIC_SENTRY_DSN
+#   SENTRY_AUTH_TOKEN
+#   SENTRY_ORG
+#   SENTRY_PROJECT
+#
+# OPTIONAL:
+#   LANGFUSE_SECRET_KEY
+#   LANGFUSE_PUBLIC_KEY
+#   LANGFUSE_HOST
+#   DOCUSEAL_API_KEY
+#   DOCUSEAL_API_URL
+#   RAPPORT_IA_ACTIF
+#   VITFIX_PT_NIF
+#   PT_FISCAL_CERT_NUMBER
+#   PT_FISCAL_PRIVATE_KEY

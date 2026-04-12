@@ -14,7 +14,7 @@
 //     PT_FISCAL_CERT_NUMBER   — AT certification number (e.g., "1234/AT")
 // ══════════════════════════════════════════════════════════════════════════════
 
-import crypto from 'crypto'
+import { rsaSha1Sign, rsaSha1Verify } from '@/lib/crypto-compat'
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ export interface HashChainInput {
  *
  * @returns Full Base64-encoded hash string
  */
-export function generateDocumentHash(input: HashChainInput, privateKeyPem: string): string {
+export async function generateDocumentHash(input: HashChainInput, privateKeyPem: string): Promise<string> {
   const dataToSign = [
     input.invoiceDate,
     input.systemEntryDate,
@@ -107,21 +107,17 @@ export function generateDocumentHash(input: HashChainInput, privateKeyPem: strin
     input.previousHash,
   ].join(';')
 
-  const sign = crypto.createSign('SHA1')
-  sign.update(dataToSign)
-  sign.end()
-
-  return sign.sign(privateKeyPem, 'base64')
+  return rsaSha1Sign(dataToSign, privateKeyPem)
 }
 
 /**
  * Verify a document hash against the chain.
  */
-export function verifyDocumentHash(
+export async function verifyDocumentHash(
   input: HashChainInput,
   hash: string,
   publicKeyPem: string
-): boolean {
+): Promise<boolean> {
   const dataToVerify = [
     input.invoiceDate,
     input.systemEntryDate,
@@ -130,11 +126,7 @@ export function verifyDocumentHash(
     input.previousHash,
   ].join(';')
 
-  const verify = crypto.createVerify('SHA1')
-  verify.update(dataToVerify)
-  verify.end()
-
-  return verify.verify(publicKeyPem, hash, 'base64')
+  return rsaSha1Verify(dataToVerify, hash, publicKeyPem)
 }
 
 /**
@@ -442,13 +434,13 @@ export interface DocumentRegistrationResult {
  *
  * @returns All fiscal data needed for the PDF and database storage
  */
-export function registerDocument(
+export async function registerDocument(
   input: DocumentRegistrationInput,
   seriesPrefix: string,
   validationCode: string,
   sequentialNumber: number,
   previousHash: string
-): DocumentRegistrationResult {
+): Promise<DocumentRegistrationResult> {
   const privateKey = getPrivateKey()
   const saftDocType = mapDocTypeToSAFT(input.docType, input.isSimplified)
   const docNumber = formatPTDocNumber(saftDocType, seriesPrefix, sequentialNumber)
@@ -467,7 +459,7 @@ export function registerDocument(
       grossTotal: taxBreakdown.grossTotal.toFixed(2),
       previousHash,
     }
-    hash = generateDocumentHash(hashInput, privateKey)
+    hash = await generateDocumentHash(hashInput, privateKey)
     hashDisplay = getHashDisplay(hash)
   }
 

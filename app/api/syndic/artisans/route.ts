@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import { randomHex } from '@/lib/crypto-compat'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, isSuperAdmin, resolveCabinetId } from '@/lib/auth-helpers'
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
     }
   } else if (action === 'create') {
     // Créer un nouveau compte artisan
-    const tempPassword = crypto.randomBytes(16).toString('hex') + 'A1!'
+    const tempPassword = randomHex(16) + 'A1!'
     const { data: newAuth, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: tempPassword,

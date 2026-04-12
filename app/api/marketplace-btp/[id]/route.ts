@@ -83,7 +83,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // Incrémenter vues atomiquement via RPC (évite race condition read-modify-write)
-    supabase.rpc('increment_listing_vues', { listing_id: id }).then(() => {}).catch(() => {})
+    void supabase.rpc('increment_listing_vues', { listing_id: id }).then(() => {})
 
     return NextResponse.json({ listing: { ...data, marketplace_demandes: demandes } })
   } catch (e) {

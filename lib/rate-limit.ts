@@ -114,8 +114,9 @@ export const checkRateLimitAsync = checkRateLimit
  * Extrait l'IP de la requête Next.js
  */
 export function getClientIP(request: NextRequest): string {
-  // F14: priorité aux headers Vercel (non spoofables derrière leur proxy)
+  // Cloudflare-first, then Vercel fallback, then generic
   return (
+    request.headers.get('cf-connecting-ip') ||
     request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||

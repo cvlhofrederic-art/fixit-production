@@ -33,7 +33,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
 
   const totalRetenu = retenues.filter(r => r.statut === 'active').reduce((s, r) => s + r.montantRetenu, 0)
   const totalLib\u00E9r\u00E9 = retenues.filter(r => r.statut === 'libérée').reduce((s, r) => s + r.montantRetenu, 0)
-  const imminentRetenues.length > 0s = retenues.filter(r => {
+  const imminentRetenues = retenues.filter(r => {
     if (r.statut !== 'active' || !r.dateFinTravaux) return false
     const lib = new Date(r.dateFinTravaux)
     lib.setFullYear(lib.getFullYear() + 1)

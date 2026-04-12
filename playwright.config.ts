@@ -8,13 +8,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
-    navigationTimeout: 30_000,
-    actionTimeout: 10_000,
-  },
-  expect: {
-    timeout: 10_000,
   },
   projects: [
     {
@@ -34,10 +29,11 @@ export default defineConfig({
         ]
       : []),
   ],
-  webServer: {
-    command: process.env.CI ? 'npm start' : 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: 'http://localhost:3000',
+        reuseExistingServer: true,
+      },
 })

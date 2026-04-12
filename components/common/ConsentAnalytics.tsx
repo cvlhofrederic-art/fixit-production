@@ -5,9 +5,11 @@ import { isAnalyticsAllowed } from './CookieConsent'
 import { trackPageView } from '@/lib/analytics'
 
 /**
- * Renders Vercel Analytics + SpeedInsights only when the user
- * has accepted performance cookies (RGPD-compliant).
+ * Tracks page views when the user has accepted performance cookies (RGPD-compliant).
  * Re-checks consent every 5 seconds (matches CookieConsent enforcement interval).
+ *
+ * Cloudflare Web Analytics is loaded via script tag in layout.tsx or _headers.
+ * This component handles custom event tracking only.
  */
 export default function ConsentAnalytics() {
   const [allowed, setAllowed] = useState(false)
@@ -27,25 +29,14 @@ export default function ConsentAnalytics() {
     return () => clearInterval(id)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cloudflare Web Analytics beacon (consent-gated)
   if (!allowed) return null
 
   return (
-    <>
-      <SpeedInsightsLazy />
-      <AnalyticsLazy />
-    </>
+    <script
+      defer
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": ""}'
+    />
   )
 }
-
-// Lazy-loaded to avoid bundling when consent not given
-import dynamic from 'next/dynamic'
-
-const SpeedInsightsLazy = dynamic(
-  () => import('@vercel/speed-insights/next').then((m) => m.SpeedInsights),
-  { ssr: false }
-)
-
-const AnalyticsLazy = dynamic(
-  () => import('@vercel/analytics/next').then((m) => m.Analytics),
-  { ssr: false }
-)

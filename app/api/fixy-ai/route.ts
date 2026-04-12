@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { TOOLS, buildToolDescriptions, type ToolResult } from './tools'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
-import crypto from 'crypto'
+// crypto.randomUUID() is available globally (Web Crypto API)
 import { getAuthUser, unauthorizedResponse, verifyArtisanOwnership } from '@/lib/auth-helpers'
 import { checkRateLimit as checkRL } from '@/lib/rate-limit'
 import { fixyAiSchema, validateBody } from '@/lib/validation'

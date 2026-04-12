@@ -1,6 +1,9 @@
 // ── App Cache Layer — Upstash Redis ──────────────────────────────────────────
 // Cache applicatif pour réduire les requêtes DB sur les données fréquemment lues.
-// Fallback transparent en mémoire si Redis non configuré (dev local).
+// Primary: Upstash Redis (REST API — works on Cloudflare Workers + Vercel + Node.js).
+// Fallback: in-memory Map (dev local or single-request scope on Workers).
+// NOTE: On Cloudflare Workers, in-memory cache does NOT persist between requests.
+// Ensure UPSTASH_REDIS_REST_URL is always set in production.
 
 import { Redis } from '@upstash/redis'
 

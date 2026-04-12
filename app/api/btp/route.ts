@@ -140,9 +140,8 @@ export async function POST(request: NextRequest) {
     if (action === 'import' && Array.isArray(data)) {
       if (data.length > 500) return NextResponse.json({ error: 'Import limité à 500 lignes max' }, { status: 400 })
       const rows = data.map((d: Record<string, unknown>) => {
-        const clean = { ...d, owner_id: user.id }
-        delete clean.created_at; delete clean.updated_at
-        return clean
+        const { created_at: _ca, updated_at: _ua, ...rest } = d
+        return { ...rest, owner_id: user.id }
       })
       const { data: inserted, error } = await supabaseAdmin
         .from(table)

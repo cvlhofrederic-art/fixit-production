@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Get or create series ──
-    const saftDocType = mapDocTypeToSAFT(docType, isSimplified)
+    const saftDocType = mapDocTypeToSAFT(docType as 'devis' | 'facture', isSimplified)
     const fiscalYear = new Date(issueDate).getFullYear()
 
     let { data: series } = await supabaseAdmin
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     const input: DocumentRegistrationInput = {
       artisanId: user.id,
-      docType,
+      docType: docType as 'devis' | 'facture',
       issuerNIF,
       clientNIF: clientNIF || '999999990',
       clientCountry: clientCountry || 'PT',
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       isSimplified,
     }
 
-    const result = registerDocument(
+    const result = await registerDocument(
       input,
       series.series_prefix,
       series.validation_code,

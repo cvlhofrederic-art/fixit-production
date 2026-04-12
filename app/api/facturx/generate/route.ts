@@ -100,7 +100,8 @@ export async function POST(req: NextRequest) {
     const { data, pdfBase64 } = parsed.data
 
     // ── 1. Générer le XML CII ──
-    const xmlString = generateFacturXML(data)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const xmlString = generateFacturXML(data as any)
 
     // ── 2. PDF de base ──
     let pdfBytes: Uint8Array

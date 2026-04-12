@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import { randomHex } from '@/lib/crypto-compat'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isProSocieteRole, isProGerant, resolveCompanyId } from '@/lib/auth-helpers'
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Generate invitation token
-  const inviteToken = crypto.randomBytes(24).toString('hex')
+  const inviteToken = randomHex(24)
 
   const insertData: Record<string, unknown> = {
     company_id: companyId,

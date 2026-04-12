@@ -5,7 +5,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
-import crypto from 'crypto'
+// crypto.randomUUID() is available globally (Web Crypto API)
 
 // ── Geocoding helper (shared with main marches route) ────────────────────────
 async function geocodeLocation(city: string, postal?: string): Promise<{ lat: number; lng: number } | null> {

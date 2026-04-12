@@ -5,7 +5,7 @@ import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { haversineDistance } from '@/lib/geo'
-import crypto from 'crypto'
+// crypto.randomUUID() is available globally (Web Crypto API)
 
 interface MarcheRow {
   id: string

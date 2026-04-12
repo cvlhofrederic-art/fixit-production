@@ -145,11 +145,11 @@ const nextConfig: NextConfig = {
           // F09: CSP statique sans unsafe-inline (le middleware proxy.ts injecte un nonce en prod)
           { key: 'Content-Security-Policy', value: [
             "default-src 'self'",
-            `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-inline' 'unsafe-eval'" : ''} https://js.stripe.com https://*.vercel-scripts.com https://*.vercel-insights.com https://*.sentry.io`,
+            `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-inline' 'unsafe-eval'" : ''} https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io`,
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://ui-avatars.com https://*.stripe.com",
-            "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://*.vercel-insights.com https://*.ingest.sentry.io https://api.groq.com https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com",
+            "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://api.groq.com https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://cloudflareinsights.com",
             "frame-src 'self' https://js.stripe.com https://*.stripe.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",

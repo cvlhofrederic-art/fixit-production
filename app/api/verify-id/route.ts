@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import Tesseract from 'tesseract.js'
+import { callGroqWithRetry } from '@/lib/groq'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, verifyIdFormSchema } from '@/lib/validation'
@@ -79,10 +79,16 @@ function detectIdKeywords(text: string): { isId: boolean; type: string } {
   return { isId: false, type: '' }
 }
 
+const ID_OCR_PROMPT = `Tu es un système OCR spécialisé dans les pièces d'identité françaises.
+Extrais TOUT le texte visible sur ce document d'identité.
+Inclus : noms, prénoms, dates, numéros, adresses, mentions officielles.
+Retourne le texte brut extrait, sans formatage JSON.
+Si le document est illisible ou n'est pas une pièce d'identité, retourne "ILLISIBLE".`
+
 export async function POST(request: NextRequest) {
-  // Rate limit: 2 requests per minute per IP (CPU-intensive OCR)
+  // Rate limit: 5 requests per minute per IP (API-based, lighter than OCR)
   const ip = getClientIP(request)
-  const allowed = await checkRateLimit(`verify_id_${ip}`, 2, 60_000)
+  const allowed = await checkRateLimit(`verify_id_${ip}`, 5, 60_000)
   if (!allowed) return rateLimitResponse()
 
   try {
@@ -101,17 +107,36 @@ export async function POST(request: NextRequest) {
     const expectedNom = v.data.nom
     const expectedPrenom = v.data.prenom
 
-    // Convertir le fichier en buffer
+    // Convertir le fichier en base64 pour Groq Vision
     const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const base64 = Buffer.from(arrayBuffer).toString('base64')
+    const mimeType = file.type || 'image/jpeg'
+    const imageUrl = `data:${mimeType};base64,${base64}`
 
-    // OCR avec Tesseract.js — langue française
-    const result = await Tesseract.recognize(buffer, 'fra', {
-      logger: () => {}, // silence les logs
-    })
-
-    const ocrText = result.data.text
-    const confidence = result.data.confidence
+    // OCR via Groq Vision API
+    let ocrText = ''
+    let confidence = 0
+    try {
+      const groqData = await callGroqWithRetry({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: ID_OCR_PROMPT },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        }],
+        temperature: 0.1,
+        max_tokens: 2000,
+      })
+      ocrText = groqData.choices?.[0]?.message?.content || ''
+      // Groq Vision n'a pas de score de confiance natif — on estime via la longueur du texte
+      confidence = ocrText.length > 100 ? 75 : ocrText.length > 30 ? 50 : 15
+      if (ocrText.trim() === 'ILLISIBLE') confidence = 5
+    } catch (err) {
+      logger.warn('[verify-id] Groq Vision error, returning low confidence', err)
+      confidence = 0
+    }
 
     // 1. Vérifier que c'est bien une pièce d'identité
     const idCheck = detectIdKeywords(ocrText)

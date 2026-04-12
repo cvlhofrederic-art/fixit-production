@@ -62,12 +62,27 @@ async function ocrBuffer(
   lang: string,
 ): Promise<{ text: string; confidence: number }> {
   try {
-    const Tesseract = (await import('tesseract.js')).default
-    const result = await Tesseract.recognize(buffer, lang, { logger: () => {} })
-    return {
-      text: result.data.text,
-      confidence: Math.round(result.data.confidence),
-    }
+    const { callGroqWithRetry } = await import('@/lib/groq')
+    const base64 = buffer.toString('base64')
+    const imageUrl = `data:image/jpeg;base64,${base64}`
+    const prompt = lang === 'por'
+      ? 'Extrai todo o texto visível neste documento. Devolve o texto em bruto sem formatação JSON.'
+      : 'Extrais tout le texte visible sur ce document. Retourne le texte brut sans formatage JSON.'
+    const groqData = await callGroqWithRetry({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: imageUrl } },
+        ],
+      }],
+      temperature: 0.1,
+      max_tokens: 3000,
+    })
+    const text = groqData.choices?.[0]?.message?.content || ''
+    const confidence = text.length > 100 ? 75 : text.length > 30 ? 50 : 15
+    return { text, confidence }
   } catch {
     return { text: '', confidence: 0 }
   }
