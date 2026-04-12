@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 
+const FAKE_USER_ID = '550e8400-e29b-41d4-a716-446655440000'
+
+vi.mock('@/lib/auth-helpers', () => ({
+  getAuthUser: vi.fn().mockResolvedValue({ id: FAKE_USER_ID, email: 'test@test.com' }),
+}))
+
 vi.mock('@/lib/supabase-server', () => {
   const mockFromSpecialties = {
     select: vi.fn().mockReturnValue({
@@ -35,7 +41,7 @@ describe('POST /api/profile/specialties', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: FAKE_USER_ID,
         slugs: ['ferronnerie', 'facadier'],
         verified_source: 'kbis',
       }),
@@ -63,7 +69,7 @@ describe('POST /api/profile/specialties', () => {
     const req = new Request('http://localhost/api/profile/specialties', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: '550e8400-e29b-41d4-a716-446655440000', slugs: [] }),
+      body: JSON.stringify({ user_id: FAKE_USER_ID, slugs: [] }),
     })
     const res = await POST(req as any)
     expect(res.status).toBe(400)
@@ -81,7 +87,7 @@ describe('POST /api/profile/specialties', () => {
     const req = new Request('http://localhost/api/profile/specialties', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: '550e8400-e29b-41d4-a716-446655440000', slugs: ['nonexistent-slug'] }),
+      body: JSON.stringify({ user_id: FAKE_USER_ID, slugs: ['nonexistent-slug'] }),
     })
     const res = await POST(req as any)
     expect(res.status).toBe(400)
