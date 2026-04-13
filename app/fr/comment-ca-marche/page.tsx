@@ -182,7 +182,7 @@ export default function CommentCaMarchePage() {
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/recherche/"
+              href="/fr/recherche/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
               Trouver un artisan maintenant
@@ -310,7 +310,7 @@ export default function CommentCaMarchePage() {
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link
-                href="/recherche/"
+                href="/fr/recherche/"
                 className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
               >
                 Rechercher un artisan

@@ -289,12 +289,14 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
               Pedir orçamento grátis
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </Link>
-            <Link
-              href="/contact"
+            <a
+              href="https://wa.me/351920043853?text=Ol%C3%A1%20VITFIX%2C%20gostaria%20de%20pedir%20um%20or%C3%A7amento"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border-[1.5px] border-dark text-dark rounded-full font-medium px-7 py-3 text-[0.95rem] bg-transparent hover:bg-dark hover:text-white transition-all"
             >
               Contactar-nos
-            </Link>
+            </a>
           </div>
 
           {/* Trust indicators */}

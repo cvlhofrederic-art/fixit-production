@@ -88,7 +88,7 @@ export default function AProposPage() {
 
         {/* CTA */}
         <div className="text-center fade-up flex flex-wrap items-center justify-center gap-4">
-          <Button variant="primary" size="lg" href="/recherche">
+          <Button variant="primary" size="lg" href="/fr/recherche">
             {t('about.cta.findArtisan')}
           </Button>
           <Button variant="outline" size="lg" href="/contact">

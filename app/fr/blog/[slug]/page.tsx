@@ -112,9 +112,9 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Breadcrumb */}
           <nav aria-label="Fil d'Ariane" className="mb-6 text-sm text-text-muted">
-            <Link href="/" className="hover:text-yellow transition">VITFIX</Link>
+            <Link href="/fr/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
-            <Link href="/blog/" className="hover:text-yellow transition">Blog</Link>
+            <Link href="/fr/blog/" className="hover:text-yellow transition">Blog</Link>
             <span className="mx-2">/</span>
             <span className="text-dark font-medium">{article.title}</span>
           </nav>

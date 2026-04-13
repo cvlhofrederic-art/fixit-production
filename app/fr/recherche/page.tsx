@@ -556,7 +556,7 @@ function RechercheContent() {
     const params = new URLSearchParams()
     if (categoryInput) params.set('category', categoryInput)
     if (locationInput) params.set('loc', locationInput)
-    router.push(`/recherche?${params.toString()}`)
+    router.push(`/fr/recherche?${params.toString()}`)
 
     fetchData(categoryInput, locationInput)
   }
@@ -620,7 +620,7 @@ function RechercheContent() {
           setActiveCategory(categoryInput)
           const params = new URLSearchParams()
           if (categoryInput) params.set('category', categoryInput)
-          router.push(`/recherche?${params.toString()}`)
+          router.push(`/fr/recherche?${params.toString()}`)
           fetchData(categoryInput, '')
         }, 100)
       },
@@ -997,7 +997,7 @@ function RechercheContent() {
                 setActiveCategory('')
                 setActiveLocation('')
                 fetchData('', '')
-                router.push('/recherche')
+                router.push('/fr/recherche')
               }}
               className="bg-yellow hover:bg-yellow-light text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >

@@ -229,7 +229,7 @@ export default function ArtisansVerifiesPage() {
 
           <div>
             <Link
-              href="/recherche/"
+              href="/fr/recherche/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
               Trouver un artisan vérifié
@@ -295,7 +295,7 @@ export default function ArtisansVerifiesPage() {
             ))}
           </div>
           <div className="mt-8 text-center">
-            <Link href="/avis/" className="inline-flex items-center gap-2 text-sm font-semibold text-dark hover:text-yellow transition">
+            <Link href="/fr/avis/" className="inline-flex items-center gap-2 text-sm font-semibold text-dark hover:text-yellow transition">
               Voir tous les avis clients
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </Link>
@@ -336,7 +336,7 @@ export default function ArtisansVerifiesPage() {
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link
-                href="/recherche/"
+                href="/fr/recherche/"
                 className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
               >
                 Trouver un artisan vérifié

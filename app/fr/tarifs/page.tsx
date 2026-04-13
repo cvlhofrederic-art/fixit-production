@@ -58,7 +58,7 @@ export default function TarifsPage() {
           </ul>
           <div className="mt-6">
             <Link
-              href="/recherche"
+              href="/fr/recherche"
               className="inline-block bg-yellow hover:bg-yellow-light text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
             >
               Trouver un artisan

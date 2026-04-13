@@ -168,12 +168,14 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
               <span className="text-lg">🚨</span>
               Pedir ajuda agora
             </Link>
-            <Link
-              href="/contact"
+            <a
+              href="https://wa.me/351920043853?text=Ol%C3%A1%20VITFIX%2C%20preciso%20de%20ajuda%20urgente"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border-2 border-dark text-dark rounded-full font-bold px-7 py-3.5 text-[0.95rem] bg-white/80 hover:bg-dark hover:text-white transition-all"
             >
               Contactar-nos
-            </Link>
+            </a>
           </div>
 
           {/* Tempo de resposta */}

@@ -523,9 +523,9 @@ export default function ArtisanProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Artisan non trouv&eacute;</h1>
-          <a href="/recherche" className="text-yellow hover:underline">
-            Retour &agrave; la recherche
+          <h1 className="text-2xl font-bold mb-4">Artisan non trouvé</h1>
+          <a href="/fr/recherche" className="text-yellow hover:underline">
+            Retour à la recherche
           </a>
         </div>
       </div>
@@ -837,12 +837,12 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
                 Accueil
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <Link href="/recherche" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href="/fr/recherche" className="hover:text-yellow transition flex items-center gap-1">
                 <Search className="w-3.5 h-3.5" />
                 Recherche
               </Link>
@@ -1197,7 +1197,7 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
                 Accueil
               </Link>
