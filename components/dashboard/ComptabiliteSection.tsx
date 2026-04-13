@@ -535,8 +535,21 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const formatEur = (v: number) => new Intl.NumberFormat(dateFmtLocale, { style: 'currency', currency: 'EUR' }).format(v)
 
   // ── TVA : calcul status en temps réel ────────────────────────────────────
+  // Sociétés au régime réel : toujours assujetties à la TVA (pas de franchise art. 293B)
   const tvaCountry: TvaCountry = ((artisan as unknown as { country?: string })?.country || (isPt ? 'PT' : 'FR')) as TvaCountry
-  const tvaStatus: TvaStatusResult = getTvaStatus(annualHT, tvaCountry)
+  const tvaStatus: TvaStatusResult = isEntreprise
+    ? {
+        status: 'exceeded' as const, percent: 100, caHT: annualHT,
+        seuil: 0, taux: tvaCountry === 'PT' ? 0.23 : 0.20,
+        color: '#3b82f6', bgColor: 'rgba(59,130,246,0.08)',
+        badge: { fr: 'ASSUJETTI TVA', pt: 'SUJEITO A IVA' },
+        title: { fr: '📋 Assujetti à la TVA (régime réel)', pt: '📋 Sujeito a IVA (regime real)' },
+        message: {
+          fr: `En tant que société au régime réel, vous collectez la TVA à ${tvaCountry === 'PT' ? '23' : '20'} % sur toutes vos factures. La franchise en base (art. 293B CGI) ne s'applique pas aux sociétés.`,
+          pt: `Como empresa no regime real, cobra IVA a ${tvaCountry === 'PT' ? '23' : '20'} % em todas as suas faturas. A isenção do art.º 53.º CIVA não se aplica a sociedades.`,
+        },
+      }
+    : getTvaStatus(annualHT, tvaCountry)
 
   // Charger les settings TVA une fois au montage
   useEffect(() => {
