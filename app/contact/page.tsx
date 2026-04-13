@@ -12,14 +12,32 @@ export default function ContactPage() {
   const isPt = locale === 'pt'
   const [form, setForm] = useState({ nom: '', email: '', sujet: '', message: '' })
   const [sent, setSent] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   useScrollAnimation()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const mailto = `mailto:contact@vitfix.io?subject=${encodeURIComponent(form.sujet || 'Contact Vitfix')}&body=${encodeURIComponent(`${t('contact.form.fullName')} : ${form.nom}\nEmail : ${form.email}\n\n${form.message}`)}`
-    window.location.href = mailto
-    // Delay to let mailto open before showing feedback
-    setTimeout(() => setSent(true), 500)
+    setSending(true)
+    setSendError('')
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Erreur d\'envoi')
+      }
+      setSent(true)
+    } catch (err) {
+      setSendError(isPt
+        ? 'Erro ao enviar a mensagem. Tente novamente ou contacte-nos em contact@vitfix.io'
+        : 'Erreur lors de l\'envoi. Réessayez ou contactez-nous à contact@vitfix.io')
+    } finally {
+      setSending(false)
+    }
   }
 
   const contactJsonLd = isPt ? {
@@ -159,19 +177,18 @@ export default function ContactPage() {
           <div className="md:col-span-2 bg-white rounded-2xl shadow-sm p-8 fade-up">
             {sent ? (
               <div className="text-center py-8">
-                <div className="text-5xl mb-4">{'📧'}</div>
+                <div className="text-5xl mb-4">{'✅'}</div>
                 <h2 className="text-xl font-display font-bold text-dark mb-2">
-                  {isPt ? 'Verifique o seu cliente de email' : 'Vérifiez votre client email'}
+                  {isPt ? 'Mensagem enviada com sucesso!' : 'Message envoyé avec succès !'}
                 </h2>
                 <p className="text-text-muted mb-4">
                   {isPt
-                    ? 'O seu cliente de email deve ter aberto com a mensagem pré-preenchida. Se não abriu, envie diretamente para:'
-                    : 'Votre client email devrait s\'être ouvert avec le message pré-rempli. S\'il ne s\'est pas ouvert, envoyez directement à :'}
+                    ? 'Recebemos a sua mensagem e responderemos em breve.'
+                    : 'Nous avons bien reçu votre message et vous répondrons rapidement.'}
                 </p>
-                <a href="mailto:contact@vitfix.io" className="text-yellow font-semibold hover:underline">contact@vitfix.io</a>
                 <div className="mt-4">
-                  <button onClick={() => setSent(false)} className="text-sm text-text-muted hover:text-dark transition underline">
-                    {isPt ? 'Voltar ao formulário' : 'Revenir au formulaire'}
+                  <button onClick={() => { setSent(false); setForm({ nom: '', email: '', sujet: '', message: '' }) }} className="text-sm text-text-muted hover:text-dark transition underline">
+                    {isPt ? 'Enviar outra mensagem' : 'Envoyer un autre message'}
                   </button>
                 </div>
               </div>
@@ -230,8 +247,11 @@ export default function ContactPage() {
                     placeholder={t('contact.form.messagePlaceholder')}
                   />
                 </div>
-                <Button type="submit" variant="primary" size="lg" className="w-full">
-                  {t('contact.form.send')}
+                {sendError && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">{sendError}</div>
+                )}
+                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={sending}>
+                  {sending ? (isPt ? 'A enviar...' : 'Envoi en cours...') : t('contact.form.send')}
                 </Button>
               </form>
             )}
