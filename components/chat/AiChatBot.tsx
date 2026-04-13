@@ -842,7 +842,11 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
       {/* Chat window — positioned relative to button */}
       {isOpen && (
-        <div className="bg-white rounded-2xl shadow-2xl flex flex-col border border-gray-200 overflow-hidden max-w-[calc(100vw-2rem)]" style={getArtisanChatStyle()}>
+        <div
+          role="dialog"
+          aria-label="Fixy — Assistant IA"
+          onKeyDown={(e) => { if (e.key === 'Escape') setIsOpen(false) }}
+          className="bg-white rounded-2xl shadow-2xl flex flex-col border border-gray-200 overflow-hidden max-w-[calc(100vw-2rem)]" style={getArtisanChatStyle()}>
           {/* Header */}
           <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] px-4 py-3 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
@@ -863,7 +867,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50" aria-live="polite">
             {messages.map((msg) => (
               <div
                 key={msg.id}

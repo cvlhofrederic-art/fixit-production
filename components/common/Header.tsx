@@ -168,7 +168,7 @@ export default function Header() {
 
       {/* Mobile Menu — simplifié, pas de liens nav */}
       {menuOpen && (
-        <div className="absolute top-16 left-0 right-0 bg-white border-b border-border shadow-lg md:hidden">
+        <div className="absolute top-[68px] left-0 right-0 bg-white border-b border-border shadow-lg md:hidden" onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}>
           <div className="px-[5%] py-4 space-y-1">
             {!user ? (
               <>
