@@ -225,7 +225,7 @@ export default function HomeSection({
         </div>
 
         {/* Main grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.2fr', gap: '.75rem', marginBottom: '1.25rem' }}>
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_1.5fr_1.2fr] gap-3 mb-5">
           {/* Chantiers en cours / Demandes */}
           <div className="v5-card">
             <div className="v5-st" style={{ display: 'flex', alignItems: 'center' }}>
@@ -344,7 +344,7 @@ export default function HomeSection({
         </div>
 
         {/* Bottom: 3 summary cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.75rem', marginBottom: '1.25rem' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           {isSociete ? (<>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('situations')}>
               <div className="v5-st">Situations de travaux</div>
@@ -382,7 +382,7 @@ export default function HomeSection({
 
         {/* Actions rapides */}
         <div className="v5-st" style={{ marginBottom: '.5rem' }}>{t('proDash.home.actionsRapides')}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {orgRole === 'artisan' ? (<>
             <button className="v5-act-btn primary" onClick={() => { setShowNewRdv(true); navigateTo('calendar') }}><span style={{ fontSize: 18 }}>📅</span><span>{t('proDash.home.nouvelRdv')}</span></button>
             <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>

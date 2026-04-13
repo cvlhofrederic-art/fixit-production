@@ -38,7 +38,7 @@ const DashboardSkeleton = () => {
     </div>
 
     {/* Cards skeleton */}
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, marginBottom: 16 }}>
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4 mb-4">
       <div style={{ background: tv.surface, border: `1px solid ${tv.border}`, borderRadius: 4 }}>
         <div style={{ padding: '10px 14px', borderBottom: `1px solid ${tv.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ ...shimmer, width: 120, height: 12 }} />
