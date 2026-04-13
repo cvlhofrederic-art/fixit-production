@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+export const dynamic = 'force-dynamic'
+
+// Lazy init — avoid crash at build time when env var is missing (CI)
+const getResend = () => new Resend(process.env.RESEND_API_KEY)
 
 const contactSchema = z.object({
   nom: z.string().min(1, 'Nom requis').max(200),
@@ -16,7 +19,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const data = contactSchema.parse(body)
 
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'VITFIX Contact <onboarding@resend.dev>',
       to: 'contact@vitfix.io',
       replyTo: data.email,
