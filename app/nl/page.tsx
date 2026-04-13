@@ -135,7 +135,7 @@ export default function NlHubPage() {
       {/* Emergency Block */}
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <EmergencyBlock serviceType="home repair" />
+          <EmergencyBlock serviceType="home repair" locale="nl" />
         </div>
       </section>
 

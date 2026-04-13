@@ -317,7 +317,7 @@ export default function InvestorPageTemplate({ page }: { page: InvestorPage }) {
       {/* Emergency Block */}
       <section className="py-12 md:py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <EmergencyBlock serviceType="home repair" />
+          <EmergencyBlock serviceType="home repair" locale={page.locale as 'en' | 'es' | 'nl'} />
         </div>
       </section>
 
