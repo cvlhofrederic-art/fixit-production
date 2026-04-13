@@ -109,7 +109,10 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
         body: JSON.stringify({ paiement_modes: modes, paiement_mention_devis: mentionDevis, paiement_mention_facture: mentionFacture }),
       })
       if (res.ok) setSaved(true)
-    } catch {}
+    } catch (e) {
+      console.error('Payment info save failed:', e)
+      toast.error('Erreur lors de la sauvegarde des informations de paiement')
+    }
     setSaving(false)
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
@@ -113,7 +114,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
           setAuthClients(data.clients || [])
           setLoading(false)
         })
-        .catch(() => setLoading(false))
+        .catch((e) => { console.error('Clients fetch failed:', e); toast.error('Erreur de chargement des clients'); setLoading(false) })
     })
   }, [artisan?.id])
 

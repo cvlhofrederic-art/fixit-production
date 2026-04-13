@@ -146,7 +146,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const data = await res.json()
       setMarches(data.marches || [])
       setStats(prev => ({ ...prev, openCount: data.total || data.marches?.length || 0 }))
-    } catch {
+    } catch (e) {
+      console.error('Marches fetch failed:', e)
+      toast.error('Erreur de chargement des marchés')
       setMarches([])
     } finally {
       setLoading(false)
@@ -307,8 +309,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         setMsgInput('')
         await loadMessages(marcheId, candidatureId)
       }
-    } catch {
-      // silent
+    } catch (e) {
+      console.error('Message send failed:', e)
+      toast.error('Erreur d\'envoi du message')
     } finally {
       setMsgSending(false)
     }
