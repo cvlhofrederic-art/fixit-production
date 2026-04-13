@@ -874,6 +874,7 @@ export default function CoproprietaireDashboard() {
 
   // Auth
   const [user, setUser] = useState<any>(null)
+  const [isDemoMode, setIsDemoMode] = useState(false)
   const [loading, setLoading] = useState(true)
 
   // Navigation
@@ -960,6 +961,7 @@ export default function CoproprietaireDashboard() {
         }
       } else {
         // Mode démo sans auth
+        setIsDemoMode(true)
         setProfile(PROFILE_DEMO)
         const defaults: Record<string, boolean> = {}
         COPRO_MODULES.forEach(m => { defaults[m.key] = m.default })
@@ -1390,6 +1392,13 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
 
       {/* ── CONTENU PRINCIPAL ── */}
       <main className="flex-1 overflow-y-auto" style={{ background: 'var(--sd-cream)' }}>
+        {/* Demo mode banner */}
+        {isDemoMode && (
+          <div style={{ background: '#FFF3CD', borderBottom: '1px solid #FFECB5', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, color: '#664D03' }}>
+            <span>Mode démonstration</span>
+            <span style={{ fontSize: 11, opacity: 0.8 }}>Les données affichées sont fictives. Connectez-vous pour accéder à votre espace.</span>
+          </div>
+        )}
         {/* Header */}
         <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }} className="px-4 md:px-9">
           <div className="flex items-center gap-3">

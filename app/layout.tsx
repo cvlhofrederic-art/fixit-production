@@ -216,7 +216,7 @@ export default async function RootLayout({
             {locale === 'en' || locale === 'nl' ? 'Skip to main content' : locale === 'pt' ? 'Ir para o conte\u00fado principal' : locale === 'es' ? 'Ir al contenido principal' : 'Aller au contenu principal'}
           </a>
           <ConditionalLayout>
-            <main id="main-content" role="main">
+            <main id="main-content">
               {children}
             </main>
           </ConditionalLayout>

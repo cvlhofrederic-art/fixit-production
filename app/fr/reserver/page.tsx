@@ -263,10 +263,11 @@ function ReserverContent() {
                     </label>
                     <input
                       type="email"
+                      required
                       value={formData.clientEmail}
                       onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
-                      className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm bg-warm-gray"
-                      readOnly
+                      className={`w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm ${formData.clientEmail ? 'bg-warm-gray' : 'bg-white'}`}
+                      readOnly={!!formData.clientEmail}
                     />
                   </div>
                 </div>

@@ -133,7 +133,7 @@ export default function V5Header({
 
       {/* Notifications */}
       <div className="v5-notif-wrap">
-        <button className="v5-notif-btn" onClick={() => setShowNotifDropdown(!showNotifDropdown)}>
+        <button className="v5-notif-btn" onClick={() => setShowNotifDropdown(!showNotifDropdown)} aria-label={unreadNotifCount > 0 ? `Notifications (${unreadNotifCount} non lues)` : 'Notifications'}>
           Notifications
           {unreadNotifCount > 0 && (
             <span style={{ background: '#fff', color: '#F57C00', borderRadius: 8, padding: '0 5px', fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
@@ -150,9 +150,9 @@ export default function V5Header({
               <div className="v5-notif-dd-hdr">
                 <span className="v5-notif-dd-title">Notifications</span>
                 {unreadNotifCount > 0 && (
-                  <span className="v5-notif-dd-link" onClick={markAllRead}>
+                  <button className="v5-notif-dd-link" onClick={markAllRead} type="button">
                     Tout marquer comme lu
-                  </span>
+                  </button>
                 )}
               </div>
               <div style={{ maxHeight: 380, overflowY: 'auto' }}>

@@ -21,7 +21,7 @@ function getArtisanInitials(name: string): string {
 
 function ConfirmationContent() {
   const { t, locale } = useTranslation()
-  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const dateFmtLocale = locale === 'en' ? 'en-GB' : locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const searchParams = useSearchParams()
   const bookingId = searchParams.get('id')
 

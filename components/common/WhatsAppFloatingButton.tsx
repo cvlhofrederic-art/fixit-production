@@ -11,19 +11,27 @@ import { PHONE_FR, PHONE_PT } from '@/lib/constants'
 export default function WhatsAppFloatingButton() {
   const pathname = usePathname()
   const isFr = pathname?.startsWith('/fr')
+  const isEn = pathname?.startsWith('/en')
   const phone = isFr ? PHONE_FR.replace('+', '') : PHONE_PT.replace('+', '')
   const message = encodeURIComponent(
     isFr
       ? 'Bonjour VITFIX, j\'ai besoin d\'un artisan. Pouvez-vous m\'aider ?'
-      : 'Olá! Gostava de solicitar um orçamento. Podem ajudar-me?'
+      : isEn
+        ? 'Hello VITFIX, I need a professional. Can you help me?'
+        : 'Olá! Gostava de solicitar um orçamento. Podem ajudar-me?'
   )
+  const ariaLabel = isFr
+    ? 'Contacter VITFIX via WhatsApp'
+    : isEn
+      ? 'Contact VITFIX via WhatsApp'
+      : 'Contactar VITFIX via WhatsApp'
 
   return (
     <a
       href={`https://wa.me/${phone}?text=${message}`}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Contactar VITFIX via WhatsApp"
+      aria-label={ariaLabel}
       className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#25D366] text-white rounded-full shadow-[0_4px_20px_rgba(37,211,102,0.45)] hover:bg-[#20ba59] hover:-translate-y-1 hover:shadow-[0_8px_28px_rgba(37,211,102,0.55)] transition-all duration-200 select-none"
       style={{ padding: '13px 20px 13px 16px' }}
     >

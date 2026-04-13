@@ -180,13 +180,13 @@ export function BookingForm({
           />
           <span className="text-xs text-gray-500 leading-snug">
             J&apos;accepte les{' '}
-            <span className="text-yellow underline cursor-pointer">
-              conditions g&eacute;n&eacute;rales d&apos;utilisation
-            </span>{' '}
+            <a href="/fr/cgu" target="_blank" rel="noopener noreferrer" className="text-yellow underline hover:text-yellow-light">
+              conditions générales d&apos;utilisation
+            </a>{' '}
             et la{' '}
-            <span className="text-yellow underline cursor-pointer">
-              politique de confidentialit&eacute;
-            </span>
+            <a href="/confidentialite" target="_blank" rel="noopener noreferrer" className="text-yellow underline hover:text-yellow-light">
+              politique de confidentialité
+            </a>
             . <span className="text-red-400">*</span>
           </span>
         </label>

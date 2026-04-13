@@ -115,6 +115,11 @@ export default function SyndicLoginPage() {
             >
               {loading ? 'Connexion...' : 'Accéder à mon espace'}
             </button>
+            <div className="text-right mt-2">
+              <a href="/auth/reset-password" className="text-sm text-text-muted hover:text-yellow transition">
+                Mot de passe oublié ?
+              </a>
+            </div>
           </form>
 
           <div className="mt-6 pt-4 border-t border-border space-y-3 text-center text-sm">

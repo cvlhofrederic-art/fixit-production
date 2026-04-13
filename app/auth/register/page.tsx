@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import LocaleLink from '@/components/common/LocaleLink'
 import { trackEvent, AnalyticsEventType } from '@/lib/analytics'
 
 type ClientType = 'particulier' | 'entreprise'
@@ -191,7 +192,12 @@ export default function RegisterPage() {
       })
 
       if (authError) {
-        setError(authError.message)
+        const msg = authError.message
+        if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
+          setError('Ce compte existe déjà. Connectez-vous ou utilisez un autre email.')
+        } else {
+          setError(msg)
+        }
         setLoading(false)
         return
       }
@@ -264,7 +270,7 @@ export default function RegisterPage() {
             </button>
 
             {/* Artisan Card */}
-            <Link
+            <LocaleLink
               href="/pro/register"
               className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] p-8 text-left hover:shadow-xl hover:border-yellow transition-all group"
             >
@@ -278,10 +284,10 @@ export default function RegisterPage() {
               <div className="mt-4 flex items-center text-yellow font-semibold text-sm opacity-0 group-hover:opacity-100 transition">
                 S'inscrire →
               </div>
-            </Link>
+            </LocaleLink>
 
             {/* Entreprise Card */}
-            <Link
+            <LocaleLink
               href="/pro/register"
               className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] p-8 text-left hover:shadow-xl hover:border-yellow transition-all group"
             >
@@ -295,7 +301,7 @@ export default function RegisterPage() {
               <div className="mt-4 flex items-center text-yellow font-semibold text-sm opacity-0 group-hover:opacity-100 transition">
                 Espace pro →
               </div>
-            </Link>
+            </LocaleLink>
           </div>
 
           <div className="text-center">
@@ -643,7 +649,15 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full bg-yellow hover:bg-yellow-light hover:-translate-y-px text-dark py-3.5 rounded-xl font-semibold transition disabled:opacity-60 text-lg"
             >
-              {loading ? 'Inscription...' : clientType === 'entreprise' ? 'Inscrire mon entreprise' : 'Créer mon compte'}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Inscription...
+                </span>
+              ) : clientType === 'entreprise' ? 'Inscrire mon entreprise' : 'Créer mon compte'}
             </button>
           </form>
 

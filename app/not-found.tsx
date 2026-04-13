@@ -28,7 +28,7 @@ export default async function NotFound() {
       home: 'Back to home',
       search: 'Find a professional',
       homeHref: '/en/',
-      searchHref: '/recherche/',
+      searchHref: '/en/',
     },
   }
 

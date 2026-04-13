@@ -343,6 +343,7 @@ function DashboardPage() {
 
   // ── Navigation — syncs state + URL (bookmarkable, back/forward works) ──
   const navigateTo = useCallback((page: string) => {
+    window.scrollTo(0, 0)
     setActivePage(page)
     setSidebarOpen(false)
     if (page === 'devis') setShowDevisForm(false)
@@ -350,6 +351,9 @@ function DashboardPage() {
     // Push URL without full page reload — enables back/forward + bookmarks
     const url = page === 'home' ? '/pro/dashboard' : `/pro/dashboard?p=${page}`
     window.history.pushState({}, '', url)
+    // Update tab title with current section name
+    const sectionName = page === 'home' ? 'Accueil' : page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g, ' ')
+    document.title = `Vitfix — ${sectionName}`
   }, [setShowDevisForm, setShowFactureForm])
 
   // Keep ref in sync for notification callbacks

@@ -81,7 +81,6 @@ export default function HomePage() {
     `${s.reveal}${revealedEls.has(id) ? ` ${s.visible}` : ''}`
 
   const handleSearch = () => {
-    if (!user) { router.push('/auth/login'); return }
     const params = new URLSearchParams()
     if (selectedCategory) params.set('category', selectedCategory)
     if (location) params.set('loc', location)

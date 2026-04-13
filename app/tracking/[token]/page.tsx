@@ -98,7 +98,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
         <div className="text-4xl">😕</div>
         <h2 className="text-lg font-bold text-gray-800">{error}</h2>
         <p className="text-sm text-gray-500 text-center">Demandez à votre artisan un nouveau lien de suivi.</p>
-        <div className="mt-4 text-xs text-gray-500">Powered by <span className="font-bold text-amber-500">Fixit</span></div>
+        <div className="mt-4 text-xs text-gray-500">Powered by <span className="font-bold text-amber-500">VITFIX</span></div>
       </div>
     )
   }
@@ -112,7 +112,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
       <div className={`bg-gradient-to-br ${statusBg} text-white px-5 pt-10 pb-8`}>
         {/* Logo + badge */}
         <div className="flex items-center justify-between mb-6">
-          <span className="text-xs font-bold tracking-widest opacity-80 uppercase">Fixit • Suivi</span>
+          <span className="text-xs font-bold tracking-widest opacity-80 uppercase">VITFIX • Suivi</span>
           <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">
             🔴 En direct
           </span>
@@ -251,7 +251,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
         <div className="text-center pt-2">
           <p className="text-xs text-gray-300">
             Suivi fourni par{' '}
-            <span className="font-bold text-amber-400">Fixit</span>
+            <span className="font-bold text-amber-400">VITFIX</span>
             {' '}• Plateforme syndic & artisans
           </p>
         </div>

@@ -59,12 +59,12 @@ export default function Error({
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={reset}
-            className="bg-[#FFC107] hover:bg-[#FFB300] text-white px-8 py-3 rounded-lg font-semibold transition"
+            className="bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 px-8 py-3 rounded-lg font-semibold transition"
           >
             {t.retry}
           </button>
           <Link
-            href="/"
+            href={locale === 'pt' ? '/pt/' : locale === 'en' ? '/en/' : '/'}
             className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold transition"
           >
             {t.home}

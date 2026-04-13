@@ -16,7 +16,7 @@ type UserData = {
 export default function MesDonneesPage() {
   const { t } = useTranslation()
   const locale = useLocale()
-  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const dateFmtLocale = locale === 'en' ? 'en-GB' : locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [user, setUser] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)

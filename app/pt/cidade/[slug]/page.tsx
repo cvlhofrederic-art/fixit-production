@@ -81,7 +81,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Cidades', item: 'https://vitfix.io/pt/servicos/' },
+          { '@type': 'ListItem', position: 2, name: 'Cidades', item: 'https://vitfix.io/pt/cidade/' },
           { '@type': 'ListItem', position: 3, name: city.name, item: `https://vitfix.io/pt/cidade/${slug}/` },
         ],
       },
@@ -98,7 +98,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
             <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
-            <Link href="/pt/servicos/" className="hover:text-yellow transition">Serviços</Link>
+            <Link href="/pt/cidade/" className="hover:text-yellow transition">Cidades</Link>
             <span className="mx-2">/</span>
             <span className="text-dark font-medium">{city.name}</span>
           </nav>
@@ -156,7 +156,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
                     {service.name} em {city.name}
                   </h3>
                 </div>
-                <p className="text-text-muted text-sm leading-relaxed mb-4">{service.heroSubtitle}</p>
+                <p className="text-text-muted text-sm leading-relaxed mb-4">{service.heroSubtitle.replace(/\{city\}/g, city.name)}</p>
                 <div className="flex flex-wrap gap-2">
                   {service.features.slice(0, 3).map((f, i) => (
                     <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-yellow/10 border border-yellow/25 text-dark">

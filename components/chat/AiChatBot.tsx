@@ -256,6 +256,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       console.error('Speech recognition error:', event.error)
       if (event.error === 'not-allowed') {
         setVoiceSupported(false)
+        toast.error('Permission microphone refusée. Activez-la dans les paramètres de votre navigateur.')
       }
       setIsRecording(false)
       setRecordingDuration(0)
@@ -959,7 +960,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                 </div>
                 <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-md shadow-sm border border-gray-100 flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-[#FFC107]" />
-                  <span className="text-sm text-gray-500">Fixy réfléchit...</span>
+                  <span className="text-sm text-gray-500">{locale === 'pt' ? 'Fixy a pensar...' : 'Fixy réfléchit...'}</span>
                 </div>
               </div>
             )}
@@ -1006,7 +1007,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={isRecording ? '🎙️ Parlez maintenant...' : pendingAction ? 'Répondez oui ou non...' : 'Ex: RDV mardi 14h Mme Dupont...'}
+                placeholder={isRecording ? (locale === 'pt' ? '🎙️ Fale agora...' : '🎙️ Parlez maintenant...') : pendingAction ? (locale === 'pt' ? 'Responda sim ou não...' : 'Répondez oui ou non...') : (locale === 'pt' ? 'Ex: Marcação terça 15h Sr. Silva...' : 'Ex: RDV mardi 14h Mme Dupont...')}
                 aria-label="Message pour l'assistant IA"
                 className={`flex-1 px-3.5 py-2.5 border-2 rounded-xl focus:outline-none transition text-sm ${
                   isRecording

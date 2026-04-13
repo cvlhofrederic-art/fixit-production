@@ -29,7 +29,7 @@ const SERVICOS_CONDOMINIO = [
     icon: '🔧',
     name: 'Canalização e Manutenção',
     description: 'Manutenção de colunas montantes, reparação de fugas em partes comuns, desentupimento de esgotos coletivos.',
-    condoSpecific: ['Urgência 24h/7j', 'Relatório para seguradora', 'Manutenção preventiva trimestral'],
+    condoSpecific: ['Urgência 24h/7d', 'Relatório para seguradora', 'Manutenção preventiva trimestral'],
   },
   {
     icon: '⚡',
