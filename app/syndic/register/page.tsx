@@ -239,7 +239,7 @@ export default function SyndicRegisterPage() {
           {step === 2 && (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">Vos coordonnées</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
                   <input type="text" value={form.prenom} onChange={e => setForm({ ...form, prenom: e.target.value })} required
@@ -261,8 +261,8 @@ export default function SyndicRegisterPage() {
                 <input type="tel" value={form.telephone} onChange={e => setForm({ ...form, telephone: e.target.value })} required
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none" placeholder="06 00 00 00 00" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ville</label>
                   <input type="text" value={form.ville} onChange={e => setForm({ ...form, ville: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none" placeholder="Paris" />

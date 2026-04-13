@@ -146,7 +146,7 @@ export default function V5Header({
         {showNotifDropdown && (
           <>
             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowNotifDropdown(false)} />
-            <div className="v5-notif-dd" style={{ zIndex: 100 }}>
+            <div className="v5-notif-dd" style={{ zIndex: 100, maxWidth: 'calc(100vw - 20px)' }}>
               <div className="v5-notif-dd-hdr">
                 <span className="v5-notif-dd-title">Notifications</span>
                 {unreadNotifCount > 0 && (

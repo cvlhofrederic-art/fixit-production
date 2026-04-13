@@ -101,7 +101,6 @@ export default function LoginPage() {
       <nav style={{
         background: '#fff',
         borderBottom: '1px solid #E8E8E8',
-        padding: '0 48px',
         height: '64px',
         display: 'flex',
         alignItems: 'center',
@@ -109,7 +108,7 @@ export default function LoginPage() {
         position: 'sticky',
         top: 0,
         zIndex: 100,
-      }}>
+      }} className="px-4 md:px-12">
         <LocaleLink href="/" style={{
           fontWeight: 900,
           fontSize: '22px',
@@ -165,7 +164,7 @@ export default function LoginPage() {
           background: '#fff',
           borderRadius: '24px',
           boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
-          padding: '48px 40px 40px',
+          padding: 'clamp(24px, 5vw, 48px) clamp(20px, 4vw, 40px) clamp(20px, 4vw, 40px)',
           width: '100%',
           maxWidth: '560px',
           position: 'relative',
@@ -200,12 +199,7 @@ export default function LoginPage() {
           {/* ── STEP 1: Space Selector ── */}
           {step === 'select' && (
             <div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '12px',
-                marginBottom: '28px',
-              }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-7">
                 {SPACES.map((space) => {
                   const sel = espace === space.id
                   return (
