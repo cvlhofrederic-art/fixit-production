@@ -210,7 +210,7 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
   }
 
   if (loading || loadingS) return (
-    <div style={{ padding: 40, textAlign: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, minHeight: 200 }}>
       <Loader size={24} className="animate-spin" />
       <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
