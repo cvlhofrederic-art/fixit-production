@@ -11,10 +11,10 @@ export const strictEmail = z.string().email().refine(
 
 // ── Booking schemas ──────────────────────────────────────────────────────────
 export const createBookingSchema = z.object({
-  artisan_id: z.string().uuid('artisan_id must be a valid UUID'),
-  service_id: z.string().uuid().optional(),
-  booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
-  booking_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format: HH:MM'),
+  artisan_id: z.string().uuid('Identifiant artisan invalide'),
+  service_id: z.string().uuid('Identifiant service invalide').optional(),
+  booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Veuillez sélectionner une date valide'),
+  booking_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Veuillez sélectionner une heure valide'),
   duration_minutes: z.number().int().min(15).max(480).default(60),
   address: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
@@ -46,8 +46,8 @@ export const serviceSchema = z.object({
 // ── Availability schema ──────────────────────────────────────────────────────
 export const availabilitySchema = z.object({
   day_of_week: z.number().int().min(0).max(6),
-  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM'),
-  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM'),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Heure de début invalide (HH:MM)'),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Heure de fin invalide (HH:MM)'),
   is_available: z.boolean(),
 })
 
@@ -194,8 +194,8 @@ export const syndicMessageSchema = z.object({
 export const planningEventSchema = z.object({
   titre: z.string().min(1, 'Titre requis').max(200),
   type: z.string().max(50).optional().default('autre'),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
-  heure: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM').optional().default('09:00'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Veuillez sélectionner une date valide'),
+  heure: z.string().regex(/^\d{2}:\d{2}$/, 'Veuillez sélectionner une heure valide').optional().default('09:00'),
   dureeMin: z.number().int().min(5).max(1440).optional().default(60),
   assigneA: z.string().max(200).optional(),
   assigneRole: z.string().max(100).optional(),
