@@ -109,13 +109,16 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       fetch(`/api/artisan-clients?artisan_id=${artisan.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.json()
+        })
         .then(data => {
           setAuthClients(data.clients || [])
           setLoading(false)
         })
-        .catch((e) => { console.error('Clients fetch failed:', e); toast.error('Erreur de chargement des clients'); setLoading(false) })
-    })
+        .catch((e) => { console.error('Clients fetch failed:', e); setAuthClients([]); setLoading(false) })
+    }).catch(() => setLoading(false))
   }, [artisan?.id])
 
   // Save manual clients to localStorage
