@@ -27,7 +27,7 @@ import { ROLE_PAGES, SYNDIC_MODULES, EVENT_COLORS } from '@/components/syndic-da
 // Dynamic import helper — cast as ComponentType<any> since loader erases prop types
 // Components with complex typed callbacks should use static imports instead (see above)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false }) as React.ComponentType<any>
+const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any>
 const EquipeSection = d(() => import('@/components/syndic-dashboard/misc/EquipeSection'))
 const AnalyseDevisSection = d(() => import('@/components/syndic-dashboard/reporting/AnalyseDevisSection'))
 const DocsInterventionsSection = d(() => import('@/components/syndic-dashboard/operations/DocsInterventionsSection'))

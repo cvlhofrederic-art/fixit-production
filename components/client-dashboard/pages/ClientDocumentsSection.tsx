@@ -31,14 +31,14 @@ interface ClientDocumentsSectionProps {
   downloadDevisPdf: (doc: BookingDocument) => void
   downloadingPdf?: boolean
   setActiveTab: (tab: string) => void
-  setAnalyseFilename: (name: string) => void
+  setAnalyseFilename?: (name: string) => void
   formatDateLocal: (dateStr: string) => string
 }
 
 export default function ClientDocumentsSection(props: ClientDocumentsSectionProps) {
   const {
     documents, documentsLoading, bookings, locale, t,
-    fetchDocuments, openMessages, downloadDevisPdf, downloadingPdf = false, setActiveTab, setAnalyseFilename, formatDateLocal,
+    fetchDocuments, openMessages, downloadDevisPdf, downloadingPdf = false, setActiveTab, setAnalyseFilename = () => {}, formatDateLocal,
   } = props
 
   const [compareMode, setCompareMode] = useState(false)

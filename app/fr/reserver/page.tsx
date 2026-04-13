@@ -38,6 +38,9 @@ function ReserverContent() {
   useEffect(() => {
     if (artisanId && serviceId) {
       fetchData()
+    } else {
+      setLoading(false)
+      setError(t('Veuillez sélectionner un artisan et un service avant de réserver.', 'Por favor selecione um profissional e um serviço antes de reservar.'))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artisanId, serviceId])

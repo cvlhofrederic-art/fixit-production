@@ -31,12 +31,12 @@ const SectionLoader = () => (
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
 // ssr:false was causing React hydration error #419 that broke all button handlers
 // webpackPrefetch: true on high-priority sections — browser downloads them during idle time
-const HomeSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/HomeSection'))
-const CalendarSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CalendarSection'))
-const HorairesSection = dynamic(() => import('@/components/dashboard/HorairesSection'))
-const MotifsSection = dynamic(() => import('@/components/dashboard/MotifsSection'))
-const DevisSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/DevisSection'))
-const FacturesSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/FacturesSection'))
+const HomeSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/HomeSection'), { loading: SectionLoader })
+const CalendarSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CalendarSection'), { loading: SectionLoader })
+const HorairesSection = dynamic(() => import('@/components/dashboard/HorairesSection'), { loading: SectionLoader })
+const MotifsSection = dynamic(() => import('@/components/dashboard/MotifsSection'), { loading: SectionLoader })
+const DevisSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/DevisSection'), { loading: SectionLoader })
+const FacturesSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/FacturesSection'), { loading: SectionLoader })
 const StatsRevenusSection = dynamic(() => import('@/components/dashboard/StatsRevenusSection'), { loading: SectionLoader })
 const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSection'), { loading: SectionLoader })
 
@@ -64,7 +64,7 @@ const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), 
 const ModulesSection = dynamic(() => import('@/components/dashboard/ModulesSection'), { loading: SectionLoader })
 
 // BTP sections — direct imports (no barrel) for proper tree-shaking
-const EquipesBTPV2 = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/EquipesBTPV2'))
+const EquipesBTPV2 = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/EquipesBTPV2'), { loading: SectionLoader })
 const ChantiersBTPSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/ChantiersBTPSection').then(mod => mod.ChantiersBTPSection), { loading: SectionLoader })
 const GanttSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/GanttSection').then(mod => mod.GanttSection), { loading: SectionLoader })
 const SituationsTravaux = dynamic(() => import('@/components/dashboard/btp/SituationsTravaux').then(mod => mod.SituationsTravaux), { loading: SectionLoader })
@@ -82,24 +82,24 @@ const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true 
 const MeteoChantierSection = dynamic(() => import('@/components/dashboard/btp/MeteoChantierSection').then(mod => mod.MeteoChantierSection), { loading: SectionLoader })
 
 // V5 layout components
-const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'))
-const V5SidebarArtisan = dynamic(() => import('@/components/dashboard/V5SidebarArtisan'))
-const V5Header = dynamic(() => import('@/components/dashboard/V5Header'))
+const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'), { loading: SectionLoader })
+const V5SidebarArtisan = dynamic(() => import('@/components/dashboard/V5SidebarArtisan'), { loading: SectionLoader })
+const V5Header = dynamic(() => import('@/components/dashboard/V5Header'), { loading: SectionLoader })
 
 // Conciergerie sections — NO ssr:false (causes React #419 hydration error)
-const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection))
-const AccesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.AccesConciergerieSection))
-const ChannelManagerSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ChannelManagerSection))
-const TarificationSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.TarificationSection))
-const CheckinOutSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.CheckinOutSection))
-const LivretAccueilSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.LivretAccueilSection))
-const PlanningMenageSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.PlanningMenageSection))
-const RevPARSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.RevPARSection))
+const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection), { loading: SectionLoader })
+const AccesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.AccesConciergerieSection), { loading: SectionLoader })
+const ChannelManagerSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ChannelManagerSection), { loading: SectionLoader })
+const TarificationSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.TarificationSection), { loading: SectionLoader })
+const CheckinOutSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.CheckinOutSection), { loading: SectionLoader })
+const LivretAccueilSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.LivretAccueilSection), { loading: SectionLoader })
+const PlanningMenageSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.PlanningMenageSection), { loading: SectionLoader })
+const RevPARSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.RevPARSection), { loading: SectionLoader })
 
 // Gestionnaire sections — NO ssr:false (causes React #419 hydration error)
-const ImmeublesGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ImmeublesGestionnaireSection))
-const MissionsGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.MissionsGestionnaireSection))
-const ContratsSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ContratsSection))
+const ImmeublesGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ImmeublesGestionnaireSection), { loading: SectionLoader })
+const MissionsGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.MissionsGestionnaireSection), { loading: SectionLoader })
+const ContratsSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ContratsSection), { loading: SectionLoader })
 
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'

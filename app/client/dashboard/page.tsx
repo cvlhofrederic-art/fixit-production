@@ -16,7 +16,7 @@ import { useSignatureCanvas } from '@/hooks/useSignatureCanvas'
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
 
 // Dynamic imports for extracted page sections
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false }) as React.ComponentType<any> // eslint-disable-line @typescript-eslint/no-explicit-any
+const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#FFC107] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const ClientDashboardOverview = d(() => import('@/components/client-dashboard/pages/ClientDashboardOverview'))
 const ClientMessagesSection = d(() => import('@/components/client-dashboard/pages/ClientMessagesSection'))
 const ClientDocumentsSection = d(() => import('@/components/client-dashboard/pages/ClientDocumentsSection'))

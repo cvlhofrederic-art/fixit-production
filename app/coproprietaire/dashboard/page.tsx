@@ -15,7 +15,7 @@ import {
 } from '@/lib/copro-demo-data'
 
 // ─── Dynamic imports for extracted page sections ─────────────────────────────
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false }) as React.ComponentType<any>
+const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any>
 
 const CoproAccueilSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproAccueilSection'))
 const CoproDocumentsSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproDocumentsSection'))

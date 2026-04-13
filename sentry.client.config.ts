@@ -14,7 +14,7 @@ Sentry.init({
 
   // Session Replay disabled — not needed, adds ~50KB to bundle
   replaysSessionSampleRate: 0,
-  replaysOnErrorSampleRate: 1.0, // captures replay on error for debugging
+  replaysOnErrorSampleRate: 0, // disabled — caused "blocs roses" on syndic dashboard
 
   debug: false,
 

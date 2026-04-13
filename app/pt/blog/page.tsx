@@ -6,7 +6,7 @@ import { BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  const locale = (cookieStore.get('locale')?.value || 'pt') as Locale
 
   if (locale === 'pt') {
     return {
@@ -114,7 +114,7 @@ const categoryLabelPT = (cat: string) => {
 
 export default async function BlogPage() {
   const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  const locale = (cookieStore.get('locale')?.value || 'pt') as Locale
 
   // JSON-LD for PT blog listing
   const ptJsonLd = {
