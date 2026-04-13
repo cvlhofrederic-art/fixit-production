@@ -1029,6 +1029,16 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
               )}
 
               {/* Voice button (toggle: clic = start, reclic = stop & send) */}
+              {!voiceSupported && !processing && (
+                <button
+                  type="button"
+                  disabled
+                  className="p-2.5 rounded-xl bg-gray-100 text-gray-300 flex-shrink-0 cursor-not-allowed"
+                  title="Dictée vocale non supportée par ce navigateur"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              )}
               {voiceSupported && !processing && (
                 <button
                   type="button"
