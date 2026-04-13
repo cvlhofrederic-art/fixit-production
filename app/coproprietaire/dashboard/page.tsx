@@ -1281,7 +1281,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
       {/* ── SIDEBAR ── */}
       <aside
         role="navigation"
-        aria-label={t.navigation || 'Navigation'}
+        aria-label="Navigation"
         className={`fixed md:relative z-50 md:z-auto transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
         style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--sd-border-dark)', overflowY: 'auto', height: '100vh', top: 0, left: 0 }}
       >
