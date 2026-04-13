@@ -807,7 +807,7 @@ export default function ClientDashboardPage() {
           {/* Navigation section */}
           <div className="mb-6">
             <p style={{ fontSize: 10, letterSpacing: '0.1em', color: '#999999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 12, paddingLeft: 10 }}>Navigation</p>
-            <nav className="flex flex-col gap-1">
+            <nav className="flex flex-col gap-1" aria-label={locale === 'pt' ? 'Navegação principal' : 'Navigation principale'}>
               {navItems.map(item => {
                 const isActive = item.activeKeys ? item.activeKeys.includes(activeTab) : activeTab === item.key
                 return (
@@ -851,7 +851,7 @@ export default function ClientDashboardPage() {
           {/* Compte section */}
           <div className="mb-6">
             <p style={{ fontSize: 10, letterSpacing: '0.1em', color: '#999999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 12, paddingLeft: 10 }}>Compte</p>
-            <nav className="flex flex-col gap-1">
+            <nav className="flex flex-col gap-1" aria-label={locale === 'pt' ? 'Conta' : 'Compte'}>
               {accountItems.map(item => {
                 const isActive = activeTab === item.key
                 return (

@@ -56,11 +56,11 @@ function V5SidebarItem({ icon, label, active, badge, onClick, page }: {
     }
   }
   return (
-    <div onClick={onClick} onMouseEnter={handleHover} className={`v5-sb-i${active ? ' active' : ''}`}>
-      <span className="v5-sb-icon">{icon}</span>
+    <button type="button" onClick={onClick} onMouseEnter={handleHover} className={`v5-sb-i${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
+      <span className="v5-sb-icon" aria-hidden="true">{icon}</span>
       <span className="v5-sb-label">{label}</span>
-      {badge != null && badge > 0 && <span className="v5-sb-badge">{badge}</span>}
-    </div>
+      {badge != null && badge > 0 && <span className="v5-sb-badge" aria-label={`${badge} en attente`}>{badge}</span>}
+    </button>
   )
 }
 
@@ -70,7 +70,7 @@ export default function V5Sidebar({
   isPt, pendingBookings, unreadMsgCount,
 }: V5SidebarProps) {
   return (
-    <aside className="v5-sb">
+    <aside className="v5-sb" role="navigation" aria-label={isPt ? 'Menu principal' : 'Menu principal'}>
       <div className="v5-sb-logo">
         <div className="v5-sb-logo-name" style={{ cursor: 'pointer' }} onClick={() => navigateTo('home')}>
           VITFIX <span className="v5-sb-logo-badge">PRO</span>
