@@ -1271,9 +1271,17 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
         </div>
       )}
 
+      {/* ── MOBILE BACKDROP ── */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* ── SIDEBAR ── */}
       <aside
-        style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', transition: 'width 0.25s ease', borderRight: '1px solid var(--sd-border-dark)', position: 'relative', overflowY: 'auto' }}
+        role="navigation"
+        aria-label={t.navigation || 'Navigation'}
+        className={`fixed md:relative z-50 md:z-auto transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+        style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--sd-border-dark)', overflowY: 'auto', height: '100vh', top: 0, left: 0 }}
       >
         {/* Grid texture overlay */}
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)', backgroundSize: '32px 32px', pointerEvents: 'none' }} />
@@ -1317,7 +1325,8 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setPage(item.id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false) }}
                       style={{
                         width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11,
                         padding: '10px 16px', margin: '1px 8px',
@@ -1382,14 +1391,24 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
       {/* ── CONTENU PRINCIPAL ── */}
       <main className="flex-1 overflow-y-auto" style={{ background: 'var(--sd-cream)' }}>
         {/* Header */}
-        <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', padding: '0 36px', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }}>
-          <div>
+        <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }} className="px-4 md:px-9">
+          <div className="flex items-center gap-3">
+            {/* Mobile hamburger */}
+            <button
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg border border-[var(--sd-border)] bg-white"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sd-navy)" strokeWidth="2" strokeLinecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            </button>
+            <div>
             <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 400, color: 'var(--sd-navy)', letterSpacing: '0.2px' }}>
               {navItems.find(n => n.id === page)?.emoji} {navItems.find(n => n.id === page)?.label}
             </h1>
-            <p style={{ fontSize: 11, color: 'var(--sd-ink-3)', letterSpacing: '0.3px' }}>
+            <p style={{ fontSize: 11, color: 'var(--sd-ink-3)', letterSpacing: '0.3px' }} className="hidden sm:block">
               {profile.immeuble} · {t.bat} {profile.batiment} · {t.lot} {profile.numLot} · {new Date().toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
+          </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button

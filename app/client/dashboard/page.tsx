@@ -1031,13 +1031,12 @@ export default function ClientDashboardPage() {
       </div>
 
       {/* ═══════════ MOBILE BOTTOM NAV (< md) ═══════════ */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white flex items-center justify-around" style={{ borderTop: '1px solid #E8E8E8', height: 56, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white flex items-center justify-around" style={{ borderTop: '1px solid #E8E8E8', height: 56, paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label={locale === 'pt' ? 'Navegação mobile' : 'Navigation mobile'}>
         {[
           { key: 'dashboard' as const, icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home' },
           { key: 'upcoming' as const, icon: <Calendar className="w-5 h-5" />, label: t('clientDash.stats.reservations') },
           { key: 'messages' as const, icon: <MessageSquare className="w-5 h-5" />, label: locale === 'pt' ? 'Mensagens' : 'Messages', badge: totalUnread },
-          { key: 'logement' as const, icon: <Home className="w-5 h-5" />, label: t('clientDash.tabs.logement') },
-          { key: 'marches' as const, icon: <Hammer className="w-5 h-5" />, label: locale === 'pt' ? 'Mercados' : 'Marchés' },
+          { key: 'documents' as const, icon: <FileText className="w-5 h-5" />, label: 'Docs' },
           { key: 'profile' as const, icon: <User className="w-5 h-5" />, label: 'Profil' },
         ].map(item => {
           const isActive = item.key === activeTab || (item.key === 'upcoming' && activeTab === 'past')
@@ -1045,6 +1044,7 @@ export default function ClientDashboardPage() {
             <button
               key={item.key}
               onClick={() => setActiveTab(item.key)}
+              aria-current={isActive ? 'page' : undefined}
               className="relative flex flex-col items-center justify-center gap-0.5"
               style={{ flex: 1, border: 'none', background: 'transparent', cursor: 'pointer', padding: '6px 0', color: isActive ? '#FFC107' : '#999999' }}
             >
