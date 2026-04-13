@@ -662,6 +662,7 @@ function DashboardPage() {
 
           {/* ────── HOME ────── */}
           {activePage === 'home' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no painel' : 'Erreur dans le tableau de bord'}>
             <HomeSection
               artisan={artisan!} orgRole={orgRole} bookings={bookings} services={services}
               pendingBookings={pendingBookings} completedBookings={completedBookings}
@@ -671,10 +672,12 @@ function DashboardPage() {
               setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── AGENDA ────── */}
           {activePage === 'calendar' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na agenda' : "Erreur dans l'agenda"}>
             <CalendarSection
               artisan={artisan!} bookings={bookings} services={services}
               pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue}
@@ -697,10 +700,12 @@ function DashboardPage() {
               DAY_NAMES={DAY_NAMES} DAY_SHORT={DAY_SHORT}
               orgRole={orgRole}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── HORAIRES D'OUVERTURE ────── */}
           {activePage === 'horaires' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos horários' : "Erreur dans les horaires"}>
             <HorairesSection
               artisan={artisan!} services={services} availability={availability}
               dayServices={dayServices} autoAccept={autoAccept} savingAvail={savingAvail}
@@ -708,10 +713,12 @@ function DashboardPage() {
               updateAvailabilityTime={updateAvailabilityTime} toggleDayService={toggleDayService}
               DAY_NAMES={DAY_NAMES} orgRole={orgRole}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── MOTIFS (Services) - FULL CRUD ────── */}
           {activePage === 'motifs' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos serviços' : 'Erreur dans les services'}>
             <MotifsSection
               services={services}
               showMotifModal={showMotifModal} setShowMotifModal={setShowMotifModal}
@@ -721,6 +728,7 @@ function DashboardPage() {
               getPriceRangeLabel={(s: Service) => getPriceRangeLabel(s, t('proDash.onQuote'))} getPricingUnit={getPricingUnit} getCleanDescription={getCleanDescription}
               orgRole={orgRole}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── MESSAGERIE V2 ────── */}
@@ -794,6 +802,7 @@ function DashboardPage() {
 
           {/* ────── DEVIS ────── */}
           {activePage === 'devis' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis'}>
             <DevisSection
               artisan={artisan!} services={services} bookings={bookings}
               /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -804,10 +813,12 @@ function DashboardPage() {
               /* eslint-enable @typescript-eslint/no-explicit-any */
               orgRole={orgRole}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── FACTURES ────── */}
           {activePage === 'factures' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas faturas' : 'Erreur dans les factures'}>
             <FacturesSection
               artisan={artisan!} services={services} bookings={bookings}
               /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -817,20 +828,26 @@ function DashboardPage() {
               /* eslint-enable @typescript-eslint/no-explicit-any */
               orgRole={orgRole}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── STATISTIQUES ────── */}
           {activePage === 'stats' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas estatísticas' : 'Erreur dans les statistiques'}>
             <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── REVENUS ────── */}
           {activePage === 'revenus' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas receitas' : 'Erreur dans les revenus'}>
             <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── PARAMETRES ────── */}
           {activePage === 'settings' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas definições' : 'Erreur dans les paramètres'}>
             <SettingsSection
               artisan={artisan!}
               orgRole={orgRole}
@@ -851,10 +868,12 @@ function DashboardPage() {
               uploadMsg={uploadMsg}
               setUploadMsg={setUploadMsg}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── MODULES ────── */}
           {activePage === 'modules' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos módulos' : 'Erreur dans les modules'}>
             <ModulesSection
               orgRole={orgRole}
               ALL_MODULES={ALL_MODULES}
@@ -868,6 +887,7 @@ function DashboardPage() {
               reorderCategoryTo={reorderCategoryTo}
               CATEGORIES_DEFAULT={CATEGORIES_DEFAULT}
             />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── COMPTABILITÉ ────── */}
@@ -1031,69 +1051,91 @@ function DashboardPage() {
 
           {/* ────── PROPRIÉTÉS (Conciergerie) ────── */}
           {activePage === 'proprietes' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans les propriétés">
             <ProprietesConciergerieSection artisan={artisan!} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── ACCÈS & CLÉS (Conciergerie) ────── */}
           {activePage === 'acces' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans les accès">
             <AccesConciergerieSection artisan={artisan!} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── CHANNEL MANAGER (Conciergerie) ────── */}
           {activePage === 'channel_manager' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le channel manager">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <ChannelManagerSection userId={artisan?.id || ''} />
             </div>
+            </SectionErrorBoundary>
           )}
 
           {/* ────── TARIFICATION (Conciergerie) ────── */}
           {activePage === 'tarification' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans la tarification">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <TarificationSection userId={artisan?.id || ''} />
             </div>
+            </SectionErrorBoundary>
           )}
 
           {/* ────── CHECK-IN / CHECK-OUT (Conciergerie) ────── */}
           {activePage === 'checkinout' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le check-in/out">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <CheckinOutSection userId={artisan?.id || ''} />
             </div>
+            </SectionErrorBoundary>
           )}
 
           {/* ────── LIVRET D'ACCUEIL (Conciergerie) ────── */}
           {activePage === 'livret' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le livret d'accueil">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <LivretAccueilSection userId={artisan?.id || ''} />
             </div>
+            </SectionErrorBoundary>
           )}
 
           {/* ────── PLANNING MÉNAGE (Conciergerie) ────── */}
           {activePage === 'menage' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le planning ménage">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PlanningMenageSection userId={artisan?.id || ''} />
             </div>
+            </SectionErrorBoundary>
           )}
 
           {/* ────── REVPAR (Conciergerie) ────── */}
           {activePage === 'revpar' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le RevPAR">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RevPARSection userId={artisan?.id || ''} />
             </div>
+            </SectionErrorBoundary>
           )}
 
           {/* ────── IMMEUBLES (Gestionnaire) ────── */}
           {activePage === 'immeubles' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans les immeubles">
             <ImmeublesGestionnaireSection artisan={artisan!} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── ORDRES DE MISSION (Gestionnaire) ────── */}
           {activePage === 'missions' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans les missions">
             <MissionsGestionnaireSection artisan={artisan!} bookings={bookings} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── CONTRATS ────── */}
           {activePage === 'contrats' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans les contrats">
             <ContratsSection artisan={artisan!} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
