@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
+      return NextResponse.json({ error: err.issues[0].message }, { status: 400 })
     }
     console.error('Contact email failed:', err)
     return NextResponse.json({ error: 'Erreur d\'envoi' }, { status: 500 })
