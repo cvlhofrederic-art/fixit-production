@@ -28,6 +28,8 @@ interface HeaderProps {
   notifs: Notif[]
   notifUnread: number
   notifPanelOpen: boolean
+  sidebarOpen?: boolean
+  setSidebarOpen?: (open: boolean) => void
   setNotifPanelOpen: (open: boolean) => void
   notifLoading: boolean
   markAllNotifsRead: () => Promise<void>
@@ -45,6 +47,8 @@ export default function Header({
   setNotifPanelOpen,
   notifLoading,
   markAllNotifsRead,
+  sidebarOpen,
+  setSidebarOpen,
 }: HeaderProps) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -60,14 +64,26 @@ export default function Header({
   }, [notifPanelOpen, setNotifPanelOpen])
 
   return (
-    <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', padding: '0 36px', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }}>
-      <div>
+    <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }} className="px-4 md:px-9">
+      <div className="flex items-center gap-3">
+        {/* Mobile hamburger */}
+        {setSidebarOpen && (
+          <button
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg border border-[var(--sd-border)] bg-white"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sd-navy)" strokeWidth="2" strokeLinecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+          </button>
+        )}
+        <div>
         <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 400, color: 'var(--sd-navy)', letterSpacing: '0.2px' }}>
           {navItems.find(n => n.id === page)?.emoji} {navItems.find(n => n.id === page)?.label}
         </h1>
-        <p style={{ fontSize: 11, color: 'var(--sd-ink-3)', letterSpacing: '0.3px' }}>
+        <p style={{ fontSize: 11, color: 'var(--sd-ink-3)', letterSpacing: '0.3px' }} className="hidden sm:block">
           {companyName} · {new Date().toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
+      </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {/* Alertes urgentes */}

@@ -2525,6 +2525,8 @@ export default function SyndicDashboard() {
           setNotifPanelOpen={setNotifPanelOpen}
           notifLoading={notifLoading}
           markAllNotifsRead={markAllNotifsRead}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
         />
 
         <div className={page === 'canal' ? '' : 'p-6'}>

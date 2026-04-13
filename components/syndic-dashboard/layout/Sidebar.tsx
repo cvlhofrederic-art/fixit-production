@@ -47,8 +47,19 @@ export default function Sidebar({
   const locale = useLocale()
 
   return (
+    <>
+    {/* Mobile overlay backdrop */}
+    {sidebarOpen && (
+      <div
+        className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        onClick={() => setSidebarOpen(false)}
+      />
+    )}
     <aside
-      style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', transition: 'width 0.25s ease', borderRight: '1px solid var(--sd-border-dark)', position: 'relative', overflowY: 'auto' }}
+      role="navigation"
+      aria-label={t('syndicDash.sidebar.navigation') || 'Navigation principale'}
+      className={`fixed md:relative z-50 md:z-auto transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+      style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--sd-border-dark)', position: undefined, overflowY: 'auto', height: '100vh', top: 0, left: 0 }}
     >
       {/* Grid texture overlay */}
       <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)', backgroundSize: '32px 32px', pointerEvents: 'none' }} />
@@ -89,7 +100,8 @@ export default function Sidebar({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setPage(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false) }}
                     style={{
                       width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11,
                       padding: '10px 16px', margin: '1px 8px',
@@ -149,5 +161,6 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   )
 }
