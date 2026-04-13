@@ -83,8 +83,9 @@ export default function SyndicLoginPage() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-mid mb-1">Email professionnel</label>
+              <label htmlFor="syndic-email" className="block text-sm font-medium text-mid mb-1">Email professionnel</label>
               <input
+                id="syndic-email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -95,8 +96,9 @@ export default function SyndicLoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-mid mb-1">Mot de passe</label>
+              <label htmlFor="syndic-password" className="block text-sm font-medium text-mid mb-1">Mot de passe</label>
               <input
+                id="syndic-password"
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}

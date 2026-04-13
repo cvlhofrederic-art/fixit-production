@@ -359,13 +359,14 @@ export default function LoginPage() {
               <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Email */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{
+                <label htmlFor="login-email" style={{
                   fontSize: '11.5px', fontWeight: 700, color: '#444',
                   textTransform: 'uppercase', letterSpacing: '0.06em',
                 }}>
                   Adresse email
                 </label>
                 <input
+                  id="login-email"
                   ref={emailRef}
                   type="email"
                   value={email}
@@ -400,7 +401,7 @@ export default function LoginPage() {
 
               {/* Password */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{
+                <label htmlFor="login-password" style={{
                   fontSize: '11.5px', fontWeight: 700, color: '#444',
                   textTransform: 'uppercase', letterSpacing: '0.06em',
                 }}>
@@ -408,6 +409,7 @@ export default function LoginPage() {
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
@@ -447,7 +449,7 @@ export default function LoginPage() {
                       background: 'none', border: 'none', cursor: 'pointer',
                       color: '#999', padding: '4px', display: 'flex', alignItems: 'center',
                     }}
-                    tabIndex={-1}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
