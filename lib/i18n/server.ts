@@ -12,10 +12,10 @@ import en from '@/locales/en.json'
 // NL and ES don't have full translations — they fall back to EN for UI
 const dictionaries: Record<Locale, Record<string, unknown>> = { fr, pt, en, nl: en, es: en }
 
-export async function getServerTranslation() {
+export async function getServerTranslation(forceLocale?: Locale) {
   const cookieStore = await cookies()
   const localeCookie = cookieStore.get(LOCALE_COOKIE)?.value
-  const locale: Locale = localeCookie && isValidLocale(localeCookie) ? localeCookie : DEFAULT_LOCALE
+  const locale: Locale = forceLocale || (localeCookie && isValidLocale(localeCookie) ? localeCookie : DEFAULT_LOCALE)
 
   const t = (key: string, fallback?: string): string => {
     const keys = key.split('.')

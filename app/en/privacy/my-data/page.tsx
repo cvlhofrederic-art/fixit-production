@@ -83,7 +83,7 @@ export default function MyDataPage() {
   }
 
   const handleDelete = async () => {
-    if (deleteInput !== 'SUPPRIMER') return
+    if (deleteInput !== 'DELETE') return
     setDeleting(true)
     setMessage(null)
     try {
@@ -222,20 +222,20 @@ export default function MyDataPage() {
           ) : (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <p className="text-sm font-medium text-red-700 mb-3">
-                {t('rgpd.deleteConfirmPrompt', 'Type SUPPRIMER to confirm permanent deletion:')}
+                {t('rgpd.deleteConfirmPrompt', 'Type DELETE to confirm permanent deletion:')}
               </p>
               <input
                 type="text"
                 value={deleteInput}
                 onChange={(e) => setDeleteInput(e.target.value)}
-                placeholder="SUPPRIMER"
-                aria-label="Type SUPPRIMER to confirm"
+                placeholder="DELETE"
+                aria-label="Type DELETE to confirm"
                 className="w-full px-4 py-2 border-2 border-red-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none text-sm mb-3"
               />
               <div className="flex gap-3">
                 <button
                   onClick={handleDelete}
-                  disabled={deleteInput !== 'SUPPRIMER' || deleting}
+                  disabled={deleteInput !== 'DELETE' || deleting}
                   className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm"
                 >
                   {deleting

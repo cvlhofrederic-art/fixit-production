@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 }
 
 export default async function LegalNoticesPage() {
-  const { t } = await getServerTranslation()
+  const { t } = await getServerTranslation('en')
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
