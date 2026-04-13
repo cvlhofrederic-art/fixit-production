@@ -91,7 +91,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.2",
     "exceljs": "^4.4.0",
-    "jsdom": "^28.1.0",
+    "jsdom": "^29.0.2",
     "pg": "^8.18.0",
     "tailwindcss": "^4",
     "typescript": "^5",
