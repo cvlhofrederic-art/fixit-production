@@ -18,7 +18,8 @@ export default function ContactPage() {
     e.preventDefault()
     const mailto = `mailto:contact@vitfix.io?subject=${encodeURIComponent(form.sujet || 'Contact Vitfix')}&body=${encodeURIComponent(`${t('contact.form.fullName')} : ${form.nom}\nEmail : ${form.email}\n\n${form.message}`)}`
     window.location.href = mailto
-    setSent(true)
+    // Delay to let mailto open before showing feedback
+    setTimeout(() => setSent(true), 500)
   }
 
   const contactJsonLd = isPt ? {
@@ -158,15 +159,28 @@ export default function ContactPage() {
           <div className="md:col-span-2 bg-white rounded-2xl shadow-sm p-8 fade-up">
             {sent ? (
               <div className="text-center py-8">
-                <div className="text-5xl mb-4">{'✅'}</div>
-                <h2 className="text-xl font-display font-bold text-dark mb-2">{t('contact.sent.title')}</h2>
-                <p className="text-text-muted">{t('contact.sent.desc')}</p>
+                <div className="text-5xl mb-4">{'📧'}</div>
+                <h2 className="text-xl font-display font-bold text-dark mb-2">
+                  {isPt ? 'Verifique o seu cliente de email' : 'Vérifiez votre client email'}
+                </h2>
+                <p className="text-text-muted mb-4">
+                  {isPt
+                    ? 'O seu cliente de email deve ter aberto com a mensagem pré-preenchida. Se não abriu, envie diretamente para:'
+                    : 'Votre client email devrait s\'être ouvert avec le message pré-rempli. S\'il ne s\'est pas ouvert, envoyez directement à :'}
+                </p>
+                <a href="mailto:contact@vitfix.io" className="text-yellow font-semibold hover:underline">contact@vitfix.io</a>
+                <div className="mt-4">
+                  <button onClick={() => setSent(false)} className="text-sm text-text-muted hover:text-dark transition underline">
+                    {isPt ? 'Voltar ao formulário' : 'Revenir au formulaire'}
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-dark/70 mb-1">{t('contact.form.fullName')}</label>
+                  <label htmlFor="contact-name" className="block text-sm font-medium text-dark/70 mb-1">{t('contact.form.fullName')}</label>
                   <input
+                    id="contact-name"
                     type="text"
                     required
                     value={form.nom}
@@ -176,8 +190,9 @@ export default function ContactPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark/70 mb-1">Email</label>
+                  <label htmlFor="contact-email" className="block text-sm font-medium text-dark/70 mb-1">Email</label>
                   <input
+                    id="contact-email"
                     type="email"
                     required
                     value={form.email}
@@ -187,8 +202,10 @@ export default function ContactPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark/70 mb-1">{t('contact.form.subject')}</label>
+                  <label htmlFor="contact-subject" className="block text-sm font-medium text-dark/70 mb-1">{t('contact.form.subject')}</label>
                   <select
+                    id="contact-subject"
+                    required
                     value={form.sujet}
                     onChange={e => setForm({ ...form, sujet: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-border rounded-lg focus:border-yellow focus:outline-none bg-white"
@@ -202,8 +219,9 @@ export default function ContactPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark/70 mb-1">Message</label>
+                  <label htmlFor="contact-message" className="block text-sm font-medium text-dark/70 mb-1">Message</label>
                   <textarea
+                    id="contact-message"
                     required
                     rows={5}
                     value={form.message}
