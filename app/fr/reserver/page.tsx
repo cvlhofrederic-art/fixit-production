@@ -82,6 +82,7 @@ function ReserverContent() {
       }
     } catch (err) {
       console.error('Error fetching data:', err)
+      setError(t('Une erreur est survenue lors du chargement. Veuillez réessayer.', 'Ocorreu um erro ao carregar. Por favor tente novamente.'))
     }
     setLoading(false)
   }

@@ -14,6 +14,8 @@ export default function UpdatePasswordPage() {
   const [error, setError] = useState('')
   const [sessionReady, setSessionReady] = useState(false)
 
+  const [tokenExpired, setTokenExpired] = useState(false)
+
   useEffect(() => {
     // Supabase automatically handles the recovery token from the URL hash
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -27,7 +29,12 @@ export default function UpdatePasswordPage() {
       if (session) setSessionReady(true)
     })
 
-    return () => subscription.unsubscribe()
+    // Timeout after 10s — token likely expired or invalid
+    const timeout = setTimeout(() => {
+      setTokenExpired(true)
+    }, 10000)
+
+    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,13 +109,27 @@ export default function UpdatePasswordPage() {
             </div>
           ) : !sessionReady ? (
             <div className="text-center py-8">
-              <div className="animate-spin w-8 h-8 border-4 border-yellow border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-500 text-sm">
-                {t('auth.verifyingLink', 'V\u00e9rification du lien...')}
-              </p>
-              <p className="text-gray-400 text-xs mt-2">
-                {t('auth.invalidLinkHint', 'Si la page ne charge pas, le lien a peut-\u00eatre expir\u00e9.')}
-              </p>
+              {tokenExpired ? (
+                <>
+                  <div className="text-4xl mb-4">⏰</div>
+                  <p className="text-gray-700 font-semibold mb-2">
+                    {t('auth.linkExpired', 'Ce lien a expiré ou est invalide')}
+                  </p>
+                  <p className="text-gray-500 text-sm mb-4">
+                    {t('auth.requestNewLinkDesc', 'Demandez un nouveau lien de réinitialisation pour modifier votre mot de passe.')}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="animate-spin w-8 h-8 border-4 border-yellow border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <p className="text-gray-500 text-sm">
+                    {t('auth.verifyingLink', 'Vérification du lien...')}
+                  </p>
+                  <p className="text-gray-400 text-xs mt-2">
+                    {t('auth.invalidLinkHint', 'Si la page ne charge pas, le lien a peut-être expiré.')}
+                  </p>
+                </>
+              )}
               <LocaleLink
                 href="/auth/reset-password"
                 className="text-yellow hover:underline font-semibold text-sm mt-4 inline-block"

@@ -487,7 +487,12 @@ export default function AdminDashboardPage() {
                 </div>
               </>
             ) : (
-              <div className="text-gray-500 py-20 text-center">Erreur de chargement</div>
+              <div className="text-gray-500 py-20 text-center">
+                <p className="mb-4">Erreur de chargement des statistiques</p>
+                <button onClick={() => fetchStats()} className="bg-yellow hover:bg-yellow-light text-gray-900 px-6 py-2 rounded-lg font-semibold transition">
+                  Réessayer
+                </button>
+              </div>
             )}
           </div>
         )}
