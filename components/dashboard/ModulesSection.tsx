@@ -23,20 +23,20 @@ interface ModulesSectionProps {
 type CatMod = { id: string; icon: string; name: string; on: boolean }
 type Cat = { id: string; name: string; open: boolean; modules: CatMod[] }
 
-// Default categories — matches v7 HTML spec exactly
+// Default categories — aligned with V5Sidebar (pro_societe BTP) structure
 const DEFAULT_STRUCTURE: Array<{ id: string; name: string; open: boolean; modIds: string[] }> = [
-  { id: 'cat-general', name: 'Général', open: true, modIds: ['home', 'gestion_comptes', 'stats'] },
+  { id: 'cat-pilotage', name: 'Pilotage', open: true, modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
   { id: 'cat-chantiers', name: 'Chantiers', open: true, modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
-  { id: 'cat-commercial', name: 'Commercial', open: true, modIds: ['pipeline', 'devis', 'dpgf', 'marches', 'clients', 'portail_client'] },
+  { id: 'cat-commercial', name: 'Commercial', open: true, modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
   { id: 'cat-facturation', name: 'Facturation', open: true, modIds: ['factures', 'situations', 'garanties'] },
-  { id: 'cat-achats', name: 'Sous-traitance & Achats', open: true, modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'materiaux', 'marketplace_btp'] },
-  { id: 'cat-finances', name: 'Finances', open: true, modIds: ['revenus', 'compta_btp', 'rentabilite', 'comptabilite'] },
-  { id: 'cat-communication', name: 'Communication', open: true, modIds: ['messages'] },
-  { id: 'cat-admin', name: 'Administration', open: true, modIds: ['wallet', 'contrats', 'motifs', 'horaires'] },
+  { id: 'cat-achats', name: 'Sous-traitance & Achats', open: true, modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'marketplace_btp'] },
+  { id: 'cat-finances', name: 'Finances', open: true, modIds: ['compta_btp', 'rentabilite', 'comptabilite'] },
+  { id: 'cat-communication', name: 'Communication', open: true, modIds: ['messages', 'clients', 'portail_client'] },
+  { id: 'cat-admin', name: 'Administration', open: true, modIds: ['wallet', 'contrats', 'horaires'] },
   { id: 'cat-vitrine', name: 'Vitrine', open: true, modIds: ['portfolio', 'parrainage'] },
 ]
 
-const STORAGE_KEY = 'fixit_modules_categories_v1'
+const STORAGE_KEY = 'fixit_modules_categories_v2'
 
 function buildDefaults(ALL_MODULES: ModuleDef[], modulesConfig: ModuleConfig[]): Cat[] {
   const byId = new Map(ALL_MODULES.map(m => [m.id, m]))
