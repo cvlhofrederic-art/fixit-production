@@ -392,12 +392,12 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* ═══ Page Header ═══ */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.1rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem', flexShrink: 0, gap: 12 }}>
         <div className="v5-pg-t" style={{ marginBottom: 0 }}>
           <h1>Messagerie</h1>
           <p>Vos conversations</p>
         </div>
-        <button className="v5-btn v5-btn-p" style={{ borderRadius: 20, flexShrink: 0, marginTop: 2 }}>✏️ Nouvelle conversation</button>
+        <button className="v5-btn v5-btn-p v5-btn-sm" style={{ flexShrink: 0 }}>+ Nouvelle conversation</button>
       </div>
 
       {/* ═══ LAYOUT v7 — Grille 2 colonnes ═══ */}
