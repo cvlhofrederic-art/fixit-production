@@ -47,7 +47,6 @@ function computeStage(doc: SavedDocument, isDraft: boolean): string {
 export default function PipelineSection({ artisan, orgRole = 'artisan', navigateTo }: PipelineSectionProps) {
   const [items, setItems] = useState<PipelineItem[]>([])
   const [loading, setLoading] = useState(true)
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   const stages = getStages(orgRole)
 
@@ -116,20 +115,19 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
   const totalPipeline = items.reduce((s, i) => s + i.montant, 0)
 
   return (
-    <div className={isV5 ? 'v5-fade' : ''}>
+    <div className="v5-fade">
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : ''} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', ...(!isV5 ? { marginBottom: 24 } : {}) }}>
+      <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={!isV5 ? { fontSize: 20, fontWeight: 700, marginBottom: 4 } : undefined}>Pipeline commercial</h1>
-          <p style={!isV5 ? { fontSize: 13, color: '#888' } : undefined}>
+          <h1>Pipeline commercial</h1>
+          <p>
             {orgRole === 'pro_societe'
               ? `${items.length} affaire${items.length > 1 ? 's' : ''} — ${formatEur(totalPipeline)} HT`
               : `Suivi des opportunités — ${formatEur(totalPipeline)} HT`}
           </p>
         </div>
         <button
-          className={isV5 ? 'v5-btn v5-btn-p' : ''}
-          style={!isV5 ? { background: '#1A7A3C', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer' } : undefined}
+          className="v5-btn v5-btn-p"
           onClick={() => navigateTo('devis')}
         >
           {orgRole === 'pro_societe' ? '+ Nouvelle affaire' : '+ Nouveau devis'}
@@ -145,7 +143,7 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
 
       {/* Empty state */}
       {!loading && items.length === 0 && (
-        <div className={isV5 ? 'v5-card' : ''} style={{ textAlign: 'center', padding: '3rem 1.5rem', ...(!isV5 ? { background: '#fff', borderRadius: 12, border: '1px solid #eee' } : {}) }}>
+        <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>{'\uD83D\uDCCB'}</div>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
             {orgRole === 'pro_societe' ? 'Aucune affaire dans le pipeline' : 'Aucun devis dans le pipeline'}
@@ -154,8 +152,7 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
             Créez votre premier devis pour l&apos;afficher ici
           </p>
           <button
-            className={isV5 ? 'v5-btn v5-btn-p' : ''}
-            style={!isV5 ? { background: '#1A7A3C', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer' } : undefined}
+            className="v5-btn v5-btn-p"
             onClick={() => navigateTo('devis')}
           >
             {orgRole === 'pro_societe' ? 'Créer une affaire' : 'Créer un devis'}
@@ -167,8 +164,8 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
       {!loading && items.length > 0 && (
         <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
           <div
-            className={isV5 ? 'v5-kanban' : ''}
-            style={{ display: 'grid', minWidth: '980px', gridTemplateColumns: `repeat(${stages.length}, 1fr)`, gap: isV5 ? undefined : 12 }}
+            className="v5-kanban"
+            style={{ display: 'grid', minWidth: '980px', gridTemplateColumns: `repeat(${stages.length}, 1fr)` }}
           >
             {stages.map((stage) => {
               const stageItems = getStageItems(stage.id)
@@ -177,13 +174,12 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
               return (
                 <div
                   key={stage.id}
-                  className={isV5 ? 'v5-kb-col' : ''}
-                  style={!isV5 ? { background: '#fafafa', borderRadius: 10, padding: 12, minHeight: 120 } : undefined}
+                  className="v5-kb-col"
                 >
                   {/* Column header */}
-                  <div className={isV5 ? 'v5-kb-col-t' : ''} style={!isV5 ? { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontWeight: 600, fontSize: 12 } : undefined}>
+                  <div className="v5-kb-col-t">
                     <span>{stage.label}</span>
-                    <span className={isV5 ? 'v5-kb-tot' : ''} style={!isV5 ? { background: '#eee', borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 500 } : undefined}>{stageItems.length}</span>
+                    <span className="v5-kb-tot">{stageItems.length}</span>
                   </div>
                   {total > 0 && (
                     <div style={{ fontSize: 10, color: '#BBB', marginTop: -6, marginBottom: 8 }}>
@@ -198,16 +194,15 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
                   {stageItems.map((item, idx) => (
                     <div
                       key={`${item.ref}-${idx}`}
-                      className={isV5 ? 'v5-kb-card' : ''}
-                      style={!isV5 ? { background: '#fff', borderRadius: 8, padding: '10px 12px', marginBottom: 8, border: '1px solid #eee', cursor: 'pointer' } : undefined}
+                      className="v5-kb-card"
                       onClick={() => navigateTo('devis')}
                       role="button"
                       tabIndex={0}
                       onKeyDown={e => e.key === 'Enter' && navigateTo('devis')}
                     >
-                      <div className={isV5 ? 'v5-kb-nm' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 13, marginBottom: 2 } : undefined}>{item.client}</div>
-                      <div className={isV5 ? 'v5-kb-info' : ''} style={!isV5 ? { fontSize: 11, color: '#888', marginBottom: 4 } : undefined}>{item.service}</div>
-                      <div className={isV5 ? 'v5-kb-amt' : ''} style={!isV5 ? { fontSize: 12, fontWeight: 600, color: '#1A7A3C' } : undefined}>{formatEur(item.montant)}</div>
+                      <div className="v5-kb-nm">{item.client}</div>
+                      <div className="v5-kb-info">{item.service}</div>
+                      <div className="v5-kb-amt">{formatEur(item.montant)}</div>
                     </div>
                   ))}
                 </div>
