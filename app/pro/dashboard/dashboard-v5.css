@@ -36,7 +36,7 @@
 .v5-sb-nav { flex: 1; overflow-y: auto; padding-top: .5rem; }
 .v5-sb-sec { margin-bottom: .75rem; }
 .v5-sb-sec-t { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; padding: 0 1rem; margin-bottom: .25rem; letter-spacing: .3px; }
-.v5-sb-i { padding: .4rem 1rem; color: #666; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 7px; border-left: 3px solid transparent; transition: all .15s; white-space: nowrap; overflow: hidden; user-select: none; }
+.v5-sb-i { padding: .4rem 1rem; color: #666; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 7px; border-left: 3px solid transparent; transition: all .15s; white-space: nowrap; overflow: hidden; user-select: none; background: none; border-top: none; border-right: none; border-bottom: none; width: 100%; text-align: left; font-family: inherit; min-height: 0; min-width: 0; box-sizing: border-box; }
 .v5-sb-i:hover { background: #EFEFEF; color: var(--v5-primary-yellow-dark); border-left-color: var(--v5-primary-yellow); }
 .v5-sb-i.active { background: #EFEFEF; color: var(--v5-primary-yellow-dark); border-left-color: var(--v5-primary-yellow); font-weight: 600; }
 .v5-sb-icon { width: 15px; text-align: center; font-size: 12px; flex-shrink: 0; }
