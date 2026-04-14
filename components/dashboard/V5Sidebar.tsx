@@ -161,9 +161,7 @@ export default function V5Sidebar({
           {proCanAccess('rfq_btp') && (
             <V5SidebarItem icon="📋" label={isPt ? 'Orçamentos Fornecedores' : 'Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
           )}
-          {isModuleEnabled('materiaux') && (
-            <V5SidebarItem icon="🧱" label={isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro'} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} page="materiaux" />
-          )}
+          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('motifs')} />
           {isModuleEnabled('marketplace_btp') && (
             <V5SidebarItem icon="🏪" label="Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />
           )}
@@ -204,7 +202,6 @@ export default function V5Sidebar({
           {isModuleEnabled('contrats') && (
             <V5SidebarItem icon="📑" label={isPt ? 'Contratos' : 'Contrats'} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
           )}
-          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('motifs')} />
           <V5SidebarItem icon="⏱️" label={isPt ? 'Horários de obra' : 'Horaires chantier'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
         </div>
 
