@@ -434,7 +434,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         {/* ── Liste des conversations ── */}
         <div className="v7-msg-list">
           {filteredConversations.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.4rem', padding: '2rem 1rem', color: '#CCC' }}>
+            <div style={{ height: '100%', minHeight: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.4rem', padding: '2rem 1rem', color: '#CCC' }}>
               <span style={{ fontSize: 28, opacity: 0.5 }}>{'\uD83D\uDCAC'}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#CCC' }}>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</span>
               <span style={{ fontSize: 11, color: '#DDD', textAlign: 'center', lineHeight: 1.5 }}>
