@@ -344,74 +344,96 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
   const nbExpires = contrats.filter(c => c.statut === expireLabel).length
   const valeurTotale = contrats.filter(c => c.statut === actifLabel).reduce((s, c) => s + (parseFloat(c.montant) || 0), 0)
 
+  const [tab, setTab] = useState<'all' | 'soustraitance'>('all')
+  const visibleContrats = contrats
+  void tab; void nbActifs; void nbExpires; void valeurTotale; void expirantBientot
+
   return (
     <div style={{ width: '100%' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>📑 {t('proDash.gestionnaire.contrats.title')}</h2>
-          <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>{t('proDash.gestionnaire.contrats.subtitle')}</p>
+      {/* Header — spec HTML lignes 1273-1276 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
+        <div className="v5-pg-t" style={{ marginBottom: 0 }}>
+          <h1>Contrats</h1>
+          <p>Contrats de sous-traitance</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          style={{ padding: '8px 18px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', flexShrink: 0 }}
+          className="v5-btn v5-btn-p"
+          style={{ flexShrink: 0, marginTop: 2 }}
         >
-          {t('proDash.gestionnaire.contrats.nouveauContrat')}
+          + Nouveau contrat
         </button>
       </div>
 
-      {/* Alerte expiration */}
-      {expirantBientot.length > 0 && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: 14, marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, color: '#c2410c', marginBottom: 6 }}>⚠️ {expirantBientot.length} {t('proDash.gestionnaire.contrats.contratsExpirentBientot')}</div>
-          {expirantBientot.map(c => <div key={c.id} style={{ fontSize: 13, color: '#ea580c' }}>• {c.titre || c.client} — {t('proDash.gestionnaire.contrats.expireLe')} {c.dateFin}</div>)}
-        </div>
-      )}
-
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{t('proDash.gestionnaire.contrats.actifs')}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: nbActifs > 0 ? '#22c55e' : '#374151' }}>{nbActifs}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{t('proDash.gestionnaire.contrats.valeurTotaleAn')}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: valeurTotale > 0 ? '#FFC107' : '#374151' }}>{valeurTotale.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{t('proDash.gestionnaire.contrats.expires')}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: nbExpires > 0 ? '#ef4444' : '#374151' }}>{nbExpires}</div>
-        </div>
+      {/* Filtres — spec HTML lignes 1279-1284 (Marchés + Avenants retirés) */}
+      <div style={{ display: 'flex', gap: '.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        {([
+          { key: 'all' as const, label: 'Tous' },
+          { key: 'soustraitance' as const, label: 'Sous-traitance' },
+        ]).map(opt => {
+          const active = tab === opt.key
+          return (
+            <button
+              key={opt.key}
+              onClick={() => setTab(opt.key)}
+              className="v5-btn"
+              style={{
+                borderRadius: 20,
+                fontSize: 11,
+                ...(active ? { background: '#1a1a1a', color: '#fff', borderColor: '#1a1a1a' } : {}),
+              }}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Liste ou état vide */}
-      {contrats.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#f9fafb', borderRadius: 12 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📑</div>
-          <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>{t('proDash.gestionnaire.contrats.aucunContrat')}</h3>
-          <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 20px' }}>{t('proDash.gestionnaire.contrats.gerezContrats')}</p>
-          <button onClick={() => setShowModal(true)} style={{ padding: '10px 20px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>{t('proDash.gestionnaire.contrats.creerContrat')}</button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {contrats.map(c => {
-            const statusColor = c.statut === actifLabel ? '#22c55e' : c.statut === expireLabel ? '#ef4444' : '#f59e0b'
-            return (
-              <div key={c.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{c.titre || c.client}</h3>
-                  <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: statusColor + '18', color: statusColor }}>{c.statut}</span>
-                  <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#f3f4f6', color: '#374151' }}>{c.type}</span>
-                </div>
-                {c.client && c.titre && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>👤 {c.client}</p>}
-                {c.montant && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>💰 {c.montant} € / {c.periodicite}</p>}
-                {(c.dateDebut || c.dateFin) && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>📅 {c.dateDebut || '?'} → {c.dateFin || t('proDash.gestionnaire.contrats.sansLimite')}</p>}
-                {c.description && <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>{c.description}</p>}
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {/* Table — spec HTML lignes 1287-1313 */}
+      <div className="v5-card" style={{ overflow: 'hidden', padding: 0 }}>
+        <table className="v5-dt" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th>Réf</th>
+              <th>Type</th>
+              <th>Parties</th>
+              <th>Montant</th>
+              <th>Date</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleContrats.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.6rem', padding: '3rem 2rem', color: '#CCC' }}>
+                    <span style={{ fontSize: 36, opacity: 0.3 }}>📑</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#BBB' }}>Aucun contrat</span>
+                    <span style={{ fontSize: 11, color: '#CCC', textAlign: 'center', maxWidth: 260, lineHeight: 1.6 }}>Vos contrats de sous-traitance apparaîtront ici</span>
+                    <button onClick={() => setShowModal(true)} className="v5-btn v5-btn-p" style={{ marginTop: '.25rem', borderRadius: 20, padding: '6px 18px' }}>+ Créer un premier contrat</button>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              visibleContrats.map(c => {
+                const statusColor = c.statut === actifLabel ? '#22c55e' : c.statut === expireLabel ? '#ef4444' : '#f59e0b'
+                return (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 600 }}>{c.id.slice(-6)}</td>
+                    <td>{c.type}</td>
+                    <td>{c.titre || c.client}</td>
+                    <td>{c.montant ? `${c.montant} €` : '—'}</td>
+                    <td>{c.dateDebut || '—'}</td>
+                    <td><span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: statusColor + '18', color: statusColor }}>{c.statut}</span></td>
+                    <td style={{ color: '#999' }}>—</td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
