@@ -236,10 +236,9 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{client.name}</span>
                       <span className={badge.cls} style={{ fontSize: 10 }}>{badge.label}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: '#888', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                      <span><HardHat size={11} style={{ verticalAlign: '-1px' }} /> {client.chantiers.length} chantier(s)</span>
-                      <span>{totalBudget.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
-                      {client.email && <span><Mail size={11} style={{ verticalAlign: '-1px' }} /> {client.email}</span>}
+                    <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><HardHat size={11} /> {client.chantiers.length} chantier(s)</span>
+                      <span style={{ color: '#555', fontWeight: 600 }}>{totalBudget.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
                     </div>
                   </div>
 
@@ -250,11 +249,11 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                     title={isActive ? 'Desactiver le portail' : 'Activer le portail'}
                   >
                     {isActive ? (
-                      <ToggleRight size={28} style={{ color: '#2E7D32' }} />
+                      <ToggleRight size={28} style={{ color: '#FFC107' }} />
                     ) : (
                       <ToggleLeft size={28} style={{ color: '#CCC' }} />
                     )}
-                    <span style={{ fontSize: 10, color: isActive ? '#2E7D32' : '#999', fontWeight: 600 }}>
+                    <span style={{ fontSize: 10, color: isActive ? '#FFA000' : '#999', fontWeight: 600 }}>
                       {isActive ? 'Actif' : 'Inactif'}
                     </span>
                   </div>
