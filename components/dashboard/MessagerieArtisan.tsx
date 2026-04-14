@@ -392,9 +392,12 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* ═══ Page Header ═══ */}
-      <div className="v5-pg-t" style={{ flexShrink: 0 }}>
-        <h1>Messagerie</h1>
-        <p>Conversations avec vos clients et donneurs d&apos;ordres</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.1rem', flexShrink: 0 }}>
+        <div className="v5-pg-t" style={{ marginBottom: 0 }}>
+          <h1>Messagerie</h1>
+          <p>Vos conversations</p>
+        </div>
+        <button className="v5-btn v5-btn-p" style={{ borderRadius: 20, flexShrink: 0, marginTop: 2 }}>✏️ Nouvelle conversation</button>
       </div>
 
       {/* ═══ LAYOUT v7 — Grille 2 colonnes ═══ */}
@@ -403,7 +406,17 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
       {/* ═══ PANNEAU GAUCHE — Liste conversations ═══ */}
       <div className={`v7-msg-left ${activeConv ? 'v7-hidden-mobile' : ''}`}>
 
-        {/* ── Onglets filtre Tous / Particuliers / Pro ── */}
+        {/* ── Recherche ── */}
+        <div className="v7-msg-search">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher une conversation…"
+          />
+        </div>
+
+        {/* ── Onglets filtre Tous / Particulier / Pro ── */}
         <div className="v7-msg-tabs">
           {(['all', 'clients', 'donneurs'] as const).map(t => (
             <button
@@ -411,32 +424,22 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               onClick={() => setTab(t as typeof tab)}
               className={`v7-msg-tab ${tab === t ? 'active' : ''}`}
             >
-              {t === 'all' ? 'Tous' : t === 'clients' ? 'Particuliers' : 'Pro'}
+              {t === 'all' ? 'Tous' : t === 'clients' ? 'Particulier' : 'Pro'}
               {t === 'clients' && unreadClients > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadClients}</span>}
               {t === 'donneurs' && unreadPro > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadPro}</span>}
             </button>
           ))}
         </div>
 
-        {/* ── Recherche ── */}
-        <div className="v7-msg-search">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher..."
-          />
-        </div>
-
         {/* ── Liste des conversations ── */}
         <div className="v7-msg-list">
           {filteredConversations.length === 0 ? (
-            <div className="v7-msg-empty">
-              <div className="v7-msg-empty-icon">{'\uD83D\uDCAC'}</div>
-              <div style={{ fontWeight: 600 }}>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</div>
-              <div style={{ marginTop: 4, fontSize: 11 }}>
-                {search.trim() ? 'Essayez un autre terme' : 'Vos conversations apparaîtront ici'}
-              </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.4rem', padding: '2rem 1rem', color: '#CCC' }}>
+              <span style={{ fontSize: 28, opacity: 0.5 }}>{'\uD83D\uDCAC'}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#CCC' }}>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</span>
+              <span style={{ fontSize: 11, color: '#DDD', textAlign: 'center', lineHeight: 1.5 }}>
+                {search.trim() ? 'Essayez un autre terme' : 'Vos échanges avec vos clients et partenaires apparaîtront ici'}
+              </span>
             </div>
           ) : (
             filteredConversations.map(conv => {
@@ -475,15 +478,19 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
       </div>
 
       {/* ═══ PANNEAU DROITE — Thread conversation ═══ */}
-      <div className={`v7-msg-right ${!activeConv ? '' : 'v7-hidden-mobile-reverse'}`}>
+      <div className={`v7-msg-right ${!activeConv ? '' : 'v7-hidden-mobile-reverse'}`} style={{ background: '#fff', display: 'flex', flexDirection: 'column' }}>
         {!activeConv ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>{'\uD83D\uDCAC'}</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Selectionnez une conversation</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
+          <>
+            {/* spacers invisibles = même hauteur que search + tabs gauche */}
+            <div style={{ height: 38, flexShrink: 0, borderBottom: '1px solid transparent' }} />
+            <div style={{ height: 33, flexShrink: 0, borderBottom: '1px solid transparent' }} />
+            {/* empty state centré, identique à gauche */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.65rem', padding: '2rem', color: '#CCC' }}>
+              <span style={{ fontSize: 28, opacity: 0.5 }}>{'\uD83D\uDCAC'}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#BBB' }}>Aucun message</span>
+              <span style={{ fontSize: 11, color: '#CCC', textAlign: 'center', maxWidth: 220, lineHeight: 1.6 }}>Sélectionnez une conversation ou démarrez-en une nouvelle</span>
             </div>
-          </div>
+          </>
         ) : (
           <>
             {/* ── Header conversation ── */}
