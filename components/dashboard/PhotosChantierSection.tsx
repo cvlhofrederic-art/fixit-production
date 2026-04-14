@@ -16,8 +16,8 @@ interface PhotoItem {
 interface RapportItem { id: string; titre?: string; rapportNumber?: string; clientName?: string; interventionDate?: string; linkedPhotoIds?: string[] }
 
 export default function PhotosChantierSection({ artisan, bookings, orgRole }: { artisan: import('@/lib/types').Artisan; bookings: import('@/lib/types').Booking[]; orgRole?: string }) {
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
+  void orgRole
+  const tv = useThemeVars(true)
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -160,12 +160,12 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
   return (
     <div>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+      <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
         <div style={{ flex: 1 }}>
-          {isV5 ? <h1>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
-          {isV5 ? <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
+          <h1>{'📸'} {t('proDash.photos.title')}</h1>
+          <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p>
         </div>
-        <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+        <button className="v5-btn v5-btn-p" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
           {uploading ? '...' : '+'} {t('proDash.photos.ajouterPhotos') || 'Ajouter photos'}
         </button>
         <input
@@ -204,13 +204,13 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
           <button
             onClick={() => setFilter('all')}
-            className={isV5 ? `v5-btn v5-btn-sm ${filter === 'all' ? 'v5-btn-p' : ''}` : `v22-btn v22-btn-sm ${filter === 'all' ? 'v22-btn-primary' : ''}`}
+            className={`v5-btn v5-btn-sm ${filter === 'all' ? 'v5-btn-p' : ''}`}
           >
             {t('proDash.photos.toutes')}
           </button>
           <button
             onClick={() => setFilter('unassigned')}
-            className={isV5 ? `v5-btn v5-btn-sm ${filter === 'unassigned' ? 'v5-btn-p' : ''}` : `v22-btn v22-btn-sm ${filter === 'unassigned' ? 'v22-btn-primary' : ''}`}
+            className={`v5-btn v5-btn-sm ${filter === 'unassigned' ? 'v5-btn-p' : ''}`}
           >
             {'📌'} {t('proDash.photos.nonAssociees')}
           </button>
@@ -218,7 +218,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
             <button
               key={b.id}
               onClick={() => setFilter(b.id)}
-              className={isV5 ? `v5-btn v5-btn-sm ${filter === b.id ? 'v5-btn-p' : ''}` : `v22-btn v22-btn-sm ${filter === b.id ? 'v22-btn-primary' : ''}`}
+              className={`v5-btn v5-btn-sm ${filter === b.id ? 'v5-btn-p' : ''}`}
             >
               {b.services?.name || 'RDV'} — {b.booking_date}
             </button>
@@ -226,7 +226,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         </div>
 
         {/* Info alert */}
-        <div className={isV5 ? "v5-al warn" : "v22-alert v22-alert-amber"} style={{ marginBottom: 16 }}>
+        <div className="v5-al warn" style={{ marginBottom: 16 }}>
           <span style={{ fontSize: 14 }}>{'ℹ️'}</span>
           <div style={{ fontSize: 11 }}>
             <strong style={{ display: 'block', marginBottom: 4 }}>{t('proDash.photos.commentCaMarche')}</strong>
@@ -257,7 +257,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
             {photos.map((photo: PhotoItem) => {
               const booking = bookings.find(b => b.id === photo.booking_id)
               return (
-                <div key={photo.id} className={isV5 ? "v5-card" : "v22-card"} style={{ overflow: 'hidden', padding: 0 }}>
+                <div key={photo.id} className="v5-card" style={{ overflow: 'hidden', padding: 0 }}>
                   {/* Thumbnail */}
                   <div style={{ position: 'relative' }}>
                     <img
@@ -268,7 +268,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                     />
                     {/* GPS badge */}
                     {photo.lat && photo.lng && (
-                      <span className={isV5 ? "v5-gal-dt" : "v22-ref"} style={{
+                      <span className={"v5-gal-dt"} style={{
                         position: 'absolute', top: 6, left: 6,
                         background: 'rgba(0,0,0,0.6)', color: '#fff',
                         padding: '2px 6px', borderRadius: 3, fontSize: 10
@@ -277,7 +277,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                       </span>
                     )}
                     {/* Source badge */}
-                    <span className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"} style={{
+                    <span className={"v5-badge v5-badge-green"} style={{
                       position: 'absolute', top: 6, right: 6, fontSize: 10
                     }}>
                       {'📱'} {photo.source || 'mobile'}
@@ -287,17 +287,17 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                   {/* Meta section */}
                   <div style={{ padding: 10 }}>
                     {/* Timestamp */}
-                    <div className={isV5 ? "v5-gal-dt" : "v22-ref"} style={{ marginBottom: 6 }}>
+                    <div className={"v5-gal-dt"} style={{ marginBottom: 6 }}>
                       {'🕐'} {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString(dateLocale) : ''} {t('proDash.common.a')} {photo.taken_at ? new Date(photo.taken_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' }) : ''}
                     </div>
 
                     {/* Booking association tag */}
                     {booking ? (
-                      <div className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"} style={{ display: 'block', marginBottom: 4, fontSize: 10 }}>
+                      <div className={"v5-badge v5-badge-green"} style={{ display: 'block', marginBottom: 4, fontSize: 10 }}>
                         {'🔗'} {booking.services?.name || 'RDV'} — {booking.booking_date}
                       </div>
                     ) : (
-                      <div className={isV5 ? "v5-badge v5-badge-yellow" : "v22-tag v22-tag-amber"} style={{ display: 'block', marginBottom: 4, fontSize: 10 }}>
+                      <div className={"v5-badge v5-badge-yellow"} style={{ display: 'block', marginBottom: 4, fontSize: 10 }}>
                         {'📌'} {t('proDash.photos.nonAssociee')}
                       </div>
                     )}
@@ -306,11 +306,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                     {(() => {
                       const linkedRapport = getPhotoRapport(photo.id)
                       return linkedRapport ? (
-                        <div className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"} style={{ display: 'block', marginBottom: 8, fontSize: 10 }}>
+                        <div className={"v5-badge v5-badge-green"} style={{ display: 'block', marginBottom: 8, fontSize: 10 }}>
                           {'📋'} {linkedRapport.rapportNumber} — {linkedRapport.clientName || t('proDash.photos.rapport')}
                         </div>
                       ) : (
-                        <div className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"} style={{ display: 'block', marginBottom: 8, fontSize: 10, fontStyle: 'italic' }}>
+                        <div className={"v5-badge v5-badge-gray"} style={{ display: 'block', marginBottom: 8, fontSize: 10, fontStyle: 'italic' }}>
                           {'📋'} {t('proDash.photos.aucunRapportLie')}
                         </div>
                       )
@@ -324,7 +324,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                             {'🔗'} {t('proDash.photos.associerChantier')}
                           </p>
                           <select
-                            className={isV5 ? "v5-fi" : "v22-form-input"}
+                            className={"v5-fi"}
                             style={{ width: '100%', fontSize: 11, marginBottom: 4 }}
                             defaultValue=""
                             onChange={e => assignPhoto(photo.id, e.target.value || null)}
@@ -334,7 +334,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                               <option key={b.id} value={b.id}>{b.services?.name || 'RDV'} — {b.booking_date}</option>
                             ))}
                           </select>
-                          <button onClick={() => setAssigning(null)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10 }}>
+                          <button onClick={() => setAssigning(null)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10 }}>
                             {t('proDash.clients.annuler')}
                           </button>
                         </div>
@@ -344,7 +344,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                             {'📋'} {t('proDash.photos.associerRapport')}
                           </p>
                           <select
-                            className={isV5 ? "v5-fi" : "v22-form-input"}
+                            className={"v5-fi"}
                             style={{ width: '100%', fontSize: 11, marginBottom: 4 }}
                             defaultValue=""
                             onChange={e => linkPhotoToRapport(photo.id, e.target.value || null)}
@@ -359,19 +359,19 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                               {t('proDash.photos.aucunRapportCree')}
                             </p>
                           )}
-                          <button onClick={() => setAssigningRapport(null)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10 }}>
+                          <button onClick={() => setAssigningRapport(null)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10 }}>
                             {t('proDash.clients.annuler')}
                           </button>
                         </div>
                       ) : (
                         <>
-                          <button onClick={() => setAssigning(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
+                          <button onClick={() => setAssigning(photo.id)} className={"v5-btn v5-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
                             {'🔗'} {t('proDash.photos.chantier')}
                           </button>
-                          <button onClick={() => setAssigningRapport(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
+                          <button onClick={() => setAssigningRapport(photo.id)} className={"v5-btn v5-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
                             {'📋'} {t('proDash.photos.rapport')}
                           </button>
-                          <button onClick={() => deletePhoto(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label="Supprimer la photo">
+                          <button onClick={() => deletePhoto(photo.id)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label="Supprimer la photo">
                             {'🗑️'}
                           </button>
                         </>

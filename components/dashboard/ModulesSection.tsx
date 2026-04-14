@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
-import { useThemeVars } from './useThemeVars'
 import type { ModuleDef, ModuleConfig } from '@/hooks/useModulesConfig'
 import type { ModCategory, CatMod } from '@/hooks/useModuleCategories'
 import { buildDefaultCategories } from '@/hooks/useModuleCategories'
@@ -34,9 +33,7 @@ export default function ModulesSection({
 }: ModulesSectionProps) {
   const { t: _t } = useTranslation()
   void _t
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
-  void tv
+  void orgRole
   const primary = '#FFC107'
 
   // Local fallback state when the parent didn't wire up the hook
@@ -223,7 +220,7 @@ export default function ModulesSection({
   }
 
   return (
-    <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
+    <div className="v5-fade">
       <style>{`
         .mc-cat { border: 1px solid #E8E8E8; border-radius: 8px; background: #fff; margin-bottom: .75rem; overflow: hidden; transition: box-shadow .2s; }
         .mc-cat.drag-over { box-shadow: 0 0 0 2px ${primary}; border-color: ${primary}; }
@@ -265,24 +262,15 @@ export default function ModulesSection({
         .mc-tgl input:checked + .sl::before { left: 18px; }
       `}</style>
 
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className="v5-pg-t">
         <div style={{ flex: 1 }}>
-          {isV5 ? (
-            <>
-              <h1>Modules</h1>
-              <p>Activez, désactivez et réorganisez vos modules par catégorie — la sidebar se met à jour en temps réel</p>
-            </>
-          ) : (
-            <>
-              <div className="v22-page-title">Modules</div>
-              <div className="v22-page-sub">Activez, désactivez et réorganisez vos modules par catégorie</div>
-            </>
-          )}
+          <h1>Modules</h1>
+          <p>Activez, désactivez et réorganisez vos modules par catégorie — la sidebar se met à jour en temps réel</p>
         </div>
       </div>
 
       <div>
-        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '1.25rem' }}>
+        <div className="v5-card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: 8 }}>
             <div>
               <span style={{ fontSize: 13, fontWeight: 700 }}>📦 ORGANISATION DU MENU</span>
@@ -292,8 +280,8 @@ export default function ModulesSection({
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={addCategory} className={isV5 ? 'v5-btn v5-btn-sm v5-btn-p' : 'v22-btn v22-btn-sm v22-btn-p'}>+ Catégorie</button>
-              <button onClick={resetAll} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>↻ Réinitialiser</button>
+              <button onClick={addCategory} className="v5-btn v5-btn-sm v5-btn-p">+ Catégorie</button>
+              <button onClick={resetAll} className="v5-btn v5-btn-sm">↻ Réinitialiser</button>
             </div>
           </div>
 
