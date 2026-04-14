@@ -40,8 +40,7 @@ interface Props {
 export default function CompteUtilisateursSection({ artisan, isGerant = false }: Props) {
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
-  const isV5 = true
-  const tv = useThemeVars(isV5)
+  const tv = useThemeVars(true)
 
   // Read cache synchronously on first render to skip "Chargement..." flash on tab switches
   const CACHE_KEY = '__team_members_cache'
