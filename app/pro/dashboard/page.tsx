@@ -59,6 +59,7 @@ const MarketplaceProBTPSection = dynamic(() => import('@/components/dashboard/Ma
 const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'), { loading: SectionLoader })
 const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSection'), { loading: SectionLoader })
 const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'), { loading: SectionLoader })
+const PrestationsBTPSection = dynamic(() => import('@/components/dashboard/PrestationsBTPSection'), { loading: SectionLoader })
 const ParrainageSection = dynamic(() => import('@/components/dashboard/ParrainageSection'), { loading: SectionLoader })
 const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), { loading: SectionLoader })
 const ModulesSection = dynamic(() => import('@/components/dashboard/ModulesSection'), { loading: SectionLoader })
@@ -720,18 +721,22 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── MOTIFS (Services) - FULL CRUD ────── */}
+          {/* ────── MOTIFS / PRESTATIONS - FULL CRUD ────── */}
           {activePage === 'motifs' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos serviços' : 'Erreur dans les services'}>
-            <MotifsSection
-              services={services}
-              showMotifModal={showMotifModal} setShowMotifModal={setShowMotifModal}
-              editingMotif={editingMotif} motifForm={motifForm} setMotifForm={setMotifForm}
-              savingMotif={savingMotif} openNewMotif={openNewMotif} openEditMotif={openEditMotif}
-              saveMotif={saveMotif} toggleMotifActive={toggleMotifActive} deleteMotif={deleteMotif}
-              getPriceRangeLabel={(s: Service) => getPriceRangeLabel(s, t('proDash.onQuote'))} getPricingUnit={getPricingUnit} getCleanDescription={getCleanDescription}
-              orgRole={orgRole}
-            />
+            {orgRole === 'pro_societe' ? (
+              <PrestationsBTPSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
+            ) : (
+              <MotifsSection
+                services={services}
+                showMotifModal={showMotifModal} setShowMotifModal={setShowMotifModal}
+                editingMotif={editingMotif} motifForm={motifForm} setMotifForm={setMotifForm}
+                savingMotif={savingMotif} openNewMotif={openNewMotif} openEditMotif={openEditMotif}
+                saveMotif={saveMotif} toggleMotifActive={toggleMotifActive} deleteMotif={deleteMotif}
+                getPriceRangeLabel={(s: Service) => getPriceRangeLabel(s, t('proDash.onQuote'))} getPricingUnit={getPricingUnit} getCleanDescription={getCleanDescription}
+                orgRole={orgRole}
+              />
+            )}
             </SectionErrorBoundary>
           )}
 
@@ -1169,9 +1174,14 @@ function DashboardPage() {
           )}
 
           {/* ────── BIBLIOTHÈQUE D'OUVRAGES ────── */}
+          {/* pro_societe : la bibliothèque est fusionnée dans Prestations (PrestationsBTPSection) */}
           {activePage === 'bibliotheque' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans la bibliothèque">
-              <BibliothequeSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
+              {orgRole === 'pro_societe' ? (
+                <PrestationsBTPSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
+              ) : (
+                <BibliothequeSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
+              )}
             </SectionErrorBoundary>
           )}
 

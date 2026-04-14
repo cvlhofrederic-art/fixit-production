@@ -204,8 +204,7 @@ export default function V5Sidebar({
           {isModuleEnabled('contrats') && (
             <V5SidebarItem icon="📑" label={isPt ? 'Contratos' : 'Contrats'} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
           )}
-          <V5SidebarItem icon="📚" label={isPt ? 'Biblioteca' : 'Bibliothèque'} active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />
-          <V5SidebarItem icon="🗂️" label={isPt ? 'Lotes / Prestações' : 'Lots / Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
+          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('motifs')} />
           <V5SidebarItem icon="⏱️" label={isPt ? 'Horários de obra' : 'Horaires chantier'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
         </div>
 
