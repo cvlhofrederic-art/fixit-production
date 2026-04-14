@@ -6,7 +6,7 @@ import { useThemeVars } from './useThemeVars'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { supabase } from '@/lib/supabase'
-import DeclarationSocialeSection from '@/components/dashboard/DeclarationSocialeSection'
+// DeclarationSocialeSection removed — IS estimation is now inline in Declaration tab
 import { getTvaStatus, type TvaCountry, type TvaStatusResult } from '@/lib/tva-thresholds'
 
 /* ══════════ AGENT COMPTABLE LÉA ══════════ */
@@ -1292,31 +1292,49 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             </div>
           </div>
 
-          {/* Declaration sociale */}
-          <div style={{ marginTop: '.75rem' }}>
-            <DeclarationSocialeSection />
-          </div>
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════
-           TAB 5: ASSISTANT IA
+           TAB 5: ASSISTANT IA (design v7)
          ══════════════════════════════════════════════════════════════ */}
       {activeComptaTab === 'assistant' && (
-        <AgentComptable
-          bookings={bookings}
-          artisan={artisan}
-          services={services}
-          expenses={expenses}
-          annualHT={annualHT}
-          annualCA={bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
-          totalExpenses={expenses.filter(e => e.date && new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)}
-          quarterData={quarterData}
-          currentMonth={currentMonth}
-          currentYear={currentYear}
-          formatEur={formatEur}
-          orgRole={orgRole}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '.75rem' }}>
+          {/* FAQ buttons */}
+          <div className="card">
+            <div className="st">{isPt ? 'Perguntas frequentes' : 'Questions fréquentes'}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+              {[
+                isPt ? '💡 Qual é a minha taxa de IVA aplicável?' : '💡 Quel est mon taux de TVA applicable ?',
+                isPt ? `📊 Resumo do mês de ${MONTH_FULL[currentMonth]} ${currentYear}` : `📊 Résumé du mois de ${MONTH_FULL[currentMonth]} ${currentYear}`,
+                isPt ? '📅 Próximas obrigações fiscais?' : '📅 Prochaines obligations fiscales ?',
+                isPt ? '🧾 Como otimizar as minhas despesas?' : '🧾 Comment optimiser mes charges ?',
+                isPt ? `📈 Projeção do volume de negócios fim de ${currentYear}` : `📈 Projection CA fin d'année ${currentYear}`,
+              ].map((q, i) => (
+                <button key={i} className="btn" style={{ justifyContent: 'flex-start', textAlign: 'left', height: 'auto', padding: '.5rem .65rem', lineHeight: 1.4 }}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Chat Léa */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+            <AgentComptable
+              bookings={bookings}
+              artisan={artisan}
+              services={services}
+              expenses={expenses}
+              annualHT={annualHT}
+              annualCA={bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
+              totalExpenses={expenses.filter(e => e.date && new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)}
+              quarterData={quarterData}
+              currentMonth={currentMonth}
+              currentYear={currentYear}
+              formatEur={formatEur}
+              orgRole={orgRole}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
