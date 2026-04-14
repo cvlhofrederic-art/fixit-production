@@ -722,7 +722,7 @@ function DashboardPage() {
           )}
 
           {/* ────── MOTIFS / PRESTATIONS - FULL CRUD ────── */}
-          {activePage === 'motifs' && (
+          {(activePage === 'motifs' || activePage === 'prestations') && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos serviços' : 'Erreur dans les services'}>
             {orgRole === 'pro_societe' ? (
               <PrestationsBTPSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />

@@ -2,17 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "fixit-production",
+      "name": "next-dev",
       "runtimeExecutable": "/Users/elgato_fofo/.nvm/versions/node/v24.13.0/bin/node",
-      "runtimeArgs": ["--max-old-space-size=4096", "./node_modules/.bin/next", "dev", "--port", "3000"],
-      "port": 3000,
-      "autoPort": true
-    },
-    {
-      "name": "landing-html",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "/Users/elgato_fofo/Documents"],
-      "port": 8080
+      "runtimeArgs": ["./node_modules/.bin/next", "dev", "--port", "3000"],
+      "port": 3000
     }
   ]
 }

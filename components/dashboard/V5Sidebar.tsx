@@ -91,7 +91,7 @@ export default function V5Sidebar({
           {isModuleEnabled('revenus') && (
             <V5SidebarItem icon="💰" label={isPt ? 'Receitas' : 'Revenus'} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />
           )}
-          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('motifs')} />
+          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'prestations' || activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('prestations')} />
         </div>
 
         {/* ═══ CHANTIERS ═══ */}
