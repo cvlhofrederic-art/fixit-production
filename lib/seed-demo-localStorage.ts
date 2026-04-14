@@ -7,7 +7,7 @@
  */
 
 const DEMO_ARTISAN_ID = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-const SEED_VERSION = 5 // Increment to force re-seed after adding new data
+const SEED_VERSION = 6 // Increment to force re-seed after adding new data
 
 function isAlreadySeeded(artisanId: string): boolean {
   try {
@@ -176,6 +176,55 @@ export function seedDemoLocalStorage(artisanId: string): void {
 
   localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(documents))
   localStorage.setItem(`fixit_drafts_${artisanId}`, JSON.stringify([]))
+
+  // ═══════════════════════════════════════
+  // CHANTIERS BTP (fixit_chantiers_*)
+  // Cohérents avec les devis, factures, situations, retenues, équipes
+  // ═══════════════════════════════════════
+  const chantiers = [
+    {
+      id: 'demo-ch-001', titre: 'Rénovation T3 — Rue de la République', client: 'Mme Dupont Catherine',
+      adresse: '45 rue de la République', ville: 'Marseille', codePostal: '13001',
+      dateDebut: '2026-03-10', dateFin: '2026-05-15', budget: '28500',
+      statut: 'En cours', description: 'Rénovation complète T3 : démolition cloisons, placo, électricité NFC 15-100, peinture, carrelage SDB, plomberie, parquet.',
+      equipe: 'Équipe A — Rénovation', createdAt: '2026-03-05T10:00:00Z',
+      latitude: 43.2965, longitude: 5.3698,
+    },
+    {
+      id: 'demo-ch-002', titre: 'Ravalement façade — Bd Longchamp', client: 'Syndic Foncia — Résidence Les Pins',
+      adresse: '120 bd Longchamp', ville: 'Marseille', codePostal: '13001',
+      dateDebut: '2026-04-15', dateFin: '2026-06-30', budget: '45000',
+      statut: 'En attente', description: 'Ravalement complet R+4 : échafaudage, nettoyage HP, enduit monocouche, peinture façade, zinguerie gouttières.',
+      equipe: '', createdAt: '2026-03-20T14:00:00Z',
+      latitude: 43.2988, longitude: 5.3863,
+    },
+    {
+      id: 'demo-ch-003', titre: 'SDB complète — Villa Les Oliviers', client: 'M. et Mme Garcia',
+      adresse: '8 chemin des Oliviers', ville: 'Aix-en-Provence', codePostal: '13090',
+      dateDebut: '2026-03-17', dateFin: '2026-04-20', budget: '12800',
+      statut: 'En cours', description: 'SDB complète : dépose sanitaires, plomberie, carrelage sol + faïence murale, douche italienne, meuble vasque + miroir.',
+      equipe: 'Équipe A — Rénovation', createdAt: '2026-03-12T11:00:00Z',
+      latitude: 43.5298, longitude: 5.4474,
+    },
+    {
+      id: 'demo-ch-004', titre: 'Extension maison — Chemin de Paradis', client: 'M. Rossi Antoine',
+      adresse: '22 chemin de Paradis', ville: 'Cassis', codePostal: '13260',
+      dateDebut: '2026-04-01', dateFin: '2026-08-30', budget: '62000',
+      statut: 'En cours', description: 'Extension 35m² : terrassement, fondations, murs parpaing, charpente tuiles, menuiseries alu, isolation ITE, électricité + plomberie, finitions.',
+      equipe: 'Équipe B — Gros œuvre', createdAt: '2026-03-18T15:00:00Z',
+      latitude: 43.2142, longitude: 5.5382,
+    },
+    {
+      id: 'demo-ch-005', titre: 'Local commercial — Cours Julien', client: 'SCI Les Terrasses du Sud',
+      adresse: '15 cours Julien', ville: 'Marseille', codePostal: '13006',
+      dateDebut: '2026-03-25', dateFin: '2026-06-15', budget: '38000',
+      statut: 'En cours', description: 'Aménagement local 80m² : démolition, dalle béton, plomberie, électricité NFC, faux plafond acoustique, vitrine alu.',
+      equipe: 'Équipe B — Gros œuvre', createdAt: '2026-03-22T16:00:00Z',
+      latitude: 43.2935, longitude: 5.3840,
+    },
+  ]
+
+  localStorage.setItem(`fixit_chantiers_${artisanId}`, JSON.stringify(chantiers))
 
   // ═══════════════════════════════════════
   // RAPPORTS D'INTERVENTION
@@ -655,5 +704,5 @@ export function seedDemoLocalStorage(artisanId: string): void {
   // Stamp version to prevent re-seeding on next load
   localStorage.setItem(`fixit_demo_seed_version_${artisanId}`, String(SEED_VERSION))
 
-  console.log('[DEMO] localStorage seeded v' + SEED_VERSION + ': 5 devis, 4 factures, 3 rapports, 4 références, 5 clients, 16 dépenses, 3 situations, 3 retenues, 3 DC4, 2 DCE, 2 DPGF, 2 équipes, 8 pointages, 4 membres, 3 absences, portail client, 50 ouvrages/matériaux')
+  console.log('[DEMO] localStorage seeded v' + SEED_VERSION + ': 5 chantiers, 5 devis, 4 factures, 3 rapports, 4 références, 5 clients, 16 dépenses, 3 situations, 3 retenues, 3 DC4, 2 DCE, 2 DPGF, 2 équipes, 8 pointages, 4 membres, 3 absences, portail client, 50 ouvrages/matériaux')
 }
