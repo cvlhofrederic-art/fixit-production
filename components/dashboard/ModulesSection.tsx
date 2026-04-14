@@ -273,7 +273,8 @@ export default function ModulesSection({
   }
 
   // ── Render ────────────────────────────────────────────────────
-  const primary = tv.primary || '#FFC107'
+  void tv
+  const primary = '#FFC107'
 
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
