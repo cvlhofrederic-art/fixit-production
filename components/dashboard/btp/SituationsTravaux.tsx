@@ -112,7 +112,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: '48px 24px' }}>
               <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.4 }}>{'📋'}</div>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{t('proDash.btp.situations.aucuneSituation')}</div>
-              <p style={{ color: '#999', fontSize: 12 }}>Cr\u00E9ez votre premi\u00E8re situation de travaux</p>
+              <p style={{ color: '#999', fontSize: 12 }}>Créez votre première situation de travaux</p>
             </div>
           ) : situations.map(s => {
             const sitStatLabels: Record<string, string> = { brouillon: t('proDash.btp.situations.brouillon'), envoyée: t('proDash.btp.situations.envoyee'), validée: t('proDash.btp.situations.validee'), payée: t('proDash.btp.situations.payee') }
@@ -187,7 +187,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.postePlaceholder')} value={newPoste.poste} onChange={e => setNewPoste({...newPoste, poste: e.target.value})} />
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.qtePlaceholder')} value={newPoste.quantite || ''} onChange={e => setNewPoste({...newPoste, quantite: Number(e.target.value)})} />
                   <select className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} value={newPoste.unite} onChange={e => setNewPoste({...newPoste, unite: e.target.value})}>
-                    {['u', 'm\u00B2', 'm\u00B3', 'ml', 'kg', 'h', 'forfait'].map(u => <option key={u}>{u}</option>)}
+                    {['u', 'm²', 'm³', 'ml', 'kg', 'h', 'forfait'].map(u => <option key={u}>{u}</option>)}
                   </select>
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.puPlaceholder')} value={newPoste.prixUnit || ''} onChange={e => setNewPoste({...newPoste, prixUnit: Number(e.target.value)})} />
                   <button className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn'} onClick={addPoste} disabled={!newPoste.poste}>{t('proDash.btp.situations.ajouter')}</button>

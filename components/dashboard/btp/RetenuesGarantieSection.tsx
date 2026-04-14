@@ -32,7 +32,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
   }
 
   const totalRetenu = retenues.filter(r => r.statut === 'active').reduce((s, r) => s + r.montantRetenu, 0)
-  const totalLib\u00E9r\u00E9 = retenues.filter(r => r.statut === 'libérée').reduce((s, r) => s + r.montantRetenu, 0)
+  const totalLibéré = retenues.filter(r => r.statut === 'libérée').reduce((s, r) => s + r.montantRetenu, 0)
   const imminentRetenues = retenues.filter(r => {
     if (r.statut !== 'active' || !r.dateFinTravaux) return false
     const lib = new Date(r.dateFinTravaux)
@@ -81,7 +81,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           </div>
           <div className="v5-kpi">
             <div className="v5-kpi-l">{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
-            <div className="v5-kpi-v">{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
+            <div className="v5-kpi-v">{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} €` : `${totalLibéré.toLocaleString(dateLocale)} €`}</div>
             <div className="v5-kpi-s">{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
           </div>
         </div>
@@ -94,7 +94,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           </div>
           <div className="v22-card" style={{ padding: 16 }}>
             <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} €` : `${totalLibéré.toLocaleString(dateLocale)} €`}</div>
             <div style={{ fontSize: 11, color: tv.textMid }}>{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
           </div>
         </div>
@@ -165,7 +165,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>{r.client}</td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>{r.montantMarche.toLocaleString(dateLocale)} &euro;</td>
                 <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{r.montantRetenu.toLocaleString(dateLocale)} &euro;</td>
-                <td style={isV5 ? undefined : { padding: '8px 12px' }}>{r.dateFinTravaux ? new Date(r.dateFinTravaux).toLocaleDateString(dateLocale) : '\u2014'}</td>
+                <td style={isV5 ? undefined : { padding: '8px 12px' }}>{r.dateFinTravaux ? new Date(r.dateFinTravaux).toLocaleDateString(dateLocale) : '—'}</td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}><span className={(isV5 ? retBadgeV5 : retBadgeV22)[r.statut] || (isV5 ? 'v5-badge' : 'v22-tag')}>{retLabel[r.statut] || r.statut}</span></td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>
                   {r.statut === 'active' && <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn'} style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px' }} onClick={() => changeStatut(r.id, 'mainlevée_demandée')}>{t('proDash.btp.retenues.demanderMainlevee')}</button>}

@@ -123,8 +123,8 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
           <h1 style={!isV5 ? { fontSize: 20, fontWeight: 700, marginBottom: 4 } : undefined}>Pipeline commercial</h1>
           <p style={!isV5 ? { fontSize: 13, color: '#888' } : undefined}>
             {orgRole === 'pro_societe'
-              ? `${items.length} affaire${items.length > 1 ? 's' : ''} \u2014 ${formatEur(totalPipeline)} HT`
-              : `Suivi des opportunit\u00e9s \u2014 ${formatEur(totalPipeline)} HT`}
+              ? `${items.length} affaire${items.length > 1 ? 's' : ''} — ${formatEur(totalPipeline)} HT`
+              : `Suivi des opportunités — ${formatEur(totalPipeline)} HT`}
           </p>
         </div>
         <button
@@ -151,14 +151,14 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
             {orgRole === 'pro_societe' ? 'Aucune affaire dans le pipeline' : 'Aucun devis dans le pipeline'}
           </div>
           <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
-            Cr\u00e9ez votre premier devis pour l&apos;afficher ici
+            Créez votre premier devis pour l&apos;afficher ici
           </p>
           <button
             className={isV5 ? 'v5-btn v5-btn-p' : ''}
             style={!isV5 ? { background: '#1A7A3C', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer' } : undefined}
             onClick={() => navigateTo('devis')}
           >
-            {orgRole === 'pro_societe' ? 'Cr\u00e9er une affaire' : 'Cr\u00e9er un devis'}
+            {orgRole === 'pro_societe' ? 'Créer une affaire' : 'Créer un devis'}
           </button>
         </div>
       )}
@@ -193,7 +193,7 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
 
                   {/* Cards */}
                   {stageItems.length === 0 && (
-                    <div style={{ textAlign: 'center', color: '#BBB', fontSize: 11, paddingTop: 24 }}>{'\u2014'}</div>
+                    <div style={{ textAlign: 'center', color: '#BBB', fontSize: 11, paddingTop: 24 }}>{'—'}</div>
                   )}
                   {stageItems.map((item, idx) => (
                     <div

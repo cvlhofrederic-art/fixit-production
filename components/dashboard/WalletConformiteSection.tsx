@@ -625,7 +625,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                         defaultValue={doc?.expiryDate || ''} disabled={!!savingExpiry[docDef.id]}
                         onBlur={e => setExpiry(docDef.id, e.target.value)} autoFocus
                       />
-                      <button onClick={() => setEditExpiry(null)} disabled={!!savingExpiry[docDef.id]} className="v5-btn v5-btn-sm">\u2715</button>
+                      <button onClick={() => setEditExpiry(null)} disabled={!!savingExpiry[docDef.id]} className="v5-btn v5-btn-sm">✕</button>
                     </div>
                   ) : (
                     <button onClick={() => setEditExpiry(docDef.id)} disabled={!!savingExpiry[docDef.id]} className="v5-btn v5-btn-sm" title={doc?.expiryDate ? t('proDash.wallet.echeance') : t('proDash.wallet.ajouterEcheance')} style={{ opacity: savingExpiry[docDef.id] ? 0.5 : 1 }}>
@@ -666,7 +666,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
             <div className="v5-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
               <div className="v5-modal-h">
                 <span style={{ fontWeight: 600, fontSize: 13 }}>+ {t('proDash.wallet.ajouter')}</span>
-                <button className="v5-btn v5-btn-sm" onClick={() => setShowUploadModal(null)}>\u2715</button>
+                <button className="v5-btn v5-btn-sm" onClick={() => setShowUploadModal(null)}>✕</button>
               </div>
               <div style={{ padding: 0 }}>
                 {WALLET_DOCS.map((docDef, i) => {

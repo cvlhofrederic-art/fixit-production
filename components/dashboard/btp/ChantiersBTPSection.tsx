@@ -193,11 +193,11 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
             <div className={isV5 ? undefined : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14, ...(isV5 ? { padding: '1rem 1.25rem' } : {}) }}>
               <div className={isV5 ? 'v5-fg' : undefined}>
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
-                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={isPt ? 'ex: Immeuble R+3 \u2014 Gros \u0153uvre' : 'ex: Immeuble R+3 \u2014 Gros \u0153uvre'} />
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={isPt ? 'ex: Immeuble R+3 — Gros œuvre' : 'ex: Immeuble R+3 — Gros œuvre'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className={isV5 ? 'v5-fg' : undefined}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cliente / Dono de obra' : 'Client / Ma\u00EEtre d\'ouvrage'}</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cliente / Dono de obra' : 'Client / Maître d\'ouvrage'}</label>
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={isPt ? 'Nome do cliente' : 'Nom du client'} />
                 </div>
                 <div className={isV5 ? 'v5-fg' : undefined}>
@@ -221,7 +221,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className={isV5 ? 'v5-fg' : undefined}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data de in\u00EDcio' : 'Date de d\u00E9but'}</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data de início' : 'Date de début'}</label>
                   <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.dateDebut} onChange={e => setForm({...form, dateDebut: e.target.value})} />
                 </div>
                 <div className={isV5 ? 'v5-fg' : undefined}>
@@ -230,8 +230,8 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
                 </div>
               </div>
               <div className={isV5 ? 'v5-fg' : undefined}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descri\u00E7\u00E3o' : 'Description'}</label>
-                <textarea className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={isPt ? 'Detalhes da obra...' : 'D\u00E9tails du chantier...'} style={{ resize: 'none' }} />
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descrição' : 'Description'}</label>
+                <textarea className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={isPt ? 'Detalhes da obra...' : 'Détails du chantier...'} style={{ resize: 'none' }} />
               </div>
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
