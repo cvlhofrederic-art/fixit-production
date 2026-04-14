@@ -35,192 +35,160 @@ export default function HorairesSection({
   orgRole,
 }: HorairesSectionProps) {
   const { t } = useTranslation()
-  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const isV5 = isSociete
-  const tv = useThemeVars(isV5)
+  void orgRole
+  const tv = useThemeVars(true)
+
+  // Mon-Fri défaut actif 08:00-17:30 (affichage tant qu'aucune donnée serveur)
+  const getDayDefaults = (day: number) => {
+    const isWeekday = day >= 1 && day <= 5
+    return {
+      is_available: isWeekday,
+      start_time: '08:00',
+      end_time: '17:30',
+    }
+  }
 
   return (
-    <div className={isV5 ? 'v5-fade' : undefined}>
+    <div className="v5-fade">
+      <style>{`
+        .h-tgl { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer; }
+        .h-tgl input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .h-tgl .sl { position: absolute; inset: 0; background: #E0E0E0; border-radius: 10px; transition: .3s; }
+        .h-tgl .sl::before { content: ''; position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; left: 2px; bottom: 2px; transition: .3s; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+        .h-tgl input:checked + .sl { background: ${tv.primary}; }
+        .h-tgl input:checked + .sl::before { left: 18px; }
+        .h-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid ${tv.border}; border-radius: 8px; background: #fff; }
+        .h-row + .h-row { margin-top: 8px; }
+        .h-day { width: 90px; font-weight: 600; font-size: 13px; color: ${tv.text}; }
+        .h-times { display: flex; align-items: center; gap: 8px; flex: 1; }
+        .h-times input[type=time] { font-size: 12px; padding: 5px 8px; border: 1px solid ${tv.border}; border-radius: 6px; background: #fff; color: ${tv.text}; width: 100px; }
+        .h-times input[type=time]:disabled { opacity: .4; cursor: not-allowed; }
+        .h-closed { font-size: 12px; color: ${tv.textMuted}; font-style: italic; }
+        .h-modify { font-size: 12px; color: ${tv.primary}; background: none; border: 1px solid ${tv.border}; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-weight: 500; transition: all .15s; }
+        .h-modify:hover { background: ${tv.primaryLight}; border-color: ${tv.primary}; }
+      `}</style>
+
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1>{'⏱️'} Horaires chantier &amp; équipes</h1>
-            <p>Définissez les plages d&apos;intervention de votre entreprise — affichées sur votre profil et dans les appels d&apos;offres</p>
-          </>
-        ) : (
-          <>
-            <div>
-              <h1 className="v22-page-title">
-                {isSociete ? '⏱️ Horaires chantier & équipes' : `${'🕐'} ${t('proDash.horaires.title')}`}
-              </h1>
-              <p className="v22-page-sub">
-                {isSociete
-                  ? "Définissez les plages d'intervention de votre entreprise — affichées sur votre profil et dans les appels d'offres"
-                  : t('proDash.horaires.subtitle')}
-              </p>
-            </div>
-            <div />
-          </>
-        )}
+      <div className="v5-pg-t">
+        <h1>{'⏱️'} Horaires chantier &amp; équipes</h1>
+        <p>Définissez les plages d&apos;intervention de votre entreprise — affichées sur votre profil et dans les appels d&apos;offres</p>
       </div>
 
-      <div style={{ padding: '24px' }}>
+      {/* Info box */}
+      <div className="v5-al" style={{ marginBottom: 16, cursor: 'default' }}>
+        <span style={{ fontSize: 12 }}>
+          <strong>{'💡'} Conseil</strong> Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d&apos;offres. Activez les jours où vos équipes interviennent.
+        </span>
+      </div>
 
-        {/* Info box société */}
-        {isSociete && (
-          <div className={isV5 ? 'v5-al' : 'v22-alert v22-alert-amber'} style={{ marginBottom: 16, cursor: 'default' }}>
-            <span style={{ fontSize: 12 }}>
-              <strong>{'💡'} Conseil</strong> Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d&apos;offres. Activez les jours où vos équipes interviennent.
-            </span>
+      {/* Mode validation */}
+      <div className="v5-card" style={{ marginBottom: 16, padding: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div className="v5-st">Acceptation des demandes</div>
+            <div className="v22-card-meta">
+              {autoAccept
+                ? '✅ Acceptation automatique des demandes de devis'
+                : '⏳ Validation manuelle par le responsable'}
+            </div>
+          </div>
+          <button
+            onClick={toggleAutoAccept}
+            className={autoAccept ? 'v5-btn v5-btn-p' : 'v5-btn'}
+            style={{ cursor: 'pointer' }}
+          >
+            {autoAccept ? `🟢 ${t('proDash.horaires.automatique')}` : `🟡 ${t('proDash.horaires.manuel')}`}
+          </button>
+        </div>
+      </div>
+
+      {/* Plages d'ouverture */}
+      <div className="v5-card">
+        <div className="v22-card-head">
+          <span className="v5-st">⏱️ Plages d&apos;intervention</span>
+        </div>
+        <div style={{ padding: 14 }}>
+          {[1, 2, 3, 4, 5, 6, 0].map((day) => {
+            const availRaw = availability.find((a) => a.day_of_week === day)
+            const defaults = getDayDefaults(day)
+            const isActive = availRaw ? availRaw.is_available : defaults.is_available
+            const startTime = (availRaw?.start_time?.substring(0, 5)) || defaults.start_time
+            const endTime = (availRaw?.end_time?.substring(0, 5)) || defaults.end_time
+            const dayServiceIds = dayServices[String(day)] || []
+            const activeServices = services.filter(s => s.active)
+
+            return (
+              <div key={day}>
+                <div className="h-row">
+                  <span className="h-day">{DAY_NAMES[day]}</span>
+                  <div className="h-times">
+                    <input
+                      type="time"
+                      disabled={!isActive}
+                      value={startTime}
+                      onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value)}
+                    />
+                    <span className="v22-card-meta">{t('proDash.common.a')}</span>
+                    <input
+                      type="time"
+                      disabled={!isActive}
+                      value={endTime}
+                      onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value)}
+                    />
+                    {!isActive && <span className="h-closed" style={{ marginLeft: 8 }}>Fermé</span>}
+                    {isActive && activeServices.length > 0 && (
+                      <span className="v22-card-meta" style={{ marginLeft: 8 }}>
+                        {dayServiceIds.length > 0 ? `${dayServiceIds.length} ${t('proDash.horaires.motifsLabel')}` : t('proDash.horaires.tousMotifs')}
+                      </span>
+                    )}
+                  </div>
+                  <button className="h-modify" onClick={() => updateAvailabilityTime(day, 'start_time', startTime)} type="button" title="Modifier les horaires">Modifier</button>
+                  <label className="h-tgl" title={isActive ? 'Désactiver ce jour' : 'Activer ce jour'}>
+                    <input
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={() => toggleDayAvailability(day)}
+                    />
+                    <span className="sl" />
+                  </label>
+                </div>
+                {isActive && activeServices.length > 0 && (
+                  <div style={{ margin: '8px 0 12px 104px', paddingLeft: 12, borderLeft: `2px solid ${tv.primary}` }}>
+                    <p className="v22-form-label" style={{ marginBottom: 6 }}>Lots disponibles ce jour</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {activeServices.map((service) => {
+                        const isAssigned = dayServiceIds.includes(service.id)
+                        return (
+                          <label
+                            key={service.id}
+                            className="v5-chip"
+                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={() => toggleDayService(day, service.id)}
+                              style={{ width: 13, height: 13, accentColor: tv.primary }}
+                            />
+                            <span>{service.name}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    {dayServiceIds.length === 0 && (
+                      <p style={{ fontSize: 11, color: tv.primary, marginTop: 4 }}>{t('proDash.horaires.aucunMotif')}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {savingAvail && (
+          <div style={{ padding: '0 14px 14px' }}>
+            <p style={{ fontSize: 12, color: tv.primary, fontWeight: 500 }}>{t('proDash.horaires.sauvegarde')}</p>
           </div>
         )}
-
-        {/* Mode validation */}
-        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
-                {isSociete ? 'Acceptation des demandes' : t('proDash.horaires.modeValidation')}
-              </div>
-              <div className="v22-card-meta">
-                {autoAccept
-                  ? `✅ ${isSociete ? 'Acceptation automatique des demandes de devis' : t('proDash.horaires.autoConfirm')}`
-                  : `⏳ ${isSociete ? 'Validation manuelle par le responsable' : t('proDash.horaires.manualConfirm')}`}
-              </div>
-            </div>
-            <button
-              onClick={toggleAutoAccept}
-              className={isV5
-                ? (autoAccept ? 'v5-btn v5-btn-p' : 'v5-btn')
-                : (autoAccept ? 'v22-btn v22-btn-sm v22-tag v22-tag-green' : 'v22-btn v22-btn-sm v22-tag v22-tag-amber')}
-              style={{ cursor: 'pointer' }}
-            >
-              {autoAccept ? `🟢 ${t('proDash.horaires.automatique')}` : `🟡 ${t('proDash.horaires.manuel')}`}
-            </button>
-          </div>
-        </div>
-
-        {/* Plages d'ouverture */}
-        <div className={isV5 ? 'v5-card' : 'v22-card'}>
-          <div className="v22-card-head">
-            <span className={isV5 ? 'v5-st' : 'v22-card-title'}>
-              {isSociete ? "⏱️ Plages d'intervention" : `${'🕐'} ${t('proDash.horaires.plagesOuverture')}`}
-            </span>
-          </div>
-          <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3, 4, 5, 6, 0].map((day) => {
-              const avail = availability.find((a) => a.day_of_week === day)
-              const dayServiceIds = dayServices[String(day)] || []
-              const activeServices = services.filter(s => s.active)
-              return (
-                <div key={day} className={isV5 ? 'v5-horaire-row' : undefined} style={isV5 ? undefined : { padding: 10, borderRadius: 6, background: tv.bg }}>
-                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                    <span style={{ width: 90, fontWeight: 600, fontSize: 13 }}>{DAY_NAMES[day]}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                      {/* Toggle switch */}
-                      {isV5 ? (
-                        <button
-                          onClick={() => toggleDayAvailability(day)}
-                          className="v5-tgl"
-                          data-active={avail?.is_available ? 'true' : 'false'}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => toggleDayAvailability(day)}
-                          style={{
-                            width: 38,
-                            height: 20,
-                            borderRadius: 10,
-                            position: 'relative',
-                            border: 'none',
-                            cursor: 'pointer',
-                            transition: 'background .2s',
-                            background: avail?.is_available ? tv.green : tv.borderDark,
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute',
-                            top: 2,
-                            width: 16,
-                            height: 16,
-                            background: '#fff',
-                            borderRadius: '50%',
-                            boxShadow: '0 1px 2px rgba(0,0,0,.15)',
-                            transition: 'transform .2s',
-                            transform: avail?.is_available ? 'translateX(19px)' : 'translateX(2px)',
-                          }} />
-                        </button>
-                      )}
-                      {avail?.is_available ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input
-                            type="time"
-                            value={avail.start_time?.substring(0, 5) || '08:00'}
-                            onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value)}
-                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                            style={{ width: 100, padding: '4px 8px' }}
-                          />
-                          <span className="v22-card-meta">{t('proDash.common.a')}</span>
-                          <input
-                            type="time"
-                            value={avail.end_time?.substring(0, 5) || '17:00'}
-                            onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value)}
-                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                            style={{ width: 100, padding: '4px 8px' }}
-                          />
-                          <span className="v22-card-meta" style={{ marginLeft: 4 }}>
-                            {dayServiceIds.length > 0 ? `${dayServiceIds.length} ${t('proDash.horaires.motifsLabel')}` : t('proDash.horaires.tousMotifs')}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="v22-card-meta">{t('proDash.horaires.ferme')}</span>
-                      )}
-                    </div>
-                  </div>
-                  {avail?.is_available && activeServices.length > 0 && (
-                    <div style={{ marginTop: 10, marginLeft: 100, paddingLeft: 12, borderLeft: `2px solid ${tv.primary}` }}>
-                      <p className="v22-form-label" style={{ marginBottom: 6 }}>
-                      {isSociete ? 'Lots disponibles ce jour' : t('proDash.horaires.motifsDisponibles')}
-                    </p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {activeServices.map((service) => {
-                          const isAssigned = dayServiceIds.includes(service.id)
-                          return (
-                            <label
-                              key={service.id}
-                              className={isV5
-                                ? 'v5-chip'
-                                : (isAssigned ? 'v22-tag v22-tag-yellow' : 'v22-tag v22-tag-gray')}
-                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={() => toggleDayService(day, service.id)}
-                                style={{ width: 13, height: 13, accentColor: tv.primary }}
-                              />
-                              <span>{service.name}</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                      {dayServiceIds.length === 0 && (
-                        <p style={{ fontSize: 11, color: tv.primary, marginTop: 4 }}>{t('proDash.horaires.aucunMotif')}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          {savingAvail && (
-            <div style={{ padding: '0 14px 14px' }}>
-              <p style={{ fontSize: 12, color: tv.primary, fontWeight: 500 }}>{t('proDash.horaires.sauvegarde')}</p>
-            </div>
-          )}
-        </div>
-
       </div>
     </div>
   )
