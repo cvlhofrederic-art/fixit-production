@@ -289,7 +289,7 @@ function DashboardPage() {
     if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push('/auth/login'); return }
     if (!artisanData) {
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id })
-      seedDemoLocalStorage(user.id)
+      seedDemoLocalStorage(user.id, !!user.user_metadata?._admin_override)
       prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], user.id)
       setLoading(false); return
     }
@@ -302,7 +302,7 @@ function DashboardPage() {
     const aid = artisanData.id
 
     // Seed demo localStorage data for super admin demo account (no-op for other accounts)
-    seedDemoLocalStorage(aid)
+    seedDemoLocalStorage(aid, !!user.user_metadata?._admin_override)
 
     // Load localStorage data first (instant) — unblocks UI immediately
     try { setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')) } catch { setAbsences([]) }

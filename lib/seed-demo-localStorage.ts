@@ -17,10 +17,10 @@ function isAlreadySeeded(artisanId: string): boolean {
   return false
 }
 
-export function seedDemoLocalStorage(artisanId: string): void {
+export function seedDemoLocalStorage(artisanId: string, isAdminOverride = false): void {
   if (isAlreadySeeded(artisanId)) return
-  // Seed UNIQUEMENT pour le compte demo — jamais pour les vrais utilisateurs
-  if (artisanId !== DEMO_ARTISAN_ID) return
+  // Seed pour le compte demo OU pour les admins en override (même données demo)
+  if (artisanId !== DEMO_ARTISAN_ID && !isAdminOverride) return
 
   // ═══════════════════════════════════════
   // DEVIS + FACTURES (fixit_documents_*)
