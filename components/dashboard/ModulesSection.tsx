@@ -281,7 +281,7 @@ export default function ModulesSection({
         </div>
       </div>
 
-      <div style={{ padding: '0 16px 16px' }}>
+      <div>
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: 8 }}>
             <div>

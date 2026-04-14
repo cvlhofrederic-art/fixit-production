@@ -21,7 +21,7 @@ const DEFAULT_STRUCTURE: Array<{ id: string; name: string; modIds: string[] }> =
 ]
 
 export function buildDefaultCategories(ALL_MODULES: ModuleDef[]): ModCategory[] {
-  const byId = new Map(ALL_MODULES.map(m => [m.id, m]))
+  const byId = new Map(ALL_MODULES.map(m => [m.id, { ...m, label: m.id === 'motifs' ? 'Prestations' : m.label }]))
   const cats: ModCategory[] = DEFAULT_STRUCTURE.map(cat => ({
     id: cat.id,
     name: cat.name,
@@ -81,7 +81,7 @@ export function useModuleCategories(ALL_MODULES: ModuleDef[]) {
       }
     }
     // Re-sync icon/name from ALL_MODULES (authoritative)
-    const byId = new Map(ALL_MODULES.map(m => [m.id, m]))
+    const byId = new Map(ALL_MODULES.map(m => [m.id, { ...m, label: m.id === 'motifs' ? 'Prestations' : m.label }]))
     const synced = base.map(c => ({
       ...c,
       modules: c.modules.map(m => {
