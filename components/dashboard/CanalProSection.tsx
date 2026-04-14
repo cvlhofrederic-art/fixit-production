@@ -19,8 +19,8 @@ type CanalMsg = {
 
 export default function CanalProSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
+  void orgRole
+  const tv = useThemeVars(true)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `fixit_canal_contacts_${artisan?.id}`
   const [contacts, setContacts] = useState<CanalContact[]>(() => {
@@ -204,21 +204,19 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
     text: '', voice: '🎤 ', voice_location: '📍 ', voice_status: '✅ ', voice_alert: '🚨 ', voice_devis: '💰 ', file: '📎 ', photo: '🖼️ ', rapport: '📋 ', devis: '📄 ',
   }
 
-  const ROLE_TAG_CLASS: Record<string, string> = isV5 ? {
+  const ROLE_TAG_CLASS: Record<string, string> = {
     artisan: 'v5-badge v5-badge-amber', pro_societe: 'v5-badge v5-badge-gray', pro_conciergerie: 'v5-badge v5-badge-gray', pro_gestionnaire: 'v5-badge v5-badge-green',
-  } : {
-    artisan: 'v22-tag v22-tag-amber', pro_societe: 'v22-tag v22-tag-gray', pro_conciergerie: 'v22-tag v22-tag-gray', pro_gestionnaire: 'v22-tag v22-tag-green',
   }
 
   return (
-    <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 120px)' }}>
+    <div className="v5-fade" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 120px)' }}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          {isV5 ? <h1>📡 Canal Pro</h1> : <div className="v22-page-title">📡 Canal Pro</div>}
-          {isV5 ? <p>Communication directe gestionnaire ↔ artisan</p> : <div className="v22-page-sub">Communication directe gestionnaire ↔ artisan</div>}
+          <h1>📡 Canal Pro</h1>
+          <p>Communication directe gestionnaire ↔ artisan</p>
         </div>
-        <button onClick={() => setShowAddContact(true)} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>+ Contact</button>
+        <button onClick={() => setShowAddContact(true)} className="v5-btn v5-btn-p">+ Contact</button>
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -232,7 +230,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
               <div style={{ padding: 24, textAlign: 'center' }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
                 <p style={{ fontSize: 12, color: tv.textMuted, marginBottom: 12 }}>Aucun contact</p>
-                <button onClick={() => setShowAddContact(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.primary, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>+ Ajouter un contact</button>
+                <button onClick={() => setShowAddContact(true)} className="v5-btn v5-btn-sm">+ Ajouter un contact</button>
               </div>
             ) : (
               contacts.map(c => (
@@ -268,7 +266,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: tv.text }}>Sélectionnez un contact</h3>
                 <p style={{ color: tv.textMuted, fontSize: 12, marginBottom: 16 }}>Choisissez un artisan ou technicien pour démarrer la conversation</p>
                 {voiceSupported && (
-                  <div className={isV5 ? 'v5-card' : 'v22-alert v22-alert-amber'} style={{ maxWidth: 320, margin: '0 auto' }}>
+                  <div className="v5-card" style={{ maxWidth: 320, margin: '0 auto' }}>
                     <p style={{ fontSize: 12, fontWeight: 600 }}>🎤 Commandes vocales disponibles</p>
                     <p style={{ fontSize: 11, marginTop: 4 }}>Dites &quot;Bâtiment A, numéro 6&quot; pour envoyer votre position, &quot;Intervention terminée&quot; pour le statut, etc.</p>
                   </div>
@@ -288,10 +286,10 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   {voiceSupported && !isRecording && (
-                    <button onClick={startVoice} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? {} : { background: tv.greenLight, color: tv.green, borderColor: tv.green }}>🎤 Vocal</button>
+                    <button onClick={startVoice} className="v5-btn v5-btn-sm">🎤 Vocal</button>
                   )}
                   {isRecording && (
-                    <button onClick={stopVoice} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm animate-pulse'} style={isV5 ? {} : { background: tv.redBg, color: tv.red, borderColor: tv.red }}>⏹ Stop</button>
+                    <button onClick={stopVoice} className="v5-btn v5-btn-sm">⏹ Stop</button>
                   )}
                 </div>
               </div>
@@ -305,7 +303,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                     <div style={{ fontSize: 32, marginBottom: 12 }}>💬</div>
                     <p style={{ color: tv.textMuted, fontSize: 12 }}>Démarrez la conversation</p>
                     {voiceSupported && (
-                      <div className={isV5 ? 'v5-card' : 'v22-alert v22-alert-amber'} style={{ marginTop: 16, maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', textAlign: 'left' }}>
+                      <div className="v5-card" style={{ marginTop: 16, maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', textAlign: 'left' }}>
                         <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>🎤 Exemples de commandes vocales :</p>
                         <ul style={{ fontSize: 11, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <li>• <em>&quot;Bâtiment B, numéro 12, Madame Dupont&quot;</em> → localisation automatique</li>
@@ -359,12 +357,12 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
 
               {/* Statut vocal */}
               {voiceStatus === 'recording' && (
-                <div className={isV5 ? 'v5-card' : 'v22-alert v22-alert-red animate-pulse'} style={{ margin: '0 14px 8px' }}>
+                <div className="v5-card" style={{ margin: '0 14px 8px' }}>
                   🔴 Enregistrement en cours... Parlez maintenant
                 </div>
               )}
               {voiceStatus === 'processing' && (
-                <div className={isV5 ? 'v5-card' : 'v22-alert v22-alert-amber'} style={{ margin: '0 14px 8px' }}>
+                <div className="v5-card" style={{ margin: '0 14px 8px' }}>
                   ⚙️ Traitement de la commande vocale...
                 </div>
               )}
@@ -374,13 +372,12 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx" onChange={e => setAttachFile(e.target.files?.[0] || null)} />
-                    <button onClick={() => fileInputRef.current?.click()} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} title="Joindre un fichier">📎</button>
+                    <button onClick={() => fileInputRef.current?.click()} className="v5-btn v5-btn-sm" title="Joindre un fichier">📎</button>
                     {voiceSupported && (
                       <button
                         onMouseDown={startVoice}
                         onTouchStart={startVoice}
-                        className={isV5 ? `v5-btn v5-btn-sm ${isRecording ? 'animate-pulse' : ''}` : `v22-btn v22-btn-sm ${isRecording ? 'animate-pulse' : ''}`}
-                        style={isRecording && !isV5 ? { background: tv.redBg, color: tv.red, borderColor: tv.red } : {}}
+                        className={`v5-btn v5-btn-sm ${isRecording ? 'animate-pulse' : ''}`}
                         title="Commande vocale"
                       >🎤</button>
                     )}
@@ -400,13 +397,13 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                         placeholder={isRecording ? '🔴 Enregistrement vocal...' : 'Tapez un message...'}
                         disabled={isRecording}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                        className="v5-fi"
                         style={{ flex: 1 }}
                       />
                       <button
                         onClick={() => sendMessage()}
                         disabled={sending || (!newMsg.trim() && !attachFile)}
-                        className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
+                        className="v5-btn v5-btn-p"
                         style={{ opacity: (sending || (!newMsg.trim() && !attachFile)) ? 0.5 : 1 }}
                       >{sending ? 'Envoi...' : 'Envoyer'}</button>
                     </div>
@@ -414,10 +411,10 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 </div>
                 {/* Actions rapides vocales */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} disabled={sending} className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: isV5 ? undefined : `1px solid ${tv.border}` }}>🚗 En route</button>
-                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} disabled={sending} className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: isV5 ? undefined : `1px solid ${tv.border}` }}>📍 Arrivé</button>
-                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} disabled={sending} className={isV5 ? 'v5-badge v5-badge-green' : 'v22-tag v22-tag-green'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>✅ Terminé</button>
-                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} disabled={sending} className={isV5 ? 'v5-badge v5-badge-red' : 'v22-tag v22-tag-red'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚨 Alerte</button>
+                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} disabled={sending} className="v5-badge v5-badge-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚗 En route</button>
+                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} disabled={sending} className="v5-badge v5-badge-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>📍 Arrivé</button>
+                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} disabled={sending} className="v5-badge v5-badge-green" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>✅ Terminé</button>
+                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} disabled={sending} className="v5-badge v5-badge-red" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚨 Alerte</button>
                 </div>
               </div>
             </>
@@ -427,32 +424,32 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
 
       {/* Modal ajout contact */}
       {showAddContact && (
-        <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'}>
-          <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: '100%', maxWidth: 420 }}>
-            <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
-              <div className={isV5 ? 'v5-modal-t' : 'v22-modal-title'}>📡 Ajouter un contact</div>
-              <button className={isV5 ? '' : 'v22-modal-close'} onClick={() => setShowAddContact(false)}>✕</button>
+        <div className="v5-modal-ov">
+          <div className="v5-modal" style={{ width: '100%', maxWidth: 420 }}>
+            <div className="v5-modal-h">
+              <div className="v5-modal-t">📡 Ajouter un contact</div>
+              <button onClick={() => setShowAddContact(false)}>✕</button>
             </div>
-            <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: isV5 ? '16px' : undefined }}>
-              <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom / Société *</label>
-                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder="Jean Dupont Plomberie" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px' }}>
+              <div className="v5-fg">
+                <label className="v5-fl">Nom / Société *</label>
+                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder="Jean Dupont Plomberie" className="v5-fi" />
               </div>
-              <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Rôle</label>
-                <select value={contactForm.role} onChange={e => setContactForm({...contactForm, role: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'}>
+              <div className="v5-fg">
+                <label className="v5-fl">Rôle</label>
+                <select value={contactForm.role} onChange={e => setContactForm({...contactForm, role: e.target.value})} className="v5-fi">
                   {['Artisan', 'Technicien', 'Sous-traitant', 'Fournisseur', 'Gestionnaire', 'Syndic', 'Autre'].map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
-              <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Identifiant utilisateur (optionnel)</label>
-                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+              <div className="v5-fg">
+                <label className="v5-fl">Identifiant utilisateur (optionnel)</label>
+                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className="v5-fi" />
                 <p style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</p>
               </div>
             </div>
-            <div className={isV5 ? '' : 'v22-modal-foot'} style={{ display: 'flex', gap: 10, padding: isV5 ? '0 16px 16px' : undefined }}>
-              <button onClick={() => setShowAddContact(false)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}>Annuler</button>
-              <button onClick={handleAddContact} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1 }}>Ajouter</button>
+            <div style={{ display: 'flex', gap: 10, padding: '0 16px 16px' }}>
+              <button onClick={() => setShowAddContact(false)} className="v5-btn" style={{ flex: 1 }}>Annuler</button>
+              <button onClick={handleAddContact} className="v5-btn v5-btn-p" style={{ flex: 1 }}>Ajouter</button>
             </div>
           </div>
         </div>
