@@ -160,7 +160,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
   return (
     <div>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
         <div style={{ flex: 1 }}>
           {isV5 ? <h1>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
           {isV5 ? <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
@@ -199,7 +199,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         </div>
       )}
 
-      <div style={{ padding: '20px 24px' }}>
+      <div>
         {/* Filter buttons */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
           <button
