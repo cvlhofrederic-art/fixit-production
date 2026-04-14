@@ -91,6 +91,7 @@ export default function V5Sidebar({
           {isModuleEnabled('revenus') && (
             <V5SidebarItem icon="💰" label={isPt ? 'Receitas' : 'Revenus'} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />
           )}
+          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('motifs')} />
         </div>
 
         {/* ═══ CHANTIERS ═══ */}
@@ -161,7 +162,6 @@ export default function V5Sidebar({
           {proCanAccess('rfq_btp') && (
             <V5SidebarItem icon="📋" label={isPt ? 'Orçamentos Fornecedores' : 'Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
           )}
-          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('motifs')} />
           {isModuleEnabled('marketplace_btp') && (
             <V5SidebarItem icon="🏪" label="Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />
           )}
