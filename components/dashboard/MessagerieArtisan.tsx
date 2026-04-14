@@ -140,7 +140,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
   const [search, setSearch] = useState('')
   const [filterUnread, setFilterUnread] = useState<'all' | 'unread'>('all')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const pollConvRef = useRef<NodeJS.Timeout | null>(null)
   const pollMsgRef = useRef<NodeJS.Timeout | null>(null)
 
