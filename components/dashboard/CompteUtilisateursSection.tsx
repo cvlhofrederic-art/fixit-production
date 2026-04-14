@@ -43,8 +43,17 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   const isV5 = true
   const tv = useThemeVars(isV5)
 
-  const [members, setMembers] = useState<TeamMember[]>([])
-  const [loading, setLoading] = useState(true)
+  // Read cache synchronously on first render to skip "Chargement..." flash on tab switches
+  const CACHE_KEY = '__team_members_cache'
+  const CACHE_TTL = 30_000
+  const initialCache = (() => {
+    if (typeof window === 'undefined') return null
+    const c = (window as any)[CACHE_KEY]
+    if (c && Date.now() - c.at < CACHE_TTL) return c.data as TeamMember[]
+    return null
+  })()
+  const [members, setMembers] = useState<TeamMember[]>(initialCache || [])
+  const [loading, setLoading] = useState(!initialCache)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showPermsModal, setShowPermsModal] = useState<TeamMember | null>(null)
   const [inviteForm, setInviteForm] = useState({
@@ -63,9 +72,6 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   }, [])
 
   const fetchMembers = useCallback(async (skipCache = false) => {
-    // In-memory cache to avoid re-fetching on tab switches
-    const CACHE_KEY = '__team_members_cache'
-    const CACHE_TTL = 30_000
     if (!skipCache) {
       const cached = (window as any)[CACHE_KEY]
       if (cached && Date.now() - cached.at < CACHE_TTL) {
