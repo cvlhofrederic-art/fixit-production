@@ -79,8 +79,7 @@ export default function HomeSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
+  const tv = useThemeVars(true)
 
   const now = new Date()
   const weekNum = getWeekNumber(now)

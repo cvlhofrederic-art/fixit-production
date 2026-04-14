@@ -18,8 +18,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
+  const tv = useThemeVars(true)
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -600,8 +599,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
     setTvaTogglingLoading(false)
   }, [])
 
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
+  const tv = useThemeVars(true)
 
   // (tabStyle and pillStyle removed — now using cpta-* CSS classes)
 
