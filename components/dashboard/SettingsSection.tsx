@@ -83,13 +83,16 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
   useEffect(() => {
     if (!artisanId) return
     fetch('/api/artisan-payment-info')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then(data => {
         if (data.paiement_modes) setModes(data.paiement_modes)
         setMentionDevis(data.paiement_mention_devis ?? true)
         setMentionFacture(data.paiement_mention_facture ?? true)
       })
-      .catch(() => toast.error('Erreur de chargement des paramètres de paiement'))
+      .catch((e) => console.warn('Payment info load failed:', e))
       .finally(() => setLoading(false))
   }, [artisanId])
 
