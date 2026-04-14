@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import type { ModuleDef, ModuleConfig } from '@/hooks/useModulesConfig'
+import type { ModCategory, CatMod } from '@/hooks/useModuleCategories'
+import { buildDefaultCategories } from '@/hooks/useModuleCategories'
 
 interface ModulesSectionProps {
   orgRole?: string
@@ -11,7 +13,10 @@ interface ModulesSectionProps {
   modulesConfig: ModuleConfig[]
   saveModulesConfig: (config: ModuleConfig[]) => void
   reorderModuleTo: (moduleId: string, newPos: number) => void
-  // Unused props from parent — kept for interface compat
+  // Shared categories state (from useModuleCategories hook in the dashboard)
+  categories?: ModCategory[]
+  setCategories?: (next: ModCategory[]) => void
+  // Unused props kept for interface compat
   moveModule?: unknown
   categoriesOrder?: unknown
   saveCategoriesOrder?: unknown
@@ -20,57 +25,24 @@ interface ModulesSectionProps {
   CATEGORIES_DEFAULT?: unknown
 }
 
-type CatMod = { id: string; icon: string; name: string; on: boolean }
-type Cat = { id: string; name: string; open: boolean; modules: CatMod[] }
-
-// Default categories — aligned with V5Sidebar (pro_societe BTP) structure
-const DEFAULT_STRUCTURE: Array<{ id: string; name: string; open: boolean; modIds: string[] }> = [
-  { id: 'cat-pilotage', name: 'Pilotage', open: true, modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
-  { id: 'cat-chantiers', name: 'Chantiers', open: true, modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
-  { id: 'cat-commercial', name: 'Commercial', open: true, modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
-  { id: 'cat-facturation', name: 'Facturation', open: true, modIds: ['factures', 'situations', 'garanties'] },
-  { id: 'cat-achats', name: 'Sous-traitance & Achats', open: true, modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'marketplace_btp'] },
-  { id: 'cat-finances', name: 'Finances', open: true, modIds: ['compta_btp', 'rentabilite', 'comptabilite'] },
-  { id: 'cat-communication', name: 'Communication', open: true, modIds: ['messages', 'clients', 'portail_client'] },
-  { id: 'cat-admin', name: 'Administration', open: true, modIds: ['wallet', 'contrats', 'horaires'] },
-  { id: 'cat-vitrine', name: 'Vitrine', open: true, modIds: ['portfolio', 'parrainage'] },
-]
-
-const STORAGE_KEY = 'fixit_modules_categories_v2'
-
-function buildDefaults(ALL_MODULES: ModuleDef[], modulesConfig: ModuleConfig[]): Cat[] {
-  const byId = new Map(ALL_MODULES.map(m => [m.id, m]))
-  const enabledOf = (id: string) => {
-    const c = modulesConfig.find(x => x.id === id)
-    return c ? c.enabled : true
-  }
-  return DEFAULT_STRUCTURE.map(cat => ({
-    id: cat.id,
-    name: cat.name,
-    open: cat.open,
-    modules: cat.modIds
-      .map(id => {
-        const def = byId.get(id)
-        if (!def) return null
-        return { id, icon: def.icon, name: def.label, on: enabledOf(id) } as CatMod
-      })
-      .filter((m): m is CatMod => m !== null),
-  }))
-}
-
 export default function ModulesSection({
   orgRole,
   ALL_MODULES,
-  modulesConfig,
   saveModulesConfig,
+  categories: extCategories,
+  setCategories: extSetCategories,
 }: ModulesSectionProps) {
   const { t: _t } = useTranslation()
   void _t
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
+  void tv
+  const primary = '#FFC107'
 
-  const [categories, setCategories] = useState<Cat[]>(() => buildDefaults(ALL_MODULES, modulesConfig))
-  const [hydrated, setHydrated] = useState(false)
+  // Local fallback state when the parent didn't wire up the hook
+  const [localCats, setLocalCats] = useState<ModCategory[]>(() => buildDefaultCategories(ALL_MODULES))
+  const categories = extCategories ?? localCats
+  const applyCats = extSetCategories ?? setLocalCats
 
   // Drag state
   const dragType = useRef<'cat' | 'mod' | null>(null)
@@ -80,37 +52,9 @@ export default function ModulesSection({
   const [dragHoverRow, setDragHoverRow] = useState<{ catId: string; modId: string; pos: 'above' | 'below' } | null>(null)
   const [draggingRow, setDraggingRow] = useState<string | null>(null)
 
-  // Load persisted state
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Cat[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Re-sync 'on' state from modulesConfig to stay authoritative
-          const synced = parsed.map(c => ({
-            ...c,
-            modules: c.modules.map(m => {
-              const conf = modulesConfig.find(x => x.id === m.id)
-              return conf ? { ...m, on: conf.enabled } : m
-            }),
-          }))
-          setCategories(synced)
-        }
-      }
-    } catch {}
-    setHydrated(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Persist + sync to modulesConfig
-  const commit = (next: Cat[]) => {
-    setCategories(next)
-    if (typeof window !== 'undefined') {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
-    }
-    // Rebuild modulesConfig from flat order so sidebar gating + ordering stay in sync
+  // ── Commit: persist categories (via hook/setter) + mirror to modulesConfig
+  const commit = (next: ModCategory[]) => {
+    applyCats(next)
     const flat: ModuleConfig[] = []
     let order = 0
     next.forEach(cat => {
@@ -120,11 +64,8 @@ export default function ModulesSection({
         flat.push({ id: m.id, enabled, order: order++ })
       })
     })
-    // Keep modules absent from any category (e.g. locked settings) in config
     ALL_MODULES.forEach(def => {
-      if (!flat.find(f => f.id === def.id)) {
-        flat.push({ id: def.id, enabled: true, order: order++ })
-      }
+      if (!flat.find(f => f.id === def.id)) flat.push({ id: def.id, enabled: true, order: order++ })
     })
     saveModulesConfig(flat)
   }
@@ -188,8 +129,22 @@ export default function ModulesSection({
     }))
   }
 
+  // Move a mod to an arbitrary position (1-based) within its category
+  const moveModToPos = (catId: string, modId: string, newPos: number) => {
+    const cat = categories.find(c => c.id === catId)
+    if (!cat) return
+    const currentIdx = cat.modules.findIndex(m => m.id === modId)
+    if (currentIdx < 0) return
+    const targetIdx = Math.max(0, Math.min(newPos - 1, cat.modules.length - 1))
+    if (targetIdx === currentIdx) return
+    const mods = [...cat.modules]
+    const [mod] = mods.splice(currentIdx, 1)
+    mods.splice(targetIdx, 0, mod)
+    commit(categories.map(c => c.id === catId ? { ...c, modules: mods } : c))
+  }
+
   const resetAll = () => {
-    commit(buildDefaults(ALL_MODULES, modulesConfig.map(c => ({ ...c, enabled: true }))))
+    commit(buildDefaultCategories(ALL_MODULES))
   }
 
   // ── Drag & drop ───────────────────────────────────────────────
@@ -198,7 +153,7 @@ export default function ModulesSection({
     dragCatId.current = catId
     e.dataTransfer.effectAllowed = 'move'
   }
-  const onCatDragEnd = () => {
+  const clearDrag = () => {
     dragType.current = null
     dragCatId.current = null
     dragModId.current = null
@@ -216,9 +171,7 @@ export default function ModulesSection({
   }
   const onBlockDragOver = (e: React.DragEvent, catId: string) => {
     e.preventDefault()
-    if (dragType.current === 'cat' && dragCatId.current !== catId) {
-      setDragHoverCat(catId)
-    }
+    if (dragType.current === 'cat' && dragCatId.current !== catId) setDragHoverCat(catId)
   }
   const onBlockDragLeave = (e: React.DragEvent, catId: string) => {
     const related = e.relatedTarget as Node | null
@@ -230,37 +183,34 @@ export default function ModulesSection({
     e.preventDefault()
     if (dragType.current === 'cat') {
       const from = dragCatId.current
-      if (!from || from === targetCatId) return onCatDragEnd()
+      if (!from || from === targetCatId) return clearDrag()
       const fromIdx = categories.findIndex(c => c.id === from)
       const toIdx = categories.findIndex(c => c.id === targetCatId)
-      if (fromIdx < 0 || toIdx < 0) return onCatDragEnd()
+      if (fromIdx < 0 || toIdx < 0) return clearDrag()
       const next = [...categories]
       const [moved] = next.splice(fromIdx, 1)
       next.splice(toIdx, 0, moved)
       commit(next)
-      onCatDragEnd()
+      clearDrag()
     } else if (dragType.current === 'mod') {
       const srcCatId = dragCatId.current
       const modId = dragModId.current
-      if (!srcCatId || !modId) return onCatDragEnd()
+      if (!srcCatId || !modId) return clearDrag()
       const next = categories.map(c => ({ ...c, modules: [...c.modules] }))
       const srcCat = next.find(c => c.id === srcCatId)
       const dstCat = next.find(c => c.id === targetCatId)
-      if (!srcCat || !dstCat) return onCatDragEnd()
+      if (!srcCat || !dstCat) return clearDrag()
       const modIdx = srcCat.modules.findIndex(m => m.id === modId)
-      if (modIdx === -1) return onCatDragEnd()
+      if (modIdx === -1) return clearDrag()
       const [mod] = srcCat.modules.splice(modIdx, 1)
-      // Determine insertion index from hovered row
       let insertIdx = dstCat.modules.length
       if (dragHoverRow && dragHoverRow.catId === targetCatId) {
         const rowIdx = dstCat.modules.findIndex(m => m.id === dragHoverRow.modId)
-        if (rowIdx >= 0) {
-          insertIdx = dragHoverRow.pos === 'above' ? rowIdx : rowIdx + 1
-        }
+        if (rowIdx >= 0) insertIdx = dragHoverRow.pos === 'above' ? rowIdx : rowIdx + 1
       }
       dstCat.modules.splice(insertIdx, 0, mod)
       commit(next)
-      onCatDragEnd()
+      clearDrag()
     }
   }
   const onRowDragOver = (e: React.DragEvent, catId: string, modId: string) => {
@@ -271,10 +221,6 @@ export default function ModulesSection({
     const pos: 'above' | 'below' = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
     setDragHoverRow({ catId, modId, pos })
   }
-
-  // ── Render ────────────────────────────────────────────────────
-  void tv
-  const primary = '#FFC107'
 
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
@@ -309,6 +255,8 @@ export default function ModulesSection({
         .mc-arrow { background: none; border: 1px solid #E8E8E8; border-radius: 3px; cursor: pointer; font-size: 10px; color: #999; padding: 2px 5px; transition: all .1s; }
         .mc-arrow:hover:not(:disabled) { color: #FFA000; border-color: ${primary}; background: #FFF8E1; }
         .mc-arrow:disabled { opacity: .25; cursor: default; }
+        .mc-pos { width: 40px; text-align: center; padding: 4px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-weight: 600; font-family: inherit; color: #555; outline: none; flex-shrink: 0; }
+        .mc-pos:focus { border-color: ${primary}; box-shadow: 0 0 0 2px #FFF8E1; }
         .mc-tgl { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
         .mc-tgl input { opacity: 0; width: 0; height: 0; position: absolute; }
         .mc-tgl .sl { position: absolute; inset: 0; background: #E0E0E0; border-radius: 10px; cursor: pointer; transition: .3s; }
@@ -322,7 +270,7 @@ export default function ModulesSection({
           {isV5 ? (
             <>
               <h1>Modules</h1>
-              <p>Activez, désactivez et réorganisez vos modules par catégorie</p>
+              <p>Activez, désactivez et réorganisez vos modules par catégorie — la sidebar se met à jour en temps réel</p>
             </>
           ) : (
             <>
@@ -340,7 +288,7 @@ export default function ModulesSection({
               <span style={{ fontSize: 13, fontWeight: 700 }}>📦 ORGANISATION DU MENU</span>
               <br />
               <span style={{ fontSize: 11, color: '#999' }}>
-                Glissez-déposez pour réorganiser — renommez, supprimez ou créez de nouvelles catégories
+                Glissez-déposez, tapez un numéro pour réordonner, ou utilisez les flèches
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -366,13 +314,13 @@ export default function ModulesSection({
                     className="mc-cat-hdr"
                     draggable
                     onDragStart={(e) => onCatDragStart(e, cat.id)}
-                    onDragEnd={onCatDragEnd}
+                    onDragEnd={clearDrag}
                   >
                     <span className="mc-cat-drag">⠿</span>
                     <input
                       className="mc-cat-name"
                       defaultValue={cat.name}
-                      key={`${cat.id}-${hydrated}-${cat.name}`}
+                      key={`${cat.id}-${cat.name}`}
                       title="Cliquez pour renommer"
                       onClick={(e) => e.stopPropagation()}
                       onBlur={(e) => renameCat(cat.id, e.target.value)}
@@ -393,7 +341,7 @@ export default function ModulesSection({
                       {cat.modules.length === 0 && (
                         <div className="mc-mod-empty">Aucun module — glissez-en un ici</div>
                       )}
-                      {cat.modules.map((mod, i) => {
+                      {cat.modules.map((mod: CatMod, i: number) => {
                         const isFirst = i === 0
                         const isLast = i === cat.modules.length - 1
                         const hoverCls = dragHoverRow && dragHoverRow.catId === cat.id && dragHoverRow.modId === mod.id
@@ -405,7 +353,7 @@ export default function ModulesSection({
                             className={`mc-row${mod.on ? '' : ' mc-off'}${hoverCls}${draggingCls}`}
                             draggable
                             onDragStart={(e) => onModDragStart(e, cat.id, mod.id)}
-                            onDragEnd={onCatDragEnd}
+                            onDragEnd={clearDrag}
                             onDragOver={(e) => onRowDragOver(e, cat.id, mod.id)}
                           >
                             <span className="mc-drag">⠿</span>
@@ -425,6 +373,23 @@ export default function ModulesSection({
                                 title="Descendre"
                               >▼</button>
                             </div>
+                            <input
+                              type="number"
+                              className="mc-pos"
+                              defaultValue={i + 1}
+                              key={`pos-${mod.id}-${i}-${cat.modules.length}`}
+                              min={1}
+                              max={cat.modules.length}
+                              title="Tapez un numéro et validez pour déplacer"
+                              onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
+                              onBlur={(e) => {
+                                const val = parseInt(e.target.value, 10)
+                                if (!isNaN(val) && val !== i + 1) moveModToPos(cat.id, mod.id, val)
+                              }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
+                            />
                             <label className="mc-tgl" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"

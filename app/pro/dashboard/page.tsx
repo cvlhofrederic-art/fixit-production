@@ -11,6 +11,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
+import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -197,6 +198,8 @@ function DashboardPage() {
 
   // ── Modules config ──
   const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t)
+  // Shared sidebar/modules categories (single source of truth for V5Sidebar + ModulesSection)
+  const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES)
 
   // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
   const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
@@ -430,6 +433,7 @@ function DashboardPage() {
           activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
           isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
+          dynamicCategories={moduleCategories}
         />
       )}
       {isV5 && orgRole === 'artisan' && (
@@ -895,6 +899,8 @@ function DashboardPage() {
               reorderModuleTo={reorderModuleTo}
               reorderCategoryTo={reorderCategoryTo}
               CATEGORIES_DEFAULT={CATEGORIES_DEFAULT}
+              categories={moduleCategories}
+              setCategories={setModuleCategories}
             />
             </SectionErrorBoundary>
           )}

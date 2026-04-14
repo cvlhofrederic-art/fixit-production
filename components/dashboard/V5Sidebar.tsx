@@ -1,11 +1,14 @@
 'use client'
 
 /**
- * V5Sidebar — Sidebar for pro_societe dashboard (light theme, 10 sections)
+ * V5Sidebar — Sidebar for pro_societe dashboard (light theme).
  *
- * Maps 1:1 with vitfix_btp_dashboardpro_v5.html sidebar structure.
- * Every V22 sidebar item for pro_societe is preserved here (zero feature loss).
+ * When `dynamicCategories` is provided (non-empty), renders sections/items
+ * from that data source (shared with ModulesSection via useModuleCategories).
+ * Otherwise falls back to the legacy hardcoded layout.
  */
+
+import type { ModCategory } from '@/hooks/useModuleCategories'
 
 interface V5SidebarProps {
   activePage: string
@@ -17,7 +20,11 @@ interface V5SidebarProps {
   isPt: boolean
   pendingBookings: { length: number }
   unreadMsgCount: number
+  dynamicCategories?: ModCategory[]
 }
+
+// ─── Routing alias: motifs → prestations (URL key) ───
+const ROUTE_ALIAS: Record<string, string> = { motifs: 'prestations' }
 
 // Prefetch map — hover over sidebar item → preload the JS chunk
 const PREFETCH_MAP: Record<string, () => void> = {
@@ -67,8 +74,23 @@ function V5SidebarItem({ icon, label, active, badge, onClick, page }: {
 export default function V5Sidebar({
   activePage, navigateTo, handleLogout,
   isProGerant, proCanAccess, isModuleEnabled,
-  isPt, pendingBookings, unreadMsgCount,
+  isPt, pendingBookings, unreadMsgCount, dynamicCategories,
 }: V5SidebarProps) {
+  const useDynamic = !!(dynamicCategories && dynamicCategories.length > 0)
+
+  // Items within a dynamic category that carry dynamic badges/active-aliases
+  const badgeFor = (id: string): number | undefined => {
+    if (id === 'calendar') return pendingBookings.length || undefined
+    if (id === 'messages') return (unreadMsgCount + pendingBookings.length) || undefined
+    return undefined
+  }
+  const activeFor = (id: string): boolean => {
+    const route = ROUTE_ALIAS[id] ?? id
+    if (id === 'motifs') return activePage === 'prestations' || activePage === 'motifs' || activePage === 'bibliotheque'
+    if (id === 'messages') return activePage === 'messages' || activePage === 'comm_pro'
+    return activePage === route
+  }
+
   return (
     <aside className="v5-sb" role="navigation" aria-label={isPt ? 'Menu principal' : 'Menu principal'}>
       <div className="v5-sb-logo">
@@ -77,6 +99,33 @@ export default function V5Sidebar({
         </div>
       </div>
       <div className="v5-sb-nav">
+
+        {/* ═══ DYNAMIC — driven by ModulesSection ═══ */}
+        {useDynamic && dynamicCategories!.map(cat => {
+          // Skip the "Compte" category — it's rendered in the fixed bottom block
+          if (cat.id === 'cat-compte') return null
+          const visible = cat.modules.filter(m => m.on && isModuleEnabled(m.id))
+          if (visible.length === 0) return null
+          return (
+            <div key={cat.id} className="v5-sb-sec">
+              <div className="v5-sb-sec-t">{cat.name}</div>
+              {visible.map(mod => (
+                <V5SidebarItem
+                  key={mod.id}
+                  icon={mod.icon}
+                  label={mod.name}
+                  active={activeFor(mod.id)}
+                  badge={badgeFor(mod.id)}
+                  onClick={() => navigateTo(ROUTE_ALIAS[mod.id] ?? mod.id)}
+                  page={mod.id}
+                />
+              ))}
+            </div>
+          )
+        })}
+
+        {/* ═══ LEGACY HARDCODED — shown when no dynamic categories provided ═══ */}
+        {!useDynamic && <>
 
         {/* ═══ PILOTAGE ═══ */}
         <div className="v5-sb-sec">
@@ -216,7 +265,9 @@ export default function V5Sidebar({
           )}
         </div>
 
-        {/* ═══ COMPTE (bottom) ═══ */}
+        </>}
+
+        {/* ═══ COMPTE (bottom — always hardcoded) ═══ */}
         <div className="v5-sb-bottom">
           <div className="v5-sb-sec">
             <div className="v5-sb-sec-t">{isPt ? 'Conta' : 'Compte'}</div>
