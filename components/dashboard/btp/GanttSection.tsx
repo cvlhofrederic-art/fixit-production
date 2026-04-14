@@ -52,8 +52,8 @@ function getSegment(rowStart: number, rowEnd: number, mStart: number, mEnd: numb
 export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
+  void orgRole
+  const tv = useThemeVars(true)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const isPt = locale === 'pt'
 
@@ -163,52 +163,52 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
-          <h1>{isV5 ? '' : <span className="v22-page-title" />}Planification Gantt</h1>
+          <h1>Planification Gantt</h1>
           <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} ${months[months.length - 1].start.getFullYear()}` : ''}</p>
         </div>
         {active.length > 0 && (
-          <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
+          <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
         )}
       </div>
 
       {/* Add sub-task form */}
       {showForm && (
-        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
-          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Nova tarefa' : 'Nouvelle sous-tâche'}</div>
+        <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+          <div className="v5-st">{isPt ? 'Nova tarefa' : 'Nouvelle sous-tâche'}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: '.75rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Obra' : 'Chantier'}</label>
-              <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.chantierId} onChange={e => setForm({...form, chantierId: e.target.value})}>
+              <select className="v5-fi" value={form.chantierId} onChange={e => setForm({...form, chantierId: e.target.value})}>
                 <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
                 {active.map(c => <option key={c.id} value={c.id}>{c.titre}</option>)}
               </select>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Nome' : 'Nom'}</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={isPt ? 'Ex: Demolição' : 'Ex: Démolition'} />
+              <input className="v5-fi" value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={isPt ? 'Ex: Demolição' : 'Ex: Démolition'} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Responsável' : 'Responsable'}</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} />
+              <input className="v5-fi" value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Início' : 'Début'}</label>
-              <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} />
+              <input type="date" className="v5-fi" value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Fim' : 'Fin'}</label>
-              <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
+              <input type="date" className="v5-fi" value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Cor' : 'Couleur'}</label>
-              <input type="color" className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
+              <input type="color" className="v5-fi" style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
-            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ background: 'none', border: '1px solid #E8E8E8' }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+            <button className="v5-btn v5-btn-p" onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
+            <button className="v5-btn" style={{ background: 'none', border: '1px solid #E8E8E8' }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           </div>
         </div>
       )}
