@@ -377,8 +377,6 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ label: '', amount: '', category: 'materiel', date: new Date().toISOString().split('T')[0], notes: '' })
   const [activeComptaTab, setActiveComptaTab] = useState<'dashboard' | 'revenus' | 'depenses' | 'declaration' | 'assistant'>('dashboard')
-  const [exportMonth, setExportMonth] = useState(currentMonth)
-
   // ── TVA / IVA ───────────────────────────────────────────────────────────────
   const [tvaAutoActivate, setTvaAutoActivate] = useState(false)
   const [tvaTogglingLoading, setTvaTogglingLoading] = useState(false)
@@ -605,642 +603,721 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
 
-  /* ── Tab style helpers (v22 compta-tab pattern) ── */
-  const tabStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({
-    fontSize: 12, fontWeight: active ? 600 : 500, padding: '8px 16px',
-    borderBottom: `2px solid ${active ? tv.primary : 'transparent'}`,
-    background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
-    borderBottomColor: active ? tv.primary : 'transparent',
-    cursor: 'pointer', color: active ? tv.text : tv.textMuted,
-    whiteSpace: 'nowrap', transition: 'all 0.15s',
+  // (tabStyle and pillStyle removed — now using cpta-* CSS classes)
+
+
+  // ── Expense search/filter state for Revenus & Dépenses tabs ──
+  const [revenusSearch, setRevenusSearch] = useState('')
+  const [revenusFilter, setRevenusFilter] = useState('all')
+  const [depensesSearch, setDepensesSearch] = useState('')
+  const [depensesFilter, setDepensesFilter] = useState('all')
+
+  // Filtered revenus
+  const filteredRevenus = completedFiltered.filter(b => {
+    const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || ''
+    const serviceName = b.services?.name || ''
+    const matchSearch = !revenusSearch || clientName.toLowerCase().includes(revenusSearch.toLowerCase()) || serviceName.toLowerCase().includes(revenusSearch.toLowerCase())
+    const matchFilter = revenusFilter === 'all' || (revenusFilter === 'completed' && b.status === 'completed')
+    return matchSearch && matchFilter
   })
 
-  const pillStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({
-    fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
-    border: active ? 'none' : `1px solid ${tv.border}`,
-    background: active ? tv.primary : tv.cardBg,
-    color: active ? tv.text : tv.textMuted,
-    cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
+  // Filtered depenses with search
+  const searchedExpenses = filteredExpenses.filter(e => {
+    const matchSearch = !depensesSearch || (e.label || '').toLowerCase().includes(depensesSearch.toLowerCase()) || (e.notes || '').toLowerCase().includes(depensesSearch.toLowerCase())
+    const matchFilter = depensesFilter === 'all' || e.category === depensesFilter
+    return matchSearch && matchFilter
   })
+
+  // TVA deductible from expenses
+  const tvaDeductible = filteredExpenses.reduce((s, e) => {
+    const amount = parseFloat(String(e.amount || 0))
+    return s + (amount - amount / 1.2)
+  }, 0)
+  const tvaCreditDebit = tvaCollectee - tvaDeductible
 
   return (
-    <div className={isV5 ? 'v5-fade' : ''}>
-      {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
+    <div>
+      {/* ═══ Page Header ═══ */}
+      <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          {isV5
-            ? <><h1>{isPt ? 'Contabilidade & Fiscalidade' : 'Comptabilite & Fiscalite'}</h1><p>{isPt ? 'Gestao contabilistica e agente IA Lea' : 'Gestion comptable et agent IA Lea'}</p></>
-            : <><h1 className="v22-page-title">{isPt ? '🧮 Contabilidade & Fiscalidade' : '🧮 Comptabilité & Fiscalité'}</h1><p className="v22-page-sub">{isPt ? 'Gestão contabilística e agente IA Léa' : 'Gestion comptable et agent IA Léa'}</p></>
-          }
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
-            className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '5px 10px', fontSize: 12, fontWeight: 600 }}>
-            {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <div style={isV5 ? { display: 'flex', gap: 4 } : { display: 'flex', background: tv.bg, borderRadius: 6, overflow: 'hidden', border: `1px solid ${tv.border}` }}>
-            {(['mois', 'trimestre', 'annee'] as const).map(p => (
-              <button key={p} onClick={() => setSelectedPeriod(p)}
-                className={isV5 ? `v5-btn v5-btn-sm${selectedPeriod === p ? ' v5-btn-p' : ''}` : ''}
-                style={pillStyle(selectedPeriod === p)}>
-                {isPt
-                  ? (p === 'mois' ? 'Mes' : p === 'trimestre' ? 'Trimestre' : 'Ano')
-                  : (p === 'mois' ? 'Mois' : p === 'trimestre' ? 'Trimestre' : 'Annee')}
-              </button>
-            ))}
-          </div>
+          <h1>{isPt ? 'Contabilidade & Fiscalidade' : 'Comptabilit\u00e9 & Fiscalit\u00e9'}</h1>
+          <p>{isPt ? 'Gest\u00e3o contabil\u00edstica e agente IA L\u00e9a' : 'Gestion comptable et agent IA L\u00e9a'}</p>
         </div>
       </div>
 
-      <div style={{ padding: '20px 24px' }}>
-
-        {/* Period selector */}
-        {selectedPeriod === 'mois' && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
-            {MONTH_NAMES.map((m, i) => (
-              <button key={i} onClick={() => setSelectedMonthC(i)}
-                className={isV5 ? `v5-btn v5-btn-sm${selectedMonth === i ? ' v5-btn-p' : ''}` : ''}
-                style={pillStyle(selectedMonth === i)}>
-                {m}
-              </button>
-            ))}
+      {/* ═══ Period Controls ═══ */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.65rem', marginBottom: '.85rem' }}>
+        <div className="cpta-period-bar" style={{ margin: 0 }}>
+          <div className="cpta-yr">
+            <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}>
+              {[currentYear - 1, currentYear, currentYear + 1].map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 10, color: '#CCC' }}>{'\u25BE'}</span>
           </div>
-        )}
-        {selectedPeriod === 'trimestre' && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-            {[0, 1, 2, 3].map(q => (
-              <button key={q} onClick={() => setSelectedMonthC(q * 3)}
-                className={isV5 ? `v5-btn v5-btn-sm${getQuarter() === q ? ' v5-btn-p' : ''}` : ''}
-                style={isV5 ? { flex: 1 } : { ...pillStyle(getQuarter() === q), flex: 1 }}>
-                {quarterLabels[q]}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Sub-tabs */}
-        <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: 20 } : { display: 'flex', gap: 0, marginBottom: 20, borderBottom: `1px solid ${tv.border}` }}>
-          {(isPt ? ([
-            { key: 'dashboard' as const, label: 'Painel' },
-            { key: 'revenus' as const, label: 'Receitas' },
-            { key: 'depenses' as const, label: 'Despesas' },
-            { key: 'declaration' as const, label: 'Declaracoes' },
-            { key: 'assistant' as const, label: 'Assistente IA' },
-          ]) : ([
-            { key: 'dashboard' as const, label: 'Tableau de bord' },
-            { key: 'revenus' as const, label: 'Revenus' },
-            { key: 'depenses' as const, label: 'Depenses' },
-            { key: 'declaration' as const, label: 'Declaration' },
-            { key: 'assistant' as const, label: 'Assistant IA' },
-          ])).map(t => (
-            <button key={t.key} onClick={() => setActiveComptaTab(t.key)}
-              className={isV5 ? `v5-tab-b${activeComptaTab === t.key ? ' active' : ''}` : ''}
-              style={tabStyle(activeComptaTab === t.key)}>
-              {t.label}
+        </div>
+        <div style={{ display: 'flex', gap: '.3rem' }}>
+          {(['mois', 'trimestre', 'annee'] as const).map(p => (
+            <button
+              key={p}
+              className={`cpta-view-btn${selectedPeriod === p ? ' active' : ''}`}
+              onClick={() => setSelectedPeriod(p)}
+            >
+              {isPt
+                ? (p === 'mois' ? 'M\u00eas' : p === 'trimestre' ? 'Trimestre' : 'Ano')
+                : (p === 'mois' ? 'Mois' : p === 'trimestre' ? 'Trimestre' : 'Ann\u00e9e')}
             </button>
           ))}
         </div>
+      </div>
 
-        {/* ── DASHBOARD TAB ── */}
-        {activeComptaTab === 'dashboard' && (
-          <div>
-            {/* KPI Cards */}
-            <div className={isV5 ? 'v5-kpi-g' : 'v22-stats'} style={{ marginBottom: 24 }}>
-              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: `3px solid ${tv.green}` }}>
-                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Faturacao c/IVA' : 'Chiffre d\'affaires TTC'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#2E7D32' : tv.green, fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffaires)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{completedFiltered.length} {isPt ? 'intervencao(oes)' : 'intervention(s)'}</div>
+      {/* ═══ Month Bar ═══ */}
+      {selectedPeriod === 'mois' && (
+        <div className="cpta-month-bar">
+          {MONTH_NAMES.map((m, i) => (
+            <button
+              key={i}
+              className={`cpta-month${selectedMonth === i ? ' active' : ''}`}
+              onClick={() => setSelectedMonthC(i)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
+      {selectedPeriod === 'trimestre' && (
+        <div className="cpta-month-bar">
+          {[0, 1, 2, 3].map(q => (
+            <button
+              key={q}
+              className={`cpta-month${getQuarter() === q ? ' active' : ''}`}
+              onClick={() => setSelectedMonthC(q * 3)}
+              style={{ flex: 1 }}
+            >
+              {quarterLabels[q]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ═══ Tabs Bar ═══ */}
+      <div className="cpta-tabs">
+        {([
+          { key: 'dashboard' as const, label: isPt ? 'Painel' : 'Tableau de bord' },
+          { key: 'revenus' as const, label: isPt ? 'Receitas' : 'Revenus' },
+          { key: 'depenses' as const, label: isPt ? 'Despesas' : 'D\u00e9penses' },
+          { key: 'declaration' as const, label: isPt ? 'Declara\u00e7\u00e3o' : 'D\u00e9claration' },
+          { key: 'assistant' as const, label: isPt ? 'Assistente IA' : 'Assistant IA' },
+        ]).map(t => (
+          <button
+            key={t.key}
+            className={`cpta-tab${activeComptaTab === t.key ? ' active' : ''}`}
+            onClick={() => setActiveComptaTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+           TAB 1: TABLEAU DE BORD
+         ══════════════════════════════════════════════════════════════ */}
+      {activeComptaTab === 'dashboard' && (
+        <div>
+          {/* KPI Grid */}
+          <div className="cpta-kpi-g">
+            <div className="cpta-kpi">
+              <div className="cpta-kpi-lbl">{isPt ? 'Fatura\u00e7\u00e3o c/IVA' : "Chiffre d'affaires TTC"}</div>
+              <div className="cpta-kpi-val green">{formatEur(chiffreAffaires)}</div>
+              <div className="cpta-kpi-sub">{completedFiltered.length} {isPt ? 'interven\u00e7\u00e3o(\u00f5es)' : 'intervention(s)'}</div>
+            </div>
+            <div className="cpta-kpi">
+              <div className="cpta-kpi-lbl">{isPt ? 'Fatura\u00e7\u00e3o s/IVA' : 'CA Hors Taxes'}</div>
+              <div className="cpta-kpi-val orange">{formatEur(chiffreAffairesHT)}</div>
+              <div className="cpta-kpi-sub">{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
+            </div>
+            <div className="cpta-kpi">
+              <div className="cpta-kpi-lbl">{isPt ? 'Despesas dedut\u00edveis' : 'Charges d\u00e9ductibles'}</div>
+              <div className="cpta-kpi-val red">{formatEur(totalExpenses)}</div>
+              <div className="cpta-kpi-sub">{filteredExpenses.length} {isPt ? 'despesa(s)' : 'd\u00e9pense(s)'}</div>
+            </div>
+            <div className="cpta-kpi">
+              <div className="cpta-kpi-lbl">{isPt ? 'Resultado l\u00edquido' : 'R\u00e9sultat net'}</div>
+              <div className={`cpta-kpi-val ${resultatNet >= 0 ? 'green' : 'red'}`}>{formatEur(resultatNet)}</div>
+              <div className="cpta-kpi-sub">{isPt ? 'antes de impostos' : 'avant imp\u00f4ts'}</div>
+            </div>
+          </div>
+
+          {/* TVA Banner */}
+          <div className="cpta-tva-banner">
+            <div className="cpta-tva-top">
+              <div className="cpta-tva-left">
+                <span style={{ fontSize: 14 }}>{'\uD83D\uDCCA'}</span>
+                <span className="cpta-tva-title">{isPt ? tvaStatus.title.pt : tvaStatus.title.fr}</span>
+                <span className="cpta-tva-badge">{isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}</span>
               </div>
-              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid #3b82f6' }}>
-                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Faturacao s/IVA' : 'CA Hors Taxes'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: '#3b82f6', fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffairesHT)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
+              <span className="cpta-tva-link" onClick={() => setActiveComptaTab('declaration')}>
+                {isPt ? 'Ver detalhes \u2192' : 'Voir d\u00e9tails \u2192'}
+              </span>
+            </div>
+            <div className="cpta-tva-desc">{isPt ? tvaStatus.message.pt : tvaStatus.message.fr}</div>
+            <div className="cpta-tva-prog">
+              <span style={{ fontSize: 10, color: '#999' }}>0</span>
+              <div className="cpta-tva-prog-bg">
+                <div className="cpta-tva-prog-fill" style={{ width: `${Math.min(tvaStatus.percent, 100)}%` }} />
               </div>
-              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: `3px solid ${tv.red}` }}>
-                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Despesas dedutiveis' : 'Charges deductibles'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#C62828' : tv.red, fontSize: isV5 ? undefined : 22 }}>{formatEur(totalExpenses)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{filteredExpenses.length} {isPt ? 'despesa(s)' : 'depense(s)'}</div>
+              <span className="cpta-tva-prog-label">{tvaStatus.percent}% {isPt ? 'do limite' : 'du seuil'}</span>
+              <span style={{ fontSize: 10, color: '#999' }}>
+                {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}
+              </span>
+            </div>
+          </div>
+
+          {/* CA Chart */}
+          <div className="cpta-chart-card">
+            <div className="cpta-chart-title">{'\uD83D\uDCC8'} {isPt ? `Evolu\u00e7\u00e3o da fatura\u00e7\u00e3o mensal ${selectedYear}` : `\u00c9volution du CA mensuel ${selectedYear}`}</div>
+            <div className="cpta-bars">
+              {monthlyRevenue.map((m, i) => (
+                <div key={i} className="cpta-bar-col">
+                  <div
+                    className={`cpta-bar ${m.ca > 0 ? 'filled' : 'empty'}`}
+                    style={{ height: `${Math.max(4, (m.ca / maxCA) * 100)}%` }}
+                    title={`${m.month}: ${formatEur(m.ca)}`}
+                    onClick={() => setSelectedMonthC(i)}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="cpta-bar-months">
+              {monthlyRevenue.map((m, i) => (
+                <button
+                  key={i}
+                  className={`cpta-bar-lbl${selectedMonth === i ? ' active' : ''}`}
+                  onClick={() => setSelectedMonthC(i)}
+                >
+                  {m.month}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom Stats */}
+          <div className="cpta-bottom-g">
+            <div className="cpta-stat-card">
+              <div className="cpta-stat-icon">{'\u2705'}</div>
+              <div className="cpta-stat-title">{isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
+              <div className="cpta-stat-val" style={{ fontSize: 14 }}>
+                {isEntreprise
+                  ? (isPt ? 'Empresa BTP (Regime real)' : 'Soci\u00e9t\u00e9 BTP (R\u00e9gime r\u00e9el)')
+                  : isPt
+                    ? (isAutoEntrepreneur ? 'Regime Simplificado' : 'Ultrapassou o limite!')
+                    : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'D\u00e9passement plafond !')}
               </div>
-              <div className={isV5 ? `v5-kpi${resultatNet >= 0 ? ' hl' : ''}` : `v22-stat ${resultatNet >= 0 ? 'v22-stat-yellow' : ''}`} style={!isV5 && resultatNet < 0 ? { borderLeft: `3px solid ${tv.red}` } : undefined}>
-                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Resultado liquido' : 'Resultat net'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: resultatNet >= 0 ? (isV5 ? '#1a1a1a' : tv.text) : (isV5 ? '#C62828' : tv.red), fontSize: isV5 ? undefined : 22 }}>{formatEur(resultatNet)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{isPt ? 'antes de impostos' : 'avant impots'}</div>
+              <div className="cpta-stat-sub">
+                {isEntreprise
+                  ? (isPt ? 'IS 15% \u226442 500\u20ac \u00b7 25% al\u00e9m' : 'IS 15% \u226442 500\u20ac \u00b7 25% au-del\u00e0')
+                  : isPt
+                    ? 'Regime Simplificado (Recibos Verdes)'
+                    : 'Franchise en base TVA'}
               </div>
             </div>
-
-            {/* ── TVA STATUS CARD ── */}
-            {selectedPeriod === 'annee' || selectedYear === currentYear ? (
-              <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 20 } : { marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}`, background: tvaStatus.bgColor }}>
-                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: tvaStatus.color }}>
-                          {isPt ? tvaStatus.title.pt : tvaStatus.title.fr}
-                        </span>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
-                          color: tvaStatus.color, border: `1px solid ${tvaStatus.color}`,
-                          borderRadius: 3, padding: '2px 5px',
-                        }}>
-                          {isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 11.5, color: tv.textMuted, lineHeight: 1.5, margin: 0, marginBottom: 10 }}>
-                        {isPt ? tvaStatus.message.pt : tvaStatus.message.fr}
-                      </p>
-                      {/* Barre de progression */}
-                      <div style={{ marginBottom: 4 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: tv.textMuted, marginBottom: 4 }}>
-                          <span>0</span>
-                          <span style={{ color: tvaStatus.color, fontWeight: 600 }}>
-                            {tvaStatus.percent}% {isPt ? 'do limite' : 'du seuil'}
-                          </span>
-                          <span style={{ fontWeight: 600 }}>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}</span>
-                        </div>
-                        <div style={{ height: 6, borderRadius: 3, background: tv.border, overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%', borderRadius: 3,
-                            background: tvaStatus.color,
-                            width: `${Math.min(tvaStatus.percent, 100)}%`,
-                            transition: 'width 0.5s ease',
-                          }} />
-                        </div>
-                        {tvaStatus.seuilMajore && (
-                          <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 4 }}>
-                            {isPt ? 'Limite majorado' : 'Seuil majoré'} : {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuilMajore)}
-                            {' · '}{isPt ? 'Taxa aplicável' : 'Taux applicable'} : {(tvaStatus.taux * 100).toFixed(0)} %
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      <button
-                        onClick={() => setActiveComptaTab('declaration')}
-                        className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn'}
-                        style={isV5 ? { color: tvaStatus.color } : { fontSize: 11, padding: '5px 10px', border: `1px solid ${tvaStatus.color}`, color: tvaStatus.color, background: 'transparent' }}
-                      >
-                        {isPt ? 'Ver detalhes →' : 'Voir détails →'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Revenue chart */}
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 20 }}>
-              <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? `📈 Evolução da faturação mensal ${selectedYear}` : `📈 Évolution du CA mensuel ${selectedYear}`}</div></div>
-              <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 140 }}>
-                  {monthlyRevenue.map((m, i) => (
-                    <div key={i} className={isV5 ? 'v5-ch-bar' : ''} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <div className={isV5 ? 'v5-ch-bar-v' : ''} style={isV5 ? {} : { fontSize: 9, color: tv.textMuted, fontWeight: 600 }}>
-                        {m.ca > 0 ? formatEur(m.ca).replace('€', '') + '€' : ''}
-                      </div>
-                      <div
-                        className={isV5 ? 'v5-ch-bar-i' : ''}
-                        style={{
-                          width: '100%', borderRadius: '4px 4px 0 0', transition: 'all 0.2s',
-                          height: `${Math.max(4, (m.ca / maxCA) * 100)}%`,
-                          background: (i === currentMonth && selectedYear === currentYear) ? (isV5 ? 'var(--v5-accent, #FFC107)' : tv.primary) : '#dbeafe',
-                        }}
-                      />
-                      <div className={isV5 ? 'v5-ch-bar-lb' : ''} style={isV5 ? {} : { fontSize: 9, color: tv.textMuted }}>{m.month}</div>
-                    </div>
-                  ))}
-                </div>
+            <div className="cpta-stat-card">
+              <div className="cpta-stat-icon">{'\uD83E\uDDFE'}</div>
+              <div className="cpta-stat-title">{isEntreprise ? (isPt ? 'IS estimado' : 'IS estim\u00e9') : (isPt ? 'Contrib. estimadas' : 'Cotisations estim\u00e9es')}</div>
+              <div className="cpta-stat-val" style={{ color: '#43A047' }}>{formatEur(isEntreprise ? impotRevenu : cotisationsSociales)}</div>
+              <div className="cpta-stat-sub">
+                {isEntreprise
+                  ? (isPt ? 'IS estimado sobre resultado' : 'IS estim\u00e9 sur r\u00e9sultat')
+                  : isPt ? '21,4% SS sobre rend. relevante' : '21,7% du CA HT annuel'}
               </div>
             </div>
-
-            {/* Health indicator */}
-            <div className={isV5 ? 'v5-kpi-g' : ''} style={isV5 ? {} : { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: tv.greenLight, borderColor: tv.green, padding: 16 }}>
-                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: tv.green, marginBottom: 6 }}>✅ {isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: tv.green }}>
-                  {isEntreprise
-                    ? (isPt ? 'Empresa (Regime Real)' : 'Société BTP (Régime réel)')
-                    : isPt
-                      ? (isAutoEntrepreneur ? 'Regime Simplificado (Recibos Verdes)' : '⚠️ Ultrapassou o limite!')
-                      : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
-                </div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.green, marginTop: 4 }}>
-                  {isEntreprise
-                    ? (isPt ? 'IS 15% ≤42 500€ · 25% além' : 'IS 15% ≤42 500€ · 25% au-delà')
-                    : <>{isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
-                  {' / '}{isPt ? '200 000 €' : '77 700 €'}</>}
-                </div>
+            <div className="cpta-stat-card">
+              <div className="cpta-stat-icon">{'\uD83D\uDCC5'}</div>
+              <div className="cpta-stat-title">{isPt ? 'Pr\u00f3xima declara\u00e7\u00e3o' : 'Prochaine d\u00e9claration'}</div>
+              <div className="cpta-stat-val" style={{ fontSize: 15 }}>
+                {isPt ? (() => {
+                  const q = Math.floor(currentMonth / 3)
+                  const dates = ['15 Mai (IVA T1)', '15 Ago (IVA T2)', '15 Nov (IVA T3)', '15 Fev (IVA T4)']
+                  return dates[q] || 'Ver calend\u00e1rio'
+                })() : (() => {
+                  const q = Math.floor(currentMonth / 3)
+                  const dates = ['30 Avril', '31 Juillet', '31 Oct', '31 Jan']
+                  return dates[q] || 'Voir calendrier'
+                })()}
               </div>
-              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: '#EFF6FF', borderColor: '#3b82f6', padding: 16 }}>
-                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>
-                  {isEntreprise
-                    ? (isPt ? '💳 IS estimado' : '💳 IS estimé')
-                    : (isPt ? '💳 Contrib. estimadas' : '💳 Cotisations estimées')}
-                </div>
-                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? {} : { fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{formatEur(isEntreprise ? impotRevenu : cotisationsSociales)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: '#2563eb', marginTop: 4 }}>
-                  {isEntreprise
-                    ? (isPt ? 'IS estimado sobre resultado' : 'IS estimé sur résultat')
-                    : (isPt ? '21,4% SS sobre rend. relevante (70%)' : '21,7% du CA HT annuel')}
-                </div>
-              </div>
-              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: tv.primaryLight, borderColor: tv.primary, padding: 16 }}>
-                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: tv.primary, marginBottom: 6 }}>📋 {isPt ? 'Próxima declaração' : 'Prochaine déclaration'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-                  {isPt ? (() => {
-                    const q = Math.floor(currentMonth / 3)
-                    const dates = ['15 Mai (IVA T1)', '15 Ago (IVA T2)', '15 Nov (IVA T3)', '15 Fev (IVA T4)']
-                    return dates[q] || 'Ver calendário'
-                  })() : (() => {
-                    const q = Math.floor(currentMonth / 3)
-                    const dates = ['30 Avril', '31 Juillet', '31 Oct', '31 Jan']
-                    return dates[q] || 'Voir calendrier'
-                  })()}
-                </div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.primary, marginTop: 4 }}>
-                  {isEntreprise
-                    ? (isPt ? 'Declaração IVA + IRC trimestral' : 'Déclaration TVA + acompte IS')
-                    : (isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle')}
-                </div>
+              <div className="cpta-stat-sub">
+                {isEntreprise
+                  ? (isPt ? 'Declara\u00e7\u00e3o IVA + IRC trimestral' : 'D\u00e9claration TVA + acompte IS')
+                  : (isPt ? 'Declara\u00e7\u00e3o Peri\u00f3dica IVA' : 'D\u00e9claration URSSAF trimestrielle')}
               </div>
             </div>
           </div>
-        )}
 
-        {/* ── REVENUS TAB ── */}
-        {activeComptaTab === 'revenus' && (
-          <div>
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
-              <div className={isV5 ? '' : 'v22-card-head'}>
-                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
-                  {isPt ? '💰 Receitas — ' : '💰 Revenus — '}{selectedPeriod === 'mois' ? MONTH_FULL[selectedMonth] : selectedPeriod === 'trimestre' ? quarterLabels[getQuarter()] : selectedYear}
-                </div>
+          {/* Journal de ventes */}
+          <div className="v5-card" style={{ marginBottom: '1rem' }}>
+            <div className="v5-st">
+              {isPt
+                ? `Jornal de vendas \u2014 ${MONTH_FULL[selectedMonth]} ${selectedYear}`
+                : `Journal de ventes \u2014 ${MONTH_FULL[selectedMonth]} ${selectedYear}`}
+            </div>
+            {completedFiltered.length === 0 ? (
+              <div style={{ padding: 30, textAlign: 'center', color: '#999', fontSize: 12 }}>
+                {isPt ? 'Nenhuma interven\u00e7\u00e3o conclu\u00edda neste per\u00edodo' : 'Aucune intervention termin\u00e9e sur cette p\u00e9riode'}
               </div>
-              <div style={{ padding: '12px 16px', display: 'flex', gap: 20 }}>
-                <div><span style={{ fontSize: 20, fontWeight: 800, color: tv.green }}>{formatEur(chiffreAffaires)}</span><span style={{ fontSize: 11, color: tv.textMuted, marginLeft: 4 }}>{isPt ? 'c/IVA' : 'TTC'}</span></div>
-                <div><span style={{ fontSize: 20, fontWeight: 800, color: '#3b82f6' }}>{formatEur(chiffreAffairesHT)}</span><span style={{ fontSize: 11, color: tv.textMuted, marginLeft: 4 }}>{isPt ? 's/IVA' : 'HT'}</span></div>
-                <div><span style={{ fontSize: 20, fontWeight: 800, color: tv.textMuted }}>{formatEur(tvaCollectee)}</span><span style={{ fontSize: 11, color: tv.textMuted, marginLeft: 4 }}>{isPt ? 'IVA 23%' : 'TVA 20%'}</span></div>
-              </div>
-              {completedFiltered.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: tv.textMuted }}>{isPt ? 'Nenhuma intervenção concluída neste período' : 'Aucune intervention terminée sur cette période'}</div>
-              ) : (
-                <table className={isV5 ? 'v5-dt' : ''} style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="v5-dt">
                   <thead>
-                    <tr style={{ background: tv.bg }}>
-                      <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>Data</th>
-                      <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 'Cliente / Serviço' : 'Client / Service'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 's/IVA' : 'HT'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 'IVA' : 'TVA'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 'c/IVA' : 'TTC'}</th>
+                    <tr>
+                      <th>Date</th>
+                      <th>{isPt ? 'Pe\u00e7a' : 'Pi\u00e8ce'}</th>
+                      <th>{isPt ? 'Descri\u00e7\u00e3o' : 'Libell\u00e9'}</th>
+                      <th>{isPt ? 'D\u00e9bito' : 'D\u00e9bit'}</th>
+                      <th>{isPt ? 'Cr\u00e9dito' : 'Cr\u00e9dit'}</th>
+                      <th>{isPt ? 'Estado' : 'Statut'}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {completedFiltered.sort((a, b) => (b.booking_date ?? '').localeCompare(a.booking_date ?? '')).map(b => {
-                      const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
-                      const ht = b.price_ht || (b.price_ttc || 0) / 1.2
-                      const tva = (b.price_ttc || 0) - ht
+                    {completedFiltered.sort((a, b) => (b.booking_date ?? '').localeCompare(a.booking_date ?? '')).map((b, idx) => {
+                      const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || (isPt ? 'Cliente' : 'Client')
+                      const serviceName = b.services?.name || (isPt ? 'Interven\u00e7\u00e3o' : 'Intervention')
                       return (
-                        <tr key={b.id} style={{ borderTop: `1px solid ${tv.border}` }}>
-                          <td style={{ padding: '10px 16px', color: tv.textMuted }}>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale) : ''}</td>
-                          <td style={{ padding: '10px 16px' }}>
-                            <div className="v22-client-name">{clientName}</div>
-                            <div style={{ fontSize: 11, color: tv.textMuted }}>{b.services?.name}</div>
-                          </td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600 }}>{formatEur(ht)}</td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', color: tv.textMuted }}>{formatEur(tva)}</td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: tv.green }}>{formatEur(b.price_ttc || 0)}</td>
+                        <tr key={b.id || idx}>
+                          <td>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short' }) : '\u2014'}</td>
+                          <td style={{ fontWeight: 600 }}>FAC-{String(idx + 1).padStart(3, '0')}</td>
+                          <td>{clientName} \u2014 {serviceName}</td>
+                          <td>\u2014</td>
+                          <td style={{ fontWeight: 600, color: '#2E7D32' }}>{formatEur(b.price_ttc || 0)}</td>
+                          <td><span className="badge badge-green">{isPt ? 'Recebido' : 'Encaiss\u00e9'}</span></td>
                         </tr>
                       )
                     })}
                   </tbody>
-                  <tfoot>
-                    <tr style={{ background: tv.bg, borderTop: `2px solid ${tv.borderDark}` }}>
-                      <td colSpan={2} style={{ padding: '10px 16px', fontWeight: 700 }}>{isPt ? 'TOTAL' : 'TOTAL'}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700 }}>{formatEur(chiffreAffairesHT)}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: tv.textMuted }}>{formatEur(tvaCollectee)}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: tv.green }}>{formatEur(chiffreAffaires)}</td>
-                    </tr>
-                  </tfoot>
                 </table>
-              )}
-            </div>
-
-            {/* Revenue by service */}
-            {services.length > 0 && (
-              <div className={isV5 ? 'v5-card' : 'v22-card'}>
-                <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? `🔧 Faturação por serviço (${selectedYear})` : `🔧 CA par motif (${selectedYear})`}</div></div>
-                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {services.map(s => {
-                    const sBookings = bookings.filter(b => b.service_id === s.id && b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear)
-                    const sCA = sBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0)
-                    const pct = maxCA > 0 ? (sCA / (chiffreAffaires || 1)) * 100 : 0
-                    return (
-                      <div key={s.id}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 500 }}>{s.name}</span>
-                          <span style={{ fontWeight: 700, color: tv.green }}>{formatEur(sCA)} ({sBookings.length} RDV)</span>
-                        </div>
-                        <div className="v22-prog-bar">
-                          <div className="v22-prog-fill" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── DÉPENSES TAB ── */}
-        {activeComptaTab === 'depenses' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <div className={isV5 ? 'v5-st' : ''} style={isV5 ? {} : { fontWeight: 700, fontSize: 15 }}>{isPt ? '🧾 Despesas dedutíveis' : '🧾 Charges déductibles'}</div>
-                <div style={{ fontSize: 13, color: tv.textMuted }}>{isPt ? 'Total' : 'Total'} : <span style={{ fontWeight: 700, color: tv.red }}>{formatEur(totalExpenses)}</span></div>
+      {/* ══════════════════════════════════════════════════════════════
+           TAB 2: REVENUS
+         ══════════════════════════════════════════════════════════════ */}
+      {activeComptaTab === 'revenus' && (
+        <div>
+          {/* Search bar */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="v5-fi"
+              placeholder={isPt ? 'Pesquisar uma fatura, um cliente\u2026' : 'Rechercher une facture, un client\u2026'}
+              value={revenusSearch}
+              onChange={e => setRevenusSearch(e.target.value)}
+              style={{ flex: 1, minWidth: 180 }}
+            />
+            <select
+              className="v5-filter-sel"
+              value={revenusFilter}
+              onChange={e => setRevenusFilter(e.target.value)}
+            >
+              <option value="all">{isPt ? 'Todos os estados' : 'Tous statuts'}</option>
+              <option value="completed">{isPt ? 'Recebido' : 'Encaiss\u00e9'}</option>
+            </select>
+            <button className="v5-btn v5-btn-p">+ {isPt ? 'Nova fatura' : 'Nouvelle facture'}</button>
+          </div>
+
+          {/* Revenue table */}
+          <div className="v5-card" style={{ overflow: 'hidden', padding: 0 }}>
+            {filteredRevenus.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 12 }}>
+                {isPt ? 'Nenhuma receita encontrada' : 'Aucun revenu trouv\u00e9'}
               </div>
-              <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
-                {isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="v5-dt">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>{isPt ? 'Servi\u00e7o' : 'Service'}</th>
+                      <th>Client</th>
+                      <th>{isPt ? 's/IVA' : 'HT'}</th>
+                      <th>{isPt ? 'c/IVA' : 'TTC'}</th>
+                      <th>{isPt ? 'Estado' : 'Statut'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRevenus.sort((a, b) => (b.booking_date ?? '').localeCompare(a.booking_date ?? '')).map((b, idx) => {
+                      const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || (isPt ? 'Cliente' : 'Client')
+                      const serviceName = b.services?.name || (isPt ? 'Interven\u00e7\u00e3o' : 'Intervention')
+                      const ht = b.price_ht || (b.price_ttc || 0) / 1.2
+                      return (
+                        <tr key={b.id || idx}>
+                          <td>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short' }) : '\u2014'}</td>
+                          <td style={{ fontWeight: 600 }}>{serviceName}</td>
+                          <td>{clientName}</td>
+                          <td>{formatEur(ht)}</td>
+                          <td style={{ fontWeight: 600 }}>{formatEur(b.price_ttc || 0)}</td>
+                          <td><span className="badge badge-green">{isPt ? 'Recebido' : 'Encaiss\u00e9'}</span></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           TAB 3: DEPENSES
+         ══════════════════════════════════════════════════════════════ */}
+      {activeComptaTab === 'depenses' && (
+        <div>
+          {/* Search bar */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="v5-fi"
+              placeholder={isPt ? 'Pesquisar uma despesa, um fornecedor\u2026' : 'Rechercher une charge, un fournisseur\u2026'}
+              value={depensesSearch}
+              onChange={e => setDepensesSearch(e.target.value)}
+              style={{ flex: 1, minWidth: 180 }}
+            />
+            <select
+              className="v5-filter-sel"
+              value={depensesFilter}
+              onChange={e => setDepensesFilter(e.target.value)}
+            >
+              <option value="all">{isPt ? 'Todas as categorias' : 'Toutes cat\u00e9gories'}</option>
+              {EXPENSE_CATEGORIES.map(c => (
+                <option key={c.key} value={c.key}>{c.icon} {c.label}</option>
+              ))}
+            </select>
+            <button className="v5-btn v5-btn-p" onClick={() => setShowAddExpense(true)}>
+              + {isPt ? 'Adicionar despesa' : 'Ajouter une charge'}
+            </button>
+          </div>
+
+          {/* Add expense form */}
+          {showAddExpense && (
+            <div className="v5-card" style={{ marginBottom: '1rem', border: '2px solid #FFC107' }}>
+              <div className="v5-st">{isPt ? 'Nova despesa dedut\u00edvel' : 'Nouvelle charge d\u00e9ductible'}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Descri\u00e7\u00e3o *' : 'Libell\u00e9 *'}</label>
+                  <input value={expenseForm.label} onChange={e => setExpenseForm(p => ({ ...p, label: e.target.value }))}
+                    placeholder={isPt ? 'Ex: Compra de parafusos e buchas' : 'Ex: Achat vis et boulons'} className="v5-fi" />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Montante c/IVA (\u20ac) *' : 'Montant TTC (\u20ac) *'}</label>
+                  <input type="number" value={expenseForm.amount} onChange={e => setExpenseForm(p => ({ ...p, amount: e.target.value }))}
+                    placeholder="0.00" className="v5-fi" />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Categoria' : 'Cat\u00e9gorie'}</label>
+                  <select value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value }))} className="v5-fi">
+                    {EXPENSE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}
+                  </select>
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">Date</label>
+                  <input type="date" value={expenseForm.date} onChange={e => setExpenseForm(p => ({ ...p, date: e.target.value }))} className="v5-fi" />
+                </div>
+                <div className="v5-fg" style={{ gridColumn: 'span 2' }}>
+                  <label className="v5-fl">{isPt ? 'Notas (opcional)' : 'Notes (optionnel)'}</label>
+                  <input value={expenseForm.notes} onChange={e => setExpenseForm(p => ({ ...p, notes: e.target.value }))}
+                    placeholder={isPt ? 'N\u00famero de fatura, fornecedor...' : 'Num\u00e9ro de facture, fournisseur...'} className="v5-fi" />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowAddExpense(false)} className="v5-btn" style={{ flex: 1 }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+                <button onClick={saveExpense} disabled={!expenseForm.label || !expenseForm.amount}
+                  className="v5-btn v5-btn-p" style={{ flex: 1, opacity: (!expenseForm.label || !expenseForm.amount) ? 0.5 : 1 }}>
+                  {isPt ? 'Guardar' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Expense KPI by top 4 categories */}
+          {expenseByCategory.length > 0 && (
+            <div className="cpta-kpi-g" style={{ marginBottom: '1rem' }}>
+              {expenseByCategory.slice(0, 4).map(c => {
+                const colorMap: Record<string, string> = {
+                  materiel: '#1565C0', mainoeuvre: '#7B1FA2', outillage: '#EF6C00',
+                  transport: '#00838F', assurance: '#2E7D32', formation: '#4527A0',
+                  logiciel: '#1565C0', telephone: '#00695C', comptable: '#5D4037',
+                  publicite: '#AD1457', bureau: '#37474F', autre: '#555',
+                }
+                const count = expenses.filter(e => e.category === c.key && e.date && new Date(e.date).getFullYear() === selectedYear).length
+                return (
+                  <div key={c.key} className="cpta-kpi">
+                    <div className="cpta-kpi-lbl">{c.label}</div>
+                    <div className="cpta-kpi-val" style={{ color: colorMap[c.key] || '#555', fontSize: 20 }}>{formatEur(c.total)}</div>
+                    <div className="cpta-kpi-sub">{count} {isPt ? 'compra(s)' : 'achat(s)'}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Expenses table */}
+          <div className="v5-card" style={{ overflow: 'hidden', padding: 0 }}>
+            {searchedExpenses.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>{'\uD83E\uDDFE'}</div>
+                <div style={{ fontSize: 12 }}>{isPt ? 'Nenhuma despesa registada neste per\u00edodo' : 'Aucune charge enregistr\u00e9e sur cette p\u00e9riode'}</div>
+                <button onClick={() => setShowAddExpense(true)} className="v5-btn v5-btn-sm" style={{ marginTop: 10 }}>
+                  + {isPt ? 'Adicionar despesa' : 'Ajouter une charge'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="v5-dt">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>{isPt ? 'Descri\u00e7\u00e3o' : 'Libell\u00e9'}</th>
+                      <th>{isPt ? 'Categoria' : 'Cat\u00e9gorie'}</th>
+                      <th>{isPt ? 'Montante' : 'Montant'}</th>
+                      <th>Notes</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchedExpenses.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(e => {
+                      const cat = EXPENSE_CATEGORIES.find(c => c.key === e.category)
+                      const badgeColor: Record<string, string> = {
+                        materiel: 'badge-blue', mainoeuvre: 'badge-purple', outillage: 'badge-orange',
+                        transport: 'badge-green', assurance: 'badge-green', formation: 'badge-blue',
+                        logiciel: 'badge-blue', telephone: 'badge-gray', comptable: 'badge-gray',
+                        publicite: 'badge-yellow', bureau: 'badge-gray', autre: 'badge-gray',
+                      }
+                      return (
+                        <tr key={e.id}>
+                          <td>{e.date ? new Date(e.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short' }) : '\u2014'}</td>
+                          <td style={{ fontWeight: 600 }}>{e.label}</td>
+                          <td><span className={`badge ${badgeColor[e.category || 'autre'] || 'badge-gray'}`}>{cat?.label || e.category}</span></td>
+                          <td style={{ fontWeight: 600 }}>{formatEur(parseFloat(String(e.amount ?? 0)))}</td>
+                          <td style={{ color: '#888', fontSize: 11 }}>{e.notes || '\u2014'}</td>
+                          <td>
+                            <button
+                              onClick={() => deleteExpense(e.id ?? '')}
+                              className="v5-btn v5-btn-d v5-btn-sm"
+                              title={isPt ? 'Eliminar' : 'Supprimer'}
+                            >
+                              {'\uD83D\uDDD1'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           TAB 4: DECLARATION
+         ══════════════════════════════════════════════════════════════ */}
+      {activeComptaTab === 'declaration' && (
+        <div>
+          {/* TVA + Calendar grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '.75rem', marginBottom: '1rem' }}>
+            {/* TVA Declaration Card */}
+            <div className="v5-card">
+              <div className="v5-st">
+                {isPt
+                  ? `Declara\u00e7\u00e3o IVA \u2014 ${MONTH_FULL[selectedMonth]} ${selectedYear}`
+                  : `D\u00e9claration TVA \u2014 CA3 ${MONTH_FULL[selectedMonth]} ${selectedYear}`}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.75rem' }}>
+                <div style={{ background: '#F5F5F5', borderRadius: 5, padding: '.75rem' }}>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 3, textTransform: 'uppercase', fontWeight: 600 }}>
+                    {isPt ? 'IVA cobrado' : 'TVA collect\u00e9e'}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>{formatEur(tvaCollectee)}</div>
+                </div>
+                <div style={{ background: '#F5F5F5', borderRadius: 5, padding: '.75rem' }}>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 3, textTransform: 'uppercase', fontWeight: 600 }}>
+                    {isPt ? 'IVA dedut\u00edvel' : 'TVA d\u00e9ductible'}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>{formatEur(tvaDeductible)}</div>
+                </div>
+              </div>
+              <div style={{ background: tvaCreditDebit >= 0 ? '#FFF8E1' : '#E8F5E9', border: `1px solid ${tvaCreditDebit >= 0 ? '#FFE082' : '#A5D6A7'}`, borderRadius: 5, padding: '.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 10, color: tvaCreditDebit >= 0 ? '#8B7D00' : '#2E7D32', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.2px' }}>
+                    {tvaCreditDebit >= 0
+                      ? (isPt ? 'IVA a pagar' : 'TVA \u00e0 payer')
+                      : (isPt ? 'Cr\u00e9dito de IVA' : 'Cr\u00e9dit de TVA')}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                    {tvaCreditDebit >= 0
+                      ? (isPt ? 'Montante a entregar ao Estado' : 'Montant \u00e0 reverser')
+                      : (isPt ? 'Montante recuper\u00e1vel na pr\u00f3xima declara\u00e7\u00e3o' : 'Montant r\u00e9cup\u00e9rable sur prochaine d\u00e9claration')}
+                  </div>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: tvaCreditDebit >= 0 ? '#F57C00' : '#2E7D32' }}>
+                  {tvaCreditDebit < 0 ? '\u2212' : ''}{formatEur(Math.abs(tvaCreditDebit))}
+                </div>
+              </div>
+              <div style={{ marginTop: '.75rem', display: 'flex', gap: '.4rem' }}>
+                <button className="v5-btn v5-btn-p" style={{ flex: 1 }}>
+                  {'\uD83D\uDCE4'} {isPt ? 'Submeter declara\u00e7\u00e3o' : 'D\u00e9poser CA3'}
+                </button>
+                <button className="v5-btn">
+                  {'\uD83D\uDCE5'} {isPt ? 'Descarregar PDF' : 'T\u00e9l\u00e9charger PDF'}
+                </button>
+              </div>
+            </div>
+
+            {/* Fiscal Calendar */}
+            <div className="v5-card">
+              <div className="v5-st">{isPt ? `Calend\u00e1rio fiscal ${selectedYear}` : `Calendrier fiscal ${selectedYear}`}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                {(isPt ? [
+                  { title: 'Declara\u00e7\u00e3o Peri\u00f3dica IVA', sub: 'Trimestral', badge: '15 mai', badgeClass: 'badge-yellow', highlight: true },
+                  { title: isEntreprise ? 'Acompanhamento IRC \u2014 1\u00ba pagamento' : 'SS \u2014 Contribui\u00e7\u00e3o trimestral', sub: isEntreprise ? '15% do lucro N-1' : '21,4% sobre rend. relevante', badge: '15 mar', badgeClass: 'badge-blue', highlight: false },
+                  { title: isEntreprise ? 'Modelo 22 (IRC)' : 'Modelo 3 IRS', sub: isEntreprise ? 'Dep\u00f3sito anual' : 'Entrega anual', badge: '30 abr', badgeClass: 'badge-orange', highlight: false },
+                  { title: 'Declara\u00e7\u00e3o IVA + acompanhamento', sub: '2\u00ba pagamento', badge: '31 jul', badgeClass: 'badge-gray', highlight: false },
+                ] : [
+                  { title: isEntreprise ? 'CA3 \u2014 D\u00e9claration TVA' : 'D\u00e9claration URSSAF', sub: isEntreprise ? 'Mensuelle' : 'Trimestrielle', badge: '15 mai', badgeClass: 'badge-yellow', highlight: true },
+                  { title: isEntreprise ? 'Acompte IS \u2014 1er versement' : 'CFE \u2014 Cotisation fonci\u00e8re', sub: isEntreprise ? '15% du b\u00e9n\u00e9fice N-1' : 'Avis d\'imposition', badge: '15 mars', badgeClass: 'badge-blue', highlight: false },
+                  { title: isEntreprise ? 'Liasse fiscale' : 'D\u00e9claration revenus', sub: isEntreprise ? `D\u00e9p\u00f4t 2065` : 'Mod\u00e8le 2042-C-PRO', badge: `30 avr. \u26A0\uFE0F`, badgeClass: 'badge-orange', highlight: false },
+                  { title: 'D\u00e9claration TVA + acompte IS', sub: '2e versement', badge: '31 juil.', badgeClass: 'badge-gray', highlight: false },
+                ]).map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '.5rem .65rem', borderRadius: 4,
+                    background: item.highlight ? '#FFF8E1' : '#F5F5F5',
+                    borderLeft: item.highlight ? '3px solid #FFC107' : 'none',
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600 }}>{item.title}</div>
+                      <div style={{ fontSize: 10, color: '#999' }}>{item.sub}</div>
+                    </div>
+                    <span className={`badge ${item.badgeClass}`}>{item.badge}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* IS Grid */}
+          <div className="v5-card">
+            <div className="v5-st">
+              {isEntreprise
+                ? (isPt ? `IRC \u2014 Imposto sobre as Sociedades estimado ${selectedYear}` : `IS \u2014 Imp\u00f4t sur les soci\u00e9t\u00e9s estim\u00e9 ${selectedYear}`)
+                : (isPt ? `Impostos estimados ${selectedYear}` : `Imp\u00f4t estim\u00e9 ${selectedYear}`)}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }}>
+              <div style={{ textAlign: 'center', padding: '.75rem', background: '#F5F5F5', borderRadius: 5 }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+                  {isPt ? 'Resultado fiscal' : 'R\u00e9sultat fiscal'}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: resultatNet >= 0 ? '#1a1a1a' : '#E53935' }}>
+                  {formatEur(resultatNet)}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '.75rem', background: '#F5F5F5', borderRadius: 5 }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+                  {isEntreprise
+                    ? (isPt ? 'Taxa IS aplic\u00e1vel' : 'Taux IS applicable')
+                    : (isPt ? 'Taxa aplic\u00e1vel' : 'Taux applicable')}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1565C0' }}>
+                  {isEntreprise ? '15%' : isPt ? '21,4% SS' : '21,2% URSSAF'}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '.75rem', background: '#F5F5F5', borderRadius: 5 }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+                  {isEntreprise ? (isPt ? 'IS estimado' : 'IS estim\u00e9') : (isPt ? 'Contribui\u00e7\u00f5es est.' : 'Cotisations est.')}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#43A047' }}>
+                  {formatEur(isEntreprise ? impotRevenu : cotisationsSociales)}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '.75rem', background: '#FFF8E1', borderRadius: 5, border: '1px solid #FFE082' }}>
+                <div style={{ fontSize: 10, color: '#8B7D00', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+                  {isPt ? 'Provis\u00e3o aconselhada' : 'Provision conseill\u00e9e'}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#F57C00' }}>
+                  {formatEur(Math.max(0, isEntreprise ? impotRevenu * 0.25 : cotisationsSociales / 4))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* TVA auto-activate toggle */}
+          <div className="v5-card" style={{ marginTop: '.75rem' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 2 }}>
+                  {isPt
+                    ? '\uD83D\uDD14 Ativar IVA automaticamente ao ultrapassar o limite'
+                    : '\uD83D\uDD14 Activer la TVA automatiquement d\u00e8s d\u00e9passement du seuil'}
+                </div>
+                <div style={{ fontSize: 11, color: '#888' }}>
+                  {isPt
+                    ? 'Receba alertas imediatos e acompanhe a sua obriga\u00e7\u00e3o de registo no IVA'
+                    : 'Recevez des alertes imm\u00e9diates et suivez votre obligation de passage \u00e0 la TVA'}
+                </div>
+              </div>
+              <button
+                onClick={() => toggleTvaAutoActivate(!tvaAutoActivate)}
+                disabled={tvaTogglingLoading}
+                aria-pressed={tvaAutoActivate}
+                style={{
+                  flexShrink: 0, width: 44, height: 24, borderRadius: 12,
+                  background: tvaAutoActivate ? '#FFC107' : '#E0E0E0',
+                  border: 'none', cursor: tvaTogglingLoading ? 'not-allowed' : 'pointer',
+                  position: 'relative', transition: 'background 0.2s',
+                  opacity: tvaTogglingLoading ? 0.6 : 1,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 3, borderRadius: '50%',
+                  width: 18, height: 18, background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  left: tvaAutoActivate ? 23 : 3,
+                  transition: 'left 0.2s',
+                }} />
               </button>
             </div>
-
-            {showAddExpense && (
-              <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 16 } : { borderColor: tv.primary, borderWidth: 2, marginBottom: 16 }}>
-                <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Nova despesa dedutível' : 'Nouvelle charge déductible'}</div></div>
-                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descrição *' : 'Libellé *'}</label>
-                      <input value={expenseForm.label} onChange={e => setExpenseForm(p => ({ ...p, label: e.target.value }))}
-                        placeholder={isPt ? 'Ex: Compra de parafusos e buchas' : 'Ex: Achat vis et boulons'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                    </div>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Montante c/IVA (€) *' : 'Montant TTC (€) *'}</label>
-                      <input type="number" value={expenseForm.amount} onChange={e => setExpenseForm(p => ({ ...p, amount: e.target.value }))}
-                        placeholder="0.00" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                    </div>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Categoria' : 'Catégorie'}</label>
-                      <select value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value }))}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'}>
-                        {EXPENSE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}
-                      </select>
-                    </div>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Data</label>
-                      <input type="date" value={expenseForm.date} onChange={e => setExpenseForm(p => ({ ...p, date: e.target.value }))}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                    </div>
-                    <div className={isV5 ? 'v5-fg' : ''} style={{ gridColumn: 'span 2' }}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Notas (opcional)' : 'Notes (optionnel)'}</label>
-                      <input value={expenseForm.notes} onChange={e => setExpenseForm(p => ({ ...p, notes: e.target.value }))}
-                        placeholder={isPt ? 'Número de fatura, fornecedor...' : 'Numéro de facture, fournisseur...'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={() => setShowAddExpense(false)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-                    <button onClick={saveExpense} disabled={!expenseForm.label || !expenseForm.amount}
-                      className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1, opacity: (!expenseForm.label || !expenseForm.amount) ? 0.5 : 1 }}>{isPt ? 'Guardar' : 'Enregistrer'}</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Breakdown by category */}
-            {expenseByCategory.length > 0 && (
-              <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
-                <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Distribuição por categoria' : 'Répartition par catégorie'}</div></div>
-                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {expenseByCategory.map(c => (
-                    <div key={c.key}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                        <span>{c.icon} {c.label}</span>
-                        <span style={{ fontWeight: 700, color: tv.red }}>{formatEur(c.total)}</span>
-                      </div>
-                      <div className="v22-prog-bar">
-                        <div className="v22-prog-fill" style={{ width: `${(c.total / (totalExpenses || 1)) * 100}%`, background: tv.red }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Expenses list */}
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 0, overflow: 'hidden' }}>
-              <div className={isV5 ? '' : 'v22-card-head'}>
-                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
-                  {isPt ? `Lista de despesas (${filteredExpenses.length})` : `Liste des charges (${filteredExpenses.length})`}
-                </div>
-              </div>
-              {filteredExpenses.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: tv.textMuted }}>
-                  <div style={{ fontSize: 32, marginBottom: 10 }}>🧾</div>
-                  <div>{isPt ? 'Nenhuma despesa registada neste período' : 'Aucune charge enregistrée sur cette période'}</div>
-                  <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? { marginTop: 10 } : { marginTop: 10, color: tv.primary, fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>{isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}</button>
-                </div>
-              ) : (
-                <div>
-                  {filteredExpenses.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(e => {
-                    const cat = EXPENSE_CATEGORIES.find(c => c.key === e.category)
-                    return (
-                      <div key={e.id} className="expense-row" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: `1px solid ${tv.border}` }}>
-                        <div style={{ fontSize: 20 }}>{cat?.icon || '📦'}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{e.label}</div>
-                          <div style={{ fontSize: 11, color: tv.textMuted }}>{cat?.label} · {e.date ? new Date(e.date).toLocaleDateString(dateFmtLocale) : ''}</div>
-                          {e.notes && <div style={{ fontSize: 11, color: tv.textMuted, fontStyle: 'italic' }}>{e.notes}</div>}
-                        </div>
-                        <div className="v22-amount" style={{ color: tv.red }}>{formatEur(parseFloat(String(e.amount ?? 0)))}</div>
-                        <button onClick={() => deleteExpense(e.id ?? '')}
-                          style={{ opacity: 0, color: tv.red, cursor: 'pointer', background: 'none', border: 'none', fontSize: 16, marginLeft: 6, transition: 'opacity 0.15s' }}
-                          className="del-btn">🗑</button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
           </div>
-        )}
 
-        {/* ── DÉCLARATION TAB ── */}
-        {activeComptaTab === 'declaration' && (
-          <div>
-            {/* ── BLOC TVA / IVA ─────────────────────────────────────────────── */}
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 20 } : { marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}` }}>
-              <div className={isV5 ? '' : 'v22-card-head'} style={isV5 ? { padding: '10px 14px', borderBottom: '1px solid #E8E8E8' } : undefined}>
-                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
-                  {isPt ? '🧾 Situação de IVA' : '🧾 Statut TVA'}
-                </div>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-                  color: tvaStatus.color, border: `1px solid ${tvaStatus.color}`,
-                  borderRadius: 3, padding: '2px 6px',
-                }}>
-                  {isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}
-                </span>
-              </div>
-              <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 16 }}>
-
-                {/* Jauge */}
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 11, color: tv.textMuted }}>
-                      {isPt ? 'Volume de negócios HT' : 'CA HT annuel'} : <strong style={{ color: tv.text }}>{formatEur(annualHT)}</strong>
-                    </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: tvaStatus.color }}>
-                      {tvaStatus.percent}%
-                    </span>
-                  </div>
-                  <div style={{ height: 10, borderRadius: 5, background: tv.border, overflow: 'hidden', position: 'relative' }}>
-                    {/* Marqueur 80% */}
-                    <div style={{ position: 'absolute', left: '80%', top: 0, bottom: 0, width: 1, background: '#eab308', zIndex: 1 }} />
-                    <div style={{
-                      height: '100%', borderRadius: 5,
-                      background: tvaStatus.status === 'safe'
-                        ? 'linear-gradient(90deg, #22c55e, #86efac)'
-                        : tvaStatus.status === 'warning'
-                        ? 'linear-gradient(90deg, #eab308, #fde047)'
-                        : 'linear-gradient(90deg, #f97316, #ef4444)',
-                      width: `${Math.min(tvaStatus.percent, 100)}%`,
-                      transition: 'width 0.6s ease',
-                    }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: tv.textMuted, marginTop: 3 }}>
-                    <span>0</span>
-                    <span style={{ color: '#eab308' }}>80%</span>
-                    <span>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}</span>
-                  </div>
-                </div>
-
-                {/* Message contextuel */}
-                <div style={{ fontSize: 12, color: tv.textMuted, lineHeight: 1.6, marginBottom: 16, padding: '10px 12px', borderRadius: 6, background: tvaStatus.bgColor }}>
-                  {isPt ? tvaStatus.message.pt : tvaStatus.message.fr}
-                </div>
-
-                {/* Détails techniques */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
-                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
-                      {isPt ? 'Limite de isenção' : 'Seuil de franchise'}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
-                      {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}
-                    </div>
-                  </div>
-                  {tvaStatus.seuilMajore && (
-                    <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
-                      <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
-                        {isPt ? 'Limite majorado' : 'Seuil majoré'}
-                      </div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
-                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuilMajore)}
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
-                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
-                      {isPt ? 'Taxa de IVA aplicável' : 'Taux TVA applicable'}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
-                      {(tvaStatus.taux * 100).toFixed(0)} %
-                    </div>
-                  </div>
-                  <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
-                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
-                      {isPt ? 'IVA estimado se aplicável' : 'TVA estimée si applicable'}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
-                      {formatEur(annualHT * tvaStatus.taux)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Toggle activation automatique */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 14px', borderRadius: 8,
-                  border: `1px solid ${tv.border}`, background: tv.cardBg,
-                }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: tv.text, marginBottom: 2 }}>
-                      {isPt
-                        ? '🔔 Ativar IVA automaticamente ao ultrapassar o limite'
-                        : '🔔 Activer la TVA automatiquement dès dépassement du seuil'}
-                    </div>
-                    <div style={{ fontSize: 11, color: tv.textMuted }}>
-                      {isPt
-                        ? 'Receba alertas imediatos e acompanhe a sua obrigação de registo no IVA'
-                        : 'Recevez des alertes immédiates et suivez votre obligation de passage à la TVA'}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleTvaAutoActivate(!tvaAutoActivate)}
-                    disabled={tvaTogglingLoading}
-                    aria-pressed={tvaAutoActivate}
-                    style={{
-                      flexShrink: 0, marginLeft: 16,
-                      width: 44, height: 24, borderRadius: 12,
-                      background: tvaAutoActivate ? tv.primary : tv.border,
-                      border: 'none', cursor: tvaTogglingLoading ? 'not-allowed' : 'pointer',
-                      position: 'relative', transition: 'background 0.2s',
-                      opacity: tvaTogglingLoading ? 0.6 : 1,
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute', top: 3, borderRadius: '50%',
-                      width: 18, height: 18, background: '#fff',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                      left: tvaAutoActivate ? 23 : 3,
-                      transition: 'left 0.2s',
-                    }} />
-                  </button>
-                </div>
-
-                {/* Aide contextuelle FR */}
-                {!isPt && tvaStatus.status !== 'safe' && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}`, fontSize: 11, color: tv.textMuted, lineHeight: 1.6 }}>
-                    <strong style={{ color: tv.text }}>📋 Mentions obligatoires sur vos factures :</strong>
-                    <br />
-                    {'Une fois assujetti, indiquez le taux TVA (20 %), le montant HT, la TVA et le montant TTC sur chaque facture. Déposez votre déclaration CA12/CA3 auprès du SIE.'}
-                  </div>
-                )}
-                {isPt && tvaStatus.status !== 'safe' && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}`, fontSize: 11, color: tv.textMuted, lineHeight: 1.6 }}>
-                    <strong style={{ color: tv.text }}>📋 Obrigações após registo no IVA :</strong>
-                    <br />
-                    Emita faturas com IVA a 23 %, envie a Declaração Periódica de IVA trimestralmente (ou mensal se VN &gt; 650 000 €) e mantenha o e-fatura em dia.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Déclaration sociale existante */}
+          {/* Declaration sociale */}
+          <div style={{ marginTop: '.75rem' }}>
             <DeclarationSocialeSection />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── AGENT COMPTABLE LÉA ── */}
-        {activeComptaTab === 'assistant' && (
-          <AgentComptable
-            bookings={bookings}
-            artisan={artisan}
-            services={services}
-            expenses={expenses}
-            annualHT={annualHT}
-            annualCA={bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
-            totalExpenses={expenses.filter(e => e.date && new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)}
-            quarterData={quarterData}
-            currentMonth={currentMonth}
-            currentYear={currentYear}
-            formatEur={formatEur}
-            orgRole={orgRole}
-          />
-        )}
-
-      </div>
+      {/* ══════════════════════════════════════════════════════════════
+           TAB 5: ASSISTANT IA
+         ══════════════════════════════════════════════════════════════ */}
+      {activeComptaTab === 'assistant' && (
+        <AgentComptable
+          bookings={bookings}
+          artisan={artisan}
+          services={services}
+          expenses={expenses}
+          annualHT={annualHT}
+          annualCA={bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
+          totalExpenses={expenses.filter(e => e.date && new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)}
+          quarterData={quarterData}
+          currentMonth={currentMonth}
+          currentYear={currentYear}
+          formatEur={formatEur}
+          orgRole={orgRole}
+        />
+      )}
     </div>
   )
 }

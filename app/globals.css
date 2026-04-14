@@ -2504,3 +2504,59 @@ table tbody tr:nth-child(even) {
 [role="dialog"] {
   position: relative;
 }
+
+/* ── Comptabilité BTP — Design System (v7) ──────────────── */
+.cpta-period-bar { display: flex; align-items: center; gap: .4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.cpta-yr { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-weight: 600; background: #fff; cursor: pointer; color: #555; font-family: inherit; }
+.cpta-yr select { border: none; background: none; font-size: 12px; font-weight: 600; color: #555; font-family: inherit; cursor: pointer; outline: none; }
+.cpta-view-btn { padding: 4px 10px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 11px; font-weight: 500; background: #fff; color: #555; cursor: pointer; font-family: inherit; transition: all .15s; }
+.cpta-view-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.cpta-month-bar { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.cpta-month { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #fff; border: 1px solid #E0E0E0; color: #666; cursor: pointer; transition: all .15s; font-family: inherit; }
+.cpta-month.active { background: #FFC107; border-color: #FFC107; color: #333; font-weight: 700; }
+.cpta-month:hover:not(.active) { background: #F5F5F5; }
+.cpta-kpi-g { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1.25rem; }
+.cpta-kpi { padding: 1.1rem 1.25rem; border-radius: 6px; border: 1px solid #E8E8E8; background: #fff; transition: all .2s; }
+.cpta-kpi:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.cpta-kpi-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: .5rem; letter-spacing: .3px; }
+.cpta-kpi-val { font-size: 26px; font-weight: 600; margin-bottom: .2rem; }
+.cpta-kpi-sub { font-size: 11px; color: #BBB; }
+.cpta-kpi-val.green { color: #43A047; } .cpta-kpi-val.orange { color: #F57C00; } .cpta-kpi-val.red { color: #E53935; } .cpta-kpi-val.dark { color: #1a1a1a; }
+.cpta-tva-banner { background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+.cpta-tva-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; flex-wrap: wrap; gap: .5rem; }
+.cpta-tva-left { display: flex; align-items: center; gap: 8px; }
+.cpta-tva-title { font-size: 12px; font-weight: 600; color: #1a1a1a; }
+.cpta-tva-badge { background: #FFC107; color: #333; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 3px; letter-spacing: .3px; }
+.cpta-tva-desc { font-size: 11px; color: #666; line-height: 1.5; margin-bottom: .6rem; }
+.cpta-tva-prog { display: flex; align-items: center; gap: 8px; }
+.cpta-tva-prog-bg { flex: 1; height: 8px; background: #E8E8E8; border-radius: 4px; overflow: hidden; }
+.cpta-tva-prog-fill { height: 100%; background: #FFC107; border-radius: 4px; transition: width .6s ease; }
+.cpta-tva-prog-label { font-size: 10px; font-weight: 600; color: #FFA000; white-space: nowrap; }
+.cpta-tva-link { font-size: 11px; color: #FFA000; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.cpta-tva-link:hover { text-decoration: underline; }
+.cpta-chart-card { background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; padding: 1.1rem 1.25rem; margin-bottom: 1.25rem; }
+.cpta-chart-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #1a1a1a; letter-spacing: .3px; margin-bottom: .85rem; display: flex; align-items: center; gap: 6px; }
+.cpta-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; margin-bottom: .5rem; }
+.cpta-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 2px; }
+.cpta-bar { width: 100%; border-radius: 3px 3px 0 0; transition: opacity .2s; cursor: pointer; }
+.cpta-bar.filled { background: #FFC107; } .cpta-bar.empty { background: #E8E8E8; }
+.cpta-bar:hover { opacity: .8; }
+.cpta-bar-months { display: flex; gap: 6px; }
+.cpta-bar-lbl { flex: 1; text-align: center; font-size: 9px; font-weight: 600; padding: 3px 2px; border-radius: 3px; cursor: pointer; font-family: inherit; border: none; transition: all .15s; }
+.cpta-bar-lbl.active { background: #FFC107; color: #333; } .cpta-bar-lbl:not(.active) { color: #999; background: transparent; }
+.cpta-bar-lbl:hover:not(.active) { color: #555; background: #F5F5F5; }
+.cpta-bottom-g { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; margin-bottom: 1.25rem; }
+.cpta-stat-card { background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; padding: .9rem 1rem; }
+.cpta-stat-icon { font-size: 14px; margin-bottom: .4rem; }
+.cpta-stat-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; letter-spacing: .3px; margin-bottom: .3rem; }
+.cpta-stat-val { font-size: 17px; font-weight: 700; color: #1a1a1a; margin-bottom: .15rem; }
+.cpta-stat-sub { font-size: 11px; color: #888; }
+.cpta-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #E8E8E8; }
+.cpta-tab { padding: 7px 16px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; background: none; color: #999; font-family: inherit; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; }
+.cpta-tab.active { color: #FFA000; border-bottom-color: #FFC107; font-weight: 600; }
+.cpta-tab:hover:not(.active) { color: #666; }
+@media (max-width: 768px) {
+  .cpta-kpi-g { grid-template-columns: repeat(2, 1fr); }
+  .cpta-bottom-g { grid-template-columns: 1fr; }
+  .cpta-bars { height: 60px; }
+}
