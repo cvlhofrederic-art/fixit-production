@@ -84,7 +84,7 @@ export default function V5SidebarArtisan({
 
         {/* ═══ COMMERCIAL ═══ */}
         <div className="v5-sb-sec">
-          <div className="v5-sb-sec-t">Commercial</div>
+          <div className="v5-sb-sec-t">{isPt ? 'Comercial' : 'Commercial'}</div>
           <V5ArtisanItem icon="📊" label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} page="pipeline" />
           {isModuleEnabled('devis') && (
             <V5ArtisanItem icon="📄" label={isPt ? 'Orçamentos' : 'Devis'} active={activePage === 'devis'} onClick={() => navigateTo('devis')} page="devis" />

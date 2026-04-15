@@ -17,58 +17,59 @@ const CATEGORIES_DEFAULT: CategoryDef[] = [
   { id: 'vitrine', label: 'Vitrine', icon: '🖼️', order: 8 },
 ]
 
-export function useModulesConfig(artisanId: string | undefined, t: (key: string, fallback?: string) => string) {
+export function useModulesConfig(artisanId: string | undefined, t: (key: string, fallback?: string) => string, isPt = false) {
   // ── ALL_MODULES — matches V5 BTP Pro sidebar order exactly ──
   const ALL_MODULES: ModuleDef[] = useMemo(() => [
     // ── Pilotage ──
-    { id: 'home', icon: '📊', label: t('proDash.modules.home', 'Tableau de bord'), description: 'Vue d\'ensemble de l\'activité', category: 'pilotage', locked: true },
-    { id: 'gestion_comptes', icon: '👥', label: 'Comptes utilisateurs', description: 'Gérants, conducteurs, chefs de chantier', category: 'pilotage' },
-    { id: 'stats', icon: '📈', label: t('proDash.modules.stats', 'Statistiques'), description: t('proDash.modules.statsDesc', 'Analyse de performance'), category: 'pilotage' },
-    { id: 'revenus', icon: '💰', label: t('proDash.modules.revenue', 'Revenus'), description: t('proDash.modules.revenueDesc', 'Suivi du chiffre d\'affaires'), category: 'pilotage' },
+    { id: 'home', icon: '📊', label: isPt ? 'Painel' : 'Tableau de bord', description: isPt ? 'Visão geral da atividade' : 'Vue d\'ensemble de l\'activité', category: 'pilotage', locked: true },
+    { id: 'gestion_comptes', icon: '👥', label: isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs', description: isPt ? 'Gerentes, encarregados, chefes de obra' : 'Gérants, conducteurs, chefs de chantier', category: 'pilotage' },
+    { id: 'stats', icon: '📈', label: isPt ? 'Estatísticas' : 'Statistiques', description: isPt ? 'Análise de desempenho' : 'Analyse de performance', category: 'pilotage' },
+    { id: 'revenus', icon: '💰', label: isPt ? 'Receitas' : 'Revenus', description: isPt ? 'Acompanhamento do volume de negócios' : 'Suivi du chiffre d\'affaires', category: 'pilotage' },
     // ── Chantiers ──
-    { id: 'chantiers', icon: '🏗️', label: 'Chantiers', description: 'Gestion des chantiers en cours', category: 'chantiers' },
-    { id: 'gantt', icon: '📊', label: 'Planification Gantt', description: 'Planning visuel des chantiers', category: 'chantiers' },
-    { id: 'equipes', icon: '👷', label: 'Équipes', description: 'Gestion des équipes terrain', category: 'chantiers' },
-    { id: 'pointage', icon: '⏱️', label: 'Pointage équipes', description: 'Pointage GPS temps réel', category: 'chantiers' },
-    { id: 'calendar', icon: '📅', label: t('proDash.modules.calendar', 'Agenda / Planning'), description: t('proDash.modules.calendarDesc', 'Rendez-vous et planning'), category: 'chantiers' },
-    { id: 'meteo', icon: '🌤️', label: 'Météo chantiers', description: 'Prévisions météo par chantier', category: 'chantiers' },
-    { id: 'photos_chantier', icon: '📸', label: 'Photos Chantier', description: 'Suivi photo des chantiers', category: 'chantiers' },
-    { id: 'rapports', icon: '📋', label: t('proDash.modules.reports', 'Rapports de chantier'), description: t('proDash.modules.reportsDesc', 'Rapports journaliers et hebdomadaires'), category: 'chantiers' },
+    { id: 'chantiers', icon: '🏗️', label: isPt ? 'Obras' : 'Chantiers', description: isPt ? 'Gestão das obras em curso' : 'Gestion des chantiers en cours', category: 'chantiers' },
+    { id: 'gantt', icon: '📊', label: isPt ? 'Planeamento Gantt' : 'Planification Gantt', description: isPt ? 'Planeamento visual das obras' : 'Planning visuel des chantiers', category: 'chantiers' },
+    { id: 'equipes', icon: '👷', label: isPt ? 'Equipas' : 'Équipes', description: isPt ? 'Gestão das equipas no terreno' : 'Gestion des équipes terrain', category: 'chantiers' },
+    { id: 'pointage', icon: '⏱️', label: isPt ? 'Marcação de horas' : 'Pointage équipes', description: isPt ? 'Marcação GPS em tempo real' : 'Pointage GPS temps réel', category: 'chantiers' },
+    { id: 'calendar', icon: '📅', label: isPt ? 'Agenda' : 'Agenda / Planning', description: isPt ? 'Marcações e planeamento' : 'Rendez-vous et planning', category: 'chantiers' },
+    { id: 'meteo', icon: '🌤️', label: isPt ? 'Meteorologia' : 'Météo chantiers', description: isPt ? 'Previsão meteorológica por obra' : 'Prévisions météo par chantier', category: 'chantiers' },
+    { id: 'photos_chantier', icon: '📸', label: isPt ? 'Fotos de obra' : 'Photos Chantier', description: isPt ? 'Acompanhamento fotográfico das obras' : 'Suivi photo des chantiers', category: 'chantiers' },
+    { id: 'rapports', icon: '📋', label: isPt ? 'Relatórios de obra' : 'Rapports de chantier', description: isPt ? 'Relatórios diários e semanais' : 'Rapports journaliers et hebdomadaires', category: 'chantiers' },
     // ── Commercial ──
-    { id: 'pipeline', icon: '📊', label: 'Pipeline', description: 'Suivi commercial des devis', category: 'commercial' },
-    { id: 'devis', icon: '📄', label: t('proDash.modules.quotes', 'Devis'), description: t('proDash.modules.quotesDesc', 'Création et envoi de devis'), category: 'commercial' },
-    { id: 'dpgf', icon: '📁', label: 'Appels d\'offres / DPGF', description: 'Réponse aux appels d\'offres', category: 'commercial' },
-    { id: 'marches', icon: '📢', label: t('proDash.modules.marches', 'Bourse aux Marchés'), description: t('proDash.modules.marchesDesc', 'Appels d\'offres et candidatures'), category: 'commercial' },
+    { id: 'pipeline', icon: '📊', label: 'Pipeline', description: isPt ? 'Acompanhamento comercial dos orçamentos' : 'Suivi commercial des devis', category: 'commercial' },
+    { id: 'devis', icon: '📄', label: isPt ? 'Orçamentos' : 'Devis', description: isPt ? 'Criação e envio de orçamentos' : 'Création et envoi de devis', category: 'commercial' },
+    { id: 'dpgf', icon: '📁', label: isPt ? 'Concursos / DPGF' : 'Appels d\'offres / DPGF', description: isPt ? 'Resposta a concursos públicos' : 'Réponse aux appels d\'offres', category: 'commercial' },
+    { id: 'marches', icon: '📢', label: isPt ? 'Bolsa de Mercados' : 'Bourse aux Marchés', description: isPt ? 'Concursos e candidaturas' : 'Appels d\'offres et candidatures', category: 'commercial' },
     // ── Facturation ──
-    { id: 'factures', icon: '💳', label: t('proDash.modules.invoices', 'Factures'), description: t('proDash.modules.invoicesDesc', 'Facturation et suivi paiements'), category: 'facturation' },
-    { id: 'situations', icon: '📈', label: 'Situations de travaux', description: 'Avancement et facturation progressive', category: 'facturation' },
-    { id: 'garanties', icon: '🔒', label: 'Retenues de garantie', description: 'Suivi des retenues 5%', category: 'facturation' },
+    { id: 'factures', icon: '💳', label: isPt ? 'Faturas' : 'Factures', description: isPt ? 'Faturação e acompanhamento de pagamentos' : 'Facturation et suivi paiements', category: 'facturation' },
+    { id: 'situations', icon: '📈', label: isPt ? 'Situações de obra' : 'Situations de travaux', description: isPt ? 'Avanço e faturação progressiva' : 'Avancement et facturation progressive', category: 'facturation' },
+    { id: 'garanties', icon: '🔒', label: isPt ? 'Retenções de garantia' : 'Retenues de garantie', description: isPt ? 'Acompanhamento das retenções 5%' : 'Suivi des retenues 5%', category: 'facturation' },
     // ── Sous-traitance & Achats ──
-    { id: 'sous_traitance', icon: '🤝', label: 'Sous-traitance DC4', description: 'Formulaires DC4 réglementaires', category: 'sous_traitance' },
-    { id: 'sous_traitance_offres', icon: '🔍', label: 'Recruter sous-traitants', description: 'Recherche de sous-traitants', category: 'sous_traitance' },
-    { id: 'rfq_btp', icon: '📋', label: 'Devis Fournisseurs', description: 'Demandes de prix fournisseurs', category: 'sous_traitance' },
-    { id: 'materiaux', icon: '🧱', label: t('proDash.modules.materials', 'Matériaux & Appro'), description: t('proDash.modules.materialsDesc', 'Approvisionnement et prix'), category: 'sous_traitance' },
-    { id: 'marketplace_btp', icon: '🏪', label: 'Marketplace BTP', description: 'Achats entre professionnels', category: 'sous_traitance' },
+    { id: 'sous_traitance', icon: '🤝', label: isPt ? 'Subempreitada DC4' : 'Sous-traitance DC4', description: isPt ? 'Formulários DC4 regulamentares' : 'Formulaires DC4 réglementaires', category: 'sous_traitance' },
+    { id: 'sous_traitance_offres', icon: '🔍', label: isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants', description: isPt ? 'Pesquisa de subempreiteiros' : 'Recherche de sous-traitants', category: 'sous_traitance' },
+    { id: 'rfq_btp', icon: '📋', label: isPt ? 'Orçamentos Fornecedores' : 'Devis Fournisseurs', description: isPt ? 'Pedidos de preço a fornecedores' : 'Demandes de prix fournisseurs', category: 'sous_traitance' },
+    { id: 'materiaux', icon: '🧱', label: isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro', description: isPt ? 'Aprovisionamento e preços' : 'Approvisionnement et prix', category: 'sous_traitance' },
+    { id: 'marketplace_btp', icon: '🏪', label: 'Marketplace BTP', description: isPt ? 'Compras entre profissionais' : 'Achats entre professionnels', category: 'sous_traitance' },
     // ── Finances ──
-    { id: 'compta_btp', icon: '🧠', label: 'Compta Intelligente', description: 'Comptabilité assistée par IA', category: 'finances' },
-    { id: 'rentabilite', icon: '💰', label: 'Rentabilité Chantier', description: 'Budget prévu vs réalisé', category: 'finances' },
-    { id: 'comptabilite', icon: '🧮', label: t('proDash.modules.accounting', 'Comptabilité'), description: t('proDash.modules.accountingDesc', 'Revenus, dépenses, TVA'), category: 'finances' },
+    { id: 'compta_btp', icon: '🧠', label: isPt ? 'Contabilidade IA' : 'Compta Intelligente', description: isPt ? 'Contabilidade assistida por IA' : 'Comptabilité assistée par IA', category: 'finances' },
+    { id: 'rentabilite', icon: '💰', label: isPt ? 'Rentabilidade' : 'Rentabilité Chantier', description: isPt ? 'Orçamento previsto vs realizado' : 'Budget prévu vs réalisé', category: 'finances' },
+    { id: 'comptabilite', icon: '🧮', label: isPt ? 'Contabilidade' : 'Comptabilité', description: isPt ? 'Receitas, despesas, IVA' : 'Revenus, dépenses, TVA', category: 'finances' },
     // ── Communication ──
-    { id: 'messages', icon: '💬', label: t('proDash.modules.messaging', 'Messagerie'), description: t('proDash.modules.messagingDesc', 'Messages clients et équipes'), category: 'communication' },
-    { id: 'clients', icon: '👥', label: t('proDash.modules.clients', 'Base clients'), description: t('proDash.modules.clientsDesc', 'Gestion des contacts clients'), category: 'communication' },
-    { id: 'portail_client', icon: '🌐', label: 'Portail client', description: 'Accès chantier pour les clients', category: 'communication' },
+    { id: 'messages', icon: '💬', label: isPt ? 'Mensagens' : 'Messagerie', description: isPt ? 'Mensagens com clientes e equipas' : 'Messages clients et équipes', category: 'communication' },
+    { id: 'clients', icon: '👥', label: isPt ? 'Clientes' : 'Base clients', description: isPt ? 'Gestão de contactos de clientes' : 'Gestion des contacts clients', category: 'communication' },
+    { id: 'portail_client', icon: '🌐', label: isPt ? 'Portal cliente' : 'Portail client', description: isPt ? 'Acesso à obra para os clientes' : 'Accès chantier pour les clients', category: 'communication' },
     // ── Administration ──
-    { id: 'wallet', icon: '📁', label: t('proDash.modules.wallet', 'Conformité'), description: t('proDash.modules.walletDesc', 'Documents réglementaires'), category: 'administration' },
-    { id: 'contrats', icon: '📑', label: t('proDash.modules.contracts', 'Contrats'), description: t('proDash.modules.contractsDesc', 'Gestion des contrats'), category: 'administration' },
-    { id: 'bibliotheque', icon: '📚', label: 'Bibliothèque', description: 'Ouvrages, matériaux et main-d\'œuvre', category: 'administration' },
-    { id: 'motifs', icon: '🗂️', label: t('proDash.modules.motifs', 'Lots / Prestations'), description: t('proDash.modules.motifsDesc', 'Types de prestations'), category: 'administration' },
-    { id: 'horaires', icon: '⏱️', label: t('proDash.modules.hours', 'Horaires chantier'), description: t('proDash.modules.hoursDesc', 'Plages horaires par jour'), category: 'administration' },
+    { id: 'wallet', icon: '📁', label: isPt ? 'Conformidade' : 'Conformité', description: isPt ? 'Documentos regulamentares' : 'Documents réglementaires', category: 'administration' },
+    { id: 'contrats', icon: '📑', label: isPt ? 'Contratos' : 'Contrats', description: isPt ? 'Gestão de contratos' : 'Gestion des contrats', category: 'administration' },
+    { id: 'bibliotheque', icon: '📚', label: isPt ? 'Biblioteca' : 'Bibliothèque', description: isPt ? 'Obras, materiais e mão de obra' : 'Ouvrages, matériaux et main-d\'œuvre', category: 'administration' },
+    { id: 'motifs', icon: '🗂️', label: isPt ? 'Prestações' : 'Lots / Prestations', description: isPt ? 'Tipos de prestações' : 'Types de prestations', category: 'administration' },
+    { id: 'horaires', icon: '⏱️', label: isPt ? 'Horários de obra' : 'Horaires chantier', description: isPt ? 'Horários por dia' : 'Plages horaires par jour', category: 'administration' },
     // ── Vitrine ──
-    { id: 'portfolio', icon: '🖼️', label: t('proDash.modules.portfolio', 'Références chantiers'), description: t('proDash.modules.portfolioDesc', 'Galerie de réalisations'), category: 'vitrine' },
-    { id: 'parrainage', icon: '🎁', label: 'Parrainage', description: 'Parrainez des artisans, gagnez des mois gratuits', category: 'vitrine' },
+    { id: 'portfolio', icon: '🖼️', label: isPt ? 'Referências de obra' : 'Références chantiers', description: isPt ? 'Galeria de realizações' : 'Galerie de réalisations', category: 'vitrine' },
+    { id: 'parrainage', icon: '🎁', label: isPt ? 'Apadrinhamento' : 'Parrainage', description: isPt ? 'Apadrinhe artesãos, ganhe meses grátis' : 'Parrainez des artisans, gagnez des mois gratuits', category: 'vitrine' },
     // ── Compte (locked) ──
-    { id: 'settings', icon: '⚙️', label: t('proDash.modules.settings', 'Mon profil'), description: t('proDash.modules.settingsDesc', 'Paramètres du compte'), category: 'compte', locked: true },
-  ], [t])
+    { id: 'settings', icon: '⚙️', label: isPt ? 'O meu perfil' : 'Mon profil', description: isPt ? 'Definições da conta' : 'Paramètres du compte', category: 'compte', locked: true },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [isPt])
 
   const MODULES_STORAGE_KEY = useMemo(() => `fixit_modules_config_${artisanId || 'default'}`, [artisanId])
   const CATEGORIES_STORAGE_KEY = useMemo(() => `fixit_categories_order_${artisanId || 'default'}`, [artisanId])

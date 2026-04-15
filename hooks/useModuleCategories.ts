@@ -8,16 +8,16 @@ export type ModCategory = { id: string; name: string; open: boolean; modules: Ca
 const STORAGE_KEY = 'fixit_modules_categories_v3'
 
 // Aligned 1:1 with V5Sidebar (pro_societe BTP) structure
-const DEFAULT_STRUCTURE: Array<{ id: string; name: string; modIds: string[] }> = [
-  { id: 'cat-pilotage', name: 'Pilotage', modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
-  { id: 'cat-chantiers', name: 'Chantiers', modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
-  { id: 'cat-commercial', name: 'Commercial', modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
-  { id: 'cat-facturation', name: 'Facturation', modIds: ['factures', 'situations', 'garanties'] },
-  { id: 'cat-achats', name: 'Sous-traitance & Achats', modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'marketplace_btp'] },
-  { id: 'cat-finances', name: 'Finances', modIds: ['compta_btp', 'rentabilite', 'comptabilite'] },
-  { id: 'cat-communication', name: 'Communication', modIds: ['messages', 'clients', 'portail_client'] },
-  { id: 'cat-admin', name: 'Administration', modIds: ['wallet', 'contrats', 'horaires'] },
-  { id: 'cat-vitrine', name: 'Vitrine', modIds: ['portfolio', 'parrainage'] },
+const DEFAULT_STRUCTURE: Array<{ id: string; name: string; namePt: string; modIds: string[] }> = [
+  { id: 'cat-pilotage', name: 'Pilotage', namePt: 'Pilotagem', modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
+  { id: 'cat-chantiers', name: 'Chantiers', namePt: 'Obras', modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
+  { id: 'cat-commercial', name: 'Commercial', namePt: 'Comercial', modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
+  { id: 'cat-facturation', name: 'Facturation', namePt: 'Faturação', modIds: ['factures', 'situations', 'garanties'] },
+  { id: 'cat-achats', name: 'Sous-traitance & Achats', namePt: 'Subempreitada & Compras', modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'marketplace_btp'] },
+  { id: 'cat-finances', name: 'Finances', namePt: 'Finanças', modIds: ['compta_btp', 'rentabilite', 'comptabilite'] },
+  { id: 'cat-communication', name: 'Communication', namePt: 'Comunicação', modIds: ['messages', 'clients', 'portail_client'] },
+  { id: 'cat-admin', name: 'Administration', namePt: 'Administração', modIds: ['wallet', 'contrats', 'horaires'] },
+  { id: 'cat-vitrine', name: 'Vitrine', namePt: 'Montra', modIds: ['portfolio', 'parrainage'] },
 ]
 
 export function buildDefaultCategories(ALL_MODULES: ModuleDef[]): ModCategory[] {

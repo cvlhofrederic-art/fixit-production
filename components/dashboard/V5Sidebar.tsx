@@ -10,6 +10,20 @@
 
 import type { ModCategory } from '@/hooks/useModuleCategories'
 
+// Category section header translations (dynamic path)
+const CAT_NAME_PT: Record<string, string> = {
+  'cat-pilotage': 'Pilotagem',
+  'cat-chantiers': 'Obras',
+  'cat-commercial': 'Comercial',
+  'cat-facturation': 'Faturação',
+  'cat-achats': 'Subempreitada & Compras',
+  'cat-finances': 'Finanças',
+  'cat-communication': 'Comunicação',
+  'cat-admin': 'Administração',
+  'cat-vitrine': 'Montra',
+  'cat-compte': 'Conta',
+}
+
 interface V5SidebarProps {
   activePage: string
   navigateTo: (page: string) => void
@@ -108,7 +122,7 @@ export default function V5Sidebar({
           if (visible.length === 0) return null
           return (
             <div key={cat.id} className="v5-sb-sec">
-              <div className="v5-sb-sec-t">{cat.name}</div>
+              <div className="v5-sb-sec-t">{isPt ? (CAT_NAME_PT[cat.id] ?? cat.name) : cat.name}</div>
               {visible.map(mod => (
                 <V5SidebarItem
                   key={mod.id}

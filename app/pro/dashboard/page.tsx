@@ -197,7 +197,7 @@ function DashboardPage() {
   const { settingsForm, setSettingsForm, savingSettings, profilePhotoFile, setProfilePhotoFile, profilePhotoPreview, setProfilePhotoPreview, profilePhotoUploading, setProfilePhotoUploading, uploadMsg, setUploadMsg, saveSettings, uploadDocument, initSettingsForm } = setHook
 
   // ── Modules config ──
-  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t)
+  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t, isPt)
   // Shared sidebar/modules categories (single source of truth for V5Sidebar + ModulesSection)
   const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES)
 
