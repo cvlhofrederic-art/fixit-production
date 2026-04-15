@@ -183,6 +183,31 @@ export default function HomeSection({
       })
     })
 
+    // 2b. Chantiers terminés mais aucune facture émise pour ce client
+    try {
+      const rawDocs = localStorage.getItem(`fixit_docs_${artisan.id}`)
+      const allDocs = rawDocs ? (JSON.parse(rawDocs) as SavedDocument[]) : []
+      const factureClients = new Set(
+        allDocs
+          .filter(d => d.type === 'facture')
+          .map(d => (d.client || d.clientName || d.client_name || '').toLowerCase().trim())
+          .filter(Boolean)
+      )
+      const chantiersTermines = btpChantiers.filter(c => c.statut === 'Terminé')
+      const sansFacture = chantiersTermines.filter(c => {
+        const clientKey = (c.client || '').toLowerCase().trim()
+        return clientKey && !factureClients.has(clientKey)
+      })
+      sansFacture.slice(0, 2).forEach(c => {
+        collected.push({
+          level: 'err',
+          icon: '🧾',
+          text: `${c.titre} — chantier terminé, facture non envoyée (${c.client})`,
+          page: 'factures',
+        })
+      })
+    } catch { /* ignore */ }
+
     // 3. Alertes météo (lues depuis le cache alimenté par MeteoChantierSection)
     meteoAlerts.slice(0, 2).forEach(m => {
       collected.push({

@@ -348,13 +348,59 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
   const visibleContrats = contrats
   void tab; void nbActifs; void nbExpires; void valeurTotale; void expirantBientot
 
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null)
+  const handleDownloadPdf = async (c: ContratItem) => {
+    setPdfLoadingId(c.id)
+    try {
+      const { generateContratPdf } = await import('@/lib/pdf/contrat-generator')
+      const pdf = await generateContratPdf({
+        artisan: {
+          logo_url: artisan?.logo_url || null,
+          nom: artisan?.company_name || artisan?.nom || artisan?.full_name || '—',
+          siret: artisan?.siret || null,
+          adresse: (artisan as unknown as { company_address?: string; address?: string })?.company_address
+            || (artisan as unknown as { address?: string })?.address || null,
+          telephone: artisan?.phone || null,
+          email: artisan?.email || null,
+          insurance_name: artisan?.insurance_name || null,
+          insurance_number: artisan?.insurance_number || null,
+        },
+        client: {
+          nom: c.client || c.titre || '—',
+          adresse: null,
+          telephone: null,
+          email: null,
+          siret: null,
+        },
+        contrat: {
+          numero: `CTR-${c.id.slice(-6).toUpperCase()}`,
+          titre: c.titre || `Contrat de ${c.type || 'prestation'}`,
+          type: c.type || 'Prestation',
+          date_debut: c.dateDebut,
+          date_fin: c.dateFin,
+          montant: c.montant || '',
+          periodicite: c.periodicite || '',
+          statut: c.statut || 'Actif',
+          description: c.description || '',
+          date_emission: c.createdAt ? new Date(c.createdAt) : new Date(),
+        },
+      })
+      pdf.save(`contrat-${c.id.slice(-6)}.pdf`)
+    } catch (err) {
+      console.error('Contrat PDF error:', err)
+      alert('Erreur génération PDF : ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setPdfLoadingId(null)
+    }
+  }
+
   return (
     <div style={{ width: '100%' }}>
       {/* Header — spec HTML lignes 1273-1276 */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
         <div className="v5-pg-t" style={{ marginBottom: 0 }}>
           <h1>Contrats</h1>
-          <p>Contrats de sous-traitance</p>
+          <p>Contrats de sous-traitance, maintenance, entretien</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -426,7 +472,17 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
                     <td>{c.montant ? `${c.montant} €` : '—'}</td>
                     <td>{c.dateDebut || '—'}</td>
                     <td><span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: statusColor + '18', color: statusColor }}>{c.statut}</span></td>
-                    <td style={{ color: '#999' }}>—</td>
+                    <td>
+                      <button
+                        onClick={() => handleDownloadPdf(c)}
+                        disabled={pdfLoadingId === c.id}
+                        className="v5-btn v5-btn-sm"
+                        style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, opacity: pdfLoadingId === c.id ? 0.5 : 1 }}
+                        title="Télécharger le PDF"
+                      >
+                        {pdfLoadingId === c.id ? '…' : '📄 PDF'}
+                      </button>
+                    </td>
                   </tr>
                 )
               })
