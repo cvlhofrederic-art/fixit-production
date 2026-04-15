@@ -61,7 +61,7 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     { id: 'wallet', icon: '📁', label: isPt ? 'Conformidade' : 'Conformité', description: isPt ? 'Documentos regulamentares' : 'Documents réglementaires', category: 'administration' },
     { id: 'contrats', icon: '📑', label: isPt ? 'Contratos' : 'Contrats', description: isPt ? 'Gestão de contratos' : 'Gestion des contrats', category: 'administration' },
     { id: 'bibliotheque', icon: '📚', label: isPt ? 'Biblioteca' : 'Bibliothèque', description: isPt ? 'Obras, materiais e mão de obra' : 'Ouvrages, matériaux et main-d\'œuvre', category: 'administration' },
-    { id: 'motifs', icon: '🗂️', label: isPt ? 'Prestações' : 'Lots / Prestations', description: isPt ? 'Tipos de prestações' : 'Types de prestations', category: 'administration' },
+    { id: 'motifs', icon: '🗂️', label: isPt ? 'Prestações' : 'Prestations', description: isPt ? 'Tipos de prestações' : 'Types de prestations', category: 'administration' },
     { id: 'horaires', icon: '⏱️', label: isPt ? 'Horários de obra' : 'Horaires chantier', description: isPt ? 'Horários por dia' : 'Plages horaires par jour', category: 'administration' },
     // ── Vitrine ──
     { id: 'portfolio', icon: '🖼️', label: isPt ? 'Referências de obra' : 'Références chantiers', description: isPt ? 'Galeria de realizações' : 'Galerie de réalisations', category: 'vitrine' },
