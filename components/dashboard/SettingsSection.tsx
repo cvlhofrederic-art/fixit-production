@@ -403,6 +403,15 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
   )
 }
 
+function checkPasswordStrength(val: string) {
+  const hasLen = val.length >= 12
+  const hasUpper = /[A-Z]/.test(val)
+  const hasNum = /[0-9]/.test(val)
+  const hasSpecial = /[^A-Za-z0-9]/.test(val)
+  const score = [hasLen, hasUpper, hasNum, hasSpecial].filter(Boolean).length
+  return { hasLen, hasUpper, hasNum, hasSpecial, score }
+}
+
 function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   const tv = useThemeVars(isV5)
   const { t } = useTranslation()
@@ -411,9 +420,20 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
+  const strength = checkPasswordStrength(newPassword)
+  const activeColor = isV5 ? 'var(--v5-primary-yellow)' : tv.primary
+  const inactiveColor = '#E8E8E8'
+  const strengthLabels = [
+    t('proDash.settings.pwdStrengthWeak'),
+    t('proDash.settings.pwdStrengthMedium'),
+    t('proDash.settings.pwdStrengthGood'),
+    t('proDash.settings.pwdStrengthStrong'),
+  ]
+
   const handleChangePassword = async () => {
     setMsg(null)
-    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    const { hasLen, hasUpper, hasNum, hasSpecial } = strength
+    if (!hasLen || !hasUpper || !hasNum || !hasSpecial) {
       setMsg({ text: t('proDash.settings.pwdTooShort'), type: 'error' })
       return
     }
@@ -438,6 +458,15 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
     }
   }
 
+  const critStyle = (ok: boolean): React.CSSProperties => ({
+    fontSize: 10,
+    color: ok ? '#4CAF50' : '#BBB',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    transition: 'color .2s',
+  })
+
   return (
     <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ maxWidth: 672, marginTop: 16 }}>
       <div className={isV5 ? '' : 'v22-card-head'}>
@@ -457,10 +486,56 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
             type="password"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder="••••••••••••"
             autoComplete="new-password"
             className={isV5 ? 'v5-fi' : 'v22-form-input'}
           />
+          {newPassword && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ display: 'flex', gap: 3, marginBottom: 3 }}>
+                {[0, 1, 2, 3].map(i => (
+                  <div
+                    key={i}
+                    style={{
+                      flex: 1,
+                      height: 4,
+                      borderRadius: 2,
+                      background: i < strength.score ? activeColor : inactiveColor,
+                      transition: 'background .3s',
+                    }}
+                  />
+                ))}
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: strength.score > 0 ? activeColor : '#BBB',
+                  transition: 'color .3s',
+                }}
+              >
+                {strength.score > 0 ? strengthLabels[strength.score - 1] : '—'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 5 }}>
+                <div style={critStyle(strength.hasLen)}>
+                  <span style={{ fontSize: 9 }}>{strength.hasLen ? '●' : '○'}</span>
+                  {t('proDash.settings.pwdCritLen')}
+                </div>
+                <div style={critStyle(strength.hasUpper)}>
+                  <span style={{ fontSize: 9 }}>{strength.hasUpper ? '●' : '○'}</span>
+                  {t('proDash.settings.pwdCritUpper')}
+                </div>
+                <div style={critStyle(strength.hasNum)}>
+                  <span style={{ fontSize: 9 }}>{strength.hasNum ? '●' : '○'}</span>
+                  {t('proDash.settings.pwdCritNum')}
+                </div>
+                <div style={critStyle(strength.hasSpecial)}>
+                  <span style={{ fontSize: 9 }}>{strength.hasSpecial ? '●' : '○'}</span>
+                  {t('proDash.settings.pwdCritSpecial')}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
           <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.confirmPassword')}</label>
@@ -468,7 +543,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
             type="password"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder="••••••••••••"
             autoComplete="new-password"
             className={isV5 ? 'v5-fi' : 'v22-form-input'}
           />
@@ -506,8 +581,8 @@ export default function SettingsSection({
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        <div style={{ flex: 1 }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           {isV5 ? (
             <>
               <h1>Mon profil</h1>
