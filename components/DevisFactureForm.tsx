@@ -725,10 +725,15 @@ export default function DevisFactureForm({
       const phoneFromNotes = parseField('Tel')
       const emailFromNotes = parseField('Email')
 
-      // Set from notes immediately (instant, no network)
-      if (nameFromNotes) setClientName(nameFromNotes)
-      if (phoneFromNotes) setClientPhone(phoneFromNotes)
-      if (emailFromNotes && emailFromNotes !== '-') setClientEmail(emailFromNotes)
+      // Prefer explicit booking fields (set by client side) over notes parsing
+      const finalName = booking.client_name || nameFromNotes
+      const finalPhone = booking.client_phone || phoneFromNotes
+      const finalEmail = booking.client_email || emailFromNotes
+      const finalAddress = booking.client_address || booking.address || ''
+      if (finalName) setClientName(finalName)
+      if (finalPhone) setClientPhone(finalPhone)
+      if (finalEmail && finalEmail !== '-') setClientEmail(finalEmail)
+      if (finalAddress) setClientAddress(finalAddress)
 
       // Notes field stays empty — booking notes are operational, not for devis/facture
       setNotes('')
@@ -1617,20 +1622,29 @@ export default function DevisFactureForm({
                   </div>
                 </div>
 
-                {/* Quick import */}
-                <div className="v22-alert v22-alert-amber" style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span className="v22-card-title" style={{ textTransform: 'none', fontSize: 12 }}>{t('devis.quickImportTitle')}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--v22-amber)', marginBottom: 8 }}>{t('devis.quickImportDesc')}</div>
-                  {recentBookings.length > 0 ? (
+                {/* Quick import — yellow gradient pill (legacy design) */}
+                {recentBookings.length > 0 ? (
+                  <div style={{
+                    background: 'linear-gradient(90deg, #FFF9E6 0%, #FFE082 100%)',
+                    border: '2px solid #FFC107',
+                    borderRadius: 12,
+                    padding: 14,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, color: '#333', marginBottom: 8 }}>
+                      <span>⚡</span>
+                      <span>{t('devis.quickImportTitle')}</span>
+                    </div>
                     <div style={{ position: 'relative' }}>
                       <select
                         onChange={(e) => importFromBooking(e.target.value)}
                         disabled={importingBooking}
-                        className="v22-form-input"
-                        style={{ cursor: 'pointer' }}
                         defaultValue=""
+                        style={{
+                          width: '100%', padding: '10px 12px',
+                          border: '2px solid #FFC107', borderRadius: 8,
+                          background: '#fff', fontSize: 12, fontFamily: 'inherit',
+                          cursor: 'pointer', outline: 'none', color: '#333',
+                        }}
                       >
                         <option value="">{t('devis.quickImportPlaceholder')}</option>
                         {recentBookings.map((b) => (
@@ -1640,19 +1654,25 @@ export default function DevisFactureForm({
                         ))}
                       </select>
                       {importingBooking && (
-                        <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--v22-amber)' }}>
-                          <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--v22-amber)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                        <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8B7D00' }}>
+                          <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #8B7D00', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
                           {t('devis.loading')}
                         </div>
                       )}
                     </div>
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="v22-alert v22-alert-amber" style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span className="v22-card-title" style={{ textTransform: 'none', fontSize: 12 }}>{t('devis.quickImportTitle')}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--v22-amber)', marginBottom: 8 }}>{t('devis.quickImportDesc')}</div>
                     <div style={{ background: 'var(--v22-surface)', borderRadius: 3, padding: 10, textAlign: 'center' }}>
                       <div style={{ fontSize: 12, color: 'var(--v22-amber)' }}>{t('devis.quickImportNone')}</div>
                       <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('devis.quickImportNoneHint')}</div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
