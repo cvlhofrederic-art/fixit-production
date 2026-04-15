@@ -139,15 +139,15 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
         <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Informações de pagamento' : 'Informations de paiement'}</div>
       </div>
       <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 4 }}>
-          {isPt ? 'Estas informações aparecerão nos seus orçamentos e faturas enviados aos clientes.' : 'Ces informations apparaîtront sur vos devis et factures envoyés aux clients.'}
+        <div style={{ fontSize: 11, color: '#999', marginBottom: '.25rem' }}>
+          {isPt ? 'Estas informações aparecerão nos seus orçamentos e faturas enviados aos clientes.' : 'Ces modes apparaîtront sur vos devis et factures.'}
         </div>
 
         {modes.map((mode, idx) => (
-          <div key={mode.type} style={{ borderBottom: `1px solid ${tv.border}`, paddingBottom: 10 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+          <div key={mode.type}>
+            <label className="set-pay-item">
               <input type="checkbox" checked={mode.actif} onChange={(e) => updateMode(idx, { actif: e.target.checked })} />
-              {MODE_LABELS[mode.type]}
+              <span className="set-pay-label">{MODE_LABELS[mode.type]}</span>
             </label>
 
             {mode.actif && mode.type === 'virement' && (
@@ -202,12 +202,12 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
         ))}
 
         {/* Toggles affichage */}
-        <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+        <div className="set-pay-sub">
+          <label>
             <input type="checkbox" checked={mentionDevis} onChange={(e) => { setMentionDevis(e.target.checked); setSaved(false) }} />
             Afficher sur les devis
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <label>
             <input type="checkbox" checked={mentionFacture} onChange={(e) => { setMentionFacture(e.target.checked); setSaved(false) }} />
             Afficher sur les factures
           </label>
@@ -230,8 +230,8 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
           </div>
         )}
 
-        <button onClick={handleSave} disabled={saving} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ alignSelf: 'flex-start' }}>
-          {saving ? 'Enregistrement...' : saved ? '✅ Enregistré' : 'Enregistrer les infos paiement'}
+        <button onClick={handleSave} disabled={saving} className="set-btn-primary" style={{ alignSelf: 'flex-start' }}>
+          {saving ? '⏳ Enregistrement...' : saved ? '✅ Enregistré' : '💾 Enregistrer'}
         </button>
       </div>
     </div>
@@ -410,6 +410,177 @@ function checkPasswordStrength(val: string) {
   const hasSpecial = /[^A-Za-z0-9]/.test(val)
   const score = [hasLen, hasUpper, hasNum, hasSpecial].filter(Boolean).length
   return { hasLen, hasUpper, hasNum, hasSpecial, score }
+}
+
+// ── Zones d'intervention — matching HTML reference ────────────────────────
+
+const FR_REGIONS = [
+  'Auvergne-Rhône-Alpes', 'Bourgogne-Franche-Comté', 'Bretagne', 'Centre-Val de Loire',
+  'Corse', 'Grand Est', 'Hauts-de-France', 'Île-de-France',
+  'Normandie', 'Nouvelle-Aquitaine', 'Occitanie', 'Pays de la Loire',
+  'Provence-Alpes-Côte d\'Azur',
+]
+
+function ZonesInterventionCard({ isV5 }: { isV5: boolean }) {
+  const [mode, setMode] = useState<'region' | 'dept' | 'city'>('region')
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([])
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([])
+  const [selectedCities, setSelectedCities] = useState<string[]>([])
+  const [citySearch, setCitySearch] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('vitfix_intervention_zones')
+      if (raw) {
+        const d = JSON.parse(raw)
+        if (Array.isArray(d.regions)) setSelectedRegions(d.regions)
+        if (Array.isArray(d.depts)) setSelectedDepts(d.depts)
+        if (Array.isArray(d.cities)) setSelectedCities(d.cities)
+      }
+    } catch { /* silent */ }
+  }, [])
+
+  const toggleRegion = (r: string) => {
+    setSelectedRegions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
+  }
+  const removeRegion = (r: string) => setSelectedRegions(prev => prev.filter(x => x !== r))
+
+  const save = () => {
+    setSaving(true)
+    try {
+      localStorage.setItem('vitfix_intervention_zones', JSON.stringify({
+        regions: selectedRegions, depts: selectedDepts, cities: selectedCities,
+      }))
+      toast.success('Zones d\'intervention enregistrées')
+    } catch {
+      toast.error('Erreur lors de la sauvegarde')
+    }
+    setSaving(false)
+  }
+
+  const reset = () => {
+    setSelectedRegions([]); setSelectedDepts([]); setSelectedCities([]); setCitySearch('')
+  }
+
+  const totalSelected = selectedRegions.length + selectedDepts.length + selectedCities.length
+
+  return (
+    <div className={isV5 ? 'v5-card' : 'v22-card'}>
+      <div className={isV5 ? '' : 'v22-card-head'}>
+        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>📍 Zones d&apos;intervention</div>
+      </div>
+      <div className={isV5 ? '' : 'v22-card-body'}>
+        <div className="set-tabs">
+          <button className={`set-tab-b${mode === 'region' ? ' active' : ''}`} onClick={() => setMode('region')}>🌍 Région</button>
+          <button className={`set-tab-b${mode === 'dept' ? ' active' : ''}`} onClick={() => setMode('dept')}>📍 Département</button>
+          <button className={`set-tab-b${mode === 'city' ? ' active' : ''}`} onClick={() => setMode('city')}>🏙️ Ville</button>
+        </div>
+
+        {mode === 'region' && (
+          <div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>Sélectionnez une ou plusieurs régions</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.5rem', marginBottom: '.75rem' }}>
+              {FR_REGIONS.map(r => (
+                <label key={r} className="set-zone-cb">
+                  <input type="checkbox" checked={selectedRegions.includes(r)} onChange={() => toggleRegion(r)} />
+                  <span>{r}</span>
+                </label>
+              ))}
+            </div>
+            <div className={`set-selected-box${selectedRegions.length ? ' has-items' : ''}`}>
+              {selectedRegions.map(r => (
+                <span key={r} className="set-zone-tag">
+                  {r}
+                  <button type="button" className="set-zone-tag-remove" onClick={() => removeRegion(r)}>×</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mode === 'dept' && (
+          <div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>Sélectionnez des départements (ex : 13, 75, 69…)</div>
+            <input
+              type="text"
+              className="set-pw-fi"
+              placeholder="Ajouter un département (numéro ou nom)"
+              style={{ letterSpacing: 'normal' }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const val = (e.target as HTMLInputElement).value.trim()
+                  if (val && !selectedDepts.includes(val)) {
+                    setSelectedDepts([...selectedDepts, val]);
+                    (e.target as HTMLInputElement).value = ''
+                  }
+                }
+              }}
+            />
+            <div className={`set-selected-box${selectedDepts.length ? ' has-items' : ''}`} style={{ marginTop: '.75rem' }}>
+              {selectedDepts.map(d => (
+                <span key={d} className="set-zone-tag">
+                  {d}
+                  <button type="button" className="set-zone-tag-remove" onClick={() => setSelectedDepts(prev => prev.filter(x => x !== d))}>×</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mode === 'city' && (
+          <div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>Rechercher une ville</div>
+            <input
+              type="text"
+              className="set-pw-fi"
+              placeholder="Marseille, Paris, Lyon…"
+              value={citySearch}
+              style={{ letterSpacing: 'normal' }}
+              onChange={e => setCitySearch(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && citySearch.trim()) {
+                  if (!selectedCities.includes(citySearch.trim())) {
+                    setSelectedCities([...selectedCities, citySearch.trim()])
+                  }
+                  setCitySearch('')
+                }
+              }}
+            />
+            <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>Appuyez sur Entrée pour ajouter</div>
+            <div className={`set-selected-box${selectedCities.length ? ' has-items' : ''}`} style={{ marginTop: '.75rem' }}>
+              {selectedCities.map(c => (
+                <span key={c} className="set-zone-tag">
+                  {c}
+                  <button type="button" className="set-zone-tag-remove" onClick={() => setSelectedCities(prev => prev.filter(x => x !== c))}>×</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {totalSelected > 0 && (
+          <div className="set-interv-summary" style={{ marginTop: '.75rem' }}>
+            <div className="set-interv-summary-title">📊 Résumé de couverture</div>
+            <div className="set-interv-summary-text">
+              {selectedRegions.length > 0 && <div>{selectedRegions.length} région{selectedRegions.length > 1 ? 's' : ''} sélectionnée{selectedRegions.length > 1 ? 's' : ''}</div>}
+              {selectedDepts.length > 0 && <div>{selectedDepts.length} département{selectedDepts.length > 1 ? 's' : ''}</div>}
+              {selectedCities.length > 0 && <div>{selectedCities.length} ville{selectedCities.length > 1 ? 's' : ''}</div>}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: '.85rem' }}>
+          <button onClick={save} disabled={saving} className="set-btn-primary">
+            {saving ? '⏳ …' : '💾 Enregistrer les zones'}
+          </button>
+          <button onClick={reset} className="set-btn-secondary">
+            🗑️ Réinitialiser
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
@@ -777,11 +948,11 @@ export default function SettingsSection({
                 <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{'📅'} {t('proDash.settings.parametresAgenda')}</div>
               </div>
               <div className={isV5 ? '' : 'v22-card-body'}>
-                {/* Toggle auto-accept */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: tv.bg, borderRadius: 6, marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{t('proDash.settings.validationAutoRdv')}</div>
-                    <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 2 }}>
+                {/* Toggle auto-accept — structure HTML set-toggle-row */}
+                <div className="set-toggle-row">
+                  <div className="set-toggle-info">
+                    <div className="set-toggle-title">{t('proDash.settings.validationAutoRdv')}</div>
+                    <div className="set-toggle-desc">
                       {autoAccept ? t('proDash.settings.autoAcceptOn') : t('proDash.settings.autoAcceptOff')}
                     </div>
                   </div>
@@ -814,17 +985,19 @@ export default function SettingsSection({
                   </div>
                 )}
 
-                {/* Auto-reply */}
-                <div style={{ padding: 12, background: tv.bg, borderRadius: 6, marginBottom: 12 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 4 }}>{'💬'} {t('proDash.settings.reponseAuto')}</div>
-                  <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 8 }}>{t('proDash.settings.reponseAutoDesc')}</div>
+                {/* Auto-reply — structure HTML set-toggle-row */}
+                <div className="set-toggle-row">
+                  <div className="set-toggle-info">
+                    <div className="set-toggle-title">{t('proDash.settings.reponseAuto')}</div>
+                    <div className="set-toggle-desc">{t('proDash.settings.reponseAutoDesc')}</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: '.65rem' }}>
                   <textarea
                     value={settingsForm.auto_reply_message}
                     onChange={e => setSettingsForm({...settingsForm, auto_reply_message: e.target.value})}
-                    rows={3}
                     placeholder={t('proDash.settings.reponseAutoPlaceholder')}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                    style={{ resize: 'none' }}
+                    className="set-reponse-ta"
                   />
                 </div>
 
@@ -855,6 +1028,9 @@ export default function SettingsSection({
                 </div>
               </div>
             </div>
+
+            {/* Zones d'intervention — nouvelle feature matching HTML */}
+            <ZonesInterventionCard isV5={isV5} />
 
             {/* Password change */}
             <PasswordChangeCard isV5={isV5} />
