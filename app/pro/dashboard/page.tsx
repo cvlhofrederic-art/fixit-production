@@ -304,6 +304,14 @@ function DashboardPage() {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
       seedDemoLocalStorage(user.id, !!user.user_metadata?._admin_override)
+      // Charger les devis/factures du seed démo dans le state (bugfix : sans ça, UI affiche "Aucun devis")
+      try {
+        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${user.id}`) || '[]')
+        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${user.id}`) || '[]')
+        setSavedDocuments([...docs, ...drafts])
+        setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
+        const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
+      } catch { /* private browsing */ }
       prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], user.id)
       setLoading(false); return
     }
