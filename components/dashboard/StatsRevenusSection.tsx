@@ -334,6 +334,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
   artisan: import('@/lib/types').Artisan
   locale: string
 }) {
+  const isPt = locale === 'pt'
   const aid = artisan?.user_id || artisan?.id || ''
   const { docs, expenses, chantierCount } = useLocalStats(aid)
 
@@ -393,7 +394,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
     })
   } else {
     signedDevis.slice(0, 6).forEach(d => {
-      pieData.push({ label: d.docTitle?.replace(/^.*?—\s*/, '') || 'Chantier', value: (d.total_ht_cents || 0) / 100 })
+      pieData.push({ label: d.docTitle?.replace(/^.*?—\s*/, '') || (isPt ? 'Obra' : 'Chantier'), value: (d.total_ht_cents || 0) / 100 })
     })
   }
   const pieTotal = pieData.reduce((s, p) => s + p.value, 0) || 1
@@ -414,29 +415,29 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Statistiques</h1><p>Analyse de l&apos;activité BTP</p></div>
+      <div className="v5-pg-t"><h1>{isPt ? 'Estatísticas' : 'Statistiques'}</h1><p>{isPt ? 'Análise da atividade BTP' : 'Analyse de l\'activité BTP'}</p></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
         <div className="v5-kpi hl">
-          <div className="v5-kpi-l">CA facturé</div>
+          <div className="v5-kpi-l">{isPt ? 'Faturação total' : 'CA facturé'}</div>
           <div className="v5-kpi-v">{formatPrice(caTotal, locale)}</div>
-          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => f.status === 'envoye').length} factures émises</div>
+          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => f.status === 'envoye').length} {isPt ? 'faturas emitidas' : 'factures émises'}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Chantiers actifs</div>
+          <div className="v5-kpi-l">{isPt ? 'Obras ativas' : 'Chantiers actifs'}</div>
           <div className="v5-kpi-v">{activeChantiers}</div>
-          <div className="v5-kpi-s">{devis.length} devis au total</div>
+          <div className="v5-kpi-s">{devis.length} {isPt ? 'orçamentos no total' : 'devis au total'}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Taux transformation</div>
+          <div className="v5-kpi-l">{isPt ? 'Taxa de conversão' : 'Taux transformation'}</div>
           <div className="v5-kpi-v">{tauxTransformation}%</div>
-          <div className="v5-kpi-s">{signedCount}/{totalOffers} devis signés</div>
+          <div className="v5-kpi-s">{signedCount}/{totalOffers} {isPt ? 'orçamentos assinados' : 'devis signés'}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Panier moyen</div>
+          <div className="v5-kpi-l">{isPt ? 'Valor médio' : 'Panier moyen'}</div>
           <div className="v5-kpi-v">{formatPrice(panierMoyen, locale)}</div>
-          <div className="v5-kpi-s">par chantier signé</div>
+          <div className="v5-kpi-s">{isPt ? 'por obra assinada' : 'par chantier signé'}</div>
         </div>
       </div>
 
@@ -444,7 +445,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
       <div className="v5-sg2">
         {/* Bar chart — CA mensuel 6 mois */}
         <div className="v5-card">
-          <div className="v5-st">CA mensuel — 6 derniers mois</div>
+          <div className="v5-st">{isPt ? 'Faturação mensal — 6 últimos meses' : 'CA mensuel — 6 derniers mois'}</div>
           <div className="ch-bar-c" style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 160, padding: '0 8px' }}>
             {months.map((m, i) => {
               const pct = maxMonthly > 0 ? Math.round((m.value / maxMonthly) * 100) : 0
@@ -472,7 +473,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 
         {/* Pie chart — Répartition CA par chantier */}
         <div className="v5-card">
-          <div className="v5-st">Répartition CA par chantier</div>
+          <div className="v5-st">{isPt ? 'Distribuição da faturação por obra' : 'Répartition CA par chantier'}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', padding: '1rem 0' }}>
             <div style={{
               width: 100, height: 100, borderRadius: '50%',
@@ -499,18 +500,18 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
       {/* Dépenses + marges */}
       {totalExpenses > 0 && (
         <div className="v5-card" style={{ marginTop: 16 }}>
-          <div className="v5-st">Synthèse financière</div>
+          <div className="v5-st">{isPt ? 'Síntese financeira' : 'Synthèse financière'}</div>
           <div style={{ display: 'flex', gap: 16, padding: '12px 0', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 140, padding: '12px 16px', background: '#f0fdf4', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: '#666' }}>CA facturé</div>
+              <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Faturação total' : 'CA facturé'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#2E7D32' }}>{formatPrice(caTotal, locale)}</div>
             </div>
             <div style={{ flex: 1, minWidth: 140, padding: '12px 16px', background: '#fff7ed', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: '#666' }}>Dépenses</div>
+              <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Despesas' : 'Dépenses'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#E65100' }}>{formatPrice(totalExpenses, locale)}</div>
             </div>
             <div style={{ flex: 1, minWidth: 140, padding: '12px 16px', background: caTotal - totalExpenses > 0 ? '#f0fdf4' : '#fef2f2', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: '#666' }}>Marge brute</div>
+              <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Margem bruta' : 'Marge brute'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: caTotal - totalExpenses > 0 ? '#2E7D32' : '#C62828' }}>
                 {formatPrice(caTotal - totalExpenses, locale)} ({caTotal > 0 ? Math.round(((caTotal - totalExpenses) / caTotal) * 100) : 0}%)
               </div>
