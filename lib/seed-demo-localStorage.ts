@@ -7,7 +7,7 @@
  */
 
 const DEMO_ARTISAN_ID = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-const SEED_VERSION = 6 // Increment to force re-seed after adding new data
+const SEED_VERSION = 7 // Increment to force re-seed after adding new data
 
 function isAlreadySeeded(artisanId: string): boolean {
   try {
@@ -290,6 +290,60 @@ export function seedDemoLocalStorage(artisanId: string, isAdminOverride = false)
   ]
 
   localStorage.setItem(`fixit_rapports_${artisanId}`, JSON.stringify(rapports))
+
+  // ═══════════════════════════════════════
+  // BOOKINGS (demandes d'intervention clients)
+  // ═══════════════════════════════════════
+  const bookings = [
+    {
+      id: 'demo-bk-001', artisan_id: artisanId, service_id: null, client_id: null,
+      status: 'confirmed' as const,
+      booking_date: '2026-04-12', booking_time: '09:00:00',
+      duration_minutes: 240,
+      address: '42 Rue de la République, 13001 Marseille',
+      notes: 'Client: Mme Dupont Catherine | Tel: 06 11 22 33 44 | Email: c.dupont@email.fr | Rénovation T3 — phase finitions peinture + parquet salon',
+      price_ht: 2400, price_ttc: 2640,
+      confirmed_at: '2026-04-10T14:00:00Z',
+      created_at: '2026-04-10T10:00:00Z',
+      services: { name: 'Rénovation intérieure — Finitions' },
+      client_name: 'Mme Dupont Catherine',
+      client_phone: '06 11 22 33 44',
+      client_email: 'c.dupont@email.fr',
+    },
+    {
+      id: 'demo-bk-002', artisan_id: artisanId, service_id: null, client_id: null,
+      status: 'completed' as const,
+      booking_date: '2026-04-08', booking_time: '07:30:00',
+      duration_minutes: 540,
+      address: '8 Chemin des Oliviers, 13012 Marseille',
+      notes: 'Client: M. et Mme Garcia | Tel: 06 77 88 99 00 | Email: garcia.fam@email.fr | SDB complète — pose faïence murale + raccordements finaux',
+      price_ht: 1850, price_ttc: 2035,
+      confirmed_at: '2026-04-05T09:00:00Z',
+      completed_at: '2026-04-08T17:00:00Z',
+      created_at: '2026-04-04T11:00:00Z',
+      services: { name: 'Plomberie + Carrelage' },
+      client_name: 'M. et Mme Garcia',
+      client_phone: '06 77 88 99 00',
+      client_email: 'garcia.fam@email.fr',
+    },
+    {
+      id: 'demo-bk-003', artisan_id: artisanId, service_id: null, client_id: null,
+      status: 'confirmed' as const,
+      booking_date: '2026-04-15', booking_time: '08:00:00',
+      duration_minutes: 480,
+      address: '15 Chemin de Paradis, 13008 Marseille',
+      notes: 'Client: M. Rossi Antoine | Tel: 06 44 55 66 77 | Email: a.rossi@email.fr | Extension 30m² — montée murs parpaings (rang 9 à 16)',
+      price_ht: 3200, price_ttc: 3840,
+      confirmed_at: '2026-04-12T16:00:00Z',
+      created_at: '2026-04-11T10:00:00Z',
+      services: { name: 'Maçonnerie — Gros œuvre' },
+      client_name: 'M. Rossi Antoine',
+      client_phone: '06 44 55 66 77',
+      client_email: 'a.rossi@email.fr',
+    },
+  ]
+
+  localStorage.setItem(`fixit_bookings_${artisanId}`, JSON.stringify(bookings))
 
   // ═══════════════════════════════════════
   // PORTFOLIO / RÉFÉRENCES CHANTIERS

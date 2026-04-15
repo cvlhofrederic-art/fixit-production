@@ -311,6 +311,7 @@ function DashboardPage() {
         setSavedDocuments([...docs, ...drafts])
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
+        const bks = localStorage.getItem(`fixit_bookings_${user.id}`); if (bks) setBookings(JSON.parse(bks))
       } catch { /* private browsing */ }
       prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], user.id)
       setLoading(false); return
@@ -351,11 +352,20 @@ function DashboardPage() {
       supabase.from('services').select('*').eq('artisan_id', aid),
     ])
     if (!isMountedRef.current) return // Composant démonté pendant le fetch
-    setBookings(bookingsRes.data || [])
+    // Merge Supabase bookings with localStorage demo bookings (super admin demo account)
+    let mergedBookings: Booking[] = bookingsRes.data || []
+    try {
+      const demoBks = JSON.parse(localStorage.getItem(`fixit_bookings_${aid}`) || '[]')
+      if (Array.isArray(demoBks) && demoBks.length > 0) {
+        const existingIds = new Set(mergedBookings.map(b => b.id))
+        mergedBookings = [...demoBks.filter((b: Booking) => !existingIds.has(b.id)), ...mergedBookings]
+      }
+    } catch { /* ignore */ }
+    setBookings(mergedBookings)
     setServices(servicesRes.data || [])
 
     // Auto-add clients from bookings (deferred, non-blocking)
-    const confirmed = (bookingsRes.data || []).filter((b: Booking) => b.status === 'confirmed' || b.status === 'completed')
+    const confirmed = mergedBookings.filter((b: Booking) => b.status === 'confirmed' || b.status === 'completed')
     requestAnimationFrame(() => { for (const b of confirmed) autoAddClientFromBooking(b) })
   }
 

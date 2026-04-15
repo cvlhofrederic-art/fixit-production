@@ -2810,22 +2810,22 @@ export default function DevisFactureForm({
               <div className="v22-card-head">
                 <span className="v22-card-title">{t('devis.summary')}</span>
               </div>
-              <div className="v22-card-body" style={{ padding: 0 }}>
-                <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--v22-border)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
-                  <span className="v22-amount">{localeFormats.currencyFormat(subtotalHT)}</span>
+              <div className="v22-card-body">
+                <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
+                  <span>{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
+                  <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(subtotalHT)}</span>
                 </div>
                 {tvaEnabled && (
-                  <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--v22-border)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{t('devis.taxLabel')}</span>
-                    <span className="v22-amount">{localeFormats.currencyFormat(totalTVA)}</span>
+                  <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
+                    <span>{t('devis.taxLabel')}</span>
+                    <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(totalTVA)}</span>
                   </div>
                 )}
                 <div style={{
-                  padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  background: tvaEnabled ? 'var(--v22-green)' : 'var(--v22-yellow)',
-                  color: tvaEnabled ? '#fff' : 'var(--v22-text)',
-                  fontWeight: 600, fontSize: 14,
+                  padding: '.6rem .75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: tvaEnabled ? 'var(--v22-green)' : 'var(--v5-primary-yellow)',
+                  color: tvaEnabled ? '#fff' : '#333',
+                  fontWeight: 700, fontSize: 13, borderRadius: 7, marginTop: '.5rem',
                 }}>
                   <span>{tvaEnabled ? t('devis.totalTTC') : t('devis.totalNet')}</span>
                   <span className="v22-mono">{localeFormats.currencyFormat(tvaEnabled ? totalTTC : subtotalHT)}</span>
