@@ -37,9 +37,42 @@ const MODELES = [
 const STATUT_COLORS: Record<string, string> = {
   en_cours: 'bg-amber-100 text-amber-700', complet: 'bg-green-100 text-green-700', remis: 'bg-blue-100 text-blue-700',
 }
-const STATUT_LABELS: Record<string, string> = { en_cours: 'En cours', complet: 'Complet', remis: 'Remis' }
+const STATUT_LABELS_FR: Record<string, string> = { en_cours: 'En cours', complet: 'Complet', remis: 'Remis' }
+const STATUT_LABELS_PT: Record<string, string> = { en_cours: 'Em curso', complet: 'Completo', remis: 'Entregue' }
 
 export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: import('@/lib/types').Artisan; locale?: string }) {
+  const isPt = locale === 'pt'
+  const STATUT_LABELS = isPt ? STATUT_LABELS_PT : STATUT_LABELS_FR
+  const T = {
+    title: isPt ? 'Documentos Obra' : 'Documents BTP',
+    reglementations: isPt ? 'Regulamentações' : 'Réglementations',
+    modeles: isPt ? 'Modelos' : 'Modèles',
+    doe: 'DOE',
+    reglementation: isPt ? 'Regulamentação' : 'Réglementation',
+    documentOuvert: isPt ? 'Documento aberto' : 'Document ouvert',
+    telecharge: isPt ? 'Descarregado' : 'Téléchargé',
+    telecharger: isPt ? 'Descarregar' : 'Télécharger',
+    nouveauDOE: isPt ? 'Novo DOE' : 'Nouveau DOE',
+    aucunDOE: isPt ? 'Nenhum DOE registado' : 'Aucun DOE enregistré',
+    remise: isPt ? 'Entrega' : 'Remise',
+    supprimerDoc: isPt ? 'Eliminar este documento' : 'Supprimer ce document',
+    chantier: isPt ? 'Obra' : 'Chantier',
+    documentsLabel: isPt ? 'Documentos' : 'Documents',
+    nomDoc: isPt ? 'Nome do documento' : 'Nom du document',
+    ajouterDoc: isPt ? 'Adicionar documento' : 'Ajouter un document',
+    annuler: isPt ? 'Cancelar' : 'Annuler',
+    creer: isPt ? 'Criar' : 'Créer',
+    supprimerDOE: isPt ? 'Eliminar este DOE?' : 'Supprimer ce DOE ?',
+    actionIrrev: isPt ? 'Esta ação é irreversível.' : 'Cette action est irréversible.',
+    supprimer: isPt ? 'Eliminar' : 'Supprimer',
+    optPlan: 'Plan',
+    optNotice: isPt ? 'Manual' : 'Notice',
+    optCertif: isPt ? 'Certificado' : 'Certificat',
+    optPhoto: 'Photo',
+    statutEnCours: isPt ? 'Em curso' : 'En cours',
+    statutComplet: isPt ? 'Completo' : 'Complet',
+    statutRemis: isPt ? 'Entregue' : 'Remis',
+  }
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'reglementation' | 'modeles' | 'doe'>('reglementation')
   const [doeList, setDoeList] = useState<DOEEntry[]>([])
@@ -73,7 +106,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold text-gray-900">Documents BTP</h2>
+      <h2 className="text-lg font-semibold text-gray-900">{T.title}</h2>
 
       {/* Toast */}
       {toast && <div className="fixed top-4 right-4 bg-gray-900 text-white px-4 py-2 rounded text-sm z-50">{toast}</div>}
@@ -82,11 +115,11 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-md border p-4">
           <p className="text-base font-semibold text-gray-900">{reglementations.length}</p>
-          <p className="text-sm text-gray-500">Réglementations</p>
+          <p className="text-sm text-gray-500">{T.reglementations}</p>
         </div>
         <div className="bg-white rounded-md border p-4">
           <p className="text-base font-semibold text-blue-600">{MODELES.length}</p>
-          <p className="text-sm text-gray-500">Modèles</p>
+          <p className="text-sm text-gray-500">{T.modeles}</p>
         </div>
         <div className="bg-white rounded-md border p-4">
           <p className="text-base font-semibold text-amber-600">{doeList.length}</p>
@@ -96,7 +129,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
 
       {/* Tabs */}
       <div className="flex gap-2 border-b">
-        {([['reglementation', 'Réglementation'], ['modeles', 'Modèles'], ['doe', 'DOE']] as const).map(([key, label]) => (
+        {([['reglementation', T.reglementation], ['modeles', T.modeles], ['doe', 'DOE']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === key ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             {label}
           </button>
@@ -106,7 +139,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
       {tab === 'reglementation' && (
         <div className="bg-white rounded-md border divide-y">
           {reglementations.map((r, i) => (
-            <button key={i} onClick={() => showToast('Document ouvert')} className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left">
+            <button key={i} onClick={() => showToast(T.documentOuvert)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left">
               <div>
                 <span className="text-xs font-medium text-amber-600 uppercase">{r.categorie}</span>
                 <p className="font-semibold text-gray-900">{r.nom}</p>
@@ -126,7 +159,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
                 <span className="text-xs font-medium text-blue-600 uppercase">{m.categorie}</span>
                 <p className="font-semibold text-gray-900">{m.nom}</p>
               </div>
-              <button onClick={() => showToast('Téléchargé')} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700 flex items-center gap-1"><Download size={14} /> Télécharger</button>
+              <button onClick={() => showToast(T.telecharge)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700 flex items-center gap-1"><Download size={14} /> {T.telecharger}</button>
             </div>
           ))}
         </div>
@@ -135,9 +168,9 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
       {tab === 'doe' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-medium flex items-center gap-1"><PlusCircle size={14} /> Nouveau DOE</button>
+            <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-medium flex items-center gap-1"><PlusCircle size={14} /> {T.nouveauDOE}</button>
           </div>
-          {doeList.length === 0 && <p className="text-gray-400 text-center py-8">Aucun DOE enregistré</p>}
+          {doeList.length === 0 && <p className="text-gray-400 text-center py-8">{T.aucunDOE}</p>}
           {doeList.map(doe => (
             <div key={doe.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
@@ -145,14 +178,14 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUT_COLORS[doe.statut]}`}>{STATUT_LABELS[doe.statut]}</span>
                   <select value={doe.statut} onChange={e => updateDoeStatut(doe.id, e.target.value as DOEEntry['statut'])} className="text-xs border rounded px-1 py-0.5">
-                    <option value="en_cours">En cours</option>
-                    <option value="complet">Complet</option>
-                    <option value="remis">Remis</option>
+                    <option value="en_cours">{T.statutEnCours}</option>
+                    <option value="complet">{T.statutComplet}</option>
+                    <option value="remis">{T.statutRemis}</option>
                   </select>
-                  <button onClick={() => setConfirmDeleteId(doe.id)} className="text-red-400 hover:text-red-600 text-sm" aria-label="Supprimer ce document"><X size={14} /></button>
+                  <button onClick={() => setConfirmDeleteId(doe.id)} className="text-red-400 hover:text-red-600 text-sm" aria-label={T.supprimerDoc}><X size={14} /></button>
                 </div>
               </div>
-              <p className="text-sm text-gray-500">Remise : {doe.dateRemise || '—'}</p>
+              <p className="text-sm text-gray-500">{T.remise} : {doe.dateRemise || '—'}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {doe.documents.map((d, i) => (
                   <span key={i} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">{d.type}: {d.nom}</span>
@@ -167,27 +200,27 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-md p-4 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold mb-4">Nouveau DOE</h3>
+            <h3 className="text-sm font-semibold mb-4">{T.nouveauDOE}</h3>
             <div className="space-y-3">
-              <input placeholder="Chantier" value={doeForm.chantier} onChange={e => setDoeForm({ ...doeForm, chantier: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={T.chantier} value={doeForm.chantier} onChange={e => setDoeForm({ ...doeForm, chantier: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <input type="date" value={doeForm.dateRemise} onChange={e => setDoeForm({ ...doeForm, dateRemise: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <p className="text-sm font-medium text-gray-700">Documents</p>
+              <p className="text-sm font-medium text-gray-700">{T.documentsLabel}</p>
               {doeForm.documents.map((doc, idx) => (
                 <div key={idx} className="flex gap-2">
-                  <input placeholder="Nom du document" value={doc.nom} onChange={e => { const docs = [...doeForm.documents]; docs[idx] = { ...docs[idx], nom: e.target.value }; setDoeForm({ ...doeForm, documents: docs }) }} className="flex-1 border rounded px-2 py-1 text-sm" />
+                  <input placeholder={T.nomDoc} value={doc.nom} onChange={e => { const docs = [...doeForm.documents]; docs[idx] = { ...docs[idx], nom: e.target.value }; setDoeForm({ ...doeForm, documents: docs }) }} className="flex-1 border rounded px-2 py-1 text-sm" />
                   <select value={doc.type} onChange={e => { const docs = [...doeForm.documents]; docs[idx] = { ...docs[idx], type: e.target.value as DOEDocument['type'] }; setDoeForm({ ...doeForm, documents: docs }) }} className="border rounded px-2 py-1 text-sm">
-                    <option value="plan">Plan</option>
-                    <option value="notice">Notice</option>
-                    <option value="certificat">Certificat</option>
-                    <option value="photo">Photo</option>
+                    <option value="plan">{T.optPlan}</option>
+                    <option value="notice">{T.optNotice}</option>
+                    <option value="certificat">{T.optCertif}</option>
+                    <option value="photo">{T.optPhoto}</option>
                   </select>
                 </div>
               ))}
-              <button onClick={() => setDoeForm({ ...doeForm, documents: [...doeForm.documents, { nom: '', type: 'plan', ajouteLe: new Date().toISOString().split('T')[0] }] })} className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"><PlusCircle size={14} /> Ajouter un document</button>
+              <button onClick={() => setDoeForm({ ...doeForm, documents: [...doeForm.documents, { nom: '', type: 'plan', ajouteLe: new Date().toISOString().split('T')[0] }] })} className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"><PlusCircle size={14} /> {T.ajouterDoc}</button>
             </div>
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
-              <button onClick={addDoe} disabled={!doeForm.chantier.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+              <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">{T.annuler}</button>
+              <button onClick={addDoe} disabled={!doeForm.chantier.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">{T.creer}</button>
             </div>
           </div>
         </div>
@@ -196,11 +229,11 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: impor
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDeleteId(null)}>
           <div className="bg-white rounded-md p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold mb-2">Supprimer ce DOE ?</h3>
-            <p className="text-sm text-gray-500 mb-4">Cette action est irréversible.</p>
+            <h3 className="text-sm font-semibold mb-2">{T.supprimerDOE}</h3>
+            <p className="text-sm text-gray-500 mb-4">{T.actionIrrev}</p>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
-              <button onClick={() => { deleteDoe(confirmDeleteId); setConfirmDeleteId(null) }} className="flex-1 px-4 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600">Supprimer</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 px-4 py-2 border rounded text-sm">{T.annuler}</button>
+              <button onClick={() => { deleteDoe(confirmDeleteId); setConfirmDeleteId(null) }} className="flex-1 px-4 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600">{T.supprimer}</button>
             </div>
           </div>
         </div>

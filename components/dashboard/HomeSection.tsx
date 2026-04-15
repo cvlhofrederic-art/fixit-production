@@ -209,6 +209,7 @@ export default function HomeSection({
   // ── Aggregate BTP alerts from various sources (pro_societe only) ──
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id || orgRole !== 'pro_societe') return
+    const isPt = locale === 'pt'
     const collected: Array<{ level: 'err' | 'warn' | 'info'; icon: string; text: string; page?: string }> = []
 
     // 1. Nouveaux messages / demandes client (conversations en cache)
@@ -223,7 +224,9 @@ export default function HomeSection({
           collected.push({
             level: 'info',
             icon: '💬',
-            text: unreadTotal === 1 ? `1 nouveau message — ${name}` : `${unreadTotal} nouveaux messages (dont ${name})`,
+            text: isPt
+              ? (unreadTotal === 1 ? `1 nova mensagem — ${name}` : `${unreadTotal} novas mensagens (incl. ${name})`)
+              : (unreadTotal === 1 ? `1 nouveau message — ${name}` : `${unreadTotal} nouveaux messages (dont ${name})`),
             page: 'messages',
           })
         }
@@ -237,7 +240,9 @@ export default function HomeSection({
       collected.push({
         level: 'warn',
         icon: '🏁',
-        text: `${c.titre} — deadline dépassée, à valider "Terminé"`,
+        text: isPt
+          ? `${c.titre} — prazo excedido, validar como "Terminado"`
+          : `${c.titre} — deadline dépassée, à valider "Terminé"`,
         page: 'chantiers',
       })
     })
@@ -263,7 +268,9 @@ export default function HomeSection({
         collected.push({
           level: 'err',
           icon: '🧾',
-          text: `${c.titre} — chantier terminé, facture non envoyée (${c.client})`,
+          text: isPt
+            ? `${c.titre} — obra terminada, fatura não enviada (${c.client})`
+            : `${c.titre} — chantier terminé, facture non envoyée (${c.client})`,
           page: 'factures',
         })
       })
@@ -276,7 +283,9 @@ export default function HomeSection({
         collected.push({
           level: 'warn',
           icon: '📝',
-          text: `Devis ${ref} en brouillon — à envoyer (${client})`,
+          text: isPt
+            ? `Orçamento ${ref} em rascunho — a enviar (${client})`
+            : `Devis ${ref} en brouillon — à envoyer (${client})`,
           page: 'devis',
         })
       })
@@ -294,11 +303,13 @@ export default function HomeSection({
       })
       demandesSansDevis.slice(0, 2).forEach(b => {
         const clientName = extractClientName(b)
-        const service = b.services?.name || 'Intervention'
+        const service = b.services?.name || (isPt ? 'Intervenção' : 'Intervention')
         collected.push({
           level: 'info',
           icon: '📋',
-          text: `Devis à faire — ${service} (${clientName})`,
+          text: isPt
+            ? `Orçamento a fazer — ${service} (${clientName})`
+            : `Devis à faire — ${service} (${clientName})`,
           page: 'devis',
         })
       })
@@ -324,8 +335,8 @@ export default function HomeSection({
             level: d.expired ? 'err' : 'warn',
             icon: '📁',
             text: d.expired
-              ? `${label} — expiré depuis ${Math.abs(d.days)}j`
-              : `${label} — expire dans ${d.days}j`,
+              ? (isPt ? `${label} — expirou há ${Math.abs(d.days)}d` : `${label} — expiré depuis ${Math.abs(d.days)}j`)
+              : (isPt ? `${label} — expira em ${d.days}d` : `${label} — expire dans ${d.days}j`),
             page: 'wallet-conformite',
           })
         })
@@ -379,16 +390,16 @@ export default function HomeSection({
             {isSociete && (
               <button
                 className="v5-btn v5-btn-sm"
-                title="Injecte des alertes de démonstration (messages, devis brouillon, wallet)"
+                title={locale === 'pt' ? 'Injeta alertas de demonstração (mensagens, orçamento rascunho, wallet)' : 'Injecte des alertes de démonstration (messages, devis brouillon, wallet)'}
                 onClick={() => {
                   const res = seedDemoAlertsData(artisan?.id || '', btpChantiers)
                   if (res === 'ok') {
-                    alert('✅ Données démo injectées — rafraîchissement…')
+                    alert(locale === 'pt' ? '✅ Dados de demonstração injetados — a recarregar…' : '✅ Données démo injectées — rafraîchissement…')
                     window.location.reload()
                   }
                 }}
               >
-                🎲 Démo
+                🎲 {locale === 'pt' ? 'Demo' : 'Démo'}
               </button>
             )}
             <button className="v5-btn v5-btn-sm" onClick={() => navigateTo('stats')}>{locale === 'pt' ? 'Exportar' : 'Exporter'}</button>
@@ -400,24 +411,24 @@ export default function HomeSection({
         <div className="v5-kpi-g">
           {isSociete ? (<>
             <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
-              <div className="v5-kpi-l">Chantiers actifs</div>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Obras ativas' : 'Chantiers actifs'}</div>
               <div className="v5-kpi-v">{chantiersActifs.length}</div>
-              <div className="v5-kpi-s">{chantiersAttente.length > 0 ? `+ ${chantiersAttente.length} en attente` : `${btpChantiers.length} total`}</div>
+              <div className="v5-kpi-s">{chantiersAttente.length > 0 ? `+ ${chantiersAttente.length} ${locale === 'pt' ? 'em espera' : 'en attente'}` : `${btpChantiers.length} total`}</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('comptabilite-btp')}>
-              <div className="v5-kpi-l">CA total chantiers</div>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação total obras' : 'CA total chantiers'}</div>
               <div className="v5-kpi-v">{formatPrice(totalBudget)}</div>
-              <div className="v5-kpi-s">Acomptes : {formatPrice(totalAcomptes)}</div>
+              <div className="v5-kpi-s">{locale === 'pt' ? 'Adiantamentos' : 'Acomptes'} : {formatPrice(totalAcomptes)}</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('rentabilite')}>
-              <div className="v5-kpi-l">Marge moyenne</div>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Margem média' : 'Marge moyenne'}</div>
               <div className="v5-kpi-v">{margeMoyenne}%</div>
-              <div className="v5-kpi-s">Objectif : 25%</div>
+              <div className="v5-kpi-s">{locale === 'pt' ? 'Objetivo' : 'Objectif'} : 25%</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('equipes')}>
-              <div className="v5-kpi-l">Effectif</div>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Efetivo' : 'Effectif'}</div>
               <div className="v5-kpi-v">{membresActifs.length}</div>
-              <div className="v5-kpi-s">{membresActifs.filter(m => m.type_compte === 'chef_chantier').length} chefs + {membresActifs.filter(m => m.type_compte === 'ouvrier').length} ouvriers</div>
+              <div className="v5-kpi-s">{membresActifs.filter(m => m.type_compte === 'chef_chantier').length} {locale === 'pt' ? 'chefes' : 'chefs'} + {membresActifs.filter(m => m.type_compte === 'ouvrier').length} {locale === 'pt' ? 'operários' : 'ouvriers'}</div>
             </div>
           </>) : (<>
             <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
@@ -448,15 +459,15 @@ export default function HomeSection({
           {/* Chantiers en cours / Demandes */}
           <div className="v5-card">
             <div className="v5-st" style={{ display: 'flex', alignItems: 'center' }}>
-              {isSociete ? 'Chantiers en cours' : (locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues')}
+              {isSociete ? (locale === 'pt' ? 'Obras em curso' : 'Chantiers en cours') : (locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues')}
               <span style={{ marginLeft: 'auto', fontSize: 11, color: '#999', cursor: 'pointer' }} onClick={() => navigateTo(isSociete ? 'chantiers' : 'calendar')}>{locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}</span>
             </div>
             {isSociete ? (
               chantiersActifs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucun chantier en cours</div>
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Sem obras em curso' : 'Aucun chantier en cours'}</div>
               ) : (
                 <table className="v5-dt">
-                  <thead><tr><th>Chantier</th><th>Chef</th><th>Avancement</th><th>Deadline</th></tr></thead>
+                  <thead><tr><th>{locale === 'pt' ? 'Obra' : 'Chantier'}</th><th>{locale === 'pt' ? 'Chefe' : 'Chef'}</th><th>{locale === 'pt' ? 'Progresso' : 'Avancement'}</th><th>{locale === 'pt' ? 'Prazo' : 'Deadline'}</th></tr></thead>
                   <tbody>
                     {chantiersActifs.slice(0, 5).map(c => {
                       const color = colorForChantierId(c.id)
@@ -489,7 +500,7 @@ export default function HomeSection({
                 <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</div>
               ) : (
                 <table className="v5-dt">
-                  <thead><tr><th>{locale === 'pt' ? 'Cliente' : 'Client'}</th><th>Service</th><th>{locale === 'pt' ? 'Estado' : 'Statut'}</th></tr></thead>
+                  <thead><tr><th>{locale === 'pt' ? 'Cliente' : 'Client'}</th><th>{locale === 'pt' ? 'Serviço' : 'Service'}</th><th>{locale === 'pt' ? 'Estado' : 'Statut'}</th></tr></thead>
                   <tbody>
                     {pendingBookings.slice(0, 5).map(b => {
                       const clientName = extractClientName(b)
@@ -497,8 +508,8 @@ export default function HomeSection({
                       return (
                         <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
                           <td style={{ fontWeight: 600 }}>{clientName}</td>
-                          <td>{b.services?.name || 'Intervention'}</td>
-                          <td><span className={`v5-badge ${isUrgent ? 'v5-badge-red' : 'v5-badge-orange'}`}>{isUrgent ? 'Urgent' : (locale === 'pt' ? 'Pendente' : 'En attente')}</span></td>
+                          <td>{b.services?.name || (locale === 'pt' ? 'Intervenção' : 'Intervention')}</td>
+                          <td><span className={`v5-badge ${isUrgent ? 'v5-badge-red' : 'v5-badge-orange'}`}>{isUrgent ? (locale === 'pt' ? 'Urgente' : 'Urgent') : (locale === 'pt' ? 'Pendente' : 'En attente')}</span></td>
                         </tr>
                       )
                     })}
@@ -510,10 +521,10 @@ export default function HomeSection({
 
           {/* Planning semaine / Agenda */}
           <div className="v5-card">
-            <div className="v5-st">{isSociete ? 'Planning semaine' : (locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine')}</div>
+            <div className="v5-st">{isSociete ? (locale === 'pt' ? 'Planeamento da semana' : 'Planning semaine') : (locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine')}</div>
             {isSociete ? (() => {
               // Aggrège les jalons des 7 prochains jours : débuts / fins de chantiers + RDVs du calendrier
-              const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+              const DAY_LABELS = locale === 'pt' ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] : ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
               const DAY_COLORS = [
                 { bg: '#E3F2FD', fg: '#1565C0' },
                 { bg: '#E8F5E9', fg: '#2E7D32' },
@@ -530,22 +541,22 @@ export default function HomeSection({
               btpChantiers.forEach(c => {
                 if (c.dateDebut) {
                   const d = new Date(c.dateDebut); d.setHours(0, 0, 0, 0)
-                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `Démarrage — ${c.titre}` })
+                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${locale === 'pt' ? 'Arranque' : 'Démarrage'} — ${c.titre}` })
                 }
                 if (c.dateFin) {
                   const d = new Date(c.dateFin); d.setHours(0, 0, 0, 0)
-                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `Livraison — ${c.titre}` })
+                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${locale === 'pt' ? 'Entrega' : 'Livraison'} — ${c.titre}` })
                 }
               })
               bookings.forEach(b => {
                 if (!b.booking_date) return
                 const d = new Date(b.booking_date); d.setHours(0, 0, 0, 0)
                 if (d >= today && d < weekEnd) {
-                  items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${b.services?.name || 'RDV'} — ${extractClientName(b)}` })
+                  items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${b.services?.name || (locale === 'pt' ? 'Agendamento' : 'RDV')} — ${extractClientName(b)}` })
                 }
               })
               items.sort((a, b) => a.date.getTime() - b.date.getTime())
-              if (items.length === 0) return <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Rien de prévu cette semaine</div>
+              if (items.length === 0) return <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nada previsto esta semana' : 'Rien de prévu cette semaine'}</div>
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                   {items.slice(0, 6).map((it, i) => {
@@ -581,10 +592,10 @@ export default function HomeSection({
 
           {/* Alertes BTP / Alertes */}
           <div className="v5-card">
-            <div className="v5-st">{isSociete ? 'Alertes BTP' : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
+            <div className="v5-st">{isSociete ? (locale === 'pt' ? 'Alertas Obras' : 'Alertes BTP') : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
             {isSociete ? (
               btpAlerts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucune alerte</div>
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                   {btpAlerts.slice(0, 6).map((a, i) => (
@@ -615,19 +626,19 @@ export default function HomeSection({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           {isSociete ? (<>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('situations')}>
-              <div className="v5-st">Situations de travaux</div>
+              <div className="v5-st">{locale === 'pt' ? 'Situações de obra' : 'Situations de travaux'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpSituations.length}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{btpSituations.filter(s => s.statut === 'validée' || s.statut === 'payée').length} validées / payées</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{btpSituations.filter(s => s.statut === 'validée' || s.statut === 'payée').length} {locale === 'pt' ? 'validadas / pagas' : 'validées / payées'}</div>
             </div>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('pointage')}>
-              <div className="v5-st">Dépenses</div>
+              <div className="v5-st">{locale === 'pt' ? 'Despesas' : 'Dépenses'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpDepenses.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{formatPrice(totalDepenses)} total</div>
             </div>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('portail-client')}>
-              <div className="v5-st">Clients</div>
+              <div className="v5-st">{locale === 'pt' ? 'Clientes' : 'Clients'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{new Set(btpChantiers.map(c => c.client)).size}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{btpChantiers.length} chantiers</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{btpChantiers.length} {locale === 'pt' ? 'obras' : 'chantiers'}</div>
             </div>
           </>) : (<>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem' }}>

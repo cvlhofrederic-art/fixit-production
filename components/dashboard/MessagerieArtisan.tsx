@@ -75,22 +75,22 @@ const getStatutConfig = (isPt: boolean): Record<string, { label: string; tagClas
 
 // ═══ TYPES CLIENT ═══
 
-const TYPES_CLIENT: Record<string, { badge: string; couleur: string }> = {
-  particulier:            { badge: 'Particulier',    couleur: 'gris' },
-  particulier_bailleur:   { badge: 'Bailleur',       couleur: 'gris' },
-  particulier_secondaire: { badge: 'Résid. sec.',    couleur: 'gris' },
+const getTypesClient = (isPt: boolean): Record<string, { badge: string; couleur: string }> => ({
+  particulier:            { badge: isPt ? 'Particular' : 'Particulier',    couleur: 'gris' },
+  particulier_bailleur:   { badge: isPt ? 'Senhorio' : 'Bailleur',       couleur: 'gris' },
+  particulier_secondaire: { badge: isPt ? 'Casa sec.' : 'Résid. sec.',    couleur: 'gris' },
   professionnel:          { badge: 'Pro',             couleur: 'bleu' },
-  societe:                { badge: 'Société',         couleur: 'bleu' },
-  artisan_sous_traitant:  { badge: 'Sous-traitant',  couleur: 'bleu' },
-  syndic:                 { badge: 'Syndic',          couleur: 'violet' },
-  conciergerie:           { badge: 'Conciergerie',    couleur: 'violet' },
-  agence_immobiliere:     { badge: 'Agence immo',     couleur: 'violet' },
-  promoteur:              { badge: 'Promoteur',       couleur: 'orange' },
-  architecte:             { badge: 'Architecte',      couleur: 'orange' },
-  collectivite:           { badge: 'Collectivité',    couleur: 'vert' },
-  association:            { badge: 'Association',     couleur: 'vert' },
+  societe:                { badge: isPt ? 'Empresa' : 'Société',         couleur: 'bleu' },
+  artisan_sous_traitant:  { badge: isPt ? 'Subempr.' : 'Sous-traitant',  couleur: 'bleu' },
+  syndic:                 { badge: isPt ? 'Administração' : 'Syndic',          couleur: 'violet' },
+  conciergerie:           { badge: isPt ? 'Concierge' : 'Conciergerie',    couleur: 'violet' },
+  agence_immobiliere:     { badge: isPt ? 'Imobiliária' : 'Agence immo',     couleur: 'violet' },
+  promoteur:              { badge: isPt ? 'Promotor' : 'Promoteur',       couleur: 'orange' },
+  architecte:             { badge: isPt ? 'Arquiteto' : 'Architecte',      couleur: 'orange' },
+  collectivite:           { badge: isPt ? 'Autarquia' : 'Collectivité',    couleur: 'vert' },
+  association:            { badge: isPt ? 'Associação' : 'Association',     couleur: 'vert' },
   pro:                    { badge: 'Pro',             couleur: 'bleu' },
-}
+})
 
 const AVATAR_COLORS = [
   { bg: '#FFF3E0', color: '#E65100' },
@@ -108,7 +108,8 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[idx]
 }
 
-function getClientTypeBadge(contactType: string) {
+function getClientTypeBadge(contactType: string, isPt: boolean) {
+  const TYPES_CLIENT = getTypesClient(isPt)
   const config = TYPES_CLIENT[contactType] || TYPES_CLIENT.particulier
   return config
 }
@@ -445,7 +446,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             filteredConversations.map(conv => {
               const isSelected = activeConv?.id === conv.id
               const avatarCol = getAvatarColor(conv.contact_name || '')
-              const typeBadge = getClientTypeBadge(conv.contact_type)
+              const typeBadge = getClientTypeBadge(conv.contact_type, isPt)
               const initials = (conv.contact_name || '?').split(' ').map(w => w.charAt(0).toUpperCase()).slice(0, 2).join('')
 
               return (
@@ -502,8 +503,8 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span className={isV5 ? 'v5-msg-nm' : 'v22-msg-header-name'}>{activeConv.contact_name || 'Contact'}</span>
-                  <span className={`badge badge-${getClientTypeBadge(activeConv.contact_type).couleur === 'bleu' ? 'blue' : getClientTypeBadge(activeConv.contact_type).couleur === 'violet' ? 'purple' : getClientTypeBadge(activeConv.contact_type).couleur === 'orange' ? 'orange' : getClientTypeBadge(activeConv.contact_type).couleur === 'vert' ? 'green' : 'gray'}`} style={{ fontSize: 9, padding: '1px 6px' }}>
-                    {getClientTypeBadge(activeConv.contact_type).badge}
+                  <span className={`badge badge-${getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'bleu' ? 'blue' : getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'violet' ? 'purple' : getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'orange' ? 'orange' : getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'vert' ? 'green' : 'gray'}`} style={{ fontSize: 9, padding: '1px 6px' }}>
+                    {getClientTypeBadge(activeConv.contact_type, isPt).badge}
                   </span>
                 </div>
               </div>

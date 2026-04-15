@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { useTranslation } from '@/lib/i18n/context'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { ModuleDef, ModuleConfig } from '@/hooks/useModulesConfig'
 import type { ModCategory, CatMod } from '@/hooks/useModuleCategories'
 import { buildDefaultCategories } from '@/hooks/useModuleCategories'
@@ -32,6 +32,8 @@ export default function ModulesSection({
   setCategories: extSetCategories,
 }: ModulesSectionProps) {
   const { t: _t } = useTranslation()
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   void _t
   void orgRole
   const primary = '#FFC107'
@@ -89,7 +91,7 @@ export default function ModulesSection({
 
   const addCategory = () => {
     const id = 'cat-' + Date.now()
-    commit([...categories, { id, name: 'Nouvelle catégorie', open: true, modules: [] }])
+    commit([...categories, { id, name: isPt ? 'Nova categoria' : 'Nouvelle catégorie', open: true, modules: [] }])
     setTimeout(() => {
       const inputs = document.querySelectorAll<HTMLInputElement>('.mc-cat-name')
       const last = inputs[inputs.length - 1]

@@ -66,7 +66,7 @@ function V5SidebarItem({ icon, label, active, badge, onClick, page }: {
     <button type="button" onClick={onClick} onMouseEnter={handleHover} className={`v5-sb-i${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
       <span className="v5-sb-icon" aria-hidden="true">{icon}</span>
       <span className="v5-sb-label">{label}</span>
-      {badge != null && badge > 0 && <span className="v5-sb-badge" aria-label={`${badge} en attente`}>{badge}</span>}
+      {badge != null && badge > 0 && <span className="v5-sb-badge" aria-label={`${badge}`}>{badge}</span>}
     </button>
   )
 }
@@ -172,7 +172,7 @@ export default function V5Sidebar({
 
         {/* ═══ COMMERCIAL ═══ */}
         <div className="v5-sb-sec">
-          <div className="v5-sb-sec-t">Commercial</div>
+          <div className="v5-sb-sec-t">{isPt ? 'Comercial' : 'Commercial'}</div>
           <V5SidebarItem icon="📊" label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} page="pipeline" />
           {isModuleEnabled('devis') && (
             <V5SidebarItem icon="📄" label={isPt ? 'Orçamentos' : 'Devis'} active={activePage === 'devis'} onClick={() => navigateTo('devis')} page="devis" />
@@ -244,7 +244,7 @@ export default function V5Sidebar({
 
         {/* ═══ ADMINISTRATION ═══ */}
         <div className="v5-sb-sec">
-          <div className="v5-sb-sec-t">Administration</div>
+          <div className="v5-sb-sec-t">{isPt ? 'Administração' : 'Administration'}</div>
           {isModuleEnabled('wallet') && (
             <V5SidebarItem icon="📁" label={isPt ? 'Conformidade' : 'Conformité'} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} page="wallet" />
           )}

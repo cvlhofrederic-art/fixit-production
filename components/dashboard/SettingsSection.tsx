@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import Image from 'next/image'
-import { useTranslation } from '@/lib/i18n/context'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
@@ -54,12 +54,19 @@ const DEFAULT_MODES: PaymentMode[] = [
   { type: 'autre', description: '', actif: false },
 ]
 
-const MODE_LABELS: Record<string, string> = {
+const MODE_LABELS_FR: Record<string, string> = {
   virement: 'Virement bancaire',
   stripe: 'Paiement en ligne Stripe',
   cheque: 'Chèque',
   especes: 'Espèces',
   autre: 'Autre',
+}
+const MODE_LABELS_PT: Record<string, string> = {
+  virement: 'Transferência bancária',
+  stripe: 'Pagamento online Stripe',
+  cheque: 'Cheque',
+  especes: 'Dinheiro',
+  autre: 'Outro',
 }
 
 function formatIban(raw: string): string {
@@ -73,6 +80,9 @@ function isValidIban(iban: string): boolean {
 
 function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean }) {
   const tv = useThemeVars(isV5)
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const MODE_LABELS = isPt ? MODE_LABELS_PT : MODE_LABELS_FR
   const [modes, setModes] = useState<PaymentMode[]>(DEFAULT_MODES)
   const [mentionDevis, setMentionDevis] = useState(true)
   const [mentionFacture, setMentionFacture] = useState(true)
@@ -114,23 +124,23 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
       if (res.ok) setSaved(true)
     } catch (e) {
       console.error('Payment info save failed:', e)
-      toast.error('Erreur lors de la sauvegarde des informations de paiement')
+      toast.error(isPt ? 'Erro ao guardar as informações de pagamento' : 'Erreur lors de la sauvegarde des informations de paiement')
     }
     setSaving(false)
   }
 
   const activeModes = modes.filter(m => m.actif)
 
-  if (loading) return <div className={isV5 ? 'v5-card' : 'v22-card'}><div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: 20, color: tv.textMuted }}>Chargement...</div></div>
+  if (loading) return <div className={isV5 ? 'v5-card' : 'v22-card'}><div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: 20, color: tv.textMuted }}>{isPt ? 'A carregar...' : 'Chargement...'}</div></div>
 
   return (
     <div className={isV5 ? 'v5-card' : 'v22-card'}>
       <div className={isV5 ? '' : 'v22-card-head'}>
-        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>Informations de paiement</div>
+        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Informações de pagamento' : 'Informations de paiement'}</div>
       </div>
       <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 4 }}>
-          Ces informations apparaîtront sur vos devis et factures envoyés aux clients.
+          {isPt ? 'Estas informações aparecerão nos seus orçamentos e faturas enviados aos clientes.' : 'Ces informations apparaîtront sur vos devis et factures envoyés aux clients.'}
         </div>
 
         {modes.map((mode, idx) => (

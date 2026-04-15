@@ -1,6 +1,6 @@
 'use client'
 
-import { useTranslation } from '@/lib/i18n/context'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Availability } from '@/lib/types'
 
@@ -35,6 +35,8 @@ export default function HorairesSection({
   orgRole,
 }: HorairesSectionProps) {
   const { t } = useTranslation()
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   void orgRole
   const tv = useThemeVars(true)
 
@@ -70,14 +72,18 @@ export default function HorairesSection({
 
       {/* Page header */}
       <div className="v5-pg-t">
-        <h1>{'⏱️'} Horaires chantier &amp; équipes</h1>
-        <p>Définissez les plages d&apos;intervention de votre entreprise — affichées sur votre profil et dans les appels d&apos;offres</p>
+        <h1>{'⏱️'} {isPt ? 'Horários de obra & equipas' : 'Horaires chantier & équipes'}</h1>
+        <p>{isPt
+          ? 'Defina os horários de intervenção da sua empresa — apresentados no seu perfil e nos concursos'
+          : 'Définissez les plages d\u2019intervention de votre entreprise — affichées sur votre profil et dans les appels d\u2019offres'}</p>
       </div>
 
       {/* Info box */}
       <div className="v5-al" style={{ marginBottom: 16, cursor: 'default' }}>
         <span style={{ fontSize: 12 }}>
-          <strong>{'💡'} Conseil</strong> Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d&apos;offres. Activez les jours où vos équipes interviennent.
+          <strong>{'💡'} {isPt ? 'Dica' : 'Conseil'}</strong> {isPt
+            ? 'Estes horários aparecem no seu perfil da empresa e são tidos em conta nos concursos. Ative os dias em que as suas equipas intervêm.'
+            : 'Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d\u2019offres. Activez les jours où vos équipes interviennent.'}
         </span>
       </div>
 
@@ -85,11 +91,11 @@ export default function HorairesSection({
       <div className="v5-card" style={{ marginBottom: 16, padding: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div className="v5-st">Acceptation des demandes</div>
+            <div className="v5-st">{isPt ? 'Aceitação dos pedidos' : 'Acceptation des demandes'}</div>
             <div className="v22-card-meta">
               {autoAccept
-                ? '✅ Acceptation automatique des demandes de devis'
-                : '⏳ Validation manuelle par le responsable'}
+                ? (isPt ? '✅ Aceitação automática dos pedidos de orçamento' : '✅ Acceptation automatique des demandes de devis')
+                : (isPt ? '⏳ Validação manual pelo responsável' : '⏳ Validation manuelle par le responsable')}
             </div>
           </div>
           <button
@@ -105,7 +111,7 @@ export default function HorairesSection({
       {/* Plages d'ouverture */}
       <div className="v5-card">
         <div className="v22-card-head">
-          <span className="v5-st">⏱️ Plages d&apos;intervention</span>
+          <span className="v5-st">⏱️ {isPt ? 'Horários de intervenção' : 'Plages d\u2019intervention'}</span>
         </div>
         <div style={{ padding: 14 }}>
           {[1, 2, 3, 4, 5, 6, 0].map((day) => {
@@ -135,15 +141,15 @@ export default function HorairesSection({
                       value={endTime}
                       onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value)}
                     />
-                    {!isActive && <span className="h-closed" style={{ marginLeft: 8 }}>Fermé</span>}
+                    {!isActive && <span className="h-closed" style={{ marginLeft: 8 }}>{isPt ? 'Fechado' : 'Fermé'}</span>}
                     {isActive && activeServices.length > 0 && (
                       <span className="v22-card-meta" style={{ marginLeft: 8 }}>
                         {dayServiceIds.length > 0 ? `${dayServiceIds.length} ${t('proDash.horaires.motifsLabel')}` : t('proDash.horaires.tousMotifs')}
                       </span>
                     )}
                   </div>
-                  <button className="h-modify" onClick={() => updateAvailabilityTime(day, 'start_time', startTime)} type="button" title="Modifier les horaires">Modifier</button>
-                  <label className="h-tgl" title={isActive ? 'Désactiver ce jour' : 'Activer ce jour'}>
+                  <button className="h-modify" onClick={() => updateAvailabilityTime(day, 'start_time', startTime)} type="button" title={isPt ? 'Modificar os horários' : 'Modifier les horaires'}>{isPt ? 'Modificar' : 'Modifier'}</button>
+                  <label className="h-tgl" title={isActive ? (isPt ? 'Desativar este dia' : 'Désactiver ce jour') : (isPt ? 'Ativar este dia' : 'Activer ce jour')}>
                     <input
                       type="checkbox"
                       checked={isActive}
@@ -154,7 +160,7 @@ export default function HorairesSection({
                 </div>
                 {isActive && activeServices.length > 0 && (
                   <div style={{ margin: '8px 0 12px 104px', paddingLeft: 12, borderLeft: `2px solid ${tv.primary}` }}>
-                    <p className="v22-form-label" style={{ marginBottom: 6 }}>Lots disponibles ce jour</p>
+                    <p className="v22-form-label" style={{ marginBottom: 6 }}>{isPt ? 'Serviços disponíveis neste dia' : 'Lots disponibles ce jour'}</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {activeServices.map((service) => {
                         const isAssigned = dayServiceIds.includes(service.id)
