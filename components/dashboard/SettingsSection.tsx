@@ -419,6 +419,16 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [showPw1, setShowPw1] = useState(false)
+  const [showPw2, setShowPw2] = useState(false)
+
+  const pwWrapperStyle: React.CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' }
+  const pwInputStyle: React.CSSProperties = { paddingRight: 40 }
+  const pwToggleStyle: React.CSSProperties = {
+    position: 'absolute', right: 10, cursor: 'pointer', fontSize: 15, color: '#BBB',
+    background: 'none', border: 'none', padding: 0, display: 'flex',
+    alignItems: 'center', justifyContent: 'center', width: 24, height: 24, transition: 'color .2s',
+  }
 
   const strength = checkPasswordStrength(newPassword)
   const activeColor = isV5 ? 'var(--v5-primary-yellow)' : tv.primary
@@ -480,16 +490,27 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
           </div>
         )}
 
-        <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+        <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
           <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.newPassword')}</label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={e => setNewPassword(e.target.value)}
-            placeholder="••••••••••••"
-            autoComplete="new-password"
-            className={isV5 ? 'v5-fi' : 'v22-form-input'}
-          />
+          <div style={pwWrapperStyle}>
+            <input
+              type={showPw1 ? 'text' : 'password'}
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              placeholder="••••••••••••"
+              autoComplete="new-password"
+              className={isV5 ? 'v5-fi' : 'v22-form-input'}
+              style={pwInputStyle}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw1(v => !v)}
+              style={pwToggleStyle}
+              aria-label={showPw1 ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            >
+              {showPw1 ? '👁️‍🗨️' : '👁️'}
+            </button>
+          </div>
           {newPassword && (
             <div style={{ marginTop: 6 }}>
               <div style={{ display: 'flex', gap: 3, marginBottom: 3 }}>
@@ -537,26 +558,43 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
             </div>
           )}
         </div>
-        <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+        <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
           <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.confirmPassword')}</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={e => setConfirmPassword(e.target.value)}
-            placeholder="••••••••••••"
-            autoComplete="new-password"
-            className={isV5 ? 'v5-fi' : 'v22-form-input'}
-          />
+          <div style={pwWrapperStyle}>
+            <input
+              type={showPw2 ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              placeholder="••••••••••••"
+              autoComplete="new-password"
+              className={isV5 ? 'v5-fi' : 'v22-form-input'}
+              style={pwInputStyle}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw2(v => !v)}
+              style={pwToggleStyle}
+              aria-label={showPw2 ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            >
+              {showPw2 ? '👁️‍🗨️' : '👁️'}
+            </button>
+          </div>
           <span style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, display: 'block' }}>{t('proDash.settings.pwdMinLength')}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
           <button
             onClick={handleChangePassword}
             disabled={saving || !newPassword || !confirmPassword}
-            className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
-            style={{ opacity: (saving || !newPassword || !confirmPassword) ? 0.5 : 1 }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '6px 14px', borderRadius: 4, border: '1px solid #E0E0E0',
+              background: '#fff', color: '#555', fontSize: 11, fontWeight: 500,
+              cursor: (saving || !newPassword || !confirmPassword) ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', transition: 'all .15s',
+              opacity: (saving || !newPassword || !confirmPassword) ? 0.5 : 1,
+            }}
           >
-            {saving ? `⏳ ${t('proDash.settings.pwdSaving')}` : `🔒 ${t('proDash.settings.pwdUpdate')}`}
+            {saving ? `⏳ ${t('proDash.settings.pwdSaving')}` : `🔑 ${t('proDash.settings.pwdUpdate')}`}
           </button>
         </div>
       </div>
