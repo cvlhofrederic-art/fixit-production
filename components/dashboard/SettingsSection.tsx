@@ -907,6 +907,9 @@ export default function SettingsSection({
               </div>
             </div>
 
+            {/* Sécurité / mot de passe — position 2 dans la colonne gauche (cf HTML ref) */}
+            <PasswordChangeCard isV5={isV5} />
+
             {/* Booking link card */}
             <div className={isV5 ? 'v5-card' : 'v22-card'}>
               <div className={isV5 ? '' : 'v22-card-head'}>
@@ -1013,9 +1016,6 @@ export default function SettingsSection({
 
             {/* Zones d'intervention — nouvelle feature matching HTML */}
             <ZonesInterventionCard isV5={isV5} />
-
-            {/* Password change */}
-            <PasswordChangeCard isV5={isV5} />
           </div>
         </div>
       </div>
