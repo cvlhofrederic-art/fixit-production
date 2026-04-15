@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { useLocale } from '@/lib/i18n/context'
 import type { Notification, Booking } from '@/lib/types'
 
 interface V5HeaderProps {
@@ -33,6 +34,9 @@ export default function V5Header({
   navigateTo, sidebarOpen, setSidebarOpen,
 }: V5HeaderProps) {
 
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+
   const markAllRead = async () => {
     setNotifLoading(true)
     try {
@@ -45,7 +49,7 @@ export default function V5Header({
       setNotifications(prev => prev.map(n => ({ ...n, read: true })))
       setUnreadNotifCount(() => 0)
     } catch {
-      toast.error('Impossible de marquer les notifications comme lues')
+      toast.error(isPt ? 'Impossível marcar as notificações como lidas' : 'Impossible de marquer les notifications comme lues')
     } finally {
       setNotifLoading(false)
     }
@@ -64,7 +68,7 @@ export default function V5Header({
         setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
         setUnreadNotifCount(prev => Math.max(0, prev - 1))
       } catch {
-        toast.error('Impossible de marquer la notification comme lue')
+        toast.error(isPt ? 'Impossível marcar a notificação como lida' : 'Impossible de marquer la notification comme lue')
       } finally {
         setNotifLoading(false)
       }
@@ -112,7 +116,7 @@ export default function V5Header({
     if (!dateStr) return ''
     const diff = Date.now() - new Date(dateStr).getTime()
     const mins = Math.floor(diff / 60000)
-    if (mins < 1) return "à l'instant"
+    if (mins < 1) return isPt ? 'agora mesmo' : "à l'instant"
     if (mins < 60) return `${mins}min`
     const hours = Math.floor(mins / 60)
     if (hours < 24) return `${hours}h`
@@ -133,7 +137,7 @@ export default function V5Header({
 
       {/* Notifications */}
       <div className="v5-notif-wrap">
-        <button className="v5-notif-btn" onClick={() => setShowNotifDropdown(!showNotifDropdown)} aria-label={unreadNotifCount > 0 ? `Notifications (${unreadNotifCount} non lues)` : 'Notifications'}>
+        <button className="v5-notif-btn" onClick={() => setShowNotifDropdown(!showNotifDropdown)} aria-label={unreadNotifCount > 0 ? (isPt ? `Notificações (${unreadNotifCount} não lidas)` : `Notifications (${unreadNotifCount} non lues)`) : (isPt ? 'Notificações' : 'Notifications')}>
           Notifications
           {unreadNotifCount > 0 && (
             <span style={{ background: '#fff', color: '#F57C00', borderRadius: 8, padding: '0 5px', fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
@@ -148,17 +152,17 @@ export default function V5Header({
             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowNotifDropdown(false)} />
             <div className="v5-notif-dd" style={{ zIndex: 100, maxWidth: 'calc(100vw - 20px)' }}>
               <div className="v5-notif-dd-hdr">
-                <span className="v5-notif-dd-title">Notifications</span>
+                <span className="v5-notif-dd-title">{isPt ? 'Notificações' : 'Notifications'}</span>
                 {unreadNotifCount > 0 && (
                   <button className="v5-notif-dd-link" onClick={markAllRead} type="button">
-                    Tout marquer comme lu
+                    {isPt ? 'Marcar tudo como lido' : 'Tout marquer comme lu'}
                   </button>
                 )}
               </div>
               <div style={{ maxHeight: 380, overflowY: 'auto' }}>
                 {notifications.length === 0 ? (
                   <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: '#999' }}>
-                    Aucune notification
+                    {isPt ? 'Sem notificações' : 'Aucune notification'}
                   </div>
                 ) : (
                   notifications.slice(0, 20).map((n: Notification) => (
