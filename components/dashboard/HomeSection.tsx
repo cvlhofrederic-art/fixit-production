@@ -25,6 +25,66 @@ interface HomeSectionProps {
   openNewMotif: () => void
 }
 
+function seedDemoAlertsData(artisanId: string, chantiers: Array<{ client?: string; titre?: string }>): string {
+  if (typeof window === 'undefined' || !artisanId) return 'Impossible'
+  const clientsActifs = chantiers
+    .map(c => (c.client || '').trim())
+    .filter(Boolean)
+  const clientA = clientsActifs[0] || 'Mme Martin'
+  const clientB = clientsActifs[1] || clientsActifs[0] || 'M. Dupont'
+  const clientC = clientsActifs[2] || clientsActifs[0] || 'SCI Lumière'
+
+  // 1. Conversations non lues (sur clients de chantiers en cours)
+  const now = Date.now()
+  const convs = [
+    {
+      id: `demo-conv-${now}-1`,
+      other_user_name: clientA,
+      client_name: clientA,
+      unread_count: 2,
+      last_message: 'Bonjour, pouvez-vous passer demain ?',
+      last_message_at: new Date(now - 3600_000).toISOString(),
+    },
+    {
+      id: `demo-conv-${now}-2`,
+      other_user_name: clientB,
+      client_name: clientB,
+      unread_count: 1,
+      last_message: 'Question sur le devis envoyé',
+      last_message_at: new Date(now - 7200_000).toISOString(),
+    },
+  ]
+  localStorage.setItem(`fixit_messagerie_convs_${artisanId}`, JSON.stringify(convs))
+
+  // 2. Devis brouillon (fait mais pas envoyé)
+  const existingDocs = (() => {
+    try { return JSON.parse(localStorage.getItem(`fixit_docs_${artisanId}`) || '[]') } catch { return [] }
+  })() as SavedDocument[]
+  const demoDoc: SavedDocument = {
+    id: `demo-devis-${now}`,
+    type: 'devis',
+    ref: 'DEV-DEMO-001',
+    client: clientC,
+    clientName: clientC,
+    totalTTC: 2450,
+    status: 'brouillon',
+    date: new Date(now).toISOString(),
+  }
+  const merged = [demoDoc, ...existingDocs.filter(d => d.id !== demoDoc.id)]
+  localStorage.setItem(`fixit_docs_${artisanId}`, JSON.stringify(merged))
+
+  // 3. Wallet docs — un expiré, un qui expire bientôt
+  const day = 86400_000
+  const wallet = {
+    rc_pro: { name: 'RC Pro', expiryDate: new Date(now + 15 * day).toISOString() },
+    kbis: { name: 'KBIS', expiryDate: new Date(now - 5 * day).toISOString() },
+    decennale: { name: 'Décennale', expiryDate: new Date(now + 45 * day).toISOString() },
+  }
+  localStorage.setItem(`fixit_wallet_${artisanId}`, JSON.stringify(wallet))
+
+  return 'ok'
+}
+
 function extractClientName(booking: Booking): string {
   const notes = booking.notes || ''
   // Pattern: "Client: Name|..." or "Client: Name."
@@ -97,7 +157,6 @@ export default function HomeSection({
   const [recentDevis, setRecentDevis] = useState<SavedDocument[]>([])
   const [alerts, setAlerts] = useState<Array<{ type: string; title: string; sub: string; time: string }>>([])
   const [btpAlerts, setBtpAlerts] = useState<Array<{ level: 'err' | 'warn' | 'info'; icon: string; text: string; page?: string }>>([])
-  const [meteoAlerts, setMeteoAlerts] = useState<Array<{ chantierId: string; titre: string; level: 'vigilance' | 'rouge'; reasons: string[] }>>([])
 
   // BTP data for pro_societe — pulled from Supabase tables
   const userId = artisan?.user_id || artisan?.id || ''
@@ -245,17 +304,7 @@ export default function HomeSection({
       })
     } catch { /* ignore */ }
 
-    // 3. Alertes météo (lues depuis le cache alimenté par MeteoChantierSection)
-    meteoAlerts.slice(0, 2).forEach(m => {
-      collected.push({
-        level: m.level === 'rouge' ? 'err' : 'warn',
-        icon: m.level === 'rouge' ? '⛈️' : '🌧️',
-        text: `Météo ${m.titre} — ${m.reasons.slice(0, 2).join(', ')}`,
-        page: 'meteo-chantier',
-      })
-    })
-
-    // 4. Documents conformité qui expirent (< 60 jours) ou déjà expirés
+    // 3. Documents conformité qui expirent (< 60 jours) ou déjà expirés
     try {
       const rawWallet = localStorage.getItem(`fixit_wallet_${artisan.id}`)
       if (rawWallet) {
@@ -284,60 +333,7 @@ export default function HomeSection({
     } catch { /* ignore */ }
 
     setBtpAlerts(collected)
-  }, [artisan?.id, orgRole, btpChantiers, meteoAlerts, pendingBookings, locale])
-
-  // ── Fetch météo alerts for active chantiers (cache 1h) ──
-  useEffect(() => {
-    if (typeof window === 'undefined' || !artisan?.id || orgRole !== 'pro_societe') return
-    const cacheKey = `fixit_meteo_alerts_${artisan.id}`
-    try {
-      const cached = localStorage.getItem(cacheKey)
-      if (cached) {
-        const parsed = JSON.parse(cached) as { ts: number; alerts: typeof meteoAlerts }
-        if (Date.now() - parsed.ts < 3600000) { setMeteoAlerts(parsed.alerts); return }
-      }
-    } catch { /* ignore */ }
-
-    const active = btpChantiers.filter(c => c.statut === 'En cours' && (c.latitude || c.ville || c.adresse)).slice(0, 5)
-    if (active.length === 0) return
-
-    let cancelled = false
-    ;(async () => {
-      const results: typeof meteoAlerts = []
-      for (const c of active) {
-        try {
-          let lat = c.latitude, lng = c.longitude
-          if (!lat || !lng) {
-            const q = c.ville || c.adresse || ''
-            const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=fr`).then(r => r.json()).catch(() => null)
-            if (!geo?.results?.[0]) continue
-            lat = geo.results[0].latitude; lng = geo.results[0].longitude
-          }
-          const forecast = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=5`).then(r => r.json()).catch(() => null)
-          if (!forecast?.daily) continue
-          const reasons: string[] = []
-          let level: 'vigilance' | 'rouge' | null = null
-          for (let i = 0; i < Math.min(5, forecast.daily.time.length); i++) {
-            const wind = forecast.daily.wind_speed_10m_max[i]
-            const tmin = forecast.daily.temperature_2m_min[i]
-            const rain = forecast.daily.precipitation_sum[i]
-            const tmax = forecast.daily.temperature_2m_max[i]
-            if (wind > 60) { level = 'rouge'; reasons.push(`Vent ${Math.round(wind)} km/h`); break }
-            if (tmin < 0) { level = level || 'vigilance'; reasons.push(`Gel ${Math.round(tmin)}°C`) }
-            if (rain > 5) { level = level || 'vigilance'; reasons.push(`Pluie ${rain}mm`) }
-            if (tmax > 33) { level = level || 'vigilance'; reasons.push(`Chaleur ${Math.round(tmax)}°C`) }
-          }
-          if (level) results.push({ chantierId: c.id, titre: c.titre, level, reasons: [...new Set(reasons)] })
-        } catch { /* ignore one chantier */ }
-      }
-      if (cancelled) return
-      setMeteoAlerts(results)
-      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), alerts: results })) } catch { /* quota */ }
-    })()
-
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisan?.id, orgRole, btpChantiers.length])
+  }, [artisan?.id, orgRole, btpChantiers, pendingBookings, locale])
 
   // ═══════════════════════════════════════════════════════
   // V5 RENDER — pro_societe + artisan use the v5 design system
@@ -380,6 +376,21 @@ export default function HomeSection({
             <p>{artisan?.company_name || 'Entreprise'} — {locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum}, {monthYear}</p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
+            {isSociete && (
+              <button
+                className="v5-btn v5-btn-sm"
+                title="Injecte des alertes de démonstration (messages, devis brouillon, wallet)"
+                onClick={() => {
+                  const res = seedDemoAlertsData(artisan?.id || '', btpChantiers)
+                  if (res === 'ok') {
+                    alert('✅ Données démo injectées — rafraîchissement…')
+                    window.location.reload()
+                  }
+                }}
+              >
+                🎲 Démo
+              </button>
+            )}
             <button className="v5-btn v5-btn-sm" onClick={() => navigateTo('stats')}>{locale === 'pt' ? 'Exportar' : 'Exporter'}</button>
             <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
           </div>
