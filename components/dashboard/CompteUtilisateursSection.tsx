@@ -53,6 +53,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   })()
   const [members, setMembers] = useState<TeamMember[]>(initialCache || [])
   const [loading, setLoading] = useState(!initialCache)
+  const [chantiersMap, setChantiersMap] = useState<Record<string, string>>({})
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showPermsModal, setShowPermsModal] = useState<TeamMember | null>(null)
   const [inviteForm, setInviteForm] = useState({
@@ -99,6 +100,39 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   }, [getAuthToken, isPt])
 
   useEffect(() => { fetchMembers() }, [fetchMembers])
+
+  // Charger les chantiers pour résoudre UUID → titre
+  useEffect(() => {
+    const loadChantiers = async () => {
+      const artisanId = artisan?.id
+      if (!artisanId) return
+
+      // 1. Essai localStorage (fixit_chantiers_<id>)
+      try {
+        const raw = localStorage.getItem(`fixit_chantiers_${artisanId}`)
+        if (raw) {
+          const list: { id: string; titre?: string }[] = JSON.parse(raw)
+          const map: Record<string, string> = {}
+          list.forEach(c => { if (c.id) map[c.id] = c.titre || c.id })
+          if (Object.keys(map).length > 0) { setChantiersMap(map); return }
+        }
+      } catch { /* ignore */ }
+
+      // 2. Fallback Supabase
+      try {
+        const { data } = await supabase
+          .from('chantiers_btp')
+          .select('id, titre')
+          .eq('artisan_id', artisanId)
+        if (data) {
+          const map: Record<string, string> = {}
+          data.forEach((c: { id: string; titre?: string }) => { map[c.id] = c.titre || c.id })
+          setChantiersMap(map)
+        }
+      } catch { /* ignore */ }
+    }
+    loadChantiers()
+  }, [artisan?.id])
 
   const handleInvite = async () => {
     if (!inviteForm.email || !inviteForm.full_name) {
@@ -364,7 +398,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   </td>
                   <td>{member.email}</td>
                   <td><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{ROLE_LABELS[member.role]?.[isPt ? 'pt' : 'fr'] || member.role}</span></td>
-                  <td>{member.role === 'GERANT' ? (isPt ? 'Todos' : 'Tous') : (member.assigned_chantiers?.join(', ') || '—')}</td>
+                  <td>{member.role === 'GERANT' ? (isPt ? 'Todos' : 'Tous') : (member.assigned_chantiers?.length ? member.assigned_chantiers.map(id => chantiersMap[id] || id.slice(0, 8) + '…').join(', ') : '—')}</td>
                   <td><span className={`v5-badge ${member.is_active ? 'v5-badge-green' : 'v5-badge-gray'}`}>{member.is_active ? (isPt ? 'Ativo' : 'Actif') : (isPt ? 'Inativo' : 'Inactif')}</span></td>
                   <td>{getRelativeLogin(member.last_login_at || member.accepted_at)}</td>
                   <td>
