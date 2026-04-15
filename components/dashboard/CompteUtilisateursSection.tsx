@@ -102,29 +102,18 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   useEffect(() => { fetchMembers() }, [fetchMembers])
 
   // Charger les chantiers pour résoudre UUID → titre
+  // On interroge toujours Supabase directement : assigned_chantiers contient des UUIDs Supabase
+  // (le localStorage peut avoir des IDs demo comme "demo-ch-001" qui ne matchent pas)
   useEffect(() => {
     const loadChantiers = async () => {
       const artisanId = artisan?.id
       if (!artisanId) return
-
-      // 1. Essai localStorage (fixit_chantiers_<id>)
-      try {
-        const raw = localStorage.getItem(`fixit_chantiers_${artisanId}`)
-        if (raw) {
-          const list: { id: string; titre?: string }[] = JSON.parse(raw)
-          const map: Record<string, string> = {}
-          list.forEach(c => { if (c.id) map[c.id] = c.titre || c.id })
-          if (Object.keys(map).length > 0) { setChantiersMap(map); return }
-        }
-      } catch { /* ignore */ }
-
-      // 2. Fallback Supabase
       try {
         const { data } = await supabase
           .from('chantiers_btp')
           .select('id, titre')
           .eq('artisan_id', artisanId)
-        if (data) {
+        if (data && data.length > 0) {
           const map: Record<string, string> = {}
           data.forEach((c: { id: string; titre?: string }) => { map[c.id] = c.titre || c.id })
           setChantiersMap(map)
@@ -377,7 +366,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
               <th>{isPt ? 'Obras' : 'Chantiers'}</th>
               <th>{isPt ? 'Estado' : 'Statut'}</th>
               <th>{isPt ? 'Última conexão' : 'Dernière connexion'}</th>
-              <th>Actions</th>
+              <th>{isPt ? 'Ações' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
