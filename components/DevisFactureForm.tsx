@@ -1795,6 +1795,15 @@ export default function DevisFactureForm({
                   </div>
                 </div>
 
+              </div>
+            </div>
+
+            {/* ─── Section: Assurance & Médiation ─── */}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.insuranceMediationSection')}</span>
+              </div>
+              <div className="v22-card-body">
                 {/* Assurance décennale / RC Pro */}
                 <div className="v22-alert v22-alert-blue" style={{ marginBottom: 12, cursor: 'default' }}>
                   <div>

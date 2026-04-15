@@ -3981,6 +3981,7 @@
     "quickImportNoneHint": "Dès qu'un rendez-vous sera confirmé ou terminé, il apparaîtra ici",
     "loading": "Chargement…",
     "companySection": "Informations Entreprise (Prestataire)",
+    "insuranceMediationSection": "Assurance & Médiation",
     "loadingCompanyInfo": "Chargement des informations officielles...",
     "verifiedDataTitle": "DONNÉES VÉRIFIÉES — Registre officiel des entreprises",
     "verifiedDataDesc": "Les informations ci-dessous sont issues du registre national des entreprises (INSEE/SIRENE). Le statut juridique, la raison sociale, le SIRET et l'adresse du siège social ne sont pas modifiables pour garantir la conformité légale. Pour toute modification, veuillez mettre à jour votre KBIS.",
