@@ -3100,8 +3100,9 @@ export default function DevisFactureForm({
                   ) : (
                     <button onClick={handlePreviewPdf}
                       disabled={pdfLoading || !compliance.insurance}
-                      className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: (pdfLoading || !compliance.insurance) ? 0.6 : 1, cursor: (pdfLoading || !compliance.insurance) ? 'not-allowed' : 'pointer' }}>
-                      {pdfLoading ? '...' : (locale === 'pt' ? 'Pré-visualização' : 'Aperçu')}
+                      className="v22-btn v22-btn-sm"
+                      style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, opacity: (pdfLoading || !compliance.insurance) ? 0.6 : 1, cursor: (pdfLoading || !compliance.insurance) ? 'not-allowed' : 'pointer' }}>
+                      👁️ {pdfLoading ? '...' : (locale === 'pt' ? 'Pré-visualização' : 'Aperçu')}
                     </button>
                   )}
                 </div>
