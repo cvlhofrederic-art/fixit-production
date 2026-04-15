@@ -17,7 +17,8 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
   const { items: situations, loading, add, update } = useBTPData<Situation>({ table: 'situations', artisanId: userId, userId })
   const [selected, setSelected] = useState<Situation | null>(null)
@@ -80,7 +81,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
         </button>
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Chargement...</div>}
+      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>}
 
       {showForm && (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '.75rem' }}>
@@ -112,7 +113,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: '48px 24px' }}>
               <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.4 }}>{'📋'}</div>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{t('proDash.btp.situations.aucuneSituation')}</div>
-              <p style={{ color: '#999', fontSize: 12 }}>Créez votre première situation de travaux</p>
+              <p style={{ color: '#999', fontSize: 12 }}>{isPt ? 'Crie a sua primeira situação de obra' : 'Créez votre première situation de travaux'}</p>
             </div>
           ) : situations.map(s => {
             const sitStatLabels: Record<string, string> = { brouillon: t('proDash.btp.situations.brouillon'), envoyée: t('proDash.btp.situations.envoyee'), validée: t('proDash.btp.situations.validee'), payée: t('proDash.btp.situations.payee') }

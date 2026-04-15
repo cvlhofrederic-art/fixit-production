@@ -165,7 +165,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
       {/* Header */}
       <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
-          <h1>Planification Gantt</h1>
+          <h1>{isPt ? 'Planeamento Gantt' : 'Planification Gantt'}</h1>
           <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} ${months[months.length - 1].start.getFullYear()}` : ''}</p>
         </div>
         {active.length > 0 && (

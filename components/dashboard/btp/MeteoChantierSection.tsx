@@ -411,8 +411,10 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {/* Debug info — visible en dev pour diagnostic */}
       {chantiersActifs.length === 0 && chantiers.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem', fontSize: 11 }}>
-          {chantiers.length} chantier(s) chargés, mais aucun actif (statuts: {chantiers.map(c => c.statut).join(', ')}).
-          Seuls les chantiers &quot;En cours&quot; ou &quot;En attente&quot; sont affichés.
+          {isPt
+            ? `${chantiers.length} obra(s) carregada(s), mas nenhuma ativa (estados: ${chantiers.map(c => c.statut).join(', ')}). Apenas obras "Em curso" ou "Em espera" são apresentadas.`
+            : `${chantiers.length} chantier(s) chargés, mais aucun actif (statuts: ${chantiers.map(c => c.statut).join(', ')}). Seuls les chantiers "En cours" ou "En attente" sont affichés.`
+          }
         </div>
       )}
 
