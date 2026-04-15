@@ -227,7 +227,10 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
                 <div style={{ fontWeight: 600, color: '#fff', fontSize: 13 }}>{preview.title}</div>
                 <div style={{ fontSize: 11, color: '#ccc' }}>
                   {preview.category} · {new Date(preview.uploadedAt).toLocaleDateString(dateLocale)}
-                  {preview.montantHT && <> · {Number(preview.montantHT).toLocaleString('fr-FR')} € HT</>}
+                  {preview.montantHT && (() => {
+                    const n = Number(String(preview.montantHT).replace(/[^\d.-]/g, ''))
+                    return Number.isFinite(n) && n > 0 ? <> · {n.toLocaleString('fr-FR')} € HT</> : null
+                  })()}
                   {preview.maitreOuvrage && <> · {preview.maitreOuvrage}</>}
                 </div>
               </div>
@@ -275,7 +278,10 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
                   <div className="v5-gal-ttl">{photo.title}</div>
                   <div className="v5-gal-dt">
                     {new Date(photo.uploadedAt).getFullYear()} • {photo.category}
-                    {photo.montantHT && <> • {Number(photo.montantHT).toLocaleString('fr-FR')} € HT</>}
+                    {photo.montantHT && (() => {
+                      const n = Number(String(photo.montantHT).replace(/[^\d.-]/g, ''))
+                      return Number.isFinite(n) && n > 0 ? <> • {n.toLocaleString('fr-FR')} € HT</> : null
+                    })()}
                   </div>
                   {photo.maitreOuvrage && (
                     <div className="v5-gal-dt" style={{ color: '#F57C00' }}>{photo.maitreOuvrage}</div>
