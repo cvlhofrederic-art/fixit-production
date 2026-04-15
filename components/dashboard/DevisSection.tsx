@@ -344,13 +344,63 @@ function DevisSectionV5({
                   <td>{doc.docTitle || '-'}</td>
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{totalHT.toLocaleString('fr-FR')} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="v5-btn v5-btn-sm"
-                      onClick={() => { setConvertingDevis(doc); setShowDevisForm(true) }}
-                    >
-                      {isPt ? 'Abrir' : 'Ouvrir'}
-                    </button>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button
+                        className="v5-btn v5-btn-sm"
+                        onClick={() => { setConvertingDevis(doc); setShowDevisForm(true) }}
+                      >
+                        {isPt ? 'Abrir' : 'Ouvrir'}
+                      </button>
+                      {doc.clientEmail && (
+                        <button
+                          className="v5-btn v5-btn-sm"
+                          title={doc.clientEmail}
+                          onClick={() => {
+                            const subject = encodeURIComponent(`Devis ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                            const totalHTMail = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+                            const body = encodeURIComponent(`Bonjour ${doc.clientName || ''},\n\nVeuillez trouver ci-joint votre devis N°${doc.docNumber} d'un montant de ${totalHTMail.toFixed(2)} € HT.\n\nCordialement,\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                            window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
+                            const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                            const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                            const now = new Date().toISOString()
+                            const uDocs = allDocs.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                            const uDrafts = allDrafts.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                            localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
+                            localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
+                            setSavedDocuments([...uDocs, ...uDrafts])
+                          }}
+                        >
+                          {isPt ? 'Email' : 'Email'}
+                        </button>
+                      )}
+                      <button
+                        className="v5-btn v5-btn-sm v5-btn-p"
+                        onClick={() => convertDevisToFacture(doc)}
+                      >
+                        {isPt ? 'Faturar' : 'Facturer'}
+                      </button>
+                      <button
+                        className="v5-btn v5-btn-sm v5-btn-d"
+                        title={isPt ? 'Eliminar' : 'Supprimer'}
+                        onClick={() => {
+                          if (!confirm(isPt ? `Eliminar orçamento ${doc.docNumber}?` : `Supprimer le devis ${doc.docNumber} ?`)) return
+                          const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                          const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                          const uDocs = allDocs.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
+                          const uDrafts = allDrafts.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
+                          localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
+                          localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
+                          setSavedDocuments([...uDocs, ...uDrafts])
+                        }}
+                        aria-label={isPt ? 'Eliminar' : 'Supprimer'}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
+                          <path d="M10 11v6M14 11v6"/>
+                        </svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
