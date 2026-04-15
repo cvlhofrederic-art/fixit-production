@@ -87,7 +87,7 @@ function resolveObtainLink(o: WalletDocObtenir, legalForm: string | null): strin
 }
 
 // ── Bouton "Obtenir" — envoi direct selon le type de compte ──────────
-function ObtainButton({ doc, legalForm }: { doc: WalletDocConfig; legalForm: string | null }) {
+function ObtainButton({ doc, legalForm, isPt }: { doc: WalletDocConfig; legalForm: string | null; isPt?: boolean }) {
   const o = doc.obtenir
 
   const hasLink = o.lien || o.lien_societe || o.lien_artisan || o.lien_independant || o.lien_autoentrepreneur
@@ -105,7 +105,7 @@ function ObtainButton({ doc, legalForm }: { doc: WalletDocConfig; legalForm: str
       style={{ fontSize: 11, color: 'var(--v22-blue, #3B82F6)', border: '1px solid var(--v22-blue, #3B82F6)', background: 'transparent', textDecoration: 'none', whiteSpace: 'nowrap' }}
       title={o.note}
     >
-      Obtenir ↗
+      {isPt ? 'Obter ↗' : 'Obtenir ↗'}
     </a>
   )
 }
@@ -133,12 +133,13 @@ interface DocumentRowProps {
   scanResult?: ScanResult
   scanning?: boolean
   legalForm?: string | null
+  isPt?: boolean
 }
 
 function DocumentRow({
   docDef, doc, status, isLast, uploading, removing, savingExpiry, editExpiry, dateLocale,
   onUploadClick, onEditExpiry, onSetExpiry, onCancelExpiry, onView, onRemove,
-  fileInputRef, onFileChange, t, scanResult, scanning, legalForm,
+  fileInputRef, onFileChange, t, scanResult, scanning, legalForm, isPt,
 }: DocumentRowProps) {
   const tv = useThemeVars(false)
   const statusTagClass = {
@@ -171,12 +172,12 @@ function DocumentRow({
             <span style={{ fontWeight: 600, color: tv.text, fontSize: 13 }}>{docDef.nom}</span>
             {docDef.obligatoire && (
               <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: '#FEE2E2', color: '#DC2626', letterSpacing: 0.3 }}>
-                OBLIGATOIRE
+                {isPt ? 'OBRIGATÓRIO' : 'OBLIGATOIRE'}
               </span>
             )}
             {!docDef.obligatoire && docDef.recommande && (
               <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: '#FEF3C7', color: '#D97706', letterSpacing: 0.3 }}>
-                RECOMMANDÉ
+                {isPt ? 'RECOMENDADO' : 'RECOMMANDÉ'}
               </span>
             )}
           </div>
@@ -187,11 +188,11 @@ function DocumentRow({
           {/* Condition + validité */}
           {docDef.condition ? (
             <div style={{ fontSize: 11, color: '#D97706', marginTop: 2 }}>
-              ⚠ {docDef.condition} — validité : {docDef.validite}
+              ⚠ {docDef.condition} — {isPt ? 'validade' : 'validité'} : {docDef.validite}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
-              Validité : {docDef.validite}
+              {isPt ? 'Validade' : 'Validité'} : {docDef.validite}
             </div>
           )}
 
@@ -206,7 +207,7 @@ function DocumentRow({
           {scanning && (
             <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>🔍</span>
-              Vérification du document en cours...
+              {isPt ? 'Verificação do documento em curso...' : 'Vérification du document en cours...'}
             </div>
           )}
 
@@ -218,33 +219,33 @@ function DocumentRow({
             }}>
               {scanResult.antiFraud?.suspicious ? (
                 <>
-                  <div style={{ fontWeight: 700, color: '#DC2626', marginBottom: 2 }}>⚠️ Document suspect</div>
+                  <div style={{ fontWeight: 700, color: '#DC2626', marginBottom: 2 }}>{isPt ? '⚠️ Documento suspeito' : '⚠️ Document suspect'}</div>
                   {(scanResult.antiFraud.reasons ?? []).map((r: string, i: number) => (
                     <div key={i} style={{ color: '#991B1B' }}>• {r}</div>
                   ))}
                 </>
               ) : (
                 <>
-                  <div style={{ fontWeight: 700, color: '#16A34A', marginBottom: 2 }}>✅ Document vérifié</div>
+                  <div style={{ fontWeight: 700, color: '#16A34A', marginBottom: 2 }}>{isPt ? '✅ Documento verificado' : '✅ Document vérifié'}</div>
                   {scanResult.antiFraud?.nameMatch && (
-                    <div style={{ color: '#166534' }}>• Nom correspondant : {scanResult.antiFraud.nameOnDoc}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Nome correspondente' : 'Nom correspondant'} : {scanResult.antiFraud.nameOnDoc}</div>
                   )}
                   {scanResult.extractedData?.insurerName && (
-                    <div style={{ color: '#166534' }}>• Assureur : {scanResult.extractedData.insurerName}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Seguradora' : 'Assureur'} : {scanResult.extractedData.insurerName}</div>
                   )}
                   {scanResult.extractedData?.contractNumber && (
-                    <div style={{ color: '#166534' }}>• Contrat n° {scanResult.extractedData.contractNumber}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Apólice n°' : 'Contrat n°'} {scanResult.extractedData.contractNumber}</div>
                   )}
                   {scanResult.extractedData?.validTo && (
-                    <div style={{ color: '#166534' }}>• Valide jusqu&apos;au {new Date(scanResult.extractedData.validTo).toLocaleDateString(dateLocale)}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Válido até' : 'Valide jusqu\'au'} {new Date(scanResult.extractedData.validTo).toLocaleDateString(dateLocale)}</div>
                   )}
                   {scanResult.antiFraud?.siretMatch === true && (
-                    <div style={{ color: '#166534' }}>• SIRET vérifié ✓</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'NIF/NIPC verificado ✓' : 'SIRET vérifié ✓'}</div>
                   )}
                 </>
               )}
               <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 2 }}>
-                Type détecté : {scanResult.docType} — confiance : {Math.round((scanResult.confidence ?? 0) * 100)}%
+                {isPt ? 'Tipo detetado' : 'Type détecté'} : {scanResult.docType} — {isPt ? 'confiança' : 'confiance'} : {Math.round((scanResult.confidence ?? 0) * 100)}%
               </div>
             </div>
           )}
@@ -332,7 +333,8 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
   const tv = useThemeVars(isV5)
   const { t } = useTranslation()
   const locale = useLocale()
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_wallet_${artisan?.id}`
 
   // Docs dynamiques selon le/les métier(s) de l'artisan — tri intelligent par corps de métier
@@ -574,23 +576,23 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                 <div className="v5-w-doc-inf">
                   <div className="v5-w-doc-nm">
                     {docDef.nom}
-                    {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#C62828' }}>OBLIGATOIRE</span>}
+                    {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#C62828' }}>{isPt ? 'OBRIGATÓRIO' : 'OBLIGATOIRE'}</span>}
                   </div>
                   <div className="v5-w-doc-exp">
                     {doc?.expiryDate
                       ? `${t('proDash.wallet.expireLe')} ${new Date(doc.expiryDate).toLocaleDateString(dateLocale)}`
-                      : docDef.validite ? `Validité : ${docDef.validite}` : docDef.description
+                      : docDef.validite ? `${isPt ? 'Validade' : 'Validité'} : ${docDef.validite}` : docDef.description
                     }
                   </div>
                   {/* Scan result inline */}
                   {scanning[docDef.id] && (
                     <div style={{ fontSize: 11, color: '#1565C0', marginTop: 4 }}>
-                      🔍 Vérification en cours...
+                      🔍 {isPt ? 'Verificação em curso...' : 'Vérification en cours...'}
                     </div>
                   )}
                   {scanResults[docDef.id] && !scanning[docDef.id] && (
                     <div style={{ fontSize: 10, marginTop: 4, color: scanResults[docDef.id]?.antiFraud?.suspicious ? '#C62828' : '#2E7D32' }}>
-                      {scanResults[docDef.id]?.antiFraud?.suspicious ? '\u26A0\uFE0F Document suspect' : '\u2705 Document vérifié'}
+                      {scanResults[docDef.id]?.antiFraud?.suspicious ? (isPt ? '⚠️ Documento suspeito' : '⚠️ Document suspect') : (isPt ? '✅ Documento verificado' : '✅ Document vérifié')}
                     </div>
                   )}
                 </div>
@@ -632,7 +634,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                       {savingExpiry[docDef.id] ? '⏳' : '📅'}
                     </button>
                   )}
-                  <ObtainButton doc={docDef} legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null} />
+                  <ObtainButton doc={docDef} legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null} isPt={isPt} />
                 </div>
               </div>
             )
@@ -682,7 +684,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                       <span style={{ fontSize: 18 }}>{docDef.icon || '📄'}</span>
                       <span style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 500, color: '#1a1a1a' }}>{docDef.nom}</span>
-                        {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#C62828', fontWeight: 700 }}>OBLIGATOIRE</span>}
+                        {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#C62828', fontWeight: 700 }}>{isPt ? 'OBRIGATÓRIO' : 'OBLIGATOIRE'}</span>}
                       </span>
                       <span className={badgeClass}>{badgeLabel}</span>
                     </button>
@@ -691,7 +693,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               </div>
               <div style={{ padding: '10px 16px', borderTop: '1px solid #E8E8E8', textAlign: 'right' }}>
                 <button className="v5-btn" onClick={() => setShowUploadModal(null)}>
-                  {locale === 'pt' ? 'Cancelar' : 'Annuler'}
+                  {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
               </div>
             </div>
@@ -795,6 +797,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               scanResult={scanResults[docDef.id]}
               scanning={!!scanning[docDef.id]}
               legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null}
+              isPt={isPt}
             />
           ))}
         </div>
@@ -858,7 +861,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                     <span style={{ fontSize: 18 }}>{docDef.icon || '📄'}</span>
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ fontWeight: 500, color: tv.text }}>{docDef.nom}</span>
-                      {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#DC2626', fontWeight: 700 }}>OBLIGATOIRE</span>}
+                      {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#DC2626', fontWeight: 700 }}>{isPt ? 'OBRIGATÓRIO' : 'OBLIGATOIRE'}</span>}
                     </span>
                     <span className={statusTagClass}>{statusLabel}</span>
                   </button>

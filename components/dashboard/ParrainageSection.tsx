@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan } from '@/lib/types'
 
@@ -37,6 +38,8 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,17 +84,31 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
 
   const shareWhatsApp = () => {
     if (!stats?.referral_link) return
-    const text = isSociete
-      ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien votre entreprise bénéficie de 1 mois gratuit :\n${stats.referral_link}\n(Nous gagnons aussi 1 mois si vous vous abonnez 😊)`
-      : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien tu as 1 mois gratuit :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
+    let text: string
+    if (isPt) {
+      text = isSociete
+        ? `Olá,\nUsamos o VITFIX Pro para gerir as nossas obras, orçamentos e faturas.\nCom este link a sua empresa tem 1 mês gratuito :\n${stats.referral_link}\n(Nós também ganhamos 1 mês se se subscrever 😊)`
+        : `Olá! Uso o VITFIX para os meus orçamentos, obras e faturas.\nCom este link tens 1 mês grátis :\n${stats.referral_link}\n(Eu também ganho 1 mês se te subscreveres 😄)`
+    } else {
+      text = isSociete
+        ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien votre entreprise bénéficie de 1 mois gratuit :\n${stats.referral_link}\n(Nous gagnons aussi 1 mois si vous vous abonnez 😊)`
+        : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien tu as 1 mois gratuit :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
+    }
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   const shareSMS = () => {
     if (!stats?.referral_link) return
-    const text = isSociete
-      ? `Vitfix Pro — gestion chantiers & devis pour entreprises BTP. 1 mois offert : ${stats.referral_link}`
-      : `Rejoins VITFIX avec 1 mois gratuit : ${stats.referral_link}`
+    let text: string
+    if (isPt) {
+      text = isSociete
+        ? `Vitfix Pro — gestão de obras & orçamentos para empresas de construção. 1 mês oferecido : ${stats.referral_link}`
+        : `Junta-te ao VITFIX com 1 mês grátis : ${stats.referral_link}`
+    } else {
+      text = isSociete
+        ? `Vitfix Pro — gestion chantiers & devis pour entreprises BTP. 1 mois offert : ${stats.referral_link}`
+        : `Rejoins VITFIX avec 1 mois gratuit : ${stats.referral_link}`
+    }
     window.open(`sms:?body=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -99,7 +116,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     return (
       <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🎁</div>
-        <p style={{ color: isV5 ? '#999' : '#8A9BB0' }}>Chargement...</p>
+        <p style={{ color: isV5 ? '#999' : '#8A9BB0' }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
       </div>
     )
   }
@@ -111,15 +128,15 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     return (
       <div className="v5-fade" style={{ maxWidth: 800, margin: '0 auto' }}>
         <div className="v5-pg-t">
-          <h1>Parrainage entreprises</h1>
-          <p>Programme B2B</p>
+          <h1>{isPt ? 'Referenciação de empresas' : 'Parrainage entreprises'}</h1>
+          <p>{isPt ? 'Programa B2B' : 'Programme B2B'}</p>
         </div>
 
         {/* Referral code box */}
         <div className="v5-card" style={{ marginBottom: '0.75rem', textAlign: 'center', padding: '1.25rem' }}>
           {stats?.referral_code ? (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 8 }}>Votre code</div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 8 }}>{isPt ? 'O seu código' : 'Votre code'}</div>
               <div style={{
                 display: 'inline-block', padding: '10px 28px', borderRadius: 6,
                 border: '2px dashed var(--v5-primary-yellow)', background: 'var(--v5-highlight-yellow)',
@@ -129,7 +146,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
               </div>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8 }}>
                 <button onClick={copyLink} className={`v5-btn${copied ? ' v5-btn-s' : ' v5-btn-p'}`}>
-                  {copied ? '\u2705 Copi\u00e9' : 'Copier le lien'}
+                  {copied ? (isPt ? '✅ Copiado' : '✅ Copié') : (isPt ? 'Copiar link' : 'Copier le lien')}
                 </button>
                 <button onClick={shareWhatsApp} className="v5-btn v5-btn-s">
                   WhatsApp
@@ -141,9 +158,9 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
             </>
           ) : (
             <div style={{ padding: 12 }}>
-              <p style={{ color: '#666', marginBottom: 12, fontSize: 12 }}>Vous n&apos;avez pas encore de code de parrainage.</p>
+              <p style={{ color: '#666', marginBottom: 12, fontSize: 12 }}>{isPt ? 'Ainda não tem código de referenciação.' : 'Vous n\'avez pas encore de code de parrainage.'}</p>
               <button onClick={generateCode} disabled={generating} className="v5-btn v5-btn-p" style={{ opacity: generating ? 0.5 : 1 }}>
-                {generating ? 'G\u00e9n\u00e9ration...' : 'G\u00e9n\u00e9rer mon code'}
+                {generating ? (isPt ? 'A gerar...' : 'Génération...') : (isPt ? 'Gerar o meu código' : 'Générer mon code')}
               </button>
             </div>
           )}
@@ -152,42 +169,46 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
         {/* KPIs 2-col */}
         <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '0.75rem' }}>
           <div className="v5-kpi">
-            <div className="v5-kpi-l">Entreprises parrain&eacute;es</div>
+            <div className="v5-kpi-l">{isPt ? 'Empresas referenciadas' : 'Entreprises parrainées'}</div>
             <div className="v5-kpi-v">{stats?.stats.total || 0}</div>
-            <div className="v5-kpi-s">inscrites</div>
+            <div className="v5-kpi-s">{isPt ? 'inscritas' : 'inscrites'}</div>
           </div>
           <div className="v5-kpi hl">
-            <div className="v5-kpi-l">Bonus cumul&eacute;</div>
-            <div className="v5-kpi-v">{stats?.credit_mois_gratuits || 0} mois</div>
-            <div className="v5-kpi-s">en cr&eacute;dits</div>
+            <div className="v5-kpi-l">{isPt ? 'Bónus acumulado' : 'Bonus cumulé'}</div>
+            <div className="v5-kpi-v">{stats?.credit_mois_gratuits || 0} {isPt ? 'meses' : 'mois'}</div>
+            <div className="v5-kpi-s">{isPt ? 'em créditos' : 'en crédits'}</div>
           </div>
         </div>
 
         {/* Additional KPIs */}
         <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '1rem' }}>
           <div className="v5-kpi">
-            <div className="v5-kpi-l">Valid&eacute;s</div>
+            <div className="v5-kpi-l">{isPt ? 'Validados' : 'Validés'}</div>
             <div className="v5-kpi-v">{stats?.stats.valides || 0}</div>
-            <div className="v5-kpi-s">abonn&eacute;s confirm&eacute;s</div>
+            <div className="v5-kpi-s">{isPt ? 'subscritores confirmados' : 'abonnés confirmés'}</div>
           </div>
           <div className="v5-kpi">
-            <div className="v5-kpi-l">En v&eacute;rification</div>
+            <div className="v5-kpi-l">{isPt ? 'Em verificação' : 'En vérification'}</div>
             <div className="v5-kpi-v">{stats?.stats.enVerification || 0}</div>
-            <div className="v5-kpi-s">en attente</div>
+            <div className="v5-kpi-s">{isPt ? 'pendentes' : 'en attente'}</div>
           </div>
         </div>
 
         {/* Comment ca marche */}
         <div className="v5-card" style={{ marginBottom: '0.75rem' }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px' }}>
-            Comment &ccedil;a marche ?
+            {isPt ? 'Como funciona?' : 'Comment ça marche ?'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              "Partagez votre lien \u00e0 une autre entreprise BTP",
-              "L\u2019entreprise s\u2019inscrit et s\u2019abonne \u00e0 VITFIX Pro",
-              "Vous recevez chacun 1 mois offert (confirm\u00e9 apr\u00e8s 7 jours)",
-            ].map((text, i) => (
+            {(isPt ? [
+              "Partilhe o seu link com outra empresa de construção",
+              "A empresa regista-se e subscreve o VITFIX Pro",
+              "Ambos recebem 1 mês oferecido (confirmado após 7 dias)",
+            ] : [
+              "Partagez votre lien à une autre entreprise BTP",
+              "L'entreprise s'inscrit et s'abonne à VITFIX Pro",
+              "Vous recevez chacun 1 mois offert (confirmé après 7 jours)",
+            ]).map((text, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <div style={{
                   width: 24, height: 24, borderRadius: '50%', background: 'var(--v5-primary-yellow)', color: '#333',
@@ -207,24 +228,24 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
             <table className="v5-dt">
               <thead>
                 <tr>
-                  <th>Entreprise</th>
+                  <th>{isPt ? 'Empresa' : 'Entreprise'}</th>
                   <th>Date</th>
-                  <th>Statut</th>
-                  <th>Bonus</th>
+                  <th>{isPt ? 'Estado' : 'Statut'}</th>
+                  <th>{isPt ? 'Bónus' : 'Bonus'}</th>
                 </tr>
               </thead>
               <tbody>
                 {history.map(item => (
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600 }}>{item.filleul_name}</td>
-                    <td>{item.date_inscription ? new Date(item.date_inscription).toLocaleDateString('fr-FR') : '\u2014'}</td>
+                    <td>{item.date_inscription ? new Date(item.date_inscription).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR') : '\u2014'}</td>
                     <td>
                       <span className={`v5-badge ${item.statut.color === 'green' ? 'v5-badge-green' : item.statut.color === 'yellow' ? 'v5-badge-yellow' : item.statut.color === 'blue' ? 'v5-badge-blue' : 'v5-badge-gray'}`}>
                         {item.statut.label}
                       </span>
                     </td>
                     <td style={{ fontWeight: 600, color: item.statut.color === 'green' ? '#2E7D32' : '#999' }}>
-                      {item.statut.color === 'green' ? `+${item.mois_offerts} mois` : '\u2014'}
+                      {item.statut.color === 'green' ? `+${item.mois_offerts} ${isPt ? 'meses' : 'mois'}` : '\u2014'}
                     </td>
                   </tr>
                 ))}
@@ -244,19 +265,19 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: tv.text, marginBottom: 4 }}>
-          {isSociete ? '🤝 Parrainage Entreprises BTP' : '🎁 Parrainage'}
+          {isSociete ? (isPt ? '🤝 Referenciação de Empresas' : '🤝 Parrainage Entreprises BTP') : (isPt ? '🎁 Referenciação' : '🎁 Parrainage')}
         </h2>
         <p style={{ fontSize: 14, color: '#8A9BB0' }}>
-          {isSociete
-            ? "Recommandez Vitfix à d'autres entreprises du bâtiment et gagnez des mois gratuits"
-            : 'Parrainez des artisans et gagnez des mois gratuits'}
+          {isPt
+            ? (isSociete ? 'Recomende o Vitfix a outras empresas de construção e ganhe meses gratuitos' : 'Referencie colegas artesãos e ganhe meses gratuitos')
+            : (isSociete ? "Recommandez Vitfix à d'autres entreprises du bâtiment et gagnez des mois gratuits" : 'Parrainez des artisans et gagnez des mois gratuits')}
         </p>
       </div>
 
       {/* Section lien */}
       <div className="v22-card" style={{ marginBottom: 20 }}>
         <div className="v22-card-head">
-          <div className="v22-card-title">Mon lien de parrainage</div>
+          <div className="v22-card-title">{isPt ? 'O meu link de referenciação' : 'Mon lien de parrainage'}</div>
         </div>
         <div className="v22-card-body">
           {stats?.referral_code ? (
@@ -282,7 +303,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
                     color: copied ? '#fff' : '#0D1B2E',
                   }}
                 >
-                  {copied ? '✅ Copié' : 'Copier'}
+                  {copied ? (isPt ? '✅ Copiado' : '✅ Copié') : (isPt ? 'Copiar' : 'Copier')}
                 </button>
               </div>
 
@@ -305,13 +326,13 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: 20 }}>
-              <p style={{ color: '#4A5E78', marginBottom: 12 }}>Vous n&apos;avez pas encore de code de parrainage.</p>
+              <p style={{ color: '#4A5E78', marginBottom: 12 }}>{isPt ? 'Ainda não tem código de referenciação.' : 'Vous n\'avez pas encore de code de parrainage.'}</p>
               <button onClick={generateCode} disabled={generating} style={{
                 padding: '12px 28px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 fontWeight: 600, fontSize: 15, background: '#FFD600', color: '#0D1B2E',
                 opacity: generating ? 0.5 : 1,
               }}>
-                {generating ? 'Génération...' : 'Générer mon code'}
+                {generating ? (isPt ? 'A gerar...' : 'Génération...') : (isPt ? 'Gerar o meu código' : 'Générer mon code')}
               </button>
             </div>
           )}
@@ -320,22 +341,22 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <StatCard label="Parrainés" value={stats?.stats.total || 0} icon="👥" />
-        <StatCard label="Abonnés validés" value={stats?.stats.valides || 0} icon="✅" />
-        <StatCard label="Mois gagnés" value={stats?.total_parrainages_reussis || 0} icon="🎁" />
-        <StatCard label="Mois disponibles" value={stats?.credit_mois_gratuits || 0} icon="💰" />
+        <StatCard label={isPt ? 'Referenciados' : 'Parrainés'} value={stats?.stats.total || 0} icon="👥" />
+        <StatCard label={isPt ? 'Subscritores validados' : 'Abonnés validés'} value={stats?.stats.valides || 0} icon="✅" />
+        <StatCard label={isPt ? 'Meses ganhos' : 'Mois gagnés'} value={stats?.total_parrainages_reussis || 0} icon="🎁" />
+        <StatCard label={isPt ? 'Meses disponíveis' : 'Mois disponibles'} value={stats?.credit_mois_gratuits || 0} icon="💰" />
       </div>
 
       {/* Comment ça marche */}
       <div className="v22-card" style={{ marginBottom: 20 }}>
         <div className="v22-card-head">
-          <div className="v22-card-title">Comment ça marche ?</div>
+          <div className="v22-card-title">{isPt ? 'Como funciona?' : 'Comment ça marche ?'}</div>
         </div>
         <div className="v22-card-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <StepItem n={1} text={isSociete ? "Partagez votre lien à une autre entreprise BTP" : "Partagez votre lien via WhatsApp ou SMS"} />
-            <StepItem n={2} text={isSociete ? "L'entreprise s'inscrit et s'abonne à VITFIX Pro" : "Votre collègue s'inscrit et s'abonne à VITFIX Pro"} />
-            <StepItem n={3} text="Vous recevez chacun 1 mois offert (confirmé après 7 jours)" />
+            <StepItem n={1} text={isPt ? (isSociete ? "Partilhe o seu link com outra empresa de construção" : "Partilhe o seu link via WhatsApp ou SMS") : (isSociete ? "Partagez votre lien à une autre entreprise BTP" : "Partagez votre lien via WhatsApp ou SMS")} />
+            <StepItem n={2} text={isPt ? (isSociete ? "A empresa regista-se e subscreve o VITFIX Pro" : "O seu colega regista-se e subscreve o VITFIX Pro") : (isSociete ? "L'entreprise s'inscrit et s'abonne à VITFIX Pro" : "Votre collègue s'inscrit et s'abonne à VITFIX Pro")} />
+            <StepItem n={3} text={isPt ? "Ambos recebem 1 mês oferecido (confirmado após 7 dias)" : "Vous recevez chacun 1 mois offert (confirmé après 7 jours)"} />
           </div>
         </div>
       </div>
@@ -344,17 +365,17 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
       {history.length > 0 && (
         <div className="v22-card">
           <div className="v22-card-head">
-            <div className="v22-card-title">Historique des parrainages</div>
+            <div className="v22-card-title">{isPt ? 'Histórico de referenciações' : 'Historique des parrainages'}</div>
           </div>
           <div className="v22-card-body" style={{ padding: 0 }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #E4DDD0' }}>
-                    <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>{isSociete ? 'Entreprise' : 'Artisan'}</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>{isPt ? (isSociete ? 'Empresa' : 'Artesão') : (isSociete ? 'Entreprise' : 'Artisan')}</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Date</th>
-                    <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Statut</th>
-                    <th style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Récompense</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>{isPt ? 'Estado' : 'Statut'}</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>{isPt ? 'Recompensa' : 'Récompense'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -362,13 +383,13 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
                     <tr key={item.id} style={{ borderBottom: '1px solid #F0EBE3' }}>
                       <td style={{ padding: '12px 16px', color: '#0D1B2E', fontWeight: 500 }}>{item.filleul_name}</td>
                       <td style={{ padding: '12px 16px', color: '#8A9BB0' }}>
-                        {item.date_inscription ? new Date(item.date_inscription).toLocaleDateString('fr-FR') : '-'}
+                        {item.date_inscription ? new Date(item.date_inscription).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR') : '-'}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <StatusBadge statut={item.statut} />
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'right', color: item.statut.color === 'green' ? '#1D9E75' : '#8A9BB0', fontWeight: 600 }}>
-                        {item.statut.color === 'green' ? `+${item.mois_offerts} mois` : '-'}
+                        {item.statut.color === 'green' ? `+${item.mois_offerts} ${isPt ? 'meses' : 'mois'}` : '-'}
                       </td>
                     </tr>
                   ))}
