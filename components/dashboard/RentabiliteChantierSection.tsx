@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 import { DollarSign, Settings, HardHat, MapPin, CheckCircle, AlertTriangle, AlertCircle, Boxes, Truck, Hourglass, SlidersHorizontal } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -140,7 +141,8 @@ function BadgeIcon({ type, size = 12 }: { type: 'check' | 'warn' | 'risk'; size?
 
 export default function RentabiliteChantierSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const isV5 = orgRole === 'pro_societe'
-  const isPt = typeof document !== 'undefined' && document.cookie.includes('locale=pt')
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const t = (fr: string, pt: string) => isPt ? pt : fr
 
   // ── Config coût horaire par type de poste ──────────────────────────────────

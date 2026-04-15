@@ -7,10 +7,10 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import ResumeActivite from '@/components/stats/ResumeActivite'
 
-async function downloadCsv(type: 'clients' | 'bookings' | 'revenue') {
+async function downloadCsv(type: 'clients' | 'bookings' | 'revenue', errorMsg = 'Erreur lors de l\'export') {
   const res = await fetch(`/api/user/export-csv?type=${type}`)
   if (!res.ok) {
-    toast.error('Erreur lors de l\'export')
+    toast.error(errorMsg)
     return
   }
   const blob = await res.blob()
@@ -177,13 +177,14 @@ export default function StatsRevenusSection({
 
 function ExportHeader({ t }: { t: (k: string) => string }) {
   const tv = useThemeVars(false)
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
 
   const handleExport = async (type: 'clients' | 'bookings' | 'revenue') => {
     setLoading(type)
     setOpen(false)
-    await downloadCsv(type)
+    await downloadCsv(type, locale === 'pt' ? 'Erro ao exportar' : 'Erreur lors de l\'export')
     setLoading(null)
   }
 
