@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
 import { Users, ExternalLink, Mail, Phone, MapPin, HardHat, ToggleLeft, ToggleRight, Eye, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -37,10 +38,14 @@ function getContactFromChantier(ch: ChantierItem): { email: string; phone: strin
   return { email: (ch as any).client_email || '', phone: (ch as any).client_phone || '', type }
 }
 
-const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
-  particulier: { label: 'Particulier', cls: 'v5-badge v5-badge-blue' },
-  syndic: { label: 'Syndic', cls: 'v5-badge v5-badge-purple' },
-  societe: { label: 'Société', cls: 'v5-badge v5-badge-orange' },
+function getTypeBadge(type: string, isPt: boolean): { label: string; cls: string } {
+  const labels: Record<string, { fr: string; pt: string; cls: string }> = {
+    particulier: { fr: 'Particulier', pt: 'Particular', cls: 'v5-badge v5-badge-blue' },
+    syndic: { fr: 'Syndic', pt: 'Administração', cls: 'v5-badge v5-badge-purple' },
+    societe: { fr: 'Société', pt: 'Empresa', cls: 'v5-badge v5-badge-orange' },
+  }
+  const entry = labels[type] || labels.particulier
+  return { label: isPt ? entry.pt : entry.fr, cls: entry.cls }
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -51,6 +56,8 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 export default function PortailClientSection({ userId, artisanId, orgRole }: { userId: string; artisanId: string; orgRole?: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const { items: chantiers, loading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId, userId })
 
   const [portalStates, setPortalStates] = useState<Record<string, boolean>>(() => {
@@ -104,8 +111,8 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
           phone: client.phone,
           type: client.type === 'syndic' ? 'syndic' : client.type === 'societe' ? 'societe' : 'particulier',
           mainAddress: client.address,
-          mainAddressLabel: client.type === 'societe' ? 'Siège social' : 'Domicile',
-          notes: `Client issu des chantiers BTP (${client.chantiers.map(c => c.titre).join(', ')})`,
+          mainAddressLabel: isPt ? (client.type === 'societe' ? 'Sede social' : 'Domicílio') : (client.type === 'societe' ? 'Siège social' : 'Domicile'),
+          notes: isPt ? `Cliente proveniente das obras (${client.chantiers.map(c => c.titre).join(', ')})` : `Client issu des chantiers BTP (${client.chantiers.map(c => c.titre).join(', ')})`,
           source: 'manual',
         })
         added = true
@@ -129,13 +136,13 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
   const formatBudget = (b: string) => {
     const n = parseFloat(b)
     if (isNaN(n)) return '—'
-    return n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+    return n.toLocaleString(isPt ? 'pt-PT' : 'fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
   }
 
   if (loading) {
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t"><h1>Portail client</h1><p>Chargement...</p></div>
+        <div className="v5-pg-t"><h1>{isPt ? 'Portal do cliente' : 'Portail client'}</h1><p>{isPt ? 'A carregar...' : 'Chargement...'}</p></div>
         <div className="v5-card" style={{ padding: '3rem', textAlign: 'center' }}>
           <div className="v5-spin" style={{ margin: '0 auto 12px', width: 28, height: 28 }} />
         </div>
@@ -147,69 +154,87 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
     <div className="v5-fade">
       {/* Header */}
       <div className="v5-pg-t">
-          <h1><Users size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> Portail client</h1>
-          <p>Donnez à vos clients un accès en temps réel à leurs chantiers</p>
+          <h1><Users size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Portal do cliente' : 'Portail client'}</h1>
+          <p>{isPt ? 'Dê aos seus clientes acesso em tempo real às suas obras' : 'Donnez à vos clients un accès en temps réel à leurs chantiers'}</p>
       </div>
 
       {/* KPIs */}
       <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="v5-kpi hl">
-          <div className="v5-kpi-l">Portails actifs</div>
+          <div className="v5-kpi-l">{isPt ? 'Portais ativos' : 'Portails actifs'}</div>
           <div className="v5-kpi-v">{activePortals}</div>
-          <div className="v5-kpi-s">sur {clients.length} clients</div>
+          <div className="v5-kpi-s">{isPt ? `de ${clients.length} clientes` : `sur ${clients.length} clients`}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Clients liés à un chantier</div>
+          <div className="v5-kpi-l">{isPt ? 'Clientes ligados a uma obra' : 'Clients liés à un chantier'}</div>
           <div className="v5-kpi-v">{clients.length}</div>
-          <div className="v5-kpi-s">{chantiersEnCours} chantier(s) en cours</div>
+          <div className="v5-kpi-s">{chantiersEnCours} {isPt ? 'obra(s) em curso' : 'chantier(s) en cours'}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Dernière consultation</div>
+          <div className="v5-kpi-l">{isPt ? 'Última consulta' : 'Dernière consultation'}</div>
           <div className="v5-kpi-v" style={{ fontSize: 16 }}>—</div>
-          <div className="v5-kpi-s">Aucune consultation</div>
+          <div className="v5-kpi-s">{isPt ? 'Nenhuma consulta' : 'Aucune consultation'}</div>
         </div>
       </div>
 
       {/* Info cards */}
       <div className="v5-sg2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '1.25rem' }}>
         <div className="v5-card">
-          <div className="v5-st">Ce que le client voit</div>
+          <div className="v5-st">{isPt ? 'O que o cliente vê' : 'Ce que le client voit'}</div>
           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
-            📊 <strong>Avancement</strong> — Barre de progression par lot, % global, prochaines etapes<br/>
-            📸 <strong>Photos</strong> — Galerie de photos du chantier, filtrees par phase<br/>
-            📈 <strong>Situations de travaux</strong> — Consultation et validation en ligne avec signature electronique<br/>
-            📄 <strong>Documents</strong> — PV, rapports, plans partages par l&apos;entreprise<br/>
-            💬 <strong>Messagerie</strong> — Canal de discussion dedie au chantier<br/>
-            🌤️ <strong>Meteo</strong> — Previsions et impact sur le planning (lecture seule)
+            {isPt ? <>
+              📊 <strong>Progresso</strong> — Barra de avanço por lote, % global, próximas etapas<br/>
+              📸 <strong>Fotos</strong> — Galeria de fotos da obra, filtradas por fase<br/>
+              📈 <strong>Situações de obra</strong> — Consulta e validação online com assinatura eletrónica<br/>
+              📄 <strong>Documentos</strong> — Atas, relatórios, plantas partilhadas pela empresa<br/>
+              💬 <strong>Mensagens</strong> — Canal de discussão dedicado à obra<br/>
+              🌤️ <strong>Meteorologia</strong> — Previsões e impacto no planeamento (só leitura)
+            </> : <>
+              📊 <strong>Avancement</strong> — Barre de progression par lot, % global, prochaines etapes<br/>
+              📸 <strong>Photos</strong> — Galerie de photos du chantier, filtrees par phase<br/>
+              📈 <strong>Situations de travaux</strong> — Consultation et validation en ligne avec signature electronique<br/>
+              📄 <strong>Documents</strong> — PV, rapports, plans partages par l&apos;entreprise<br/>
+              💬 <strong>Messagerie</strong> — Canal de discussion dedie au chantier<br/>
+              🌤️ <strong>Meteo</strong> — Previsions et impact sur le planning (lecture seule)
+            </>}
           </div>
         </div>
         <div className="v5-card">
-          <div className="v5-st">Comment ca fonctionne</div>
+          <div className="v5-st">{isPt ? 'Como funciona' : 'Comment ca fonctionne'}</div>
           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
-            <strong>1.</strong> Activez le portail pour un client (toggle ci-dessous)<br/>
-            <strong>2.</strong> Choisissez les modules visibles par le client<br/>
-            <strong>3.</strong> Le client recoit un email automatique avec son lien d&apos;acces<br/>
-            <strong>4.</strong> Pas de mot de passe : acces par lien securise + code SMS<br/>
-            <strong>5.</strong> Le client consulte en lecture seule (sauf validation des situations)<br/>
-            <strong>6.</strong> Vous voyez qui a consulte quoi et quand
+            {isPt ? <>
+              <strong>1.</strong> Ative o portal para um cliente (botão abaixo)<br/>
+              <strong>2.</strong> Escolha os módulos visíveis pelo cliente<br/>
+              <strong>3.</strong> O cliente recebe um e-mail automático com o seu link de acesso<br/>
+              <strong>4.</strong> Sem palavra-passe: acesso por link seguro + código SMS<br/>
+              <strong>5.</strong> O cliente consulta em modo de leitura (exceto validação de situações)<br/>
+              <strong>6.</strong> Vê quem consultou o quê e quando
+            </> : <>
+              <strong>1.</strong> Activez le portail pour un client (toggle ci-dessous)<br/>
+              <strong>2.</strong> Choisissez les modules visibles par le client<br/>
+              <strong>3.</strong> Le client recoit un email automatique avec son lien d&apos;acces<br/>
+              <strong>4.</strong> Pas de mot de passe : acces par lien securise + code SMS<br/>
+              <strong>5.</strong> Le client consulte en lecture seule (sauf validation des situations)<br/>
+              <strong>6.</strong> Vous voyez qui a consulte quoi et quand
+            </>}
           </div>
         </div>
       </div>
 
       {/* Client list */}
-      <div className="v5-st" style={{ marginBottom: 8 }}>Vos clients ({clients.length})</div>
+      <div className="v5-st" style={{ marginBottom: 8 }}>{isPt ? `Os seus clientes (${clients.length})` : `Vos clients (${clients.length})`}</div>
 
       {clients.length === 0 ? (
         <div className="v5-card" style={{ padding: '2rem', textAlign: 'center' }}>
           <Users size={36} style={{ color: '#ccc', marginBottom: 8 }} />
-          <p style={{ fontSize: 13, color: '#999' }}>Aucun client associe a vos chantiers. Creez un chantier avec un nom de client pour le voir apparaitre ici.</p>
+          <p style={{ fontSize: 13, color: '#999' }}>{isPt ? 'Nenhum cliente associado às suas obras. Crie uma obra com nome de cliente para o ver aparecer aqui.' : 'Aucun client associe a vos chantiers. Creez un chantier avec un nom de client pour le voir apparaitre ici.'}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {clients.map(client => {
             const isExpanded = expandedClient === client.name
             const isActive = portalStates[client.name] || false
-            const badge = TYPE_BADGE[client.type] || TYPE_BADGE.particulier
+            const badge = getTypeBadge(client.type, isPt)
             const totalBudget = client.chantiers.reduce((s, c) => s + (parseFloat(c.budget) || 0), 0)
 
             return (
@@ -237,8 +262,8 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                       <span className={badge.cls} style={{ fontSize: 10 }}>{badge.label}</span>
                     </div>
                     <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><HardHat size={11} /> {client.chantiers.length} chantier(s)</span>
-                      <span style={{ color: '#555', fontWeight: 600 }}>{totalBudget.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><HardHat size={11} /> {client.chantiers.length} {isPt ? 'obra(s)' : 'chantier(s)'}</span>
+                      <span style={{ color: '#555', fontWeight: 600 }}>{totalBudget.toLocaleString(isPt ? 'pt-PT' : 'fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
                     </div>
                   </div>
 
@@ -246,7 +271,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                   <div
                     onClick={(e) => { e.stopPropagation(); togglePortal(client.name) }}
                     style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
-                    title={isActive ? 'Desactiver le portail' : 'Activer le portail'}
+                    title={isActive ? (isPt ? 'Desativar o portal' : 'Desactiver le portail') : (isPt ? 'Ativar o portal' : 'Activer le portail')}
                   >
                     {isActive ? (
                       <ToggleRight size={28} style={{ color: '#FFC107' }} />
@@ -254,7 +279,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                       <ToggleLeft size={28} style={{ color: '#CCC' }} />
                     )}
                     <span style={{ fontSize: 10, color: isActive ? '#FFA000' : '#999', fontWeight: 600 }}>
-                      {isActive ? 'Actif' : 'Inactif'}
+                      {isActive ? (isPt ? 'Ativo' : 'Actif') : (isPt ? 'Inativo' : 'Inactif')}
                     </span>
                   </div>
 
@@ -274,7 +299,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
 
                     {/* Chantiers list */}
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#333', marginBottom: 6 }}>
-                      Chantiers associes ({client.chantiers.length})
+                      {isPt ? `Obras associadas (${client.chantiers.length})` : `Chantiers associes (${client.chantiers.length})`}
                     </div>
                     {client.chantiers.map(ch => (
                       <div key={ch.id} style={{
@@ -297,13 +322,13 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                     {isActive && (
                       <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                         <button className="v5-btn v5-btn-s" style={{ fontSize: 11 }}>
-                          <Eye size={12} /> Apercu portail
+                          <Eye size={12} /> {isPt ? 'Pré-visualizar portal' : 'Apercu portail'}
                         </button>
                         <button className="v5-btn v5-btn-s" style={{ fontSize: 11 }}>
-                          <ExternalLink size={12} /> Copier le lien d&apos;acces
+                          <ExternalLink size={12} /> {isPt ? 'Copiar link de acesso' : 'Copier le lien d\'acces'}
                         </button>
                         <button className="v5-btn v5-btn-s" style={{ fontSize: 11 }}>
-                          <Mail size={12} /> Envoyer l&apos;invitation
+                          <Mail size={12} /> {isPt ? 'Enviar convite' : 'Envoyer l\'invitation'}
                         </button>
                       </div>
                     )}
