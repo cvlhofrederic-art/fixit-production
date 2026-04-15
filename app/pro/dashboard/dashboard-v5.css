@@ -640,3 +640,37 @@
 /* Outer page grid — match .devis-layout (1fr 300px) */
 .devis-create > div[style*="grid-template-columns"] { grid-template-columns: 1fr 300px !important; gap: 1.25rem !important; }
 @media (max-width: 1100px) { .devis-create > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; } }
+
+/* ═══ PHASE 4: Prestations table + Acomptes rows ═══ */
+
+/* v22-devis-table → dv-presta-table look */
+.devis-create .v22-devis-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .65rem; }
+.devis-create .v22-devis-table th { text-align: left !important; padding: 7px 8px !important; font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase; color: #999 !important; border-bottom: 2px solid #E8E8E8 !important; letter-spacing: .2px; background: #FAFAFA !important; }
+.devis-create .v22-devis-table td { padding: 6px 8px !important; border-bottom: 1px solid #F5F5F5 !important; vertical-align: middle; }
+.devis-create .v22-devis-table input:not([type="checkbox"]):not([type="radio"]),
+.devis-create .v22-devis-table select { padding: 6px 8px !important; border: 1px solid #E8E8E8 !important; border-radius: 5px !important; font-size: 11px !important; font-family: inherit; width: 100%; background: #fff !important; box-shadow: none !important; }
+.devis-create .v22-devis-table input:focus,
+.devis-create .v22-devis-table select:focus { outline: none !important; border-color: var(--v5-primary-yellow) !important; box-shadow: none !important; }
+
+/* Delete row button (26×26 square, hover red) */
+.devis-create .v22-devis-table button[title*="Supprimer"],
+.devis-create .v22-devis-table button[aria-label*="upprim"],
+.devis-create .v22-devis-table td:last-child > button { width: 26px; height: 26px; border-radius: 5px; border: 1px solid #F0F0F0; background: #fff; color: #CCC; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .15s; margin: auto; padding: 0; }
+.devis-create .v22-devis-table button[title*="Supprimer"]:hover,
+.devis-create .v22-devis-table button[aria-label*="upprim"]:hover,
+.devis-create .v22-devis-table td:last-child > button:hover { border-color: #FFCDD2; color: #E53935; background: #FFEBEE; }
+
+/* Scanner ticket button — yellow pill */
+.devis-create button[class*="Scanner"]:not(.dv-scanner-btn),
+.devis-create .v22-btn[onclick*="Scanner"],
+.devis-create .v22-card-body button.v22-btn-outline:has(+ *),
+.devis-create button.v22-btn-yellow-soft { background: #FFF8E1 !important; border: 1px solid #FFE082 !important; color: #F57F17 !important; font-size: 11px !important; font-weight: 600 !important; padding: 6px 12px !important; border-radius: 6px !important; }
+
+/* Acomptes rows: a row containing a select + a number input + label */
+.devis-create .v22-acompte-row { display: flex; align-items: center; gap: 8px; margin-bottom: .5rem; flex-wrap: wrap; }
+.devis-create .v22-acompte-row select { flex: 1; min-width: 160px; padding: 7px 10px !important; border: 1px solid #E0E0E0 !important; border-radius: 6px !important; font-size: 11px !important; background: #fff !important; }
+.devis-create .v22-acompte-row input[type="number"] { width: 55px !important; padding: 7px 8px !important; border: 1px solid #E0E0E0 !important; border-radius: 6px !important; font-size: 11px !important; text-align: center; }
+.devis-create .v22-acompte-pct { font-size: 12px; color: #666; font-weight: 600; }
+.devis-create .v22-acompte-eq { font-size: 11px; color: #888; white-space: nowrap; }
+.devis-create .v22-acompte-del { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #E8E8E8; background: #fff; cursor: pointer; color: #CCC; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; padding: 0; }
+.devis-create .v22-acompte-del:hover { border-color: #E53935; color: #E53935; background: #FFEBEE; }
