@@ -837,7 +837,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       // Detect "email already exists" silent failure: Supabase returns user with empty identities array
       if (authData.user && authData.user.identities?.length === 0) {
         // Redirect to login page — the email is already registered
-        window.location.href = `/auth/login?email_exists=1`
+        window.location.href = `/${locale}/auth/login?email_exists=1`
         return
       }
 

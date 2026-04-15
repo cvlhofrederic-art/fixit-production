@@ -1005,7 +1005,7 @@ export default function MobileDashboard() {
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { router.push('/auth/login'); return }
+      if (!session?.user) { router.push(`/${locale}/auth/login`); return }
       await loadData(session.user)
     }
     init()
@@ -1062,7 +1062,7 @@ export default function MobileDashboard() {
   const loadData = async (user: User) => {
     const { data: artisanData } = await supabase
       .from('profiles_artisan').select('*').eq('user_id', user.id).single()
-    if (!artisanData) { router.push('/auth/login'); return }
+    if (!artisanData) { router.push(`/${locale}/auth/login`); return }
     setArtisan(artisanData)
     setSettingsForm({
       company_name: artisanData.company_name || '',

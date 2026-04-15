@@ -34,18 +34,24 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
+    // Detect locale from cookie (set by middleware / i18n context) with fr as default
+    const localeCookie = cookieStore.get('locale')?.value
+    const locale = localeCookie === 'pt' ? 'pt' : 'fr'
+
     if (!error && data.user) {
       // Redirect based on user role
       const role = data.user.user_metadata?.role
       const isProRole = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
       if (isProRole) {
-        return NextResponse.redirect(`${origin}/pro/dashboard`)
+        return NextResponse.redirect(`${origin}/${locale}/pro/dashboard`)
       } else {
-        return NextResponse.redirect(`${origin}/client/dashboard`)
+        return NextResponse.redirect(`${origin}/${locale}/client/dashboard`)
       }
     }
+
+    return NextResponse.redirect(`${origin}/${locale}/auth/login`)
   }
 
-  // If no code or error, redirect to login
-  return NextResponse.redirect(`${origin}/auth/login`)
+  // If no code, redirect to login (default fr)
+  return NextResponse.redirect(`${origin}/fr/auth/login`)
 }
