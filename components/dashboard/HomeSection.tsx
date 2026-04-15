@@ -184,6 +184,8 @@ export default function HomeSection({
     })
 
     // 2b. Chantiers terminés mais aucune facture émise pour ce client
+    // 2c. Devis en brouillon (faits mais pas envoyés)
+    // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
     try {
       const rawDocs = localStorage.getItem(`fixit_docs_${artisan.id}`)
       const allDocs = rawDocs ? (JSON.parse(rawDocs) as SavedDocument[]) : []
@@ -204,6 +206,41 @@ export default function HomeSection({
           icon: '🧾',
           text: `${c.titre} — chantier terminé, facture non envoyée (${c.client})`,
           page: 'factures',
+        })
+      })
+
+      // 2c. Devis en statut brouillon (faits mais pas encore envoyés)
+      const devisBrouillon = allDocs.filter(d => d.type === 'devis' && (d.status === 'brouillon' || d.status === 'draft' || d.status === 'pending' || d.status === 'en_attente'))
+      devisBrouillon.slice(0, 2).forEach(d => {
+        const ref = d.ref || d.number || d.docNumber || d.id.slice(-6)
+        const client = d.client || d.clientName || d.client_name || 'client'
+        collected.push({
+          level: 'warn',
+          icon: '📝',
+          text: `Devis ${ref} en brouillon — à envoyer (${client})`,
+          page: 'devis',
+        })
+      })
+
+      // 2d. Demandes client en attente sans aucun devis associé (par nom client)
+      const devisClients = new Set(
+        allDocs
+          .filter(d => d.type === 'devis')
+          .map(d => (d.client || d.clientName || d.client_name || '').toLowerCase().trim())
+          .filter(Boolean)
+      )
+      const demandesSansDevis = pendingBookings.filter(b => {
+        const clientKey = extractClientName(b).toLowerCase().trim()
+        return clientKey && clientKey !== 'client' && !devisClients.has(clientKey)
+      })
+      demandesSansDevis.slice(0, 2).forEach(b => {
+        const clientName = extractClientName(b)
+        const service = b.services?.name || 'Intervention'
+        collected.push({
+          level: 'info',
+          icon: '📋',
+          text: `Devis à faire — ${service} (${clientName})`,
+          page: 'devis',
         })
       })
     } catch { /* ignore */ }
@@ -247,7 +284,7 @@ export default function HomeSection({
     } catch { /* ignore */ }
 
     setBtpAlerts(collected)
-  }, [artisan?.id, orgRole, btpChantiers, meteoAlerts])
+  }, [artisan?.id, orgRole, btpChantiers, meteoAlerts, pendingBookings, locale])
 
   // ── Fetch météo alerts for active chantiers (cache 1h) ──
   useEffect(() => {
