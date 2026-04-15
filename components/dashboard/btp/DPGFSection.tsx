@@ -14,7 +14,8 @@ export function DPGFSection({ userId, orgRole, country }: { userId: string; orgR
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
   const { items: appels, loading, add, update } = useBTPData<AppelOffre>({ table: 'dpgf', artisanId: userId, userId })
   const [selected, setSelected] = useState<AppelOffre | null>(null)
@@ -92,12 +93,12 @@ export function DPGFSection({ userId, orgRole, country }: { userId: string; orgR
         </button>
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Chargement...</div>}
+      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>}
 
       {/* Form */}
       {showForm && (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
-          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>Nouvel appel d&apos;offres</div>
+          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Novo concurso' : 'Nouvel appel d\'offres'}</div>
           <div className={isV5 ? 'v5-fr' : undefined} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
             <div className={isV5 ? 'v5-fg' : undefined}>
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.dpgf.titre')}</label>
@@ -129,12 +130,12 @@ export function DPGFSection({ userId, orgRole, country }: { userId: string; orgR
         <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Réf</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.titre') || 'Intitulé'}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.clientMaitreOuvrage') || 'Maître d\'ouvrage'}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Deadline</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Budget estimé</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Statut</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Ref.' : 'Réf'}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.titre') || (isPt ? 'Designação' : 'Intitulé')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.clientMaitreOuvrage') || (isPt ? 'Dono de obra' : 'Maître d\'ouvrage')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Prazo' : 'Deadline'}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Orçamento estimado' : 'Budget estimé'}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Estado' : 'Statut'}</th>
             </tr>
           </thead>
           <tbody>

@@ -388,7 +388,7 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
       pdf.save(`contrat-${c.id.slice(-6)}.pdf`)
     } catch (err) {
       console.error('Contrat PDF error:', err)
-      alert('Erreur génération PDF : ' + (err instanceof Error ? err.message : String(err)))
+      alert((locale === 'pt' ? 'Erro ao gerar PDF: ' : 'Erreur génération PDF : ') + (err instanceof Error ? err.message : String(err)))
     } finally {
       setPdfLoadingId(null)
     }

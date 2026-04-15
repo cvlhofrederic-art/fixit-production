@@ -146,7 +146,9 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, fontSize: 15 }}>{c.titre}</span>
-                      <span className={(isV5 ? STATUS_V5 : STATUS_V22)[c.statut] || (isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray')} style={{ fontSize: 11 }}>{c.statut}</span>
+                      <span className={(isV5 ? STATUS_V5 : STATUS_V22)[c.statut] || (isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray')} style={{ fontSize: 11 }}>
+                        {isPt ? ({ 'En cours': 'Em curso', 'Terminé': 'Concluída', 'En attente': 'Pendente', 'Annulé': 'Anulada' } as Record<string,string>)[c.statut] ?? c.statut : c.statut}
+                      </span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                       {c.client && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><Users size={12} /> {c.client}</span>}

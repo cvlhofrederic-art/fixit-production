@@ -651,7 +651,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                             <div style={{ padding: '6px 10px', fontFamily: 'monospace', borderBottom: `1px solid ${tv.border}` }}>{Math.floor(selectedBooking.duration_minutes / 60)}h{selectedBooking.duration_minutes % 60 > 0 ? String(selectedBooking.duration_minutes % 60).padStart(2, '0') : '00'}</div>
                           </>}
                           <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Adresse</div>
-                          <div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.address || 'Non renseignée'}</div>
+                          <div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.address || (locale === 'pt' ? 'Não indicado' : 'Non renseignée')}</div>
                           {selectedBooking.price_ttc && <>
                             <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500 }}>Montant</div>
                             <div style={{ padding: '6px 10px', fontWeight: 700, color: tv.green }}>{formatPrice(selectedBooking.price_ttc)}</div>
