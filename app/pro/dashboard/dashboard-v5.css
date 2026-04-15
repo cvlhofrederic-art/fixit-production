@@ -483,3 +483,118 @@
 .set-btn-primary { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border-radius: 4px; border: 1px solid var(--v5-primary-yellow); background: var(--v5-primary-yellow); color: #333; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s; }
 .set-btn-primary:hover { background: #FFB800; }
 .set-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ─── DEVIS CREATE FORM — Pixel-match HTML reference (vitfix_btp_dashboardpro_v7_devis.html) ─── */
+/* Top bar */
+.devis-create .devis-top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #F0F0F0; gap: 1rem; flex-wrap: wrap; }
+.devis-create .devis-back { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #999; cursor: pointer; font-weight: 500; border: none; background: none; font-family: inherit; padding: 0; transition: color .15s; }
+.devis-create .devis-back:hover { color: #555; }
+.devis-create .devis-top-title { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.devis-create .devis-doc-tabs { display: flex; background: #F5F5F5; border-radius: 6px; padding: 3px; gap: 2px; }
+.devis-create .devis-doc-tab { padding: 5px 14px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; background: none; color: #999; font-family: inherit; transition: all .15s; }
+.devis-create .devis-doc-tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.devis-create .devis-top-right { display: flex; align-items: center; gap: .5rem; }
+.devis-create .devis-cta-btn { padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; transition: all .15s; display: flex; align-items: center; gap: 5px; }
+.devis-create .devis-cta-btn.green { background: #2E7D32; color: #fff; }
+.devis-create .devis-cta-btn.green:hover { background: #256d29; }
+
+/* Layout grid */
+.devis-create .devis-layout { display: grid; grid-template-columns: 1fr 300px; gap: 1.25rem; align-items: start; }
+@media (max-width: 1100px) { .devis-create .devis-layout { grid-template-columns: 1fr; } }
+
+/* Sections */
+.devis-create .dv-section { background: #fff; border: 1px solid #E8E8E8; border-radius: 10px; margin-bottom: .85rem; overflow: hidden; }
+.devis-create .dv-section-hdr { display: flex; align-items: center; justify-content: space-between; padding: .75rem 1.1rem; border-bottom: 1px solid #F0F0F0; background: #FAFAFA; }
+.devis-create .dv-section-t { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #555; letter-spacing: .4px; margin: 0; }
+.devis-create .dv-section-sub { font-size: 10px; color: #BBB; font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 6px; }
+.devis-create .dv-section-body { padding: 1.1rem; }
+
+/* Alerts */
+.devis-create .dv-alert { padding: .65rem 1rem; border-radius: 6px; font-size: 11px; line-height: 1.5; margin-bottom: .85rem; display: flex; gap: 8px; align-items: flex-start; }
+.devis-create .dv-alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.devis-create .dv-alert.green { background: #E8F5E9; color: #2E7D32; border-left: 3px solid #4CAF50; }
+.devis-create .dv-alert.orange { background: #FFF3E0; color: #E65100; border-left: 3px solid #FF9800; }
+.devis-create .dv-alert.red { background: #FFEBEE; color: #C62828; border-left: 3px solid #E53935; }
+.devis-create .dv-alert.blue { background: #E3F2FD; color: #1565C0; border-left: 3px solid #2196F3; }
+.devis-create .dv-alert.yellow { background: #FFF8E1; color: #8B7D00; border-left: 3px solid #FFC107; }
+.devis-create .dv-alert strong { font-weight: 700; }
+.devis-create .dv-alert a { color: inherit; font-weight: 600; text-decoration: underline; }
+
+/* Form rows and fields */
+.devis-create .dv-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: .75rem; }
+.devis-create .dv-row.col3 { grid-template-columns: 1fr 1fr 1fr; }
+.devis-create .dv-row.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.devis-create .dv-row.col1 { grid-template-columns: 1fr; }
+.devis-create .dv-fg { display: flex; flex-direction: column; gap: 4px; }
+.devis-create .dv-fg label { font-size: 11px; font-weight: 600; color: #444; display: flex; align-items: center; gap: 3px; }
+.devis-create .dv-fg label .req { color: #E53935; font-size: 12px; }
+.devis-create .dv-fg input, .devis-create .dv-fg select, .devis-create .dv-fg textarea { width: 100%; padding: 8px 10px; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 12px; font-family: inherit; background: #fff; color: #333; transition: all .15s; }
+.devis-create .dv-fg input:focus, .devis-create .dv-fg select:focus, .devis-create .dv-fg textarea:focus { outline: none; border-color: var(--v5-primary-yellow); box-shadow: 0 0 0 3px rgba(255,193,7,.1); }
+.devis-create .dv-fg textarea { min-height: 70px; resize: vertical; }
+.devis-create .dv-fg input::placeholder, .devis-create .dv-fg textarea::placeholder { color: #CCC; }
+
+/* Import box */
+.devis-create .dv-import-box { background: #FAFAFA; border: 1px solid #E8E8E8; border-radius: 8px; padding: 1rem; text-align: center; }
+.devis-create .dv-import-box-title { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 3px; }
+.devis-create .dv-import-box-sub { font-size: 11px; color: #BBB; }
+
+/* Toggles */
+.devis-create .dv-toggle-row { display: flex; align-items: center; gap: 10px; padding: .6rem 0; }
+.devis-create .dv-toggle-label { font-size: 12px; font-weight: 600; color: #333; }
+.devis-create .dv-toggle-sub { font-size: 11px; color: #999; }
+
+/* Prestations table */
+.devis-create .dv-presta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .65rem; }
+.devis-create .dv-presta-table th { text-align: left; padding: 7px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; background: #FAFAFA; }
+.devis-create .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F5F5F5; vertical-align: middle; }
+.devis-create .dv-presta-table input, .devis-create .dv-presta-table select { padding: 6px 8px; border: 1px solid #E8E8E8; border-radius: 5px; font-size: 11px; font-family: inherit; width: 100%; background: #fff; }
+.devis-create .dv-presta-table input:focus, .devis-create .dv-presta-table select:focus { outline: none; border-color: var(--v5-primary-yellow); }
+.devis-create .dv-presta-del { width: 26px; height: 26px; border-radius: 5px; border: 1px solid #F0F0F0; background: #fff; color: #CCC; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .15s; margin: auto; }
+.devis-create .dv-presta-del:hover { border-color: #FFCDD2; color: #E53935; background: #FFEBEE; }
+.devis-create .dv-add-line { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #999; cursor: pointer; padding: 5px 0; border: none; background: none; font-family: inherit; font-weight: 500; transition: color .15s; }
+.devis-create .dv-add-line:hover { color: var(--v5-primary-yellow-dark); }
+.devis-create .dv-scanner-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 6px; background: #FFF8E1; border: 1px solid #FFE082; color: #F57F17; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
+.devis-create .dv-scanner-btn:hover { background: #FFE082; }
+
+/* Acompte rows */
+.devis-create .dv-acompte-row { display: flex; align-items: center; gap: 8px; margin-bottom: .5rem; flex-wrap: wrap; }
+.devis-create .dv-acompte-row select { flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 11px; font-family: inherit; background: #fff; }
+.devis-create .dv-acompte-row input { width: 55px; padding: 7px 8px; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 11px; font-family: inherit; text-align: center; }
+.devis-create .dv-acompte-pct { font-size: 12px; color: #666; font-weight: 600; }
+.devis-create .dv-acompte-eq { font-size: 11px; color: #888; white-space: nowrap; }
+.devis-create .dv-acompte-del { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #E8E8E8; background: #fff; cursor: pointer; color: #CCC; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
+.devis-create .dv-acompte-del:hover { border-color: #E53935; color: #E53935; background: #FFEBEE; }
+.devis-create .dv-echelon-warning { font-size: 12px; font-weight: 600; margin-top: .5rem; padding: .5rem .75rem; border-radius: 6px; }
+.devis-create .dv-echelon-warning.orange { color: #E65100; background: #FFF3E0; }
+.devis-create .dv-echelon-warning .sub { font-size: 11px; font-weight: 400; color: #888; display: block; margin-top: 2px; }
+
+/* Mentions obligatoires block */
+.devis-create .dv-mentions { font-size: 11px; color: #888; line-height: 1.7; padding: .85rem 1rem; background: #FAFAFA; border-radius: 6px; border: 1px solid #F0F0F0; }
+
+/* Sidebar */
+.devis-create .dv-sidebar { position: sticky; top: 1rem; }
+.devis-create .dv-sidebar-card { background: #fff; border: 1px solid #E8E8E8; border-radius: 10px; padding: 1rem; margin-bottom: .75rem; }
+.devis-create .dv-sidebar-t { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: .75rem; letter-spacing: .4px; }
+.devis-create .dv-resume-row { display: flex; justify-content: space-between; align-items: center; padding: .3rem 0; font-size: 12px; color: #555; border-bottom: 1px solid #F5F5F5; }
+.devis-create .dv-resume-row:last-of-type { border-bottom: none; }
+.devis-create .dv-resume-total { display: flex; justify-content: space-between; align-items: center; background: var(--v5-primary-yellow); color: #333; font-weight: 700; font-size: 13px; padding: .6rem .75rem; border-radius: 7px; margin-top: .6rem; }
+.devis-create .dv-conf-status { font-size: 11px; color: #888; margin-bottom: .6rem; padding: .4rem .6rem; background: #F5F5F5; border-radius: 5px; }
+.devis-create .dv-conf-item { display: flex; align-items: center; justify-content: space-between; padding: .3rem 0; font-size: 11px; color: #555; border-bottom: 1px solid #F8F8F8; }
+.devis-create .dv-conf-item:last-child { border-bottom: none; }
+.devis-create .dv-conf-x { color: #E53935; font-weight: 700; font-size: 12px; }
+.devis-create .dv-conf-check { color: #4CAF50; font-weight: 700; font-size: 12px; }
+
+/* Sidebar buttons */
+.devis-create .dv-sidebar-btn { width: 100%; padding: 9px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #E0E0E0; background: #fff; color: #555; font-family: inherit; transition: all .15s; margin-bottom: .4rem; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.devis-create .dv-sidebar-btn:last-child { margin-bottom: 0; }
+.devis-create .dv-sidebar-btn:hover { background: #FAFAFA; border-color: #CCC; }
+.devis-create .dv-sidebar-btn.yellow { background: var(--v5-primary-yellow); border-color: var(--v5-primary-yellow); color: #333; }
+.devis-create .dv-sidebar-btn.yellow:hover { background: #FFB800; }
+.devis-create .dv-sidebar-btn.green { background: #2E7D32; border-color: #2E7D32; color: #fff; }
+.devis-create .dv-sidebar-btn.green:hover { background: #256d29; }
+.devis-create .dv-sidebar-btn.outline-blue { border-color: #BBDEFB; color: #1565C0; background: #F8FBFF; }
+.devis-create .dv-sidebar-btn.outline-blue:hover { background: #E3F2FD; }
+
+/* PDF preview thumbnail */
+.devis-create .dv-apercu { width: 100%; height: 80px; border: 1px solid #E8E8E8; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #CCC; cursor: pointer; background: #FAFAFA; transition: all .15s; }
+.devis-create .dv-apercu:hover { border-color: var(--v5-primary-yellow); color: #BBB; }
