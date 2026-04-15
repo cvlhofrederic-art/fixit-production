@@ -630,7 +630,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   }
 
   return (
-    <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ maxWidth: 672, marginTop: 16 }}>
+    <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginTop: 16 }}>
       <div className={isV5 ? '' : 'v22-card-head'}>
         <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{'🔒'} {t('proDash.settings.securityTitle')}</div>
       </div>
