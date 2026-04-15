@@ -96,6 +96,15 @@ export default function HomeSection({
   // Devis from localStorage
   const [recentDevis, setRecentDevis] = useState<SavedDocument[]>([])
   const [alerts, setAlerts] = useState<Array<{ type: string; title: string; sub: string; time: string }>>([])
+  const [btpAlerts, setBtpAlerts] = useState<Array<{ level: 'err' | 'warn' | 'info'; icon: string; text: string; page?: string }>>([])
+  const [meteoAlerts, setMeteoAlerts] = useState<Array<{ chantierId: string; titre: string; level: 'vigilance' | 'rouge'; reasons: string[] }>>([])
+
+  // BTP data for pro_societe — pulled from Supabase tables
+  const userId = artisan?.user_id || artisan?.id || ''
+  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; dateDebut: string; dateFin: string; adresse?: string; ville?: string; codePostal?: string; latitude?: number; longitude?: number; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId })
+  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId })
+  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
+  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
 
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
@@ -138,16 +147,139 @@ export default function HomeSection({
     }
   }, [artisan?.id, locale])
 
+  // ── Aggregate BTP alerts from various sources (pro_societe only) ──
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id || orgRole !== 'pro_societe') return
+    const collected: Array<{ level: 'err' | 'warn' | 'info'; icon: string; text: string; page?: string }> = []
+
+    // 1. Nouveaux messages / demandes client (conversations en cache)
+    try {
+      const rawConv = localStorage.getItem(`fixit_messagerie_convs_${artisan.id}`)
+      if (rawConv) {
+        const convs = JSON.parse(rawConv) as Array<{ unread_count?: number; other_user_name?: string; client_name?: string; participant_name?: string }>
+        const unreadTotal = convs.reduce((s, c) => s + (c.unread_count || 0), 0)
+        if (unreadTotal > 0) {
+          const firstUnread = convs.find(c => (c.unread_count || 0) > 0)
+          const name = firstUnread?.other_user_name || firstUnread?.client_name || firstUnread?.participant_name || 'client'
+          collected.push({
+            level: 'info',
+            icon: '💬',
+            text: unreadTotal === 1 ? `1 nouveau message — ${name}` : `${unreadTotal} nouveaux messages (dont ${name})`,
+            page: 'messages',
+          })
+        }
+      }
+    } catch { /* ignore */ }
+
+    // 2. Chantiers finis (deadline dépassée) mais pas validés "Terminé"
+    const now = Date.now()
+    const finisNonValides = btpChantiers.filter(c => c.dateFin && c.statut !== 'Terminé' && new Date(c.dateFin).getTime() < now)
+    finisNonValides.slice(0, 2).forEach(c => {
+      collected.push({
+        level: 'warn',
+        icon: '🏁',
+        text: `${c.titre} — deadline dépassée, à valider "Terminé"`,
+        page: 'chantiers',
+      })
+    })
+
+    // 3. Alertes météo (lues depuis le cache alimenté par MeteoChantierSection)
+    meteoAlerts.slice(0, 2).forEach(m => {
+      collected.push({
+        level: m.level === 'rouge' ? 'err' : 'warn',
+        icon: m.level === 'rouge' ? '⛈️' : '🌧️',
+        text: `Météo ${m.titre} — ${m.reasons.slice(0, 2).join(', ')}`,
+        page: 'meteo-chantier',
+      })
+    })
+
+    // 4. Documents conformité qui expirent (< 60 jours) ou déjà expirés
+    try {
+      const rawWallet = localStorage.getItem(`fixit_wallet_${artisan.id}`)
+      if (rawWallet) {
+        const wallet = JSON.parse(rawWallet) as Record<string, { expiryDate?: string; name?: string }>
+        const expiring: Array<{ key: string; name: string; days: number; expired: boolean }> = []
+        Object.entries(wallet).forEach(([key, doc]) => {
+          if (!doc?.expiryDate) return
+          const diff = (new Date(doc.expiryDate).getTime() - now) / 86400000
+          if (diff < 60) {
+            expiring.push({ key, name: doc.name || key, days: Math.round(diff), expired: diff < 0 })
+          }
+        })
+        expiring.sort((a, b) => a.days - b.days)
+        expiring.slice(0, 2).forEach(d => {
+          const label = d.key.replace(/_/g, ' ')
+          collected.push({
+            level: d.expired ? 'err' : 'warn',
+            icon: '📁',
+            text: d.expired
+              ? `${label} — expiré depuis ${Math.abs(d.days)}j`
+              : `${label} — expire dans ${d.days}j`,
+            page: 'wallet-conformite',
+          })
+        })
+      }
+    } catch { /* ignore */ }
+
+    setBtpAlerts(collected)
+  }, [artisan?.id, orgRole, btpChantiers, meteoAlerts])
+
+  // ── Fetch météo alerts for active chantiers (cache 1h) ──
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id || orgRole !== 'pro_societe') return
+    const cacheKey = `fixit_meteo_alerts_${artisan.id}`
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached) as { ts: number; alerts: typeof meteoAlerts }
+        if (Date.now() - parsed.ts < 3600000) { setMeteoAlerts(parsed.alerts); return }
+      }
+    } catch { /* ignore */ }
+
+    const active = btpChantiers.filter(c => c.statut === 'En cours' && (c.latitude || c.ville || c.adresse)).slice(0, 5)
+    if (active.length === 0) return
+
+    let cancelled = false
+    ;(async () => {
+      const results: typeof meteoAlerts = []
+      for (const c of active) {
+        try {
+          let lat = c.latitude, lng = c.longitude
+          if (!lat || !lng) {
+            const q = c.ville || c.adresse || ''
+            const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=fr`).then(r => r.json()).catch(() => null)
+            if (!geo?.results?.[0]) continue
+            lat = geo.results[0].latitude; lng = geo.results[0].longitude
+          }
+          const forecast = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=5`).then(r => r.json()).catch(() => null)
+          if (!forecast?.daily) continue
+          const reasons: string[] = []
+          let level: 'vigilance' | 'rouge' | null = null
+          for (let i = 0; i < Math.min(5, forecast.daily.time.length); i++) {
+            const wind = forecast.daily.wind_speed_10m_max[i]
+            const tmin = forecast.daily.temperature_2m_min[i]
+            const rain = forecast.daily.precipitation_sum[i]
+            const tmax = forecast.daily.temperature_2m_max[i]
+            if (wind > 60) { level = 'rouge'; reasons.push(`Vent ${Math.round(wind)} km/h`); break }
+            if (tmin < 0) { level = level || 'vigilance'; reasons.push(`Gel ${Math.round(tmin)}°C`) }
+            if (rain > 5) { level = level || 'vigilance'; reasons.push(`Pluie ${rain}mm`) }
+            if (tmax > 33) { level = level || 'vigilance'; reasons.push(`Chaleur ${Math.round(tmax)}°C`) }
+          }
+          if (level) results.push({ chantierId: c.id, titre: c.titre, level, reasons: [...new Set(reasons)] })
+        } catch { /* ignore one chantier */ }
+      }
+      if (cancelled) return
+      setMeteoAlerts(results)
+      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), alerts: results })) } catch { /* quota */ }
+    })()
+
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artisan?.id, orgRole, btpChantiers.length])
+
   // ═══════════════════════════════════════════════════════
   // V5 RENDER — pro_societe + artisan use the v5 design system
   // ═══════════════════════════════════════════════════════
-
-  // BTP data for pro_societe — pulled from Supabase tables
-  const userId = artisan?.user_id || artisan?.id || ''
-  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; date_debut: string; date_fin: string; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId })
-  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId })
-  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
-  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
 
   if (orgRole === 'pro_societe' || orgRole === 'artisan') {
 
@@ -155,6 +287,21 @@ export default function HomeSection({
     const isSociete = orgRole === 'pro_societe'
     const chantiersActifs = isSociete ? btpChantiers.filter(c => c.statut === 'En cours') : []
     const chantiersAttente = isSociete ? btpChantiers.filter(c => c.statut === 'En attente') : []
+
+    // Palette Gantt — même ordre, même filtre (cf. GanttSection.tsx) pour matcher trait pour trait
+    const GANTT_PALETTE = ['#42A5F5', '#66BB6A', '#FFA726', '#FFCA28', '#AB47BC', '#EF5350', '#42A5F5']
+    const ganttChantiers = isSociete ? btpChantiers.filter(c => c.dateDebut && c.dateFin && c.statut !== 'Terminé') : []
+    const colorForChantierId = (id: string): string => {
+      const idx = ganttChantiers.findIndex(c => c.id === id)
+      return idx >= 0 ? GANTT_PALETTE[idx % GANTT_PALETTE.length] : '#BDBDBD'
+    }
+    const computeAvancement = (debut: string, fin: string): number => {
+      const s = new Date(debut).getTime(), e = new Date(fin).getTime(), n = Date.now()
+      if (!debut || !fin || isNaN(s) || isNaN(e) || e <= s) return 0
+      if (n <= s) return 0
+      if (n >= e) return 100
+      return Math.round(((n - s) / (e - s)) * 100)
+    }
     const totalBudget = isSociete ? btpChantiers.reduce((s, c) => s + (c.montant_facture || c.budget || 0), 0) : totalRevenue
     const totalAcomptes = isSociete ? btpChantiers.reduce((s, c) => s + (c.acompte_recu || 0), 0) : 0
     const totalDepenses = isSociete ? btpDepenses.reduce((s, d) => s + (d.amount || 0), 0) : 0
@@ -236,15 +383,31 @@ export default function HomeSection({
                 <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucun chantier en cours</div>
               ) : (
                 <table className="v5-dt">
-                  <thead><tr><th>Chantier</th><th>Client</th><th>Budget</th></tr></thead>
+                  <thead><tr><th>Chantier</th><th>Chef</th><th>Avancement</th><th>Deadline</th></tr></thead>
                   <tbody>
-                    {chantiersActifs.slice(0, 5).map(c => (
-                      <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
-                        <td style={{ fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titre}</td>
-                        <td>{c.client}</td>
-                        <td>{formatPrice(c.budget || 0)}</td>
-                      </tr>
-                    ))}
+                    {chantiersActifs.slice(0, 5).map(c => {
+                      const color = colorForChantierId(c.id)
+                      const avc = computeAvancement(c.dateDebut, c.dateFin)
+                      const isRetard = c.dateFin && new Date(c.dateFin) < new Date()
+                      const deadlineLabel = c.dateFin ? new Date(c.dateFin).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) : '—'
+                      return (
+                        <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
+                          <td style={{ fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isRetard ? '#C62828' : undefined }}>
+                            {c.titre}{isRetard ? ' ⚠️' : ''}
+                          </td>
+                          <td style={{ fontSize: 11 }}>{c.equipe || '—'}</td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#EEE', minWidth: 60 }}>
+                                <div style={{ width: `${avc}%`, height: '100%', borderRadius: 3, background: color }} />
+                              </div>
+                              <span style={{ fontSize: 10, fontWeight: 600, minWidth: 28 }}>{avc}%</span>
+                            </div>
+                          </td>
+                          <td style={{ fontSize: 11 }}>{deadlineLabel}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               )
@@ -272,23 +435,58 @@ export default function HomeSection({
             )}
           </div>
 
-          {/* Équipe / Planning */}
+          {/* Planning semaine / Agenda */}
           <div className="v5-card">
-            <div className="v5-st">{isSociete ? 'Équipe' : (locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine')}</div>
-            {isSociete ? (
-              membresActifs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucun membre</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {membresActifs.slice(0, 6).map(m => (
-                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('equipes')}>
-                      <div style={{ background: m.type_compte === 'chef_chantier' ? '#FFF3E0' : '#E3F2FD', color: m.type_compte === 'chef_chantier' ? '#E65100' : '#1565C0', padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{m.type_compte === 'chef_chantier' ? 'CHEF' : 'OUV.'}</div>
-                      <div style={{ fontSize: 11 }}>{m.prenom} {m.nom}</div>
-                    </div>
-                  ))}
+            <div className="v5-st">{isSociete ? 'Planning semaine' : (locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine')}</div>
+            {isSociete ? (() => {
+              // Aggrège les jalons des 7 prochains jours : débuts / fins de chantiers + RDVs du calendrier
+              const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+              const DAY_COLORS = [
+                { bg: '#E3F2FD', fg: '#1565C0' },
+                { bg: '#E8F5E9', fg: '#2E7D32' },
+                { bg: '#FFF3E0', fg: '#E65100' },
+                { bg: '#F3E5F5', fg: '#7B1FA2' },
+                { bg: '#E0F7FA', fg: '#00838F' },
+                { bg: '#FCE4EC', fg: '#AD1457' },
+                { bg: '#FFF8E1', fg: '#F57F17' },
+              ]
+              const today = new Date(); today.setHours(0, 0, 0, 0)
+              const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7)
+              type Milestone = { date: Date; day: number; label: string; text: string }
+              const items: Milestone[] = []
+              btpChantiers.forEach(c => {
+                if (c.dateDebut) {
+                  const d = new Date(c.dateDebut); d.setHours(0, 0, 0, 0)
+                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `Démarrage — ${c.titre}` })
+                }
+                if (c.dateFin) {
+                  const d = new Date(c.dateFin); d.setHours(0, 0, 0, 0)
+                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `Livraison — ${c.titre}` })
+                }
+              })
+              bookings.forEach(b => {
+                if (!b.booking_date) return
+                const d = new Date(b.booking_date); d.setHours(0, 0, 0, 0)
+                if (d >= today && d < weekEnd) {
+                  items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${b.services?.name || 'RDV'} — ${extractClientName(b)}` })
+                }
+              })
+              items.sort((a, b) => a.date.getTime() - b.date.getTime())
+              if (items.length === 0) return <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Rien de prévu cette semaine</div>
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  {items.slice(0, 6).map((it, i) => {
+                    const c = DAY_COLORS[it.day]
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('gantt')}>
+                        <div style={{ background: c.bg, color: c.fg, padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{it.label}</div>
+                        <div style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</div>
+                      </div>
+                    )
+                  })}
                 </div>
               )
-            ) : (
+            })() : (
               todayBookings.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nada agendado para hoje' : "Rien de prévu aujourd'hui"}</div>
               ) : (
@@ -308,28 +506,26 @@ export default function HomeSection({
             )}
           </div>
 
-          {/* Finances / Alertes */}
+          {/* Alertes BTP / Alertes */}
           <div className="v5-card">
-            <div className="v5-st">{isSociete ? 'Finances' : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
+            <div className="v5-st">{isSociete ? 'Alertes BTP' : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
             {isSociete ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#666' }}>Dépenses totales</span>
-                  <span style={{ fontWeight: 600, color: '#D32F2F' }}>{formatPrice(totalDepenses)}</span>
+              btpAlerts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucune alerte</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                  {btpAlerts.slice(0, 6).map((a, i) => (
+                    <div
+                      key={i}
+                      className={`v5-al ${a.level}`}
+                      style={{ cursor: a.page ? 'pointer' : 'default' }}
+                      onClick={() => a.page && navigateTo(a.page)}
+                    >
+                      {a.icon} {a.text}
+                    </div>
+                  ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#666' }}>Acomptes reçus</span>
-                  <span style={{ fontWeight: 600, color: '#2E7D32' }}>{formatPrice(totalAcomptes)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#666' }}>Situations</span>
-                  <span style={{ fontWeight: 600 }}>{btpSituations.filter(s => s.statut === 'payée').length}/{btpSituations.length} payées</span>
-                </div>
-                <div style={{ borderTop: '1px solid #EEE', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#666' }}>Marge brute</span>
-                  <span style={{ fontWeight: 700, color: totalAcomptes - totalDepenses > 0 ? '#2E7D32' : '#D32F2F' }}>{formatPrice(totalAcomptes - totalDepenses)}</span>
-                </div>
-              </div>
+              )
             ) : (
               alerts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
