@@ -1001,24 +1001,6 @@ export default function SettingsSection({
                   />
                 </div>
 
-                {/* Intervention radius */}
-                <div style={{ padding: 12, background: tv.bg, borderRadius: 6 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 8 }}>{'📍'} {t('proDash.settings.perimetreIntervention')}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <input
-                      type="range"
-                      min={5}
-                      max={100}
-                      step={5}
-                      value={settingsForm.zone_radius_km}
-                      onChange={e => setSettingsForm({...settingsForm, zone_radius_km: parseInt(e.target.value)})}
-                      style={{ flex: 1, accentColor: tv.primary }}
-                    />
-                    <span style={{ fontSize: 16, fontWeight: 700, color: tv.text, minWidth: 60, textAlign: 'right' }}>{settingsForm.zone_radius_km} km</span>
-                  </div>
-                  <span style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, display: 'block' }}>{t('proDash.settings.rayonAutour')}</span>
-                </div>
-
                 <div style={{ display: 'flex', gap: 8, paddingTop: 12 }}>
                   <button onClick={saveSettings} disabled={savingSettings}
                     className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
