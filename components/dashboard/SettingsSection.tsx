@@ -604,21 +604,21 @@ export default function SettingsSection({
                 )}
 
                 {/* Identité visuelle : avatar + logo côte à côte avec labels clairs */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #F0F0F0' }}>
                   {/* Photo de profil */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: '3px solid #FFE082', flexShrink: 0, background: '#F57C00', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', cursor: 'pointer' }}>
                       {profilePhotoPreview ? (
                         <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
                       ) : (artisan as any)?.profile_photo_url ? (
-                        <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="56px" />
+                        <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="64px" />
                       ) : (
-                        <span style={{ fontSize: 18, fontWeight: 700, color: tv.textMuted }}>{initials}</span>
+                        <span style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{initials}</span>
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: tv.textMuted, letterSpacing: '.3px', marginBottom: 4 }}>Photo de profil</div>
-                      <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: profilePhotoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 4 }}>Photo de profil</div>
+                      <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 4, border: '1px solid #E0E0E0', background: '#fff', fontSize: 11, fontWeight: 500, color: '#555', fontFamily: 'inherit', transition: 'all .15s', opacity: profilePhotoUploading ? 0.5 : 1 }}>
                         {profilePhotoUploading ? '⏳ …' : '🖼️ Changer'}
                         <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
                           const f = e.target.files?.[0]
@@ -648,24 +648,24 @@ export default function SettingsSection({
                           }
                         }} />
                       </label>
-                      <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 4 }}>JPG, PNG, WEBP — max 10 Mo</div>
+                      <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>JPG, PNG, WEBP — max 10 Mo</div>
                     </div>
                   </div>
 
                   {/* Logo entreprise */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', border: `2px dashed ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: 6, overflow: 'hidden', border: '2px dashed #E0E0E0', flexShrink: 0, background: '#F5F5F5', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', cursor: 'pointer' }}>
                       {logoPreview ? (
                         <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
                       ) : (artisan as any)?.logo_url ? (
-                        <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="56px" style={{ padding: 4 }} />
+                        <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="64px" style={{ padding: 4 }} />
                       ) : (
-                        <span style={{ fontSize: 9, color: tv.textMuted, textAlign: 'center', lineHeight: 1.2 }}>Logo<br/>PDF</span>
+                        <span style={{ fontSize: 10, color: '#BBB', textAlign: 'center', lineHeight: 1.2 }}>L</span>
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: tv.textMuted, letterSpacing: '.3px', marginBottom: 4 }}>Logo (devis & factures)</div>
-                      <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 4 }}>Logo (devis & factures)</div>
+                      <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 4, border: '1px solid #E0E0E0', background: '#fff', fontSize: 11, fontWeight: 500, color: '#555', fontFamily: 'inherit', transition: 'all .15s', opacity: logoUploading ? 0.5 : 1 }}>
                         {logoUploading ? '⏳ …' : '📁 Importer'}
                         <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
                           const f = e.target.files?.[0]
@@ -695,7 +695,7 @@ export default function SettingsSection({
                           }
                         }} />
                       </label>
-                      <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 4 }}>PNG, JPG, WebP — max 2 Mo</div>
+                      <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>PNG, JPG, WebP — max 2 Mo</div>
                     </div>
                   </div>
                 </div>
@@ -742,12 +742,23 @@ export default function SettingsSection({
                 <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{t('proDash.settings.lienReservation')}</div>
               </div>
               <div className={isV5 ? '' : 'v22-card-body'}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: '#E3F2FD', color: '#1565C0', padding: '.6rem .75rem', borderRadius: 4, fontSize: 11, marginBottom: '.75rem' }}>
+                  💡 Partagez ce lien avec vos clients pour qu'ils puissent prendre rendez-vous directement depuis votre agenda.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1, background: tv.bg, color: tv.textMuted, fontSize: 12 }} />
+                    style={{ flex: 1, padding: '7px 10px', border: '1px solid #E0E0E0', borderRadius: 5, fontSize: 11, fontFamily: 'inherit', background: '#FAFAFA', color: '#888' }} />
                   <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); toast.success(t('proDash.settings.lienCopie')) }}
-                    className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ whiteSpace: 'nowrap' }}>
-                    {'📋'} {t('proDash.settings.copier')}
+                    style={{ padding: '6px 14px', borderRadius: 5, border: 'none', background: 'var(--v5-primary-yellow)', color: '#333', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                    📋 {t('proDash.settings.copier')}
+                  </button>
+                  <button onClick={() => {
+                    const url = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`
+                    if (navigator.share) { navigator.share({ url }).catch(() => {}) }
+                    else { navigator.clipboard.writeText(url); toast.success(t('proDash.settings.lienCopie')) }
+                  }}
+                    className="set-btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+                    🔗 Partager
                   </button>
                 </div>
               </div>
