@@ -397,7 +397,22 @@
   .v5-msg-ch.v22-msg-right-hidden { display: none; }
 }
 
-/* ─── SETTINGS — Password security block (from HTML reference) ─── */
+/* ─── SETTINGS — Pixel-match HTML reference (vvvitfix_btp_dashboardpro_v7_settings_IMPROVED.html) ─── */
+/* Cards rendered with header strip (grey bg) + separated body */
+.set-layout .v5-card { padding: 0; overflow: hidden; margin-bottom: 0; border: 1px solid #E8E8E8; border-radius: 6px; background: #fff; }
+.set-layout .v5-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); border-color: #D0D0D0; }
+.set-layout .v5-card > div:first-child { background: #FAFAFA; padding: .65rem 1rem; border-bottom: 1px solid #E8E8E8; display: flex; align-items: center; gap: 7px; }
+.set-layout .v5-card > div:first-child .v5-st { margin-bottom: 0; font-size: 10px; letter-spacing: .4px; font-weight: 700; text-transform: uppercase; color: #1a1a1a; }
+.set-layout .v5-card > div:not(:first-child) { padding: 1rem; }
+/* Form fields — tighter, HTML-match */
+.set-layout .v5-fi { padding: 7px 10px; border-radius: 5px; font-size: 12px; background: #fff; color: #333; transition: border-color .15s; }
+.set-layout .v5-fi:focus { border-color: var(--v5-primary-yellow); box-shadow: 0 0 0 2px rgba(255,193,7,.12); }
+.set-layout .v5-fi::placeholder { color: #CCC; }
+.set-layout .v5-fl { font-size: 12px; font-weight: 600; color: #444; margin-bottom: 3px; display: block; }
+.set-layout .v5-fg { margin-bottom: .75rem; }
+/* Primary yellow buttons — match HTML .set-btn-primary */
+.set-layout .v5-btn-p { padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; gap: 5px; }
+.set-layout .v5-btn-p:hover { background: #FFB800; }
 .set-pw-fi { width: 100%; padding: 7px 10px; border: 1px solid #E0E0E0; border-radius: 5px; font-size: 12px; font-family: inherit; background: #fff; color: #333; transition: border-color .15s; letter-spacing: 2px; }
 .set-pw-fi:focus { outline: none; border-color: var(--v5-primary-yellow); box-shadow: 0 0 0 2px rgba(255,193,7,.12); }
 .set-pw-wrapper { position: relative; display: flex; align-items: center; }

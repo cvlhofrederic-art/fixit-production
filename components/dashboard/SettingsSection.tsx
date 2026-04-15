@@ -583,7 +583,7 @@ export default function SettingsSection({
       </div>
 
       {/* Profil & Parametres */}
-      <div style={{ padding: '16px' }}>
+      <div className="set-layout" style={{ padding: '16px' }}>
         {/* Two-column grid: profile left, settings right */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
