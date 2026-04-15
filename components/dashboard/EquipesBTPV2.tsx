@@ -50,12 +50,22 @@ interface EquipeBTP {
   createdAt: string
 }
 
-const TYPE_LABELS: Record<TypeCompte, string> = {
+const TYPE_LABELS_FR: Record<TypeCompte, string> = {
   ouvrier: 'Ouvrier',
   chef_chantier: 'Chef de chantier',
   conducteur_travaux: 'Conducteur de travaux',
   secretaire: 'Secrétaire',
   gerant: 'Gérant / Patron',
+}
+const TYPE_LABELS_PT: Record<TypeCompte, string> = {
+  ouvrier: 'Operário',
+  chef_chantier: 'Chefe de obra',
+  conducteur_travaux: 'Director de obra',
+  secretaire: 'Secretário/a',
+  gerant: 'Gerente / Patrão',
+}
+function getTypeLabels(isPt: boolean): Record<TypeCompte, string> {
+  return isPt ? TYPE_LABELS_PT : TYPE_LABELS_FR
 }
 
 const TYPE_COLORS_V5: Record<TypeCompte, string> = {
@@ -74,13 +84,24 @@ const TYPE_COLORS_V22: Record<TypeCompte, string> = {
   gerant: 'v22-tag v22-tag-red',
 }
 
-const CONTRAT_LABELS: Record<TypeContrat, string> = {
+const CONTRAT_LABELS_FR: Record<TypeContrat, string> = {
   cdi: 'CDI',
   cdd: 'CDD',
   interim: 'Intérim',
   apprenti: 'Apprenti',
   stage: 'Stage',
   independant: 'Indépendant',
+}
+const CONTRAT_LABELS_PT: Record<TypeContrat, string> = {
+  cdi: 'CTI (sem termo)',
+  cdd: 'CTC (a termo)',
+  interim: 'Trabalho temporário',
+  apprenti: 'Aprendiz',
+  stage: 'Estágio',
+  independant: 'Independente / Recibo Verde',
+}
+function getContratLabels(isPt: boolean): Record<TypeContrat, string> {
+  return isPt ? CONTRAT_LABELS_PT : CONTRAT_LABELS_FR
 }
 
 /**
@@ -216,6 +237,7 @@ function classifyGerant(params: {
 }
 
 const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Métallerie / Ferronnerie', 'Multi-corps']
+const METIERS_PT = ['Alvenaria', 'Canalização', 'Eletricidade', 'Carpintaria', 'Pintura', 'Cerâmica / Azulejos', 'Estrutura de madeira', 'Cobertura / Telhado', 'Isolamento', 'Demolição', 'Infraestruturas / VRD', 'Impermeabilização', 'Serralharia', 'Climatização / AVAC', 'Metalurgia / Ferraria', 'Multi-ofícios']
 
 // Salary calculation now uses /lib/payroll/engine.ts
 // Local wrappers for the form auto-calc (accept percentages, not fractions)
@@ -251,6 +273,8 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   const isPt = locale === 'pt'
   const isV5 = orgRole === 'pro_societe'
   const TYPE_COLORS = isV5 ? TYPE_COLORS_V5 : TYPE_COLORS_V22
+  const TYPE_LABELS = getTypeLabels(isPt)
+  const CONTRAT_LABELS = getContratLabels(isPt)
   const userId = artisan?.user_id || ''
 
   const { settings } = useBTPSettings()
@@ -497,7 +521,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                           <th style={{ textAlign: 'right' }}>{isPt ? 'Custo/h' : 'Coût/h'}</th>
                           <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/h' : 'Coût réel/h'}</th>
                           <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/jour' : 'Coût réel/jour'}</th>
-                          <th style={{ textAlign: 'right' }}>{isPt ? 'Indemnités' : 'Indemnités'}</th>
+                          <th style={{ textAlign: 'right' }}>{isPt ? 'Subsídios' : 'Indemnités'}</th>
                           <th></th>
                         </tr>
                       </thead>
@@ -518,7 +542,6 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                                 <span style={{ fontSize: 12 }}>{
                                   (() => {
                                     const contrat = m.type_contrat && getValidContrats(m.typeCompte).includes(m.type_contrat) ? m.type_contrat : defaultContratForRole(m.typeCompte)
-                                    if (contrat === 'independant') return isPt ? 'Independente' : 'Indépendant'
                                     return CONTRAT_LABELS[contrat]
                                   })()
                                 }</span>
@@ -528,8 +551,8 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                               <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--v5-primary-yellow-dark)' }}>{m.coutReelH}€</td>
                               <td style={{ textAlign: 'right', fontWeight: 700 }}>{m.coutReelJour}€</td>
                               <td style={{ textAlign: 'right', fontSize: 11 }}>
-                                {(m.panier_repas_jour || 0) > 0 && <div>{m.panier_repas_jour}€ repas</div>}
-                                {(m.indemnite_trajet_jour || 0) > 0 && <div>{m.indemnite_trajet_jour}€ trajet</div>}
+                                {(m.panier_repas_jour || 0) > 0 && <div>{m.panier_repas_jour}€ {isPt ? 'refeição' : 'repas'}</div>}
+                                {(m.indemnite_trajet_jour || 0) > 0 && <div>{m.indemnite_trajet_jour}€ {isPt ? 'deslocação' : 'trajet'}</div>}
                                 {(m.panier_repas_jour || 0) === 0 && (m.indemnite_trajet_jour || 0) === 0 && <span style={{ color: '#BBB' }}>—</span>}
                               </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
@@ -598,7 +621,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{eq.nom}</div>
                         <div style={{ fontSize: 10, color: '#999' }}>
-                          {chef ? `${chef.prenom} ${chef.nom}, chef` : ''}{eqMembres.length > 0 ? ` — ${eqMembres.length} ${isPt ? 'membros' : 'personnes'}` : ''}
+                          {chef ? `${chef.prenom} ${chef.nom}, ${isPt ? 'chefe' : 'chef'}` : ''}{eqMembres.length > 0 ? ` — ${eqMembres.length} ${isPt ? 'membros' : 'personnes'}` : ''}
                         </div>
                       </div>
                     </div>
@@ -980,7 +1003,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     <div style={{ padding: 10, background: '#fff', borderRadius: 8, border: '1px solid #E8E8E8', fontSize: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <span style={{ fontWeight: 700 }}>{isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</span>
-                        <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{companyConfig.label_fr}</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{isPt ? companyConfig.label_pt : companyConfig.label_fr}</span>
                       </div>
                       {(() => {
                         const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
@@ -1153,7 +1176,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Especialidade' : 'Corps de métier'}</label>
                 <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={eForm.metier} onChange={e => setEForm({ ...eForm, metier: e.target.value })}>
                   <option value="">—</option>
-                  {METIERS_FR.map(m => <option key={m} value={m}>{m}</option>)}
+                  {(isPt ? METIERS_PT : METIERS_FR).map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
