@@ -422,17 +422,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   const [showPw1, setShowPw1] = useState(false)
   const [showPw2, setShowPw2] = useState(false)
 
-  const pwWrapperStyle: React.CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' }
-  const pwInputStyle: React.CSSProperties = { paddingRight: 40 }
-  const pwToggleStyle: React.CSSProperties = {
-    position: 'absolute', right: 10, cursor: 'pointer', fontSize: 15, color: '#BBB',
-    background: 'none', border: 'none', padding: 0, display: 'flex',
-    alignItems: 'center', justifyContent: 'center', width: 24, height: 24, transition: 'color .2s',
-  }
-
   const strength = checkPasswordStrength(newPassword)
-  const activeColor = isV5 ? 'var(--v5-primary-yellow)' : tv.primary
-  const inactiveColor = '#E8E8E8'
   const strengthLabels = [
     t('proDash.settings.pwdStrengthWeak'),
     t('proDash.settings.pwdStrengthMedium'),
@@ -468,15 +458,6 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
     }
   }
 
-  const critStyle = (ok: boolean): React.CSSProperties => ({
-    fontSize: 10,
-    color: ok ? '#4CAF50' : '#BBB',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-    transition: 'color .2s',
-  })
-
   return (
     <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ maxWidth: 672, marginTop: 16 }}>
       <div className={isV5 ? '' : 'v22-card-head'}>
@@ -490,90 +471,60 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
           </div>
         )}
 
-        <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
+        <div className={`${isV5 ? 'v5-fg' : 'v22-form-group'} set-fg-with-toggle`}>
           <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.newPassword')}</label>
-          <div style={pwWrapperStyle}>
+          <div className="set-pw-wrapper">
             <input
               type={showPw1 ? 'text' : 'password'}
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
               placeholder="••••••••••••"
               autoComplete="new-password"
-              className={isV5 ? 'v5-fi' : 'v22-form-input'}
-              style={pwInputStyle}
+              className="set-pw-fi set-pw-fi-with-toggle"
             />
             <button
               type="button"
               onClick={() => setShowPw1(v => !v)}
-              style={pwToggleStyle}
+              className="set-pw-toggle"
               aria-label={showPw1 ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
             >
               {showPw1 ? '👁️‍🗨️' : '👁️'}
             </button>
           </div>
           {newPassword && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ display: 'flex', gap: 3, marginBottom: 3 }}>
+            <div className="set-pw-strength">
+              <div className="set-pw-strength-bars">
                 {[0, 1, 2, 3].map(i => (
-                  <div
-                    key={i}
-                    style={{
-                      flex: 1,
-                      height: 4,
-                      borderRadius: 2,
-                      background: i < strength.score ? activeColor : inactiveColor,
-                      transition: 'background .3s',
-                    }}
-                  />
+                  <div key={i} className={`set-pw-strength-bar${i < strength.score ? ' active' : ''}`} />
                 ))}
               </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: strength.score > 0 ? activeColor : '#BBB',
-                  transition: 'color .3s',
-                }}
-              >
+              <div className={`set-pw-strength-label${strength.score > 0 ? ' active' : ''}`}>
                 {strength.score > 0 ? strengthLabels[strength.score - 1] : '—'}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 5 }}>
-                <div style={critStyle(strength.hasLen)}>
-                  <span style={{ fontSize: 9 }}>{strength.hasLen ? '●' : '○'}</span>
-                  {t('proDash.settings.pwdCritLen')}
-                </div>
-                <div style={critStyle(strength.hasUpper)}>
-                  <span style={{ fontSize: 9 }}>{strength.hasUpper ? '●' : '○'}</span>
-                  {t('proDash.settings.pwdCritUpper')}
-                </div>
-                <div style={critStyle(strength.hasNum)}>
-                  <span style={{ fontSize: 9 }}>{strength.hasNum ? '●' : '○'}</span>
-                  {t('proDash.settings.pwdCritNum')}
-                </div>
-                <div style={critStyle(strength.hasSpecial)}>
-                  <span style={{ fontSize: 9 }}>{strength.hasSpecial ? '●' : '○'}</span>
-                  {t('proDash.settings.pwdCritSpecial')}
-                </div>
+              <div className="set-pw-criteria">
+                <div className={`set-pw-crit${strength.hasLen ? ' ok' : ''}`}>{t('proDash.settings.pwdCritLen')}</div>
+                <div className={`set-pw-crit${strength.hasUpper ? ' ok' : ''}`}>{t('proDash.settings.pwdCritUpper')}</div>
+                <div className={`set-pw-crit${strength.hasNum ? ' ok' : ''}`}>{t('proDash.settings.pwdCritNum')}</div>
+                <div className={`set-pw-crit${strength.hasSpecial ? ' ok' : ''}`}>{t('proDash.settings.pwdCritSpecial')}</div>
               </div>
             </div>
           )}
         </div>
-        <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
+        <div className={`${isV5 ? 'v5-fg' : 'v22-form-group'} set-fg-with-toggle`}>
           <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.confirmPassword')}</label>
-          <div style={pwWrapperStyle}>
+          <div className="set-pw-wrapper">
             <input
               type={showPw2 ? 'text' : 'password'}
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
               placeholder="••••••••••••"
               autoComplete="new-password"
-              className={isV5 ? 'v5-fi' : 'v22-form-input'}
-              style={pwInputStyle}
+              className="set-pw-fi set-pw-fi-with-toggle"
             />
             <button
               type="button"
               onClick={() => setShowPw2(v => !v)}
-              style={pwToggleStyle}
+              className="set-pw-toggle"
               aria-label={showPw2 ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
             >
               {showPw2 ? '👁️‍🗨️' : '👁️'}
@@ -585,14 +536,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
           <button
             onClick={handleChangePassword}
             disabled={saving || !newPassword || !confirmPassword}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '6px 14px', borderRadius: 4, border: '1px solid #E0E0E0',
-              background: '#fff', color: '#555', fontSize: 11, fontWeight: 500,
-              cursor: (saving || !newPassword || !confirmPassword) ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit', transition: 'all .15s',
-              opacity: (saving || !newPassword || !confirmPassword) ? 0.5 : 1,
-            }}
+            className="set-btn-secondary"
           >
             {saving ? `⏳ ${t('proDash.settings.pwdSaving')}` : `🔑 ${t('proDash.settings.pwdUpdate')}`}
           </button>
