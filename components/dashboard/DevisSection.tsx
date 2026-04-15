@@ -267,6 +267,7 @@ function DevisSectionV5({
   locale: string
   t: (k: string) => string
 }) {
+  const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
 
   const filtered = devisDocs
@@ -282,25 +283,25 @@ function DevisSectionV5({
     .sort((a, b) => new Date(b.savedAt || b.docDate || 0).getTime() - new Date(a.savedAt || a.docDate || 0).getTime())
 
   const getV5Badge = (doc: DevisDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: 'Envoyé' }
-    if (doc.status === 'signe') return { cls: 'v5-badge v5-badge-green', label: 'Signé ✓' }
-    return { cls: 'v5-badge v5-badge-yellow', label: 'Brouillon' }
+    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: isPt ? 'Enviado' : 'Envoyé' }
+    if (doc.status === 'signe') return { cls: 'v5-badge v5-badge-green', label: isPt ? 'Assinado ✓' : 'Signé ✓' }
+    return { cls: 'v5-badge v5-badge-yellow', label: isPt ? 'Rascunho' : 'Brouillon' }
   }
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Devis</h1><p>Gestion des devis entreprise</p></div>
+      <div className="v5-pg-t"><h1>{isPt ? 'Orçamentos' : 'Devis'}</h1><p>{isPt ? 'Gestão de orçamentos' : 'Gestion des devis entreprise'}</p></div>
 
       {/* Search + Create */}
       <div className="v5-search">
         <input
           className="v5-search-in"
-          placeholder="Rechercher…"
+          placeholder={isPt ? 'Pesquisar…' : 'Rechercher…'}
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <button className="v5-btn v5-btn-p" onClick={() => setShowDevisForm(true)}>
-          + Créer un devis
+          {isPt ? '+ Criar orçamento' : '+ Créer un devis'}
         </button>
       </div>
 
@@ -310,10 +311,10 @@ function DevisSectionV5({
           <thead>
             <tr>
               <th>N°</th>
-              <th>Client</th>
-              <th>Objet</th>
-              <th>Montant HT</th>
-              <th>Statut</th>
+              <th>Cliente</th>
+              <th>{isPt ? 'Objeto' : 'Objet'}</th>
+              <th>{isPt ? 'Valor s/ IVA' : 'Montant HT'}</th>
+              <th>{isPt ? 'Estado' : 'Statut'}</th>
               <th></th>
             </tr>
           </thead>
@@ -324,7 +325,7 @@ function DevisSectionV5({
               return (
                 <tr key={`v5-dev-${i}`}>
                   <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
-                  <td>{doc.clientName || 'Non renseigné'}</td>
+                  <td>{doc.clientName || (isPt ? 'Não indicado' : 'Non renseigné')}</td>
                   <td>{doc.docTitle || '-'}</td>
                   <td>{totalHT.toLocaleString('fr-FR')} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
@@ -369,7 +370,7 @@ function DevisSectionV5({
                         </button>
                       )}
                       <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => {
-                        if (!confirm(`Supprimer le devis ${doc.docNumber} ?`)) return
+                        if (!confirm(isPt ? `Eliminar orçamento ${doc.docNumber}?` : `Supprimer le devis ${doc.docNumber} ?`)) return
                         const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                         const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                         const uDocs = allDocs.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
@@ -387,7 +388,7 @@ function DevisSectionV5({
             }) : (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
-                  {search ? 'Aucun devis trouvé' : 'Aucun devis. Créez votre premier devis.'}
+                  {search ? (isPt ? 'Nenhum orçamento encontrado' : 'Aucun devis trouvé') : (isPt ? 'Nenhum orçamento. Crie o seu primeiro orçamento.' : 'Aucun devis. Créez votre premier devis.')}
                 </td>
               </tr>
             )}
