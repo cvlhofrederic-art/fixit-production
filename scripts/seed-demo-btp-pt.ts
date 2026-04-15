@@ -125,6 +125,9 @@ async function seed() {
       user_id: ownerId,
       email: ACCOUNT.email,
       company_name: ACCOUNT.company_name,
+      type_activite: 'maçonnerie',
+      bio: 'Empresa especializada em alvenaria e maçonnerie, construção civil e remodelação. Mais de 15 anos de experiência no Grande Porto. Obras de habitação, reabilitação urbana e construção comercial.',
+      slug: 'construcoes-valho-maconnerie-porto',
     }).select('id').single()
 
     if (artisanErr) {
