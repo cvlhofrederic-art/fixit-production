@@ -254,7 +254,7 @@ export default function ModulesSection({
         .mc-arrow { background: none; border: 1px solid #E8E8E8; border-radius: 3px; cursor: pointer; font-size: 10px; color: #999; padding: 2px 5px; transition: all .1s; }
         .mc-arrow:hover:not(:disabled) { color: #FFA000; border-color: ${primary}; background: #FFF8E1; }
         .mc-arrow:disabled { opacity: .25; cursor: default; }
-        .mc-pos { width: 28px; text-align: center; padding: 2px 2px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 11px; font-weight: 500; font-family: inherit; color: #888; outline: none; flex-shrink: 0; }
+        .mc-pos { width: 22px; text-align: center; padding: 1px 0; border: 1px solid #E8E8E8; border-radius: 3px; font-size: 10px; font-weight: 400; font-family: inherit; color: #AAA; outline: none; flex-shrink: 0; }
         .mc-pos:focus { border-color: ${primary}; box-shadow: 0 0 0 2px #FFF8E1; }
         .mc-tgl { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
         .mc-tgl input { opacity: 0; width: 0; height: 0; position: absolute; }
