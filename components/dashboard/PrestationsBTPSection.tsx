@@ -44,6 +44,7 @@ interface Prestation {
   priceAchat?: PriceRange | null // matériaux : prix d'achat interne
   ref?: string           // référence produit (matériaux)
   supplier?: string      // fournisseur (matériaux)
+  etapes?: string[]      // étapes d'exécution (prestations) — injectées dans les devis
 }
 
 /* ─────────────────────────── CATALOGUE DES LOTS ───────────────────────────
@@ -226,6 +227,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   })
   const [priceRange, setPriceRange] = useState(false)
   const [achatRange, setAchatRange] = useState(false)
+  const [localEtapes, setLocalEtapes] = useState<string[]>([])
 
   function openCreate() {
     setEditing(null)
@@ -238,6 +240,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     })
     setPriceRange(false)
     setAchatRange(false)
+    setLocalEtapes([])
     setModal(true)
   }
 
@@ -251,6 +254,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     })
     setPriceRange(p.price.min !== p.price.max)
     setAchatRange(Boolean(p.priceAchat && p.priceAchat.min !== p.priceAchat.max))
+    setLocalEtapes(p.etapes ? [...p.etapes] : [])
     setModal(true)
   }
 
@@ -264,11 +268,15 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       ? { min: form.priceAchat.min, max: achatRange ? form.priceAchat.max : form.priceAchat.min }
       : null
 
+    const etapes = form.type === 'prest'
+      ? localEtapes.map((s) => s.trim()).filter(Boolean)
+      : undefined
+
     if (editing) {
-      persist(items.map((i) => i.id === editing.id ? { ...i, ...form, price, priceAchat } : i))
+      persist(items.map((i) => i.id === editing.id ? { ...i, ...form, price, priceAchat, etapes } : i))
     } else {
       const nextId = Math.max(0, ...items.map((i) => i.id)) + 1
-      persist([...items, { id: nextId, ...form, price, priceAchat }])
+      persist([...items, { id: nextId, ...form, price, priceAchat, etapes }])
     }
     setModal(false)
   }
@@ -516,6 +524,54 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     <input type="number" step="0.01" min="0" disabled={!achatRange} value={form.priceAchat?.max ?? ''}
                       onChange={(e) => setForm({ ...form, priceAchat: { min: form.priceAchat?.min ?? 0, max: parseFloat(e.target.value) || 0 } })} />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Étapes — uniquement pour les prestations (injectées dans les devis) */}
+            {form.type === 'prest' && (
+              <div style={{
+                marginTop: 8, marginBottom: 12, padding: '8px 10px',
+                background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>
+                    {isPt ? 'ETAPAS' : 'ÉTAPES'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLocalEtapes((prev) => [...prev, ''])}
+                    style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    + {isPt ? 'Adicionar' : 'Ajouter'}
+                  </button>
+                </div>
+                {localEtapes.length === 0 && (
+                  <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>
+                    {isPt ? 'Nenhuma etapa. Clique + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
+                  </div>
+                )}
+                {localEtapes.map((et, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
+                    <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
+                    <input
+                      type="text"
+                      value={et}
+                      placeholder={isPt ? 'Ex: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
+                      onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLocalEtapes((prev) => prev.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div style={{ fontSize: 10, color: '#999', marginTop: 6, fontStyle: 'italic' }}>
+                  {isPt ? 'As etapas serão automaticamente adicionadas aos orçamentos com esta prestação.' : 'Les étapes seront automatiquement ajoutées aux devis utilisant cette prestation.'}
                 </div>
               </div>
             )}
