@@ -607,10 +607,10 @@ export default function SettingsSection({
 
           {/* LEFT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Profile card */}
+            {/* Profile card — copié du HTML vvvitfix_btp_dashboardpro_v7_settings_IMPROVED */}
             <div className={isV5 ? 'v5-card' : 'v22-card'}>
               <div className={isV5 ? '' : 'v22-card-head'}>
-                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{t('proDash.settings.profilProfessionnel')}</div>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>👤 {t('proDash.settings.profilProfessionnel')}</div>
               </div>
               <div className={isV5 ? '' : 'v22-card-body'}>
                 {/* Upload message */}
@@ -621,120 +621,135 @@ export default function SettingsSection({
                   </div>
                 )}
 
-                {/* Photo de profil — base64 direct en DB */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    {profilePhotoPreview ? (
-                      <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
-                    ) : (artisan as any)?.profile_photo_url ? (
-                      <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="64px" />
-                    ) : (
-                      <span style={{ fontSize: 22, fontWeight: 700, color: tv.textMuted }}>{initials}</span>
-                    )}
+                {/* Identité visuelle : avatar + logo côte à côte avec labels clairs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  {/* Photo de profil */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                      {profilePhotoPreview ? (
+                        <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
+                      ) : (artisan as any)?.profile_photo_url ? (
+                        <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="56px" />
+                      ) : (
+                        <span style={{ fontSize: 18, fontWeight: 700, color: tv.textMuted }}>{initials}</span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: tv.textMuted, letterSpacing: '.3px', marginBottom: 4 }}>Photo de profil</div>
+                      <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: profilePhotoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
+                        {profilePhotoUploading ? '⏳ …' : '🖼️ Changer'}
+                        <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
+                          const f = e.target.files?.[0]
+                          if (!f) return
+                          if (f.size > 500 * 1024) { setUploadMsg({ text: 'Photo trop lourde (max 500 Ko)', type: 'error' }); return }
+                          setProfilePhotoUploading(true)
+                          try {
+                            const base64 = await new Promise<string>((resolve) => {
+                              const reader = new FileReader()
+                              reader.onload = (ev) => resolve(ev.target?.result as string)
+                              reader.readAsDataURL(f)
+                            })
+                            setProfilePhotoPreview(base64)
+                            const token = (await supabase.auth.getSession()).data.session?.access_token
+                            const res = await fetch('/api/save-logo', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                              body: JSON.stringify({ base64, field: 'profile_photo_url' }),
+                            })
+                            const data = await res.json()
+                            if (!res.ok) throw new Error(data.error || 'Erreur')
+                            setUploadMsg({ text: '✅ Photo enregistrée !', type: 'success' })
+                          } catch (err: unknown) {
+                            setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
+                          } finally {
+                            setProfilePhotoUploading(false)
+                          }
+                        }} />
+                      </label>
+                      <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 4 }}>JPG, PNG, WEBP — max 10 Mo</div>
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: profilePhotoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
-                      {profilePhotoUploading ? '⏳ Enregistrement...' : `📷 ${t('proDash.settings.choisirPhoto')}`}
-                      <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
-                        const f = e.target.files?.[0]
-                        if (!f) return
-                        if (f.size > 500 * 1024) { setUploadMsg({ text: 'Photo trop lourde (max 500 Ko)', type: 'error' }); return }
-                        setProfilePhotoUploading(true)
-                        try {
-                          const base64 = await new Promise<string>((resolve) => {
-                            const reader = new FileReader()
-                            reader.onload = (ev) => resolve(ev.target?.result as string)
-                            reader.readAsDataURL(f)
-                          })
-                          setProfilePhotoPreview(base64)
-                          const token = (await supabase.auth.getSession()).data.session?.access_token
-                          const res = await fetch('/api/save-logo', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                            body: JSON.stringify({ base64, field: 'profile_photo_url' }),
-                          })
-                          const data = await res.json()
-                          if (!res.ok) throw new Error(data.error || 'Erreur')
-                          setUploadMsg({ text: '✅ Photo enregistrée !', type: 'success' })
-                        } catch (err: unknown) {
-                          setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
-                        } finally {
-                          setProfilePhotoUploading(false)
-                        }
-                      }} />
-                    </label>
-                    <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
+
+                  {/* Logo entreprise */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', border: `2px dashed ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                      {logoPreview ? (
+                        <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
+                      ) : (artisan as any)?.logo_url ? (
+                        <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="56px" style={{ padding: 4 }} />
+                      ) : (
+                        <span style={{ fontSize: 9, color: tv.textMuted, textAlign: 'center', lineHeight: 1.2 }}>Logo<br/>PDF</span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: tv.textMuted, letterSpacing: '.3px', marginBottom: 4 }}>Logo (devis & factures)</div>
+                      <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
+                        {logoUploading ? '⏳ …' : '📁 Importer'}
+                        <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
+                          const f = e.target.files?.[0]
+                          if (!f) return
+                          if (f.size > 500 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 500 Ko)', type: 'error' }); return }
+                          setLogoUploading(true)
+                          try {
+                            const base64 = await new Promise<string>((resolve) => {
+                              const reader = new FileReader()
+                              reader.onload = (ev) => resolve(ev.target?.result as string)
+                              reader.readAsDataURL(f)
+                            })
+                            setLogoPreview(base64)
+                            const token = (await supabase.auth.getSession()).data.session?.access_token
+                            const res = await fetch('/api/save-logo', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                              body: JSON.stringify({ base64, field: 'logo_url' }),
+                            })
+                            const data = await res.json()
+                            if (!res.ok) throw new Error(data.error || 'Erreur')
+                            setUploadMsg({ text: '✅ Logo enregistré !', type: 'success' })
+                          } catch (err: unknown) {
+                            setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
+                          } finally {
+                            setLogoUploading(false)
+                          }
+                        }} />
+                      </label>
+                      <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 4 }}>PNG, JPG, WebP — max 2 Mo</div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Logo entreprise (pour devis/factures PDF) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 0', borderTop: `1px solid ${tv.border}` }}>
-                  <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: `2px dashed ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    {logoPreview ? (
-                      <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
-                    ) : (artisan as any)?.logo_url ? (
-                      <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="64px" style={{ padding: 4 }} />
-                    ) : (
-                      <span style={{ fontSize: 10, color: tv.textMuted, textAlign: 'center', lineHeight: 1.2 }}>Logo<br/>PDF</span>
-                    )}
+                {/* Champs : grid 2 colonnes — Nom pleine largeur, Email+Téléphone sur une ligne, Bio pleine largeur */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.nomCompletEntreprise')}</label>
+                    <input type="text" value={settingsForm.company_name} onChange={(e) => setSettingsForm({...settingsForm, company_name: e.target.value})}
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
-                      {logoUploading ? '⏳ Enregistrement...' : '🏢 Logo entreprise (visible sur devis)'}
-                      <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
-                        const f = e.target.files?.[0]
-                        if (!f) return
-                        if (f.size > 500 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 500 Ko)', type: 'error' }); return }
-                        setLogoUploading(true)
-                        try {
-                          // Convertir en base64 et sauver directement en DB (bypass Storage)
-                          const base64 = await new Promise<string>((resolve) => {
-                            const reader = new FileReader()
-                            reader.onload = (ev) => resolve(ev.target?.result as string)
-                            reader.readAsDataURL(f)
-                          })
-                          setLogoPreview(base64)
-                          // Sauver via API server (bypass RLS)
-                          const token = (await supabase.auth.getSession()).data.session?.access_token
-                          const res = await fetch('/api/save-logo', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                            body: JSON.stringify({ base64, field: 'logo_url' }),
-                          })
-                          const data = await res.json()
-                          if (!res.ok) throw new Error(data.error || 'Erreur')
-                          setUploadMsg({ text: '✅ Logo enregistré !', type: 'success' })
-                        } catch (err: unknown) {
-                          setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
-                        } finally {
-                          setLogoUploading(false)
-                        }
-                      }} />
-                    </label>
-                    <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>PNG, JPG ou WebP. Max 2 Mo. Apparaît en haut à gauche des devis.</div>
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.emailProfessionnel')}</label>
+                    <input type="email" value={settingsForm.email} onChange={(e) => setSettingsForm({...settingsForm, email: e.target.value})}
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                  </div>
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.telephoneLabel')}</label>
+                    <input type="tel" value={settingsForm.phone} onChange={(e) => setSettingsForm({...settingsForm, phone: e.target.value})}
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                  </div>
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.descriptionBio')}</label>
+                    <textarea value={settingsForm.bio} onChange={(e) => setSettingsForm({...settingsForm, bio: e.target.value})}
+                      rows={3} placeholder={t('proDash.settings.descriptionPlaceholder')}
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                   </div>
                 </div>
 
-                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.nomCompletEntreprise')}</label>
-                  <input type="text" value={settingsForm.company_name} onChange={(e) => setSettingsForm({...settingsForm, company_name: e.target.value})}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                </div>
-                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.emailProfessionnel')}</label>
-                  <input type="email" value={settingsForm.email} onChange={(e) => setSettingsForm({...settingsForm, email: e.target.value})}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                </div>
-                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.telephoneLabel')}</label>
-                  <input type="tel" value={settingsForm.phone} onChange={(e) => setSettingsForm({...settingsForm, phone: e.target.value})}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                </div>
-                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.descriptionBio')}</label>
-                  <textarea value={settingsForm.bio} onChange={(e) => setSettingsForm({...settingsForm, bio: e.target.value})}
-                    rows={3} placeholder={t('proDash.settings.descriptionPlaceholder')}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
+                {/* Bouton Enregistrer le profil en bas de la carte */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+                  <button onClick={saveSettings} disabled={savingSettings}
+                    className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
+                    style={{ opacity: savingSettings ? 0.5 : 1 }}>
+                    {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 Enregistrer le profil`}
+                  </button>
                 </div>
               </div>
             </div>
