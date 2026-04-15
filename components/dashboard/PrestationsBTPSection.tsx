@@ -44,6 +44,7 @@ interface Prestation {
   priceAchat?: PriceRange | null // matériaux : prix d'achat interne
   ref?: string           // référence produit (matériaux)
   supplier?: string      // fournisseur (matériaux)
+  etapes?: string[]      // étapes d'exécution (prestations) — injectées dans les devis
 }
 
 /* ─────────────────────────── CATALOGUE DES LOTS ───────────────────────────
@@ -68,47 +69,76 @@ const UNITS = ['m²', 'ml', 'm³', 'u', 'kg', 'sac', 'rl', 'h', 'forfait', 'jour
    — cohérence indispensable pour la présentation investisseurs.        */
 const SEED_PREST: Omit<Prestation, 'id'>[] = [
   // ── Gros Œuvre / Démolition ─────────────────────────────────────────────
-  { name: 'Démolition cloisons + évacuation gravats', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 2000, max: 3500 } },
-  { name: 'Terrassement + fondations',                type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 7500, max: 9500 } },
-  { name: 'Élévation murs parpaing',                  type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 160, max: 200 } },
-  { name: 'Dalle béton',                              type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 55, max: 75 } },
-  { name: 'Dépose sanitaires existants',              type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 1000, max: 1400 } },
-  { name: 'Placo BA13 — fourniture + pose',           type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 40, max: 50 } },
-  { name: 'Faux plafond acoustique',                  type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 50, max: 60 } },
+  { name: 'Démolition cloisons + évacuation gravats', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 2000, max: 3500 },
+    etapes: ['Protection des sols et du mobilier voisin', 'Démolition mécanique des cloisons', 'Tri et évacuation des gravats en déchèterie agréée'] },
+  { name: 'Terrassement + fondations',                type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 7500, max: 9500 },
+    etapes: ['Terrassement à la pelle mécanique selon plan', 'Coulage des semelles béton armé', 'Mise en place chaînage et reprise en élévation'] },
+  { name: 'Élévation murs parpaing',                  type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 160, max: 200 },
+    etapes: ['Implantation et traçage des murs', 'Montage des parpaings au mortier bâtard', 'Réalisation des chaînages verticaux et linteaux'] },
+  { name: 'Dalle béton',                              type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 55, max: 75 },
+    etapes: ['Préparation hérisson + film polyane + treillis soudé', 'Coulage béton dosé à 350 kg/m³', 'Talochage et lissage de la surface'] },
+  { name: 'Dépose sanitaires existants',              type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 1000, max: 1400 },
+    etapes: ['Coupure eau et électricité de la zone', 'Dépose vasques, WC, douche et baignoire', 'Bouchonnage des arrivées et évacuations'] },
+  { name: 'Placo BA13 — fourniture + pose',           type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 40, max: 50 },
+    etapes: ['Pose des rails et montants métalliques', 'Vissage des plaques BA13 sur ossature', 'Bandes, enduits et ponçage de finition'] },
+  { name: 'Faux plafond acoustique',                  type: 'prest', lot: 'gros_oeuvre', unit: 'm²',     price: { min: 50, max: 60 },
+    etapes: ['Pose de l\'ossature métallique suspendue', 'Mise en place de l\'isolant acoustique', 'Pose des dalles acoustiques décoratives'] },
 
   // ── Couverture / Charpente ──────────────────────────────────────────────
-  { name: 'Charpente + couverture tuiles',            type: 'prest', lot: 'couverture',  unit: 'forfait', price: { min: 13000, max: 15000 } },
-  { name: 'Zinguerie gouttières + EP',                type: 'prest', lot: 'couverture',  unit: 'forfait', price: { min: 4500, max: 5500 } },
+  { name: 'Charpente + couverture tuiles',            type: 'prest', lot: 'couverture',  unit: 'forfait', price: { min: 13000, max: 15000 },
+    etapes: ['Pose de la charpente traditionnelle ou fermettes', 'Mise en place liteaux et écran sous-toiture', 'Pose des tuiles et accessoires de faîtage'] },
+  { name: 'Zinguerie gouttières + EP',                type: 'prest', lot: 'couverture',  unit: 'forfait', price: { min: 4500, max: 5500 },
+    etapes: ['Pose des crochets et chêneaux zinc', 'Mise en place des gouttières et soudures', 'Raccordement des descentes EP au réseau'] },
 
   // ── Plomberie / CVC ─────────────────────────────────────────────────────
-  { name: 'Plomberie SDB + cuisine',                  type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 3800, max: 4500 } },
-  { name: 'Plomberie complète logement',              type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 2500, max: 3000 } },
-  { name: 'Plomberie sanitaires local commercial',    type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 5000, max: 6000 } },
-  { name: 'Douche italienne + paroi',                 type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 2000, max: 2400 } },
-  { name: 'Meuble vasque + miroir',                   type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 1500, max: 2000 } },
+  { name: 'Plomberie SDB + cuisine',                  type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 3800, max: 4500 },
+    etapes: ['Tracé et pose des réseaux PER eau chaude/froide', 'Pose des évacuations PVC sous pente', 'Raccordement, mise en eau et test d\'étanchéité'] },
+  { name: 'Plomberie complète logement',              type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 2500, max: 3000 },
+    etapes: ['Création de la nourrice et distribution générale', 'Pose des réseaux EF/EC vers tous points de puisage', 'Pose des évacuations et essais d\'étanchéité'] },
+  { name: 'Plomberie sanitaires local commercial',    type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 5000, max: 6000 },
+    etapes: ['Étude et tracé des réseaux selon normes ERP', 'Pose des alimentations et évacuations PVC', 'Raccordement WC, lave-mains et chauffe-eau'] },
+  { name: 'Douche italienne + paroi',                 type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 2000, max: 2400 },
+    etapes: ['Création du receveur extra-plat avec pente', 'Étanchéité SPEC et pose du carrelage', 'Installation de la paroi verre et de la robinetterie'] },
+  { name: 'Meuble vasque + miroir',                   type: 'prest', lot: 'plomberie',   unit: 'forfait', price: { min: 1500, max: 2000 },
+    etapes: ['Repérage et pose des fixations murales', 'Installation du meuble et du plan vasque', 'Raccordement plomberie et pose du miroir'] },
 
   // ── Électricité ─────────────────────────────────────────────────────────
-  { name: 'Mise aux normes électrique NFC 15-100',    type: 'prest', lot: 'electricite', unit: 'forfait', price: { min: 4500, max: 7500 } },
-  { name: 'Électricité + plomberie extension',        type: 'prest', lot: 'electricite', unit: 'forfait', price: { min: 6000, max: 6500 } },
+  { name: 'Mise aux normes électrique NFC 15-100',    type: 'prest', lot: 'electricite', unit: 'forfait', price: { min: 4500, max: 7500 },
+    etapes: ['Diagnostic de l\'installation existante', 'Remplacement du tableau et création des circuits dédiés', 'Mise à la terre et attestation de conformité Consuel'] },
+  { name: 'Électricité + plomberie extension',        type: 'prest', lot: 'electricite', unit: 'forfait', price: { min: 6000, max: 6500 },
+    etapes: ['Création des circuits dédiés à l\'extension', 'Pose des réseaux PER et évacuations', 'Raccordement au tableau et mise en service'] },
 
   // ── Menuiseries ─────────────────────────────────────────────────────────
-  { name: 'Menuiserie alu (par pièce)',               type: 'prest', lot: 'menuiseries', unit: 'u',       price: { min: 2500, max: 3200 } },
-  { name: 'Vitrine commerciale alu',                  type: 'prest', lot: 'menuiseries', unit: 'forfait', price: { min: 8000, max: 9000 } },
+  { name: 'Menuiserie alu (par pièce)',               type: 'prest', lot: 'menuiseries', unit: 'u',       price: { min: 2500, max: 3200 },
+    etapes: ['Prise de cotes et dépose de l\'existant', 'Pose dormant + ouvrant alu rupture pont thermique', 'Calfeutrement, réglage et joints d\'étanchéité'] },
+  { name: 'Vitrine commerciale alu',                  type: 'prest', lot: 'menuiseries', unit: 'forfait', price: { min: 8000, max: 9000 },
+    etapes: ['Dépose de la vitrine existante et mise en sécurité', 'Pose châssis alu RPT + vitrage feuilleté', 'Habillage tôle, joints et serrurerie'] },
 
   // ── Peinture / Revêtements ──────────────────────────────────────────────
-  { name: 'Peinture 2 couches intérieure',            type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 25, max: 30 } },
-  { name: 'Peinture façade 2 couches',                type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 22, max: 28 } },
-  { name: 'Enduit monocouche façade',                 type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 38, max: 45 } },
-  { name: 'Nettoyage HP façade',                      type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 10, max: 14 } },
-  { name: 'Carrelage sol SDB',                        type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 80, max: 100 } },
-  { name: 'Faïence murale',                           type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 70, max: 85 } },
-  { name: 'Parquet stratifié',                        type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 48, max: 55 } },
-  { name: 'Isolation thermique extérieure (ITE)',     type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 110, max: 130 } },
+  { name: 'Peinture 2 couches intérieure',            type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 25, max: 30 },
+    etapes: ['Préparation des supports (rebouchage, ponçage)', 'Application d\'une sous-couche d\'accroche', 'Application des 2 couches de finition acrylique'] },
+  { name: 'Peinture façade 2 couches',                type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 22, max: 28 },
+    etapes: ['Nettoyage haute pression et traitement fongicide', 'Application d\'un fixateur de fond', 'Application des 2 couches pliolite ou siloxane'] },
+  { name: 'Enduit monocouche façade',                 type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 38, max: 45 },
+    etapes: ['Préparation du support et humidification', 'Projection mécanique de l\'enduit monocouche', 'Talochage et finition grattée ou écrasée'] },
+  { name: 'Nettoyage HP façade',                      type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 10, max: 14 },
+    etapes: ['Protection des huisseries et des abords', 'Nettoyage haute pression à l\'eau chaude', 'Rinçage et application d\'un traitement anti-mousses'] },
+  { name: 'Carrelage sol SDB',                        type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 80, max: 100 },
+    etapes: ['Préparation et ragréage du support', 'Pose du carrelage à la colle avec calepinage', 'Joints, nettoyage et silicone périphérique'] },
+  { name: 'Faïence murale',                           type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 70, max: 85 },
+    etapes: ['Préparation des murs et primaire d\'accrochage', 'Pose de la faïence à la colle avec croisillons', 'Jointoiement et finition silicone'] },
+  { name: 'Parquet stratifié',                        type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 48, max: 55 },
+    etapes: ['Pose de la sous-couche acoustique', 'Pose flottante des lames avec coupe sur mesure', 'Pose des plinthes et seuils de finition'] },
+  { name: 'Isolation thermique extérieure (ITE)',     type: 'prest', lot: 'peinture',    unit: 'm²',     price: { min: 110, max: 130 },
+    etapes: ['Pose des rails de départ et préparation du support', 'Collage et chevillage des panneaux isolants', 'Sous-enduit armé de fibre et finition décorative'] },
 
   // ── Finitions / Divers ──────────────────────────────────────────────────
-  { name: 'Finitions intérieures globales',           type: 'prest', lot: 'peinture',    unit: 'forfait', price: { min: 8500, max: 10500 } },
-  { name: 'Nettoyage fin de chantier',                type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 1800, max: 2200 } },
-  { name: 'Installation échafaudage R+4',             type: 'prest', lot: 'couverture',  unit: 'forfait', price: { min: 6000, max: 7000 } },
+  { name: 'Finitions intérieures globales',           type: 'prest', lot: 'peinture',    unit: 'forfait', price: { min: 8500, max: 10500 },
+    etapes: ['Reprise des enduits et ponçage général', 'Peinture des murs et plafonds', 'Pose des plinthes et accessoires de finition'] },
+  { name: 'Nettoyage fin de chantier',                type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 1800, max: 2200 },
+    etapes: ['Évacuation des déchets et matériels résiduels', 'Nettoyage approfondi sols, vitres et sanitaires', 'Contrôle visuel et levée des réserves'] },
+  { name: 'Installation échafaudage R+4',             type: 'prest', lot: 'couverture',  unit: 'forfait', price: { min: 6000, max: 7000 },
+    etapes: ['Étude des charges et plan de calepinage', 'Montage par sapiteurs habilités', 'Vérification, contreventement et garde-corps'] },
 ]
 
 /* ───────────────────────── SEED MATÉRIAUX ─────────────────────────
@@ -164,8 +194,8 @@ function detectLotsFromArtisan(artisan: Artisan): LotDef[] {
 export default function PrestationsBTPSection({ artisan }: PrestationsBTPSectionProps) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  // v2 : fusion corps + MO + seed cohérent devis démo → bump pour forcer reseed
-  const storageKey = `fixit_prestations_btp_v2_${artisan?.id || 'guest'}`
+  // v3 : ajout des étapes cohérentes par prestation → bump pour forcer reseed
+  const storageKey = `fixit_prestations_btp_v3_${artisan?.id || 'guest'}`
 
   const [items, setItems] = useState<Prestation[]>([])
   const [cat, setCat] = useState<PrestType>('prest')
@@ -226,6 +256,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   })
   const [priceRange, setPriceRange] = useState(false)
   const [achatRange, setAchatRange] = useState(false)
+  const [localEtapes, setLocalEtapes] = useState<string[]>([])
 
   function openCreate() {
     setEditing(null)
@@ -238,6 +269,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     })
     setPriceRange(false)
     setAchatRange(false)
+    setLocalEtapes([])
     setModal(true)
   }
 
@@ -251,6 +283,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     })
     setPriceRange(p.price.min !== p.price.max)
     setAchatRange(Boolean(p.priceAchat && p.priceAchat.min !== p.priceAchat.max))
+    setLocalEtapes(p.etapes ? [...p.etapes] : [])
     setModal(true)
   }
 
@@ -264,11 +297,15 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       ? { min: form.priceAchat.min, max: achatRange ? form.priceAchat.max : form.priceAchat.min }
       : null
 
+    const etapes = form.type === 'prest'
+      ? localEtapes.map((s) => s.trim()).filter(Boolean)
+      : undefined
+
     if (editing) {
-      persist(items.map((i) => i.id === editing.id ? { ...i, ...form, price, priceAchat } : i))
+      persist(items.map((i) => i.id === editing.id ? { ...i, ...form, price, priceAchat, etapes } : i))
     } else {
       const nextId = Math.max(0, ...items.map((i) => i.id)) + 1
-      persist([...items, { id: nextId, ...form, price, priceAchat }])
+      persist([...items, { id: nextId, ...form, price, priceAchat, etapes }])
     }
     setModal(false)
   }
@@ -516,6 +553,54 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     <input type="number" step="0.01" min="0" disabled={!achatRange} value={form.priceAchat?.max ?? ''}
                       onChange={(e) => setForm({ ...form, priceAchat: { min: form.priceAchat?.min ?? 0, max: parseFloat(e.target.value) || 0 } })} />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Étapes — uniquement pour les prestations (injectées dans les devis) */}
+            {form.type === 'prest' && (
+              <div style={{
+                marginTop: 8, marginBottom: 12, padding: '8px 10px',
+                background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>
+                    {isPt ? 'ETAPAS' : 'ÉTAPES'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLocalEtapes((prev) => [...prev, ''])}
+                    style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    + {isPt ? 'Adicionar' : 'Ajouter'}
+                  </button>
+                </div>
+                {localEtapes.length === 0 && (
+                  <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>
+                    {isPt ? 'Nenhuma etapa. Clique + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
+                  </div>
+                )}
+                {localEtapes.map((et, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
+                    <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
+                    <input
+                      type="text"
+                      value={et}
+                      placeholder={isPt ? 'Ex: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
+                      onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLocalEtapes((prev) => prev.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div style={{ fontSize: 10, color: '#999', marginTop: 6, fontStyle: 'italic' }}>
+                  {isPt ? 'As etapas serão automaticamente adicionadas aos orçamentos com esta prestação.' : 'Les étapes seront automatiquement ajoutées aux devis utilisant cette prestation.'}
                 </div>
               </div>
             )}

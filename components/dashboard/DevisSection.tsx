@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
+import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 
@@ -58,6 +59,15 @@ export default function DevisSection({
   }
 
   if (showDevisForm) {
+    if (orgRole === 'pro_societe') {
+      return (
+        <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
+          initialData={convertingDevis as any}
+          onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
+          onSave={() => { setConvertingDevis(null); refreshDocuments() }}
+        />
+      )
+    }
     return (
       <DevisFactureForm artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
         initialData={convertingDevis as any}
