@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 import type { Artisan } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -161,6 +162,8 @@ function detectLotsFromArtisan(artisan: Artisan): LotDef[] {
 
 /* ─────────────────────────── COMPOSANT ─────────────────────────── */
 export default function PrestationsBTPSection({ artisan }: PrestationsBTPSectionProps) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   // v2 : fusion corps + MO + seed cohérent devis démo → bump pour forcer reseed
   const storageKey = `fixit_prestations_btp_v2_${artisan?.id || 'guest'}`
 
@@ -319,8 +322,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
       {/* Titre */}
       <div className="v5-pg-t">
-        <h1>Prestations</h1>
-        <p>Catalogue de prestations et matériaux — c&apos;est ce que vos clients voient</p>
+        <h1>{isPt ? 'Prestações' : 'Prestations'}</h1>
+        <p>{isPt ? 'Catálogo de prestações e materiais — o que os seus clientes veem' : 'Catalogue de prestations et matériaux — c\'est ce que vos clients voient'}</p>
       </div>
 
       {/* Barre haute : recherche + switch catégorie + bouton ajout */}
@@ -328,7 +331,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="v5-search" style={{ margin: 0, flex: 1, minWidth: 220 }}>
           <input
             className="v5-search-in"
-            placeholder="Rechercher une prestation, un matériau…"
+            placeholder={isPt ? 'Pesquisar uma prestação, um material…' : 'Rechercher une prestation, un matériau…'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ maxWidth: 320 }}
@@ -336,10 +339,10 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.65rem', flexWrap: 'wrap' }}>
           <div className="prest-cat-bar">
-            <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ Prestations</button>
-            <button className={`prest-cat-btn${cat === 'mat' ? ' active' : ''}`} onClick={() => setCat('mat')}>🧱 Matériaux</button>
+            <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ {isPt ? 'Prestações' : 'Prestations'}</button>
+            <button className={`prest-cat-btn${cat === 'mat' ? ' active' : ''}`} onClick={() => setCat('mat')}>🧱 {isPt ? 'Materiais' : 'Matériaux'}</button>
           </div>
-          <button className="v5-btn v5-btn-p" onClick={openCreate}>+ Ajouter</button>
+          <button className="v5-btn v5-btn-p" onClick={openCreate}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
         </div>
       </div>
 
@@ -362,15 +365,15 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             <table className="prest-tbl">
               <thead>
                 <tr>
-                  <th>Prestation</th>
-                  <th>Unité</th>
-                  <th>Prix HT</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>{isPt ? 'Prestação' : 'Prestation'}</th>
+                  <th>{isPt ? 'Unidade' : 'Unité'}</th>
+                  <th>{isPt ? 'Preço s/ IVA' : 'Prix HT'}</th>
+                  <th style={{ textAlign: 'right' }}>{isPt ? 'Ações' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>Aucune prestation dans ce lot.</td></tr>
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhuma prestação neste lote.' : 'Aucune prestation dans ce lot.'}</td></tr>
                 )}
                 {visible.map((p) => (
                   <tr key={p.id}>
@@ -378,14 +381,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     <td><span className="prest-unit">{p.unit}</span></td>
                     <td className="prix">{renderRange(p.price)}{unitSuffix(p.unit)}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>Modifier</button>
+                      <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
                       <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ Ajouter une prestation {currentLotLabel}</div>
+            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? `Adicionar uma prestação ${currentLotLabel}` : `Ajouter une prestation ${currentLotLabel}`}</div>
           </div>
         </div>
       )}
@@ -397,18 +400,18 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             <table className="prest-tbl">
               <thead>
                 <tr>
-                  <th>Désignation matériau</th>
-                  <th>Réf. / Marque</th>
-                  <th>Unité</th>
-                  <th>Prix achat HT</th>
-                  <th>Prix vente HT</th>
-                  <th>Fournisseur</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>{isPt ? 'Designação do material' : 'Désignation matériau'}</th>
+                  <th>{isPt ? 'Ref. / Marca' : 'Réf. / Marque'}</th>
+                  <th>{isPt ? 'Unidade' : 'Unité'}</th>
+                  <th>{isPt ? 'Preço compra s/ IVA' : 'Prix achat HT'}</th>
+                  <th>{isPt ? 'Preço venda s/ IVA' : 'Prix vente HT'}</th>
+                  <th>{isPt ? 'Fornecedor' : 'Fournisseur'}</th>
+                  <th style={{ textAlign: 'right' }}>{isPt ? 'Ações' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>Aucun matériau référencé.</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhum material referenciado.' : 'Aucun matériau référencé.'}</td></tr>
                 )}
                 {visible.map((p) => (
                   <tr key={p.id}>
@@ -419,14 +422,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     <td className="prix">{renderRange(p.price)}</td>
                     <td>{p.supplier || '—'}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>Modifier</button>
+                      <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
                       <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ Ajouter un matériau</div>
+            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
           </div>
         </div>
       )}
@@ -435,16 +438,19 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       {modal && (
         <div className="prest-modal-ov" onClick={() => setModal(false)}>
           <div className="prest-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{editing ? `Modifier ${form.type === 'mat' ? 'le matériau' : 'la prestation'}` : `Nouvelle ${form.type === 'mat' ? 'référence matériau' : 'prestation'}`}</h3>
+            <h3>{editing
+              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : 'prestação'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : 'la prestation'}`)
+              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : 'Nova prestação'}` : `Nouvelle ${form.type === 'mat' ? 'référence matériau' : 'prestation'}`)
+            }</h3>
 
             <div className="prest-fg">
-              <label>Désignation *</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.type === 'mat' ? 'Ex: Tuiles mécaniques terre cuite' : 'Ex: Dalle béton'} />
+              <label>{isPt ? 'Designação *' : 'Désignation *'}</label>
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.type === 'mat' ? (isPt ? 'Ex: Telhas cerâmicas' : 'Ex: Tuiles mécaniques terre cuite') : (isPt ? 'Ex: Laje de betão' : 'Ex: Dalle béton')} />
             </div>
 
             <div className="prest-row-2">
               <div className="prest-fg">
-                <label>Catégorie</label>
+                <label>{isPt ? 'Categoria' : 'Catégorie'}</label>
                 <select value={form.type} onChange={(e) => {
                   const newType = e.target.value as PrestType
                   setForm({
@@ -453,12 +459,12 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     priceAchat: newType === 'mat' ? (form.priceAchat || { min: 0, max: 0 }) : null,
                   })
                 }}>
-                  <option value="prest">Prestation (client)</option>
-                  <option value="mat">Matériau (interne)</option>
+                  <option value="prest">{isPt ? 'Prestação (cliente)' : 'Prestation (client)'}</option>
+                  <option value="mat">{isPt ? 'Material (interno)' : 'Matériau (interne)'}</option>
                 </select>
               </div>
               <div className="prest-fg">
-                <label>Corps d&apos;état / Lot</label>
+                <label>{isPt ? 'Especialidade / Lote' : 'Corps d\'état / Lot'}</label>
                 <select value={form.lot} onChange={(e) => setForm({ ...form, lot: e.target.value })}>
                   {availableLots.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
                 </select>
@@ -467,14 +473,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
             <div className="prest-row-2">
               <div className="prest-fg">
-                <label>Unité</label>
+                <label>{isPt ? 'Unidade' : 'Unité'}</label>
                 <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
                   {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               {form.type === 'mat' ? (
                 <div className="prest-fg">
-                  <label>Référence / Marque</label>
+                  <label>{isPt ? 'Referência / Marca' : 'Référence / Marque'}</label>
                   <input type="text" value={form.ref || ''} onChange={(e) => setForm({ ...form, ref: e.target.value })} placeholder="Ex: Weber.pral M" />
                 </div>
               ) : (
@@ -484,8 +490,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
             {form.type === 'mat' && (
               <div className="prest-fg">
-                <label>Fournisseur</label>
-                <input type="text" value={form.supplier || ''} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder="Ex: Point P, Cedeo, Rexel" />
+                <label>{isPt ? 'Fornecedor' : 'Fournisseur'}</label>
+                <input type="text" value={form.supplier || ''} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder={isPt ? 'Ex: Leroy Merlin, Saint-Gobain' : 'Ex: Point P, Cedeo, Rexel'} />
               </div>
             )}
 
@@ -493,10 +499,10 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             {form.type === 'mat' && (
               <div className="prest-price-block">
                 <div className="prest-price-head">
-                  <span>Prix achat HT (€)</span>
+                  <span>{isPt ? 'Preço de compra s/ IVA (€)' : 'Prix achat HT (€)'}</span>
                   <label className="prest-range-toggle">
                     <input type="checkbox" checked={achatRange} onChange={(e) => setAchatRange(e.target.checked)} />
-                    Fourchette
+                    {isPt ? 'Intervalo' : 'Fourchette'}
                   </label>
                 </div>
                 <div className="prest-row-2">
@@ -517,10 +523,10 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             {/* Prix vendu au client */}
             <div className="prest-price-block">
               <div className="prest-price-head">
-                <span>{form.type === 'mat' ? 'Prix vente HT (€)' : 'Prix HT vendu au client (€)'}</span>
+                <span>{form.type === 'mat' ? (isPt ? 'Preço de venda s/ IVA (€)' : 'Prix vente HT (€)') : (isPt ? 'Preço s/ IVA ao cliente (€)' : 'Prix HT vendu au client (€)')}</span>
                 <label className="prest-range-toggle">
                   <input type="checkbox" checked={priceRange} onChange={(e) => setPriceRange(e.target.checked)} />
-                  Fourchette
+                  {isPt ? 'Intervalo' : 'Fourchette'}
                 </label>
               </div>
               <div className="prest-row-2">
@@ -536,14 +542,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 </div>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-                Astuce : les prix BTP varient selon chantier — activez « Fourchette » pour afficher une plage (ex : 350 € – 450 € /m²).
+                {isPt ? 'Dica: os preços em obras variam — ative «Intervalo» para mostrar uma amplitude (ex: 350 € – 450 € /m²).' : 'Astuce : les prix BTP varient selon chantier — activez « Fourchette » pour afficher une plage (ex : 350 € – 450 € /m²).'}
               </div>
             </div>
 
             <div className="prest-footer">
-              <button className="v5-btn" onClick={() => setModal(false)}>Annuler</button>
+              <button className="v5-btn" onClick={() => setModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className="v5-btn v5-btn-p" onClick={handleSave} disabled={!form.name.trim()}>
-                {editing ? 'Enregistrer' : 'Créer'}
+                {editing ? (isPt ? 'Guardar' : 'Enregistrer') : (isPt ? 'Criar' : 'Créer')}
               </button>
             </div>
           </div>
