@@ -674,3 +674,38 @@
 .devis-create .v22-acompte-eq { font-size: 11px; color: #888; white-space: nowrap; }
 .devis-create .v22-acompte-del { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #E8E8E8; background: #fff; cursor: pointer; color: #CCC; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; padding: 0; }
 .devis-create .v22-acompte-del:hover { border-color: #E53935; color: #E53935; background: #FFEBEE; }
+
+/* ═══ PHASE 5: Sidebar (résumé, conformité, actions) ═══ */
+
+/* Sidebar column: sticky */
+.devis-create > div[style*="grid-template-columns"] > div:last-child { position: sticky; top: 1rem; }
+
+/* Résumé totals row + TOTAL highlight — match .dv-resume-row / .dv-resume-total */
+.devis-create .v22-total-row { display: flex; justify-content: space-between; align-items: center; padding: .3rem 0; font-size: 12px; color: #555; border-bottom: 1px solid #F5F5F5; }
+.devis-create .v22-total-row:last-of-type { border-bottom: none; }
+.devis-create .v22-total-final { display: flex; justify-content: space-between; align-items: center; background: var(--v5-primary-yellow) !important; color: #333 !important; font-weight: 700 !important; font-size: 13px !important; padding: .6rem .75rem !important; border-radius: 7px !important; margin-top: .6rem !important; }
+
+/* Conformité tags → ✓ / ✕ look */
+.devis-create .v22-tag { background: none !important; border: none !important; padding: 0 !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: 0 !important; text-transform: none !important; min-width: auto !important; }
+.devis-create .v22-tag-green { color: #4CAF50 !important; }
+.devis-create .v22-tag-green::before { content: "✓"; }
+.devis-create .v22-tag-green { font-size: 0 !important; }
+.devis-create .v22-tag-green::before { font-size: 13px; }
+.devis-create .v22-tag-red { color: #E53935 !important; }
+.devis-create .v22-tag-red::before { content: "✕"; }
+.devis-create .v22-tag-red { font-size: 0 !important; }
+.devis-create .v22-tag-red::before { font-size: 13px; }
+
+/* Conformité items: make rows look like .dv-conf-item */
+.devis-create .v22-card-body > div[style*="justify-content: space-between"],
+.devis-create .v22-card-body > div[style*="justifyContent:'space-between'"],
+.devis-create .v22-card-body > div[style*="justifyContent: 'space-between'"] { padding: .3rem 0 !important; font-size: 11px !important; color: #555; border-bottom: 1px solid #F8F8F8; }
+
+/* Sidebar action buttons (last 3 v22-card-body children are the actions): full-width pill 9px padding */
+.devis-create .v22-card-body > button.v22-btn,
+.devis-create .v22-card-body > .v22-btn { width: 100%; padding: 9px !important; border-radius: 7px !important; font-size: 12px !important; font-weight: 600 !important; border: 1px solid #E0E0E0 !important; background: #fff !important; color: #555 !important; display: flex !important; align-items: center; justify-content: center; gap: 5px; margin-bottom: .4rem; transition: all .15s; }
+.devis-create .v22-card-body > button.v22-btn:hover { background: #FAFAFA !important; border-color: #CCC !important; }
+.devis-create .v22-card-body > button.v22-btn-primary { background: var(--v5-primary-yellow) !important; border-color: var(--v5-primary-yellow) !important; color: #333 !important; }
+.devis-create .v22-card-body > button.v22-btn-primary:hover { background: #FFB800 !important; }
+.devis-create .v22-card-body > button.v22-btn-green { background: #2E7D32 !important; border-color: #2E7D32 !important; color: #fff !important; }
+.devis-create .v22-card-body > button.v22-btn-green:hover { background: #256d29 !important; }
