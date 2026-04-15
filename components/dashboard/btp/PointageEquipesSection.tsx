@@ -15,7 +15,8 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `pointage_${userId}`
   const [pointages, setPointages] = useState<Pointage[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
@@ -65,9 +66,9 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
       {showForm && (
         <div className={isV5 ? 'v5-card' : 'v22-card'}>
           {isV5 ? (
-            <div className="v5-st">Nouveau pointage</div>
+            <div className="v5-st">{isPt ? 'Novo registo' : 'Nouveau pointage'}</div>
           ) : (
-            <div className="v22-card-head"><div className="v22-card-title">Nouveau pointage</div></div>
+            <div className="v22-card-head"><div className="v22-card-title">{isPt ? 'Novo registo' : 'Nouveau pointage'}</div></div>
           )}
           <div className={isV5 ? undefined : 'v22-card-body'} style={isV5 ? { padding: '1rem 1.25rem' } : undefined}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -88,7 +89,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
             </div>
             <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
               <Clock size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.heures')} <strong>{heuresCalculees.toFixed(2)}h</strong>
-              {horairesInvalides && <span style={{ color: '#e53935', marginLeft: 8, fontSize: 13 }}>Heure de départ doit être après l&apos;arrivée</span>}
+              {horairesInvalides && <span style={{ color: '#e53935', marginLeft: 8, fontSize: 13 }}>{isPt ? 'A hora de saída deve ser posterior à de chegada' : 'Heure de départ doit être après l\'arrivée'}</span>}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addPointage} disabled={!form.employe || horairesInvalides}>{t('proDash.btp.pointage.enregistrer')}</button>

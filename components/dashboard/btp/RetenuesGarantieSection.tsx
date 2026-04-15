@@ -17,7 +17,8 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
   const { items: retenues, loading, add, update } = useBTPData<Retenue>({ table: 'retenues', artisanId: userId, userId })
   const [showForm, setShowForm] = useState(false)
@@ -52,9 +53,9 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
     libérée: 'v22-tag v22-tag-gray',
   }
   const retLabel: Record<string, string> = {
-    active: t('proDash.btp.retenues.active') || 'En cours',
-    mainlevée_demandée: t('proDash.btp.retenues.mainleveeDemandee') || 'Mainlevée demandée',
-    libérée: t('proDash.btp.retenues.liberee') || 'Libérée',
+    active: isPt ? 'Ativo' : 'En cours',
+    mainlevée_demandée: isPt ? 'Levantamento pedido' : 'Mainlevée demandée',
+    libérée: isPt ? 'Libertado' : 'Libérée',
   }
 
   return (
@@ -69,7 +70,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
         </button>
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Chargement...</div>}
+      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>}
 
       {/* KPI row */}
       {isV5 ? (
@@ -82,7 +83,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           <div className="v5-kpi">
             <div className="v5-kpi-l">{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
             <div className="v5-kpi-v">{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} €` : `${totalLibéré.toLocaleString(dateLocale)} €`}</div>
-            <div className="v5-kpi-s">{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
+            <div className="v5-kpi-s">{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} ${isPt ? 'obra(s)' : 'chantier(s)'}`}</div>
           </div>
         </div>
       ) : (
@@ -95,7 +96,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           <div className="v22-card" style={{ padding: 16 }}>
             <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
             <div style={{ fontSize: 22, fontWeight: 700 }}>{imminentRetenues.length > 0 ? `${imminentRetenues.reduce((s, r) => s + r.montantRetenu, 0).toLocaleString(dateLocale)} €` : `${totalLibéré.toLocaleString(dateLocale)} €`}</div>
-            <div style={{ fontSize: 11, color: tv.textMid }}>{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
+            <div style={{ fontSize: 11, color: tv.textMid }}>{imminentRetenues.length > 0 ? imminentRetenues.map(r => r.chantier).join(', ') : `${retenues.filter(r => r.statut === 'libérée').length} ${isPt ? 'obra(s)' : 'chantier(s)'}`}</div>
           </div>
         </div>
       )}
