@@ -1532,16 +1532,32 @@ export default function DevisFactureForm({
   const isLegalLocked = companyVerified || !!verifiedCompany?.legalForm
 
   return (
-    <div>
-      {/* Top header */}
-      <div className="v22-page-header" style={{ margin: 0, padding: '10px 16px', borderBottom: '1px solid var(--v22-border)', background: 'var(--v22-surface)' }}>
-        <button onClick={onBack} className="v22-btn v22-btn-ghost v22-btn-sm">← {t('devis.back')}</button>
-        <span className="v22-page-title" style={{ fontSize: '14px' }}>
-          {docType === 'devis' ? t('devis.newDevis') : t('devis.newFacture')}
-          {docTitle && <span className="v22-ref" style={{ fontWeight: 400, marginLeft: 8 }}>— {docTitle}</span>}
-        </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Bouton Passer en facture (affiché uniquement en mode devis) */}
+    <div className="devis-create">
+      {/* Top bar */}
+      <div className="devis-top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.85rem' }}>
+          <button className="devis-back" onClick={onBack}>← {t('devis.back')}</button>
+          <div style={{ width: 1, height: 18, background: '#E0E0E0' }} />
+          <span className="devis-top-title">
+            {docType === 'devis' ? t('devis.newDevis') : t('devis.newFacture')}
+            {docTitle && <span style={{ fontWeight: 400, marginLeft: 8, color: '#999' }}>— {docTitle}</span>}
+          </span>
+        </div>
+        <div className="devis-top-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="devis-doc-tabs">
+            <button
+              onClick={() => setDocType('devis')}
+              className={`devis-doc-tab ${docType === 'devis' ? 'active' : ''}`}
+            >
+              {t('devis.devisTab')}
+            </button>
+            <button
+              onClick={() => setDocType('facture')}
+              className={`devis-doc-tab ${docType === 'facture' ? 'active' : ''}`}
+            >
+              {t('devis.factureTab')}
+            </button>
+          </div>
           {docType === 'devis' && (
             <button
               onClick={() => {
@@ -1554,25 +1570,11 @@ export default function DevisFactureForm({
                   }
                 }
               }}
-              className="v22-btn v22-btn-green v22-btn-sm"
+              className="devis-cta-btn green"
             >
               {t('devis.convertToFacture')}
             </button>
           )}
-          <div className="v22-tabs">
-            <button
-              onClick={() => setDocType('devis')}
-              className={`v22-tab ${docType === 'devis' ? 'active' : ''}`}
-            >
-              {t('devis.devisTab')}
-            </button>
-            <button
-              onClick={() => setDocType('facture')}
-              className={`v22-tab ${docType === 'facture' ? 'active' : ''}`}
-            >
-              {t('devis.factureTab')}
-            </button>
-          </div>
         </div>
       </div>
 
