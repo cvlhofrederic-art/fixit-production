@@ -301,12 +301,18 @@ function DashboardPage() {
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
     if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
     if (!artisanData) {
-      setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id })
+      // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
+      setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
       seedDemoLocalStorage(user.id, !!user.user_metadata?._admin_override)
       prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], user.id)
       setLoading(false); return
     }
 
+    // Super admin en mode impersonation : si le profil artisan DB n'a pas de legal_form,
+    // forcer SARL pour le compte démo BTP (cohérent avec société multi-salariés)
+    if (user.user_metadata?._admin_override && !(artisanData as { legal_form?: string }).legal_form) {
+      (artisanData as { legal_form?: string }).legal_form = 'SARL'
+    }
     setArtisan(artisanData)
     supabase.from('profiles_artisan').update({ last_seen_at: new Date().toISOString() }).eq('id', artisanData.id).then()
     initSettingsForm(artisanData, user.email || '')
