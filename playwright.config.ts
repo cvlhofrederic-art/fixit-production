@@ -29,11 +29,12 @@ export default defineConfig({
         ]
       : []),
   ],
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: 'npm run dev',
-        url: 'http://localhost:3000',
-        reuseExistingServer: true,
-      },
+  webServer: {
+    command: process.env.CI ? 'npm run start -- --port 3000' : 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 180_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  },
 })

@@ -5,10 +5,9 @@
 name: "Tests — Unitaires, E2E & Accessibilité"
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
