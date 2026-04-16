@@ -86,7 +86,7 @@ async function createProfile(userId: string, category: any) {
       company_name: 'Lepore Sebastien',
       siret: '95395158900019',
       bio: 'Paysagiste professionnel basé à La Ciotat (13600). Spécialisé dans l\'entretien de jardins et l\'élagage. Entrepreneur individuel passionné par l\'aménagement et l\'entretien de vos espaces verts. Intervient sur La Ciotat et ses environs.',
-      categories: ['paysagiste'],
+      categories: ['paysagiste', 'elagueur'],
       hourly_rate: 45,
       zone_radius_km: 30,
       latitude: latitude,

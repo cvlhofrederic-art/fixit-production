@@ -250,7 +250,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     labelPt: 'Jardineiro / Paisagista',
     cpv: ['77310000', '77300000', '77311000', '77312000', '77313000', '77314000', '45112700'],
     strongKeywords: [
-      'espaces verts', 'espace vert', 'élagage', 'elagage', 'paysage', 'paysager',
+      'espaces verts', 'espace vert', 'paysage', 'paysager', 'paysagisme',
       'paysagiste', 'engazonnement', 'tonte', 'lot espaces verts',
       'entretien espaces verts', 'travaux espaces verts', 'travaux paysagers',
       'aménagement paysager', 'amenagement paysager', 'création espaces verts',
@@ -267,9 +267,32 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
       'haubanage', 'émondage', 'ébranchage', 'ramassage feuilles',
       'jardinière', 'bac à fleurs', 'pergola végétale',
     ],
-    keywords: ['espaces verts', 'élagage', 'paysage', 'engazonnement', 'tonte', 'plantation', 'jardin', 'arrosage', 'abattage', 'haie', 'débroussaillage', 'fauchage'],
-    keywordsPt: ['espaços verdes', 'poda', 'plantação', 'jardim', 'paisagismo', 'rega', 'relva', 'sebe', 'parque', 'corte de árvores', 'desmatação', 'manutenção jardins'],
+    keywords: ['espaces verts', 'paysage', 'paysagisme', 'paysagiste', 'engazonnement', 'tonte', 'plantation', 'jardin', 'arrosage', 'haie', 'débroussaillage', 'fauchage'],
+    keywordsPt: ['espaços verdes', 'plantação', 'jardim', 'paisagismo', 'paisagista', 'rega', 'relva', 'sebe', 'parque', 'desmatação', 'manutenção jardins'],
     categoryIds: ['jardinagem'],
+  },
+
+  // ─── ÉLAGUEUR / ARBORICULTEUR ──────────────────────────────────────────────
+  elagueur: {
+    labelFr: 'Élagueur / Arboriste',
+    labelPt: 'Podador / Arboricultor',
+    cpv: ['77211400', '77211500', '77340000', '77341000'],
+    strongKeywords: [
+      'élagage', 'elagage', 'élagueur', 'elagueur', 'arboriste', 'arboricole',
+      'taille d\'arbre', 'taille des arbres', 'abattage arbre', 'abattage d\'arbre',
+      'abattage arboricole', 'lot élagage', 'lot elagage', 'travaux élagage',
+      'travaux d\'élagage', 'émondage', 'emondage', 'ébranchage', 'ebranchage',
+      'haubanage', 'dessouchage', 'bûcheronnage', 'bucheronnage',
+    ],
+    weakKeywords: [
+      'grimpe', 'nacelle', 'tronçonneuse', 'tronconneuse', 'broyage',
+      'broyeur', 'rognage', 'souche', 'branches', 'couronne',
+      'taille en rideau', 'taille architecturée', 'taille de formation',
+      'taille douce', 'éclaircie', 'eclaircie',
+    ],
+    keywords: ['élagage', 'élagueur', 'arboriste', 'taille', 'abattage', 'dessouchage', 'émondage', 'ébranchage', 'haubanage'],
+    keywordsPt: ['poda', 'podador', 'arboricultor', 'abate de árvores', 'corte de árvores', 'tratamento de árvores', 'desrama', 'destoca'],
+    categoryIds: ['poda'],
   },
 
   // ─── ISOLATION / FAÇADIER ──────────────────────────────────────────────────
