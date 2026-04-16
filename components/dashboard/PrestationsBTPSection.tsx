@@ -140,6 +140,12 @@ export const SEED_PREST: Omit<Prestation, 'id'>[] = [
     etapes: ['Évacuation des déchets et matériels résiduels', 'Nettoyage approfondi sols, vitres et sanitaires', 'Contrôle visuel et levée des réserves'] },
   { name: 'Installation échafaudage R+4', description: 'Montage d\'un échafaudage de pied jusqu\'à R+4, contreventement, garde corps et vérification réglementaire.', type: 'prest', lot: 'couverture', unit: 'forfait', price: { min: 6000, max: 7000 },
     etapes: ['Étude des charges et plan de calepinage', 'Montage par sapiteurs habilités', 'Vérification, contreventement et garde corps'] },
+
+  // ── Déplacement / Main d'œuvre ──────────────────────────────────────────
+  { name: 'Déplacement chantier', description: 'Frais de déplacement aller/retour sur le chantier, incluant transport du matériel et outillage.', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 35, max: 80 },
+    etapes: ['Chargement du matériel et outillage', 'Transport aller/retour sur le chantier'] },
+  { name: 'Main d\'œuvre qualifiée', description: 'Taux horaire de main d\'œuvre pour travaux tous corps d\'état, compagnon qualifié.', type: 'prest', lot: 'gros_oeuvre', unit: 'h', price: { min: 45, max: 65 },
+    etapes: [] },
 ]
 
 /* ───────────────────────── SEED MATÉRIAUX ─────────────────────────

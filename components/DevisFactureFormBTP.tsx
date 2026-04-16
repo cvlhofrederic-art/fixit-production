@@ -277,6 +277,9 @@ export default function DevisFactureFormBTP({
   const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
 
   // Client
+  const [clientType, setClientType] = useState<'particulier' | 'professionnel' | 'sci' | 'syndic'>(
+    (initialData?.clientType as 'particulier' | 'professionnel' | 'sci' | 'syndic') || 'particulier'
+  )
   const [clientName, setClientName] = useState(initialData?.clientName || '')
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '')
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
@@ -728,8 +731,9 @@ export default function DevisFactureFormBTP({
       insuranceCoverage,
       mediatorName,
       mediatorUrl,
-      isHorsEtablissement: true,
+      isHorsEtablissement: clientType === 'particulier',
       // Client
+      clientType,
       clientName,
       clientEmail,
       clientPhone,
@@ -999,8 +1003,8 @@ export default function DevisFactureFormBTP({
         companyPhone, companyEmail,
         tvaEnabled, tvaNumber: tvaNumber || '', companyAPE: companyAPE || '',
         insuranceName: insuranceName || '', insuranceNumber: insuranceNumber || '', insuranceCoverage: insuranceCoverage || '', insuranceType,
-        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: true,
-        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '',
+        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: clientType === 'particulier',
+        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType,
         interventionAddress: interventionAddress || '', interventionBatiment: interventionBatiment || '', interventionEtage: interventionEtage || '',
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
@@ -1394,13 +1398,26 @@ export default function DevisFactureFormBTP({
               <button className="btn-link-client" type="button" onClick={openClientPicker}>+ Importer depuis la base client</button>
             </div>
             <div className="dv-row">
-              <div className="dv-fg"><label>Nom / Raison sociale <span className="req">*</span></label><input type="text" placeholder="Ex : Marie Dubois" value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
-              <div className="dv-fg"><label>Email</label><input type="email" placeholder="marie.dubois@email.fr" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
+              <div className="dv-fg">
+                <label>Type de client <span className="req">*</span></label>
+                <select value={clientType} onChange={(e) => setClientType(e.target.value as 'particulier' | 'professionnel' | 'sci' | 'syndic')}>
+                  <option value="particulier">Particulier</option>
+                  <option value="professionnel">Professionnel (entreprise)</option>
+                  <option value="sci">SCI</option>
+                  <option value="syndic">Syndic de copropriété</option>
+                </select>
+              </div>
+              <div className="dv-fg"><label>Nom / Raison sociale <span className="req">*</span></label><input type="text" placeholder={clientType === 'particulier' ? 'Ex : Marie Dubois' : 'Ex : SCI Le Mail'} value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
             </div>
             <div className="dv-row">
+              <div className="dv-fg"><label>Email</label><input type="email" placeholder="contact@email.fr" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
               <div className="dv-fg"><label>Téléphone</label><input type="text" placeholder="06 …" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} /></div>
-              <div className="dv-fg"><label>SIRET <span style={{ color: '#999', fontWeight: 400 }}>(si pro / syndic)</span></label><input type="text" placeholder="123 456 789 00012" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)} /></div>
             </div>
+            {clientType !== 'particulier' && (
+            <div className="dv-row">
+              <div className="dv-fg"><label>SIRET {clientType === 'syndic' ? '(syndic)' : clientType === 'sci' ? '(SCI)' : '(entreprise)'}</label><input type="text" placeholder="123 456 789 00012" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)} /></div>
+            </div>
+            )}
             <div className="dv-row col1">
               <div className="dv-fg"><label>Adresse complète (siège / domicile) <span className="req">*</span></label><input type="text" placeholder="12 rue de la Paix, 75002 Paris" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} /></div>
             </div>
