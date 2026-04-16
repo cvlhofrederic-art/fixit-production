@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { FEATURED_CATEGORIES, EXTRA_CATEGORIES, CATEGORIES } from '@/lib/categories'
+import { PHASE_TEST_DEPTS_FR, PHASE_TEST_COMMUNES_FR, type FRCommune, type FRDepartement } from '@/lib/geo/fr-geo-data'
+import { PT_DISTRITOS, ALL_COMMUNES_PT, type PTCommune, type PTDistrito } from '@/lib/geo/pt-geo-data'
 import s from './landing-v2.module.css'
 
 // Derive SERVICE_KEYS from the single source of truth
@@ -22,6 +24,19 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null)
   const [showAllServices, setShowAllServices] = useState(false)
   const [revealedEls, setRevealedEls] = useState<Set<string>>(new Set())
+
+  // Autocomplete localisation — style Doctolib (phase test : dept 13 FR / Porto PT)
+  const [locOpen, setLocOpen] = useState(false)
+  const [locCursor, setLocCursor] = useState(0)
+  const locBoxRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (locBoxRef.current && !locBoxRef.current.contains(e.target as Node)) setLocOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
 
   const searchPath = locale === 'pt' ? '/pesquisar' : '/recherche'
   const registerPath = '/pro/register'
@@ -96,6 +111,55 @@ export default function HomePage() {
   })).sort((a, b) => a.name.localeCompare(b.name))
 
   const isPt = locale === 'pt'
+
+  // Suggestions localisation — locale-aware, phase test uniquement (dept 13 FR / Porto PT)
+  const locSuggestions = useMemo(() => {
+    const raw = location.trim()
+    if (raw.length < 1) return [] as Array<{ key: string; label: string; right?: string }>
+    const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const out: Array<{ key: string; label: string; right?: string }> = []
+    const seen = new Set<string>()
+    const push = (key: string, label: string, right?: string) => {
+      if (seen.has(label)) return
+      seen.add(label); out.push({ key, label, right })
+    }
+    if (isPt) {
+      // PT : distrito Porto + concelhos + freguesias
+      PT_DISTRITOS.forEach((d: PTDistrito) => {
+        const n = d.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        if (n.startsWith(norm) || n.includes(norm)) push(`d-${d.code}`, `${d.nom} (distrito)`, d.regiao)
+      })
+      ALL_COMMUNES_PT.forEach((c: PTCommune) => {
+        if (out.length >= 12) return
+        const n = c.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        if (n.startsWith(norm) || n.includes(norm)) {
+          const label = c.parent ? `${c.nom} · ${c.parent}` : c.nom
+          push(`c-${c.code}`, label, c.type === 'freguesia' ? 'freguesia' : 'concelho')
+        }
+      })
+    } else {
+      // FR : dept 13 + communes du 13 (phase test)
+      PHASE_TEST_DEPTS_FR.forEach((d: FRDepartement) => {
+        const n = d.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        if (d.code.startsWith(norm) || n.startsWith(norm) || n.includes(norm)) {
+          push(`d-${d.code}`, `${d.code} - ${d.nom}`, d.region)
+        }
+      })
+      PHASE_TEST_COMMUNES_FR.forEach((c: FRCommune) => {
+        if (out.length >= 12) return
+        const n = c.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        if (n.startsWith(norm) || n.includes(norm) || (c.cp && c.cp.startsWith(norm))) {
+          push(`c-${c.code}`, c.nom, c.cp || '')
+        }
+      })
+    }
+    return out.slice(0, 10)
+  }, [location, isPt])
+
+  const pickLoc = (label: string) => {
+    setLocation(label)
+    setLocOpen(false)
+  }
 
   return (
     <div className={s.landingPage}>
@@ -173,13 +237,52 @@ export default function HomePage() {
               </div>
               <div className={s.formGroup}>
                 <label>{isPt ? 'ONDE?' : 'OÙ ?'}</label>
-                <input
-                  type="text"
-                  placeholder={isPt ? 'Cidade ou código postal' : 'Code postal ou ville'}
-                  value={location}
-                  onChange={e => setLocation(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
-                />
+                <div ref={locBoxRef} style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder={isPt ? 'Cidade ou código postal' : 'Code postal ou ville'}
+                    value={location}
+                    onChange={e => { setLocation(e.target.value); setLocOpen(true); setLocCursor(0) }}
+                    onFocus={() => setLocOpen(true)}
+                    onKeyDown={e => {
+                      if (!locOpen && (e.key === 'ArrowDown')) { setLocOpen(true); return }
+                      if (e.key === 'ArrowDown') { e.preventDefault(); setLocCursor(c => Math.min(c + 1, locSuggestions.length - 1)) }
+                      else if (e.key === 'ArrowUp') { e.preventDefault(); setLocCursor(c => Math.max(c - 1, 0)) }
+                      else if (e.key === 'Enter') {
+                        if (locOpen && locSuggestions[locCursor]) { e.preventDefault(); pickLoc(locSuggestions[locCursor].label) }
+                        else { handleSearch() }
+                      } else if (e.key === 'Escape') {
+                        setLocOpen(false)
+                      }
+                    }}
+                  />
+                  {locOpen && locSuggestions.length > 0 && (
+                    <div role="listbox" style={{
+                      position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30,
+                      background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
+                      boxShadow: '0 4px 18px rgba(0,0,0,.08)', maxHeight: 280, overflowY: 'auto',
+                    }}>
+                      {locSuggestions.map((sug, i) => (
+                        <div
+                          key={sug.key}
+                          role="option"
+                          aria-selected={i === locCursor}
+                          onMouseEnter={() => setLocCursor(i)}
+                          onMouseDown={(e) => { e.preventDefault(); pickLoc(sug.label) }}
+                          style={{
+                            padding: '10px 12px', cursor: 'pointer',
+                            background: i === locCursor ? '#FFF5E6' : '#fff',
+                            borderBottom: i < locSuggestions.length - 1 ? '1px solid #f2f2f2' : 'none',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                          }}
+                        >
+                          <span style={{ color: '#222', fontSize: 13, fontWeight: 500 }}>{sug.label}</span>
+                          {sug.right && <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{sug.right}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <button className={s.btnSearch} onClick={handleSearch}>
                 {isPt ? 'Pesquisar profissionais disponíveis' : 'Rechercher les artisans disponibles'}
