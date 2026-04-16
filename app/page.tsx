@@ -214,9 +214,9 @@ export default function HomePage() {
             </div>
             <div className={s.heroTrustTags}>
               <span className={s.trustTag}>✅ {isPt ? 'Profissionais verificados' : 'Artisans vérifiés'}</span>
-              <span className={s.trustTag}>⚡ {isPt ? 'Resposta em 2h' : 'Réponse en 2h'}</span>
-              <span className={s.trustTag}>⭐ 4.9/5 {isPt ? 'satisfação' : 'satisfaction'}</span>
-              <span className={s.trustTag}>📅 {isPt ? 'Agenda em tempo real' : 'Agenda en temps réel'}</span>
+              <span className={s.trustTag}>💰 {isPt ? 'Estimativa de orçamento instantânea' : 'Estimation de devis instantanée'}</span>
+              <span className={s.trustTag}>🏷️ {isPt ? 'Preços transparentes' : 'Prix transparents'}</span>
+              <span className={s.trustTag}>🆓 {isPt ? '100% gratuito' : '100% gratuit'}</span>
             </div>
           </div>
 
