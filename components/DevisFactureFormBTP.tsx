@@ -195,7 +195,7 @@ export default function DevisFactureFormBTP({
   const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
 
   // TVA
-  const [tvaEnabled, setTvaEnabled] = useState(initialData?.tvaEnabled ?? false)
+  const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
 
   // Client
   const [clientName, setClientName] = useState(initialData?.clientName || '')
@@ -868,8 +868,7 @@ export default function DevisFactureFormBTP({
               <div className="dv-fg"><label>Téléphone <span className="req">*</span></label><input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} /></div>
               <div className="dv-fg"><label>Email <span className="req">*</span></label><input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} /></div>
             </div>
-            <div className="dv-row col3">
-              <div className="dv-fg"><label>N° TVA intracommunautaire <span style={{ color: '#999', fontWeight: 400 }}>(si assujetti)</span></label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
+            <div className="dv-row">
               <div className="dv-fg"><label>Code APE / NAF</label><input type="text" placeholder="Ex : 4339Z" value={companyAPE} onChange={(e) => setCompanyAPE(e.target.value)} /></div>
               <div className="dv-fg">
                 <label>Capital social {['SARL','EURL','SAS','SASU','SA'].includes(statutJuridique)
@@ -919,18 +918,12 @@ export default function DevisFactureFormBTP({
           {/* 4. CONFIGURATION TVA */}
           <div className="dv-section">
             <div className="dv-section-t">CONFIGURATION TVA</div>
-            <div className="dv-toggle-row">
-              <label className="tgl"><input type="checkbox" checked={!tvaEnabled} onChange={(e) => setTvaEnabled(!e.target.checked)} /><span className="sl"></span></label>
-              <div>
-                <div className="dv-toggle-label">Entreprise sans TVA</div>
-                <div className="dv-toggle-sub">Auto-entrepreneur ou franchise en base (art. 293 B du CGI)</div>
-              </div>
+            <div className="dv-alert blue">
+              Votre société est assujettie à la TVA. Les taux applicables (20 %, 10 %, 5.5 %) sont configurables par ligne de prestation ci-dessous.
             </div>
-            {!tvaEnabled && (
-              <div className="dv-alert blue" style={{ marginTop: '.5rem' }}>
-                TVA non applicable — mention « TVA non applicable, art. 293 B du CGI » ajoutée automatiquement sur vos documents.
-              </div>
-            )}
+            <div className="dv-row">
+              <div className="dv-fg"><label>N° TVA intracommunautaire</label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
+            </div>
           </div>
 
           {/* 5. INFORMATIONS CLIENT */}
