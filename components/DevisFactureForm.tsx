@@ -1504,7 +1504,7 @@ export default function DevisFactureForm({
     interventionExterieur,
     clientPhone,
     clientSiret,
-    clientType: (clientType as 'particulier' | 'professionnel' | 'sci' | 'syndic') || 'particulier',
+    clientType: (clientSiret.trim().length > 0 || isProClient) ? 'professionnel' : 'particulier',
     docDate,
     docValidity,
     prestationDate,
