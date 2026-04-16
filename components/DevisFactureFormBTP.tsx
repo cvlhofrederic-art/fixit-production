@@ -1565,35 +1565,41 @@ export default function DevisFactureFormBTP({
                         )}
                         {/* Étapes */}
                         {l.etapes && l.etapes.length > 0 && (
-                          <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
-                            <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes :</div>
+                          <div style={{ marginTop: 6, fontSize: 11 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 5 }}>Étapes</div>
                             {l.etapes.map((et, ei) => (
-                              <div key={et.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 5, padding: '4px 6px' }}>
-                                <span style={{ color: '#999', fontSize: 10, fontWeight: 600, minWidth: 16 }}>{ei + 1}.</span>
-                                <input type="text" value={et.designation}
-                                  style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', padding: '2px 0', fontSize: 11, color: '#1a1a1a' }}
-                                  onChange={(e) => {
-                                    const newEtapes = [...(l.etapes || [])]
-                                    newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
-                                    updateLine(l.id, { etapes: newEtapes })
-                                  }} />
+                              <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 5 }}>
+                                {/* Rectangle blanc : numéro + désignation */}
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 9px' }}>
+                                  <span style={{ color: '#999', fontSize: 11, fontWeight: 600, marginRight: 8, minWidth: 14 }}>{ei + 1}.</span>
+                                  <input type="text" value={et.designation}
+                                    placeholder="Ex : Diagnostic visuel"
+                                    style={{ flex: 1, fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', width: '100%', fontFamily: 'inherit' }}
+                                    onChange={(e) => {
+                                      const newEtapes = [...(l.etapes || [])]
+                                      newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
+                                      updateLine(l.id, { etapes: newEtapes })
+                                    }} />
+                                </div>
+                                {/* Petit carré prix */}
                                 <div title="Prix optionnel par étape"
-                                  style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#FFF8E6', border: '1px solid #FFE082', borderRadius: 4, padding: '2px 5px' }}>
-                                  <span style={{ fontSize: 8, fontWeight: 700, color: '#B26A00', letterSpacing: 0.3, textTransform: 'uppercase' }}>Prix</span>
+                                  style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 8px', width: 96 }}>
                                   <input type="number" min={0} step={0.01} value={et.prixHT ?? ''} placeholder="0"
-                                    style={{ width: 46, border: 'none', background: 'transparent', outline: 'none', padding: 0, fontSize: 11, fontWeight: 600, textAlign: 'right', color: '#E65100' }}
+                                    style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
                                     onChange={(e) => {
                                       const newEtapes = [...(l.etapes || [])]
                                       newEtapes[ei] = { ...newEtapes[ei], prixHT: e.target.value ? parseFloat(e.target.value) : undefined }
                                       updateLine(l.id, { etapes: newEtapes })
                                     }} />
-                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#B26A00' }}>€ HT</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.3 }}>€ HT</span>
                                 </div>
-                                <button type="button" aria-label="Supprimer étape" style={{ color: '#c00', fontSize: 12, cursor: 'pointer', background: 'none', border: 'none', padding: 2 }}
+                                <button type="button" aria-label="Supprimer étape"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#c00', padding: '0 4px' }}
                                   onClick={() => updateLine(l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
                               </div>
                             ))}
-                            <button type="button" style={{ fontSize: 10, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', textDecoration: 'underline' }}
+                            <button type="button"
+                              style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
                               onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
                               + étape
                             </button>
