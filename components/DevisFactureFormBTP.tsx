@@ -407,6 +407,25 @@ export default function DevisFactureFormBTP({
     return [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
   }, [services, artisan?.id])
 
+  // Matériaux catalogue (from localStorage, type === 'mat')
+  const allMaterials = useMemo(() => {
+    const storageKey = `fixit_prestations_btp_v3_${artisan?.id || 'guest'}`
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string }>
+        return parsed
+          .filter(p => p.type === 'mat')
+          .map(p => ({
+            id: `btp_mat_${p.id}`,
+            name: p.name,
+            price_ht: p.price?.min || 0,
+          }))
+      }
+    } catch { /* ignore */ }
+    return [] as Array<{ id: string; name: string; price_ht: number }>
+  }, [artisan?.id])
+
   /* ──────── Calculs ──────── */
 
   // Recalcule totalHT à chaque modif d'une ligne
@@ -1580,7 +1599,7 @@ export default function DevisFactureFormBTP({
                           </button>
                           {openPrestaDrop === -l.id && (
                             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: '#fff', border: '1px solid #E8E8E8', borderRadius: 5, zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', marginTop: 2 }}>
-                              {allServices.map((s) => (
+                              {allMaterials.length > 0 ? allMaterials.map((s) => (
                                 <div key={s.id}
                                   onClick={() => { updateMaterialLine(l.id, { description: s.name, priceHT: s.price_ht || 0 }); setOpenPrestaDrop(null) }}
                                   onMouseDown={(e) => e.preventDefault()}
@@ -1589,7 +1608,9 @@ export default function DevisFactureFormBTP({
                                   onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}>
                                   {s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}
                                 </div>
-                              ))}
+                              )) : (
+                                <div style={{ padding: '10px', fontSize: 11, color: '#999', textAlign: 'center' }}>Aucun matériau dans le catalogue</div>
+                              )}
                             </div>
                           )}
                         </div>
