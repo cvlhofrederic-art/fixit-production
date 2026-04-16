@@ -32,6 +32,7 @@ export function seedDemoLocalStorage(artisanId: string, isAdminOverride = false)
       docTitle: 'Rénovation T3 — Rue de la République',
       docDate: '2026-03-05', savedAt: '2026-03-05T10:00:00Z',
       clientName: 'Mme Dupont Catherine', clientEmail: 'c.dupont@email.fr',
+      companyCapital: '10 000 €', companyRCS: 'RCS Marseille 847 261 935',
       status: 'signed', sentAt: '2026-03-06T09:00:00Z',
       lines: [
         { description: 'Démolition cloisons + évacuation gravats', qty: 1, priceHT: 2200, totalHT: 2200, unite: 'forfait', tvaRate: 10 },

@@ -158,12 +158,31 @@ export default function DevisFactureFormBTP({
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
-  const [companyRCS, setCompanyRCS] = useState(initialData?.companyRCS || '')
+  const [companyRCS, setCompanyRCS] = useState(() => {
+    if (initialData?.companyRCS) return initialData.companyRCS
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { companyRCS?: string }) => d.companyRCS)
+      if (last?.companyRCS) return last.companyRCS
+    } catch { /* ignore */ }
+    return ''
+  })
   const [companyPhone, setCompanyPhone] = useState(initialData?.companyPhone || artisan?.phone || '')
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
   const [tvaNumber, setTvaNumber] = useState(initialData?.tvaNumber || '')
   const [companyAPE, setCompanyAPE] = useState((initialData as { companyAPE?: string })?.companyAPE || '')
-  const [companyCapital, setCompanyCapital] = useState(initialData?.companyCapital || '')
+  const [companyCapital, setCompanyCapital] = useState(() => {
+    if (initialData?.companyCapital) return initialData.companyCapital
+    // Cherche le capital dans les derniers documents créés
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { companyCapital?: string }) => d.companyCapital)
+      if (last?.companyCapital) return last.companyCapital
+    } catch { /* ignore */ }
+    return ''
+  })
 
   // Assurance & Médiation
   const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(
