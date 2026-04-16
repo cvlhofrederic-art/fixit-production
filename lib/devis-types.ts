@@ -31,22 +31,34 @@ export interface ProductLine {
 // UNITÉS DE MESURE DEVIS
 // ═══════════════════════════════════════════════
 export const UNITES_DEVIS = [
-  { value: 'u',    label: 'u — Unité'           },
-  { value: 'm2',   label: 'm² — Mètre carré'    },
-  { value: 'ml',   label: 'ml — Mètre linéaire' },
-  { value: 'm3',   label: 'm³ — Mètre cube'     },
-  { value: 'h',    label: 'h — Heure'           },
-  { value: 'j',    label: 'j — Jour'            },
-  { value: 'f',    label: 'f — Forfait'         },
-  { value: 'lot',  label: 'lot — Lot'           },
-  { value: 'm',    label: 'm — Mètre'           },
-  { value: 'kg',   label: 'kg — Kilogramme'     },
-  { value: 'L',    label: 'L — Litre'           },
-  { value: 't',    label: 't — Tonne'           },
-  { value: 'pce',  label: 'pce — Pièce'         },
-  { value: 'ens',  label: 'ens — Ensemble'      },
-  { value: 'pt',   label: 'pt — Point'          },
-  { value: 'autre', label: '✏️ Personnalisé...' },
+  // Géométrie
+  { value: 'm2',       label: 'm² — Mètre carré'    },
+  { value: 'ml',       label: 'ml — Mètre linéaire' },
+  { value: 'm',        label: 'm — Mètre'           },
+  { value: 'm3',       label: 'm³ — Mètre cube'     },
+  // Comptage
+  { value: 'u',        label: 'u — Unité'           },
+  { value: 'pce',      label: 'pce — Pièce'         },
+  { value: 'ens',      label: 'ens — Ensemble'      },
+  { value: 'lot',      label: 'lot — Lot'           },
+  { value: 'pt',       label: 'pt — Point'          },
+  // Poids / volume liquide
+  { value: 'kg',       label: 'kg — Kilogramme'     },
+  { value: 't',        label: 't — Tonne'           },
+  { value: 'L',        label: 'L — Litre'           },
+  // Conditionnement chantier
+  { value: 'sac',      label: 'sac — Sac'           },
+  { value: 'rl',       label: 'rl — Rouleau'        },
+  { value: 'palette',  label: 'palette'             },
+  { value: 'benne',    label: 'benne'               },
+  { value: 'camion',   label: 'camion'              },
+  // Temps
+  { value: 'h',        label: 'h — Heure'           },
+  { value: 'j',        label: 'j — Jour'            },
+  { value: 'sem',      label: 'sem — Semaine'       },
+  // Facturation
+  { value: 'f',        label: 'f — Forfait'         },
+  { value: 'autre',    label: '✏️ Personnalisé...' },
 ]
 
 export const UNITE_VALUES = new Set(UNITES_DEVIS.map(u => u.value))
