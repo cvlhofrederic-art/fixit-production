@@ -89,6 +89,7 @@ export interface PdfV3Input {
   clientAddress: string
   clientPhone: string
   clientSiret: string
+  clientType: 'particulier' | 'professionnel' | 'sci' | 'syndic'
   interventionAddress: string
   interventionBatiment: string
   interventionEtage: string
@@ -154,7 +155,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     tvaEnabled, tvaNumber,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     mediatorName, mediatorUrl, isHorsEtablissement,
-    clientName, clientEmail, clientAddress, clientPhone, clientSiret,
+    clientName, clientEmail, clientAddress, clientPhone, clientSiret, clientType,
     interventionAddress, interventionBatiment, interventionEtage,
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
@@ -307,7 +308,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const emMaxW = emBoxW - boxPadX * 2
 
   ey += ptToMm(18)  // label ÉMETTEUR
-  ey += ptToMm(14)  // nom entreprise
+  ey += ptToMm(14) * 2  // nom entreprise + forme juridique (peut tenir sur 2 lignes)
   if (companySiret) ey += ptToMm(14)
   if (companyRCS) ey += ptToMm(14)
   if (companyAddress) ey += ptToMm(14)
@@ -344,8 +345,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey2)
   ey2 += ptToMm(18)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  pdf.text(companyName, emTx, ey2)
-  ey2 += ptToMm(14)
+  const companyNameWithStatus = `${companyName} (${getStatusLabel(companyStatus, t)})`
+  const nameLines = pdf.splitTextToSize(companyNameWithStatus, emMaxW)
+  pdf.text(nameLines, emTx, ey2)
+  ey2 += nameLines.length * ptToMm(14)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
   if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyRCS) {
@@ -379,6 +382,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(clientName || '---', destTx, dy3)
   dy3 += ptToMm(14)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+  if (clientType && clientType !== 'particulier') {
+    const clientTypeLabels: Record<string, string> = { professionnel: 'Professionnel', sci: 'SCI', syndic: 'Syndic de copropriété' }
+    pdf.setFontSize(8); pdf.setTextColor(COLOR_TEXT_LIGHT)
+    pdf.text(clientTypeLabels[clientType] || '', destTx, dy3)
+    dy3 += ptToMm(12)
+    pdf.setFontSize(10); pdf.setTextColor(COLOR_TEXT)
+  }
   if (clientAddress) {
     const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
     pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
@@ -680,7 +690,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ...(iban ? [`IBAN : ${iban}${bic ? ` | BIC : ${bic}` : ''}`] : []),
       ...(paymentCondition ? [paymentCondition] : []),
       ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
-      ...(recoveryFee ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
+      ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
     ]
     condTextLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, condW - 4)
@@ -859,10 +869,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
 
-  // 1. Identification + statut juridique
+  const isParticulier = clientType === 'particulier'
+  const isPro = !isParticulier // professionnel, SCI, syndic
+
+  // 1. Identification + statut juridique + forme juridique à côté du nom
   const statusLabel = getStatusLabel(companyStatus, t)
-  let legal1 = `${statusLabel}.`
-  if (companyStatus === 'ei' && locale !== 'pt') legal1 += ' Loi n°2022-172 du 14 février 2022.'
+  let legal1 = `${companyName} (${statusLabel}).`
+  if (companyStatus === 'ei' && locale !== 'pt') legal1 += ' Loi n° 2022-172 du 14 février 2022.'
+  if (companySiret) legal1 += ` SIRET : ${companySiret}.`
+  if (companyAPE) legal1 += ` APE : ${companyAPE}.`
 
   // 2. TVA / IVA
   if (!tvaEnabled) {
@@ -882,14 +897,17 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // 3. Assurance
+  // Capital social
+  if (companyCapital) legal1 += ` Capital social : ${companyCapital} EUR.`
+
+  // 3. Assurance (art. L. 243-2 C. assurances)
   if (insuranceName) {
     if (locale === 'pt') {
       const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Decenal' : 'RC Pro + Decenal'
       legal1 += ` Seguro ${insLabel} ${insuranceName}, apólice n.º ${insuranceNumber || 'N/A'}, cobertura ${insuranceCoverage || 'Portugal continental'}.`
     } else {
       const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Décennale'
-      legal1 += ` Assurance ${insLabel} : ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'}.`
+      legal1 += ` Assurance ${insLabel} : ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'} (art. L. 243-2 C. assurances).`
     }
   }
 
@@ -898,30 +916,44 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (docType === 'devis') {
     legal2 = locale === 'pt'
       ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
-      : 'Devis gratuit (art. L. 111-1 C. conso.). Arrêté du 24 janvier 2017.'
+      : 'Devis gratuit, conformément à l\'arrêté du 24 janvier 2017 relatif à l\'information du consommateur sur les prestations de dépannage, de réparation et d\'entretien dans le secteur du bâtiment.'
   } else {
     // Facture
     const dueDateStr = paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---'
-    legal2 = locale === 'pt'
-      ? `Condições de pagamento : ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
-      : `Conditions de paiement : échéance ${dueDateStr}. Règlement : ${paymentMode || '---'}. Pénalités de retard : 3× le taux d'intérêt légal (art. L. 441-10 C. com.). Indemnité de recouvrement : 40 € (art. D. 441-5 C. com.).`
+    if (locale === 'pt') {
+      legal2 = `Condições de pagamento : ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
+    } else {
+      legal2 = `Conditions de paiement : échéance ${dueDateStr}. Règlement : ${paymentMode || '---'}.`
+    }
   }
 
-  // 5. Rétractation (FR uniquement, construction exclue au PT : DL 24/2014, art. 4.º, n.º 1, al. f)
-  if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0 && locale !== 'pt') {
+  // 5. Pénalités de retard et recouvrement (toujours mentionner, conditionné B2B / B2C)
+  if (locale !== 'pt') {
+    if (isPro) {
+      // B2B : art. L. 441-10 C. com. + indemnité forfaitaire 40 € (art. D. 441-5 C. com.)
+      legal2 += ` Pénalités de retard : ${penaltyRate || '3 fois le taux d\'intérêt légal en vigueur'} (art. L. 441-10 C. com.). Indemnité forfaitaire de recouvrement : 40 € (art. D. 441-5 C. com.).`
+    } else {
+      // B2C : pénalités contractuelles, pas d'indemnité forfaitaire obligatoire
+      legal2 += ` Pénalités de retard : ${penaltyRate || '3 fois le taux d\'intérêt légal en vigueur'}.`
+    }
+  }
+
+  // 6. Rétractation (particuliers uniquement, FR, hors établissement)
+  // Art. L. 221-18 C. conso. — construction exclue au PT (DL 24/2014, art. 4.º, n.º 1, al. f)
+  if (docType === 'devis' && isHorsEtablissement && isParticulier && locale !== 'pt') {
     legal2 += ' Droit de rétractation : 14 jours calendaires (art. L. 221-18 C. conso.). Aucun paiement exigible avant 7 jours (art. L. 221-10 C. conso.), sauf travaux urgents (plafond 200 € TTC).'
   }
 
-  // 6. Garanties BTP
+  // 7. Garanties BTP (articles précis)
   let legal3 = ''
   if (locale === 'pt') {
     legal3 += 'Garantia de defeitos de construção : 5 anos (art. 1225.º do Código Civil). Garantia de vícios ocultos (art. 913.º do Código Civil).'
   } else {
-    legal3 += 'Garanties légales : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans), art. 1792 et suivants du Code civil.'
+    legal3 += 'Garanties légales : parfait achèvement 1 an (art. 1792-6 C. civ.), bon fonctionnement 2 ans (art. 1792-3 C. civ.), décennale 10 ans (art. 1792 C. civ.).'
   }
 
-  // 7. Médiation / RAL
-  if (clientSiret.trim().length === 0) {
+  // 8. Médiation de la consommation (particuliers uniquement — art. L. 612-1 C. conso.)
+  if (isParticulier) {
     if (locale === 'pt') {
       legal3 += ' Resolução alternativa de litígios (Lei n.º 144/2015).'
     } else {
@@ -945,8 +977,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += legalHeight
 
   // ═══ PAGE 2 — RÉTRACTATION ═══
-  // Page rétractation — FR uniquement (construction exclue au PT : DL 24/2014, art. 4.º, n.º 1, al. f)
-  if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0 && locale !== 'pt') {
+  // Page rétractation — FR uniquement, particuliers seulement (art. L. 221-18 C. conso.)
+  if (docType === 'devis' && isHorsEtablissement && isParticulier && locale !== 'pt') {
     pdf.addPage()
     let ry = 8
 
