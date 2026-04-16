@@ -940,7 +940,12 @@ export default function DevisFactureFormBTP({
       const validMaterials = materialLines.filter(l => (l.description || '').trim())
       const validLines = [...validLabor, ...validMaterials]
       const totalNet = validLines.reduce((s, l) => s + l.totalHT, 0)
-      const currencyFormat = (n: number) => n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+      const currencyFormat = (n: number) => {
+        const formatted = n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        // Replace narrow no-break space (\u202F) and no-break space (\u00A0)
+        // with regular space — jsPDF's helvetica font renders them as '/'
+        return formatted.replace(/[\u202F\u00A0]/g, ' ') + ' €'
+      }
 
       // Map display label → internal code for V3 generator
       const statusCode = mapLegalFormToCode(statutJuridique)
@@ -964,7 +969,7 @@ export default function DevisFactureFormBTP({
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
         paymentDue: paymentDelay || '30 jours',
-        paymentCondition: '', discount: escompte || '', iban: '', bic: '',
+        paymentCondition: escompte || '', discount: '', iban: '', bic: '',
         lines: validLines.length > 0 ? validLines : lines,
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,

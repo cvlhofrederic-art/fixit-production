@@ -451,7 +451,24 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
     const parts = cleanDesc.split('\n')
     const title = parts[0]
-    const detail = parts.slice(1).join('\n').trim()
+    let detail = parts.slice(1).join('\n').trim()
+
+    // If étapes exist as structured data, strip them from the description text
+    // to avoid duplication (description may contain étapes joined with ' → ')
+    if (l.etapes && l.etapes.length > 0) {
+      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+      if (sortedEtapes.length > 0) {
+        // Remove arrow-joined étapes string from detail if present
+        const etapeNames = sortedEtapes.map(e => e.designation.trim())
+        const arrowJoined = etapeNames.join(' → ')
+        if (detail === arrowJoined) {
+          detail = ''
+        } else if (detail.includes(arrowJoined)) {
+          detail = detail.replace(arrowJoined, '').trim()
+        }
+      }
+    }
+
     let displayDesc = detail ? `${title}\n${detail}` : title
     if (l.etapes && l.etapes.length > 0) {
       const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
@@ -473,16 +490,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   const colStyles: Record<number, { cellWidth: number; halign: string }> = {
-    0: { cellWidth: contentW * 0.40, halign: 'left' },
-    1: { cellWidth: contentW * 0.08, halign: 'center' },
-    2: { cellWidth: contentW * 0.08, halign: 'center' },
-    3: { cellWidth: contentW * 0.16, halign: 'right' },
+    0: { cellWidth: contentW * 0.36, halign: 'left' },
+    1: { cellWidth: contentW * 0.07, halign: 'center' },
+    2: { cellWidth: contentW * 0.07, halign: 'center' },
+    3: { cellWidth: contentW * 0.19, halign: 'right' },
   }
   if (tvaEnabled) {
     colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
-    colStyles[5] = { cellWidth: contentW * 0.18, halign: 'right' }
+    colStyles[5] = { cellWidth: contentW * 0.21, halign: 'right' }
   } else {
-    colStyles[4] = { cellWidth: contentW * 0.28, halign: 'right' }
+    colStyles[4] = { cellWidth: contentW * 0.31, halign: 'right' }
   }
 
   const headColStyles: Record<number, { halign: string }> = {
@@ -633,6 +650,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       t('devis.pdf.amendmentClause'),
       ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
       ...(iban ? [`IBAN : ${iban}${bic ? ` | BIC : ${bic}` : ''}`] : []),
+      ...(paymentCondition ? [paymentCondition] : []),
     ]
     condTextLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, condW - 4)
@@ -1080,8 +1098,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
 
   if (input.action === 'preview') {
-    const blobUrl = pdf.output('bloburl')
-    window.open(blobUrl as unknown as string, '_blank')
+    // Use a named blob so the browser's PDF viewer shows the real filename
+    // (not a UUID) when the user downloads from preview
+    const blob = pdf.output('blob')
+    const namedFile = new File([blob], filename, { type: 'application/pdf' })
+    const url = URL.createObjectURL(namedFile)
+    window.open(url, '_blank')
   } else {
     pdf.save(filename)
   }
