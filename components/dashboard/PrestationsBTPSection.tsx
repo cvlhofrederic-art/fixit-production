@@ -18,8 +18,9 @@
  * Prix fixe OU fourchette (ex : 35 € – 45 € /m²) — les prix BTP sont rarement figés.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -46,6 +47,11 @@ export interface Prestation {
   ref?: string           // référence produit (matériaux)
   supplier?: string      // fournisseur (matériaux)
   etapes?: Array<{ label: string; price?: number; unit?: string }>  // étapes d'exécution (prestations) — injectées dans les devis
+  // id de la ligne correspondante dans la table `services` (null pour les
+  // matériaux qui ne sont pas exposés publiquement)
+  supabase_id?: string | null
+  // Indique que cette ligne doit être resynchronisée après modification locale
+  _dirty?: boolean
 }
 
 /* ─────────────────────────── CATALOGUE DES LOTS ───────────────────────────
@@ -203,6 +209,52 @@ function enrichPrestationEtapes<T extends Omit<Prestation, 'id'>>(p: T): T {
   return { ...p, etapes: enriched }
 }
 
+/* ─────────────────────────── SYNC SUPABASE ───────────────────────────
+   Les prestations (type='prest') sont exposées publiquement sur la fiche
+   artisan via la table `services`. Les matériaux (type='mat') restent
+   strictement locaux — jamais écrits en DB.                               */
+function prestationToServicePayload(p: Omit<Prestation, 'id'>, artisanId: string) {
+  const rangeTag = `[unit:${p.unit}|min:${p.price.min}|max:${p.price.max}]`
+  const description = `${p.description || ''} ${rangeTag}`.trim()
+  return {
+    artisan_id: artisanId,
+    name: p.name,
+    description,
+    duration_minutes: null,
+    price_ht: p.price.min,
+    price_ttc: p.price.max,
+    active: true,
+  }
+}
+
+async function upsertPrestationToSupabase(p: Prestation, artisanId: string): Promise<string | null> {
+  if (p.type !== 'prest') return null
+  const payload = prestationToServicePayload(p, artisanId)
+  try {
+    if (p.supabase_id) {
+      const { data, error } = await supabase.from('services').update(payload).eq('id', p.supabase_id).select('id').single()
+      if (error) { console.warn('[prestations] supabase update failed', error); return p.supabase_id }
+      return data?.id || p.supabase_id
+    } else {
+      const { data, error } = await supabase.from('services').insert(payload).select('id').single()
+      if (error) { console.warn('[prestations] supabase insert failed', error); return null }
+      return data?.id || null
+    }
+  } catch (e) {
+    console.warn('[prestations] supabase sync threw', e)
+    return p.supabase_id || null
+  }
+}
+
+async function deletePrestationFromSupabase(supabaseId: string): Promise<void> {
+  try {
+    const { error } = await supabase.from('services').delete().eq('id', supabaseId)
+    if (error) console.warn('[prestations] supabase delete failed', error)
+  } catch (e) {
+    console.warn('[prestations] supabase delete threw', e)
+  }
+}
+
 /* ─────────────────────────── HELPERS ─────────────────────────── */
 function formatPrice(v: number): string {
   const fixed = v < 10 && v % 1 !== 0 ? v.toFixed(2) : Math.round(v).toString()
@@ -283,6 +335,32 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }, [artisan?.id, storageKey])
 
+  // Backfill Supabase : synchronise les prestations du localStorage qui n'ont
+  // pas encore de supabase_id. Assure la visibilité publique des prestations
+  // pour les comptes sociétés/BTP (bug : catalogue en localStorage jamais exposé).
+  const backfilledRef = useRef(false)
+  useEffect(() => {
+    if (!artisan?.id) return
+    if (backfilledRef.current) return
+    if (items.length === 0) return
+    const toBackfill = items.filter((p) => p.type === 'prest' && !p.supabase_id)
+    if (toBackfill.length === 0) { backfilledRef.current = true; return }
+    backfilledRef.current = true
+    ;(async () => {
+      const updates = new Map<number, string>()
+      for (const p of toBackfill) {
+        const newId = await upsertPrestationToSupabase(p, artisan.id)
+        if (newId) updates.set(p.id, newId)
+      }
+      if (updates.size === 0) return
+      setItems((prev) => {
+        const next = prev.map((p) => updates.has(p.id) ? { ...p, supabase_id: updates.get(p.id) } : p)
+        try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
+        return next
+      })
+    })()
+  }, [artisan?.id, items, storageKey])
+
   function persist(next: Prestation[]) {
     setItems(next)
     if (artisan?.id) {
@@ -346,7 +424,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     setModal(true)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()) return
     const price = {
       min: form.price.min,
@@ -366,17 +444,45 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
     const description = form.type === 'prest' && form.description?.trim() ? form.description.trim() : undefined
 
+    // Ferme la modale immédiatement — la sync Supabase est non-bloquante
+    setModal(false)
+
     if (editing) {
-      persist(items.map((i) => i.id === editing.id ? { ...i, ...form, price, priceAchat, etapes, description } : i))
+      const updated: Prestation = { ...editing, ...form, price, priceAchat, etapes, description }
+      persist(items.map((i) => i.id === editing.id ? updated : i))
+      if (artisan?.id && updated.type === 'prest') {
+        const supabase_id = await upsertPrestationToSupabase(updated, artisan.id)
+        if (supabase_id && supabase_id !== updated.supabase_id) {
+          setItems((prev) => {
+            const next = prev.map((p) => p.id === updated.id ? { ...p, supabase_id } : p)
+            try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
+            return next
+          })
+        }
+      }
     } else {
       const nextId = Math.max(0, ...items.map((i) => i.id)) + 1
-      persist([...items, { id: nextId, ...form, price, priceAchat, etapes, description }])
+      const created: Prestation = { id: nextId, ...form, price, priceAchat, etapes, description }
+      persist([...items, created])
+      if (artisan?.id && created.type === 'prest') {
+        const supabase_id = await upsertPrestationToSupabase(created, artisan.id)
+        if (supabase_id) {
+          setItems((prev) => {
+            const next = prev.map((p) => p.id === created.id ? { ...p, supabase_id } : p)
+            try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
+            return next
+          })
+        }
+      }
     }
-    setModal(false)
   }
 
-  function handleDelete(id: number) {
+  async function handleDelete(id: number) {
+    const target = items.find((i) => i.id === id)
     persist(items.filter((i) => i.id !== id))
+    if (target?.supabase_id) {
+      await deletePrestationFromSupabase(target.supabase_id)
+    }
   }
 
   const currentLotLabel = availableLots.find((l) => l.key === activeLot)?.label || ''
