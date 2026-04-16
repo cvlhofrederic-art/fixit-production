@@ -1245,25 +1245,17 @@ export default function DevisFactureFormBTP({
 
       {/* ========== TOP BAR ========== */}
       <div className="devis-top-bar">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <span className="devis-top-title">
-              {docType === 'devis' ? 'Devis' : 'Facture proforma'}
-            </span>
-            <span className="dv-doc-type-switch" role="tablist">
-              <button type="button" className={docType === 'devis' ? 'active' : ''} onClick={() => setDocType('devis')}>Devis</button>
-              <button type="button" className={docType === 'facture' ? 'active' : ''} onClick={() => setDocType('facture')}>Facture proforma</button>
-            </span>
-          </div>
-          <span className="dv-doc-num">{docNumber}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span className="devis-top-title">
+            {docType === 'devis' ? 'Devis' : 'Facture proforma'}
+          </span>
+          <span className="dv-doc-type-switch" role="tablist">
+            <button type="button" className={docType === 'devis' ? 'active' : ''} onClick={() => setDocType('devis')}>Devis</button>
+            <button type="button" className={docType === 'facture' ? 'active' : ''} onClick={() => setDocType('facture')}>Facture proforma</button>
+          </span>
+          <span className="dv-doc-num" style={{ marginLeft: 0 }}>{docNumber}</span>
         </div>
         <div className="devis-top-right">
-          <button className="devis-top-btn" type="button" disabled={pdfLoading} onClick={() => generatePdf('preview')}>
-            {pdfLoading ? '…' : 'Aperçu PDF'}
-          </button>
-          <button className="devis-top-btn cta" type="button" disabled={saving} onClick={saveAndSend}>
-            {saving ? 'Enregistrement…' : 'Enregistrer le devis'}
-          </button>
         </div>
       </div>
 
