@@ -594,42 +594,38 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
             {/* Étapes — uniquement pour les prestations (injectées dans les devis) */}
             {form.type === 'prest' && (
-              <div style={{
-                marginTop: 8, marginBottom: 12, padding: '8px 10px',
-                background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6,
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>
-                    {isPt ? 'ETAPAS' : 'ÉTAPES'}
-                  </span>
+              <div className="prest-fg">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ margin: 0 }}>{isPt ? 'Etapas' : 'Étapes'}</label>
                   <button
                     type="button"
                     onClick={() => setLocalEtapes((prev) => [...prev, { label: '' }])}
-                    style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ fontSize: 10, color: '#F57C00', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                   >
                     + {isPt ? 'Adicionar' : 'Ajouter'}
                   </button>
                 </div>
                 {localEtapes.length === 0 && (
-                  <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: '4px 0' }}>
                     {isPt ? 'Nenhuma etapa. Clique + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
                   </div>
                 )}
                 {localEtapes.map((et, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 8px', marginBottom: 6 }}>
-                    <span style={{ color: '#999', fontSize: 11, fontWeight: 600, minWidth: 18 }}>{i + 1}.</span>
-                    <input
-                      type="text"
-                      value={et.label}
-                      placeholder={isPt ? 'Ex: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
-                      onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-                      style={{ flex: 1, fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '2px 0' }}
-                    />
+                  <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 6 }}>
+                    {/* Rectangle blanc : numéro + désignation (même style que Désignation) */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 9px' }}>
+                      <span style={{ color: '#999', fontSize: 11, fontWeight: 600, marginRight: 8, minWidth: 14 }}>{i + 1}.</span>
+                      <input
+                        type="text"
+                        value={et.label}
+                        placeholder={isPt ? 'Ex: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
+                        onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                        style={{ flex: 1, fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', width: '100%', fontFamily: 'inherit' }}
+                      />
+                    </div>
+                    {/* Petit carré prix */}
                     <div title={isPt ? 'Preço opcional por etapa' : 'Prix optionnel par étape'}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#FFF8E6', border: '1px solid #FFE082', borderRadius: 4, padding: '3px 6px' }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, color: '#B26A00', letterSpacing: 0.3, textTransform: 'uppercase' }}>
-                        {isPt ? 'Preço' : 'Prix'}
-                      </span>
+                      style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 8px', width: 108 }}>
                       <input
                         type="number"
                         min={0}
@@ -637,24 +633,24 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                         value={et.price ?? ''}
                         placeholder="0"
                         onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, price: e.target.value ? parseFloat(e.target.value) : undefined } : x)))}
-                        style={{ width: 54, fontSize: 12, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: 0, textAlign: 'right' }}
+                        style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
                       />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#B26A00' }}>€ HT</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.3 }}>€ HT</span>
                     </div>
                     <button
                       type="button"
                       aria-label={isPt ? 'Remover etapa' : 'Supprimer étape'}
                       onClick={() => setLocalEtapes((prev) => prev.filter((_, j) => j !== i))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#c00', padding: 2 }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#c00', padding: '0 4px' }}
                     >
                       ✕
                     </button>
                   </div>
                 ))}
-                <div style={{ fontSize: 10, color: '#666', marginTop: 6, fontStyle: 'italic', lineHeight: 1.45 }}>
+                <div style={{ fontSize: 10, color: '#888', marginTop: 4, fontStyle: 'italic', lineHeight: 1.45 }}>
                   {isPt
-                    ? 'Etapas adicionadas automaticamente aos orçamentos. O preço por etapa é opcional — deixe em branco para não detalhar.'
-                    : 'Étapes ajoutées automatiquement aux devis. Le prix par étape est optionnel — laissez vide pour ne pas détailler.'}
+                    ? 'Etapas adicionadas automaticamente aos orçamentos. Preço por etapa opcional — deixe em branco para não detalhar.'
+                    : 'Étapes ajoutées automatiquement aux devis. Prix par étape optionnel — laissez vide pour ne pas détailler.'}
                 </div>
               </div>
             )}
