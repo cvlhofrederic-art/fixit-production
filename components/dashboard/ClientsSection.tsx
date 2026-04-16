@@ -254,7 +254,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       <div className="v5-fade">
         {/* Modal — reuse same modal for v5 */}
         {showModal && (
-          <div className="v5-modal-ov">
+          <div className="v5-modal-ov show">
             <div className="v5-modal" style={{ maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
               <div className="v5-modal-h">
                 <span className="v5-modal-t">

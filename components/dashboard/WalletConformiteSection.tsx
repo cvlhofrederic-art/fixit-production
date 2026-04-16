@@ -664,7 +664,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
 
         {/* Upload picker modal */}
         {showUploadModal === '_pick' && (
-          <div className="v5-modal-ov" onClick={() => setShowUploadModal(null)}>
+          <div className="v5-modal-ov show" onClick={() => setShowUploadModal(null)}>
             <div className="v5-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
               <div className="v5-modal-h">
                 <span style={{ fontWeight: 600, fontSize: 13 }}>+ {t('proDash.wallet.ajouter')}</span>

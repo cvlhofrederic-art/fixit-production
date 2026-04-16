@@ -424,7 +424,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
 
       {/* Modal ajout contact */}
       {showAddContact && (
-        <div className="v5-modal-ov">
+        <div className="v5-modal-ov show">
           <div className="v5-modal" style={{ width: '100%', maxWidth: 420 }}>
             <div className="v5-modal-h">
               <div className="v5-modal-t">📡 Ajouter un contact</div>

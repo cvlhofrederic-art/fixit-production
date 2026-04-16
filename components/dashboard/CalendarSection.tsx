@@ -442,7 +442,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Modal: New RDV */}
         {showNewRdv && (
-          <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => setShowNewRdv(false)}>
+          <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'} onClick={() => setShowNewRdv(false)}>
             <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520, maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
               <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
                 <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Nouveau rendez-vous</span>
@@ -514,7 +514,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Modal: Absence */}
         {showAbsenceModal && (
-          <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => setShowAbsenceModal(false)}>
+          <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'} onClick={() => setShowAbsenceModal(false)}>
             <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 440 }} onClick={(e) => e.stopPropagation()}>
               <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
                 <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Ajouter une absence</span>
@@ -573,7 +573,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Modal: Booking Detail */}
         {showBookingDetail && selectedBooking && (
-          <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }}>
+          <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'} onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }}>
             <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
               <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
                 <div>

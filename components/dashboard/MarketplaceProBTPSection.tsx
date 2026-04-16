@@ -138,7 +138,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
   }
 
   return (
-    <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'}>
+    <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'}>
       <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ maxWidth: 520 }}>
         <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
           <div className={isV5 ? 'v5-modal-t' : 'v22-modal-title'} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Send size={16} /> {isPt ? 'Contactar vendedor' : 'Contacter le vendeur'}</div>
@@ -844,7 +844,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
       {/* Modal confirmation suppression */}
       {confirmDeleteId && (
-        <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'}>
+        <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'}>
           <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ maxWidth: 400 }}>
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
               <div className={isV5 ? 'v5-modal-t' : 'v22-modal-title'} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
