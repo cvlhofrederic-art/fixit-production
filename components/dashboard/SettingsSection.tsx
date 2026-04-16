@@ -663,7 +663,7 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
                         display: 'flex', alignItems: 'center', gap: 10,
                       }}
                     >
-                      <span style={{ fontWeight: 700, color: '#F57C00', minWidth: 26 }}>{d.code}</span>
+                      <span style={{ fontWeight: 700, color: '#222', minWidth: 26 }}>{d.code}</span>
                       <span style={{ color: '#222', fontSize: 13 }}>{d.nom}</span>
                       <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{region}</span>
                       {already && <span style={{ fontSize: 10, color: '#888' }}>✓</span>}

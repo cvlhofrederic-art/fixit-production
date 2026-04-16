@@ -472,8 +472,8 @@
 
 /* Selected items container */
 .set-selected-box { display: none; flex-wrap: wrap; gap: .4rem; padding: .65rem; background: #F5F5F5; border: 1px solid #E8E8E8; border-radius: 4px; min-height: 36px; }
-.set-selected-box.has-items { display: flex; background: var(--v5-highlight-yellow); border-color: var(--v5-yellow-light); }
-.set-zone-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: #fff; border: 1px solid #FFE082; border-radius: 10px; font-size: 11px; font-weight: 500; color: #8B7D00; }
+.set-selected-box.has-items { display: flex; background: #fff; border-color: #E0E0E0; }
+.set-zone-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: #fff; border: 1px solid #E0E0E0; border-radius: 10px; font-size: 11px; font-weight: 500; color: #333; }
 .set-zone-tag-remove { cursor: pointer; font-weight: 700; opacity: .6; transition: opacity .2s; background: none; border: none; padding: 0; font-size: 12px; color: inherit; }
 .set-zone-tag-remove:hover { opacity: 1; }
 
