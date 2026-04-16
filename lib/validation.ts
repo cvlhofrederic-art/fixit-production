@@ -255,6 +255,12 @@ export const artisanSettingsPostSchema = z.object({
   auto_reply_message: z.string().max(1000).optional(),
   auto_block_duration_minutes: z.number().int().min(0).max(480).optional(),
   zone_radius_km: z.number().min(0).max(500).optional(),
+  intervention_zones: z.object({
+    regions: z.array(z.string().max(80)).max(20).optional(),
+    departments: z.array(z.string().max(80)).max(110).optional(),
+    cities: z.array(z.string().max(100)).max(200).optional(),
+  }).optional(),
+  language: z.enum(['fr', 'pt', 'en']).optional(),
 })
 
 // ── Syndic Mission creation schema ───────────────────────────────────────────

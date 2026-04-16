@@ -44,6 +44,38 @@ import { BookingForm } from '@/components/artisan-profile/BookingForm'
 
 type Step = 'profile' | 'motif' | 'calendar'
 
+// Formate la zone d'intervention affichée publiquement.
+// Priorité : intervention_zones (nouveau modèle régions / départements / villes)
+// → fallback ville + rayon (ancien modèle zone_radius_km).
+function formatInterventionZone(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  artisan: any,
+  isPt: boolean,
+  t: (fr: string, pt: string) => string
+): string {
+  const zones = artisan?.intervention_zones as
+    | { regions?: string[]; departments?: string[]; cities?: string[] }
+    | undefined
+  const regions = Array.isArray(zones?.regions) ? zones!.regions : []
+  const departments = Array.isArray(zones?.departments) ? zones!.departments : []
+  const cities = Array.isArray(zones?.cities) ? zones!.cities : []
+  const total = regions.length + departments.length + cities.length
+  if (total > 0) {
+    // Format compact : jusqu'à 3 éléments, puis "+N autres"
+    const items: string[] = []
+    for (const r of regions) items.push(r)
+    for (const d of departments) items.push(d)
+    for (const c of cities) items.push(c)
+    if (items.length <= 3) return items.join(' · ')
+    const remaining = items.length - 3
+    return `${items.slice(0, 3).join(' · ')} ${t(`+ ${remaining} autres`, `+ ${remaining} outros`)}`
+  }
+  // Fallback ancien modèle
+  const city = artisan?.company_city || artisan?.city || (isPt ? 'Porto' : 'La Ciotat')
+  const radius = artisan?.zone_radius_km || 30
+  return `${city} — ${t('rayon', 'raio')} ${radius} km`
+}
+
 export default function ArtisanProfilePage() {
   const params = useParams()
   const router = useRouter()
@@ -191,6 +223,22 @@ export default function ArtisanProfilePage() {
 
     if (!artisanData) { setLoading(false); return }
     const artisanId = artisanData.id
+
+    // Redirection vers l'URL canonique des sociétés : /{lang}/societe|empresa/<slug>.
+    // Les sociétés (SARL, SAS, SASU, EURL, SA) sont servies sous /societe/<slug>,
+    // les artisans individuels restent sous /artisan/<slug>. Cela ne s'applique
+    // qu'aux accès par UUID : si l'utilisateur est déjà sur un slug, pas de
+    // redirection (évite les boucles entre /societe/<slug> et /artisan/<slug>).
+    if (typeof window !== 'undefined' && isUuid && artisanData.slug) {
+      const legalFormNorm = String(artisanData.legal_form || '').replace(/[\s.]/g, '').toLowerCase()
+      const companyForms = ['sarl', 'sas', 'sasu', 'eurl', 'sa', 'lda', 'unipessoal']
+      const isCompany = companyForms.some((f) => legalFormNorm === f || legalFormNorm.startsWith(f))
+      if (isCompany) {
+        const targetBase = locale === 'pt' ? '/pt/empresa/' : '/fr/societe/'
+        router.replace(targetBase + artisanData.slug)
+        return
+      }
+    }
 
     const { data: servicesData } = await supabase
       .from('services')
@@ -612,9 +660,7 @@ export default function ArtisanProfilePage() {
                   </div>
                   <div className="flex items-center gap-2 opacity-90">
                     <MapPin className="w-4 h-4" />
-                    <span>
-                      {artisan.city || (isPt ? 'Porto' : 'La Ciotat')} - {artisan.zone_radius_km || 30} {t('km de rayon d\'intervention', 'km de raio de atuação')}
-                    </span>
+                    <span>{formatInterventionZone(artisan, isPt, t)}</span>
                   </div>
                 </div>
               </div>
@@ -753,7 +799,7 @@ export default function ArtisanProfilePage() {
                         </div>
                         <div>
                           <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Zone d\'intervention', 'Zona de atuação')}</div>
-                          <div className="font-semibold text-gray-900">{artisan.company_city || artisan.city || (isPt ? 'Porto' : 'La Ciotat')} — {t('rayon', 'raio')} {artisan.zone_radius_km || 30} km</div>
+                          <div className="font-semibold text-gray-900">{formatInterventionZone(artisan, isPt, t)}</div>
                         </div>
                       </div>
                     </div>

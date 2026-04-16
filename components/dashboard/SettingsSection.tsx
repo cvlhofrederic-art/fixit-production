@@ -421,7 +421,7 @@ const FR_REGIONS = [
   'Provence-Alpes-Côte d\'Azur',
 ]
 
-function ZonesInterventionCard({ isV5 }: { isV5: boolean }) {
+function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?: string }) {
   const [mode, setMode] = useState<'region' | 'dept' | 'city'>('region')
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
   const [selectedDepts, setSelectedDepts] = useState<string[]>([])
@@ -429,32 +429,78 @@ function ZonesInterventionCard({ isV5 }: { isV5: boolean }) {
   const [citySearch, setCitySearch] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Chargement : DB en priorité, fallback localStorage (ancien modèle)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('vitfix_intervention_zones')
-      if (raw) {
-        const d = JSON.parse(raw)
-        if (Array.isArray(d.regions)) setSelectedRegions(d.regions)
-        if (Array.isArray(d.depts)) setSelectedDepts(d.depts)
-        if (Array.isArray(d.cities)) setSelectedCities(d.cities)
+    let cancelled = false
+    const loadFromLocal = () => {
+      try {
+        const raw = localStorage.getItem('vitfix_intervention_zones')
+        if (raw) {
+          const d = JSON.parse(raw)
+          if (Array.isArray(d.regions)) setSelectedRegions(d.regions)
+          if (Array.isArray(d.depts)) setSelectedDepts(d.depts)
+          if (Array.isArray(d.cities)) setSelectedCities(d.cities)
+        }
+      } catch { /* silent */ }
+    }
+    if (!artisanId) { loadFromLocal(); return }
+    ;(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles_artisan')
+          .select('intervention_zones')
+          .eq('id', artisanId)
+          .single()
+        if (cancelled) return
+        const zones = data?.intervention_zones
+        if (!error && zones && (Array.isArray(zones.regions) || Array.isArray(zones.departments) || Array.isArray(zones.cities))) {
+          setSelectedRegions(Array.isArray(zones.regions) ? zones.regions : [])
+          setSelectedDepts(Array.isArray(zones.departments) ? zones.departments : [])
+          setSelectedCities(Array.isArray(zones.cities) ? zones.cities : [])
+        } else {
+          loadFromLocal()
+        }
+      } catch {
+        loadFromLocal()
       }
-    } catch { /* silent */ }
-  }, [])
+    })()
+    return () => { cancelled = true }
+  }, [artisanId])
 
   const toggleRegion = (r: string) => {
     setSelectedRegions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
   }
   const removeRegion = (r: string) => setSelectedRegions(prev => prev.filter(x => x !== r))
 
-  const save = () => {
+  const save = async () => {
     setSaving(true)
+    // Mirror localStorage pour compat / offline
     try {
       localStorage.setItem('vitfix_intervention_zones', JSON.stringify({
         regions: selectedRegions, depts: selectedDepts, cities: selectedCities,
       }))
-      toast.success('Zones d\'intervention enregistrées')
+    } catch { /* silent */ }
+    // Persiste en DB : rend la zone visible sur la fiche publique
+    try {
+      const res = await fetch('/api/artisan-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intervention_zones: {
+            regions: selectedRegions,
+            departments: selectedDepts,
+            cities: selectedCities,
+          },
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error || 'Erreur lors de la sauvegarde')
+      } else {
+        toast.success('Zones d\'intervention enregistrées')
+      }
     } catch {
-      toast.error('Erreur lors de la sauvegarde')
+      toast.error('Erreur réseau lors de la sauvegarde')
     }
     setSaving(false)
   }
@@ -1015,7 +1061,7 @@ export default function SettingsSection({
             </div>
 
             {/* Zones d'intervention — nouvelle feature matching HTML */}
-            <ZonesInterventionCard isV5={isV5} />
+            <ZonesInterventionCard isV5={isV5} artisanId={artisan?.id} />
           </div>
         </div>
       </div>

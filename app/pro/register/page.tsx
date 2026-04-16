@@ -350,7 +350,8 @@ function FormulaireArtisan() {
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
-        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', first_name: formData.prenom, last_name: formData.nom, phone: formData.telephone, email: formData.email, country: artisanCountry }
+        const artisanLanguage = artisanCountry === 'PT' ? 'pt' : 'fr'
+        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', first_name: formData.prenom, last_name: formData.nom, phone: formData.telephone, email: formData.email, country: artisanCountry, language: artisanLanguage }
         if (verifiedCompany) Object.assign(profileInsert, { legal_form: verifiedCompany.legalForm, siren: verifiedCompany.siren, naf_code: verifiedCompany.nafCode, naf_label: verifiedCompany.nafLabel, company_address: verifiedCompany.address, company_city: verifiedCompany.city, company_postal_code: verifiedCompany.postalCode })
         const { data: profileData, error: profileError } = await supabase.from('profiles_artisan').insert(profileInsert).select('id').single()
         if (profileError) { setError(profileError.message); setLoading(false); return }
@@ -864,6 +865,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         try {
           const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
           const btpCountry = localeCookie === 'pt' ? 'PT' : 'FR'
+          const btpLanguage = btpCountry === 'PT' ? 'pt' : 'fr'
           const btpMarket = orgType === 'societe_btp' ? 'fr_btp' : 'fr_artisan'
           const { data: btpProfile } = await supabase.from('profiles_artisan').insert({
             user_id: authData.user.id,
@@ -874,6 +876,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             company_name: company?.name || form.companyName || '',
             siret: siretInput.replace(/\s/g, ''),
             country: btpCountry,
+            language: btpLanguage,
             kyc_status: 'pending',
             kyc_market: btpMarket,
             verified: false,

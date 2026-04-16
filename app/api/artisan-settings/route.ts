@@ -14,6 +14,7 @@ const COLUMNS_CHECK_TTL = 5 * 60 * 1000 // re-check toutes les 5 min
 const SETTINGS_FIELDS = [
   'company_name', 'bio', 'phone', 'email', 'slug',
   'auto_reply_message', 'auto_block_duration_minutes', 'zone_radius_km',
+  'intervention_zones', 'language',
 ]
 
 async function getExistingColumns(supabaseAdmin: typeof import('@/lib/supabase-server')['supabaseAdmin']): Promise<Set<string>> {
@@ -65,7 +66,8 @@ export async function POST(request: NextRequest) {
     }
     const {
       company_name, bio, phone, email,
-      auto_reply_message, auto_block_duration_minutes, zone_radius_km
+      auto_reply_message, auto_block_duration_minutes, zone_radius_km,
+      intervention_zones, language,
     } = settingsValidation.data
 
     // Déterminer quelles colonnes existent en base
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
     const fields: Record<string, any> = {
       company_name, bio, phone, email, slug,
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
+      intervention_zones, language,
     }
 
     for (const [key, value] of Object.entries(fields)) {
