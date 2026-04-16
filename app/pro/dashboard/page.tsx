@@ -403,10 +403,26 @@ function DashboardPage() {
     setSidebarOpen(false)
   }, [transformBookingToDevis, navigateTo])
 
-  // ── Wrap convertDevisToFacture to also navigate ──
+  // ── Devis → Facture : confirmation modal + deferred navigation ──
+  const [showFactureConvModal, setShowFactureConvModal] = useState(false)
+  const pendingConvDevisRef = useRef<Record<string, unknown> | null>(null)
+
   const handleConvertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
-    convertDevisToFacture(devis)
+    pendingConvDevisRef.current = devis
+    setShowFactureConvModal(true)
+  }, [])
+
+  const handleGoToConvertedFacture = useCallback(() => {
+    const devis = pendingConvDevisRef.current
+    setShowFactureConvModal(false)
+    if (!devis) return
+    // 1. Navigate first (this resets showFactureForm to false)
     navigateTo('factures')
+    // 2. Re-open the form with the devis data on next tick
+    setTimeout(() => {
+      convertDevisToFacture(devis)
+      pendingConvDevisRef.current = null
+    }, 60)
   }, [convertDevisToFacture, navigateTo])
 
   const handleLogout = async () => {
@@ -1541,6 +1557,48 @@ function DashboardPage() {
                   {t('common.send')}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal : Devis → Facture transformation success ── */}
+      {showFactureConvModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowFactureConvModal(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', textAlign: 'center' }}
+          >
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            </div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#111' }}>
+              {isPt ? 'Orçamento convertido em fatura' : 'Devis transformé en facture'}
+            </h3>
+            <p style={{ margin: '0 0 22px', fontSize: 14, color: '#555', lineHeight: 1.5 }}>
+              {isPt ? 'A sua fatura está pronta. Pode revê-la antes de enviar.' : 'Votre devis a bien été transformé en facture. Vous pouvez la relire avant de l\u2019envoyer.'}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setShowFactureConvModal(false)}
+                style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E0E0E0', background: '#fff', color: '#555', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+              >
+                {isPt ? 'Fechar' : 'Fermer'}
+              </button>
+              <button
+                type="button"
+                onClick={handleGoToConvertedFacture}
+                style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#FFC107', color: '#111', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+                autoFocus
+              >
+                {isPt ? 'Ir para a fatura' : 'Aller à la facture'}
+              </button>
             </div>
           </div>
         </div>
