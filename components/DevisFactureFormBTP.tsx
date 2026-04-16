@@ -1058,7 +1058,7 @@ export default function DevisFactureFormBTP({
         .dv-row { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: .85rem; }
         .dv-row.col3 { grid-template-columns: 1fr 1fr 1fr; }
         .dv-row.col1 { grid-template-columns: 1fr; }
-        .dv-fg { display: flex; flex-direction: column; gap: 3px; }
+        .dv-fg { display: flex; flex-direction: column; gap: 6px; }
         .dv-fg label { font-size: 11px; font-weight: 600; color: #444; }
         .dv-fg label .req { color: #E53935; }
         .dv-fg input, .dv-fg select, .dv-fg textarea {
@@ -1202,18 +1202,22 @@ export default function DevisFactureFormBTP({
         .dvbtp-modal-btn.primary { background: var(--primary-yellow); border-color: var(--primary-yellow); color: #333; }
       `}</style>
 
+      {/* ========== RETOUR ========== */}
+      <button className="devis-back" onClick={onBack} type="button">← Retour</button>
+
       {/* ========== TOP BAR ========== */}
       <div className="devis-top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <button className="devis-back" onClick={onBack} type="button">← Retour</button>
-          <span className="devis-top-title">
-            {docType === 'devis' ? 'Nouveau devis' : 'Nouvelle facture proforma'}
-          </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <span className="devis-top-title">
+              {docType === 'devis' ? 'Devis' : 'Facture proforma'}
+            </span>
+            <span className="dv-doc-type-switch" role="tablist">
+              <button type="button" className={docType === 'devis' ? 'active' : ''} onClick={() => setDocType('devis')}>Devis</button>
+              <button type="button" className={docType === 'facture' ? 'active' : ''} onClick={() => setDocType('facture')}>Facture proforma</button>
+            </span>
+          </div>
           <span className="dv-doc-num">{docNumber}</span>
-          <span className="dv-doc-type-switch" role="tablist">
-            <button type="button" className={docType === 'devis' ? 'active' : ''} onClick={() => setDocType('devis')}>Devis</button>
-            <button type="button" className={docType === 'facture' ? 'active' : ''} onClick={() => setDocType('facture')}>Facture proforma</button>
-          </span>
         </div>
         <div className="devis-top-right">
           <button className="devis-top-btn" type="button" disabled={pdfLoading} onClick={() => generatePdf('preview')}>
