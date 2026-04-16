@@ -300,7 +300,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const boxX_dest = mL + emBoxW + gapBoxes
   const boxStartY = y
   const boxPadX = ptToMm(11)  // ~3.88mm padding intérieur
-  const boxPadTop = ptToMm(8)  // ~2.82mm padding top
+  const boxPadTop = ptToMm(12)  // ~4.23mm padding top (plus aéré)
 
   // ── Mesure hauteur émetteur ──
   let ey = boxStartY + boxPadTop
@@ -348,15 +348,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const companyNameWithStatus = `${companyName} (${getStatusLabel(companyStatus, t)})`
   const nameLines = pdf.splitTextToSize(companyNameWithStatus, emMaxW)
   pdf.text(nameLines, emTx, ey2)
-  ey2 += nameLines.length * ptToMm(14)
+  ey2 += nameLines.length * ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
-  if (companyRCS) {
-    let rmRaw = companyRCS.trim()
-    if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
-    const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
-    pdf.text(rmDisplay, emTx, ey2); ey2 += ptToMm(14)
-  }
+  // Ordre : Adresse → Tél → Email → SIRET → RCS → TVA → APE → Capital
   if (companyAddress) {
     const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
     const addrText = `Adresse : ${addrNorm}`
@@ -369,6 +363,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
   if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
+  if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
+  if (companyRCS) {
+    let rmRaw = companyRCS.trim()
+    if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
+    const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
+    pdf.text(rmDisplay, emTx, ey2); ey2 += ptToMm(14)
+  }
   if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyAPE) { pdf.text(`APE / NAF : ${companyAPE}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey2); ey2 += ptToMm(14) }
@@ -380,10 +381,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   dy3 += ptToMm(18)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   pdf.text(clientName || '---', destTx, dy3)
-  dy3 += ptToMm(14)
+  dy3 += ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  // Même ordre que ÉMETTEUR : Nom → SIRET → Adresse → Intervention → Tél → Email
-  if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+  // Ordre : Adresse → Intervention → Tél → Email → SIRET (même logique que ÉMETTEUR)
   if (clientAddress) {
     const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
     pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
@@ -409,6 +409,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
+  if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
 
   y = boxStartY + boxH + 4
 
