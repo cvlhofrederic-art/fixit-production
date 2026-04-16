@@ -548,7 +548,7 @@
 .devis-create .dv-presta-table th { padding: 7px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; background: #FAFAFA; }
 .devis-create .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F5F5F5; vertical-align: middle; }
 .devis-create .dv-presta-table td:first-child { vertical-align: top; }
-.devis-create .dv-presta-table input, .devis-create .dv-presta-table select { padding: 6px 8px; border: 1px solid #E8E8E8; border-radius: 5px; font-size: 11px; font-family: inherit; width: 100%; background: #fff; box-sizing: border-box; }
+.devis-create .dv-presta-table input, .devis-create .dv-presta-table select { padding: 6px 8px; border: 1px solid #E8E8E8; border-radius: 5px; font-size: 11px; font-family: inherit; width: 100%; background: #fff; box-sizing: border-box; margin: 0; display: block; }
 .devis-create .dv-presta-table input:focus, .devis-create .dv-presta-table select:focus { outline: none; border-color: var(--v5-primary-yellow); }
 /* Numeric columns: QTÉ, PRIX HT — inputs centered under headers */
 .devis-create .dv-presta-table td:nth-child(2) input { text-align: center; }
