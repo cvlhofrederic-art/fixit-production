@@ -163,11 +163,20 @@ function norm(s: string): string {
 
 export function searchServices(query: string, locale: 'fr' | 'pt', limit = 10): ServiceSuggestion[] {
   const raw = query.trim()
-  if (raw.length < 1) return []
-  const q = norm(raw)
   const out: ServiceSuggestion[] = []
   const seen = new Set<string>()
 
+  // Sans requete : renvoie les 8 premieres categories (featured) pour montrer le dropdown au focus
+  if (raw.length < 1) {
+    for (const cat of SERVICE_KEYWORDS.slice(0, 8)) {
+      const list = locale === 'pt' ? cat.pt : cat.fr
+      if (!list.length) continue
+      out.push({ slug: cat.slug, label: list[0], match: list[0] })
+    }
+    return out.slice(0, limit)
+  }
+
+  const q = norm(raw)
   for (const cat of SERVICE_KEYWORDS) {
     const list = locale === 'pt' ? cat.pt : cat.fr
     if (!list.length) continue

@@ -204,7 +204,7 @@
     -webkit-appearance: none;
 }
 .formGroup select:focus,
-.formGroup input:focus { outline: none; border-color: #FFD600; }
+.formGroup input:focus { outline: none; border-color: #E0E0E0; }
 .btnSearch {
     width: 100%;
     background: #FFD600;
