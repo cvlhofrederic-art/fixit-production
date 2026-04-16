@@ -111,6 +111,10 @@ export interface PdfV3Input {
 
   // Lines & totals
   lines: ProductLine[]
+  // Optional split rendering: when present, the PDF renders two separate tables
+  // (Main d'oeuvre / Matériaux) instead of a single "lines" block.
+  laborLines?: ProductLine[]
+  materialLines?: ProductLine[]
   subtotalHT: number
   totalTTC: number
 
@@ -178,7 +182,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, subtotalHT, totalTTC,
+    lines, laborLines, materialLines, subtotalHT, totalTTC,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
     signatureData, attachedRapport, selectedPhotos,
@@ -503,80 +507,76 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
     : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
-  const tableBody = lines.filter(l => l.description.trim()).map(l => {
-    const unitStr = formatUnitForPdf(l.unit, l.customUnit)
-    const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
-    const parts = cleanDesc.split('\n')
-    const title = parts[0]
-    let detail = parts.slice(1).join('\n').trim()
+  const buildTableBody = (srcLines: ProductLine[]) => {
+    const body = srcLines.filter(l => l.description.trim()).map(l => {
+      const unitStr = formatUnitForPdf(l.unit, l.customUnit)
+      const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
+      const parts = cleanDesc.split('\n')
+      const title = parts[0]
+      let detail = parts.slice(1).join('\n').trim()
 
-    // If étapes exist as structured data, strip them from the description text
-    // to avoid duplication (description may contain étapes joined with ' → ')
-    if (l.etapes && l.etapes.length > 0) {
-      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-      if (sortedEtapes.length > 0) {
-        // Remove arrow-joined étapes string from detail if present
-        const etapeNames = sortedEtapes.map(e => e.designation.trim())
-        const arrowJoined = etapeNames.join(' → ')
-        if (detail === arrowJoined) {
-          detail = ''
-        } else if (detail.includes(arrowJoined)) {
-          detail = detail.replace(arrowJoined, '').trim()
+      // If étapes exist as structured data, strip them from the description text
+      // to avoid duplication (description may contain étapes joined with ' → ')
+      if (l.etapes && l.etapes.length > 0) {
+        const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+        if (sortedEtapes.length > 0) {
+          const etapeNames = sortedEtapes.map(e => e.designation.trim())
+          const arrowJoined = etapeNames.join(' → ')
+          if (detail === arrowJoined) {
+            detail = ''
+          } else if (detail.includes(arrowJoined)) {
+            detail = detail.replace(arrowJoined, '').trim()
+          }
         }
       }
-    }
 
-    // Build: title, then lineDetail (description), then étapes
-    // Lignes vides (« \n \n ») pour aérer chaque bloc dans la cellule.
-    const lineDetail = (l.lineDetail || '').trim()
-    let displayDesc = title
-    if (detail) displayDesc += `\n${detail}`
-    if (lineDetail) displayDesc += `\n \n${lineDetail}`
-    if (l.etapes && l.etapes.length > 0) {
-      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-      if (sortedEtapes.length > 0) {
-        // Pre-wrap étapes with hanging indent: continuation lines align
-        // under the first letter after "N. ", not under the number.
-        const descColW = contentW * 0.35 - 6 // minus cell padding (3mm each side)
-        pdf.setFontSize(10)
-        const etapeLines = sortedEtapes.map((e, i) => {
-          const prefix = `${i + 1}. `
-          const prefixW = pdf.getTextWidth(prefix)
-          // Append price if present
-          const priceSuffix = e.prixHT != null && e.prixHT > 0
-            ? ` — ${localeFormats.currencyFormat(e.prixHT)}`
-            : ''
-          const etapeText = e.designation + priceSuffix
-          // Wrap the designation text within the remaining width after prefix
-          const wrapped = pdf.splitTextToSize(etapeText, descColW - prefixW) as string[]
-          // Build indent string matching the prefix width
-          let indent = ''
-          while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '
-          return wrapped.map((line: string, li: number) =>
-            li === 0 ? `${prefix}${line}` : `${indent}${line}`
-          ).join('\n')
-        })
-        displayDesc += '\n \n' + etapeLines.join('\n')
+      // Build: title, then lineDetail (description), then étapes
+      const lineDetail = (l.lineDetail || '').trim()
+      let displayDesc = title
+      if (detail) displayDesc += `\n${detail}`
+      if (lineDetail) displayDesc += `\n \n${lineDetail}`
+      if (l.etapes && l.etapes.length > 0) {
+        const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+        if (sortedEtapes.length > 0) {
+          const descColW = contentW * 0.35 - 6
+          pdf.setFontSize(10)
+          const etapeLines = sortedEtapes.map((e, i) => {
+            const prefix = `${i + 1}. `
+            const prefixW = pdf.getTextWidth(prefix)
+            const unitSuffix = e.unit ? ` / ${formatUnitForPdf(e.unit)}` : ''
+            const priceSuffix = e.prixHT != null && e.prixHT > 0
+              ? ` — ${localeFormats.currencyFormat(e.prixHT)}${unitSuffix}`
+              : ''
+            const etapeText = e.designation + priceSuffix
+            const wrapped = pdf.splitTextToSize(etapeText, descColW - prefixW) as string[]
+            let indent = ''
+            while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '
+            return wrapped.map((line: string, li: number) =>
+              li === 0 ? `${prefix}${line}` : `${indent}${line}`
+            ).join('\n')
+          })
+          displayDesc += '\n \n' + etapeLines.join('\n')
+        }
       }
+      const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
+      if (tvaEnabled) row.push(`${l.tvaRate}%`)
+      row.push(localeFormats.currencyFormat(l.totalHT))
+      return row
+    })
+    if (body.length === 0) {
+      body.push(tvaEnabled
+        ? [t('devis.noLinesMessage'), '', '', '', '', '']
+        : [t('devis.noLinesMessage'), '', '', '', '']
+      )
     }
-    const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
-    if (tvaEnabled) row.push(`${l.tvaRate}%`)
-    row.push(localeFormats.currencyFormat(l.totalHT))
-    return row
-  })
-
-  if (tableBody.length === 0) {
-    tableBody.push(tvaEnabled
-      ? [t('devis.noLinesMessage'), '', '', '', '', '']
-      : [t('devis.noLinesMessage'), '', '', '', '']
-    )
+    return body
   }
 
   const colStyles: Record<number, { cellWidth: number; halign: string }> = {
     0: { cellWidth: contentW * 0.35, halign: 'left' },
     1: { cellWidth: contentW * 0.07, halign: 'center' },
     2: { cellWidth: contentW * 0.08, halign: 'center' },
-    3: { cellWidth: contentW * 0.19, halign: 'right' },
+    3: { cellWidth: contentW * 0.19, halign: 'center' },
   }
   if (tvaEnabled) {
     colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
@@ -589,7 +589,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     0: { halign: 'left' },
     1: { halign: 'center' },
     2: { halign: 'center' },
-    3: { halign: 'right' },
+    3: { halign: 'center' },
   }
   if (tvaEnabled) {
     headColStyles[4] = { halign: 'center' }
@@ -598,49 +598,74 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     headColStyles[4] = { halign: 'right' }
   }
 
-  autoTable(pdf, {
-    head: tableHead,
-    body: tableBody,
-    startY: y,
-    margin: { left: mL, right: mR },
-    showHead: 'firstPage',
-    theme: 'plain',
-    headStyles: {
-      fillColor: [13, 13, 13],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
-      halign: 'left',
-      minCellHeight: ptToMm(29),
-    },
-    bodyStyles: {
-      fontSize: 10,
-      cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
-      textColor: [13, 13, 13],
-      lineWidth: 0,
-      minCellHeight: ptToMm(32),
-    },
-    alternateRowStyles: { fillColor: [245, 245, 243] },
-    columnStyles: colStyles as any,
-    tableLineColor: [224, 224, 220],
-    tableLineWidth: 0,
-    didDrawPage: () => {},
-    didParseCell: (data: any) => {
-      if (data.section === 'head' && headColStyles[data.column.index]) {
-        data.cell.styles.halign = headColStyles[data.column.index].halign
-      }
-      const lastCol = tvaEnabled ? 5 : 4
-      if (data.section === 'body' && data.column.index === lastCol) {
-        data.cell.styles.fontStyle = 'bold'
-      }
-    },
-    willDrawCell: (data: any) => {
-      if (data.section === 'body' && data.row.index % 2 === 0) {
-        data.cell.styles.fillColor = [255, 255, 255]
-      }
-    },
-  })
+  const renderTable = (body: any[][], startY: number) => {
+    autoTable(pdf, {
+      head: tableHead,
+      body,
+      startY,
+      margin: { left: mL, right: mR },
+      showHead: 'firstPage',
+      theme: 'plain',
+      headStyles: {
+        fillColor: [13, 13, 13],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8,
+        cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
+        halign: 'left',
+        minCellHeight: ptToMm(29),
+      },
+      bodyStyles: {
+        fontSize: 10,
+        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+        textColor: [13, 13, 13],
+        lineWidth: 0,
+        minCellHeight: ptToMm(32),
+      },
+      alternateRowStyles: { fillColor: [245, 245, 243] },
+      columnStyles: colStyles as any,
+      tableLineColor: [224, 224, 220],
+      tableLineWidth: 0,
+      didDrawPage: () => {},
+      didParseCell: (data: any) => {
+        if (data.section === 'head' && headColStyles[data.column.index]) {
+          data.cell.styles.halign = headColStyles[data.column.index].halign
+        }
+        const lastCol = tvaEnabled ? 5 : 4
+        if (data.section === 'body' && data.column.index === lastCol) {
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+      willDrawCell: (data: any) => {
+        if (data.section === 'body' && data.row.index % 2 === 0) {
+          data.cell.styles.fillColor = [255, 255, 255]
+        }
+      },
+    })
+  }
+
+  const drawSectionLabel = (label: string) => {
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text(label, mL, y + ptToMm(10))
+    y += ptToMm(14)
+  }
+
+  // Dual table mode: render Main d'oeuvre + Matériaux separately when both arrays are provided and non-empty
+  const hasLabor = !!laborLines && laborLines.some(l => l.description.trim())
+  const hasMaterials = !!materialLines && materialLines.some(l => l.description.trim())
+  const dualMode = hasLabor && hasMaterials
+
+  if (dualMode) {
+    const laborLabel = locale === 'pt' ? 'Mão de obra' : "Main d'œuvre"
+    const materialLabel = locale === 'pt' ? 'Materiais' : 'Matériaux'
+    drawSectionLabel(laborLabel)
+    renderTable(buildTableBody(laborLines!), y)
+    y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
+    drawSectionLabel(materialLabel)
+    renderTable(buildTableBody(materialLines!), y)
+  } else {
+    renderTable(buildTableBody(lines), y)
+  }
 
   y = (pdf as any).lastAutoTable.finalY
 

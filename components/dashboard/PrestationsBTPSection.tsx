@@ -45,7 +45,7 @@ export interface Prestation {
   priceAchat?: PriceRange | null // matériaux : prix d'achat interne
   ref?: string           // référence produit (matériaux)
   supplier?: string      // fournisseur (matériaux)
-  etapes?: Array<{ label: string; price?: number }>  // étapes d'exécution (prestations) — injectées dans les devis
+  etapes?: Array<{ label: string; price?: number; unit?: string }>  // étapes d'exécution (prestations) — injectées dans les devis
 }
 
 /* ─────────────────────────── CATALOGUE DES LOTS ───────────────────────────
@@ -176,6 +176,33 @@ export const SEED_MAT: Omit<Prestation, 'id'>[] = [
   { name: "Béton prêt à l'emploi C25/30",    type: 'mat', lot: 'gros_oeuvre', unit: 'm³',  ref: 'Cemex',         supplier: 'Cemex',   priceAchat: { min: 115, max: 115 },   price: { min: 150, max: 170 } },
 ]
 
+/* ─────────────────────────── ÉTAPES : AUTO-PRIX + UNITÉ ───────────────────────────
+   Les étapes seed n'ont que label ; on calcule leur prix (part du prix mid
+   de la prestation parente) et leur unité (= unité du parent). Cohérence
+   garantie : la somme des prix d'étapes ≈ prix mid du parent.                     */
+const ETAPE_WEIGHTS: Record<number, number[]> = {
+  1: [1],
+  2: [0.4, 0.6],
+  3: [0.25, 0.5, 0.25],
+  4: [0.2, 0.3, 0.3, 0.2],
+  5: [0.15, 0.25, 0.3, 0.2, 0.1],
+}
+function enrichPrestationEtapes<T extends Omit<Prestation, 'id'>>(p: T): T {
+  if (p.type !== 'prest' || !p.etapes || p.etapes.length === 0) return p
+  const n = p.etapes.length
+  const weights = ETAPE_WEIGHTS[n] || Array(n).fill(1 / n)
+  const mid = (p.price.min + p.price.max) / 2
+  const enriched = p.etapes.map((e, i) => {
+    const et = typeof e === 'string' ? { label: e } : e
+    return {
+      label: et.label,
+      price: et.price != null ? et.price : Math.round(mid * weights[i] * 100) / 100,
+      unit: et.unit || p.unit,
+    }
+  })
+  return { ...p, etapes: enriched }
+}
+
 /* ─────────────────────────── HELPERS ─────────────────────────── */
 function formatPrice(v: number): string {
   const fixed = v < 10 && v % 1 !== 0 ? v.toFixed(2) : Math.round(v).toString()
@@ -223,8 +250,8 @@ function detectLotsFromArtisan(artisan: Artisan): LotDef[] {
 export default function PrestationsBTPSection({ artisan }: PrestationsBTPSectionProps) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  // v4 : étapes {label,price?} + prix 2026 SARL + unités corrigées + colonne TTC
-  const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
+  // v5 : étapes {label,price,unit} auto-dérivées du prix mid du parent
+  const storageKey = `fixit_prestations_btp_v5_${artisan?.id || 'guest'}`
 
   const [items, setItems] = useState<Prestation[]>([])
   const [cat, setCat] = useState<PrestType>('prest')
@@ -247,12 +274,12 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       if (saved) {
         setItems(JSON.parse(saved))
       } else {
-        const all = [...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
+        const all = [...SEED_PREST.map(enrichPrestationEtapes), ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
         setItems(all)
         try { localStorage.setItem(storageKey, JSON.stringify(all)) } catch (e) { console.warn('[prestations] seed', e) }
       }
     } catch {
-      setItems([...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p })))
+      setItems([...SEED_PREST.map(enrichPrestationEtapes), ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p })))
     }
   }, [artisan?.id, storageKey])
 
@@ -285,7 +312,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   })
   const [priceRange, setPriceRange] = useState(false)
   const [achatRange, setAchatRange] = useState(false)
-  const [localEtapes, setLocalEtapes] = useState<Array<{ label: string; price?: number }>>([])
+  const [localEtapes, setLocalEtapes] = useState<Array<{ label: string; price?: number; unit?: string }>>([])
 
   function openCreate() {
     setEditing(null)
@@ -330,7 +357,11 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       : null
 
     const etapes = form.type === 'prest'
-      ? localEtapes.map((e) => ({ label: e.label.trim(), ...(e.price != null && e.price > 0 ? { price: e.price } : {}) })).filter(e => e.label)
+      ? localEtapes.map((e) => ({
+          label: e.label.trim(),
+          ...(e.price != null && e.price > 0 ? { price: e.price } : {}),
+          ...(e.unit ? { unit: e.unit } : {}),
+        })).filter(e => e.label)
       : undefined
 
     const description = form.type === 'prest' && form.description?.trim() ? form.description.trim() : undefined
@@ -617,7 +648,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   <label style={{ margin: 0 }}>{isPt ? 'Etapas' : 'Étapes'}</label>
                   <button
                     type="button"
-                    onClick={() => setLocalEtapes((prev) => [...prev, { label: '' }])}
+                    onClick={() => setLocalEtapes((prev) => [...prev, { label: '', unit: form.unit }])}
                     style={{ fontSize: 10, color: '#F57C00', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                   >
                     + {isPt ? 'Adicionar' : 'Ajouter'}
@@ -629,21 +660,21 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   </div>
                 )}
                 {localEtapes.map((et, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 6 }}>
-                    {/* Rectangle blanc : numéro + désignation (même style que Désignation) */}
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 9px' }}>
-                      <span style={{ color: '#999', fontSize: 11, fontWeight: 600, marginRight: 8, minWidth: 14 }}>{i + 1}.</span>
+                  <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: 7, marginBottom: 7 }}>
+                    {/* Rectangle blanc : numéro + désignation (hauteur alignée sur le motif) */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 36 }}>
+                      <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{i + 1}.</span>
                       <input
                         type="text"
                         value={et.label}
                         placeholder={isPt ? 'Ex: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
                         onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-                        style={{ flex: 1, fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', width: '100%', fontFamily: 'inherit' }}
+                        style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '10px 0', width: '100%', fontFamily: 'inherit' }}
                       />
                     </div>
-                    {/* Petit carré prix */}
-                    <div title={isPt ? 'Preço opcional por etapa' : 'Prix optionnel par étape'}
-                      style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 8px', width: 108 }}>
+                    {/* Rectangle prix */}
+                    <div title={isPt ? 'Preço por etapa' : 'Prix par étape'}
+                      style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 10px', width: 116, minHeight: 36 }}>
                       <input
                         type="number"
                         min={0}
@@ -651,9 +682,20 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                         value={et.price ?? ''}
                         placeholder="0"
                         onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, price: e.target.value ? parseFloat(e.target.value) : undefined } : x)))}
-                        style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
+                        style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '10px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
                       />
                       <span style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.3 }}>€ HT</span>
+                    </div>
+                    {/* Rectangle unité */}
+                    <div title={isPt ? 'Unidade da etapa' : "Unité de l'étape"}
+                      style={{ display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 6px', width: 82, minHeight: 36 }}>
+                      <select
+                        value={et.unit || form.unit}
+                        onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)))}
+                        style={{ flex: 1, fontSize: 11.5, color: '#444', background: 'transparent', border: 'none', outline: 'none', padding: '10px 0', width: '100%', fontFamily: 'inherit', cursor: 'pointer' }}
+                      >
+                        {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
                     </div>
                     <button
                       type="button"
@@ -667,8 +709,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
                 <div style={{ fontSize: 10, color: '#888', marginTop: 4, fontStyle: 'italic', lineHeight: 1.45 }}>
                   {isPt
-                    ? 'Etapas adicionadas automaticamente aos orçamentos. Preço por etapa opcional — deixe em branco para não detalhar.'
-                    : 'Étapes ajoutées automatiquement aux devis. Prix par étape optionnel. Laissez vide pour ne pas détailler.'}
+                    ? 'Etapas adicionadas automaticamente aos orçamentos. Preço e unidade pré-calculados (coerentes com o preço global) — pode ajustar manualmente.'
+                    : 'Étapes ajoutées automatiquement aux devis. Prix et unité pré-calculés (cohérents avec le prix global). Vous pouvez les ajuster.'}
                 </div>
               </div>
             )}

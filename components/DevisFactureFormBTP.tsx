@@ -81,6 +81,21 @@ const UNITES_TABLEAU = [
 
 const TVA_RATES = [20, 10, 5.5, 0] as const
 
+// Mapping catalogue BTP → devis (identifiants courts). Partagé entre
+// l'aliment allServices et selectMotif (étapes).
+const UNIT_CATALOGUE_TO_DEVIS: Record<string, string> = {
+  'm²': 'm2', 'm2': 'm2', 'ml': 'ml', 'm': 'm', 'm³': 'm3', 'm3': 'm3',
+  'u': 'u', 'pce': 'pce', 'ens': 'ens', 'lot': 'lot', 'pt': 'pt',
+  'kg': 'kg', 't': 't', 'L': 'L', 'l': 'L',
+  'sac': 'sac', 'rl': 'rl', 'palette': 'palette', 'benne': 'benne', 'camion': 'camion',
+  'h': 'h', 'jour': 'j', 'j': 'j', 'semaine': 'sem', 'sem': 'sem',
+  'forfait': 'f', 'f': 'f',
+}
+function mapCatalogueUnit(u?: string): string {
+  if (!u) return 'u'
+  return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
+}
+
 const DECLENCHEURS_ACOMPTE = [
   'À la signature',
   'Au démarrage',
@@ -959,18 +974,27 @@ export default function DevisFactureFormBTP({
     if (serviceId.startsWith('btp_')) {
       // BTP prestation from localStorage — étapes are in the seed data
       try {
-        const raw = localStorage.getItem(`fixit_prestations_btp_v4_${artisan?.id || 'guest'}`)
+        // Try v5 first (with auto-computed étape prices/units), fall back to v4
+        const raw = localStorage.getItem(`fixit_prestations_btp_v5_${artisan?.id || 'guest'}`)
+          || localStorage.getItem(`fixit_prestations_btp_v4_${artisan?.id || 'guest'}`)
         if (raw) {
-          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: Array<string | { label: string; price?: number }> }>
+          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: Array<string | { label: string; price?: number; unit?: string }> }>
           const numId = parseInt(serviceId.replace('btp_', ''), 10)
           const prest = parsed.find(p => p.id === numId)
           if (prest?.description) prestDescription = prest.description
           if (prest?.etapes?.length) {
             copiedEtapes = prest.etapes.map((et, i) => {
-              // Backward compat: old format was string[], new is {label, price?}[]
+              // Backward compat: old format was string[], new is {label, price?, unit?}[]
               const label = typeof et === 'string' ? et : et.label
               const price = typeof et === 'string' ? undefined : et.price
-              return { id: `etape_${Date.now()}_${i}`, ordre: i + 1, designation: label, ...(price != null ? { prixHT: price } : {}) }
+              const unit = typeof et === 'string' ? undefined : et.unit
+              return {
+                id: `etape_${Date.now()}_${i}`,
+                ordre: i + 1,
+                designation: label,
+                ...(price != null ? { prixHT: price } : {}),
+                ...(unit ? { unit: mapCatalogueUnit(unit) } : {}),
+              }
             })
           }
         }
@@ -1060,6 +1084,8 @@ export default function DevisFactureFormBTP({
         paymentDue: paymentDelay || '30 jours',
         paymentCondition: escompte || '', discount: '', penaltyRate: penaltyRate || '', recoveryFee: recoveryFee || '', iban: '', bic: '',
         lines: validLines.length > 0 ? validLines : lines,
+        laborLines: validLabor,
+        materialLines: validMaterials,
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
         acomptesEnabled: acomptesEnabled || false,
@@ -1587,33 +1613,46 @@ export default function DevisFactureFormBTP({
                         )}
                         {/* Étapes */}
                         {l.etapes && l.etapes.length > 0 && (
-                          <div style={{ marginTop: 6, fontSize: 11 }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 5 }}>Étapes</div>
+                          <div style={{ marginTop: 8, fontSize: 12 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Étapes</div>
                             {l.etapes.map((et, ei) => (
-                              <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 5 }}>
-                                {/* Rectangle blanc : numéro + désignation */}
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 9px' }}>
-                                  <span style={{ color: '#999', fontSize: 11, fontWeight: 600, marginRight: 8, minWidth: 14 }}>{ei + 1}.</span>
+                              <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 7, marginBottom: 6 }}>
+                                {/* Rectangle blanc : numéro + désignation (hauteur cohérente avec le motif du haut) */}
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
+                                  <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{ei + 1}.</span>
                                   <input type="text" value={et.designation}
                                     placeholder="Ex : Diagnostic visuel"
-                                    style={{ flex: 1, fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', width: '100%', fontFamily: 'inherit' }}
+                                    style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit' }}
                                     onChange={(e) => {
                                       const newEtapes = [...(l.etapes || [])]
                                       newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
                                       updateLine(l.id, { etapes: newEtapes })
                                     }} />
                                 </div>
-                                {/* Petit carré prix */}
-                                <div title="Prix optionnel par étape"
-                                  style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 8px', width: 96 }}>
+                                {/* Rectangle prix */}
+                                <div title="Prix par étape"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 10px', width: 108, minHeight: 34 }}>
                                   <input type="number" min={0} step={0.01} value={et.prixHT ?? ''} placeholder="0"
-                                    style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
+                                    style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
                                     onChange={(e) => {
                                       const newEtapes = [...(l.etapes || [])]
                                       newEtapes[ei] = { ...newEtapes[ei], prixHT: e.target.value ? parseFloat(e.target.value) : undefined }
                                       updateLine(l.id, { etapes: newEtapes })
                                     }} />
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.3 }}>€ HT</span>
+                                </div>
+                                {/* Rectangle unité */}
+                                <div title="Unité de l'étape"
+                                  style={{ display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 6px', width: 78, minHeight: 34 }}>
+                                  <select value={et.unit || l.unit || 'u'}
+                                    style={{ flex: 1, fontSize: 11.5, color: '#444', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit', cursor: 'pointer' }}
+                                    onChange={(e) => {
+                                      const newEtapes = [...(l.etapes || [])]
+                                      newEtapes[ei] = { ...newEtapes[ei], unit: e.target.value }
+                                      updateLine(l.id, { etapes: newEtapes })
+                                    }}>
+                                    {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.value}</option>)}
+                                  </select>
                                 </div>
                                 <button type="button" aria-label="Supprimer étape"
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#c00', padding: '0 4px' }}
@@ -1622,7 +1661,7 @@ export default function DevisFactureFormBTP({
                             ))}
                             <button type="button"
                               style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
-                              onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                              onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '', unit: l.unit || 'u' }] })}>
                               + étape
                             </button>
                           </div>

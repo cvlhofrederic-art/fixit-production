@@ -102,12 +102,12 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     let text: string
     if (isPt) {
       text = isSociete
-        ? `Vitfix Pro — gestão de obras & orçamentos para empresas de construção. 1 mês oferecido : ${stats.referral_link}`
-        : `Junta-te ao VITFIX com 1 mês grátis : ${stats.referral_link}`
+        ? `Vitfix Pro — gestão de obras & orçamentos. Após a 1ª mensalidade, o 2º mês é oferecido : ${stats.referral_link}`
+        : `Junta-te ao VITFIX : após pagar o 1º mês, o 2º é grátis ${stats.referral_link}`
     } else {
       text = isSociete
-        ? `Vitfix Pro — gestion chantiers & devis pour entreprises BTP. 1 mois offert : ${stats.referral_link}`
-        : `Rejoins VITFIX avec 1 mois gratuit : ${stats.referral_link}`
+        ? `Vitfix Pro — gestion chantiers & devis BTP. Après le 1er mois payé, le 2ᵉ est offert : ${stats.referral_link}`
+        : `Rejoins VITFIX : 1er mois payé, 2ᵉ mois offert ${stats.referral_link}`
     }
     window.open(`sms:?body=${encodeURIComponent(text)}`, '_blank')
   }
