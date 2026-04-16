@@ -1120,7 +1120,7 @@ export default function DevisFactureFormBTP({
         /* Tableau prestations */
         .dv-presta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .6rem; table-layout: fixed; }
         .dv-presta-table th { text-align: left; padding: 6px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; white-space: nowrap; }
-        .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F0F0F0; vertical-align: middle; }
+        .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F0F0F0; vertical-align: top; }
         .dv-presta-table input, .dv-presta-table select { padding: 6px 8px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; width: 100%; }
         .dv-presta-table input:focus, .dv-presta-table select:focus { outline: none; border-color: var(--primary-yellow); }
         .dv-presta-table td.amount { font-weight: 600; text-align: right; color: #1a1a1a; font-variant-numeric: tabular-nums; }
