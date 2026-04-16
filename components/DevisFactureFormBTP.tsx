@@ -1144,6 +1144,11 @@ export default function DevisFactureFormBTP({
         .dv-fg textarea { min-height: 70px; resize: vertical; }
         .dv-fg input::placeholder, .dv-fg textarea::placeholder { color: #BBB; }
 
+        /* Masquer les flèches spinner des inputs number */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
         /* Alertes */
         .dv-alert { padding: .7rem 1rem; border-radius: 6px; font-size: 12px; line-height: 1.5; margin-bottom: 1rem; }
         .dv-alert.green  { background: #E8F5E9; color: #2E7D32; border-left: 3px solid #4CAF50; }
