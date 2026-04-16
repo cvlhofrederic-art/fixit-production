@@ -394,10 +394,10 @@ export default function HomePage() {
             <div className={s.reviewStars}>★★★★★</div>
             <p className={s.reviewText}>{`« ${t('home.review1Text') || "Super rapide, j'ai trouvé un plombier en 30 minutes pour une fuite urgente. L'artisan était ponctuel, professionnel et le prix correspondait exactement au devis."} »`}</p>
             <div className={s.reviewAuthor}>
-              <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>ML</div>
+              <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>{isPt ? 'TC' : 'CM'}</div>
               <div>
-                <div className={s.reviewName}>Marie L.</div>
-                <div className={s.reviewMeta}>{isPt ? 'Canalização — Porto' : 'Plomberie — Marseille 13006'}</div>
+                <div className={s.reviewName}>{isPt ? 'Telmo C.' : 'Claire M.'}</div>
+                <div className={s.reviewMeta}>📍 {isPt ? 'Porto' : 'Marseille 13006'}</div>
                 <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
               </div>
             </div>
@@ -406,22 +406,22 @@ export default function HomePage() {
             <div className={s.reviewStars}>★★★★★</div>
             <p className={s.reviewText}>{`« ${t('home.review2Text') || "J'utilise Vitfix depuis 6 mois pour tous mes travaux. La réservation en ligne c'est vraiment pratique, plus besoin de courir après les artisans par téléphone."} »`}</p>
             <div className={s.reviewAuthor}>
-              <div className={s.reviewAvatar} style={{ background: '#80DEEA' }}>TC</div>
+              <div className={s.reviewAvatar} style={{ background: '#80DEEA' }}>{isPt ? 'LM' : 'JP'}</div>
               <div>
-                <div className={s.reviewName}>Thomas C.</div>
-                <div className={s.reviewMeta}>{isPt ? 'Eletricidade — Lisboa' : 'Électricité — Lyon 69003'}</div>
+                <div className={s.reviewName}>{isPt ? 'Léo M.' : 'Julien P.'}</div>
+                <div className={s.reviewMeta}>📍 {isPt ? 'Marco de Canaveses' : 'Aubagne'}</div>
                 <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
               </div>
             </div>
           </div>
           <div className={`${s.reviewCard} ${s.highlighted}`}>
             <div className={s.reviewStars}>★★★★★</div>
-            <p className={s.reviewText}>{`« ${t('home.review3Text') || "L'espace artisan est top. Mon agenda est géré automatiquement, je reçois mes rendez-vous sans décrocher le téléphone. Mon CA a augmenté de 40% en 3 mois."} »`}</p>
+            <p className={s.reviewText}>{`« ${t('home.review3Text') || "Depuis Vitfix, je rédige mes devis en quelques minutes au lieu d'une heure. J'ai gagné 15 nouveaux clients ce trimestre sans prospecter."} »`}</p>
             <div className={s.reviewAuthor}>
-              <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>KD</div>
+              <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>{isPt ? 'FM' : 'SL'}</div>
               <div>
-                <div className={s.reviewName}>Karim D.</div>
-                <div className={s.reviewMeta}>{isPt ? 'Profissional Serralheiro — Porto' : 'Artisan Serrurier — Paris'}</div>
+                <div className={s.reviewName}>{isPt ? 'Fátima M.' : 'Sébastien L.'}</div>
+                <div className={s.reviewMeta}>📍 {isPt ? 'Lousada' : 'Aix-en-Provence'}</div>
                 <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
               </div>
             </div>
@@ -460,10 +460,10 @@ export default function HomePage() {
           <div className={`${s.proRight} ${revealClass('pro-right')}`} data-reveal-id="pro-right">
             <div className={s.artisanCard}>
               <div className={s.artisanHeader}>
-                <div className={s.artisanAvatar}>KD</div>
+                <div className={s.artisanAvatar}>{isPt ? 'PP' : 'JM'}</div>
                 <div>
-                  <div className={s.artisanName}>Karim Durrani</div>
-                  <div className={s.artisanJob}>{isPt ? 'Serralheiro — Porto' : 'Serrurier — Paris 75011'}</div>
+                  <div className={s.artisanName}>{isPt ? 'Pedro P.' : 'Julien Martin'}</div>
+                  <div className={s.artisanJob}>{isPt ? 'Serralheiro, Marco de Canaveses' : 'Serrurier, Marseille 13008'}</div>
                 </div>
                 <div className={s.artisanRating}>
                   <div className={s.artisanStars}>★★★★★</div>
