@@ -308,12 +308,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const emMaxW = emBoxW - boxPadX * 2
 
   ey += ptToMm(18)  // label ÉMETTEUR
-  ey += ptToMm(14) * 2  // nom entreprise + forme juridique (peut tenir sur 2 lignes)
-  if (companySiret) ey += ptToMm(14)
-  if (companyRCS) ey += ptToMm(14)
+  ey += ptToMm(14) * 2 + 1.5  // nom entreprise (peut wraper) + espace après nom
   if (companyAddress) ey += ptToMm(14)
   if (companyPhone) ey += ptToMm(14)
   if (companyEmail) ey += ptToMm(14)
+  if (companySiret) ey += ptToMm(14)
+  if (companyRCS) ey += ptToMm(14)
   if (tvaEnabled && tvaNumber) ey += ptToMm(14)
   if (companyAPE) ey += ptToMm(14)
   if (companyCapital) ey += ptToMm(14)
@@ -324,7 +324,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const destMaxW = destBoxW - boxPadX * 2
 
   dy2 += ptToMm(18)  // label DESTINATAIRE
-  dy2 += ptToMm(14)  // nom client
+  dy2 += ptToMm(14) + 1.5  // nom client + espace après nom
   if (clientAddress) dy2 += ptToMm(14)
   if (interventionAddress || interventionBatiment || interventionEtage) dy2 += ptToMm(14)
   if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
