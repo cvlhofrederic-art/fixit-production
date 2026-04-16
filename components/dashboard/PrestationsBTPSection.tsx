@@ -778,31 +778,6 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                         style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '10px 0', width: '100%', fontFamily: 'inherit' }}
                       />
                     </div>
-                    {/* Rectangle prix */}
-                    <div title={isPt ? 'Preço por etapa' : 'Prix par étape'}
-                      style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 10px', width: 116, minHeight: 36 }}>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={et.price ?? ''}
-                        placeholder="0"
-                        onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, price: e.target.value ? parseFloat(e.target.value) : undefined } : x)))}
-                        style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: '10px 0', textAlign: 'right', width: '100%', fontFamily: 'inherit' }}
-                      />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.3 }}>€ HT</span>
-                    </div>
-                    {/* Rectangle unité */}
-                    <div title={isPt ? 'Unidade da etapa' : "Unité de l'étape"}
-                      style={{ display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 6px', width: 82, minHeight: 36 }}>
-                      <select
-                        value={et.unit || form.unit}
-                        onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)))}
-                        style={{ flex: 1, fontSize: 11.5, color: '#444', background: 'transparent', border: 'none', outline: 'none', padding: '10px 0', width: '100%', fontFamily: 'inherit', cursor: 'pointer' }}
-                      >
-                        {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </div>
                     <button
                       type="button"
                       aria-label={isPt ? 'Remover etapa' : 'Supprimer étape'}
@@ -815,8 +790,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
                 <div style={{ fontSize: 10, color: '#888', marginTop: 4, fontStyle: 'italic', lineHeight: 1.45 }}>
                   {isPt
-                    ? 'Etapas adicionadas automaticamente aos orçamentos. Preço e unidade pré-calculados (coerentes com o preço global) — pode ajustar manualmente.'
-                    : 'Étapes ajoutées automatiquement aux devis. Prix et unité pré-calculés (cohérents avec le prix global). Vous pouvez les ajuster.'}
+                    ? 'Etapas adicionadas automaticamente aos orçamentos.'
+                    : 'Étapes ajoutées automatiquement aux devis.'}
                 </div>
               </div>
             )}

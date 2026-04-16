@@ -280,7 +280,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
+      <form onSubmit={handleSubmit} className="mt-3 flex gap-2 px-2 pb-2">
         <input
           ref={inputRef}
           type="text"
@@ -289,7 +289,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
           placeholder="Décrivez vos travaux..."
           aria-label="Décrivez vos travaux"
           disabled={isStreaming}
-          className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
+          className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-gray-400 focus:outline-none disabled:opacity-50"
           autoFocus
         />
         <button
