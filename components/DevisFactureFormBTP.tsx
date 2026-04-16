@@ -1359,8 +1359,8 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
                   <th style={{ textAlign: 'center' }}>TVA %</th>
-                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL HT</th>
-                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL TTC</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
@@ -1464,8 +1464,8 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
                   <th style={{ textAlign: 'center' }}>TVA %</th>
-                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL HT</th>
-                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL TTC</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
