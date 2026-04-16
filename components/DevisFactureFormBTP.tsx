@@ -409,9 +409,10 @@ export default function DevisFactureFormBTP({
 
   // Modals
   const [showClientPicker, setShowClientPicker] = useState(false)
-  const [clientDb, setClientDb] = useState<Array<{ id: string; name: string; email?: string; phone?: string; siret?: string; mainAddress?: string; address?: string }>>([])
+  const [clientDb, setClientDb] = useState<Array<{ id: string; name: string; email?: string; phone?: string; siret?: string; mainAddress?: string; address?: string; interventionAddresses?: Array<{ id: string; label: string; address: string }> }>>([])
   const [clientDbSearch, setClientDbSearch] = useState('')
   const [clientDbLoading, setClientDbLoading] = useState(false)
+  const [selectedClientInterventionAddresses, setSelectedClientInterventionAddresses] = useState<Array<{ id: string; label: string; address: string }>>([])
 
   /* ──────── Prestations BTP (merge Supabase services + localStorage catalogue) ──────── */
 
@@ -740,6 +741,14 @@ export default function DevisFactureFormBTP({
     setClientPhone(c.phone || '')
     setClientSiret(c.siret || '')
     setClientAddress(c.mainAddress || c.address || '')
+    // Charger la liste des lieux d'intervention enregistrés pour ce client
+    setSelectedClientInterventionAddresses(c.interventionAddresses || [])
+    // Réinitialiser les champs lieu d'intervention (l'artisan choisira dans le dropdown)
+    setInterventionAddress('')
+    setInterventionBatiment('')
+    setInterventionEtage('')
+    setInterventionEspacesCommuns('')
+    setInterventionExterieur('')
     setShowClientPicker(false)
   }
 
@@ -1524,7 +1533,49 @@ export default function DevisFactureFormBTP({
               <div className="dv-fg"><label>Adresse complète (siège / domicile) <span className="req">*</span></label><input type="text" placeholder="12 rue de la Paix, 75002 Paris" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} /></div>
             </div>
             <div className="dv-row col1">
-              <div className="dv-fg"><label>Lieu d&apos;intervention</label><input type="text" placeholder="Ex : Résidence Le Mail, 15 rue des Lilas, 13001 Marseille" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)} /></div>
+              <div className="dv-fg">
+                <label>Lieu d&apos;intervention</label>
+                {selectedClientInterventionAddresses.length > 0 ? (
+                  <>
+                    <select
+                      value={
+                        selectedClientInterventionAddresses.some(a => a.address === interventionAddress)
+                          ? interventionAddress
+                          : (interventionAddress ? '__custom__' : '')
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '__custom__') setInterventionAddress('')
+                        else setInterventionAddress(v)
+                      }}
+                      style={{ marginBottom: 6 }}
+                    >
+                      <option value="">-- Sélectionner un lieu enregistré --</option>
+                      {selectedClientInterventionAddresses.map(addr => (
+                        <option key={addr.id} value={addr.address}>
+                          {addr.label}{addr.address ? ` — ${addr.address}` : ''}
+                        </option>
+                      ))}
+                      <option value="__custom__">Saisir un autre lieu…</option>
+                    </select>
+                    {(interventionAddress === '' || !selectedClientInterventionAddresses.some(a => a.address === interventionAddress)) && (
+                      <input
+                        type="text"
+                        placeholder="Ex : Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
+                        value={interventionAddress}
+                        onChange={(e) => setInterventionAddress(e.target.value)}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="Ex : Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
+                    value={interventionAddress}
+                    onChange={(e) => setInterventionAddress(e.target.value)}
+                  />
+                )}
+              </div>
             </div>
             <div className="dv-row">
               <div className="dv-fg"><label>Bâtiment</label><input type="text" placeholder="Ex : B" value={interventionBatiment} onChange={(e) => setInterventionBatiment(e.target.value)} /></div>
