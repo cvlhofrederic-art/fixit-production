@@ -132,6 +132,9 @@ export interface PdfV3Input {
   // Helpers passed from component (browser-dependent)
   svgToImageDataUrl: (svgString: string, width: number, height: number) => Promise<string>
   fetchFreshLogo: () => Promise<string | null>
+
+  // Output mode: 'download' saves file, 'preview' opens in new tab
+  action?: 'download' | 'preview'
 }
 
 // ─── Main generator ──────────────────────────────────────
@@ -1030,14 +1033,20 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.text(`Page ${p}/${totalPgs}`, xRight - 2, pageH - 3.2, { align: 'right' })
   }
 
-  // ─── Save ───
+  // ─── Save / Preview ───
   const safeName = clientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_À-ÿ]/g, '') || 'Client'
   const fileLabel = docType === 'devis' ? (locale === 'pt' ? 'Orcamento' : 'Devis') : (locale === 'pt' ? 'Fatura' : 'Facture')
   const fileDocNumber = (locale === 'pt' && ptFiscalData?.docNumber)
     ? ptFiscalData.docNumber.replace(/\s+/g, '_').replace(/\//g, '-')
     : docNumber
   const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
-  pdf.save(filename)
+
+  if (input.action === 'preview') {
+    const blobUrl = pdf.output('bloburl')
+    window.open(blobUrl as unknown as string, '_blank')
+  } else {
+    pdf.save(filename)
+  }
 
   return { filename }
 }

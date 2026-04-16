@@ -859,6 +859,7 @@ export default function DevisFactureFormBTP({
       const statusCode = mapLegalFormToCode(statutJuridique)
 
       await generateDevisPdfV3({
+        action,
         locale: locale as 'fr' | 'pt' | 'en',
         localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
         t,
