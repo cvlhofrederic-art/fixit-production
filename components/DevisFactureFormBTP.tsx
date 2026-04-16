@@ -1791,6 +1791,14 @@ export default function DevisFactureFormBTP({
                 <>{locale === 'pt' ? 'NIF intracomunitário' : 'N° TVA intracommunautaire'} : {tvaNumber}.<br /></>
               )}
 
+              {/* TVA taux réduit — remplace le CERFA supprimé en fév. 2025 (loi de finances 2025, art. 41) */}
+              {tvaEnabled && locale !== 'pt' && totaux.tvaEntries.some(([taux]) => taux === 5.5) && (
+                <>Travaux de rénovation énergétique sur un logement achevé depuis plus de 2 ans, éligibles au taux réduit de 5,5 % (art. 278-0 bis A du CGI). Attestation remplacée par la présente mention (loi de finances 2025, art. 41).<br /></>
+              )}
+              {tvaEnabled && locale !== 'pt' && totaux.tvaEntries.some(([taux]) => taux === 10) && (
+                <>Travaux d&apos;amélioration, transformation, aménagement ou entretien sur un logement achevé depuis plus de 2 ans, éligibles au taux réduit de 10 % (art. 279-0 bis du CGI). Attestation remplacée par la présente mention (loi de finances 2025, art. 41).<br /></>
+              )}
+
               {/* ═══ 3. ASSURANCE — obligatoire BTP ═══ */}
               {insuranceName && insuranceNumber && (
                 <>

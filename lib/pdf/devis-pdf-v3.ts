@@ -823,6 +823,17 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
   }
 
+  // TVA taux réduit (remplace CERFA supprimé fév. 2025, loi de finances 2025, art. 41)
+  if (tvaEnabled && locale !== 'pt') {
+    const usedRates = new Set(lines.filter(l => l.description.trim()).map(l => l.tvaRate))
+    if (usedRates.has(5.5)) {
+      legal1 += ' Travaux de rénovation énergétique sur logement > 2 ans, taux réduit 5,5 % (art. 278-0 bis A CGI, loi de finances 2025 art. 41).'
+    }
+    if (usedRates.has(10)) {
+      legal1 += ' Travaux d\'amélioration/entretien sur logement > 2 ans, taux réduit 10 % (art. 279-0 bis CGI, loi de finances 2025 art. 41).'
+    }
+  }
+
   // 3. Assurance
   if (insuranceName) {
     if (locale === 'pt') {
