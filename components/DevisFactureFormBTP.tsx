@@ -1659,7 +1659,7 @@ export default function DevisFactureFormBTP({
                           </div>
                         )}
                       </td>
-                      <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={1} placeholder="0" value={l.qty || ''} onChange={(e) => updateLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
@@ -1671,21 +1671,21 @@ export default function DevisFactureFormBTP({
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
+                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
                           const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                           const q = l.qty || 1
                           updateLine(l.id, { priceHT: v / q })
                         }}
-                        style={{ textAlign: 'right' }} /></td>
-                      <td><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
                           const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                           const ht = v / (1 + (l.tvaRate || 0) / 100)
                           const q = l.qty || 1
                           updateLine(l.id, { priceHT: ht / q })
                         }}
-                        style={{ textAlign: 'right' }} /></td>
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
                     </tr>
                   )
@@ -1757,7 +1757,7 @@ export default function DevisFactureFormBTP({
                           )}
                         </div>
                       </td>
-                      <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateMaterialLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={1} placeholder="0" value={l.qty || ''} onChange={(e) => updateMaterialLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateMaterialLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
@@ -1769,21 +1769,21 @@ export default function DevisFactureFormBTP({
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
+                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
                           const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                           const q = l.qty || 1
                           updateMaterialLine(l.id, { priceHT: v / q })
                         }}
-                        style={{ textAlign: 'right' }} /></td>
-                      <td><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
                           const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                           const ht = v / (1 + (l.tvaRate || 0) / 100)
                           const q = l.qty || 1
                           updateMaterialLine(l.id, { priceHT: ht / q })
                         }}
-                        style={{ textAlign: 'right' }} /></td>
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeMaterialLine(l.id)}>✕</button></td>
                     </tr>
                   )
