@@ -621,9 +621,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Statut</label>
                   <select value={fv(form.status)} onChange={e => setForm(p => ({ ...p, status: e.target.value as any }))}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'}>
-                    <option value="termine">Termine</option>
+                    <option value="termine">Terminé</option>
                     <option value="en_cours">En cours</option>
-                    <option value="a_reprendre">A reprendre</option>
+                    <option value="a_reprendre">À reprendre</option>
                     <option value="sous_garantie">Sous garantie</option>
                   </select>
                 </div>
