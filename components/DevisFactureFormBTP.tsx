@@ -1633,7 +1633,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} value={l.priceHT} onChange={(e) => updateLine(l.id, { priceHT: parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -1718,7 +1718,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} value={l.priceHT} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
