@@ -87,12 +87,12 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     let text: string
     if (isPt) {
       text = isSociete
-        ? `Olá,\nUsamos o VITFIX Pro para gerir as nossas obras, orçamentos e faturas.\nCom este link a sua empresa tem 1 mês gratuito :\n${stats.referral_link}\n(Nós também ganhamos 1 mês se se subscrever 😊)`
-        : `Olá! Uso o VITFIX para os meus orçamentos, obras e faturas.\nCom este link tens 1 mês grátis :\n${stats.referral_link}\n(Eu também ganho 1 mês se te subscreveres 😄)`
+        ? `Olá,\nUsamos o VITFIX Pro para gerir as nossas obras, orçamentos e faturas.\nCom este link, após a 1ª mensalidade paga, o 2º mês é oferecido :\n${stats.referral_link}\n(Nós também ganhamos 1 mês assim que se subscrever 😊)`
+        : `Olá! Uso o VITFIX para os meus orçamentos, obras e faturas.\nCom este link, após pagares o 1º mês, o 2º é grátis :\n${stats.referral_link}\n(Eu também ganho 1 mês se te subscreveres 😄)`
     } else {
       text = isSociete
-        ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien votre entreprise bénéficie de 1 mois gratuit :\n${stats.referral_link}\n(Nous gagnons aussi 1 mois si vous vous abonnez 😊)`
-        : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien tu as 1 mois gratuit :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
+        ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien, après le 1er mois payé, le 2ᵉ mois est offert :\n${stats.referral_link}\n(Nous recevons aussi 1 mois dès que vous vous abonnez 😊)`
+        : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien, une fois ton 1er mois payé, ton 2ᵉ mois est offert :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
