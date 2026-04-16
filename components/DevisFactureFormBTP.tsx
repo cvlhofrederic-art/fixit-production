@@ -1164,8 +1164,6 @@ export default function DevisFactureFormBTP({
         .dv-resume-row > span:last-child { font-variant-numeric: tabular-nums; text-align: right; min-width: 80px; }
         .dv-resume-row.subtotal { border-top: 1px dashed #E0E0E0; padding-top: .5rem; margin-top: .25rem; font-weight: 600; color: #1a1a1a; }
         .dv-resume-row.tva { color: #888; font-size: 11px; padding: .2rem 0; }
-        .dv-resume-row.tva > span:first-child { padding-left: .75rem; position: relative; }
-        .dv-resume-row.tva > span:first-child::before { content: "└"; position: absolute; left: 0; color: #CCC; font-size: 10px; }
         .dv-resume-row.tva-total { font-weight: 600; color: #555; }
         .dv-resume-row.total { background: var(--primary-yellow); color: #333; font-weight: 700; font-size: 13px; padding: .55rem .7rem; border-radius: 5px; margin-top: .5rem; }
 
