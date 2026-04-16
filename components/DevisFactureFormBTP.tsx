@@ -228,7 +228,10 @@ export default function DevisFactureFormBTP({
       ? initialData.lines
       : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
-  const [priceMode, setPriceMode] = useState<'ht' | 'ttc'>('ht')
+  // Lignes matériaux (section séparée)
+  const [materialLines, setMaterialLines] = useState<ProductLine[]>(
+    [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+  )
 
   // Acomptes
   const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled ?? true)
@@ -279,7 +282,8 @@ export default function DevisFactureFormBTP({
   }, [])
 
   const totaux = useMemo(() => {
-    const subTotalBrut = lines.reduce((s, l) => s + (l.qty || 0) * (l.priceHT || 0), 0)
+    const allLines = [...lines, ...materialLines]
+    const subTotalBrut = allLines.reduce((s, l) => s + (l.qty || 0) * (l.priceHT || 0), 0)
     const remise = 0 // pas de remise globale dans la maquette V1
     const totalHT = subTotalBrut - remise
 
@@ -288,7 +292,7 @@ export default function DevisFactureFormBTP({
     if (!tvaEnabled) {
       // entreprise sans TVA → toute la ventilation à 0 / non applicable
     } else {
-      lines.forEach((l) => {
+      allLines.forEach((l) => {
         const ht = (l.qty || 0) * (l.priceHT || 0)
         const taux = l.tvaRate || 0
         tvaMap.set(taux, (tvaMap.get(taux) || 0) + ht * (taux / 100))
@@ -299,7 +303,7 @@ export default function DevisFactureFormBTP({
     const totalTTC = totalHT + totalTva
 
     return { subTotalBrut, remise, totalHT, tvaEntries, totalTva, totalTTC }
-  }, [lines, tvaEnabled])
+  }, [lines, materialLines, tvaEnabled])
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -310,7 +314,7 @@ export default function DevisFactureFormBTP({
       assurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
       mediateur: mediatorName.trim().length > 0 && mediatorUrl.trim().length > 0,
       client: clientName.trim().length > 0 && clientAddress.trim().length > 0,
-      prestations: lines.some((l) => l.description.trim().length > 0 && l.priceHT > 0),
+      prestations: [...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
@@ -333,6 +337,25 @@ export default function DevisFactureFormBTP({
 
   const updateLine = (id: number, patch: Partial<ProductLine>) => {
     setLines(lines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
+  }
+
+  /* ──────── Handlers matériaux ──────── */
+
+  const addMaterialLine = () => {
+    const nextId = Math.max(0, ...materialLines.map((l) => l.id)) + 1
+    setMaterialLines([...materialLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+  }
+
+  const removeMaterialLine = (id: number) => {
+    if (materialLines.length === 1) {
+      toast.error('Au moins une ligne est requise')
+      return
+    }
+    setMaterialLines(materialLines.filter((l) => l.id !== id))
+  }
+
+  const updateMaterialLine = (id: number, patch: Partial<ProductLine>) => {
+    setMaterialLines(materialLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
   }
 
   /* ──────── Handlers acomptes ──────── */
@@ -477,6 +500,7 @@ export default function DevisFactureFormBTP({
       interventionExterieur,
       // Lignes
       lines,
+      materialLines,
       // Acomptes
       acomptesEnabled,
       acomptes,
@@ -496,7 +520,7 @@ export default function DevisFactureFormBTP({
     insuranceType, insuranceName, insuranceNumber, insuranceCoverage, mediatorName, mediatorUrl,
     clientName, clientEmail, clientPhone, clientSiret, clientAddress,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
-    lines, acomptesEnabled, acomptes,
+    lines, materialLines, acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte,
     notes,
   ])
@@ -526,8 +550,8 @@ export default function DevisFactureFormBTP({
   const saveAndSend = () => {
     if (!artisan?.id) return
     if (!clientName.trim()) { toast.error('Renseignez le nom du client'); return }
-    if (!lines.some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
-      toast.error('Ajoutez au moins une prestation chiffrée'); return
+    if (![...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
+      toast.error('Ajoutez au moins une prestation ou un matériau chiffré'); return
     }
     setSaving(true)
     try {
@@ -686,7 +710,9 @@ export default function DevisFactureFormBTP({
     setPdfLoading(true)
     try {
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${executionDelayType}` : 'À convenir'
-      const validLines = lines.filter(l => (l.description || '').trim())
+      const validLabor = lines.filter(l => (l.description || '').trim())
+      const validMaterials = materialLines.filter(l => (l.description || '').trim())
+      const validLines = [...validLabor, ...validMaterials]
       const totalNet = validLines.reduce((s, l) => s + l.totalHT, 0)
       const currencyFormat = (n: number) => n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
@@ -878,12 +904,6 @@ export default function DevisFactureFormBTP({
         .dv-add-line:hover { color: var(--primary-yellow-dark); }
         .dv-scanner-btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: 5px; background: var(--primary-yellow); border: none; color: #333; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
         .dv-scanner-btn:hover { background: #FFB800; }
-
-        /* Mode switch HT/TTC */
-        .dv-mode-switch { display: inline-flex; background: #F0F0F0; border-radius: 6px; padding: 3px; gap: 2px; }
-        .dv-mode-switch button { border: none; background: none; padding: 5px 14px; font-size: 11px; font-weight: 600; color: #888; cursor: pointer; border-radius: 4px; font-family: inherit; transition: all .15s; letter-spacing: .3px; }
-        .dv-mode-switch button.active { background: #fff; color: var(--primary-yellow-dark); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-        .dv-mode-switch button:not(.active):hover { color: #555; }
 
         /* Acomptes */
         .dv-acompte-row { display: grid; grid-template-columns: 1fr 90px 30px 130px 32px; align-items: center; gap: 8px; margin-bottom: .5rem; }
@@ -1165,35 +1185,29 @@ export default function DevisFactureFormBTP({
             </div>
           </div>
 
-          {/* 7. DÉTAIL DES PRESTATIONS */}
+          {/* 7. MAIN D'ŒUVRE */}
           <div className="dv-section">
-            <div className="dv-section-head">
-              <div className="dv-section-t">DÉTAIL DES PRESTATIONS</div>
-              <div className="dv-mode-switch" role="tablist" aria-label="Mode de saisie des prix">
-                <button type="button" className={priceMode === 'ht' ? 'active' : ''} onClick={() => setPriceMode('ht')}>HORS TAXES</button>
-                <button type="button" className={priceMode === 'ttc' ? 'active' : ''} onClick={() => setPriceMode('ttc')}>TTC</button>
-              </div>
-            </div>
+            <div className="dv-section-t">MAIN D&apos;ŒUVRE</div>
             <table className="dv-presta-table">
               <colgroup>
-                <col style={{ width: '26%' }} />
-                <col style={{ width: '7%' }} />
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '12%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '13%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
                 <col style={{ width: '4%' }} />
               </colgroup>
               <thead>
                 <tr>
-                  <th>DÉSIGNATION</th>
-                  <th>QTÉ</th>
-                  <th>UNITÉ</th>
-                  <th>PRIX U. {priceMode === 'ht' ? 'HT' : 'TTC'}</th>
-                  <th>TVA %</th>
-                  <th>TOTAL HT</th>
-                  <th>TOTAL TTC</th>
+                  <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
+                  <th style={{ textAlign: 'right' }}>QTÉ</th>
+                  <th style={{ textAlign: 'left' }}>UNITÉ</th>
+                  <th style={{ textAlign: 'right' }}>PRIX U. HT</th>
+                  <th style={{ textAlign: 'right' }}>TVA %</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
@@ -1249,8 +1263,8 @@ export default function DevisFactureFormBTP({
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td className="amount col-ht">{fmt(lineHT)}</td>
-                      <td className="amount">{fmt(lineTTC)}</td>
+                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineHT)}</td>
+                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineTTC)}</td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
                     </tr>
                   )
@@ -1259,6 +1273,66 @@ export default function DevisFactureFormBTP({
             </table>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
               <button className="dv-add-line" type="button" onClick={addLine}>+ Ajouter une ligne</button>
+            </div>
+          </div>
+
+          {/* 7b. MATÉRIAUX */}
+          <div className="dv-section">
+            <div className="dv-section-t">MATÉRIAUX</div>
+            <table className="dv-presta-table">
+              <colgroup>
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '4%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
+                  <th style={{ textAlign: 'right' }}>QTÉ</th>
+                  <th style={{ textAlign: 'left' }}>UNITÉ</th>
+                  <th style={{ textAlign: 'right' }}>PRIX U. HT</th>
+                  <th style={{ textAlign: 'right' }}>TVA %</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {materialLines.map((l) => {
+                  const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  return (
+                    <tr key={l.id}>
+                      <td>
+                        <input type="text" placeholder="Ex : Plaque de plâtre BA13, Tube cuivre 22mm…" value={l.description} onChange={(e) => updateMaterialLine(l.id, { description: e.target.value })} />
+                      </td>
+                      <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateMaterialLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
+                      <td>
+                        <select value={l.unit} onChange={(e) => updateMaterialLine(l.id, { unit: e.target.value })}>
+                          {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                        </select>
+                      </td>
+                      <td><input type="number" min={0} step={0.01} value={l.priceHT} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseFloat(e.target.value) || 0 })} /></td>
+                      <td>
+                        <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                        </select>
+                      </td>
+                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineHT)}</td>
+                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineTTC)}</td>
+                      <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeMaterialLine(l.id)}>✕</button></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
+              <button className="dv-add-line" type="button" onClick={addMaterialLine}>+ Ajouter un matériau</button>
               <button className="dv-scanner-btn" type="button" onClick={() => toast.info('Scanner ticket — bientôt disponible')}>📷 Scanner ticket</button>
             </div>
           </div>
@@ -1393,10 +1467,10 @@ export default function DevisFactureFormBTP({
                         <strong>{r.rapportNumber as string}</strong>
                         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: st.color }}>{st.label}</span>
                       </div>
-                      {r.motif && <div style={{ color: '#444', marginBottom: 3 }}>Motif : {r.motif as string}</div>}
-                      {r.interventionDate && <div style={{ color: '#666' }}>Date : {r.interventionDate as string} {r.startTime ? `de ${r.startTime as string}` : ''} {r.endTime ? `à ${r.endTime as string}` : ''}</div>}
-                      {r.siteAddress && <div style={{ color: '#666' }}>Adresse : {r.siteAddress as string}</div>}
-                      {r.travaux && <div style={{ color: '#666', marginTop: 3 }}>{((r.travaux as string[]) || []).length} travaux réalisés</div>}
+                      {r.motif ? <div style={{ color: '#444', marginBottom: 3 }}>Motif : {String(r.motif)}</div> : null}
+                      {r.interventionDate ? <div style={{ color: '#666' }}>Date : {String(r.interventionDate)} {r.startTime ? `de ${String(r.startTime)}` : ''} {r.endTime ? `à ${String(r.endTime)}` : ''}</div> : null}
+                      {r.siteAddress ? <div style={{ color: '#666' }}>Adresse : {String(r.siteAddress)}</div> : null}
+                      {r.travaux ? <div style={{ color: '#666', marginTop: 3 }}>{(Array.isArray(r.travaux) ? r.travaux : []).length} travaux réalisés</div> : null}
                       <button type="button" onClick={() => setAttachedRapportId(null)}
                         style={{ marginTop: 6, fontSize: 11, color: '#c00', cursor: 'pointer', background: 'none', border: 'none', textDecoration: 'underline' }}>
                         Retirer le rapport
