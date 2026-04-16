@@ -667,6 +667,7 @@ function DashboardPage() {
             {isModuleEnabled('devis') && <V22SidebarItem label={t('proDash.modules.quotes')} active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
+            {isModuleEnabled('materiaux') && <V22SidebarItem label={isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro'} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} />}
             <V22SidebarItem label={t('proDash.modules.sitePhotos', 'Photos Chantier')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
             {isModuleEnabled('contrats') && orgRole === 'pro_gestionnaire' && (
               <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
