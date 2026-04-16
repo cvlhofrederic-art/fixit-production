@@ -30,6 +30,7 @@ import {
 } from '@/lib/search-categories'
 import { FilterModal, type FilterState } from '@/components/recherche/FilterModal'
 import { ArtisanCard, type Artisan, type Availability, type Booking, type Service } from '@/components/recherche/ArtisanCard'
+import { ALL_COMMUNES, FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 
 
 // ------------------------------------------------------------------
@@ -301,17 +302,68 @@ function RechercheContent() {
       }
 
       // Client-side location filter for registered artisans
+      // Match la recherche client contre : ville/adresse de l'artisan ET ses zones d'intervention
+      // (cities, departments, regions). Si un artisan a coché "13" ou "PACA", il apparaît quand
+      // le client tape "Marseille", "Aubagne", etc.
       if (locNorm) {
+        // 1. Tenter de résoudre la ville cherchée → département + région
+        //    via le code postal retourné par les suggestions ou via la base communes 13
+        let searchedDept = ''
+        let searchedRegion = ''
+
+        // a) Si postcode dans la saisie (format "Marseille (13001)" ou "13001"), extraire 2 premiers chiffres
+        const cpMatch = (location || '').match(/(\d{5})/)
+        if (cpMatch) {
+          searchedDept = cpMatch[1].slice(0, 2)
+        }
+        // b) Sinon chercher dans les communes connues (phase test : 13)
+        if (!searchedDept) {
+          const m = ALL_COMMUNES.find(c => normalizeForSearch(c.nom) === locNorm)
+          if (m) searchedDept = m.code.slice(0, 2)
+        }
+        if (searchedDept) {
+          const d = FR_DEPARTEMENTS.find(x => x.code === searchedDept)
+          if (d) searchedRegion = normalizeForSearch(d.region)
+        }
+
         registeredList = registeredList.filter((a) => {
+          const zones = (a as any).intervention_zones || {}
+          const zoneCities: string[] = Array.isArray(zones.cities) ? zones.cities : []
+          const zoneDepts: string[] = Array.isArray(zones.departments) ? zones.departments : []
+          const zoneRegions: string[] = Array.isArray(zones.regions) ? zones.regions : []
+
           const haystack = normalizeForSearch(
             [
               a.city || '',
               (a as any).company_city || '',
               (a as any).company_postal_code || '',
               a.bio || '',
+              zoneCities.join(' '),
+              zoneDepts.join(' '),
+              zoneRegions.join(' '),
             ].join(' ')
           )
-          return locNorm.split(/\s+/).some(w => w.length >= 2 && haystack.includes(w))
+
+          // Match 1 : texte direct (ville ou alentours nommés)
+          const words = locNorm.split(/\s+/).filter(w => w.length >= 2)
+          if (words.some(w => haystack.includes(w))) return true
+
+          // Match 2 : département cherché → présent dans les depts de l'artisan
+          if (searchedDept) {
+            const deptMatch = zoneDepts.some(d => {
+              const code = (d.match(/\b(\d{2,3})\b/) || [])[1]
+              return code === searchedDept
+            })
+            if (deptMatch) return true
+          }
+
+          // Match 3 : région cherchée → présente dans les régions de l'artisan
+          if (searchedRegion) {
+            const regionMatch = zoneRegions.some(r => normalizeForSearch(r) === searchedRegion)
+            if (regionMatch) return true
+          }
+
+          return false
         })
       }
 

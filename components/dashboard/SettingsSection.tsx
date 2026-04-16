@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
+import { searchDepartements, searchCommunes, type FRDepartement, type FRCommune } from '@/lib/geo/fr-geo-data'
 
 interface SettingsSectionProps {
   artisan: Artisan
@@ -426,8 +427,46 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
   const [selectedDepts, setSelectedDepts] = useState<string[]>([])
   const [selectedCities, setSelectedCities] = useState<string[]>([])
-  const [citySearch, setCitySearch] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Autocomplete state (département)
+  const [deptQuery, setDeptQuery] = useState('')
+  const [deptOpen, setDeptOpen] = useState(false)
+  const [deptCursor, setDeptCursor] = useState(0)
+  const deptBoxRef = useRef<HTMLDivElement>(null)
+
+  // Autocomplete state (ville)
+  const [cityQuery, setCityQuery] = useState('')
+  const [cityOpen, setCityOpen] = useState(false)
+  const [cityCursor, setCityCursor] = useState(0)
+  const cityBoxRef = useRef<HTMLDivElement>(null)
+
+  const deptSuggestions = useMemo(() => searchDepartements(deptQuery, 8), [deptQuery])
+  const citySuggestions = useMemo(() => searchCommunes(cityQuery, 10), [cityQuery])
+
+  // Fermeture au click extérieur
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (deptBoxRef.current && !deptBoxRef.current.contains(e.target as Node)) setDeptOpen(false)
+      if (cityBoxRef.current && !cityBoxRef.current.contains(e.target as Node)) setCityOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  const addDept = (d: FRDepartement) => {
+    const label = `${d.code} - ${d.nom}`
+    if (!selectedDepts.includes(label)) setSelectedDepts(prev => [...prev, label])
+    setDeptQuery('')
+    setDeptOpen(false)
+    setDeptCursor(0)
+  }
+  const addCity = (c: FRCommune) => {
+    if (!selectedCities.includes(c.nom)) setSelectedCities(prev => [...prev, c.nom])
+    setCityQuery('')
+    setCityOpen(false)
+    setCityCursor(0)
+  }
 
   // Chargement : DB en priorité, fallback localStorage (ancien modèle)
   useEffect(() => {
@@ -482,9 +521,13 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
     } catch { /* silent */ }
     // Persiste en DB : rend la zone visible sur la fiche publique
     try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
       const res = await fetch('/api/artisan-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           intervention_zones: {
             regions: selectedRegions,
@@ -506,7 +549,8 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
   }
 
   const reset = () => {
-    setSelectedRegions([]); setSelectedDepts([]); setSelectedCities([]); setCitySearch('')
+    setSelectedRegions([]); setSelectedDepts([]); setSelectedCities([])
+    setDeptQuery(''); setCityQuery('')
   }
 
   const totalSelected = selectedRegions.length + selectedDepts.length + selectedCities.length
@@ -546,23 +590,63 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
         )}
 
         {mode === 'dept' && (
-          <div>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>Sélectionnez des départements (ex : 13, 75, 69…)</div>
+          <div ref={deptBoxRef} style={{ position: 'relative' }}>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
+              Tapez le numéro ou le nom du département (ex : 1 → tous les départements commençant par 1)
+            </div>
             <input
               type="text"
               className="set-pw-fi"
-              placeholder="Ajouter un département (numéro ou nom)"
+              placeholder="Ajouter un département (ex : 13, Bouches…)"
               style={{ letterSpacing: 'normal' }}
+              value={deptQuery}
+              onChange={e => { setDeptQuery(e.target.value); setDeptOpen(true); setDeptCursor(0) }}
+              onFocus={() => setDeptOpen(true)}
               onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const val = (e.target as HTMLInputElement).value.trim()
-                  if (val && !selectedDepts.includes(val)) {
-                    setSelectedDepts([...selectedDepts, val]);
-                    (e.target as HTMLInputElement).value = ''
-                  }
+                if (!deptOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) { setDeptOpen(true); return }
+                if (e.key === 'ArrowDown') { e.preventDefault(); setDeptCursor(c => Math.min(c + 1, deptSuggestions.length - 1)) }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setDeptCursor(c => Math.max(c - 1, 0)) }
+                else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const pick = deptSuggestions[deptCursor]
+                  if (pick) addDept(pick)
+                } else if (e.key === 'Escape') {
+                  setDeptOpen(false)
                 }
               }}
             />
+            {deptOpen && deptSuggestions.length > 0 && (
+              <div role="listbox" style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
+                boxShadow: '0 4px 18px rgba(0,0,0,.08)', marginTop: 4, maxHeight: 280, overflowY: 'auto',
+              }}>
+                {deptSuggestions.map((d, i) => {
+                  const already = selectedDepts.includes(`${d.code} - ${d.nom}`)
+                  return (
+                    <div
+                      key={d.code}
+                      role="option"
+                      aria-selected={i === deptCursor}
+                      onMouseEnter={() => setDeptCursor(i)}
+                      onMouseDown={(e) => { e.preventDefault(); if (!already) addDept(d) }}
+                      style={{
+                        padding: '10px 12px', cursor: already ? 'default' : 'pointer',
+                        background: i === deptCursor ? '#FFF5E6' : '#fff',
+                        opacity: already ? 0.45 : 1,
+                        borderBottom: i < deptSuggestions.length - 1 ? '1px solid #f2f2f2' : 'none',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: '#F57C00', minWidth: 26 }}>{d.code}</span>
+                      <span style={{ color: '#222', fontSize: 13 }}>{d.nom}</span>
+                      <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{d.region}</span>
+                      {already && <span style={{ fontSize: 10, color: '#888' }}>✓</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             <div className={`set-selected-box${selectedDepts.length ? ' has-items' : ''}`} style={{ marginTop: '.75rem' }}>
               {selectedDepts.map(d => (
                 <span key={d} className="set-zone-tag">
@@ -575,25 +659,64 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
         )}
 
         {mode === 'city' && (
-          <div>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>Rechercher une ville</div>
+          <div ref={cityBoxRef} style={{ position: 'relative' }}>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
+              Rechercher une ville ou un village (phase test : département 13)
+            </div>
             <input
               type="text"
               className="set-pw-fi"
-              placeholder="Marseille, Paris, Lyon…"
-              value={citySearch}
+              placeholder="Marseille, Aubagne, Cassis…"
               style={{ letterSpacing: 'normal' }}
-              onChange={e => setCitySearch(e.target.value)}
+              value={cityQuery}
+              onChange={e => { setCityQuery(e.target.value); setCityOpen(true); setCityCursor(0) }}
+              onFocus={() => setCityOpen(true)}
               onKeyDown={e => {
-                if (e.key === 'Enter' && citySearch.trim()) {
-                  if (!selectedCities.includes(citySearch.trim())) {
-                    setSelectedCities([...selectedCities, citySearch.trim()])
-                  }
-                  setCitySearch('')
+                if (!cityOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) { setCityOpen(true); return }
+                if (e.key === 'ArrowDown') { e.preventDefault(); setCityCursor(c => Math.min(c + 1, citySuggestions.length - 1)) }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setCityCursor(c => Math.max(c - 1, 0)) }
+                else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const pick = citySuggestions[cityCursor]
+                  if (pick) addCity(pick)
+                } else if (e.key === 'Escape') {
+                  setCityOpen(false)
                 }
               }}
             />
-            <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>Appuyez sur Entrée pour ajouter</div>
+            {cityOpen && citySuggestions.length > 0 && (
+              <div role="listbox" style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
+                boxShadow: '0 4px 18px rgba(0,0,0,.08)', marginTop: 4, maxHeight: 280, overflowY: 'auto',
+              }}>
+                {citySuggestions.map((c, i) => {
+                  const already = selectedCities.includes(c.nom)
+                  return (
+                    <div
+                      key={c.code}
+                      role="option"
+                      aria-selected={i === cityCursor}
+                      onMouseEnter={() => setCityCursor(i)}
+                      onMouseDown={(e) => { e.preventDefault(); if (!already) addCity(c) }}
+                      style={{
+                        padding: '10px 12px', cursor: already ? 'default' : 'pointer',
+                        background: i === cityCursor ? '#FFF5E6' : '#fff',
+                        opacity: already ? 0.45 : 1,
+                        borderBottom: i < citySuggestions.length - 1 ? '1px solid #f2f2f2' : 'none',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}
+                    >
+                      <span style={{ color: '#222', fontSize: 13, fontWeight: 500 }}>{c.nom}</span>
+                      {c.cp && <span style={{ color: '#888', fontSize: 11 }}>{c.cp}</span>}
+                      {c.parent && <span style={{ color: '#aaa', fontSize: 10, fontStyle: 'italic', marginLeft: 'auto' }}>arrdt</span>}
+                      {already && <span style={{ fontSize: 10, color: '#888', marginLeft: 'auto' }}>✓</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>↑↓ naviguer · Entrée pour ajouter</div>
             <div className={`set-selected-box${selectedCities.length ? ' has-items' : ''}`} style={{ marginTop: '.75rem' }}>
               {selectedCities.map(c => (
                 <span key={c} className="set-zone-tag">
