@@ -1224,6 +1224,9 @@ export default function DevisFactureFormBTP({
             <div className="dv-row col1">
               <div className="dv-fg"><label>RCS / RM <span className="req">*</span></label><input type="text" placeholder="Ex : RM Marseille 953951589" value={companyRCS} onChange={(e) => setCompanyRCS(e.target.value)} /></div>
             </div>
+            <div className="dv-row col1">
+              <div className="dv-fg"><label>N° TVA intracommunautaire</label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
+            </div>
             <div className="dv-row">
               <div className="dv-fg"><label>Téléphone <span className="req">*</span></label><input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} /></div>
               <div className="dv-fg"><label>Email <span className="req">*</span></label><input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} /></div>
@@ -1275,16 +1278,7 @@ export default function DevisFactureFormBTP({
             </div>
           </div>
 
-          {/* 4. CONFIGURATION TVA */}
-          <div className="dv-section">
-            <div className="dv-section-t">CONFIGURATION TVA</div>
-            <div className="dv-alert blue">
-              Votre société est assujettie à la TVA. Les taux applicables (20 %, 10 %, 5.5 %) sont configurables par ligne de prestation ci-dessous.
-            </div>
-            <div className="dv-row">
-              <div className="dv-fg"><label>N° TVA intracommunautaire</label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
-            </div>
-          </div>
+          {/* 4. CONFIGURATION TVA — supprimé, champ TVA intra déplacé dans section entreprise */}
 
           {/* 5. INFORMATIONS CLIENT */}
           <div className="dv-section">
