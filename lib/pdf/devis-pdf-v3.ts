@@ -497,8 +497,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         const etapeLines = sortedEtapes.map((e, i) => {
           const prefix = `${i + 1}. `
           const prefixW = pdf.getTextWidth(prefix)
+          // Append price if present
+          const priceSuffix = e.prixHT != null && e.prixHT > 0
+            ? ` — ${localeFormats.currencyFormat(e.prixHT)}`
+            : ''
+          const etapeText = e.designation + priceSuffix
           // Wrap the designation text within the remaining width after prefix
-          const wrapped = pdf.splitTextToSize(e.designation, descColW - prefixW) as string[]
+          const wrapped = pdf.splitTextToSize(etapeText, descColW - prefixW) as string[]
           // Build indent string matching the prefix width
           let indent = ''
           while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '

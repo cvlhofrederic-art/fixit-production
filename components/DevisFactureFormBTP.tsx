@@ -381,7 +381,7 @@ export default function DevisFactureFormBTP({
 
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
-    const storageKey = `fixit_prestations_btp_v3_${artisan?.id || 'guest'}`
+    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
     let localPrest: ServiceBasic[] = []
     try {
       let raw = localStorage.getItem(storageKey)
@@ -412,7 +412,7 @@ export default function DevisFactureFormBTP({
 
   // Matériaux catalogue (from localStorage, type === 'mat')
   const allMaterials = useMemo(() => {
-    const storageKey = `fixit_prestations_btp_v3_${artisan?.id || 'guest'}`
+    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
     try {
       const raw = localStorage.getItem(storageKey)
       if (raw) {
@@ -913,16 +913,19 @@ export default function DevisFactureFormBTP({
     if (serviceId.startsWith('btp_')) {
       // BTP prestation from localStorage — étapes are in the seed data
       try {
-        const raw = localStorage.getItem(`fixit_prestations_btp_v3_${artisan?.id || 'guest'}`)
+        const raw = localStorage.getItem(`fixit_prestations_btp_v4_${artisan?.id || 'guest'}`)
         if (raw) {
-          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: string[] }>
+          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: Array<string | { label: string; price?: number }> }>
           const numId = parseInt(serviceId.replace('btp_', ''), 10)
           const prest = parsed.find(p => p.id === numId)
           if (prest?.description) prestDescription = prest.description
           if (prest?.etapes?.length) {
-            copiedEtapes = prest.etapes.map((et, i) => ({
-              id: `etape_${Date.now()}_${i}`, ordre: i + 1, designation: et,
-            }))
+            copiedEtapes = prest.etapes.map((et, i) => {
+              // Backward compat: old format was string[], new is {label, price?}[]
+              const label = typeof et === 'string' ? et : et.label
+              const price = typeof et === 'string' ? undefined : et.price
+              return { id: `etape_${Date.now()}_${i}`, ordre: i + 1, designation: label, ...(price != null ? { prixHT: price } : {}) }
+            })
           }
         }
       } catch { /* ignore */ }
@@ -1541,6 +1544,13 @@ export default function DevisFactureFormBTP({
                                   onChange={(e) => {
                                     const newEtapes = [...(l.etapes || [])]
                                     newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
+                                    updateLine(l.id, { etapes: newEtapes })
+                                  }} />
+                                <input type="number" min={0} step={0.01} value={et.prixHT ?? ''} placeholder="€ HT"
+                                  style={{ width: 72, border: '1px solid #e0e0dc', borderRadius: 3, padding: '2px 6px', fontSize: 11, textAlign: 'right', color: '#F57C00' }}
+                                  onChange={(e) => {
+                                    const newEtapes = [...(l.etapes || [])]
+                                    newEtapes[ei] = { ...newEtapes[ei], prixHT: e.target.value ? parseFloat(e.target.value) : undefined }
                                     updateLine(l.id, { etapes: newEtapes })
                                   }} />
                                 <button type="button" style={{ color: '#c00', fontSize: 11, cursor: 'pointer', background: 'none', border: 'none' }}

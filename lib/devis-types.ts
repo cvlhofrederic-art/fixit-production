@@ -55,6 +55,7 @@ export interface DevisEtape {
   id: string
   ordre: number
   designation: string
+  prixHT?: number           // prix optionnel pour détailler le coût par étape
   source_etape_id?: string  // id de l'étape template (null si ajoutée manuellement)
 }
 
