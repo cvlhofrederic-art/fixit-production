@@ -314,13 +314,27 @@ export default function DevisFactureFormBTP({
     return () => document.removeEventListener('click', close)
   }, [openPrestaDrop])
 
-  // Acomptes
+  // Acomptes — load saved defaults from localStorage when no initialData
   const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled ?? true)
-  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(
-    initialData?.acomptes && initialData.acomptes.length > 0
-      ? initialData.acomptes
-      : [{ id: 'a1', ordre: 1, label: 'Acompte 1', pourcentage: 30, declencheur: 'À la signature' }]
-  )
+  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(() => {
+    if (initialData?.acomptes && initialData.acomptes.length > 0) return initialData.acomptes
+    try {
+      const saved = localStorage.getItem(`fixit_echeancier_default_${artisan?.id || 'default'}`)
+      if (saved) {
+        const parsed = JSON.parse(saved) as Array<{ label: string; pourcentage: number }>
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((p, i) => ({
+            id: `a${i + 1}`,
+            ordre: i + 1,
+            label: `Acompte ${i + 1}`,
+            pourcentage: p.pourcentage,
+            declencheur: p.label,
+          }))
+        }
+      }
+    } catch { /* ignore corrupt data */ }
+    return [{ id: 'a1', ordre: 1, label: 'Acompte 1', pourcentage: 30, declencheur: 'À la signature' }]
+  })
 
   // Modalités paiement
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || 'Virement bancaire')
