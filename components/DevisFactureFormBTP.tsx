@@ -263,6 +263,9 @@ export default function DevisFactureFormBTP({
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
   const [photosLoading, setPhotosLoading] = useState(false)
 
+  // Import intervention sélectionnée
+  const [selectedBookingId, setSelectedBookingId] = useState('')
+
   // Import devis fournisseur
   const [supplierScanning, setSupplierScanning] = useState(false)
 
@@ -275,6 +278,33 @@ export default function DevisFactureFormBTP({
   const [clientDb, setClientDb] = useState<Array<{ id: string; name: string; email?: string; phone?: string; siret?: string; mainAddress?: string; address?: string }>>([])
   const [clientDbSearch, setClientDbSearch] = useState('')
   const [clientDbLoading, setClientDbLoading] = useState(false)
+
+  /* ──────── Prestations BTP (merge Supabase services + localStorage catalogue) ──────── */
+
+  const allServices = useMemo(() => {
+    // Services Supabase passés en prop
+    const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
+    // Prestations BTP depuis localStorage (PrestationsBTPSection)
+    let localPrest: ServiceBasic[] = []
+    try {
+      const raw = localStorage.getItem(`fixit_prestations_btp_v3_${artisan?.id || 'guest'}`)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string; etapes?: string[] }>
+        localPrest = parsed
+          .filter(p => p.type === 'prest') // seulement les prestations, pas les matériaux
+          .map(p => ({
+            id: `btp_${p.id}`,
+            name: p.name,
+            price_ht: p.price?.min || 0,
+            description: p.etapes?.join(' → ') || undefined,
+          }))
+      }
+    } catch { /* ignore parse errors */ }
+    // Merge : Supabase en premier, puis local sans doublons par nom
+    const names = new Set(supaServices.map(s => s.name.toLowerCase()))
+    const merged = [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
+    return merged
+  }, [services, artisan?.id])
 
   /* ──────── Calculs ──────── */
 
@@ -735,7 +765,7 @@ export default function DevisFactureFormBTP({
       if (serviceId === 'custom') setLines(prev => prev.map(l => l.id === lineId ? { ...l, description: '' } : l))
       return
     }
-    const service = (services as ServiceBasic[]).find(s => s.id === serviceId)
+    const service = allServices.find(s => s.id === serviceId)
     if (!service) return
 
     const price = tvaEnabled ? (service.price_ht || 0) : (service.price_ttc || service.price_ht || 0)
@@ -753,18 +783,35 @@ export default function DevisFactureFormBTP({
       else if (name.includes('forfait')) serviceUnit = 'f'
     }
 
-    // Fetch etapes templates
+    // Fetch etapes: try API first, then fallback to localStorage BTP prestations
     let copiedEtapes: DevisEtape[] = []
-    try {
-      const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
-      const json = await res.json()
-      if (json.etapes?.length) {
-        copiedEtapes = json.etapes.map((et: { id: string; ordre: number; designation: string }, i: number) => ({
-          id: `etape_${Date.now()}_${i}`, ordre: i + 1,
-          designation: et.designation, source_etape_id: et.id,
-        }))
-      }
-    } catch { /* pas d'étapes = pas grave */ }
+    if (serviceId.startsWith('btp_')) {
+      // BTP prestation from localStorage — étapes are in the seed data
+      try {
+        const raw = localStorage.getItem(`fixit_prestations_btp_v3_${artisan?.id || 'guest'}`)
+        if (raw) {
+          const parsed = JSON.parse(raw) as Array<{ id: number; etapes?: string[] }>
+          const numId = parseInt(serviceId.replace('btp_', ''), 10)
+          const prest = parsed.find(p => p.id === numId)
+          if (prest?.etapes?.length) {
+            copiedEtapes = prest.etapes.map((et, i) => ({
+              id: `etape_${Date.now()}_${i}`, ordre: i + 1, designation: et,
+            }))
+          }
+        }
+      } catch { /* ignore */ }
+    } else {
+      try {
+        const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
+        const json = await res.json()
+        if (json.etapes?.length) {
+          copiedEtapes = json.etapes.map((et: { id: string; ordre: number; designation: string }, i: number) => ({
+            id: `etape_${Date.now()}_${i}`, ordre: i + 1,
+            designation: et.designation, source_etape_id: et.id,
+          }))
+        }
+      } catch { /* pas d'étapes = pas grave */ }
+    }
 
     const cleanDesc = descRaw.replace(/\s*\[[^\]]*\]/g, '').trim()
     const fullDesc = cleanDesc ? `${service.name}\n${cleanDesc}` : service.name
@@ -776,7 +823,7 @@ export default function DevisFactureFormBTP({
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [services, tvaEnabled])
+  }, [allServices, tvaEnabled])
 
   const svgToImageDataUrl = useCallback((svgString: string, width: number, height: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -1115,12 +1162,12 @@ export default function DevisFactureFormBTP({
               </div>
               <div className="dv-import-sub">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</div>
               <select
-                onChange={(e) => { if (e.target.value) { importFromBooking(e.target.value); e.target.value = '' } }}
-                defaultValue=""
+                value={selectedBookingId}
+                onChange={(e) => { const v = e.target.value; setSelectedBookingId(v); if (v) importFromBooking(v) }}
                 style={{
                   width: '100%', padding: '10px 12px',
-                  border: '2px solid #FFC107', borderRadius: 8,
-                  background: '#fff', fontSize: 12, fontFamily: 'inherit',
+                  border: `2px solid ${selectedBookingId ? '#4CAF50' : '#FFC107'}`, borderRadius: 8,
+                  background: selectedBookingId ? '#f0fdf4' : '#fff', fontSize: 12, fontFamily: 'inherit',
                   cursor: 'pointer', outline: 'none', color: '#333',
                 }}
               >
@@ -1148,9 +1195,10 @@ export default function DevisFactureFormBTP({
             </div>
 
             <div className="dv-row">
-              <div className="dv-fg"><label>Raison sociale <span className="req">*</span></label><input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} /></div>
-              <div className="dv-fg"><label>SIRET <span className="req">*</span></label><input type="text" placeholder="123 456 789 00012" value={companySiret} onChange={(e) => setCompanySiret(e.target.value)} /></div>
+              <div className="dv-fg"><label>Raison sociale <span className="req">*</span></label><input type="text" value={companyName} disabled style={{ background: '#F5F5F5', color: '#333', cursor: 'not-allowed' }} /></div>
+              <div className="dv-fg"><label>SIRET <span className="req">*</span></label><input type="text" value={companySiret} disabled style={{ background: '#F5F5F5', color: '#333', cursor: 'not-allowed' }} /></div>
             </div>
+            <div style={{ fontSize: 11, color: '#999', marginTop: -8, marginBottom: 10 }}>Raison sociale et SIRET verrouillés — données issues du Kbis</div>
             <div className="dv-row col1">
               <div className="dv-fg"><label>Adresse siège social <span className="req">*</span></label><input type="text" placeholder="Adresse complète" value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} /></div>
             </div>
@@ -1310,14 +1358,14 @@ export default function DevisFactureFormBTP({
                   return (
                     <tr key={l.id}>
                       <td>
-                        {services.length > 0 && (
+                        {allServices.length > 0 && (
                           <select
                             value=""
                             onChange={(e) => selectMotif(l.id, e.target.value)}
                             style={{ width: '100%', marginBottom: 4 }}
                           >
                             <option value="">Sélectionner une prestation…</option>
-                            {(services as ServiceBasic[]).map((s) => (
+                            {allServices.map((s) => (
                               <option key={s.id} value={s.id}>{s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}</option>
                             ))}
                             <option value="custom">✏️ Saisie libre</option>
