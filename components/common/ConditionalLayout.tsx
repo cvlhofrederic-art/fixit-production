@@ -6,6 +6,33 @@ import Footer from '@/components/common/Footer'
 import SiteProtection from '@/components/common/SiteProtection'
 import WhatsAppFloatingButton from '@/components/common/WhatsAppFloatingButton'
 
+// Pages SEO où le bouton WhatsApp flottant doit apparaître (uniquement)
+// Tous les autres endroits (recherche, contact, CGU, etc.) sont exclus
+const SEO_PATH_PREFIXES = [
+  // FR
+  '/ville/',
+  '/services/',
+  '/specialites',
+  '/urgence',
+  '/pres-de-chez-moi/',
+  '/copropriete',
+  '/simulateur-devis',
+  // PT
+  '/servicos/',
+  '/perto-de-mim',
+  '/especialidades',
+  '/urgencia',
+  '/condominio',
+  '/como-funciona',
+  '/torne-se-parceiro',
+  '/simulador-orcamento',
+]
+
+function isSeoPage(pathname: string | null | undefined): boolean {
+  if (!pathname) return false
+  return SEO_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname === p.replace(/\/$/, ''))
+}
+
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const rawPathname = usePathname()
   // Strip locale prefix (/fr/ or /pt/) for route matching
@@ -20,6 +47,8 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
     return <>{children}</>
   }
 
+  const showWhatsApp = isSeoPage(pathname)
+
   return (
     <>
       <SiteProtection />
@@ -29,7 +58,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
         {children}
       </div>
       <Footer />
-      <WhatsAppFloatingButton />
+      {showWhatsApp && <WhatsAppFloatingButton />}
     </>
   )
 }

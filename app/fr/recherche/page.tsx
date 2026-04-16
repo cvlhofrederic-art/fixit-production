@@ -194,9 +194,9 @@ function RechercheContent() {
       const locNorm = normalizeForSearch(location)
 
       // ── 1. Artisans inscrits (profiles_artisan) ─────────────────────
-      // Détection du pays : GPS prioritaire (si "autour de moi") > locale cookie
-      const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
-      let detectedCountry: string = localeCookie === 'pt' ? 'PT' : 'FR'
+      // Détection du pays : GPS prioritaire (si "autour de moi") > URL (/pt ou /fr)
+      // URL est la source de vérité : /pt/pesquisar = PT, /fr/recherche = FR
+      let detectedCountry: string = siteLocale === 'pt' ? 'PT' : 'FR'
 
       // Si géolocalisation active, détecter le pays par coordonnées GPS
       if (userCoords) {
