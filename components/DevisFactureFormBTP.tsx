@@ -25,8 +25,9 @@ import {
   type DevisFactureFormProps,
 } from '@/lib/devis-types'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
-import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { supabase } from '@/lib/supabase'
 
 /* ─────────────────────────────────────────────────────────────────
    CONSTANTES
@@ -128,6 +129,8 @@ export default function DevisFactureFormBTP({
   onSave,
 }: DevisFactureFormProps) {
   const today = new Date().toISOString().split('T')[0]
+  const { t } = useTranslation()
+  const locale = useLocale()
 
   /* ──────── State ──────── */
   const [docType, setDocType] = useState<'devis' | 'facture'>(
@@ -534,28 +537,77 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Génération PDF ──────── */
 
+  const svgToImageDataUrl = useCallback((svgString: string, width: number, height: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = width * 2
+        canvas.height = height * 2
+        const ctx = canvas.getContext('2d')!
+        ctx.scale(2, 2)
+        ctx.drawImage(img, 0, 0, width, height)
+        URL.revokeObjectURL(url)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render failed')) }
+      img.src = url
+    })
+  }, [])
+
   const generatePdf = async (action: 'preview' | 'download') => {
     setPdfLoading(true)
     try {
-      const formData = buildPayload()
-      const v2Input = buildV2Input(formData as never, artisan as never)
-      const pdfBlob = await generateDevisPdfV3(v2Input as never)
-      if (!pdfBlob || !(pdfBlob instanceof Blob)) {
-        toast.error('Génération PDF échouée')
-        return
-      }
-      const url = URL.createObjectURL(pdfBlob)
-      if (action === 'download') {
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${docNumber}.pdf`
-        a.click()
-        setTimeout(() => URL.revokeObjectURL(url), 5000)
-        toast.success('PDF téléchargé')
-      } else {
-        window.open(url, '_blank')
-        setTimeout(() => URL.revokeObjectURL(url), 60000)
-      }
+      const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${executionDelayType}` : 'À convenir'
+      const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
+      const currencyFormat = (n: number) => n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+
+      await generateDevisPdfV3({
+        locale: locale as 'fr' | 'pt' | 'en',
+        localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
+        t,
+        docType, docNumber, docTitle, docDate, docValidity,
+        prestationDate: docDate,
+        executionDelay: delayStr,
+        companyStatus: statutJuridique,
+        companyName, companySiret, companyAddress, companyRCS, companyCapital,
+        companyPhone, companyEmail,
+        tvaEnabled, tvaNumber,
+        insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
+        mediatorName, mediatorUrl, isHorsEtablissement: true,
+        clientName, clientEmail, clientAddress, clientPhone, clientSiret,
+        interventionAddress, interventionBatiment, interventionEtage,
+        interventionEspacesCommuns, interventionExterieur,
+        paymentMode: paymentMode || 'Virement bancaire',
+        paymentDue: paymentDelay || '30 jours',
+        paymentCondition: '', discount: escompte || '', iban: '', bic: '',
+        lines,
+        subtotalHT: totalNet,
+        totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
+        acomptesEnabled: acomptesEnabled || false,
+        acomptes: acomptes || [],
+        notes: notes || '', sourceDevisRef: null,
+        signatureData: null, attachedRapport: null, selectedPhotos: [],
+        artisan: artisan ? {
+          id: artisan.id,
+          logo_url: ((artisan as Record<string, unknown>).logo_url as string) || undefined,
+          company_name: artisan.company_name || undefined,
+          rm: companyRCS || undefined,
+          rc_pro: insuranceNumber || undefined,
+        } : null,
+        ptFiscalData: null,
+        svgToImageDataUrl,
+        fetchFreshLogo: async () => {
+          try {
+            const { data: freshA } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
+            return (freshA?.logo_url as string) || null
+          } catch { return null }
+        },
+      })
+
+      toast.success(action === 'download' ? 'PDF téléchargé' : 'PDF généré')
     } catch (err) {
       console.error('[DevisBTP] PDF failed', err)
       toast.error('Erreur lors de la génération du PDF')
