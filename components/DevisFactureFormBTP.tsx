@@ -1305,18 +1305,19 @@ export default function DevisFactureFormBTP({
       <button className="devis-back" onClick={onBack} type="button">← Retour</button>
 
       {/* ========== TOP BAR ========== */}
-      <div className="devis-top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+      {/* Titre + numéro à gauche (empilés) / Switch Devis|Facture proforma à droite */}
+      <div className="devis-top-bar" style={{ alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span className="devis-top-title">
             {docType === 'devis' ? 'Devis' : 'Facture proforma'}
           </span>
+          <span className="dv-doc-num" style={{ alignSelf: 'flex-start' }}>{docNumber}</span>
+        </div>
+        <div className="devis-top-right">
           <span className="dv-doc-type-switch" role="tablist">
             <button type="button" className={docType === 'devis' ? 'active' : ''} onClick={() => setDocType('devis')}>Devis</button>
             <button type="button" className={docType === 'facture' ? 'active' : ''} onClick={() => setDocType('facture')}>Facture proforma</button>
           </span>
-          <span className="dv-doc-num" style={{ marginLeft: 0 }}>{docNumber}</span>
-        </div>
-        <div className="devis-top-right">
         </div>
       </div>
 
