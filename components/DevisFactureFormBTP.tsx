@@ -179,8 +179,26 @@ export default function DevisFactureFormBTP({
   })
   const [companyPhone, setCompanyPhone] = useState(initialData?.companyPhone || artisan?.phone || '')
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
-  const [tvaNumber, setTvaNumber] = useState(initialData?.tvaNumber || '')
-  const [companyAPE, setCompanyAPE] = useState((initialData as { companyAPE?: string })?.companyAPE || '')
+  const [tvaNumber, setTvaNumber] = useState(() => {
+    if (initialData?.tvaNumber) return initialData.tvaNumber
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { tvaNumber?: string }) => d.tvaNumber)
+      if (last?.tvaNumber) return last.tvaNumber
+    } catch { /* ignore */ }
+    return ''
+  })
+  const [companyAPE, setCompanyAPE] = useState(() => {
+    if ((initialData as { companyAPE?: string })?.companyAPE) return (initialData as { companyAPE?: string }).companyAPE!
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { companyAPE?: string }) => d.companyAPE)
+      if (last?.companyAPE) return last.companyAPE
+    } catch { /* ignore */ }
+    return ''
+  })
   const [companyCapital, setCompanyCapital] = useState(() => {
     if (initialData?.companyCapital) return initialData.companyCapital
     // Cherche le capital dans les derniers documents créés
@@ -193,15 +211,67 @@ export default function DevisFactureFormBTP({
     return ''
   })
 
-  // Assurance & Médiation
-  const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(
-    initialData?.insuranceType || 'rc_pro'
-  )
-  const [insuranceName, setInsuranceName] = useState(initialData?.insuranceName || '')
-  const [insuranceNumber, setInsuranceNumber] = useState(initialData?.insuranceNumber || '')
-  const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || 'France métropolitaine')
-  const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
-  const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
+  // Assurance & Médiation — fallback depuis derniers documents
+  const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(() => {
+    if (initialData?.insuranceType) return initialData.insuranceType
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { insuranceType?: string }) => d.insuranceType)
+      if (last?.insuranceType) return last.insuranceType as 'rc_pro' | 'decennale' | 'both'
+    } catch { /* ignore */ }
+    return 'rc_pro'
+  })
+  const [insuranceName, setInsuranceName] = useState(() => {
+    if (initialData?.insuranceName) return initialData.insuranceName
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { insuranceName?: string }) => d.insuranceName)
+      if (last?.insuranceName) return last.insuranceName
+    } catch { /* ignore */ }
+    return ''
+  })
+  const [insuranceNumber, setInsuranceNumber] = useState(() => {
+    if (initialData?.insuranceNumber) return initialData.insuranceNumber
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { insuranceNumber?: string }) => d.insuranceNumber)
+      if (last?.insuranceNumber) return last.insuranceNumber
+    } catch { /* ignore */ }
+    return ''
+  })
+  const [insuranceCoverage, setInsuranceCoverage] = useState(() => {
+    if (initialData?.insuranceCoverage) return initialData.insuranceCoverage
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { insuranceCoverage?: string }) => d.insuranceCoverage)
+      if (last?.insuranceCoverage) return last.insuranceCoverage
+    } catch { /* ignore */ }
+    return 'France métropolitaine'
+  })
+  const [mediatorName, setMediatorName] = useState(() => {
+    if (initialData?.mediatorName) return initialData.mediatorName
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { mediatorName?: string }) => d.mediatorName)
+      if (last?.mediatorName) return last.mediatorName
+    } catch { /* ignore */ }
+    return ''
+  })
+  const [mediatorUrl, setMediatorUrl] = useState(() => {
+    if (initialData?.mediatorUrl) return initialData.mediatorUrl
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const last = [...docs, ...drafts].find((d: { mediatorUrl?: string }) => d.mediatorUrl)
+      if (last?.mediatorUrl) return last.mediatorUrl
+    } catch { /* ignore */ }
+    return ''
+  })
 
   // TVA
   const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
