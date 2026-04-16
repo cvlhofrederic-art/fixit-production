@@ -1476,7 +1476,30 @@ export default function DevisFactureFormBTP({
                   return (
                     <tr key={l.id}>
                       <td>
-                        <input type="text" placeholder="Ex : Plaque de plâtre BA13, Tube cuivre 22mm…" value={l.description} onChange={(e) => updateMaterialLine(l.id, { description: e.target.value })} />
+                        <div style={{ position: 'relative' }}>
+                          <input type="text" placeholder="Saisissez ou sélectionnez un matériau…" value={l.description || ''}
+                            onChange={(e) => updateMaterialLine(l.id, { description: e.target.value })}
+                            style={{ paddingRight: 28 }} />
+                          <button type="button" tabIndex={-1}
+                            onClick={(e) => { e.stopPropagation(); setOpenPrestaDrop(openPrestaDrop === -l.id ? null : -l.id) }}
+                            style={{ position: 'absolute', right: 1, top: 1, bottom: 1, width: 26, background: 'none', border: 'none', borderLeft: '1px solid #E8E8E8', cursor: 'pointer', color: '#999', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            ▾
+                          </button>
+                          {openPrestaDrop === -l.id && (
+                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: '#fff', border: '1px solid #E8E8E8', borderRadius: 5, zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', marginTop: 2 }}>
+                              {allServices.map((s) => (
+                                <div key={s.id}
+                                  onClick={() => { updateMaterialLine(l.id, { description: s.name, priceHT: s.price_ht || 0 }); setOpenPrestaDrop(null) }}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  style={{ padding: '7px 10px', cursor: 'pointer', fontSize: 11, borderBottom: '1px solid #f5f5f5', transition: 'background .1s' }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f7f5')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}>
+                                  {s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateMaterialLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
                       <td>
