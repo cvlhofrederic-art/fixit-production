@@ -173,7 +173,7 @@ export default function MotifsSection({
 
       {/* Modal Motif */}
       {showMotifModal && (
-        <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => setShowMotifModal(false)}>
+        <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'} onClick={() => setShowMotifModal(false)}>
           <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
               <span className={isV5 ? 'v5-modal-t' : ''} style={{ fontWeight: 600, fontSize: 14 }}>
