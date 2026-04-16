@@ -561,29 +561,33 @@ export default function DevisFactureFormBTP({
     setPdfLoading(true)
     try {
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${executionDelayType}` : 'À convenir'
-      const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
+      const validLines = lines.filter(l => (l.description || '').trim())
+      const totalNet = validLines.reduce((s, l) => s + l.totalHT, 0)
       const currencyFormat = (n: number) => n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+
+      // Map display label → internal code for V3 generator
+      const statusCode = mapLegalFormToCode(statutJuridique)
 
       await generateDevisPdfV3({
         locale: locale as 'fr' | 'pt' | 'en',
         localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
         t,
-        docType, docNumber, docTitle, docDate, docValidity,
+        docType, docNumber, docTitle: docTitle || `Devis ${docNumber}`, docDate, docValidity,
         prestationDate: docDate,
         executionDelay: delayStr,
-        companyStatus: statutJuridique,
-        companyName, companySiret, companyAddress, companyRCS, companyCapital,
+        companyStatus: statusCode,
+        companyName, companySiret, companyAddress, companyRCS: companyRCS || '', companyCapital: companyCapital || '',
         companyPhone, companyEmail,
-        tvaEnabled, tvaNumber,
-        insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
-        mediatorName, mediatorUrl, isHorsEtablissement: true,
-        clientName, clientEmail, clientAddress, clientPhone, clientSiret,
-        interventionAddress, interventionBatiment, interventionEtage,
-        interventionEspacesCommuns, interventionExterieur,
+        tvaEnabled, tvaNumber: tvaNumber || '',
+        insuranceName: insuranceName || '', insuranceNumber: insuranceNumber || '', insuranceCoverage: insuranceCoverage || '', insuranceType,
+        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: true,
+        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '',
+        interventionAddress: interventionAddress || '', interventionBatiment: interventionBatiment || '', interventionEtage: interventionEtage || '',
+        interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
         paymentDue: paymentDelay || '30 jours',
         paymentCondition: '', discount: escompte || '', iban: '', bic: '',
-        lines,
+        lines: validLines.length > 0 ? validLines : lines,
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
         acomptesEnabled: acomptesEnabled || false,
@@ -608,9 +612,10 @@ export default function DevisFactureFormBTP({
       })
 
       toast.success(action === 'download' ? 'PDF téléchargé' : 'PDF généré')
-    } catch (err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
       console.error('[DevisBTP] PDF failed', err)
-      toast.error('Erreur lors de la génération du PDF')
+      toast.error(`Erreur PDF : ${msg}`)
     } finally {
       setPdfLoading(false)
     }
