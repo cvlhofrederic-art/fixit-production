@@ -32,6 +32,7 @@ import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 
 /* ─────────────────────────────────────────────────────────────────
    CONSTANTES
@@ -282,16 +283,23 @@ export default function DevisFactureFormBTP({
   /* ──────── Prestations BTP (merge Supabase services + localStorage catalogue) ──────── */
 
   const allServices = useMemo(() => {
-    // Services Supabase passés en prop
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
-    // Prestations BTP depuis localStorage (PrestationsBTPSection)
+    const storageKey = `fixit_prestations_btp_v3_${artisan?.id || 'guest'}`
     let localPrest: ServiceBasic[] = []
     try {
-      const raw = localStorage.getItem(`fixit_prestations_btp_v3_${artisan?.id || 'guest'}`)
+      let raw = localStorage.getItem(storageKey)
+
+      // Seed le localStorage si vide (même logique que PrestationsBTPSection)
+      if (!raw && artisan?.id) {
+        const all = [...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
+        localStorage.setItem(storageKey, JSON.stringify(all))
+        raw = localStorage.getItem(storageKey)
+      }
+
       if (raw) {
         const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string; etapes?: string[] }>
         localPrest = parsed
-          .filter(p => p.type === 'prest') // seulement les prestations, pas les matériaux
+          .filter(p => p.type === 'prest')
           .map(p => ({
             id: `btp_${p.id}`,
             name: p.name,
@@ -299,11 +307,10 @@ export default function DevisFactureFormBTP({
             description: p.etapes?.join(' → ') || undefined,
           }))
       }
-    } catch { /* ignore parse errors */ }
-    // Merge : Supabase en premier, puis local sans doublons par nom
+    } catch { /* ignore */ }
+
     const names = new Set(supaServices.map(s => s.name.toLowerCase()))
-    const merged = [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
-    return merged
+    return [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
   }, [services, artisan?.id])
 
   /* ──────── Calculs ──────── */

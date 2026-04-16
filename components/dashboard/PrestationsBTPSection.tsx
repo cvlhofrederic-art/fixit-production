@@ -34,7 +34,7 @@ type PrestType = 'prest' | 'mat'
 
 type PriceRange = { min: number; max: number } // min === max ⇒ prix fixe
 
-interface Prestation {
+export interface Prestation {
   id: number
   name: string
   type: PrestType
@@ -67,7 +67,7 @@ const UNITS = ['m²', 'ml', 'm³', 'u', 'kg', 'sac', 'rl', 'h', 'forfait', 'jour
 /* ───────────────────────── SEED PRESTATIONS ─────────────────────────
    Aligné sur les 5 devis super admin (lib/seed-demo-localStorage.ts)
    — cohérence indispensable pour la présentation investisseurs.        */
-const SEED_PREST: Omit<Prestation, 'id'>[] = [
+export const SEED_PREST: Omit<Prestation, 'id'>[] = [
   // ── Gros Œuvre / Démolition ─────────────────────────────────────────────
   { name: 'Démolition cloisons + évacuation gravats', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 2000, max: 3500 },
     etapes: ['Protection des sols et du mobilier voisin', 'Démolition mécanique des cloisons', 'Tri et évacuation des gravats en déchèterie agréée'] },
@@ -143,7 +143,7 @@ const SEED_PREST: Omit<Prestation, 'id'>[] = [
 
 /* ───────────────────────── SEED MATÉRIAUX ─────────────────────────
    Gestion interne des matières / fournisseurs (prix achat → vente).   */
-const SEED_MAT: Omit<Prestation, 'id'>[] = [
+export const SEED_MAT: Omit<Prestation, 'id'>[] = [
   { name: 'Enduit monocouche 25 kg',         type: 'mat', lot: 'gros_oeuvre', unit: 'sac', ref: 'Weber.pral M',  supplier: 'Point P', priceAchat: { min: 15.5, max: 15.5 }, price: { min: 22, max: 26 } },
   { name: 'Tube PER Ø20 — 100 m',            type: 'mat', lot: 'plomberie',   unit: 'rl',  ref: 'Comap',         supplier: 'Cedeo',   priceAchat: { min: 58, max: 58 },     price: { min: 85, max: 98 } },
   { name: 'Câble R2V 3G2.5 — 100 m',         type: 'mat', lot: 'electricite', unit: 'rl',  ref: 'Nexans',        supplier: 'Rexel',   priceAchat: { min: 89, max: 89 },     price: { min: 125, max: 145 } },
