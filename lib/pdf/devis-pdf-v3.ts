@@ -477,7 +477,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       }
     }
 
-    let displayDesc = detail ? `${title}\n${detail}` : title
+    // Build: title, then lineDetail (description), then étapes
+    const lineDetail = (l.lineDetail || '').trim()
+    let displayDesc = title
+    if (detail) displayDesc += `\n${detail}`
+    if (lineDetail) displayDesc += `\n${lineDetail}`
     if (l.etapes && l.etapes.length > 0) {
       const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
       if (sortedEtapes.length > 0) {

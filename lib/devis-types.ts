@@ -15,6 +15,7 @@ export interface SignatureData {
 export interface ProductLine {
   id: number
   description: string
+  lineDetail?: string  // description libre entre titre et étapes
   qty: number
   unit: string  // valeur courte : u, m2, ml, m3, h, j, f, lot, m, kg, L, t, pce, ens, pt, ou valeur personnalisée
   customUnit?: string  // si unit === 'autre', contient la valeur saisie (max 8 chars)
