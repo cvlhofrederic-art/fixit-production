@@ -849,9 +849,8 @@ export default function DevisFactureFormBTP({
 
             <div className="dv-fg" style={{ marginBottom: '.85rem' }}>
               <label>Statut juridique <span className="req">*</span></label>
-              <select value={statutJuridique} onChange={(e) => setStatutJuridique(e.target.value)}>
-                {STATUTS_JURIDIQUES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <input type="text" value={statutJuridique} disabled style={{ background: '#F5F5F5', color: '#333', cursor: 'not-allowed' }} />
+              <div style={{ fontSize: 11, color: '#999', marginTop: 3 }}>Défini à l&apos;inscription (Kbis) — non modifiable</div>
             </div>
 
             <div className="dv-row">
