@@ -7,7 +7,7 @@
  */
 
 const DEMO_ARTISAN_ID = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-const SEED_VERSION = 8 // Increment to force re-seed after adding new data
+const SEED_VERSION = 9 // Increment to force re-seed after adding new data
 
 function isAlreadySeeded(artisanId: string): boolean {
   try {
