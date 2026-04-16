@@ -63,6 +63,7 @@ const TVA_RATES = [20, 10, 5.5, 0] as const
 const DECLENCHEURS_ACOMPTE = [
   'À la signature',
   'Au démarrage',
+  'À mi-chantier',
   'À la livraison',
   '30 jours',
   '60 jours',
