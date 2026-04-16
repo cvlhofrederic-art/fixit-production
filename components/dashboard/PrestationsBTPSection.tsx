@@ -384,6 +384,10 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         .prest-fg input, .prest-fg select, .prest-fg textarea { width: 100%; padding: 7px 9px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; box-sizing: border-box; }
         .prest-fg textarea { resize: vertical; min-height: 56px; line-height: 1.45; color: #1a1a1a; }
         .prest-fg input:focus, .prest-fg select:focus, .prest-fg textarea:focus { outline: none; border-color: #FFC107; }
+        /* Masquer les flèches spinner des inputs number */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         .prest-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
         .prest-range-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #666; cursor: pointer; margin-left: 8px; }
         .prest-price-block { border: 1px solid #E8E8E8; border-radius: 6px; padding: .65rem .75rem; margin-bottom: .75rem; background: #FAFAFA; }
@@ -664,7 +668,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 <div style={{ fontSize: 10, color: '#888', marginTop: 4, fontStyle: 'italic', lineHeight: 1.45 }}>
                   {isPt
                     ? 'Etapas adicionadas automaticamente aos orçamentos. Preço por etapa opcional — deixe em branco para não detalhar.'
-                    : 'Étapes ajoutées automatiquement aux devis. Prix par étape optionnel — laissez vide pour ne pas détailler.'}
+                    : 'Étapes ajoutées automatiquement aux devis. Prix par étape optionnel. Laissez vide pour ne pas détailler.'}
                 </div>
               </div>
             )}
