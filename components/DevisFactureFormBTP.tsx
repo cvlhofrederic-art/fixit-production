@@ -48,14 +48,35 @@ const STATUTS_JURIDIQUES = [
   'Auto-entrepreneur',
 ] as const
 
+// Unités BTP complètes — alignées avec le catalogue prestations (UNITES_DEVIS)
 const UNITES_TABLEAU = [
-  { value: 'u',   label: 'u — Unité' },
-  { value: 'm2',  label: 'm² — Mètre carré' },
-  { value: 'ml',  label: 'ml — Mètre linéaire' },
-  { value: 'm3',  label: 'm³ — Mètre cube' },
-  { value: 'h',   label: 'h — Heure' },
-  { value: 'j',   label: 'j — Jour' },
-  { value: 'f',   label: 'forfait' },
+  // Géométrie
+  { value: 'm2',       label: 'm² — Mètre carré' },
+  { value: 'ml',       label: 'ml — Mètre linéaire' },
+  { value: 'm',        label: 'm — Mètre' },
+  { value: 'm3',       label: 'm³ — Mètre cube' },
+  // Comptage
+  { value: 'u',        label: 'u — Unité' },
+  { value: 'pce',      label: 'pce — Pièce' },
+  { value: 'ens',      label: 'ens — Ensemble' },
+  { value: 'lot',      label: 'lot — Lot' },
+  { value: 'pt',       label: 'pt — Point' },
+  // Poids / volume liquide
+  { value: 'kg',       label: 'kg — Kilogramme' },
+  { value: 't',        label: 't — Tonne' },
+  { value: 'L',        label: 'L — Litre' },
+  // Conditionnement chantier
+  { value: 'sac',      label: 'sac — Sac' },
+  { value: 'rl',       label: 'rl — Rouleau' },
+  { value: 'palette',  label: 'palette' },
+  { value: 'benne',    label: 'benne' },
+  { value: 'camion',   label: 'camion' },
+  // Temps
+  { value: 'h',        label: 'h — Heure' },
+  { value: 'j',        label: 'j — Jour' },
+  { value: 'sem',      label: 'sem — Semaine' },
+  // Facturation
+  { value: 'f',        label: 'f — Forfait' },
 ] as const
 
 const TVA_RATES = [20, 10, 5.5, 0] as const
