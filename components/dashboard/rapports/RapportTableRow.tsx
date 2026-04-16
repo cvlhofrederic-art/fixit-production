@@ -41,9 +41,9 @@ interface RapportIntervention {
 }
 
 const RAPPORT_STATUS_MAP: Record<string, { label: string; tagClass: string }> = {
-  termine: { label: '\u2705 Termine', tagClass: 'v22-tag v22-tag-green' },
+  termine: { label: '\u2705 Terminé', tagClass: 'v22-tag v22-tag-green' },
   en_cours: { label: '\uD83D\uDD04 En cours', tagClass: 'v22-tag v22-tag-gray' },
-  a_reprendre: { label: '\u26A0\uFE0F A reprendre', tagClass: 'v22-tag v22-tag-amber' },
+  a_reprendre: { label: '\u26A0\uFE0F À reprendre', tagClass: 'v22-tag v22-tag-amber' },
   sous_garantie: { label: '\uD83D\uDEE1\uFE0F Sous garantie', tagClass: 'v22-tag v22-tag-gray' },
 }
 
@@ -101,7 +101,7 @@ export default function RapportTableRow({
               style={{ marginTop: '2px', color: tv.primary, cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
               onClick={() => onNavigate?.('devis')}
             >
-              📋 Lie au devis: {label}
+              📋 Lié au devis : {label}
             </div>
           )
         })()}
@@ -120,13 +120,13 @@ export default function RapportTableRow({
               style={{ marginTop: '2px', color: tv.primary, cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
               onClick={() => onNavigate?.('devis')}
             >
-              🧾 Lie a la facture: {label}
+              🧾 Liée à la facture : {label}
             </div>
           )
         })()}
       </td>
       <td>
-        <span className="v22-client-name">{r.clientName || 'Client non defini'}</span>
+        <span className="v22-client-name">{r.clientName || 'Client non défini'}</span>
         {r.siteAddress && <div className="v22-card-meta">{r.siteAddress}</div>}
       </td>
       <td>
@@ -147,10 +147,10 @@ export default function RapportTableRow({
         {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short', year: 'numeric' }) : '\u2014'}
         {r.startTime && <div className="v22-card-meta">{r.startTime}{r.endTime ? ` \u2192 ${r.endTime}` : ''}{duration ? ` (${duration})` : ''}</div>}
       </td>
-      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}><span className={st.tagClass}>{st.label}</span></td>
-      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '12px' }}><span className={st.tagClass}>{st.label}</span></td>
+      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '12px' }}>
         <span className={r.sentStatus === 'envoye' ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-gray'}>
-          {r.sentStatus === 'envoye' ? 'Envoye' : 'Non envoye'}
+          {r.sentStatus === 'envoye' ? 'Envoyé' : 'Non envoyé'}
         </span>
         {r.sentAt && (
           <div className="v22-card-meta" style={{ marginTop: '2px' }}>
@@ -165,13 +165,13 @@ export default function RapportTableRow({
             disabled={pdfLoading === r.id}
             className="v22-btn v22-btn-sm"
           >
-            {pdfLoading === r.id ? '\u23F3' : 'PDF'}
+            {pdfLoading === r.id ? '\u23F3' : 'Télécharger'}
           </button>
           <button onClick={() => onEdit(r)} className="v22-btn v22-btn-sm">&#9997;&#65039;</button>
           <button onClick={() => onDelete(r.id)} className="v22-btn v22-btn-sm" style={{ color: tv.red }}>🗑️</button>
           {r.sentStatus !== 'envoye' && (
             <button onClick={() => onMarkSent(r.id)} className="v22-btn v22-btn-sm">
-              Marquer envoye
+              Marquer envoyé
             </button>
           )}
           {r.clientEmail && (
