@@ -395,13 +395,22 @@ export default function DevisFactureFormBTP({
 
       if (raw) {
         const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: Array<string | { label: string; price?: number }> }>
-        // Map unit from catalogue format (m², ml, forfait, h, u, sac, rl…) → devis format (m2, ml, f, h, u…)
+        // Map unit from catalogue format → devis format (identifiant court)
         const mapUnit = (u?: string): string => {
           if (!u) return 'u'
           const m: Record<string, string> = {
-            'm²': 'm2', 'm2': 'm2', 'ml': 'ml', 'm³': 'm3', 'm3': 'm3',
-            'u': 'u', 'kg': 'kg', 'h': 'h', 'forfait': 'f',
-            'jour': 'j', 'semaine': 'j', 'sac': 'u', 'rl': 'u',
+            // Géométrie
+            'm²': 'm2', 'm2': 'm2', 'ml': 'ml', 'm': 'm', 'm³': 'm3', 'm3': 'm3',
+            // Comptage
+            'u': 'u', 'pce': 'pce', 'ens': 'ens', 'lot': 'lot', 'pt': 'pt',
+            // Poids / volume
+            'kg': 'kg', 't': 't', 'L': 'L', 'l': 'L',
+            // Conditionnement
+            'sac': 'sac', 'rl': 'rl', 'palette': 'palette', 'benne': 'benne', 'camion': 'camion',
+            // Temps
+            'h': 'h', 'jour': 'j', 'j': 'j', 'semaine': 'sem', 'sem': 'sem',
+            // Facturation
+            'forfait': 'f', 'f': 'f',
           }
           return m[u] || 'u'
         }

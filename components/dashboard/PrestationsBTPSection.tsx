@@ -63,7 +63,21 @@ const LOTS: LotDef[] = [
   { key: 'peinture',    label: 'Peinture / Revêtements', keywords: ['peint', 'revetem', 'revêtem', 'carrel', 'faience', 'faïence', 'sol', 'ravalement', 'facade', 'façade', 'platr', 'plâtr', 'enduit', 'isolation'] },
 ]
 
-const UNITS = ['m²', 'ml', 'm³', 'u', 'kg', 'sac', 'rl', 'h', 'forfait', 'jour', 'semaine'] as const
+// Unités BTP courantes — ordre pensé pour le chantier (surface → longueur → volume → comptage → poids → conditionnement → temps → facturation)
+const UNITS = [
+  // Géométrie
+  'm²', 'ml', 'm', 'm³',
+  // Comptage
+  'u', 'pce', 'ens', 'lot', 'pt',
+  // Poids / volume liquide
+  'kg', 't', 'L',
+  // Conditionnement chantier
+  'sac', 'rl', 'palette', 'benne', 'camion',
+  // Temps
+  'h', 'jour', 'semaine',
+  // Facturation
+  'forfait',
+] as const
 
 /* ───────────────────────── SEED PRESTATIONS ─────────────────────────
    Aligné sur les 5 devis super admin (lib/seed-demo-localStorage.ts)
