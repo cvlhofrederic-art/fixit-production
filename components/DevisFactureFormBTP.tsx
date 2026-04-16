@@ -394,15 +394,31 @@ export default function DevisFactureFormBTP({
       }
 
       if (raw) {
-        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: string[] }>
+        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: Array<string | { label: string; price?: number }> }>
+        // Map unit from catalogue format (m², ml, forfait, h, u, sac, rl…) → devis format (m2, ml, f, h, u…)
+        const mapUnit = (u?: string): string => {
+          if (!u) return 'u'
+          const m: Record<string, string> = {
+            'm²': 'm2', 'm2': 'm2', 'ml': 'ml', 'm³': 'm3', 'm3': 'm3',
+            'u': 'u', 'kg': 'kg', 'h': 'h', 'forfait': 'f',
+            'jour': 'j', 'semaine': 'j', 'sac': 'u', 'rl': 'u',
+          }
+          return m[u] || 'u'
+        }
         localPrest = parsed
           .filter(p => p.type === 'prest')
-          .map(p => ({
-            id: `btp_${p.id}`,
-            name: p.name,
-            price_ht: p.price?.min || 0,
-            description: p.description || p.etapes?.join(' → ') || undefined,
-          }))
+          .map(p => {
+            const devisUnit = mapUnit(p.unit)
+            const baseDesc = p.description || ''
+            // Embed unit marker so selectMotif picks the right default unit
+            const descWithUnit = `${baseDesc} [unit:${devisUnit}]`.trim()
+            return {
+              id: `btp_${p.id}`,
+              name: p.name,
+              price_ht: p.price?.min || 0,
+              description: descWithUnit,
+            }
+          })
       }
     } catch { /* ignore */ }
 
@@ -696,7 +712,7 @@ export default function DevisFactureFormBTP({
       }
       setLines([...lines.filter((l) => l.description.trim().length > 0), newLine])
     }
-    if (b.notes) setNotes((notes ? notes + '\n' : '') + b.notes)
+    // Notes complémentaires : laisser vide par défaut, l'artisan les remplit s'il veut
     toast.success('Pré-rempli depuis l\'intervention')
   }
 
@@ -1175,8 +1191,8 @@ export default function DevisFactureFormBTP({
         .dv-presta-table .col-ht { background: #FAFAFA; }
         .dv-presta-del { width: 28px; height: 28px; border-radius: 4px; border: 1px solid #FFCDD2; background: #fff; color: #E53935; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .15s; }
         .dv-presta-del:hover { background: #FFEBEE; }
-        .dv-add-line { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #666; cursor: pointer; padding: 6px 0; border: none; background: none; font-family: inherit; font-weight: 500; }
-        .dv-add-line:hover { color: var(--primary-yellow-dark); }
+        .dv-add-line { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #666; cursor: pointer; padding: 8px 14px; border: 1px dashed #D0D0D0; border-radius: 5px; background: #fff; font-family: inherit; font-weight: 600; letter-spacing: .2px; transition: all .15s; margin-top: 4px; }
+        .dv-add-line:hover { color: #F57C00; border-color: #FFC107; background: #FFFBF0; }
         .dv-scanner-btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: 5px; background: var(--primary-yellow); border: none; color: #333; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
         .dv-scanner-btn:hover { background: #FFB800; }
 
@@ -1538,22 +1554,28 @@ export default function DevisFactureFormBTP({
                           <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
                             <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes :</div>
                             {l.etapes.map((et, ei) => (
-                              <div key={et.id} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
-                                <span style={{ color: '#999', fontSize: 10, minWidth: 16 }}>{ei + 1}.</span>
-                                <input type="text" value={et.designation} style={{ flex: 1, border: '1px solid #e0e0dc', borderRadius: 3, padding: '2px 6px', fontSize: 11 }}
+                              <div key={et.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 5, padding: '4px 6px' }}>
+                                <span style={{ color: '#999', fontSize: 10, fontWeight: 600, minWidth: 16 }}>{ei + 1}.</span>
+                                <input type="text" value={et.designation}
+                                  style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', padding: '2px 0', fontSize: 11, color: '#1a1a1a' }}
                                   onChange={(e) => {
                                     const newEtapes = [...(l.etapes || [])]
                                     newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
                                     updateLine(l.id, { etapes: newEtapes })
                                   }} />
-                                <input type="number" min={0} step={0.01} value={et.prixHT ?? ''} placeholder="€ HT"
-                                  style={{ width: 72, border: '1px solid #e0e0dc', borderRadius: 3, padding: '2px 6px', fontSize: 11, textAlign: 'right', color: '#F57C00' }}
-                                  onChange={(e) => {
-                                    const newEtapes = [...(l.etapes || [])]
-                                    newEtapes[ei] = { ...newEtapes[ei], prixHT: e.target.value ? parseFloat(e.target.value) : undefined }
-                                    updateLine(l.id, { etapes: newEtapes })
-                                  }} />
-                                <button type="button" style={{ color: '#c00', fontSize: 11, cursor: 'pointer', background: 'none', border: 'none' }}
+                                <div title="Prix optionnel par étape"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#FFF8E6', border: '1px solid #FFE082', borderRadius: 4, padding: '2px 5px' }}>
+                                  <span style={{ fontSize: 8, fontWeight: 700, color: '#B26A00', letterSpacing: 0.3, textTransform: 'uppercase' }}>Prix</span>
+                                  <input type="number" min={0} step={0.01} value={et.prixHT ?? ''} placeholder="0"
+                                    style={{ width: 46, border: 'none', background: 'transparent', outline: 'none', padding: 0, fontSize: 11, fontWeight: 600, textAlign: 'right', color: '#E65100' }}
+                                    onChange={(e) => {
+                                      const newEtapes = [...(l.etapes || [])]
+                                      newEtapes[ei] = { ...newEtapes[ei], prixHT: e.target.value ? parseFloat(e.target.value) : undefined }
+                                      updateLine(l.id, { etapes: newEtapes })
+                                    }} />
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#B26A00' }}>€ HT</span>
+                                </div>
+                                <button type="button" aria-label="Supprimer étape" style={{ color: '#c00', fontSize: 12, cursor: 'pointer', background: 'none', border: 'none', padding: 2 }}
                                   onClick={() => updateLine(l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
                               </div>
                             ))}

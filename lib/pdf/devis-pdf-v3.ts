@@ -143,6 +143,24 @@ export interface PdfV3Input {
   action?: 'download' | 'preview'
 }
 
+// ─── Helpers ──────────────────────────────────────
+
+/**
+ * Découpe une adresse française en rue + code postal/ville.
+ * Ex : "12 Boulevard Longchamp, 13001 Marseille"
+ *   → { street: "12 Boulevard Longchamp", city: "13001 Marseille" }
+ * Retourne city=null si aucun code postal 5 chiffres détecté.
+ */
+function splitAddress(addr: string): { street: string; city: string | null } {
+  if (!addr) return { street: '', city: null }
+  // Cherche un code postal 5 chiffres + ville (avec ou sans virgule avant)
+  const m = addr.match(/^(.+?)[\s,]+(\d{5}\s+.+?)$/)
+  if (!m) return { street: addr, city: null }
+  const street = m[1].replace(/[\s,]+$/, '').trim()
+  const city = m[2].trim()
+  return { street, city }
+}
+
 // ─── Main generator ──────────────────────────────────────
 
 export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string }> {
@@ -309,7 +327,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   ey += ptToMm(18)  // label ÉMETTEUR
   ey += ptToMm(14) * 2 + 1.5  // nom entreprise (peut wraper) + espace après nom
-  if (companyAddress) ey += ptToMm(14)
+  if (companyAddress) {
+    const sp = splitAddress(companyAddress)
+    ey += ptToMm(14)                 // Adresse
+    if (sp.city) ey += ptToMm(14)    // Ville
+  }
   if (companyPhone) ey += ptToMm(14)
   if (companyEmail) ey += ptToMm(14)
   if (companySiret) ey += ptToMm(14)
@@ -325,8 +347,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   dy2 += ptToMm(18)  // label DESTINATAIRE
   dy2 += ptToMm(14) + 1.5  // nom client + espace après nom
-  if (clientAddress) dy2 += ptToMm(14)
-  if (interventionAddress || interventionBatiment || interventionEtage) dy2 += ptToMm(14)
+  if (clientAddress) {
+    const sp = splitAddress(clientAddress)
+    dy2 += ptToMm(14)                 // Adresse
+    if (sp.city) dy2 += ptToMm(14)    // Ville
+  }
+  if (interventionAddress || interventionBatiment || interventionEtage) {
+    dy2 += ptToMm(14)  // Intervention adresse
+    if (interventionAddress) {
+      const sp = splitAddress(interventionAddress)
+      if (sp.city) dy2 += ptToMm(14)  // Ville intervention
+    }
+  }
   if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
   if (interventionEspacesCommuns || interventionExterieur) dy2 += ptToMm(14)
   if (clientPhone) dy2 += ptToMm(14)
@@ -350,16 +382,20 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(nameLines, emTx, ey2)
   ey2 += nameLines.length * ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  // Ordre : Adresse → Tél → Email → SIRET → RCS → TVA → APE → Capital
+  // Ordre : Adresse → Ville → Tél → Email → SIRET → RCS → TVA → APE → Capital
   if (companyAddress) {
     const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
-    const addrText = `Adresse : ${addrNorm}`
+    const sp = splitAddress(addrNorm)
+    const addrText = `Adresse : ${sp.street}`
     let addrFs = 10
     pdf.setFontSize(addrFs)
     if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 9; pdf.setFontSize(addrFs) }
     if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 8; pdf.setFontSize(addrFs) }
     pdf.text(addrText, emTx, ey2); ey2 += ptToMm(14)
     pdf.setFontSize(10)
+    if (sp.city) {
+      pdf.text(`Ville : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
+    }
   }
   if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
@@ -383,16 +419,24 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(clientName || '---', destTx, dy3)
   dy3 += ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  // Ordre : Adresse → Intervention → Tél → Email → SIRET (même logique que ÉMETTEUR)
+  // Ordre : Adresse → Ville → Intervention → Bât/Étage → … → Tél → Email → SIRET
   if (clientAddress) {
-    const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
+    const sp = splitAddress(clientAddress)
+    const cAL = pdf.splitTextToSize(`Adresse : ${sp.street}`, destMaxW)
     pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
+    if (sp.city) {
+      pdf.text(`Ville : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
+    }
   }
   if (interventionAddress || interventionBatiment || interventionEtage) {
     const interventionLabel = locale === 'pt' ? 'Local' : 'Intervention'
     if (interventionAddress) {
-      const iAL = pdf.splitTextToSize(`${interventionLabel} : ${interventionAddress}`, destMaxW)
+      const sp = splitAddress(interventionAddress)
+      const iAL = pdf.splitTextToSize(`${interventionLabel} : ${sp.street}`, destMaxW)
       pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
+      if (sp.city) {
+        pdf.text(`Ville : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
+      }
     }
     const batEtParts: string[] = []
     if (interventionBatiment) batEtParts.push(`Bât. ${interventionBatiment}`)
@@ -483,10 +527,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
 
     // Build: title, then lineDetail (description), then étapes
+    // Lignes vides (« \n \n ») pour aérer chaque bloc dans la cellule.
     const lineDetail = (l.lineDetail || '').trim()
     let displayDesc = title
     if (detail) displayDesc += `\n${detail}`
-    if (lineDetail) displayDesc += `\n${lineDetail}`
+    if (lineDetail) displayDesc += `\n \n${lineDetail}`
     if (l.etapes && l.etapes.length > 0) {
       const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
       if (sortedEtapes.length > 0) {
@@ -511,7 +556,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
             li === 0 ? `${prefix}${line}` : `${indent}${line}`
           ).join('\n')
         })
-        displayDesc += '\n' + etapeLines.join('\n')
+        displayDesc += '\n \n' + etapeLines.join('\n')
       }
     }
     const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
