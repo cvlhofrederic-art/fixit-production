@@ -933,12 +933,11 @@ export default function DevisFactureFormBTP({
       } catch { /* pas d'étapes = pas grave */ }
     }
 
-    const cleanDesc = descRaw.replace(/\s*\[[^\]]*\]/g, '').trim()
-    const fullDesc = cleanDesc ? `${service.name}\n${cleanDesc}` : service.name
-
+    // Only put the service name in the description field (title).
+    // Étapes are already injected as structured data — no need to duplicate as text.
     setLines(prev => prev.map(line => {
       if (line.id !== lineId) return line
-      return { ...line, description: fullDesc, unit: serviceUnit, priceHT: price,
+      return { ...line, description: service.name, unit: serviceUnit, priceHT: price,
                tvaRate: 20, totalHT: 1 * price,
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
