@@ -137,9 +137,24 @@ export default function DevisFactureFormBTP({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
-  const [statutJuridique, setStatutJuridique] = useState(
-    initialData?.companyStatus || (artisan?.legal_form ? mapLegalFormToCode(artisan.legal_form) : 'Entreprise Individuelle (EI)')
-  )
+  const [statutJuridique, setStatutJuridique] = useState(() => {
+    if (initialData?.companyStatus) return initialData.companyStatus
+    if (artisan?.legal_form) {
+      const code = mapLegalFormToCode(artisan.legal_form)
+      // Map code retourné → valeur exacte STATUTS_JURIDIQUES
+      const codeToLabel: Record<string, string> = {
+        'ei': 'Entreprise Individuelle (EI)',
+        'eurl': 'EURL',
+        'sarl': 'SARL',
+        'sas': 'SAS',
+        'sasu': 'SASU',
+        'ae': 'Auto-entrepreneur',
+        'sa': 'SA',
+      }
+      return codeToLabel[code] || 'Entreprise Individuelle (EI)'
+    }
+    return 'Entreprise Individuelle (EI)'
+  })
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
@@ -837,7 +852,13 @@ export default function DevisFactureFormBTP({
             <div className="dv-row col3">
               <div className="dv-fg"><label>N° TVA intracommunautaire <span style={{ color: '#999', fontWeight: 400 }}>(si assujetti)</span></label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
               <div className="dv-fg"><label>Code APE / NAF</label><input type="text" placeholder="Ex : 4339Z" value={companyAPE} onChange={(e) => setCompanyAPE(e.target.value)} /></div>
-              <div className="dv-fg"><label>Capital social <span style={{ color: '#999', fontWeight: 400 }}>(SARL/SAS/SA)</span></label><input type="text" placeholder="Ex : 10 000 €" value={companyCapital} onChange={(e) => setCompanyCapital(e.target.value)} /></div>
+              <div className="dv-fg">
+                <label>Capital social {['SARL','EURL','SAS','SASU','SA'].includes(statutJuridique)
+                  ? <span className="req">*</span>
+                  : <span style={{ color: '#999', fontWeight: 400 }}>(SARL/SAS/SA)</span>}
+                </label>
+                <input type="text" placeholder="Ex : 10 000 €" value={companyCapital} onChange={(e) => setCompanyCapital(e.target.value)} />
+              </div>
             </div>
           </div>
 
@@ -1140,12 +1161,29 @@ export default function DevisFactureFormBTP({
           <div className="dv-section">
             <div className="dv-section-t">MENTIONS LÉGALES AUTOMATIQUES</div>
             <div className="dv-mentions">
+              {/* Mention statut juridique spécifique */}
               {statutJuridique === 'Entreprise Individuelle (EI)' && (
                 <>Entrepreneur individuel (EI) — Loi n°2022-172 du 14 février 2022 relative au statut de l&apos;entrepreneur individuel<br /></>
               )}
+              {statutJuridique === 'Auto-entrepreneur' && (
+                <>Micro-entrepreneur — Dispensé d&apos;immatriculation au RCS/RM (art. L. 123-1-1 C. com.)<br /></>
+              )}
+              {(statutJuridique === 'SARL' || statutJuridique === 'EURL') && (
+                <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} — Immatriculée au RCS {companyRCS || '[RCS à renseigner]'}<br /></>
+              )}
+              {(statutJuridique === 'SAS' || statutJuridique === 'SASU') && (
+                <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} — Immatriculée au RCS {companyRCS || '[RCS à renseigner]'}<br /></>
+              )}
+              {statutJuridique === 'SA' && (
+                <>SA au capital de {companyCapital || '[capital à renseigner]'} — Immatriculée au RCS {companyRCS || '[RCS à renseigner]'}<br /></>
+              )}
+
+              {/* TVA */}
               {!tvaEnabled && (
                 <>TVA non applicable, article 293 B du CGI (franchise en base de TVA)<br /></>
               )}
+
+              {/* Mentions communes obligatoires */}
               Devis gratuit — Conformément à l&apos;article L. 111-1 du Code de la consommation<br />
               Ce devis est valable {docValidity} jours à compter de sa date d&apos;émission<br />
               Devis reçu avant l&apos;exécution des travaux — Arrêté du 2 mars 1990 relatif à la publicité des prix dans le bâtiment<br /><br />
