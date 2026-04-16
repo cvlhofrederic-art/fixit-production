@@ -367,8 +367,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         .prest-modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
         .prest-fg { margin-bottom: .85rem; }
         .prest-fg label { display: block; font-size: 11px; font-weight: 600; color: #555; margin-bottom: 4px; }
-        .prest-fg input, .prest-fg select { width: 100%; padding: 7px 9px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; }
-        .prest-fg input:focus, .prest-fg select:focus { outline: none; border-color: #FFC107; }
+        .prest-fg input, .prest-fg select, .prest-fg textarea { width: 100%; padding: 7px 9px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; box-sizing: border-box; }
+        .prest-fg textarea { resize: vertical; min-height: 56px; line-height: 1.45; color: #1a1a1a; }
+        .prest-fg input:focus, .prest-fg select:focus, .prest-fg textarea:focus { outline: none; border-color: #FFC107; }
         .prest-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
         .prest-range-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #666; cursor: pointer; margin-left: 8px; }
         .prest-price-block { border: 1px solid #E8E8E8; border-radius: 6px; padding: .65rem .75rem; margin-bottom: .75rem; background: #FAFAFA; }
@@ -515,7 +516,6 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder={isPt ? 'Ex: Preparação do suporte, aplicação de 2 camadas...' : 'Ex: Préparation du support, application de 2 couches...'}
                   rows={2}
-                  style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: 12 }}
                 />
               </div>
             )}
