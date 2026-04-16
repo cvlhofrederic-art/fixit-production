@@ -1185,7 +1185,7 @@ export default function DevisFactureFormBTP({
                 onChange={(e) => { const v = e.target.value; setSelectedBookingId(v); if (v) importFromBooking(v) }}
                 style={{
                   width: '100%', padding: '10px 12px',
-                  border: `2px solid ${selectedBookingId ? '#4CAF50' : '#FFC107'}`, borderRadius: 8,
+                  border: `1px solid ${selectedBookingId ? '#4CAF50' : '#E0E0E0'}`, borderRadius: 8,
                   background: selectedBookingId ? '#f0fdf4' : '#fff', fontSize: 12, fontFamily: 'inherit',
                   cursor: 'pointer', outline: 'none', color: '#333',
                 }}
