@@ -525,6 +525,7 @@
 .devis-create .dv-row.col3 { grid-template-columns: 1fr 1fr 1fr; }
 .devis-create .dv-row.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 .devis-create .dv-row.col1 { grid-template-columns: 1fr; }
+.devis-create *:focus { outline: none !important; }
 .devis-create .dv-fg { display: flex; flex-direction: column; gap: 4px; }
 .devis-create .dv-fg label { font-size: 11px; font-weight: 600; color: #444; display: flex; align-items: center; gap: 3px; }
 .devis-create .dv-fg label .req { color: #E53935; font-size: 12px; }
@@ -555,7 +556,7 @@
 /* UNITÉ + TVA selects centered */
 .devis-create .dv-presta-table td:nth-child(3) select { text-align: center; }
 .devis-create .dv-presta-table td:nth-child(5) select { text-align: center; }
-.devis-create .dv-presta-table td.amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; padding-top: 10px; }
+.devis-create .dv-presta-table td.amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .devis-create .dv-presta-del { width: 26px; height: 26px; border-radius: 5px; border: 1px solid #F0F0F0; background: #fff; color: #CCC; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .15s; margin: auto; }
 .devis-create .dv-presta-del:hover { border-color: #FFCDD2; color: #E53935; background: #FFEBEE; }
 .devis-create .dv-add-line { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #999; cursor: pointer; padding: 5px 0; border: none; background: none; font-family: inherit; font-weight: 500; transition: color .15s; }
@@ -632,7 +633,7 @@
 .devis-create textarea.v22-form-input { width: 100%; padding: 8px 10px !important; border: 1px solid #E0E0E0 !important; border-radius: 6px !important; font-size: 12px !important; font-family: inherit; background: #fff !important; color: #333 !important; transition: all .15s; box-shadow: none !important; }
 .devis-create .v22-form-input:focus,
 .devis-create .v22-form-select:focus,
-.devis-create .v22-form-textarea:focus { outline: none !important; border-color: var(--v5-primary-yellow) !important; box-shadow: 0 0 0 3px rgba(255,193,7,.1) !important; }
+.devis-create .v22-form-textarea:focus { outline: none !important; border-color: #ccc !important; box-shadow: none !important; }
 .devis-create .v22-form-input::placeholder,
 .devis-create .v22-form-textarea::placeholder { color: #CCC; }
 
@@ -657,7 +658,7 @@
 .devis-create .v22-devis-table input:not([type="checkbox"]):not([type="radio"]),
 .devis-create .v22-devis-table select { padding: 6px 8px !important; border: 1px solid #E8E8E8 !important; border-radius: 5px !important; font-size: 11px !important; font-family: inherit; width: 100%; background: #fff !important; box-shadow: none !important; }
 .devis-create .v22-devis-table input:focus,
-.devis-create .v22-devis-table select:focus { outline: none !important; border-color: var(--v5-primary-yellow) !important; box-shadow: none !important; }
+.devis-create .v22-devis-table select:focus { outline: none !important; border-color: #ccc !important; box-shadow: none !important; }
 
 /* Delete row button (26×26 square, hover red) */
 .devis-create .v22-devis-table button[title*="Supprimer"],
