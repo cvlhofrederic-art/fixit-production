@@ -1152,14 +1152,14 @@ export default function DevisFactureFormBTP({
         .dv-scanner-btn:hover { background: #FFB800; }
 
         /* Acomptes */
-        .dv-acompte-row { display: grid; grid-template-columns: 1fr auto auto 32px; align-items: center; gap: 8px; margin-bottom: .5rem; }
+        .dv-acompte-row { display: grid; grid-template-columns: 1fr 64px 110px 28px; align-items: center; gap: 6px; margin-bottom: .5rem; }
         .dv-acompte-row select { min-width: 0; width: 100%; padding: 7px 10px; border: 1px solid #E0E0E0; border-radius: 5px; font-size: 12px; font-family: inherit; }
-        .dv-acompte-input-pct { display: flex; align-items: center; border: 1px solid #E0E0E0; border-radius: 5px; background: #fff; width: 72px; }
-        .dv-acompte-input-pct input { border: none !important; outline: none; text-align: center; padding: 5px 0 5px 8px; font-size: 12px; font-family: inherit; width: 38px; min-width: 0; background: transparent; -moz-appearance: textfield; }
+        .dv-acompte-input-pct { display: flex; align-items: center; border: 1px solid #E0E0E0; border-radius: 5px; background: #fff; width: 64px; }
+        .dv-acompte-input-pct input { border: none !important; outline: none; text-align: center; padding: 4px 0 4px 6px; font-size: 12px; font-family: inherit; width: 36px; min-width: 0; background: transparent; -moz-appearance: textfield; }
         .dv-acompte-input-pct input::-webkit-inner-spin-button, .dv-acompte-input-pct input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .dv-acompte-input-pct input:focus { box-shadow: none; }
-        .dv-acompte-input-pct span { font-size: 12px; color: #333; padding-right: 8px; }
-        .dv-acompte-eq { font-size: 12px; color: #888; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .dv-acompte-input-pct span { font-size: 12px; color: #333; padding-right: 6px; }
+        .dv-acompte-eq { font-size: 12px; color: #888; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; overflow: hidden; text-overflow: ellipsis; }
         .dv-acompte-del { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #E0E0E0; background: none; cursor: pointer; color: #999; font-size: 14px; display: flex; align-items: center; justify-content: center; }
         .dv-acompte-del:hover { border-color: #E53935; color: #E53935; background: #FFEBEE; }
         .dv-echelon-warning { font-size: 12px; font-weight: 600; margin-top: .65rem; padding: .5rem .75rem; border-radius: 5px; }
