@@ -277,8 +277,8 @@ export default function DevisFactureFormBTP({
   const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
 
   // Client
-  const [clientType, setClientType] = useState<'particulier' | 'professionnel' | 'sci' | 'syndic'>(
-    (initialData?.clientType as 'particulier' | 'professionnel' | 'sci' | 'syndic') || 'particulier'
+  const [clientType, setClientType] = useState<'particulier' | 'professionnel'>(
+    (initialData?.clientType as 'particulier' | 'professionnel') || 'particulier'
   )
   const [clientName, setClientName] = useState(initialData?.clientName || '')
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '')
@@ -1400,22 +1400,26 @@ export default function DevisFactureFormBTP({
             <div className="dv-row">
               <div className="dv-fg">
                 <label>Type de client <span className="req">*</span></label>
-                <select value={clientType} onChange={(e) => setClientType(e.target.value as 'particulier' | 'professionnel' | 'sci' | 'syndic')}>
-                  <option value="particulier">Particulier</option>
-                  <option value="professionnel">Professionnel (entreprise)</option>
-                  <option value="sci">SCI</option>
-                  <option value="syndic">Syndic de copropriété</option>
-                </select>
+                <div style={{ display: 'flex', gap: 0, border: '1px solid #E0E0E0', borderRadius: 5, overflow: 'hidden', background: '#fff' }}>
+                  {(['particulier', 'professionnel'] as const).map(t => (
+                    <button key={t} type="button" onClick={() => setClientType(t)} style={{
+                      flex: 1, padding: '6px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      border: 'none', fontFamily: 'inherit', letterSpacing: '.2px', transition: 'all .15s',
+                      background: clientType === t ? '#1a1a1a' : 'transparent',
+                      color: clientType === t ? '#fff' : '#888',
+                    }}>{t === 'particulier' ? 'Particulier' : 'Professionnel'}</button>
+                  ))}
+                </div>
               </div>
-              <div className="dv-fg"><label>Nom / Raison sociale <span className="req">*</span></label><input type="text" placeholder={clientType === 'particulier' ? 'Ex : Marie Dubois' : 'Ex : SCI Le Mail'} value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
+              <div className="dv-fg"><label>Nom / Raison sociale <span className="req">*</span></label><input type="text" placeholder={clientType === 'particulier' ? 'Ex : Marie Dubois' : 'Ex : SCI Le Mail, Syndic Foncia'} value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
             </div>
             <div className="dv-row">
               <div className="dv-fg"><label>Email</label><input type="email" placeholder="contact@email.fr" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
               <div className="dv-fg"><label>Téléphone</label><input type="text" placeholder="06 …" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} /></div>
             </div>
-            {clientType !== 'particulier' && (
+            {clientType === 'professionnel' && (
             <div className="dv-row">
-              <div className="dv-fg"><label>SIRET {clientType === 'syndic' ? '(syndic)' : clientType === 'sci' ? '(SCI)' : '(entreprise)'}</label><input type="text" placeholder="123 456 789 00012" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)} /></div>
+              <div className="dv-fg"><label>SIRET</label><input type="text" placeholder="123 456 789 00012" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)} /></div>
             </div>
             )}
             <div className="dv-row col1">

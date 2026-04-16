@@ -101,7 +101,7 @@ export interface DevisFactureData {
   interventionExterieur?: string
   clientPhone: string
   clientSiret: string
-  clientType: 'particulier' | 'professionnel' | 'sci' | 'syndic'
+  clientType: 'particulier' | 'professionnel'
   // Document
   docDate: string
   docValidity: number

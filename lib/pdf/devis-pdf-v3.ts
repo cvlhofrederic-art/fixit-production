@@ -89,7 +89,7 @@ export interface PdfV3Input {
   clientAddress: string
   clientPhone: string
   clientSiret: string
-  clientType: 'particulier' | 'professionnel' | 'sci' | 'syndic'
+  clientType: 'particulier' | 'professionnel'
   interventionAddress: string
   interventionBatiment: string
   interventionEtage: string
@@ -382,13 +382,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(clientName || '---', destTx, dy3)
   dy3 += ptToMm(14)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  if (clientType && clientType !== 'particulier') {
-    const clientTypeLabels: Record<string, string> = { professionnel: 'Professionnel', sci: 'SCI', syndic: 'Syndic de copropriété' }
-    pdf.setFontSize(8); pdf.setTextColor(COLOR_TEXT_LIGHT)
-    pdf.text(clientTypeLabels[clientType] || '', destTx, dy3)
-    dy3 += ptToMm(12)
-    pdf.setFontSize(10); pdf.setTextColor(COLOR_TEXT)
-  }
+  // Même ordre que ÉMETTEUR : Nom → SIRET → Adresse → Intervention → Tél → Email
+  if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientAddress) {
     const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
     pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
@@ -414,7 +409,6 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
 
   y = boxStartY + boxH + 4
 
