@@ -271,7 +271,7 @@ export default function HomePage() {
                           onMouseDown={(e) => { e.preventDefault(); pickLoc(sug.label) }}
                           style={{
                             padding: '10px 12px', cursor: 'pointer',
-                            background: i === locCursor ? '#FFF5E6' : '#fff',
+                            background: i === locCursor ? '#FFFAE0' : '#fff',
                             borderBottom: i < locSuggestions.length - 1 ? '1px solid #f2f2f2' : 'none',
                             display: 'flex', alignItems: 'center', gap: 10,
                           }}
