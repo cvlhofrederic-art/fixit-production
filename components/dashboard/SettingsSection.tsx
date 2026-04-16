@@ -8,7 +8,8 @@ import { supabase } from '@/lib/supabase'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
-import { searchDepartements, searchCommunes, type FRDepartement, type FRCommune } from '@/lib/geo/fr-geo-data'
+import { searchDepartements, searchCommunes, PHASE_TEST_REGIONS_FR, type FRDepartement, type FRCommune } from '@/lib/geo/fr-geo-data'
+import { searchDistritosPT, searchCommunesPT, PT_REGIOES, type PTDistrito, type PTCommune } from '@/lib/geo/pt-geo-data'
 
 interface SettingsSectionProps {
   artisan: Artisan
@@ -413,36 +414,39 @@ function checkPasswordStrength(val: string) {
   return { hasLen, hasUpper, hasNum, hasSpecial, score }
 }
 
-// ── Zones d'intervention — matching HTML reference ────────────────────────
-
-const FR_REGIONS = [
-  'Auvergne-Rhône-Alpes', 'Bourgogne-Franche-Comté', 'Bretagne', 'Centre-Val de Loire',
-  'Corse', 'Grand Est', 'Hauts-de-France', 'Île-de-France',
-  'Normandie', 'Nouvelle-Aquitaine', 'Occitanie', 'Pays de la Loire',
-  'Provence-Alpes-Côte d\'Azur',
-]
+// ── Zones d'intervention — phase test : FR = PACA/13, PT = Norte/Porto ────
 
 function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const REGIONS_OPTIONS = isPt ? PT_REGIOES : PHASE_TEST_REGIONS_FR
+
   const [mode, setMode] = useState<'region' | 'dept' | 'city'>('region')
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
   const [selectedDepts, setSelectedDepts] = useState<string[]>([])
   const [selectedCities, setSelectedCities] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
-  // Autocomplete state (département)
+  // Autocomplete state (département / distrito)
   const [deptQuery, setDeptQuery] = useState('')
   const [deptOpen, setDeptOpen] = useState(false)
   const [deptCursor, setDeptCursor] = useState(0)
   const deptBoxRef = useRef<HTMLDivElement>(null)
 
-  // Autocomplete state (ville)
+  // Autocomplete state (ville / concelho / freguesia)
   const [cityQuery, setCityQuery] = useState('')
   const [cityOpen, setCityOpen] = useState(false)
   const [cityCursor, setCityCursor] = useState(0)
   const cityBoxRef = useRef<HTMLDivElement>(null)
 
-  const deptSuggestions = useMemo(() => searchDepartements(deptQuery, 8), [deptQuery])
-  const citySuggestions = useMemo(() => searchCommunes(cityQuery, 10), [cityQuery])
+  const deptSuggestions = useMemo<(FRDepartement | PTDistrito)[]>(
+    () => isPt ? searchDistritosPT(deptQuery, 8) : searchDepartements(deptQuery, 8),
+    [deptQuery, isPt]
+  )
+  const citySuggestions = useMemo<(FRCommune | PTCommune)[]>(
+    () => isPt ? searchCommunesPT(cityQuery, 10) : searchCommunes(cityQuery, 10),
+    [cityQuery, isPt]
+  )
 
   // Fermeture au click extérieur
   useEffect(() => {
@@ -454,14 +458,14 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
-  const addDept = (d: FRDepartement) => {
+  const addDept = (d: FRDepartement | PTDistrito) => {
     const label = `${d.code} - ${d.nom}`
     if (!selectedDepts.includes(label)) setSelectedDepts(prev => [...prev, label])
     setDeptQuery('')
     setDeptOpen(false)
     setDeptCursor(0)
   }
-  const addCity = (c: FRCommune) => {
+  const addCity = (c: FRCommune | PTCommune) => {
     if (!selectedCities.includes(c.nom)) setSelectedCities(prev => [...prev, c.nom])
     setCityQuery('')
     setCityOpen(false)
@@ -569,9 +573,13 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
 
         {mode === 'region' && (
           <div>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>Sélectionnez une ou plusieurs régions</div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
+              {isPt
+                ? 'Fase de teste : apenas a região Norte (Porto) está disponível'
+                : 'Phase test : seule la région PACA est disponible'}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.5rem', marginBottom: '.75rem' }}>
-              {FR_REGIONS.map(r => (
+              {REGIONS_OPTIONS.map(r => (
                 <label key={r} className="set-zone-cb">
                   <input type="checkbox" checked={selectedRegions.includes(r)} onChange={() => toggleRegion(r)} />
                   <span>{r}</span>
@@ -592,37 +600,54 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
         {mode === 'dept' && (
           <div ref={deptBoxRef} style={{ position: 'relative' }}>
             <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
-              Tapez le numéro ou le nom du département (ex : 1 → tous les départements commençant par 1)
+              {isPt
+                ? 'Fase de teste : apenas o distrito do Porto está disponível'
+                : 'Phase test : seul le département 13 (Bouches-du-Rhône) est disponible'}
             </div>
-            <input
-              type="text"
-              className="set-pw-fi"
-              placeholder="Ajouter un département (ex : 13, Bouches…)"
-              style={{ letterSpacing: 'normal' }}
-              value={deptQuery}
-              onChange={e => { setDeptQuery(e.target.value); setDeptOpen(true); setDeptCursor(0) }}
-              onFocus={() => setDeptOpen(true)}
-              onKeyDown={e => {
-                if (!deptOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) { setDeptOpen(true); return }
-                if (e.key === 'ArrowDown') { e.preventDefault(); setDeptCursor(c => Math.min(c + 1, deptSuggestions.length - 1)) }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); setDeptCursor(c => Math.max(c - 1, 0)) }
-                else if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const pick = deptSuggestions[deptCursor]
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                className="set-pw-fi"
+                placeholder={isPt ? 'Adicionar um distrito (ex : Porto)' : 'Ajouter un département (ex : 13, Bouches…)'}
+                style={{ letterSpacing: 'normal', flex: 1 }}
+                value={deptQuery}
+                onChange={e => { setDeptQuery(e.target.value); setDeptOpen(true); setDeptCursor(0) }}
+                onFocus={() => setDeptOpen(true)}
+                onKeyDown={e => {
+                  if (!deptOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) { setDeptOpen(true); return }
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setDeptCursor(c => Math.min(c + 1, deptSuggestions.length - 1)) }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setDeptCursor(c => Math.max(c - 1, 0)) }
+                  else if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const pick = deptSuggestions[deptCursor]
+                    if (pick) addDept(pick)
+                  } else if (e.key === 'Escape') {
+                    setDeptOpen(false)
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const pick = deptSuggestions[deptCursor] || deptSuggestions[0]
                   if (pick) addDept(pick)
-                } else if (e.key === 'Escape') {
-                  setDeptOpen(false)
-                }
-              }}
-            />
+                }}
+                disabled={!deptSuggestions.length || selectedDepts.includes(`${(deptSuggestions[deptCursor] || deptSuggestions[0])?.code} - ${(deptSuggestions[deptCursor] || deptSuggestions[0])?.nom}`)}
+                className="set-btn-primary"
+                style={{ whiteSpace: 'nowrap', padding: '0 14px' }}
+              >
+                {isPt ? '+ Adicionar' : '+ Ajouter'}
+              </button>
+            </div>
             {deptOpen && deptSuggestions.length > 0 && (
               <div role="listbox" style={{
-                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                position: 'absolute', top: 'calc(100% - 4px)', left: 0, right: 0, zIndex: 20,
                 background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
                 boxShadow: '0 4px 18px rgba(0,0,0,.08)', marginTop: 4, maxHeight: 280, overflowY: 'auto',
               }}>
                 {deptSuggestions.map((d, i) => {
                   const already = selectedDepts.includes(`${d.code} - ${d.nom}`)
+                  const region = (d as FRDepartement).region || (d as PTDistrito).regiao || ''
                   return (
                     <div
                       key={d.code}
@@ -640,7 +665,7 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
                     >
                       <span style={{ fontWeight: 700, color: '#F57C00', minWidth: 26 }}>{d.code}</span>
                       <span style={{ color: '#222', fontSize: 13 }}>{d.nom}</span>
-                      <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{d.region}</span>
+                      <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{region}</span>
                       {already && <span style={{ fontSize: 10, color: '#888' }}>✓</span>}
                     </div>
                   )
@@ -661,17 +686,20 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
         {mode === 'city' && (
           <div ref={cityBoxRef} style={{ position: 'relative' }}>
             <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
-              Rechercher une ville ou un village (phase test : département 13)
+              {isPt
+                ? 'Fase de teste : freguesias e concelhos do distrito do Porto (293 localidades)'
+                : 'Phase test : villes et villages du département 13 (119 communes + 16 arrondissements de Marseille)'}
             </div>
-            <input
-              type="text"
-              className="set-pw-fi"
-              placeholder="Marseille, Aubagne, Cassis…"
-              style={{ letterSpacing: 'normal' }}
-              value={cityQuery}
-              onChange={e => { setCityQuery(e.target.value); setCityOpen(true); setCityCursor(0) }}
-              onFocus={() => setCityOpen(true)}
-              onKeyDown={e => {
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                className="set-pw-fi"
+                placeholder={isPt ? 'Porto, Gaia, Matosinhos, Campanhã…' : 'Marseille, Aubagne, Cassis, Roquefort…'}
+                style={{ letterSpacing: 'normal', flex: 1 }}
+                value={cityQuery}
+                onChange={e => { setCityQuery(e.target.value); setCityOpen(true); setCityCursor(0) }}
+                onFocus={() => setCityOpen(true)}
+                onKeyDown={e => {
                 if (!cityOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) { setCityOpen(true); return }
                 if (e.key === 'ArrowDown') { e.preventDefault(); setCityCursor(c => Math.min(c + 1, citySuggestions.length - 1)) }
                 else if (e.key === 'ArrowUp') { e.preventDefault(); setCityCursor(c => Math.max(c - 1, 0)) }
@@ -683,15 +711,33 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
                   setCityOpen(false)
                 }
               }}
-            />
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const pick = citySuggestions[cityCursor] || citySuggestions[0]
+                  if (pick) addCity(pick)
+                }}
+                disabled={!citySuggestions.length || selectedCities.includes((citySuggestions[cityCursor] || citySuggestions[0])?.nom || '')}
+                className="set-btn-primary"
+                style={{ whiteSpace: 'nowrap', padding: '0 14px' }}
+              >
+                {isPt ? '+ Adicionar' : '+ Ajouter'}
+              </button>
+            </div>
             {cityOpen && citySuggestions.length > 0 && (
               <div role="listbox" style={{
-                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                position: 'absolute', top: 'calc(100% - 4px)', left: 0, right: 0, zIndex: 20,
                 background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
                 boxShadow: '0 4px 18px rgba(0,0,0,.08)', marginTop: 4, maxHeight: 280, overflowY: 'auto',
               }}>
                 {citySuggestions.map((c, i) => {
                   const already = selectedCities.includes(c.nom)
+                  const kind = (c as PTCommune).type === 'freguesia'
+                    ? 'freguesia'
+                    : (c as FRCommune).parent
+                      ? 'arrdt'
+                      : ''
                   return (
                     <div
                       key={c.code}
@@ -709,7 +755,10 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
                     >
                       <span style={{ color: '#222', fontSize: 13, fontWeight: 500 }}>{c.nom}</span>
                       {c.cp && <span style={{ color: '#888', fontSize: 11 }}>{c.cp}</span>}
-                      {c.parent && <span style={{ color: '#aaa', fontSize: 10, fontStyle: 'italic', marginLeft: 'auto' }}>arrdt</span>}
+                      {(c as PTCommune).parent && (
+                        <span style={{ color: '#aaa', fontSize: 10, fontStyle: 'italic' }}>· {(c as PTCommune).parent}</span>
+                      )}
+                      {kind && <span style={{ color: '#aaa', fontSize: 10, marginLeft: 'auto' }}>{kind}</span>}
                       {already && <span style={{ fontSize: 10, color: '#888', marginLeft: 'auto' }}>✓</span>}
                     </div>
                   )

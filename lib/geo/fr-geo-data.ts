@@ -1364,6 +1364,14 @@ export const COMMUNES_BY_DEPT: Record<string, FRCommune[]> = {
 // Toutes les communes chargées (phase test : uniquement 13)
 export const ALL_COMMUNES: FRCommune[] = Object.values(COMMUNES_BY_DEPT).flat()
 
+// ── Phase test : France ne propose que PACA / 13 / communes 13 ─────────────
+// Remplacer ces listes quand on ouvrira d'autres régions/départements
+export const PHASE_TEST_REGIONS_FR: string[] = [
+  "Provence-Alpes-Côte d'Azur",
+]
+export const PHASE_TEST_DEPTS_FR: FRDepartement[] = FR_DEPARTEMENTS.filter(d => d.code === '13')
+export const PHASE_TEST_COMMUNES_FR: FRCommune[] = COMMUNES_13
+
 /**
  * Autocomplete helper : match par début de chaîne (case & accent insensitive)
  * puis par inclusion. Limite les résultats.
@@ -1372,12 +1380,13 @@ function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-export function searchDepartements(query: string, limit = 8): FRDepartement[] {
+export function searchDepartements(query: string, limit = 8, scope: 'all' | 'phase-test' = 'phase-test'): FRDepartement[] {
+  const source = scope === 'all' ? FR_DEPARTEMENTS : PHASE_TEST_DEPTS_FR
   const q = normalize(query.trim())
-  if (!q) return FR_DEPARTEMENTS.slice(0, limit)
+  if (!q) return source.slice(0, limit)
   const starts: FRDepartement[] = []
   const includes: FRDepartement[] = []
-  for (const d of FR_DEPARTEMENTS) {
+  for (const d of source) {
     if (d.code.startsWith(q) || normalize(d.nom).startsWith(q)) starts.push(d)
     else if (normalize(d.nom).includes(q)) includes.push(d)
     if (starts.length >= limit) break
@@ -1385,12 +1394,13 @@ export function searchDepartements(query: string, limit = 8): FRDepartement[] {
   return [...starts, ...includes].slice(0, limit)
 }
 
-export function searchCommunes(query: string, limit = 10): FRCommune[] {
+export function searchCommunes(query: string, limit = 10, scope: 'all' | 'phase-test' = 'phase-test'): FRCommune[] {
+  const source = scope === 'all' ? ALL_COMMUNES : PHASE_TEST_COMMUNES_FR
   const q = normalize(query.trim())
-  if (!q) return ALL_COMMUNES.slice(0, limit)
+  if (!q) return source.slice(0, limit)
   const starts: FRCommune[] = []
   const includes: FRCommune[] = []
-  for (const c of ALL_COMMUNES) {
+  for (const c of source) {
     const n = normalize(c.nom)
     if (n.startsWith(q) || c.cp.startsWith(q)) starts.push(c)
     else if (n.includes(q)) includes.push(c)

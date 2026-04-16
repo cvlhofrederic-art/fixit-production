@@ -42,6 +42,12 @@ export interface Artisan {
   telephone_pro?: string | null
   adresse?: string | null
   arrondissement?: string | null
+  intervention_zones?: {
+    regions?: string[]
+    departments?: string[]
+    cities?: string[]
+  } | null
+  display_location?: string | null  // calculé par la page recherche (zones prioritaires sur adresse)
 }
 
 export interface Service {
@@ -221,24 +227,33 @@ export function ArtisanCard({
                   <span>{artisan.experience_years} {locale === 'pt' ? 'anos de experiência' : 'ans d\'expérience'}</span>
                 </div>
               )}
-              {(artisan.adresse || artisan.city || artisan.distance_km != null) && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                  <MapPin className="w-3 h-3" />
-                  <span>
-                    {artisan.adresse || artisan.city}
-                    {artisan.distance_km != null && (
-                      <span className="ml-1 font-semibold text-yellow">
-                        ({artisan.distance_km < 1
-                          ? `${Math.round(artisan.distance_km * 1000)} m`
-                          : artisan.distance_km < 10
-                            ? `${artisan.distance_km.toFixed(1)} km`
-                            : `${Math.round(artisan.distance_km)} km`
-                        })
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                // Inscrits : afficher la zone d'intervention pertinente (display_location)
+                // Catalogue : fallback sur adresse/city
+                const isRegistered = artisan.source === 'registered'
+                const locationText = isRegistered
+                  ? (artisan.display_location || artisan.city || '')
+                  : (artisan.adresse || artisan.city || '')
+                if (!locationText && artisan.distance_km == null) return null
+                return (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <MapPin className="w-3 h-3" />
+                    <span>
+                      {locationText}
+                      {artisan.distance_km != null && (
+                        <span className="ml-1 font-semibold text-yellow">
+                          ({artisan.distance_km < 1
+                            ? `${Math.round(artisan.distance_km * 1000)} m`
+                            : artisan.distance_km < 10
+                              ? `${artisan.distance_km.toFixed(1)} km`
+                              : `${Math.round(artisan.distance_km)} km`
+                          })
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )
+              })()}
             </div>
 
             {badges.length > 0 && (

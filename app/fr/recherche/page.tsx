@@ -31,6 +31,7 @@ import {
 import { FilterModal, type FilterState } from '@/components/recherche/FilterModal'
 import { ArtisanCard, type Artisan, type Availability, type Booking, type Service } from '@/components/recherche/ArtisanCard'
 import { ALL_COMMUNES, FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
+import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 
 
 // ------------------------------------------------------------------
@@ -316,14 +317,27 @@ function RechercheContent() {
         if (cpMatch) {
           searchedDept = cpMatch[1].slice(0, 2)
         }
-        // b) Sinon chercher dans les communes connues (phase test : 13)
+        // b) Sinon chercher dans les communes connues (phase test : FR=13, PT=Porto)
         if (!searchedDept) {
-          const m = ALL_COMMUNES.find(c => normalizeForSearch(c.nom) === locNorm)
-          if (m) searchedDept = m.code.slice(0, 2)
-        }
-        if (searchedDept) {
-          const d = FR_DEPARTEMENTS.find(x => x.code === searchedDept)
-          if (d) searchedRegion = normalizeForSearch(d.region)
+          if (detectedLang === 'pt') {
+            const mpt = ALL_COMMUNES_PT.find(c =>
+              normalizeForSearch(c.nom) === locNorm ||
+              (c.parent && normalizeForSearch(c.parent) === locNorm)
+            )
+            if (mpt) {
+              // Porto district = "13" dans PT_DISTRITOS (phase test)
+              searchedDept = '13'
+              const d = PT_DISTRITOS.find(x => x.code === searchedDept)
+              if (d) searchedRegion = normalizeForSearch(d.regiao)
+            }
+          } else {
+            const m = ALL_COMMUNES.find(c => normalizeForSearch(c.nom) === locNorm)
+            if (m) searchedDept = m.code.slice(0, 2)
+            if (searchedDept) {
+              const d = FR_DEPARTEMENTS.find(x => x.code === searchedDept)
+              if (d) searchedRegion = normalizeForSearch(d.region)
+            }
+          }
         }
 
         registeredList = registeredList.filter((a) => {
@@ -364,6 +378,68 @@ function RechercheContent() {
           }
 
           return false
+        })
+
+        // ── Calcul du display_location : quelle zone afficher au client ?
+        // Priorité : ville matchant la recherche > département > région > fallback city
+        registeredList = registeredList.map((a) => {
+          const zones = (a as any).intervention_zones || {}
+          const zoneCities: string[] = Array.isArray(zones.cities) ? zones.cities : []
+          const zoneDepts: string[] = Array.isArray(zones.departments) ? zones.departments : []
+          const zoneRegions: string[] = Array.isArray(zones.regions) ? zones.regions : []
+          const words = locNorm.split(/\s+/).filter(w => w.length >= 2)
+
+          let display: string | null = null
+
+          // 1. Match ville spécifique
+          for (const city of zoneCities) {
+            const n = normalizeForSearch(city)
+            if (words.some(w => n.includes(w) || w.includes(n))) {
+              display = city
+              break
+            }
+          }
+
+          // 2. Match département
+          if (!display && searchedDept) {
+            const deptHit = zoneDepts.find(d => {
+              const code = (d.match(/\b(\d{2,3})\b/) || [])[1]
+              return code === searchedDept
+            })
+            if (deptHit) {
+              display = detectedLang === 'pt' ? `Distrito do ${deptHit.replace(/^\d+\s*-\s*/, '')}` : `Département ${deptHit}`
+            }
+          }
+
+          // 3. Match région
+          if (!display && searchedRegion) {
+            const regHit = zoneRegions.find(r => normalizeForSearch(r) === searchedRegion)
+            if (regHit) {
+              display = detectedLang === 'pt' ? `Região ${regHit}` : `Région ${regHit}`
+            }
+          }
+
+          // 4. Fallback : première zone déclarée (priorité ville > dept > région)
+          if (!display) {
+            if (zoneCities.length) display = zoneCities[0]
+            else if (zoneDepts.length) display = detectedLang === 'pt' ? `Distrito ${zoneDepts[0]}` : `Département ${zoneDepts[0]}`
+            else if (zoneRegions.length) display = detectedLang === 'pt' ? `Região ${zoneRegions[0]}` : `Région ${zoneRegions[0]}`
+          }
+
+          return { ...a, display_location: display }
+        })
+      } else {
+        // Aucune recherche de lieu : display = première zone de l'artisan
+        registeredList = registeredList.map((a) => {
+          const zones = (a as any).intervention_zones || {}
+          const zoneCities: string[] = Array.isArray(zones.cities) ? zones.cities : []
+          const zoneDepts: string[] = Array.isArray(zones.departments) ? zones.departments : []
+          const zoneRegions: string[] = Array.isArray(zones.regions) ? zones.regions : []
+          let display: string | null = null
+          if (zoneCities.length) display = zoneCities[0]
+          else if (zoneDepts.length) display = detectedLang === 'pt' ? `Distrito ${zoneDepts[0]}` : `Département ${zoneDepts[0]}`
+          else if (zoneRegions.length) display = detectedLang === 'pt' ? `Região ${zoneRegions[0]}` : `Région ${zoneRegions[0]}`
+          return { ...a, display_location: display }
         })
       }
 

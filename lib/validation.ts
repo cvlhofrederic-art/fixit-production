@@ -258,7 +258,7 @@ export const artisanSettingsPostSchema = z.object({
   intervention_zones: z.object({
     regions: z.array(z.string().max(80)).max(20).optional(),
     departments: z.array(z.string().max(80)).max(110).optional(),
-    cities: z.array(z.string().max(100)).max(200).optional(),
+    cities: z.array(z.string().max(120)).max(500).optional(),
   }).optional(),
   language: z.enum(['fr', 'pt', 'en']).optional(),
 })
