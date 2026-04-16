@@ -544,14 +544,15 @@
 .devis-create .dv-toggle-sub { font-size: 11px; color: #999; }
 
 /* Prestations table */
-.devis-create .dv-presta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .65rem; }
-.devis-create .dv-presta-table th { text-align: left; padding: 7px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; background: #FAFAFA; }
-.devis-create .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F5F5F5; vertical-align: middle; }
-.devis-create .dv-presta-table input, .devis-create .dv-presta-table select { padding: 6px 8px; border: 1px solid #E8E8E8; border-radius: 5px; font-size: 11px; font-family: inherit; width: 100%; background: #fff; }
+.devis-create .dv-presta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .65rem; table-layout: fixed; }
+.devis-create .dv-presta-table th { padding: 7px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; background: #FAFAFA; }
+.devis-create .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F5F5F5; vertical-align: top; }
+.devis-create .dv-presta-table input, .devis-create .dv-presta-table select { padding: 6px 8px; border: 1px solid #E8E8E8; border-radius: 5px; font-size: 11px; font-family: inherit; width: 100%; background: #fff; box-sizing: border-box; }
 .devis-create .dv-presta-table input:focus, .devis-create .dv-presta-table select:focus { outline: none; border-color: var(--v5-primary-yellow); }
-.devis-create .dv-presta-table td.amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.devis-create .dv-presta-table colgroup + thead + tbody td:nth-child(6),
-.devis-create .dv-presta-table colgroup + thead + tbody td:nth-child(7) { text-align: right; }
+/* Numeric columns: QTÉ, PRIX HT, TVA %, TOTAL HT, TOTAL TTC — inputs right-aligned */
+.devis-create .dv-presta-table td:nth-child(2) input { text-align: right; }
+.devis-create .dv-presta-table td:nth-child(4) input { text-align: right; }
+.devis-create .dv-presta-table td.amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; padding-top: 10px; }
 .devis-create .dv-presta-del { width: 26px; height: 26px; border-radius: 5px; border: 1px solid #F0F0F0; background: #fff; color: #CCC; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .15s; margin: auto; }
 .devis-create .dv-presta-del:hover { border-color: #FFCDD2; color: #E53935; background: #FFEBEE; }
 .devis-create .dv-add-line { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #999; cursor: pointer; padding: 5px 0; border: none; background: none; font-family: inherit; font-weight: 500; transition: color .15s; }

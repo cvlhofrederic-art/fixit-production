@@ -1330,9 +1330,9 @@ export default function DevisFactureFormBTP({
             <div className="dv-section-t">MAIN D&apos;ŒUVRE</div>
             <table className="dv-presta-table">
               <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '10%' }} />
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '11%' }} />
                 <col style={{ width: '12%' }} />
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '14%' }} />
@@ -1344,7 +1344,7 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
                   <th style={{ textAlign: 'right' }}>QTÉ</th>
                   <th style={{ textAlign: 'left' }}>UNITÉ</th>
-                  <th style={{ textAlign: 'right' }}>PRIX U. HT</th>
+                  <th style={{ textAlign: 'right' }}>PRIX HT</th>
                   <th style={{ textAlign: 'right' }}>TVA %</th>
                   <th style={{ textAlign: 'right' }}>TOTAL HT</th>
                   <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
@@ -1425,9 +1425,9 @@ export default function DevisFactureFormBTP({
             <div className="dv-section-t">MATÉRIAUX</div>
             <table className="dv-presta-table">
               <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '10%' }} />
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '11%' }} />
                 <col style={{ width: '12%' }} />
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '14%' }} />
@@ -1439,7 +1439,7 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
                   <th style={{ textAlign: 'right' }}>QTÉ</th>
                   <th style={{ textAlign: 'left' }}>UNITÉ</th>
-                  <th style={{ textAlign: 'right' }}>PRIX U. HT</th>
+                  <th style={{ textAlign: 'right' }}>PRIX HT</th>
                   <th style={{ textAlign: 'right' }}>TVA %</th>
                   <th style={{ textAlign: 'right' }}>TOTAL HT</th>
                   <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
