@@ -1062,11 +1062,13 @@ export default function DevisFactureFormBTP({
         .dv-scanner-btn:hover { background: #FFB800; }
 
         /* Acomptes */
-        .dv-acompte-row { display: grid; grid-template-columns: 1fr 90px 30px 130px 32px; align-items: center; gap: 8px; margin-bottom: .5rem; }
-        .dv-acompte-row select, .dv-acompte-row input { min-width: 0; width: 100%; padding: 7px 10px; border: 1px solid #E0E0E0; border-radius: 5px; font-size: 12px; font-family: inherit; }
-        .dv-acompte-row input { text-align: center; }
-        .dv-acompte-pct { font-size: 12px; color: #666; }
-        .dv-acompte-eq { font-size: 12px; color: #888; text-align: right; font-variant-numeric: tabular-nums; }
+        .dv-acompte-row { display: grid; grid-template-columns: 1fr auto auto 32px; align-items: center; gap: 8px; margin-bottom: .5rem; }
+        .dv-acompte-row select { min-width: 0; width: 100%; padding: 7px 10px; border: 1px solid #E0E0E0; border-radius: 5px; font-size: 12px; font-family: inherit; }
+        .dv-acompte-input-pct { display: flex; align-items: center; border: 1px solid #E0E0E0; border-radius: 5px; background: #fff; min-width: 90px; }
+        .dv-acompte-input-pct input { border: none !important; outline: none; text-align: center; padding: 7px 2px 7px 10px; font-size: 12px; font-family: inherit; width: 50px; min-width: 0; background: transparent; }
+        .dv-acompte-input-pct input:focus { box-shadow: none; }
+        .dv-acompte-input-pct span { font-size: 12px; color: #333; padding-right: 10px; }
+        .dv-acompte-eq { font-size: 12px; color: #888; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .dv-acompte-del { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #E0E0E0; background: none; cursor: pointer; color: #999; font-size: 14px; display: flex; align-items: center; justify-content: center; }
         .dv-acompte-del:hover { border-color: #E53935; color: #E53935; background: #FFEBEE; }
         .dv-echelon-warning { font-size: 12px; font-weight: 600; margin-top: .65rem; padding: .5rem .75rem; border-radius: 5px; }
@@ -1363,8 +1365,8 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
                   <th style={{ textAlign: 'center' }}>TVA %</th>
-                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
-                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
+                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
@@ -1468,8 +1470,8 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
                   <th style={{ textAlign: 'center' }}>TVA %</th>
-                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
-                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
+                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right', paddingRight: 0 }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
@@ -1537,8 +1539,10 @@ export default function DevisFactureFormBTP({
                       <select value={a.declencheur} onChange={(e) => updateAcompte(a.id, { declencheur: e.target.value })}>
                         {DECLENCHEURS_ACOMPTE.map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
-                      <input type="number" min={0} max={100} value={a.pourcentage} onChange={(e) => updateAcompte(a.id, { pourcentage: parseFloat(e.target.value) || 0 })} />
-                      <span className="dv-acompte-pct">%</span>
+                      <div className="dv-acompte-input-pct">
+                        <input type="number" min={0} max={100} value={a.pourcentage} onChange={(e) => updateAcompte(a.id, { pourcentage: parseFloat(e.target.value) || 0 })} />
+                        <span>%</span>
+                      </div>
                       <span className="dv-acompte-eq">= {fmt(eq)}</span>
                       <button className="dv-acompte-del" type="button" onClick={() => removeAcompte(a.id)}>✕</button>
                     </div>
