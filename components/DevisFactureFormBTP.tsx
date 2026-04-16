@@ -967,7 +967,8 @@ export default function DevisFactureFormBTP({
   const generatePdf = async (action: 'preview' | 'download') => {
     setPdfLoading(true)
     try {
-      const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${executionDelayType}` : 'À convenir'
+      const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
+      const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
       const validLabor = lines.filter(l => (l.description || '').trim())
       const validMaterials = materialLines.filter(l => (l.description || '').trim())
       const validLines = [...validLabor, ...validMaterials]
@@ -993,7 +994,7 @@ export default function DevisFactureFormBTP({
         companyStatus: statusCode,
         companyName, companySiret, companyAddress, companyRCS: companyRCS || '', companyCapital: companyCapital || '',
         companyPhone, companyEmail,
-        tvaEnabled, tvaNumber: tvaNumber || '',
+        tvaEnabled, tvaNumber: tvaNumber || '', companyAPE: companyAPE || '',
         insuranceName: insuranceName || '', insuranceNumber: insuranceNumber || '', insuranceCoverage: insuranceCoverage || '', insuranceType,
         mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: true,
         clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '',
@@ -1001,7 +1002,7 @@ export default function DevisFactureFormBTP({
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
         paymentDue: paymentDelay || '30 jours',
-        paymentCondition: escompte || '', discount: '', iban: '', bic: '',
+        paymentCondition: escompte || '', discount: '', penaltyRate: penaltyRate || '', recoveryFee: recoveryFee || '', iban: '', bic: '',
         lines: validLines.length > 0 ? validLines : lines,
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,

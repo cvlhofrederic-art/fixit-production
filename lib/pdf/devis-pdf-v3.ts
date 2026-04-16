@@ -95,11 +95,16 @@ export interface PdfV3Input {
   interventionEspacesCommuns: string
   interventionExterieur: string
 
+  // Company extras
+  companyAPE: string
+
   // Payment
   paymentMode: string
   paymentDue: string
   paymentCondition: string
   discount: string
+  penaltyRate: string
+  recoveryFee: string
   iban: string
   bic: string
 
@@ -152,7 +157,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     clientName, clientEmail, clientAddress, clientPhone, clientSiret,
     interventionAddress, interventionBatiment, interventionEtage,
     interventionEspacesCommuns, interventionExterieur,
-    paymentMode, paymentDue, paymentCondition, discount, iban, bic,
+    companyAPE,
+    paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
     lines, subtotalHT, totalTTC,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -308,6 +314,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companyPhone) ey += ptToMm(14)
   if (companyEmail) ey += ptToMm(14)
   if (tvaEnabled && tvaNumber) ey += ptToMm(14)
+  if (companyAPE) ey += ptToMm(14)
   if (companyCapital) ey += ptToMm(14)
 
   // ── Mesure hauteur destinataire ──
@@ -360,6 +367,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
   if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey2); ey2 += ptToMm(14) }
+  if (companyAPE) { pdf.text(`APE / NAF : ${companyAPE}`, emTx, ey2); ey2 += ptToMm(14) }
   if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey2); ey2 += ptToMm(14) }
 
   // Destinataire
@@ -473,7 +481,23 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (l.etapes && l.etapes.length > 0) {
       const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
       if (sortedEtapes.length > 0) {
-        displayDesc += '\n' + sortedEtapes.map((e, i) => `${i + 1}. ${e.designation}`).join('\n')
+        // Pre-wrap étapes with hanging indent: continuation lines align
+        // under the first letter after "N. ", not under the number.
+        const descColW = contentW * 0.35 - 6 // minus cell padding (3mm each side)
+        pdf.setFontSize(10)
+        const etapeLines = sortedEtapes.map((e, i) => {
+          const prefix = `${i + 1}. `
+          const prefixW = pdf.getTextWidth(prefix)
+          // Wrap the designation text within the remaining width after prefix
+          const wrapped = pdf.splitTextToSize(e.designation, descColW - prefixW) as string[]
+          // Build indent string matching the prefix width
+          let indent = ''
+          while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '
+          return wrapped.map((line: string, li: number) =>
+            li === 0 ? `${prefix}${line}` : `${indent}${line}`
+          ).join('\n')
+        })
+        displayDesc += '\n' + etapeLines.join('\n')
       }
     }
     const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
@@ -490,9 +514,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   const colStyles: Record<number, { cellWidth: number; halign: string }> = {
-    0: { cellWidth: contentW * 0.36, halign: 'left' },
+    0: { cellWidth: contentW * 0.35, halign: 'left' },
     1: { cellWidth: contentW * 0.07, halign: 'center' },
-    2: { cellWidth: contentW * 0.07, halign: 'center' },
+    2: { cellWidth: contentW * 0.08, halign: 'center' },
     3: { cellWidth: contentW * 0.19, halign: 'right' },
   }
   if (tvaEnabled) {
@@ -651,6 +675,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
       ...(iban ? [`IBAN : ${iban}${bic ? ` | BIC : ${bic}` : ''}`] : []),
       ...(paymentCondition ? [paymentCondition] : []),
+      ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
+      ...(recoveryFee ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
     ]
     condTextLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, condW - 4)
