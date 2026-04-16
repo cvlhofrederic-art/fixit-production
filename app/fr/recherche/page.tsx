@@ -312,31 +312,49 @@ function RechercheContent() {
         let searchedDept = ''
         let searchedRegion = ''
 
-        // a) Si postcode dans la saisie (format "Marseille (13001)" ou "13001"), extraire 2 premiers chiffres
+        // a) Si postcode 5 chiffres dans la saisie (ex: "Marseille (13001)"), extraire 2 premiers chiffres
         const cpMatch = (location || '').match(/(\d{5})/)
         if (cpMatch) {
           searchedDept = cpMatch[1].slice(0, 2)
         }
-        // b) Sinon chercher dans les communes connues (phase test : FR=13, PT=Porto)
+        // b) Sinon format "13 - Bouches-du-Rhône" → extraire les 2-3 premiers chiffres
+        if (!searchedDept) {
+          const deptCodeMatch = (location || '').match(/^\s*(\d{2,3})\b/)
+          if (deptCodeMatch) searchedDept = deptCodeMatch[1]
+        }
+        // c) Sinon chercher dans les communes/distritos connus (phase test : FR=13, PT=Porto)
         if (!searchedDept) {
           if (detectedLang === 'pt') {
-            const mpt = ALL_COMMUNES_PT.find(c =>
-              normalizeForSearch(c.nom) === locNorm ||
-              (c.parent && normalizeForSearch(c.parent) === locNorm)
+            // Cas "Porto (distrito)" ou distrito direct
+            const distMatch = PT_DISTRITOS.find(d =>
+              normalizeForSearch(d.nom) === locNorm ||
+              locNorm.startsWith(normalizeForSearch(d.nom))
             )
-            if (mpt) {
-              // Porto district = "13" dans PT_DISTRITOS (phase test)
-              searchedDept = '13'
-              const d = PT_DISTRITOS.find(x => x.code === searchedDept)
-              if (d) searchedRegion = normalizeForSearch(d.regiao)
+            if (distMatch) {
+              searchedDept = distMatch.code
+            } else {
+              // Match commune (concelho ou freguesia, avec ou sans "· parent")
+              const cleanLoc = locNorm.split(/\s·\s/)[0].trim()
+              const mpt = ALL_COMMUNES_PT.find(c =>
+                normalizeForSearch(c.nom) === cleanLoc ||
+                (c.parent && normalizeForSearch(c.parent) === cleanLoc)
+              )
+              if (mpt) searchedDept = '13' // phase test : toutes les communes Porto → distrito 13
             }
           } else {
+            // FR : "Marseille" → trouve dans ALL_COMMUNES (phase test = communes 13)
             const m = ALL_COMMUNES.find(c => normalizeForSearch(c.nom) === locNorm)
             if (m) searchedDept = m.code.slice(0, 2)
-            if (searchedDept) {
-              const d = FR_DEPARTEMENTS.find(x => x.code === searchedDept)
-              if (d) searchedRegion = normalizeForSearch(d.region)
-            }
+          }
+        }
+        // d) Résoudre la région depuis le dept
+        if (searchedDept) {
+          if (detectedLang === 'pt') {
+            const d = PT_DISTRITOS.find(x => x.code === searchedDept)
+            if (d) searchedRegion = normalizeForSearch(d.regiao)
+          } else {
+            const d = FR_DEPARTEMENTS.find(x => x.code === searchedDept)
+            if (d) searchedRegion = normalizeForSearch(d.region)
           }
         }
 
@@ -606,28 +624,58 @@ function RechercheContent() {
     ).slice(0, 8)
   }, [categoryInput])
 
-  // Fetch city suggestions from API (debounced via useEffect)
+  // Autocomplete local (phase test) : départements + villes depuis nos datasets
+  // FR : 13 + communes 13 / PT : Porto + freguesias/concelhos Porto
+  // Match dès 1 caractère (ex : '1' → 13 Bouches-du-Rhône, '13' idem)
   useEffect(() => {
-    if (!locDropOpen) return
-    if (locationInput.length < 2) { setCitySuggestions([]); return }
-    setCitySuggestionsLoading(true)
-    const timer = setTimeout(async () => {
-      try {
-        if (siteLocale === 'pt') {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationInput)}&countrycodes=pt&format=json&limit=6&addressdetails=1`, { headers: { 'User-Agent': 'Vitfix/1.0' } })
-          const data = await res.json()
-          setCitySuggestions((data || []).map((r: Record<string, unknown>) => ({ label: String(r.display_name).split(',')[0] })))
-        } else {
-          const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(locationInput)}&type=municipality&limit=6&autocomplete=1`)
-          const data = await res.json()
-          setCitySuggestions((data.features || []).map((f: { properties: { city?: string; label?: string; postcode?: string } }) => ({
-            label: `${f.properties.city || f.properties.label}${f.properties.postcode ? ' (' + f.properties.postcode + ')' : ''}`,
-          })))
+    if (!locDropOpen) { setCitySuggestions([]); return }
+    const raw = locationInput.trim()
+    if (raw.length < 1) { setCitySuggestions([]); return }
+
+    const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const suggestions: Array<{ label: string }> = []
+    const seen = new Set<string>()
+
+    const push = (label: string) => {
+      if (!seen.has(label)) { seen.add(label); suggestions.push({ label }) }
+    }
+
+    if (siteLocale === 'pt') {
+      // Distritos (phase test : Porto uniquement)
+      for (const d of PT_DISTRITOS) {
+        if (d.code.startsWith(norm) || d.nom.toLowerCase().includes(norm)) {
+          push(`${d.nom} (distrito)`)
         }
-      } catch { setCitySuggestions([]) }
-      finally { setCitySuggestionsLoading(false) }
-    }, 250)
-    return () => clearTimeout(timer)
+      }
+      // Concelhos + freguesias
+      for (const c of ALL_COMMUNES_PT) {
+        if (suggestions.length >= 8) break
+        const n = c.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        const p = c.parent ? c.parent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : ''
+        if (n.startsWith(norm) || p.startsWith(norm) || n.includes(norm)) {
+          push(c.parent ? `${c.nom} · ${c.parent}` : c.nom)
+        }
+      }
+    } else {
+      // Départements FR (tous les 101 pour la suggestion — phase test seul le 13 a des artisans)
+      for (const d of FR_DEPARTEMENTS) {
+        if (d.code.startsWith(norm) || d.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm)) {
+          push(`${d.code} - ${d.nom}`)
+          if (suggestions.length >= 4) break
+        }
+      }
+      // Communes (phase test : 13 uniquement via ALL_COMMUNES)
+      for (const c of ALL_COMMUNES) {
+        if (suggestions.length >= 10) break
+        const n = c.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        if (n.startsWith(norm) || c.cp.startsWith(raw) || n.includes(norm)) {
+          push(c.cp ? `${c.nom} (${c.cp})` : c.nom)
+        }
+      }
+    }
+
+    setCitySuggestions(suggestions.slice(0, 10))
+    setCitySuggestionsLoading(false)
   }, [locationInput, locDropOpen, siteLocale])
 
   // Click outside to close dropdowns
