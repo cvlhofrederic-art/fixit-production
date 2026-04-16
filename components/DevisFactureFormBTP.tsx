@@ -363,12 +363,12 @@ export default function DevisFactureFormBTP({
       rcs: companyRCS.trim().length > 0,
       assurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
       mediateur: mediatorName.trim().length > 0 && mediatorUrl.trim().length > 0,
-      client: clientName.trim().length > 0 && clientAddress.trim().length > 0,
+      client: clientName.trim().length > 0,
       prestations: [...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
-  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, clientAddress, lines])
+  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines])
 
   /* ──────── Handlers tableau prestations ──────── */
 
