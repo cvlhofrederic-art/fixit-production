@@ -786,39 +786,23 @@ export default function DevisFactureFormBTP({
                 <span className="dv-import-badge">Gain de temps</span>
               </div>
               <div className="dv-import-sub">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</div>
-              {!showImportList ? (
-                <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowImportList(true)}
-                    style={{
-                      background: '#fff', border: '1px solid #F5C741', borderRadius: 6,
-                      padding: '9px 20px', fontSize: 12, fontWeight: 600, color: '#5A4500',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Sélectionner une intervention…
-                  </button>
-                </div>
-              ) : (
-                <select
-                  onChange={(e) => { if (e.target.value) { importFromBooking(e.target.value); e.target.value = ''; setShowImportList(false) } }}
-                  defaultValue=""
-                  style={{
-                    width: '100%', padding: '10px 12px',
-                    border: '2px solid #FFC107', borderRadius: 8,
-                    background: '#fff', fontSize: 12, fontFamily: 'inherit',
-                    cursor: 'pointer', outline: 'none', color: '#333',
-                  }}
-                >
-                  <option value="">Sélectionner une intervention…</option>
-                  {importableBookings.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.booking_date || ''} – {b.client_name || 'Client'} – {b.services?.name || 'Intervention'}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                onChange={(e) => { if (e.target.value) { importFromBooking(e.target.value); e.target.value = '' } }}
+                defaultValue=""
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  border: '2px solid #FFC107', borderRadius: 8,
+                  background: '#fff', fontSize: 12, fontFamily: 'inherit',
+                  cursor: 'pointer', outline: 'none', color: '#333',
+                }}
+              >
+                <option value="">Sélectionner une intervention…</option>
+                {importableBookings.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.booking_date || ''} – {b.client_name || 'Client'} – {b.services?.name || 'Intervention'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
