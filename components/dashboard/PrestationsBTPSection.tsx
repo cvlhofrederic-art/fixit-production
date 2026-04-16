@@ -616,35 +616,45 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   </div>
                 )}
                 {localEtapes.map((et, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
-                    <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 8px', marginBottom: 6 }}>
+                    <span style={{ color: '#999', fontSize: 11, fontWeight: 600, minWidth: 18 }}>{i + 1}.</span>
                     <input
                       type="text"
                       value={et.label}
                       placeholder={isPt ? 'Ex: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
                       onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-                      style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
+                      style={{ flex: 1, fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '2px 0' }}
                     />
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={et.price ?? ''}
-                      placeholder="€ HT"
-                      onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, price: e.target.value ? parseFloat(e.target.value) : undefined } : x)))}
-                      style={{ width: 72, fontSize: 11, color: '#F57C00', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0', textAlign: 'right' }}
-                    />
+                    <div title={isPt ? 'Preço opcional por etapa' : 'Prix optionnel par étape'}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#FFF8E6', border: '1px solid #FFE082', borderRadius: 4, padding: '3px 6px' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#B26A00', letterSpacing: 0.3, textTransform: 'uppercase' }}>
+                        {isPt ? 'Preço' : 'Prix'}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={et.price ?? ''}
+                        placeholder="0"
+                        onChange={(e) => setLocalEtapes((prev) => prev.map((x, j) => (j === i ? { ...x, price: e.target.value ? parseFloat(e.target.value) : undefined } : x)))}
+                        style={{ width: 54, fontSize: 12, fontWeight: 600, color: '#E65100', background: 'transparent', border: 'none', outline: 'none', padding: 0, textAlign: 'right' }}
+                      />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#B26A00' }}>€ HT</span>
+                    </div>
                     <button
                       type="button"
+                      aria-label={isPt ? 'Remover etapa' : 'Supprimer étape'}
                       onClick={() => setLocalEtapes((prev) => prev.filter((_, j) => j !== i))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#c00', padding: 2 }}
                     >
                       ✕
                     </button>
                   </div>
                 ))}
-                <div style={{ fontSize: 10, color: '#999', marginTop: 6, fontStyle: 'italic' }}>
-                  {isPt ? 'As etapas serão automaticamente adicionadas aos orçamentos com esta prestação.' : 'Les étapes seront automatiquement ajoutées aux devis utilisant cette prestation.'}
+                <div style={{ fontSize: 10, color: '#666', marginTop: 6, fontStyle: 'italic', lineHeight: 1.45 }}>
+                  {isPt
+                    ? 'Etapas adicionadas automaticamente aos orçamentos. O preço por etapa é opcional — deixe em branco para não detalhar.'
+                    : 'Étapes ajoutées automatiquement aux devis. Le prix par étape est optionnel — laissez vide pour ne pas détailler.'}
                 </div>
               </div>
             )}
