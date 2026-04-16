@@ -263,6 +263,9 @@ export default function DevisFactureFormBTP({
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
   const [photosLoading, setPhotosLoading] = useState(false)
 
+  // Import devis fournisseur
+  const [supplierScanning, setSupplierScanning] = useState(false)
+
   // Saving / loading flags
   const [saving, setSaving] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
@@ -357,6 +360,95 @@ export default function DevisFactureFormBTP({
   const updateMaterialLine = (id: number, patch: Partial<ProductLine>) => {
     setMaterialLines(materialLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
   }
+
+  /* ──────── Import devis fournisseur (PDF → lignes matériaux) ──────── */
+
+  const supplierFileRef = useCallback((input: HTMLInputElement | null) => {
+    if (input) input.value = ''
+  }, [])
+
+  const handleSupplierImport = useCallback(async (file: File) => {
+    if (!file) return
+    setSupplierScanning(true)
+
+    try {
+      // Convert file to base64 image — for PDF we render page 1 via canvas
+      let imageBase64: string
+      let mimeType = file.type || 'image/jpeg'
+
+      if (file.type === 'application/pdf') {
+        // Use pdfjs to render first page as image
+        const arrayBuffer = await file.arrayBuffer()
+        const pdfjsLib = await import('pdfjs-dist')
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        const page = await pdf.getPage(1)
+        const viewport = page.getViewport({ scale: 2.0 })
+        const canvas = document.createElement('canvas')
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        const ctx = canvas.getContext('2d')!
+        await page.render({ canvas, canvasContext: ctx, viewport }).promise
+        imageBase64 = canvas.toDataURL('image/png')
+        mimeType = 'image/png'
+      } else {
+        // Image file — read as data URL
+        imageBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+      }
+
+      const res = await fetch('/api/supplier-invoice-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+
+      const { result, error } = await res.json()
+      if (error) {
+        toast.error(`Analyse échouée : ${error}`)
+        return
+      }
+
+      if (!result?.lines?.length) {
+        toast.error('Aucune ligne de matériau détectée dans ce document')
+        return
+      }
+
+      // Inject lines into materialLines
+      const baseId = Math.max(0, ...materialLines.map(l => l.id)) + 1
+      const newLines: ProductLine[] = result.lines.map((sl: { name: string; qty: number; unit: string; unitPriceHT: number; tvaRate: number }, i: number) => ({
+        id: baseId + i,
+        description: sl.name,
+        qty: sl.qty,
+        unit: sl.unit,
+        priceHT: sl.unitPriceHT,
+        tvaRate: sl.tvaRate,
+        totalHT: sl.qty * sl.unitPriceHT,
+      }))
+
+      // Replace empty first line or append
+      const hasOnlyEmptyLine = materialLines.length === 1 && !materialLines[0].description.trim() && materialLines[0].priceHT === 0
+      setMaterialLines(hasOnlyEmptyLine ? newLines : [...materialLines, ...newLines])
+
+      const confEmoji = result.confidence === 'haute' ? '🟢' : result.confidence === 'moyenne' ? '🟡' : '🔴'
+      toast.success(`${confEmoji} ${result.lines.length} matériaux importés${result.supplier ? ` — ${result.supplier}` : ''}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[DevisBTP] supplier import failed', err)
+      toast.error(`Erreur import : ${msg}`)
+    } finally {
+      setSupplierScanning(false)
+    }
+  }, [materialLines])
 
   /* ──────── Handlers acomptes ──────── */
 
@@ -1333,7 +1425,21 @@ export default function DevisFactureFormBTP({
             </table>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
               <button className="dv-add-line" type="button" onClick={addMaterialLine}>+ Ajouter un matériau</button>
-              <button className="dv-scanner-btn" type="button" onClick={() => toast.info('Scanner ticket — bientôt disponible')}>📷 Scanner ticket</button>
+              <label className="dv-scanner-btn" style={{ cursor: supplierScanning ? 'wait' : 'pointer', opacity: supplierScanning ? 0.6 : 1 }}>
+                <input
+                  type="file"
+                  accept=".pdf,image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  ref={supplierFileRef}
+                  disabled={supplierScanning}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) handleSupplierImport(f)
+                    e.target.value = ''
+                  }}
+                />
+                {supplierScanning ? '⏳ Analyse en cours…' : '📄 Importer devis fournisseur'}
+              </label>
             </div>
           </div>
 
