@@ -1367,8 +1367,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               <div className={isV5 ? '' : 'v22-card-body'}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {(locale === 'pt'
-                    ? ['Leroy Merlin PT', 'AKI', 'Maxmat', 'Bricomarché', 'Wurth', 'Sanitop', 'Amazon', 'ManoMano']
-                    : ['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage', 'Amazon', 'ManoMano', 'Toolstation', 'Cdiscount']
+                    ? ['Leroy Merlin PT', 'AKI', 'Maxmat', 'Bricomarché', 'Wurth', 'Sanitop', ...(searchMode === 'product' ? ['Amazon'] : []), 'ManoMano']
+                    : ['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage', ...(searchMode === 'product' ? ['Amazon'] : []), 'ManoMano', 'Toolstation', 'Cdiscount']
                   ).map(s => (
                     <span key={s} className={STORE_COLORS[s] || 'v22-tag v22-tag-gray'}>{s}</span>
                   ))}

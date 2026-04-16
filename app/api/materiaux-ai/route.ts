@@ -294,6 +294,9 @@ const BTP_STORE_DOMAINS_PT = [
   'mrbricolage.pt', 'amazon.es', 'manomano.pt', 'wurth.pt',
   'sanitop.pt', 'dfrenchmaker.pt',
 ]
+// Mode projet (matériaux chantier) : pas d'Amazon — réservé à l'outillage
+const PROJECT_STORE_DOMAINS_FR = BTP_STORE_DOMAINS_FR.filter(d => !d.includes('amazon'))
+const PROJECT_STORE_DOMAINS_PT = BTP_STORE_DOMAINS_PT.filter(d => !d.includes('amazon'))
 const REFURB_STORE_DOMAINS = [
   'backmarket.fr', 'drakare.fr', 'stockpro.fr', 'destockage-habitat.com',
 ]
@@ -861,11 +864,11 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
             )
             return { material: m, results: allResults }
           } else {
-            // FR: recherche groupée (fonctionne bien)
+            // FR: recherche groupée (sans Amazon — réservé à l'outillage)
             const searchQ = `${m.name} prix magasin ${countryLabel} 2025${citySearchSuffix}`
             const results = await searchTavily(searchQ, {
               maxResults: 5,
-              includeDomains: storeDomains,
+              includeDomains: PROJECT_STORE_DOMAINS_FR,
             })
             return { material: m, results }
           }
