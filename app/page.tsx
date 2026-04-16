@@ -421,7 +421,7 @@ export default function HomePage() {
               <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>{isPt ? 'FM' : 'SL'}</div>
               <div>
                 <div className={s.reviewName}>{isPt ? 'Fátima M.' : 'Sébastien L.'}</div>
-                <div className={s.reviewMeta}>📍 {isPt ? 'Lousada' : 'Aix-en-Provence'}</div>
+                <div className={s.reviewMeta}>📍 {isPt ? 'Lousada' : 'La Ciotat'}</div>
                 <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
               </div>
             </div>
@@ -463,7 +463,7 @@ export default function HomePage() {
                 <div className={s.artisanAvatar}>{isPt ? 'PP' : 'JM'}</div>
                 <div>
                   <div className={s.artisanName}>{isPt ? 'Pedro P.' : 'Julien Martin'}</div>
-                  <div className={s.artisanJob}>{isPt ? 'Serralheiro, Marco de Canaveses' : 'Serrurier, Marseille 13008'}</div>
+                  <div className={s.artisanJob}>{isPt ? 'Eletricista, Marco de Canaveses' : 'Serrurier, Marseille 13008'}</div>
                 </div>
                 <div className={s.artisanRating}>
                   <div className={s.artisanStars}>★★★★★</div>
