@@ -8,6 +8,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { FEATURED_CATEGORIES, EXTRA_CATEGORIES, CATEGORIES } from '@/lib/categories'
 import { PHASE_TEST_DEPTS_FR, PHASE_TEST_COMMUNES_FR, type FRCommune, type FRDepartement } from '@/lib/geo/fr-geo-data'
 import { PT_DISTRITOS, ALL_COMMUNES_PT, type PTCommune, type PTDistrito } from '@/lib/geo/pt-geo-data'
+import { searchServices } from '@/lib/search-keywords'
 import s from './landing-v2.module.css'
 
 // Derive SERVICE_KEYS from the single source of truth
@@ -30,9 +31,16 @@ export default function HomePage() {
   const [locCursor, setLocCursor] = useState(0)
   const locBoxRef = useRef<HTMLDivElement | null>(null)
 
+  // Autocomplete service — style Doctolib (tous mots-clés FR/PT)
+  const [serviceQuery, setServiceQuery] = useState('')
+  const [serviceOpen, setServiceOpen] = useState(false)
+  const [serviceCursor, setServiceCursor] = useState(0)
+  const serviceBoxRef = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (locBoxRef.current && !locBoxRef.current.contains(e.target as Node)) setLocOpen(false)
+      if (serviceBoxRef.current && !serviceBoxRef.current.contains(e.target as Node)) setServiceOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -161,6 +169,17 @@ export default function HomePage() {
     setLocOpen(false)
   }
 
+  // Suggestions service — locale-aware (FR / PT)
+  const serviceSuggestions = useMemo(() => {
+    return searchServices(serviceQuery, isPt ? 'pt' : 'fr', 10)
+  }, [serviceQuery, isPt])
+
+  const pickService = (sug: { slug: string; label: string }) => {
+    setSelectedCategory(sug.slug)
+    setServiceQuery(sug.label)
+    setServiceOpen(false)
+  }
+
   return (
     <div className={s.landingPage}>
 
@@ -215,8 +234,9 @@ export default function HomePage() {
             <div className={s.heroTrustTags}>
               <span className={s.trustTag}>✅ {isPt ? 'Profissionais verificados' : 'Artisans vérifiés'}</span>
               <span className={s.trustTag}>💰 {isPt ? 'Estimativa de orçamento instantânea' : 'Estimation de devis instantanée'}</span>
+              <span style={{ flexBasis: '100%', height: 0 }} aria-hidden="true" />
               <span className={s.trustTag}>🏷️ {isPt ? 'Preços transparentes' : 'Prix transparents'}</span>
-              <span className={s.trustTag}>🆓 {isPt ? '100% gratuito' : '100% gratuit'}</span>
+              <span className={s.trustTag}>💶 {isPt ? '100% gratuito para o cliente' : '100% gratuit pour le client'}</span>
             </div>
           </div>
 
@@ -225,15 +245,54 @@ export default function HomePage() {
               <div className={s.heroCardTitle}>🔍 {isPt ? 'Reserve a sua intervenção' : 'Réservez votre intervention'}</div>
               <div className={s.formGroup}>
                 <label>{isPt ? 'TIPO DE SERVIÇO' : "TYPE D'INTERVENTION"}</label>
-                <select
-                  value={selectedCategory}
-                  onChange={e => setSelectedCategory(e.target.value)}
-                >
-                  <option value="">{isPt ? 'Selecione...' : 'Sélectionnez...'}</option>
-                  {allCategories.map(cat => (
-                    <option key={cat.id} value={cat.slug}>{cat.name}</option>
-                  ))}
-                </select>
+                <div ref={serviceBoxRef} style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder={isPt ? 'ex: canalização, piscina, chapa de betão…' : 'ex : fuite, chape béton, piscine…'}
+                    value={serviceQuery}
+                    onChange={e => { setServiceQuery(e.target.value); setServiceOpen(true); setServiceCursor(0); if (!e.target.value) setSelectedCategory('') }}
+                    onFocus={() => setServiceOpen(true)}
+                    onKeyDown={e => {
+                      if (!serviceOpen && (e.key === 'ArrowDown')) { setServiceOpen(true); return }
+                      if (e.key === 'ArrowDown') { e.preventDefault(); setServiceCursor(c => Math.min(c + 1, serviceSuggestions.length - 1)) }
+                      else if (e.key === 'ArrowUp') { e.preventDefault(); setServiceCursor(c => Math.max(c - 1, 0)) }
+                      else if (e.key === 'Enter') {
+                        if (serviceOpen && serviceSuggestions[serviceCursor]) { e.preventDefault(); pickService(serviceSuggestions[serviceCursor]) }
+                        else { handleSearch() }
+                      } else if (e.key === 'Escape') {
+                        setServiceOpen(false)
+                      }
+                    }}
+                  />
+                  {serviceOpen && serviceSuggestions.length > 0 && (
+                    <div role="listbox" style={{
+                      position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30,
+                      background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
+                      boxShadow: '0 4px 18px rgba(0,0,0,.08)', maxHeight: 280, overflowY: 'auto',
+                    }}>
+                      {serviceSuggestions.map((sug, i) => (
+                        <div
+                          key={sug.slug}
+                          role="option"
+                          aria-selected={i === serviceCursor}
+                          onMouseEnter={() => setServiceCursor(i)}
+                          onMouseDown={(e) => { e.preventDefault(); pickService(sug) }}
+                          style={{
+                            padding: '10px 12px', cursor: 'pointer',
+                            background: i === serviceCursor ? '#FFFAE0' : '#fff',
+                            borderBottom: i < serviceSuggestions.length - 1 ? '1px solid #f2f2f2' : 'none',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                          }}
+                        >
+                          <span style={{ color: '#222', fontSize: 13, fontWeight: 500 }}>{sug.label}</span>
+                          {sug.match.toLowerCase() !== sug.label.toLowerCase() && (
+                            <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{sug.match}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className={s.formGroup}>
                 <label>{isPt ? 'ONDE?' : 'OÙ ?'}</label>
