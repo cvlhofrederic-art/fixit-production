@@ -903,16 +903,18 @@ export default function DevisFactureFormBTP({
       else if (name.includes('forfait')) serviceUnit = 'f'
     }
 
-    // Fetch etapes: try API first, then fallback to localStorage BTP prestations
+    // Fetch etapes + description: try API first, then fallback to localStorage BTP prestations
     let copiedEtapes: DevisEtape[] = []
+    let prestDescription = ''
     if (serviceId.startsWith('btp_')) {
       // BTP prestation from localStorage — étapes are in the seed data
       try {
         const raw = localStorage.getItem(`fixit_prestations_btp_v3_${artisan?.id || 'guest'}`)
         if (raw) {
-          const parsed = JSON.parse(raw) as Array<{ id: number; etapes?: string[] }>
+          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: string[] }>
           const numId = parseInt(serviceId.replace('btp_', ''), 10)
           const prest = parsed.find(p => p.id === numId)
+          if (prest?.description) prestDescription = prest.description
           if (prest?.etapes?.length) {
             copiedEtapes = prest.etapes.map((et, i) => ({
               id: `etape_${Date.now()}_${i}`, ordre: i + 1, designation: et,
@@ -934,10 +936,11 @@ export default function DevisFactureFormBTP({
     }
 
     // Only put the service name in the description field (title).
-    // Étapes are already injected as structured data — no need to duplicate as text.
+    // Description goes to lineDetail, étapes as structured data.
     setLines(prev => prev.map(line => {
       if (line.id !== lineId) return line
-      return { ...line, description: service.name, unit: serviceUnit, priceHT: price,
+      return { ...line, description: service.name, lineDetail: prestDescription || line.lineDetail || '',
+               unit: serviceUnit, priceHT: price,
                tvaRate: 20, totalHT: 1 * price,
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
@@ -1158,7 +1161,7 @@ export default function DevisFactureFormBTP({
         /* Tableau prestations */
         .dv-presta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .6rem; table-layout: fixed; }
         .dv-presta-table th { text-align: left; padding: 6px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; white-space: nowrap; }
-        .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F0F0F0; vertical-align: top; }
+        .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F0F0F0; vertical-align: top !important; }
         .dv-presta-table input, .dv-presta-table select { padding: 6px 8px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; width: 100%; }
         .dv-presta-table input:focus, .dv-presta-table select:focus { outline: none; border-color: var(--primary-yellow); }
         .dv-presta-table td.amount { font-weight: 600; text-align: right; color: #1a1a1a; font-variant-numeric: tabular-nums; }
@@ -1472,12 +1475,10 @@ export default function DevisFactureFormBTP({
                 {lines.map((l) => {
                   const lineHT = (l.qty || 0) * (l.priceHT || 0)
                   const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
-                  const hasDetail = (l.lineDetail || '').trim().length > 0 || (l.etapes && l.etapes.length > 0)
-                  const totalCols = 8
                   return (
-                    <React.Fragment key={l.id}>
-                    <tr>
+                    <tr key={l.id}>
                       <td>
+                        {/* Titre motif */}
                         <div style={{ position: 'relative' }}>
                           <input type="text" placeholder="Saisissez ou sélectionnez une prestation…" value={l.description || ''}
                             onChange={(e) => updateLine(l.id, { description: e.target.value })}
@@ -1502,37 +1503,15 @@ export default function DevisFactureFormBTP({
                             </div>
                           )}
                         </div>
-                      </td>
-                      <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
-                      <td>
-                        <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
-                          {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
-                        </select>
-                      </td>
-                      <td><input type="number" min={0} step={0.01} value={l.priceHT} onChange={(e) => updateLine(l.id, { priceHT: parseFloat(e.target.value) || 0 })} /></td>
-                      <td>
-                        <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-                        </select>
-                      </td>
-                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineHT)}</td>
-                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineTTC)}</td>
-                      <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
-                    </tr>
-                    {/* Description + Étapes row — spans full width, never affects numeric columns */}
-                    {(l.description || '').trim() && (
-                      <tr style={{ borderBottom: hasDetail ? 'none' : undefined }}>
-                        <td colSpan={totalCols} style={{ paddingTop: 0, paddingBottom: hasDetail ? 2 : 6, borderBottom: hasDetail ? 'none' : undefined }}>
+                        {/* Description libre */}
+                        {(l.description || '').trim() && (
                           <input type="text" placeholder="Description de la prestation…" value={l.lineDetail || ''}
                             onChange={(e) => updateLine(l.id, { lineDetail: e.target.value })}
-                            style={{ width: '100%', border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
-                        </td>
-                      </tr>
-                    )}
-                    {l.etapes && l.etapes.length > 0 && (
-                      <tr>
-                        <td colSpan={totalCols} style={{ paddingTop: 0 }}>
-                          <div style={{ padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
+                            style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
+                        )}
+                        {/* Étapes */}
+                        {l.etapes && l.etapes.length > 0 && (
+                          <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
                             <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes :</div>
                             {l.etapes.map((et, ei) => (
                               <div key={et.id} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
@@ -1552,10 +1531,24 @@ export default function DevisFactureFormBTP({
                               + étape
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                    </React.Fragment>
+                        )}
+                      </td>
+                      <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
+                      <td>
+                        <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
+                          {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                        </select>
+                      </td>
+                      <td><input type="number" min={0} step={0.01} value={l.priceHT} onChange={(e) => updateLine(l.id, { priceHT: parseFloat(e.target.value) || 0 })} /></td>
+                      <td>
+                        <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                        </select>
+                      </td>
+                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineHT)}</td>
+                      <td className="amount" style={{ textAlign: 'right' }}>{fmt(lineTTC)}</td>
+                      <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
+                    </tr>
                   )
                 })}
               </tbody>

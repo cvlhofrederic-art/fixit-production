@@ -37,6 +37,7 @@ type PriceRange = { min: number; max: number } // min === max ⇒ prix fixe
 export interface Prestation {
   id: number
   name: string
+  description?: string   // description libre du motif (injectée dans lineDetail du devis)
   type: PrestType
   lot: string            // corps d'état (ex: 'gros_oeuvre', 'electricite', …)
   unit: string           // m², ml, u, m³, kg, rl, h, sac, forfait
