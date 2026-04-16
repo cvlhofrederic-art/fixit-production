@@ -555,7 +555,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
               li === 0 ? `${prefix}${line}` : `${indent}${line}`
             ).join('\n')
           })
-          displayDesc += '\n \n' + etapeLines.join('\n')
+          displayDesc += '\n \n' + etapeLines.join('\n \n')
         }
       }
       const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
