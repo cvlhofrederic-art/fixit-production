@@ -6,6 +6,7 @@ import {
   CATEGORIES, FR_REGIONS, DEPT_LABELS,
   getCategoryLabel, getCategoryEmoji, daysRemaining,
 } from './shared'
+import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 
 function urgencyTag(urgency: string, isPt: boolean) {
   switch (urgency) {
@@ -47,6 +48,7 @@ interface BrowseTabViewProps {
   filterDepartments: string[]
   filterMarcheType: 'tous' | 'publics' | 'prives'
   prefsSaved: boolean
+  artisanMetiers?: string[]
   onFilterCategoryChange: (v: string) => void
   onFilterRegionChange: (v: string) => void
   onFilterDepartmentsChange: (v: string[]) => void
@@ -62,10 +64,40 @@ export default function BrowseTabView({
   showScanResults, alerts, prefsLoaded, marchesOptIn,
   filterCategory, filterRegion, filterDepartments, filterMarcheType, prefsSaved,
   onFilterCategoryChange, onFilterRegionChange, onFilterDepartmentsChange, onFilterMarcheTypeChange,
-  onScanMarches, onSaveGeoPrefs, onSelectMarche, onGoToSettings,
+  onScanMarches, onSaveGeoPrefs, onSelectMarche, onGoToSettings, artisanMetiers = [],
 }: BrowseTabViewProps) {
   const [deptDropdownOpen, setDeptDropdownOpen] = useState(false)
   const deptDropdownRef = useRef<HTMLDivElement>(null)
+
+  // ── Filtrage par corps de métier de l'artisan ──
+  // Résout les entrées (clés métier, categoryIds, labels) vers les categoryIds UI autorisés.
+  const allowedCategoryIds = React.useMemo(() => {
+    if (!artisanMetiers || artisanMetiers.length === 0) return null // null = pas de filtre
+    const allowed = new Set<string>()
+    const metierKeys = resolveMetierKeys(artisanMetiers)
+    for (const key of metierKeys) {
+      const m = METIER_CPV_MAP[key]
+      if (m) m.categoryIds.forEach(c => allowed.add(c))
+    }
+    // Accepter aussi les categoryIds directement fournis
+    for (const input of artisanMetiers) {
+      const lower = input.toLowerCase().trim()
+      if (CATEGORIES.some(c => c.id === lower)) allowed.add(lower)
+    }
+    return allowed.size > 0 ? allowed : null
+  }, [artisanMetiers])
+
+  // Catégories filtrées pour le dropdown
+  const visibleCategories = React.useMemo(() => {
+    if (!allowedCategoryIds) return CATEGORIES
+    return CATEGORIES.filter(c => allowedCategoryIds.has(c.id))
+  }, [allowedCategoryIds])
+
+  // Marchés privés filtrés par corps de métier
+  const filteredMarches = React.useMemo(() => {
+    if (!allowedCategoryIds) return marches
+    return marches.filter(m => !m.category || allowedCategoryIds.has(m.category))
+  }, [marches, allowedCategoryIds])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -138,7 +170,7 @@ export default function BrowseTabView({
                 className="v22-form-input"
               >
                 <option value="">{isPt ? 'Todas' : 'Toutes'}</option>
-                {CATEGORIES.map(cat => (
+                {visibleCategories.map(cat => (
                   <option key={cat.id} value={cat.id}>
                     {cat.emoji} {isPt ? cat.label : cat.labelFr}
                   </option>
@@ -464,7 +496,7 @@ export default function BrowseTabView({
       )}
 
       {/* Empty state — private marches */}
-      {filterMarcheType !== 'publics' && !loading && marches.length === 0 && (
+      {filterMarcheType !== 'publics' && !loading && filteredMarches.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
@@ -479,14 +511,14 @@ export default function BrowseTabView({
       )}
 
       {/* Opportunités card with list — private marches from clients */}
-      {filterMarcheType !== 'publics' && !loading && marches.length > 0 && (
+      {filterMarcheType !== 'publics' && !loading && filteredMarches.length > 0 && (
         <div className="v22-card">
           <div className="v22-card-head">
             <div className="v22-card-title">{isPt ? 'Concursos em curso' : 'Appels d\'offres en cours'}</div>
-            <div className="v22-card-meta">{marches.length} {isPt ? 'resultados' : 'résultats'}</div>
+            <div className="v22-card-meta">{filteredMarches.length} {isPt ? 'resultados' : 'résultats'}</div>
           </div>
           <div>
-            {marches.map((m) => {
+            {filteredMarches.map((m) => {
               const days = m.deadline ? daysRemaining(m.deadline) : null
               const maxCand = m.max_candidatures || 5
               const currentCand = m.candidatures_count || 0

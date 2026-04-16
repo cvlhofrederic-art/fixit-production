@@ -155,14 +155,19 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     }
   }, [isPro, filterCategory, artisanPays])
 
-  // Resolved metiers for auto-scan
-  const resolvedMetiers = React.useMemo(() => {
-    if (filterCategory) return [filterCategory]
+  // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
+  const artisanCoreMetiers = React.useMemo(() => {
     if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
     if (artisan?.categories?.length) return [...artisan.categories]
     if (artisan?.specialite) return [artisan.specialite]
     return []
-  }, [filterCategory, marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+
+  // Resolved metiers for auto-scan (respecte le filtre si posé)
+  const resolvedMetiers = React.useMemo(() => {
+    if (filterCategory) return [filterCategory]
+    return artisanCoreMetiers
+  }, [filterCategory, artisanCoreMetiers])
 
   // Scanner marches publics
   const handleScanMarches = useCallback(async () => {
@@ -668,6 +673,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           onSaveGeoPrefs={saveGeoPrefs}
           onSelectMarche={setSelectedMarche}
           onGoToSettings={() => setActiveTab('settings')}
+          artisanMetiers={artisanCoreMetiers}
         />
       )}
 
