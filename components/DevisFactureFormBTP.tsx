@@ -532,6 +532,7 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Rentabilité (placeholder) ──────── */
   const [showRentaModal, setShowRentaModal] = useState(false)
+  const [showImportList, setShowImportList] = useState(false)
 
   /* ──────── Effect : pré-remplir docTitle si initialData ──────── */
   useEffect(() => {
@@ -623,6 +624,7 @@ export default function DevisFactureFormBTP({
 
         /* Import card */
         .dv-import-card { background: linear-gradient(180deg, #FFFBEF 0%, #FFF8E1 100%); border: 1px solid #F5C741; border-radius: 8px; padding: 1rem 1.1rem; margin-top: .5rem; }
+        .dv-import-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; background: none; border: none; padding: 0; cursor: pointer; }
         .dv-import-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: .3rem; }
         .dv-import-title { font-size: 13px; font-weight: 700; color: #7A5C00; letter-spacing: .2px; }
         .dv-import-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; background: var(--primary-yellow); color: #5A4500; padding: 3px 8px; border-radius: 10px; }
@@ -714,9 +716,9 @@ export default function DevisFactureFormBTP({
         .dv-sidebar-btn.outline-blue:hover { background: #E3F2FD; }
         .dv-sidebar-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-        .dv-apercu { width: 100%; height: 160px; border: 1px solid #E8E8E8; border-radius: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: #BBB; cursor: pointer; background: #FAFAFA; transition: all .15s; }
-        .dv-apercu:hover { border-color: var(--primary-yellow); color: #999; }
-        .dv-apercu::before { content: "📄"; font-size: 28px; opacity: .4; }
+        .dv-apercu { width: 100%; padding: 10px 14px; border: 1px solid #E8E8E8; border-radius: 5px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 600; color: #666; cursor: pointer; background: #FAFAFA; transition: all .15s; }
+        .dv-apercu:hover { border-color: var(--primary-yellow); color: #333; background: #FFF8E1; }
+        .dv-apercu::before { content: "📄"; font-size: 14px; }
 
         /* Modal client picker */
         .dvbtp-modal-ov { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -776,28 +778,41 @@ export default function DevisFactureFormBTP({
             </div>
 
             <div className="dv-import-card">
-              <div className="dv-import-head">
-                <span className="dv-import-title">Import rapide depuis intervention ⚡</span>
-                <span className="dv-import-badge">Gain de temps</span>
-              </div>
-              <div className="dv-import-sub">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</div>
-              {importableBookings.length === 0 ? (
-                <div className="dv-import-empty">
-                  <strong>Aucune intervention confirmée ou terminée pour le moment</strong>
-                  <span className="hint">Dès qu&apos;un rendez-vous sera confirmé ou terminé, il apparaîtra ici</span>
+              <button
+                type="button"
+                className="dv-import-toggle"
+                onClick={() => setShowImportList(!showImportList)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="dv-import-title">Import rapide depuis intervention ⚡</span>
+                  <span className="dv-import-badge">{importableBookings.length} dispo</span>
                 </div>
-              ) : (
-                <div className="dv-import-list">
-                  {importableBookings.map((b) => (
-                    <div key={b.id} className="dv-import-item" onClick={() => importFromBooking(b.id)}>
-                      <div>
-                        <div className="nm">{b.client_name || 'Client'}</div>
-                        <div className="meta">{b.services?.name || 'Intervention'}{b.booking_date ? ` · ${b.booking_date}` : ''}</div>
-                      </div>
-                      <span style={{ fontSize: 11, color: '#7A5C00', fontWeight: 700 }}>Importer →</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7A5C00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showImportList ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .2s' }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {showImportList && (
+                <>
+                  <div className="dv-import-sub">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</div>
+                  {importableBookings.length === 0 ? (
+                    <div className="dv-import-empty">
+                      <strong>Aucune intervention confirmée ou terminée</strong>
+                      <span className="hint">Dès qu&apos;un rendez-vous sera confirmé ou terminé, il apparaîtra ici</span>
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <div className="dv-import-list">
+                      {importableBookings.map((b) => (
+                        <div key={b.id} className="dv-import-item" onClick={() => importFromBooking(b.id)}>
+                          <div>
+                            <div className="nm">{b.client_name || 'Client'}</div>
+                            <div className="meta">{b.services?.name || 'Intervention'}{b.booking_date ? ` · ${b.booking_date}` : ''}</div>
+                          </div>
+                          <span style={{ fontSize: 11, color: '#7A5C00', fontWeight: 700 }}>Importer →</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
