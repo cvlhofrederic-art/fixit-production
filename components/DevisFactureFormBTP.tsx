@@ -391,14 +391,14 @@ export default function DevisFactureFormBTP({
       }
 
       if (raw) {
-        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string; etapes?: string[] }>
+        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: string[] }>
         localPrest = parsed
           .filter(p => p.type === 'prest')
           .map(p => ({
             id: `btp_${p.id}`,
             name: p.name,
             price_ht: p.price?.min || 0,
-            description: p.etapes?.join(' → ') || undefined,
+            description: p.description || p.etapes?.join(' → ') || undefined,
           }))
       }
     } catch { /* ignore */ }
