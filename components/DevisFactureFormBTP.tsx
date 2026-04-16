@@ -1354,8 +1354,8 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
                   <th style={{ textAlign: 'center' }}>TVA %</th>
-                  <th style={{ textAlign: 'right', paddingRight: 16 }}>TOTAL HT</th>
-                  <th style={{ textAlign: 'right', paddingRight: 16 }}>TOTAL TTC</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
@@ -1366,21 +1366,33 @@ export default function DevisFactureFormBTP({
                   return (
                     <tr key={l.id}>
                       <td style={{ verticalAlign: 'top' }}>
-                        <input type="text" list={`presta-${l.id}`} placeholder="Prestation ou saisie libre…" value={l.description}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            updateLine(l.id, { description: val })
-                            if (allServices.length > 0) {
-                              const matched = allServices.find(s => s.name === val)
-                              if (matched) selectMotif(l.id, matched.id)
-                            }
-                          }} />
-                        {allServices.length > 0 && (
-                          <datalist id={`presta-${l.id}`}>
-                            {allServices.map((s) => (
-                              <option key={s.id} value={s.name}>{s.price_ht ? `${fmt(s.price_ht)} €` : ''}</option>
-                            ))}
-                          </datalist>
+                        {l.description ? (
+                          <input type="text" placeholder="Ex : Démolition cloisons + évacuation gravats" value={l.description}
+                            onChange={(e) => updateLine(l.id, { description: e.target.value })} />
+                        ) : (
+                          <div>
+                            <select
+                              defaultValue=""
+                              onChange={(e) => {
+                                if (e.target.value === 'custom') {
+                                  updateLine(l.id, { description: ' ' })
+                                  setTimeout(() => {
+                                    const row = e.target.closest('tr')
+                                    const input = row?.querySelector('td:first-child input[type="text"]') as HTMLInputElement
+                                    if (input) { input.value = ''; input.focus() }
+                                  }, 50)
+                                } else if (e.target.value) {
+                                  selectMotif(l.id, e.target.value)
+                                }
+                              }}
+                            >
+                              <option value="">▾ Sélectionnez une prestation…</option>
+                              {allServices.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}</option>
+                              ))}
+                              <option value="custom">✏️ Saisie libre</option>
+                            </select>
+                          </div>
                         )}
                         {l.etapes && l.etapes.length > 0 && (
                           <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
@@ -1451,8 +1463,8 @@ export default function DevisFactureFormBTP({
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
                   <th style={{ textAlign: 'center' }}>TVA %</th>
-                  <th style={{ textAlign: 'right', paddingRight: 16 }}>TOTAL HT</th>
-                  <th style={{ textAlign: 'right', paddingRight: 16 }}>TOTAL TTC</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
                   <th></th>
                 </tr>
               </thead>
