@@ -780,53 +780,31 @@ export default function DevisFactureFormBTP({
               Ce document respecte les obligations légales françaises (Code de commerce, Code de la consommation). Toutes les mentions obligatoires sont incluses.
             </div>
 
-            {importableBookings.length > 0 ? (
-              <div style={{
-                background: 'linear-gradient(90deg, #FFF9E6 0%, #FFE082 100%)',
-                border: '2px solid #FFC107',
-                borderRadius: 12,
-                padding: 14,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, color: '#333', marginBottom: 8 }}>
-                  <span>⚡</span>
-                  <span>Import rapide depuis intervention</span>
+            <div className="dv-import-card">
+              <div className="dv-import-head">
+                <span className="dv-import-title">Import rapide depuis intervention ⚡</span>
+                <span className="dv-import-badge">Gain de temps</span>
+              </div>
+              <div className="dv-import-sub">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</div>
+              {importableBookings.length === 0 ? (
+                <div className="dv-import-empty">
+                  <strong>Aucune intervention confirmée ou terminée pour le moment</strong>
+                  <span className="hint">Dès qu&apos;un rendez-vous sera confirmé ou terminé, il apparaîtra ici</span>
                 </div>
-                <select
-                  onChange={(e) => { if (e.target.value) importFromBooking(e.target.value); e.target.value = '' }}
-                  defaultValue=""
-                  style={{
-                    width: '100%', padding: '10px 12px',
-                    border: '2px solid #FFC107', borderRadius: 8,
-                    background: '#fff', fontSize: 12, fontFamily: 'inherit',
-                    cursor: 'pointer', outline: 'none', color: '#333',
-                  }}
-                >
-                  <option value="">Sélectionner une intervention…</option>
+              ) : (
+                <div className="dv-import-list">
                   {importableBookings.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.booking_date || ''} – {b.client_name || 'Client'} – {b.services?.name || 'Intervention'}
-                    </option>
+                    <div key={b.id} className="dv-import-item" onClick={() => importFromBooking(b.id)}>
+                      <div>
+                        <div className="nm">{b.client_name || 'Client'}</div>
+                        <div className="meta">{b.services?.name || 'Intervention'}{b.booking_date ? ` · ${b.booking_date}` : ''}</div>
+                      </div>
+                      <span style={{ fontSize: 11, color: '#7A5C00', fontWeight: 700 }}>Importer →</span>
+                    </div>
                   ))}
-                </select>
-              </div>
-            ) : (
-              <div style={{
-                background: 'linear-gradient(90deg, #FFF9E6 0%, #FFE082 100%)',
-                border: '2px solid #FFC107',
-                borderRadius: 12,
-                padding: 14,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, color: '#333', marginBottom: 6 }}>
-                  <span>⚡</span>
-                  <span>Import rapide depuis intervention</span>
                 </div>
-                <div style={{ fontSize: 11, color: '#8B7D00', marginBottom: 8 }}>Pré-remplit automatiquement vos infos, celles du client et le motif</div>
-                <div style={{ background: '#fff', borderRadius: 6, padding: 10, textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, color: '#8B7D00' }}>Aucune intervention confirmée ou terminée</div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Dès qu&apos;un rendez-vous sera confirmé ou terminé, il apparaîtra ici</div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* 2. INFORMATIONS ENTREPRISE */}
