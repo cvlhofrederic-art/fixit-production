@@ -1365,24 +1365,25 @@ export default function DevisFactureFormBTP({
                   const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
-                      <td>
+                      <td style={{ verticalAlign: 'top' }}>
                         {allServices.length > 0 && (
                           <select
                             value=""
                             onChange={(e) => selectMotif(l.id, e.target.value)}
-                            style={{ width: '100%', marginBottom: 4 }}
+                            style={{ width: '100%', marginBottom: 0, fontSize: 10, padding: '3px 6px', color: '#888', border: '1px solid #E8E8E8', borderBottom: 'none', borderRadius: '5px 5px 0 0', background: '#FAFAFA' }}
                           >
-                            <option value="">Sélectionner une prestation…</option>
+                            <option value="">▾ Prestation…</option>
                             {allServices.map((s) => (
                               <option key={s.id} value={s.id}>{s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}</option>
                             ))}
                             <option value="custom">✏️ Saisie libre</option>
                           </select>
                         )}
-                        <input type="text" placeholder="Ex : Démolition cloisons + évacuation gravats" value={l.description} onChange={(e) => updateLine(l.id, { description: e.target.value })} />
+                        <input type="text" placeholder="Ex : Démolition cloisons + évacuation gravats" value={l.description} onChange={(e) => updateLine(l.id, { description: e.target.value })}
+                          style={allServices.length > 0 ? { borderRadius: '0 0 5px 5px' } : undefined} />
                         {l.etapes && l.etapes.length > 0 && (
                           <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
-                            <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes d&apos;intervention :</div>
+                            <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes :</div>
                             {l.etapes.map((et, ei) => (
                               <div key={et.id} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
                                 <span style={{ color: '#999', fontSize: 10, minWidth: 16 }}>{ei + 1}.</span>
@@ -1398,7 +1399,7 @@ export default function DevisFactureFormBTP({
                             ))}
                             <button type="button" style={{ fontSize: 10, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', textDecoration: 'underline' }}
                               onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
-                              + Ajouter une étape
+                              + étape
                             </button>
                           </div>
                         )}
