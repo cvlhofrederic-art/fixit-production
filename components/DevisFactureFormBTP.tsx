@@ -1754,39 +1754,148 @@ export default function DevisFactureFormBTP({
 
           {/* 14. MENTIONS LÉGALES */}
           <div className="dv-section">
-            <div className="dv-section-t">MENTIONS LÉGALES AUTOMATIQUES</div>
+            <div className="dv-section-t">{locale === 'pt' ? 'MENÇÕES LEGAIS AUTOMÁTICAS' : 'MENTIONS LÉGALES AUTOMATIQUES'}</div>
             <div className="dv-mentions">
-              {/* Mention statut juridique spécifique */}
-              {statutJuridique === 'Entreprise Individuelle (EI)' && (
-                <>Entrepreneur individuel (EI) — Loi n°2022-172 du 14 février 2022 relative au statut de l&apos;entrepreneur individuel<br /></>
-              )}
-              {statutJuridique === 'Auto-entrepreneur' && (
-                <>Micro-entrepreneur — Dispensé d&apos;immatriculation au RCS/RM (art. L. 123-1-1 C. com.)<br /></>
-              )}
-              {(statutJuridique === 'SARL' || statutJuridique === 'EURL') && (
-                <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} — Immatriculée au RCS {companyRCS || '[RCS à renseigner]'}<br /></>
-              )}
-              {(statutJuridique === 'SAS' || statutJuridique === 'SASU') && (
-                <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} — Immatriculée au RCS {companyRCS || '[RCS à renseigner]'}<br /></>
-              )}
-              {statutJuridique === 'SA' && (
-                <>SA au capital de {companyCapital || '[capital à renseigner]'} — Immatriculée au RCS {companyRCS || '[RCS à renseigner]'}<br /></>
+
+              {/* ═══ 1. IDENTIFICATION — statut juridique ═══ */}
+              {locale === 'pt' ? (
+                <>Empresário em Nome Individual (ENI) — Código Comercial Português.<br /></>
+              ) : (
+                <>
+                  {statutJuridique === 'Entreprise Individuelle (EI)' && (
+                    <>Entrepreneur individuel (EI) — Loi n°2022-172 du 14 février 2022 relative au statut de l&apos;entrepreneur individuel.<br /></>
+                  )}
+                  {statutJuridique === 'Auto-entrepreneur' && (
+                    <>Micro-entrepreneur — Dispensé d&apos;immatriculation au RCS/RM (art. L. 123-1-1 C. com.). TVA non applicable, article 293 B du CGI.<br /></>
+                  )}
+                  {(statutJuridique === 'SARL' || statutJuridique === 'EURL') && (
+                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                  )}
+                  {(statutJuridique === 'SAS' || statutJuridique === 'SASU') && (
+                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                  )}
+                  {statutJuridique === 'SA' && (
+                    <>SA au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                  )}
+                </>
               )}
 
-              {/* TVA */}
-              {!tvaEnabled && (
-                <>TVA non applicable, article 293 B du CGI (franchise en base de TVA)<br /></>
+              {/* ═══ 2. TVA / IVA ═══ */}
+              {!tvaEnabled && locale !== 'pt' && (
+                <>TVA non applicable, article 293 B du CGI (franchise en base de TVA).<br /></>
+              )}
+              {!tvaEnabled && locale === 'pt' && (
+                <>IVA não aplicável, artigo 53.º do CIVA (regime de isenção).<br /></>
+              )}
+              {tvaEnabled && tvaNumber && (
+                <>{locale === 'pt' ? 'NIF intracomunitário' : 'N° TVA intracommunautaire'} : {tvaNumber}.<br /></>
               )}
 
-              {/* Mentions communes obligatoires */}
-              Devis gratuit — Conformément à l&apos;article L. 111-1 du Code de la consommation<br />
-              Ce devis est valable {docValidity} jours à compter de sa date d&apos;émission<br />
-              Devis reçu avant l&apos;exécution des travaux — Arrêté du 2 mars 1990 relatif à la publicité des prix dans le bâtiment<br /><br />
-              ACCEPTATION : Le PDF généré inclut une zone signature client + prestataire avec mention manuscrite obligatoire « Bon pour accord ». Signature électronique conforme eIDAS également proposée à l&apos;envoi.<br /><br />
-              DROIT DE RÉTRACTATION : Conformément à l&apos;article L. 221-18 du Code de la consommation, le client dispose d&apos;un délai de 14 jours à compter de la signature pour exercer son droit de rétractation, sans motif ni pénalité.<br /><br />
-              Aucun paiement ne peut être exigé avant l&apos;expiration d&apos;un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents demandés expressément par le client.<br /><br />
-              GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br />
-              Médiation de la consommation (art. L. 612-1 C. conso.) : en cas de litige, le client peut recourir gratuitement à un médiateur de la consommation.
+              {/* ═══ 3. ASSURANCE — obligatoire BTP ═══ */}
+              {insuranceName && insuranceNumber && (
+                <>
+                  {locale === 'pt' ? 'Seguro' : 'Assurance'}{' '}
+                  {insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? (locale === 'pt' ? 'Decenal' : 'Décennale') : (locale === 'pt' ? 'RC Pro + Decenal' : 'RC Pro + Décennale')}{' '}
+                  : {insuranceName}, {locale === 'pt' ? 'apólice' : 'contrat'} n° {insuranceNumber}, {locale === 'pt' ? 'cobertura' : 'couverture'} {insuranceCoverage || (locale === 'pt' ? 'Portugal continental' : 'France métropolitaine')}.<br />
+                </>
+              )}
+
+              {/* ═══ 4. MENTIONS DEVIS ═══ */}
+              {docType === 'devis' && (
+                <>
+                  {locale === 'pt' ? (
+                    <>
+                      Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96 (Defesa do Consumidor).<br />
+                      Este orçamento é válido por {docValidity} dias a partir da data de emissão.<br />
+                      {executionDelayDays > 0 && (
+                        <>Prazo de execução estimado : {executionDelayDays} dias {executionDelayType === 'ouvres' ? 'úteis' : executionDelayType === 'calendaires' ? 'corridos' : executionDelayType}.<br /></>
+                      )}
+                      Orçamento recebido antes da execução dos trabalhos.<br /><br />
+                    </>
+                  ) : (
+                    <>
+                      Devis gratuit — Conformément à l&apos;article L. 111-1 du Code de la consommation.<br />
+                      Ce devis est valable {docValidity} jours à compter de sa date d&apos;émission.<br />
+                      {executionDelayDays > 0 && (
+                        <>Délai d&apos;exécution estimé : {executionDelayDays} jours {executionDelayType}.<br /></>
+                      )}
+                      Devis reçu avant l&apos;exécution des travaux — Arrêté du 24 janvier 2017 relatif à la publicité des prix des prestations de dépannage, réparation et entretien.<br /><br />
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ═══ 5. MENTIONS FACTURE ═══ */}
+              {docType === 'facture' && (
+                <>
+                  {locale === 'pt' ? (
+                    <>
+                      Condições de pagamento : {paymentDelay}.<br />
+                      Penalidades por atraso : taxa de juro legal em vigor (Decreto-Lei n.º 62/2013).<br />
+                      Indemnização de cobrança : 40 € (apenas B2B, Decreto-Lei n.º 62/2013).<br />
+                      {escompte && <>{escompte}.<br /></>}
+                    </>
+                  ) : (
+                    <>
+                      Conditions de paiement : {paymentDelay}. Mode de règlement : {paymentMode}.<br />
+                      Pénalités de retard : {penaltyRate} (art. L. 441-10 C. com.).<br />
+                      Indemnité forfaitaire de recouvrement : {recoveryFee} (art. D. 441-5 C. com.).<br />
+                      {escompte && <>{escompte}.<br /></>}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ═══ 6. ACCEPTATION ═══ */}
+              {docType === 'devis' && (
+                <>
+                  {locale === 'pt' ? (
+                    <>ACEITAÇÃO : O PDF gerado inclui zona de assinatura do cliente e do prestador. Assinatura eletrónica conforme eIDAS igualmente proposta no envio.<br /><br /></>
+                  ) : (
+                    <>ACCEPTATION : Le PDF généré inclut une zone signature client + prestataire. La mention manuscrite « Bon pour accord » est recommandée mais non obligatoire (Cass. 1re civ., 30 oct. 2008). Signature électronique conforme eIDAS également proposée à l&apos;envoi.<br /><br /></>
+                  )}
+                </>
+              )}
+
+              {/* ═══ 7. DROIT DE RÉTRACTATION — FR uniquement, client particulier, contrat hors établissement ═══ */}
+              {/* Au Portugal, le droit de rétractation NE S'APPLIQUE PAS à la construction (DL 24/2014, art. 4.º, n.º 1, al. f) */}
+              {docType === 'devis' && locale !== 'pt' && clientSiret.trim().length === 0 && (
+                <>
+                  DROIT DE RÉTRACTATION (contrat hors établissement) : Conformément à l&apos;article L. 221-18 du Code de la consommation, le client consommateur dispose d&apos;un délai de 14 jours calendaires à compter de la signature pour exercer son droit de rétractation, sans motif ni pénalité. Un formulaire-type de rétractation est joint au PDF (annexe art. R. 221-1 C. conso.).<br /><br />
+                  Aucun paiement ne peut être exigé avant l&apos;expiration d&apos;un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux d&apos;entretien ou réparation demandés en urgence (plafond 200 € TTC pour pièces et fournitures).<br /><br />
+                </>
+              )}
+
+              {/* ═══ 8. GARANTIES LÉGALES BTP ═══ */}
+              {locale === 'pt' ? (
+                <>GARANTIAS LEGAIS : garantia de defeitos de construção (5 anos, art. 1225.º do Código Civil Português). Garantia legal de conformidade (Lei n.º 24/96). Garantia de vícios ocultos (art. 913.º do Código Civil).<br /><br /></>
+              ) : (
+                <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
+              )}
+
+              {/* ═══ 9. GESTION DES DÉCHETS — obligatoire BTP France depuis 01/07/2021 (loi AGEC) ═══ */}
+              {locale !== 'pt' && docType === 'devis' && (
+                <>
+                  DÉCHETS DE CHANTIER (Décret n°2020-1817 du 29/12/2020, loi AGEC) : une estimation des quantités de déchets générés, les modalités de tri sur chantier, les points de collecte identifiés et les coûts associés à leur gestion sont détaillés dans le descriptif des prestations ou en annexe.<br /><br />
+                </>
+              )}
+
+              {/* ═══ 10. MÉDIATION / ENTIDADE RAL ═══ */}
+              {clientSiret.trim().length === 0 && (
+                <>
+                  {locale === 'pt' ? (
+                    <>
+                      Resolução alternativa de litígios (Lei n.º 144/2015) : em caso de litígio, o cliente pode recorrer gratuitamente a uma entidade de resolução alternativa de litígios.
+                      {mediatorName && <> Entidade RAL : {mediatorName}{mediatorUrl ? ` — ${mediatorUrl}` : ''}.</>}
+                    </>
+                  ) : (
+                    <>
+                      Médiation de la consommation (art. L. 612-1 C. conso.) : en cas de litige, le client peut recourir gratuitement à un médiateur de la consommation.
+                      {mediatorName && <> Médiateur désigné : {mediatorName}{mediatorUrl ? ` — ${mediatorUrl}` : ''}.</>}
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
 

@@ -805,58 +805,89 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 12. MENTIONS LÉGALES ═══
-  checkPageBreak(25)
+  checkPageBreak(10)
   drawHLine(mL, y, xRight, COLOR_BORDER, 0.18)
   y += 3
 
   pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
 
+  // 1. Identification + statut juridique
   const statusLabel = getStatusLabel(companyStatus, t)
   let legal1 = `${statusLabel}.`
-  if (companyStatus === 'ei') legal1 += ' Loi n°2022-172 du 14 février 2022.'
+  if (companyStatus === 'ei' && locale !== 'pt') legal1 += ' Loi n°2022-172 du 14 février 2022.'
+
+  // 2. TVA / IVA
   if (!tvaEnabled) {
     legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
   } else if (tvaNumber) {
-    legal1 += ` TVA intracommunautaire : ${tvaNumber}.`
+    legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
   }
+
+  // 3. Assurance
   if (insuranceName) {
-    const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Décennale'
-    legal1 += ` ${insLabel} ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'}.`
+    if (locale === 'pt') {
+      const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Decenal' : 'RC Pro + Decenal'
+      legal1 += ` Seguro ${insLabel} ${insuranceName}, apólice n.º ${insuranceNumber || 'N/A'}, cobertura ${insuranceCoverage || 'Portugal continental'}.`
+    } else {
+      const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Décennale'
+      legal1 += ` Assurance ${insLabel} : ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'}.`
+    }
   }
 
-  let legal2 = locale === 'pt'
-    ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
-    : 'Devis gratuit, conformément à l\'article L. 111-1 du Code de la consommation.'
-  if (isHorsEtablissement && clientSiret.trim().length === 0) {
-    legal2 += locale === 'pt'
-      ? ' Direito de retratação: 14 dias (Lei n.º 24/96, art. 8.º).'
-      : ' Droit de rétractation : 14 jours calendaires à compter de la signature (art. L. 221-18 C. conso.).'
-  }
-
-  let legal3 = ''
-  if (isHorsEtablissement && clientSiret.trim().length === 0) {
-    legal3 += locale === 'pt'
-      ? 'Nenhum pagamento exigível antes de 7 dias após assinatura (Lei n.º 24/96), salvo trabalhos urgentes.'
-      : 'Aucun paiement exigible avant 7 jours après signature (art. L. 221-10 C. conso.), sauf travaux urgents.'
-  }
-  if (locale === 'pt') {
-    legal3 += ' Resolução alternativa de litígios (Lei n.º 144/2015).'
+  // 4. Devis / Orçamento
+  let legal2 = ''
+  if (docType === 'devis') {
+    legal2 = locale === 'pt'
+      ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
+      : 'Devis gratuit (art. L. 111-1 C. conso.). Arrêté du 24 janvier 2017.'
   } else {
-    legal3 += ' Médiation de la consommation (art. L. 612-1 C. conso.).'
-  }
-  if (mediatorName) {
-    legal3 += ` ${mediatorName}${mediatorUrl ? ` — ${mediatorUrl}` : ''}.`
+    // Facture
+    const dueDateStr = paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---'
+    legal2 = locale === 'pt'
+      ? `Condições de pagamento : ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
+      : `Conditions de paiement : échéance ${dueDateStr}. Règlement : ${paymentMode || '---'}. Pénalités de retard : 3× le taux d'intérêt légal (art. L. 441-10 C. com.). Indemnité de recouvrement : 40 € (art. D. 441-5 C. com.).`
   }
 
-  const legal4 = `Document généré par Vitfix Pro le ${new Date().toLocaleDateString(dateLocaleStr)}.`
+  // 5. Rétractation (FR uniquement, construction exclue au PT : DL 24/2014, art. 4.º, n.º 1, al. f)
+  if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0 && locale !== 'pt') {
+    legal2 += ' Droit de rétractation : 14 jours calendaires (art. L. 221-18 C. conso.). Aucun paiement exigible avant 7 jours (art. L. 221-10 C. conso.), sauf travaux urgents (plafond 200 € TTC).'
+  }
+
+  // 6. Garanties BTP
+  let legal3 = ''
+  if (locale === 'pt') {
+    legal3 += 'Garantia de defeitos de construção : 5 anos (art. 1225.º do Código Civil). Garantia de vícios ocultos (art. 913.º do Código Civil).'
+  } else {
+    legal3 += 'Garanties légales : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans), art. 1792 et suivants du Code civil.'
+  }
+
+  // 7. Médiation / RAL
+  if (clientSiret.trim().length === 0) {
+    if (locale === 'pt') {
+      legal3 += ' Resolução alternativa de litígios (Lei n.º 144/2015).'
+    } else {
+      legal3 += ' Médiation de la consommation (art. L. 612-1 C. conso.).'
+    }
+    if (mediatorName) {
+      legal3 += ` ${mediatorName}${mediatorUrl ? ` — ${mediatorUrl}` : ''}.`
+    }
+  }
+
+  const legal4 = locale === 'pt'
+    ? `Documento gerado por Vitfix Pro em ${new Date().toLocaleDateString(dateLocaleStr)}.`
+    : `Document généré par Vitfix Pro le ${new Date().toLocaleDateString(dateLocaleStr)}.`
 
   const fullLegal = `${legal1} ${legal2} ${legal3} ${legal4}`
-  const legalWrapped = pdf.splitTextToSize(fullLegal, ptFiscalData ? contentW - 32 : contentW)
+  const legalW = ptFiscalData ? contentW - 32 : contentW
+  const legalWrapped = pdf.splitTextToSize(fullLegal, legalW)
+  const legalHeight = legalWrapped.length * ptToMm(10)
+  checkPageBreak(legalHeight + 4)
   pdf.text(legalWrapped, mL, y)
-  y += legalWrapped.length * ptToMm(10)
+  y += legalHeight
 
   // ═══ PAGE 2 — RÉTRACTATION ═══
-  if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0) {
+  // Page rétractation — FR uniquement (construction exclue au PT : DL 24/2014, art. 4.º, n.º 1, al. f)
+  if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0 && locale !== 'pt') {
     pdf.addPage()
     let ry = 8
 
@@ -865,10 +896,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ry += ptToMm(3) + 8
 
     pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text(locale === 'pt' ? 'DIREITO DE RETRATAÇÃO' : 'DROIT DE RÉTRACTATION', mL, ry)
+    pdf.text('DROIT DE RÉTRACTATION', mL, ry)
     ry += 5
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text(locale === 'pt' ? 'Lei n.º 24/96, artigo 8.º' : 'Article L. 221-18 du Code de la consommation', mL, ry)
+    pdf.text('Article L. 221-18 du Code de la consommation', mL, ry)
     ry += 8
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
@@ -888,13 +919,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setFillColor(COLOR_TEXT)
     pdf.rect(mL, ry, contentW, 8, 'F')
     pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_WHITE)
-    pdf.text(locale === 'pt' ? 'FORMULÁRIO DE RETRATAÇÃO' : 'FORMULAIRE DE RÉTRACTATION', mL + boxPadX, ry + 5.5)
+    pdf.text('FORMULAIRE DE RÉTRACTATION', mL + boxPadX, ry + 5.5)
     ry += 12
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-    const formAttention = locale === 'pt'
-      ? `À atenção de : ${companyName}, ${companyAddress}`
-      : `À l'attention de : ${companyName}, ${companyAddress}`
+    const formAttention = `À l'attention de : ${companyName}, ${companyAddress}`
     pdf.setFont('helvetica', 'normal')
     const attParts = formAttention.split(companyName)
     pdf.text(attParts[0], mL + boxPadX, ry)
@@ -904,16 +933,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ry += 6
 
     pdf.setFont('helvetica', 'normal')
-    const noticeText = locale === 'pt'
-      ? 'Notifico pela presente a minha retratação do contrato relativo à prestação de serviços acima.'
-      : 'Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.'
+    const noticeText = 'Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.'
     pdf.text(noticeText, mL + boxPadX, ry)
     ry += 8
 
     const formFields = [
-      locale === 'pt' ? 'Encomendado em / recebido em :' : 'Commandé le / reçu le :',
-      locale === 'pt' ? 'Nome do cliente :' : 'Nom du client :',
-      locale === 'pt' ? 'Morada :' : 'Adresse :',
+      'Commandé le / reçu le :',
+      'Nom du client :',
+      'Adresse :',
       'Date : ___ / ___ / ______',
       'Signature :',
     ]
