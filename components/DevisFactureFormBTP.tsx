@@ -18,14 +18,18 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import NextImage from 'next/image'
 import { toast } from 'sonner'
 import {
   type ProductLine,
   type DevisAcompte,
+  type DevisEtape,
   type DevisFactureFormProps,
+  type ServiceBasic,
 } from '@/lib/devis-types'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
+import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 
@@ -243,6 +247,18 @@ export default function DevisFactureFormBTP({
 
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '')
+
+  // Rapport d'intervention joint
+  const [attachedRapportId, setAttachedRapportId] = useState<string | null>(null)
+  const [availableRapports, setAvailableRapports] = useState<Record<string, unknown>[]>([])
+
+  // Photos chantier
+  const [availablePhotos, setAvailablePhotos] = useState<Array<{
+    id: string; url: string; label?: string; taken_at?: string;
+    lat?: number; lng?: number; booking_id?: string
+  }>>([])
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
+  const [photosLoading, setPhotosLoading] = useState(false)
 
   // Saving / loading flags
   const [saving, setSaving] = useState(false)
@@ -537,6 +553,115 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Génération PDF ──────── */
 
+  /* ──────── Rapports & Photos — chargement ──────── */
+
+  // Derived rapport object for PDF
+  const attachedRapport = useMemo(() => {
+    if (!attachedRapportId) return null
+    const r = availableRapports.find((rap: Record<string, unknown>) => rap.id === attachedRapportId)
+    if (!r) return null
+    return {
+      rapportNumber: (r.rapportNumber as string) || '',
+      interventionDate: (r.interventionDate as string) || undefined,
+      startTime: (r.startTime as string) || undefined,
+      endTime: (r.endTime as string) || undefined,
+      motif: (r.motif as string) || undefined,
+      siteAddress: (r.siteAddress as string) || undefined,
+    }
+  }, [attachedRapportId, availableRapports])
+
+  // Derived selected photos for PDF
+  const selectedPhotos: PdfV3Photo[] = useMemo(() => {
+    return availablePhotos.filter(p => selectedPhotoIds.has(p.id)).map(p => ({
+      id: p.id, url: p.url, label: p.label, taken_at: p.taken_at, lat: p.lat, lng: p.lng,
+    }))
+  }, [availablePhotos, selectedPhotoIds])
+
+  const togglePhotoSelection = useCallback((photoId: string) => {
+    setSelectedPhotoIds(prev => {
+      const next = new Set(prev)
+      if (next.has(photoId)) next.delete(photoId); else next.add(photoId)
+      return next
+    })
+  }, [])
+
+  // Load rapports from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id) return
+    try {
+      const rapports = JSON.parse(localStorage.getItem(`fixit_rapports_${artisan.id}`) || '[]')
+      setAvailableRapports(rapports)
+    } catch { setAvailableRapports([]) }
+  }, [artisan?.id])
+
+  // Load photos from API
+  useEffect(() => {
+    if (!artisan?.id) return
+    const fetchPhotos = async () => {
+      setPhotosLoading(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) { setPhotosLoading(false); return }
+        const res = await fetch(`/api/artisan-photos?artisan_id=${artisan.id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (res.ok) { const json = await res.json(); setAvailablePhotos(json.data || []) }
+      } catch { /* pas de photos = pas grave */ }
+      setPhotosLoading(false)
+    }
+    fetchPhotos()
+  }, [artisan?.id])
+
+  /* ──────── Motif/Service selector ──────── */
+
+  const selectMotif = useCallback(async (lineId: number, serviceId: string) => {
+    if (serviceId === 'custom' || !serviceId) {
+      if (serviceId === 'custom') setLines(prev => prev.map(l => l.id === lineId ? { ...l, description: '' } : l))
+      return
+    }
+    const service = (services as ServiceBasic[]).find(s => s.id === serviceId)
+    if (!service) return
+
+    const price = tvaEnabled ? (service.price_ht || 0) : (service.price_ttc || service.price_ht || 0)
+    // Parse unit from description metadata [unit:m2]
+    const descRaw = service.description || ''
+    const unitMatch = descRaw.match(/\[unit:(\w+)\]/)
+    let serviceUnit = unitMatch ? unitMatch[1] : 'u'
+    if (!unitMatch) {
+      const name = service.name.toLowerCase()
+      if (name.includes('m²') || name.includes('m2') || name.includes('carrelage') || name.includes('peinture')) serviceUnit = 'm2'
+      else if (name.includes('ml') || name.includes('mètre linéaire')) serviceUnit = 'ml'
+      else if (name.includes('m³') || name.includes('m3')) serviceUnit = 'm3'
+      else if (name.includes('heure') || name.includes('/h')) serviceUnit = 'h'
+      else if (name.includes('jour')) serviceUnit = 'j'
+      else if (name.includes('forfait')) serviceUnit = 'f'
+    }
+
+    // Fetch etapes templates
+    let copiedEtapes: DevisEtape[] = []
+    try {
+      const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
+      const json = await res.json()
+      if (json.etapes?.length) {
+        copiedEtapes = json.etapes.map((et: { id: string; ordre: number; designation: string }, i: number) => ({
+          id: `etape_${Date.now()}_${i}`, ordre: i + 1,
+          designation: et.designation, source_etape_id: et.id,
+        }))
+      }
+    } catch { /* pas d'étapes = pas grave */ }
+
+    const cleanDesc = descRaw.replace(/\s*\[[^\]]*\]/g, '').trim()
+    const fullDesc = cleanDesc ? `${service.name}\n${cleanDesc}` : service.name
+
+    setLines(prev => prev.map(line => {
+      if (line.id !== lineId) return line
+      return { ...line, description: fullDesc, unit: serviceUnit, priceHT: price,
+               tvaRate: 20, totalHT: 1 * price,
+               etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services, tvaEnabled])
+
   const svgToImageDataUrl = useCallback((svgString: string, width: number, height: number): Promise<string> => {
     return new Promise((resolve, reject) => {
       const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
@@ -593,7 +718,7 @@ export default function DevisFactureFormBTP({
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
-        signatureData: null, attachedRapport: null, selectedPhotos: [],
+        signatureData: null, attachedRapport, selectedPhotos,
         artisan: artisan ? {
           id: artisan.id,
           logo_url: ((artisan as Record<string, unknown>).logo_url as string) || undefined,
@@ -1079,7 +1204,38 @@ export default function DevisFactureFormBTP({
                   return (
                     <tr key={l.id}>
                       <td>
+                        {!(l.description || '').trim() && services.length > 0 ? (
+                          <select onChange={(e) => selectMotif(l.id, e.target.value)} defaultValue="" style={{ width: '100%', marginBottom: 4 }}>
+                            <option value="">Sélectionner un motif…</option>
+                            {(services as ServiceBasic[]).map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}</option>
+                            ))}
+                            <option value="custom">✏️ Saisie libre</option>
+                          </select>
+                        ) : null}
                         <input type="text" placeholder="Ex : Démolition cloisons + évacuation gravats" value={l.description} onChange={(e) => updateLine(l.id, { description: e.target.value })} />
+                        {l.etapes && l.etapes.length > 0 && (
+                          <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes d&apos;intervention :</div>
+                            {l.etapes.map((et, ei) => (
+                              <div key={et.id} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
+                                <span style={{ color: '#999', fontSize: 10, minWidth: 16 }}>{ei + 1}.</span>
+                                <input type="text" value={et.designation} style={{ flex: 1, border: '1px solid #e0e0dc', borderRadius: 3, padding: '2px 6px', fontSize: 11 }}
+                                  onChange={(e) => {
+                                    const newEtapes = [...(l.etapes || [])]
+                                    newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
+                                    updateLine(l.id, { etapes: newEtapes })
+                                  }} />
+                                <button type="button" style={{ color: '#c00', fontSize: 11, cursor: 'pointer', background: 'none', border: 'none' }}
+                                  onClick={() => updateLine(l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
+                              </div>
+                            ))}
+                            <button type="button" style={{ fontSize: 10, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', textDecoration: 'underline' }}
+                              onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                              + Ajouter une étape
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td><input type="number" min={0} step={1} value={l.qty} onChange={(e) => updateLine(l.id, { qty: parseFloat(e.target.value) || 0 })} /></td>
                       <td>
@@ -1211,7 +1367,47 @@ export default function DevisFactureFormBTP({
           {/* 12. RAPPORT D'INTERVENTION */}
           <div className="dv-section">
             <div className="dv-section-t">JOINDRE UN RAPPORT D&apos;INTERVENTION</div>
-            <div style={{ fontSize: 12, color: '#888' }}>Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.</div>
+            {availableRapports.length > 0 ? (
+              <>
+                <select value={attachedRapportId || ''} onChange={(e) => setAttachedRapportId(e.target.value || null)}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e0e0dc', borderRadius: 5, fontSize: 12, marginBottom: 8 }}>
+                  <option value="">— Aucun rapport joint —</option>
+                  {availableRapports.map((r: Record<string, unknown>) => (
+                    <option key={r.id as string} value={r.id as string}>
+                      {r.rapportNumber as string} — {r.interventionDate as string || 'N/D'} — {(r.motif as string || '').substring(0, 50)}
+                    </option>
+                  ))}
+                </select>
+                {attachedRapportId && (() => {
+                  const r = availableRapports.find((rap: Record<string, unknown>) => rap.id === attachedRapportId)
+                  if (!r) return null
+                  const statusMap: Record<string, { label: string; color: string }> = {
+                    termine: { label: '✅ Terminé', color: '#dcfce7' },
+                    en_cours: { label: '🔄 En cours', color: '#e5e7eb' },
+                    a_reprendre: { label: '⚠️ À reprendre', color: '#fef3c7' },
+                  }
+                  const st = statusMap[(r.status as string) || ''] || { label: r.status as string, color: '#e5e7eb' }
+                  return (
+                    <div style={{ background: '#f7f7f5', border: '1px solid #e0e0dc', borderRadius: 6, padding: '10px 12px', fontSize: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <strong>{r.rapportNumber as string}</strong>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: st.color }}>{st.label}</span>
+                      </div>
+                      {r.motif && <div style={{ color: '#444', marginBottom: 3 }}>Motif : {r.motif as string}</div>}
+                      {r.interventionDate && <div style={{ color: '#666' }}>Date : {r.interventionDate as string} {r.startTime ? `de ${r.startTime as string}` : ''} {r.endTime ? `à ${r.endTime as string}` : ''}</div>}
+                      {r.siteAddress && <div style={{ color: '#666' }}>Adresse : {r.siteAddress as string}</div>}
+                      {r.travaux && <div style={{ color: '#666', marginTop: 3 }}>{((r.travaux as string[]) || []).length} travaux réalisés</div>}
+                      <button type="button" onClick={() => setAttachedRapportId(null)}
+                        style={{ marginTop: 6, fontSize: 11, color: '#c00', cursor: 'pointer', background: 'none', border: 'none', textDecoration: 'underline' }}>
+                        Retirer le rapport
+                      </button>
+                    </div>
+                  )
+                })()}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.</div>
+            )}
           </div>
 
           {/* 13. PHOTOS CHANTIER */}
@@ -1220,9 +1416,58 @@ export default function DevisFactureFormBTP({
             <div style={{ fontSize: 12, color: '#666', marginBottom: '.4rem' }}>
               Photos géolocalisées et horodatées prises depuis l&apos;application mobile. Elles seront ajoutées en annexe du document PDF.
             </div>
-            <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic' }}>
-              Aucune photo disponible. Prenez des photos depuis l&apos;application mobile (onglet Documents → Photos Chantier).
-            </div>
+            {photosLoading ? (
+              <div style={{ fontSize: 12, color: '#999' }}>Chargement des photos…</div>
+            ) : availablePhotos.length > 0 ? (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  {selectedPhotoIds.size > 0 && (
+                    <button type="button" onClick={() => setSelectedPhotoIds(new Set())}
+                      style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e0e0dc', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>
+                      Tout désélectionner ({selectedPhotoIds.size})
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setSelectedPhotoIds(new Set(availablePhotos.map(p => p.id)))}
+                    style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e0e0dc', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>
+                    Tout sélectionner
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
+                  {availablePhotos.map((photo) => {
+                    const isSelected = selectedPhotoIds.has(photo.id)
+                    return (
+                      <div key={photo.id} onClick={() => togglePhotoSelection(photo.id)}
+                        style={{ position: 'relative', cursor: 'pointer', borderRadius: 6, overflow: 'hidden',
+                          border: isSelected ? '2px solid #FFC107' : '2px solid transparent', opacity: isSelected ? 1 : 0.7,
+                          transition: 'all .15s' }}>
+                        <NextImage src={photo.url} alt={photo.label || 'Photo chantier'} width={200} height={80}
+                          style={{ width: '100%', height: 80, objectFit: 'cover' }} unoptimized />
+                        {isSelected && (
+                          <div style={{ position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: '50%',
+                            background: '#FFC107', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 700, color: '#fff' }}>✓</div>
+                        )}
+                        {photo.taken_at && (
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.5)',
+                            color: '#fff', fontSize: 9, padding: '2px 4px', textAlign: 'center' }}>
+                            {new Date(photo.taken_at).toLocaleDateString('fr-FR')}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {selectedPhotoIds.size > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 11, padding: '4px 10px', background: '#FFF8E1', borderRadius: 4, display: 'inline-block', color: '#92400E' }}>
+                    📷 {selectedPhotoIds.size} photo{selectedPhotoIds.size > 1 ? 's' : ''} sélectionnée{selectedPhotoIds.size > 1 ? 's' : ''} — sera{selectedPhotoIds.size > 1 ? 'ont' : ''} ajoutée{selectedPhotoIds.size > 1 ? 's' : ''} en annexe PDF
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic' }}>
+                Aucune photo disponible. Prenez des photos depuis l&apos;application mobile (onglet Documents → Photos Chantier).
+              </div>
+            )}
           </div>
 
           {/* 14. MENTIONS LÉGALES */}
