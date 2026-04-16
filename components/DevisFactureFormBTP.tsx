@@ -1310,15 +1310,19 @@ export default function DevisFactureFormBTP({
                   return (
                     <tr key={l.id}>
                       <td>
-                        {!(l.description || '').trim() && services.length > 0 ? (
-                          <select onChange={(e) => selectMotif(l.id, e.target.value)} defaultValue="" style={{ width: '100%', marginBottom: 4 }}>
-                            <option value="">Sélectionner un motif…</option>
+                        {services.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(e) => selectMotif(l.id, e.target.value)}
+                            style={{ width: '100%', marginBottom: 4 }}
+                          >
+                            <option value="">Sélectionner une prestation…</option>
                             {(services as ServiceBasic[]).map((s) => (
                               <option key={s.id} value={s.id}>{s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}</option>
                             ))}
                             <option value="custom">✏️ Saisie libre</option>
                           </select>
-                        ) : null}
+                        )}
                         <input type="text" placeholder="Ex : Démolition cloisons + évacuation gravats" value={l.description} onChange={(e) => updateLine(l.id, { description: e.target.value })} />
                         {l.etapes && l.etapes.length > 0 && (
                           <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
