@@ -234,6 +234,15 @@ export default function DevisFactureFormBTP({
     [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
 
+  // Dropdown prestation ouvert (lineId ou null)
+  const [openPrestaDrop, setOpenPrestaDrop] = useState<number | null>(null)
+  useEffect(() => {
+    if (!openPrestaDrop) return
+    const close = () => setOpenPrestaDrop(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [openPrestaDrop])
+
   // Acomptes
   const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled ?? true)
   const [acomptes, setAcomptes] = useState<DevisAcompte[]>(
@@ -1366,34 +1375,30 @@ export default function DevisFactureFormBTP({
                   return (
                     <tr key={l.id}>
                       <td style={{ verticalAlign: 'top' }}>
-                        {l.description ? (
-                          <input type="text" placeholder="Ex : Démolition cloisons + évacuation gravats" value={l.description}
-                            onChange={(e) => updateLine(l.id, { description: e.target.value })} />
-                        ) : (
-                          <div>
-                            <select
-                              defaultValue=""
-                              onChange={(e) => {
-                                if (e.target.value === 'custom') {
-                                  updateLine(l.id, { description: ' ' })
-                                  setTimeout(() => {
-                                    const row = e.target.closest('tr')
-                                    const input = row?.querySelector('td:first-child input[type="text"]') as HTMLInputElement
-                                    if (input) { input.value = ''; input.focus() }
-                                  }, 50)
-                                } else if (e.target.value) {
-                                  selectMotif(l.id, e.target.value)
-                                }
-                              }}
-                            >
-                              <option value="">▾ Sélectionnez une prestation…</option>
+                        <div style={{ position: 'relative' }}>
+                          <input type="text" placeholder="Saisissez ou sélectionnez une prestation…" value={l.description || ''}
+                            onChange={(e) => updateLine(l.id, { description: e.target.value })}
+                            style={{ paddingRight: 28 }} />
+                          <button type="button" tabIndex={-1}
+                            onClick={(e) => { e.stopPropagation(); setOpenPrestaDrop(openPrestaDrop === l.id ? null : l.id) }}
+                            style={{ position: 'absolute', right: 1, top: 1, bottom: 1, width: 26, background: 'none', border: 'none', borderLeft: '1px solid #E8E8E8', cursor: 'pointer', color: '#999', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            ▾
+                          </button>
+                          {openPrestaDrop === l.id && (
+                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: '#fff', border: '1px solid #E8E8E8', borderRadius: 5, zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', marginTop: 2 }}>
                               {allServices.map((s) => (
-                                <option key={s.id} value={s.id}>{s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}</option>
+                                <div key={s.id}
+                                  onClick={() => { selectMotif(l.id, s.id); setOpenPrestaDrop(null) }}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  style={{ padding: '7px 10px', cursor: 'pointer', fontSize: 11, borderBottom: '1px solid #f5f5f5', transition: 'background .1s' }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f7f5')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}>
+                                  {s.name}{s.price_ht ? ` — ${fmt(s.price_ht)}` : ''}
+                                </div>
                               ))}
-                              <option value="custom">✏️ Saisie libre</option>
-                            </select>
-                          </div>
-                        )}
+                            </div>
+                          )}
+                        </div>
                         {l.etapes && l.etapes.length > 0 && (
                           <div style={{ marginTop: 4, padding: '6px 8px', background: '#f7f7f5', borderRadius: 4, fontSize: 11 }}>
                             <div style={{ fontWeight: 600, marginBottom: 3, color: '#666' }}>Étapes :</div>
