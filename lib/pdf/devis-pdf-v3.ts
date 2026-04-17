@@ -1023,15 +1023,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     legal3 += 'Garanties légales : parfait achèvement 1 an (art. 1792-6 C. civ.), bon fonctionnement 2 ans (art. 1792-3 C. civ.), décennale 10 ans (art. 1792 C. civ.).'
   }
 
-  // 8. Médiation de la consommation (particuliers uniquement — art. L. 612-1 C. conso.)
-  if (isParticulier) {
+  // 8. Médiation de la consommation (particuliers uniquement, art. L. 612-1 C. conso.)
+  // Ne s'affiche que si le médiateur est explicitement renseigné
+  if (isParticulier && mediatorName) {
     if (locale === 'pt') {
-      legal3 += ' Resolução alternativa de litígios (Lei n.º 144/2015).'
+      legal3 += ` Resolução alternativa de litígios (Lei n.º 144/2015) : ${mediatorName}${mediatorUrl ? `, ${mediatorUrl}` : ''}.`
     } else {
-      legal3 += ' Médiation de la consommation (art. L. 612-1 C. conso.).'
-    }
-    if (mediatorName) {
-      legal3 += ` ${mediatorName}${mediatorUrl ? ` — ${mediatorUrl}` : ''}.`
+      legal3 += ` Médiation de la consommation (art. L. 612-1 C. conso.) : ${mediatorName}${mediatorUrl ? `, ${mediatorUrl}` : ''}.`
     }
   }
 
