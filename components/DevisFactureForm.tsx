@@ -357,8 +357,12 @@ export default function DevisFactureForm({
   const docNumberRef = useRef('')
 
   // Fetch next sequential number from server (atomic DB sequence)
+  // 3 niveaux de fallback : API HTTP → RPC Supabase direct → compteur localStorage
   const fetchDocNumber = async (): Promise<string> => {
     if (docNumberRef.current) return docNumberRef.current
+    const year = new Date().getFullYear()
+
+    // 1) Essai via API HTTP (avec Bearer token)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const authHeader: Record<string, string> = session?.access_token
@@ -367,17 +371,57 @@ export default function DevisFactureForm({
       const res = await fetch('/api/doc-number', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ docType, year: new Date().getFullYear() }),
+        body: JSON.stringify({ docType, year }),
       })
-      if (!res.ok) throw new Error(`Erreur serveur ${res.status}`)
-      const { number } = await res.json()
+      if (res.ok) {
+        const { number } = await res.json()
+        docNumberRef.current = number
+        setDocNumber(number)
+        return number
+      }
+      console.warn('[DevisFactureForm] doc-number HTTP failed, trying RPC', res.status)
+    } catch (err) {
+      console.warn('[DevisFactureForm] doc-number HTTP error, trying RPC', err)
+    }
+
+    // 2) Fallback : RPC Supabase direct (SECURITY DEFINER)
+    try {
+      if (artisan?.id) {
+        const { data, error } = await supabase.rpc('next_doc_number', {
+          p_artisan_user_id: artisan.id,
+          p_doc_type: docType,
+          p_year: year,
+        })
+        if (!error && data) {
+          const number = String(data)
+          docNumberRef.current = number
+          setDocNumber(number)
+          return number
+        }
+        console.warn('[DevisFactureForm] RPC failed, using local counter', error?.message)
+      }
+    } catch (err) {
+      console.warn('[DevisFactureForm] RPC error, using local counter', err)
+    }
+
+    // 3) Dernier recours : compteur basé sur les documents existants en localStorage
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const prefix = docType === 'devis' ? 'DEV' : 'FACT'
+      const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
+      const maxSeq = [...docs, ...drafts]
+        .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
+        .filter(Boolean)
+        .map(Number)
+        .reduce((a: number, b: number) => Math.max(a, b), 0)
+      const number = `${prefix}-${year}-${String(maxSeq + 1).padStart(3, '0')}`
       docNumberRef.current = number
       setDocNumber(number)
       return number
     } catch (err) {
-      console.error('[DevisFactureForm] Failed to fetch doc number:', err)
-      // Fallback visible — never silent N/A
-      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${new Date().getFullYear()}-DRAFT`
+      console.error('[DevisFactureForm] All doc-number fallbacks failed:', err)
+      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${year}-DRAFT`
       setDocNumber(fallback)
       return fallback
     }

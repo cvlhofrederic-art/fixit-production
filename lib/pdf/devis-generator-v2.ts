@@ -776,13 +776,17 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   } else {
     throw new Error('Assurance RC Pro obligatoire pour générer un devis (art. L243-2 C. assurances)')
   }
+  // Rétractation et délai 7 jours : applicables UNIQUEMENT B2C hors établissement
+  // (art. L.221-18 et L.221-10 C. conso. — pas pour client pro avec SIRET,
+  //  ni si l'artisan a explicitement désactivé le toggle)
+  const showRetractation = input.isHorsEtablissement !== false && !input.client.siret
   const legalParagraph = [
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',
     'TVA non applicable, article 293 B du CGI.',
     insuranceLine,
     'Devis gratuit.',
-    'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).',
-    'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.',
+    showRetractation ? 'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).' : null,
+    showRetractation ? 'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.' : null,
     input.mediateur
       ? `M\u00E9diation de la consommation (art. L. 612-1 C. conso.) : ${input.mediateur}${input.mediateur_url ? ', ' + input.mediateur_url : ''}.`
       : null,
