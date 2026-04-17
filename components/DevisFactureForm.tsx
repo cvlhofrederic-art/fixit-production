@@ -358,12 +358,16 @@ export default function DevisFactureForm({
   const fetchDocNumber = async (): Promise<string> => {
     if (docNumberRef.current) return docNumberRef.current
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
       const res = await fetch('/api/doc-number', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ docType, year: new Date().getFullYear() }),
       })
-      if (!res.ok) throw new Error('Erreur serveur')
+      if (!res.ok) throw new Error(`Erreur serveur ${res.status}`)
       const { number } = await res.json()
       docNumberRef.current = number
       setDocNumber(number)
