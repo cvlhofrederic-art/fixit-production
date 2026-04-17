@@ -97,7 +97,15 @@ export default function DevisFactureForm({
   const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
   const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
   // Droit de rétractation (contrat hors établissement)
-  const [isHorsEtablissement, setIsHorsEtablissement] = useState(initialData?.isHorsEtablissement ?? true)
+  // Désactivé par défaut pour clients pro (B2B), activé par défaut pour particuliers
+  const B2B_CLIENT_TYPES = ['syndic', 'professionnel', 'societe', 'conciergerie', 'agence_immobiliere', 'promoteur', 'architecte', 'collectivite', 'association', 'artisan_sous_traitant']
+  const initialIsProClient = Boolean(
+    (initialData?.clientSiret && String(initialData.clientSiret).trim().length > 0) ||
+    B2B_CLIENT_TYPES.includes(String(initialData?.clientType || ''))
+  )
+  const [isHorsEtablissement, setIsHorsEtablissement] = useState(
+    initialData?.isHorsEtablissement ?? !initialIsProClient
+  )
   const [companySiren, setCompanySiren] = useState('')
   const [companyNafLabel, setCompanyNafLabel] = useState('')
   const [officialLegalForm, setOfficialLegalForm] = useState('')
@@ -163,6 +171,12 @@ export default function DevisFactureForm({
     setInterventionEtage('')
     setInterventionEspacesCommuns('')
     setInterventionExterieur('')
+    // Toggle rétractation : off pour pro (SIRET ou type B2B), on pour particulier
+    const selectedIsPro = Boolean(
+      (client.siret && client.siret.trim().length > 0) ||
+      B2B_CLIENT_TYPES.includes(client.type || '')
+    )
+    setIsHorsEtablissement(!selectedIsPro)
     setShowClientPicker(false)
   }
 
