@@ -807,6 +807,7 @@ function DashboardPage() {
             <MessagerieArtisan
               artisan={artisan!}
               orgRole={orgRole}
+              navigateTo={navigateTo}
               onConversationRead={refreshUnreadMsgCount}
               onProposerDevis={(missionData) => {
                 // ── Matching intelligent : motif mission → service catalogue (prix) ──
@@ -963,6 +964,7 @@ function DashboardPage() {
                 artisan={artisan!}
                 services={services}
                 orgRole={orgRole}
+                navigateTo={navigateTo}
               />
             </SectionErrorBoundary>
           )}

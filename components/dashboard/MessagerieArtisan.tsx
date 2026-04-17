@@ -54,6 +54,7 @@ type Props = {
   orgRole?: string
   onConversationRead?: () => void
   onProposerDevis?: (missionData: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
+  navigateTo?: (page: string) => void
 }
 
 // ═══ CONFIG ═══
@@ -116,7 +117,7 @@ function getClientTypeBadge(contactType: string, isPt: boolean) {
 
 // ═══ COMPOSANT PRINCIPAL ═══
 
-export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis }: Props) {
+export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis, navigateTo }: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -398,7 +399,14 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
           <h1>Messagerie</h1>
           <p>Vos conversations</p>
         </div>
-        <button className="v5-btn v5-btn-p v5-btn-sm" style={{ flexShrink: 0 }}>+ Nouvelle conversation</button>
+        <button
+          className="v5-btn v5-btn-p v5-btn-sm"
+          style={{ flexShrink: 0 }}
+          onClick={() => navigateTo?.('clients')}
+          title={isPt ? 'Ir para Base de clientes para iniciar uma conversa' : 'Aller à la Base clients pour démarrer une conversation'}
+        >
+          + {isPt ? 'Nova conversa' : 'Nouvelle conversation'}
+        </button>
       </div>
 
       {/* ═══ LAYOUT v7 — Grille 2 colonnes ═══ */}
@@ -552,7 +560,6 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               </div>
               {/* Input bar */}
               <div className="v7-msg-input-bar">
-                <button style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer' }}>📎</button>
                 <input
                   ref={inputRef}
                   className="v7-msg-input"

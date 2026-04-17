@@ -34,6 +34,17 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     scrollToBottom()
   }, [messages])
 
+  // Permet aux boutons de questions fréquentes (hors AgentComptable) de déclencher une question
+  const sendMessageRef = useRef<((text: string) => void) | null>(null)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (typeof detail === 'string' && sendMessageRef.current) sendMessageRef.current(detail)
+    }
+    window.addEventListener('lea-ask', handler as EventListener)
+    return () => window.removeEventListener('lea-ask', handler as EventListener)
+  }, [])
+
   const expenseCategories = expenses.reduce((acc: Record<string, number>, e: Expense) => {
     const cat = e.category ?? 'autre'
     acc[cat] = (acc[cat] || 0) + parseFloat(String(e.amount || 0))
@@ -139,6 +150,9 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     setIsLoading(false)
     setTimeout(() => inputRef.current?.focus(), 100)
   }
+
+  // Expose sendMessage pour les questions fréquentes externes (FAQ Comptabilité)
+  sendMessageRef.current = sendMessage
 
   const formatMessage = (text: string) => safeMarkdownToHTML(text)
 
@@ -361,7 +375,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
 /* ══════════ COMPTABILITÉ SECTION ══════════ */
 
-export default function ComptabiliteSection({ bookings, artisan, services, orgRole }: { bookings: import('@/lib/types').Booking[]; artisan: import('@/lib/types').Artisan; services: import('@/lib/types').Service[]; orgRole?: string }) {
+export default function ComptabiliteSection({ bookings, artisan, services, orgRole, navigateTo }: { bookings: import('@/lib/types').Booking[]; artisan: import('@/lib/types').Artisan; services: import('@/lib/types').Service[]; orgRole?: string; navigateTo?: (page: string) => void }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
@@ -921,7 +935,13 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               <option value="all">{isPt ? 'Todos os estados' : 'Tous statuts'}</option>
               <option value="completed">{isPt ? 'Recebido' : 'Encaissé'}</option>
             </select>
-            <button className="v5-btn v5-btn-p">+ {isPt ? 'Nova fatura' : 'Nouvelle facture'}</button>
+            <button
+              className="v5-btn v5-btn-p"
+              onClick={() => navigateTo?.('factures')}
+              title={isPt ? 'Abrir o módulo Faturas' : 'Ouvrir le module Factures'}
+            >
+              + {isPt ? 'Nova fatura' : 'Nouvelle facture'}
+            </button>
           </div>
 
           {/* Revenue table */}
@@ -1164,11 +1184,39 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 </div>
               </div>
               <div style={{ marginTop: '.75rem', display: 'flex', gap: '.4rem' }}>
-                <button className="v5-btn v5-btn-p" style={{ flex: 1 }}>
+                <a
+                  href={isPt ? 'https://www.portaldasfinancas.gov.pt/' : 'https://www.impots.gouv.fr/accueil'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="v5-btn v5-btn-p"
+                  style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}
+                >
                   {'\uD83D\uDCE4'} {isPt ? 'Submeter declara\u00e7ão' : 'Déposer CA3'}
-                </button>
-                <button className="v5-btn">
-                  {'\uD83D\uDCE5'} {isPt ? 'Descarregar PDF' : 'Télécharger PDF'}
+                </a>
+                <button
+                  className="v5-btn"
+                  onClick={() => {
+                    const header = [isPt ? 'Período' : 'Période', isPt ? 'Montante' : 'Montant'].join(',')
+                    const rows = [
+                      header,
+                      `${isPt ? 'Volume de negócios TTC' : 'CA TTC'} ${currentYear},${chiffreAffaires.toFixed(2)}`,
+                      `${isPt ? 'Volume HT' : 'CA HT'} ${currentYear},${chiffreAffairesHT.toFixed(2)}`,
+                      `${isPt ? 'IVA recolhido' : 'TVA collectée'},${tvaCollectee.toFixed(2)}`,
+                      `${isPt ? 'IVA dedutível' : 'TVA déductible'},${tvaDeductible.toFixed(2)}`,
+                      `${isPt ? 'Saldo IVA' : 'Solde TVA'},${tvaCreditDebit.toFixed(2)}`,
+                    ].join('\n')
+                    const blob = new Blob([rows], { type: 'text/csv;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `tva-${currentYear}.csv`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  {'\uD83D\uDCE5'} {isPt ? 'Descarregar CSV' : 'Télécharger CSV'}
                 </button>
               </div>
             </div>
@@ -1309,7 +1357,12 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 isPt ? '🧾 Como otimizar as minhas despesas?' : '🧾 Comment optimiser mes charges ?',
                 isPt ? `📈 Projeção do volume de negócios fim de ${currentYear}` : `📈 Projection CA fin d'année ${currentYear}`,
               ].map((q, i) => (
-                <button key={i} className="btn" style={{ justifyContent: 'flex-start', textAlign: 'left', height: 'auto', padding: '.5rem .65rem', lineHeight: 1.4 }}>
+                <button
+                  key={i}
+                  className="btn"
+                  style={{ justifyContent: 'flex-start', textAlign: 'left', height: 'auto', padding: '.5rem .65rem', lineHeight: 1.4, cursor: 'pointer' }}
+                  onClick={() => window.dispatchEvent(new CustomEvent('lea-ask', { detail: q }))}
+                >
                   {q}
                 </button>
               ))}
