@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
         // ── Shared root pages accessible via /fr/ prefix ──
         { source: '/fr/auth/:path*', destination: '/auth/:path*' },
         { source: '/fr/pro/:path*', destination: '/pro/:path*' },
+        // /fr/artisan/dashboard → dashboard (évite le conflit avec la route SEO /fr/artisan/[id])
+        { source: '/fr/artisan/dashboard', destination: '/artisan/dashboard' },
+        { source: '/fr/artisan/dashboard/', destination: '/artisan/dashboard/' },
+        { source: '/fr/artisan/dashboard/:path*', destination: '/artisan/dashboard/:path*' },
         { source: '/fr/client/:path*', destination: '/client/:path*' },
         { source: '/fr/syndic/:path*', destination: '/syndic/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
@@ -42,6 +46,9 @@ const nextConfig: NextConfig = {
         // ── Shared root pages accessible via /pt/ prefix ──
         { source: '/pt/auth/:path*', destination: '/auth/:path*' },
         { source: '/pt/pro/:path*', destination: '/pro/:path*' },
+        { source: '/pt/artisan/dashboard', destination: '/artisan/dashboard' },
+        { source: '/pt/artisan/dashboard/', destination: '/artisan/dashboard/' },
+        { source: '/pt/artisan/dashboard/:path*', destination: '/artisan/dashboard/:path*' },
         { source: '/pt/client/:path*', destination: '/client/:path*' },
         { source: '/pt/syndic/:path*', destination: '/syndic/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
