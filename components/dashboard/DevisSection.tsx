@@ -41,6 +41,14 @@ const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
   return !!a.docNumber && a.docNumber === b.docNumber
 }
 
+// Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
+// Les docs sans numéro valide vont à la fin (MAX_SAFE_INTEGER).
+const getDocSeq = (doc: DevisDocument): number => {
+  const m = (doc.docNumber || '').match(/-(\d{4})-(\d+)$/)
+  if (!m) return Number.MAX_SAFE_INTEGER
+  return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
+}
+
 interface DevisSectionProps {
   artisan: Artisan | null
   services: Service[]
@@ -165,7 +173,7 @@ export default function DevisSection({
                 </tr>
               </thead>
               <tbody>
-                {devisDocs.sort((a: DevisDocument, b: DevisDocument) => new Date(b.savedAt || b.docDate || 0).getTime() - new Date(a.savedAt || a.docDate || 0).getTime()).map((doc: DevisDocument, i: number) => {
+                {[...devisDocs].sort((a: DevisDocument, b: DevisDocument) => getDocSeq(a) - getDocSeq(b)).map((doc: DevisDocument, i: number) => {
                   const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
                   return (
                     <tr key={`saved-dev-${i}`}>
@@ -323,7 +331,7 @@ function DevisSectionV5({
         d.docTitle?.toLowerCase().includes(q)
       )
     })
-    .sort((a, b) => new Date(b.savedAt || b.docDate || 0).getTime() - new Date(a.savedAt || a.docDate || 0).getTime())
+    .sort((a, b) => getDocSeq(a) - getDocSeq(b))
 
   const getV5Badge = (doc: DevisDocument) => {
     if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: isPt ? 'Enviado' : 'Envoyé' }
