@@ -1490,22 +1490,71 @@ export default function DevisFactureForm({
     if (mode === 'validate') onBack()
   }
 
-  // ─── Send via Email ───
-  const handleSendViaEmail = () => {
+  // ─── Send via Email (Resend avec PDF en pièce jointe) ───
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const handleSendViaEmail = async () => {
     const currentMode = showSendModal
-    const totalVal = tvaEnabled ? totalTTC : subtotalHT
-    const totalStr = `${localeFormats.currencyFormat(totalVal)} ${tvaEnabled ? t('devis.ttc') : t('devis.ht')}`
-    const docTypeLabel = docType === 'devis' ? t('devis.emailSubjectDevis') : t('devis.emailSubjectFacture')
-    const subject = encodeURIComponent(`${docTypeLabel} ${docNumber} — ${companyName}`)
-    const emailBody = t('devis.emailBody')
-      .replace('{clientName}', clientName)
-      .replace('{docType}', docTypeLabel.toLowerCase())
-      .replace('{docNumber}', docNumber)
-      .replace('{total}', totalStr)
-      .replace('{companyName}', companyName + (companyPhone ? '\n' + companyPhone : ''))
-    const body = encodeURIComponent(emailBody)
-    window.open(`mailto:${clientEmail}?subject=${subject}&body=${body}`)
+    if (!clientEmail) {
+      setSavedMsg(`❌ ${t('devis.sendError')} : email client manquant`)
+      setTimeout(() => setSavedMsg(''), 4000)
+      return
+    }
+    setSendingEmail(true)
+    try {
+      const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
+      const fresh = await freshArtisanData()
+      const input = getV2InputParams({
+        logoUrl: fresh.freshLogoUrl,
+        insName: fresh.freshInsuranceName,
+        insNumber: fresh.freshInsuranceNumber,
+        insCoverage: fresh.freshInsuranceCoverage,
+        insType: fresh.freshInsuranceType,
+      })
+      const numero = await fetchDocNumber()
+      input.devis.numero = numero
+      const pdf = await generateDevisPdfV2(input)
+      // jsPDF: output base64 sans le préfixe data:
+      const pdfBase64 = pdf.output('datauristring').split(',')[1]
+      const totalVal = tvaEnabled ? totalTTC : subtotalHT
+      const totalStr = `${localeFormats.currencyFormat(totalVal)} ${tvaEnabled ? t('devis.ttc') : t('devis.ht')}`
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/devis/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          to: clientEmail,
+          docType,
+          docNumber: numero,
+          docTitle,
+          totalStr,
+          clientName,
+          companyName,
+          companyPhone,
+          pdfBase64,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || `Erreur serveur ${res.status}`)
+      }
+      setSavedMsg(`✅ Email envoyé à ${clientEmail}`)
+      setTimeout(() => setSavedMsg(''), 3000)
+      saveAndFinalize(currentMode)
+    } catch (err) {
+      console.error('Erreur envoi email:', err)
+      setSavedMsg(`❌ ${t('devis.sendError')} : ${err instanceof Error ? err.message : String(err)}`)
+      setTimeout(() => setSavedMsg(''), 5000)
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
+  // ─── Enregistrer sans envoyer (sauvegarde en "envoyé" sans action) ───
+  const handleSaveOnly = () => {
+    const currentMode = showSendModal
     saveAndFinalize(currentMode)
+    setSavedMsg(`✅ ${docType === 'devis' ? 'Devis' : 'Facture'} enregistré sans envoi`)
+    setTimeout(() => setSavedMsg(''), 3000)
   }
 
   // ─── Send via Vitfix Channel ───
@@ -3374,16 +3423,19 @@ export default function DevisFactureForm({
             </div>
             <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{t('devis.sendModalQuestion')}</div>
-              {/* Option 1: Email */}
+              {/* Option 1: Email via Resend (PDF en pièce jointe) */}
               {clientEmail && (
                 <button
                   onClick={handleSendViaEmail}
+                  disabled={sendingEmail}
                   className="v22-btn"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', textAlign: 'left', background: '#EFF6FF', borderColor: '#BFDBFE' }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', textAlign: 'left', background: '#EFF6FF', borderColor: '#BFDBFE', opacity: sendingEmail ? 0.6 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}
                 >
-                  <div style={{ width: 32, height: 32, background: '#1D4ED8', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontSize: 14 }}>{'@'}</div>
+                  <div style={{ width: 32, height: 32, background: '#1D4ED8', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontSize: 14 }}>{sendingEmail ? '...' : '@'}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: '#1E40AF', fontSize: 12 }}>{t('devis.sendViaEmail')}</div>
+                    <div style={{ fontWeight: 600, color: '#1E40AF', fontSize: 12 }}>
+                      {sendingEmail ? 'Envoi en cours…' : 'Envoyer par email (PDF joint)'}
+                    </div>
                     <div className="v22-ref" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{clientEmail}</div>
                   </div>
                   <span style={{ color: '#93C5FD' }}>→</span>
@@ -3419,6 +3471,20 @@ export default function DevisFactureForm({
                 {linkedBookingId && !sendingVitfix && (
                   <span style={{ color: 'var(--v22-amber)' }}>→</span>
                 )}
+              </button>
+
+              {/* Option 3: Enregistrer sans envoyer (client sans logiciel / envoi manuel) */}
+              <button
+                onClick={handleSaveOnly}
+                className="v22-btn"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', textAlign: 'left', background: '#F0FDF4', borderColor: '#BBF7D0' }}
+              >
+                <div style={{ width: 32, height: 32, background: '#16A34A', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontSize: 14 }}>{'💾'}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: '#15803D', fontSize: 12 }}>Enregistrer sans envoyer</div>
+                  <div className="v22-ref">Le client recevra le document autrement (courrier, remise en main propre…)</div>
+                </div>
+                <span style={{ color: '#86EFAC' }}>→</span>
               </button>
             </div>
             <div className="v22-modal-foot">
