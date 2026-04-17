@@ -1987,14 +1987,9 @@ export default function DevisFactureForm({
                           })}
                           <option value="__custom__">Saisir un autre lieu...</option>
                         </select>
-                        {(interventionAddress === '' || !selectedClientInterventionAddresses.some(a => {
-                          const combined = a.label && a.address ? `${a.label}, ${a.address}` : (a.address || a.label)
-                          return combined === interventionAddress
-                        })) && (
-                          <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
-                            placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
-                            className={normalFieldClass} />
-                        )}
+                        <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
+                          placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
+                          className={normalFieldClass} />
                       </div>
                     ) : (
                       <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
