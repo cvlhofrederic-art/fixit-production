@@ -1002,13 +1002,10 @@ export default function DevisFactureForm({
 
     // ══════════════════════════════════════════════
     // 7. MÉDIATEUR / ENTIDADE RAL
+    // N'apparaît que si renseigné explicitement (pas de fallback générique)
     // ══════════════════════════════════════════════
-    if (!isClientPro) {
-      if (mediatorName) {
-        mentions.push(t('devis.legal.mediatorWithName').replace('{name}', mediatorName + (mediatorUrl ? ' — ' + mediatorUrl : '')))
-      } else {
-        mentions.push(t('devis.legal.mediatorGeneric'))
-      }
+    if (!isClientPro && mediatorName) {
+      mentions.push(t('devis.legal.mediatorWithName').replace('{name}', mediatorName + (mediatorUrl ? ', ' + mediatorUrl : '')))
     }
 
     // ══════════════════════════════════════════════
@@ -1016,7 +1013,7 @@ export default function DevisFactureForm({
     // ══════════════════════════════════════════════
     if (isSoc) {
       if (companyRCS) {
-        mentions.push(t('devis.legal.headOffice').replace('{address}', companyAddress || '—').replace('{rcs}', companyRCS))
+        mentions.push(t('devis.legal.headOffice').replace('{address}', companyAddress || 'non renseigné').replace('{rcs}', companyRCS))
       }
     }
 
