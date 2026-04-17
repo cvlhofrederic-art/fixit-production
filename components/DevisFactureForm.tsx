@@ -2196,7 +2196,7 @@ export default function DevisFactureForm({
                         <th style={{ width: '10%' }}>{t('devis.unit')}</th>
                         <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
                         <th style={{ width: '10%' }}>{localeFormats.taxLabel} %</th>
-                        <th style={{ width: '18%', textAlign: 'right' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
+                        <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
                         <th style={{ width: '8%' }}></th>
                       </tr>
                     </thead>
@@ -2439,8 +2439,7 @@ export default function DevisFactureForm({
                               }}
                               onFocus={(e) => e.target.select()}
                               step="0.01"
-                              className="v22-form-input v22-amount"
-                              style={{ textAlign: 'right', background: 'var(--v22-bg)' }}
+                              className="v22-form-input"
                             />
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
