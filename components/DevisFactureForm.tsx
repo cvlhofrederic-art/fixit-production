@@ -1140,6 +1140,21 @@ export default function DevisFactureForm({
     // Ouvrir l'onglet IMMÉDIATEMENT dans le même tick que le clic
     // (sinon le navigateur bloque le popup après les awaits réseau)
     const previewWindow = window.open('about:blank', '_blank')
+    if (previewWindow) {
+      // Affiche un écran de chargement pour éviter la page blanche pendant
+      // la génération PDF (~2-5s selon la taille du devis)
+      previewWindow.document.write(`<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Génération aperçu…</title>
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#fafafa;color:#333}
+  .c{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:18px}
+  .s{width:42px;height:42px;border:3px solid #E0E0E0;border-top-color:#FFC107;border-radius:50%;animation:r 0.8s linear infinite}
+  .t{font-size:14px;color:#666}
+  @keyframes r{to{transform:rotate(360deg)}}
+</style></head>
+<body><div class="c"><div class="s"></div><div class="t">Génération de l'aperçu PDF…</div></div></body></html>`)
+      previewWindow.document.close()
+    }
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')

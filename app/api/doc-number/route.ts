@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, docNumberSchema } from '@/lib/validation'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -7,7 +8,15 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 // POST /api/doc-number — Génère le prochain numéro séquentiel (devis/facture/avoir)
 // Utilise la fonction DB next_doc_number() pour garantir l'atomicité (art. L441-3 C. com.)
 export async function POST(request: NextRequest) {
-  const user = await getAuthUser(request)
+  // Essaye d'abord via Bearer token, puis fallback cookies (@supabase/ssr)
+  let user = await getAuthUser(request)
+  if (!user) {
+    try {
+      const serverClient = await createServerSupabaseClient()
+      const { data } = await serverClient.auth.getUser()
+      user = data.user
+    } catch { /* noop */ }
+  }
   if (!user) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
