@@ -375,6 +375,19 @@ function DevisSectionV5({
                         </button>
                       )}
                       <button
+                        className="v5-btn v5-btn-sm"
+                        title={isPt ? 'Duplicar orçamento' : 'Dupliquer le devis'}
+                        onClick={() => {
+                          // Strip les champs liés à l'identité/état du devis d'origine
+                          // pour que le nouveau reçoive un numéro chrono frais via fetchDocNumber
+                          const { docNumber: _dn, id: _id, status: _st, sentAt: _sa, savedAt: _svd, signatureData: _sig, ...rest } = doc
+                          setConvertingDevis({ ...rest, id: Date.now().toString(), docType: 'devis', isDuplicate: true })
+                          setShowDevisForm(true)
+                        }}
+                      >
+                        {isPt ? 'Duplicar' : 'Dupliquer'}
+                      </button>
+                      <button
                         className="v5-btn v5-btn-sm v5-btn-p"
                         onClick={() => convertDevisToFacture(doc)}
                       >
