@@ -34,6 +34,7 @@ export interface BuildV2InputParams {
   interventionBatiment: string | null
   interventionEtage: string | null
   interventionEspacesCommuns: string | null
+  interventionExterieur: string | null
 
   // Document
   docType: 'devis' | 'facture'
@@ -67,7 +68,7 @@ export function buildV2Input(
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     tvaEnabled, paymentMode,
     clientName, clientSiret, clientAddress, clientPhone, clientEmail,
-    interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns,
+    interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
     lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
   } = params
@@ -101,6 +102,7 @@ export function buildV2Input(
       intervention_batiment: interventionBatiment || null,
       intervention_etage: interventionEtage || null,
       intervention_espaces_communs: interventionEspacesCommuns || null,
+      intervention_exterieur: interventionExterieur || null,
     },
     devis: {
       numero: overrides?.numero || docNumber || (docType === 'devis' ? 'DEVIS-DRAFT' : 'FACT-DRAFT'),

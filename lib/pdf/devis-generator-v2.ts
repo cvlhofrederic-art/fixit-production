@@ -34,6 +34,7 @@ export interface DevisGeneratorInput {
     intervention_batiment?: string | null
     intervention_etage?: string | null
     intervention_espaces_communs?: string | null
+    intervention_exterieur?: string | null
   }
   devis: {
     numero: string
@@ -317,6 +318,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     if (input.client.intervention_batiment) destContentH += ptToMm(14)
     if (input.client.intervention_etage) destContentH += ptToMm(14)
     if (input.client.intervention_espaces_communs) destContentH += ptToMm(14)
+    if (input.client.intervention_exterieur) destContentH += ptToMm(14)
   }
   if (input.client.telephone) destContentH += ptToMm(14)
   if (input.client.email) destContentH += ptToMm(14)
@@ -417,7 +419,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text(input.client.intervention_adresse, TEXT_X_DEST, dy); dy += ptToMm(14)
     if (input.client.intervention_batiment) { pdf.text(`Bât. ${input.client.intervention_batiment}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_etage) { pdf.text(`Étage : ${input.client.intervention_etage}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
-    if (input.client.intervention_espaces_communs) { pdf.text(`Espaces : ${input.client.intervention_espaces_communs}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+    if (input.client.intervention_espaces_communs) { pdf.text(`Lieu : Espaces communs, ${input.client.intervention_espaces_communs}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+    if (input.client.intervention_exterieur) { pdf.text(`Lieu : Extérieur, ${input.client.intervention_exterieur}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
   }
   if (input.client.telephone) { pdf.text(`Tél : ${input.client.telephone}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
   if (input.client.email) { pdf.text(`E-mail : ${input.client.email}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
