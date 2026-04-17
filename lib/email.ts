@@ -11,6 +11,11 @@ function getResend(): Resend {
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
+export interface EmailAttachment {
+  filename: string
+  content: string // base64-encoded
+}
+
 export interface EmailPayload {
   to: string | string[]
   subject: string
@@ -18,6 +23,7 @@ export interface EmailPayload {
   from?: string
   replyTo?: string
   tags?: { name: string; value: string }[]
+  attachments?: EmailAttachment[]
 }
 
 export interface EmailResult {
@@ -44,6 +50,9 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
       html: payload.html,
       replyTo: payload.replyTo,
       tags: payload.tags,
+      ...(payload.attachments && payload.attachments.length > 0 ? {
+        attachments: payload.attachments.map(a => ({ filename: a.filename, content: a.content })),
+      } : {}),
     })
 
     if (error) {
