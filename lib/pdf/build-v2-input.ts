@@ -56,6 +56,9 @@ export interface BuildV2InputParams {
   notes: string
   mediatorName: string
   mediatorUrl: string
+
+  // Flags
+  isHorsEtablissement: boolean
 }
 
 export function buildV2Input(
@@ -71,6 +74,7 @@ export function buildV2Input(
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
     lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
+    isHorsEtablissement,
   } = params
 
   const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
@@ -134,5 +138,6 @@ export function buildV2Input(
     notes: notes || undefined,
     mediateur: mediatorName || undefined,
     mediateur_url: mediatorUrl || undefined,
+    isHorsEtablissement,
   }
 }
