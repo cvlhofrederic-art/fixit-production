@@ -2151,7 +2151,7 @@ export default function DevisFactureForm({
                 <span className="v22-card-title">{t('devis.docInfoSection')}</span>
               </div>
               <div className="v22-card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: docType === 'devis' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
                     <label className="v22-form-label">{t('devis.issueDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
                     <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)}
@@ -2165,14 +2165,6 @@ export default function DevisFactureForm({
                         className={normalFieldClass} />
                     </div>
                   )}
-                  {docType === 'devis' && (
-                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
-                      <label className="v22-form-label">Date début prestation</label>
-                      <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
-                        className={normalFieldClass} />
-                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>Optionnelle — apparaîtra sur le PDF</div>
-                    </div>
-                  )}
                   {docType === 'facture' && (
                     <div className="v22-form-group" style={{ marginBottom: 0 }}>
                       <label className="v22-form-label">{t('devis.prestationDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
@@ -2182,6 +2174,14 @@ export default function DevisFactureForm({
                     </div>
                   )}
                 </div>
+                {docType === 'devis' && (
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">Date début prestation</label>
+                    <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
+                      className={normalFieldClass} />
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>Optionnelle — apparaîtra sur le PDF</div>
+                  </div>
+                )}
                 {docType === 'devis' && (
                   <div className="v22-form-group">
                     <label className="v22-form-label">{t('devis.executionDelay')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
