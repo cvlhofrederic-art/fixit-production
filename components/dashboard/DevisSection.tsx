@@ -29,10 +29,14 @@ interface DevisDocument {
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
-// Identifie un document unique : préfère `id` (Date.now()), fallback `docNumber`+`savedAt` pour anciens docs
+// Identifie un document unique
+// 1) id (Date.now() par save) — nouveaux docs
+// 2) savedAt (ISO timestamp unique par save) — anciens docs sans id
+// 3) docNumber non-vide — dernier recours
 const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
   if (a.id && b.id) return a.id === b.id
-  return !!a.docNumber && a.docNumber === b.docNumber && a.savedAt === b.savedAt
+  if (a.savedAt && b.savedAt) return a.savedAt === b.savedAt
+  return !!a.docNumber && a.docNumber === b.docNumber
 }
 
 interface DevisSectionProps {
