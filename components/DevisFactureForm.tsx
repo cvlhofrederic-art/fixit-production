@@ -1059,7 +1059,7 @@ export default function DevisFactureForm({
       insuranceCoverage: overrides.insCoverage, insuranceType: overrides.insType,
       tvaEnabled, paymentMode,
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
-      interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns,
+      interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
       lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     })
@@ -1977,14 +1977,20 @@ export default function DevisFactureForm({
                           className={normalFieldClass}
                           style={{ marginBottom: 6 }}>
                           <option value="">-- Sélectionner un lieu enregistré --</option>
-                          {selectedClientInterventionAddresses.map(addr => (
-                            <option key={addr.id} value={addr.address}>
-                              {addr.label}{addr.address ? ` — ${addr.address}` : ''}
-                            </option>
-                          ))}
+                          {selectedClientInterventionAddresses.map(addr => {
+                            const combined = addr.label && addr.address ? `${addr.label}, ${addr.address}` : (addr.address || addr.label)
+                            return (
+                              <option key={addr.id} value={combined}>
+                                {combined}
+                              </option>
+                            )
+                          })}
                           <option value="__custom__">Saisir un autre lieu...</option>
                         </select>
-                        {(interventionAddress === '' || !selectedClientInterventionAddresses.some(a => a.address === interventionAddress)) && (
+                        {(interventionAddress === '' || !selectedClientInterventionAddresses.some(a => {
+                          const combined = a.label && a.address ? `${a.label}, ${a.address}` : (a.address || a.label)
+                          return combined === interventionAddress
+                        })) && (
                           <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
                             placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
                             className={normalFieldClass} />
@@ -2207,7 +2213,7 @@ export default function DevisFactureForm({
                         <th style={{ width: '10%' }}>{t('devis.unit')}</th>
                         <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
                         <th style={{ width: '10%' }}>{localeFormats.taxLabel} %</th>
-                        <th style={{ width: '18%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
+                        <th style={{ width: '18%', textAlign: 'right' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
                         <th style={{ width: '8%' }}></th>
                       </tr>
                     </thead>
@@ -2351,12 +2357,13 @@ export default function DevisFactureForm({
                           <td style={{ verticalAlign: 'top' }}>
                             <input
                               type="number"
-                              value={line.qty}
+                              value={line.qty === 0 ? '' : line.qty}
                               onChange={(e) => {
                                 const v = e.target.value
                                 // Accepter la saisie brute (y compris vide temporairement)
                                 updateLine(line.id, 'qty', v === '' ? 0 : parseInt(v) || 0)
                               }}
+                              onFocus={(e) => e.target.select()}
                               onBlur={(e) => {
                                 // Au blur, forcer minimum 1
                                 const v = parseInt(e.target.value)
@@ -2437,9 +2444,21 @@ export default function DevisFactureForm({
                             </select>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <div className="v22-amount" style={{ padding: '7px 10px', background: 'var(--v22-bg)', borderRadius: 3 }}>
-                              {localeFormats.currencyFormat(line.totalHT)}
-                            </div>
+                            <input
+                              type="number"
+                              value={line.totalHT === 0 ? '' : line.totalHT}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                const newTotal = raw === '' ? 0 : parseFloat(raw) || 0
+                                const qty = line.qty > 0 ? line.qty : 1
+                                const newPrice = newTotal / qty
+                                setLines(prev => prev.map(l => l.id !== line.id ? l : { ...l, priceHT: newPrice, totalHT: newTotal }))
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              step="0.01"
+                              className="v22-form-input v22-amount"
+                              style={{ textAlign: 'right', background: 'var(--v22-bg)' }}
+                            />
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
                             <button

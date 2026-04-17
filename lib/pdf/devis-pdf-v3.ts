@@ -364,7 +364,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
   if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
-  if (interventionEspacesCommuns || interventionExterieur) dy2 += ptToMm(14)
+  if (interventionEspacesCommuns) dy2 += ptToMm(14)
+  if (interventionExterieur) dy2 += ptToMm(14)
   if (clientPhone) dy2 += ptToMm(14)
   if (clientEmail) dy2 += ptToMm(14)
   if (clientSiret) dy2 += ptToMm(14)
@@ -448,11 +449,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (batEtParts.length > 0) {
       pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
     }
-    const locParts: string[] = []
-    if (interventionEspacesCommuns) locParts.push(`Espaces communs : ${interventionEspacesCommuns}`)
-    if (interventionExterieur) locParts.push(`Extérieur : ${interventionExterieur}`)
-    if (locParts.length > 0) {
-      pdf.text(locParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
+    if (interventionEspacesCommuns) {
+      pdf.text(`Lieu : Espaces communs, ${interventionEspacesCommuns}`, destTx, dy3); dy3 += ptToMm(14)
+    }
+    if (interventionExterieur) {
+      pdf.text(`Lieu : Extérieur, ${interventionExterieur}`, destTx, dy3); dy3 += ptToMm(14)
     }
   }
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
