@@ -2151,7 +2151,7 @@ export default function DevisFactureForm({
                 <span className="v22-card-title">{t('devis.docInfoSection')}</span>
               </div>
               <div className="v22-card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: docType === 'devis' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
                     <label className="v22-form-label">{t('devis.issueDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
                     <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)}
@@ -2163,6 +2163,14 @@ export default function DevisFactureForm({
                       <label className="v22-form-label">{t('devis.validityDays')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
                       <input type="number" value={docValidity} onChange={(e) => setDocValidity(parseInt(e.target.value) || 30)}
                         className={normalFieldClass} />
+                    </div>
+                  )}
+                  {docType === 'devis' && (
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">Date début prestation</label>
+                      <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
+                        className={normalFieldClass} />
+                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>Optionnelle — apparaîtra sur le PDF</div>
                     </div>
                   )}
                   {docType === 'facture' && (
