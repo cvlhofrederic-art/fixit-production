@@ -108,6 +108,7 @@ export default function DevisFactureForm({
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '')
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '')
   const [interventionAddress, setInterventionAddress] = useState(initialData?.interventionAddress || '')
+  const [editingInterventionManually, setEditingInterventionManually] = useState(false)
   const [interventionBatiment, setInterventionBatiment] = useState(initialData?.interventionBatiment || '')
   const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
   const [interventionEspacesCommuns, setInterventionEspacesCommuns] = useState(initialData?.interventionEspacesCommuns || '')
@@ -1969,25 +1970,56 @@ export default function DevisFactureForm({
                       Lieu d&apos;intervention
                       {isProClient && <span className="v22-tag v22-tag-amber">Client pro</span>}
                     </label>
-                    {/* Combobox éditable : texte libre + dropdown natif HTML */}
-                    <input
-                      type="text"
-                      list={selectedClientInterventionAddresses.length > 0 ? 'intervention-addr-list' : undefined}
-                      value={interventionAddress}
-                      onChange={(e) => setInterventionAddress(e.target.value)}
-                      placeholder={selectedClientInterventionAddresses.length > 0
-                        ? 'Sélectionner un lieu enregistré ou saisir...'
-                        : 'Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille'}
-                      className={normalFieldClass}
-                      style={{ marginBottom: 8 }}
-                    />
-                    {selectedClientInterventionAddresses.length > 0 && (
-                      <datalist id="intervention-addr-list">
-                        {selectedClientInterventionAddresses.map(addr => {
-                          const combined = addr.label && addr.address ? `${addr.label}, ${addr.address}` : (addr.address || addr.label)
-                          return <option key={addr.id} value={combined} />
-                        })}
-                      </datalist>
+                    {/* Dropdown natif + bouton Éditer pour saisie libre */}
+                    {selectedClientInterventionAddresses.length > 0 && !editingInterventionManually ? (
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        <select
+                          value={interventionAddress}
+                          onChange={(e) => setInterventionAddress(e.target.value)}
+                          className={normalFieldClass}
+                          style={{ flex: 1 }}
+                        >
+                          <option value="">-- Sélectionner un lieu enregistré --</option>
+                          {selectedClientInterventionAddresses.map(addr => {
+                            const combined = addr.label && addr.address ? `${addr.label}, ${addr.address}` : (addr.address || addr.label)
+                            return (
+                              <option key={addr.id} value={combined}>
+                                {combined}
+                              </option>
+                            )
+                          })}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setEditingInterventionManually(true)}
+                          className="v22-btn v22-btn-sm"
+                          style={{ whiteSpace: 'nowrap' }}
+                        >
+                          ✏️ Éditer
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        <input
+                          type="text"
+                          value={interventionAddress}
+                          onChange={(e) => setInterventionAddress(e.target.value)}
+                          placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
+                          className={normalFieldClass}
+                          style={{ flex: 1 }}
+                          autoFocus={editingInterventionManually}
+                        />
+                        {selectedClientInterventionAddresses.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingInterventionManually(false)}
+                            className="v22-btn v22-btn-sm"
+                            style={{ whiteSpace: 'nowrap' }}
+                          >
+                            ↩ Liste
+                          </button>
+                        )}
+                      </div>
                     )}
                     {/* Bâtiment + Étage */}
                     <div style={{ display: 'flex', gap: 10 }}>
