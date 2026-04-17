@@ -370,6 +370,7 @@
 }
 #artisan-dashboard-v5 .v22-toggle-off { background: #E0E0E0; }
 #artisan-dashboard-v5 .v22-toggle-on { background: #FFC107; }
+#artisan-dashboard-v5 .v22-toggle-on-orange { background: #EA580C; }
 #artisan-dashboard-v5 .v22-toggle-knob {
   position: absolute;
   top: 2px;
