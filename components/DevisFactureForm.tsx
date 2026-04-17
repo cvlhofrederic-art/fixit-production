@@ -1135,6 +1135,9 @@ export default function DevisFactureForm({
         return
       }
     }
+    // Ouvrir l'onglet IMMÉDIATEMENT dans le même tick que le clic
+    // (sinon le navigateur bloque le popup après les awaits réseau)
+    const previewWindow = window.open('about:blank', '_blank')
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
@@ -1151,8 +1154,18 @@ export default function DevisFactureForm({
       const pdf = await generateDevisPdfV2(input)
       const blob = pdf.output('blob')
       const blobUrl = URL.createObjectURL(blob)
-      window.open(blobUrl, '_blank')
+      if (previewWindow) {
+        previewWindow.location.href = blobUrl
+      } else {
+        // Popup bloqué malgré tout → fallback download
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.target = '_blank'
+        a.rel = 'noopener'
+        a.click()
+      }
     } catch (err) {
+      if (previewWindow) previewWindow.close()
       console.error('PDF Preview error:', err)
       toast.error('Erreur aperçu: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
