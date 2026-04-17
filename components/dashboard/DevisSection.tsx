@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
+import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 
 interface DevisLine {
   totalHT?: number
@@ -196,6 +198,27 @@ export default function DevisSection({
                           }}
                             className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Duplicar orçamento' : 'Dupliquer le devis'}>
                             {'🔄'}
+                          </button>
+                          <button onClick={async () => {
+                            try {
+                              await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
+                                locale: locale as 'fr' | 'pt' | 'en',
+                                t,
+                                artisan: artisan ? {
+                                  id: artisan.id,
+                                  company_name: artisan.company_name,
+                                  logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
+                                  rm: (artisan as { rm?: string | null }).rm ?? null,
+                                  rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
+                                } : null,
+                              })
+                            } catch (err) {
+                              console.error('[Devis] download failed', err)
+                              toast.error(locale === 'pt' ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                            }
+                          }}
+                            className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Descarregar PDF' : 'Télécharger le PDF'}>
+                            {'⬇️'}
                           </button>
                           <button onClick={() => convertDevisToFacture(doc)}
                             className="v22-btn v22-btn-sm v22-btn-primary" title={t('proDash.devis.convertirFacture')}>
@@ -396,6 +419,30 @@ function DevisSectionV5({
                         }}
                       >
                         {isPt ? 'Duplicar' : 'Dupliquer'}
+                      </button>
+                      <button
+                        className="v5-btn v5-btn-sm"
+                        title={isPt ? 'Descarregar PDF' : 'Télécharger le PDF'}
+                        onClick={async () => {
+                          try {
+                            await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
+                              locale: locale as 'fr' | 'pt' | 'en',
+                              t,
+                              artisan: artisan ? {
+                                id: artisan.id,
+                                company_name: artisan.company_name,
+                                logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
+                                rm: (artisan as { rm?: string | null }).rm ?? null,
+                                rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
+                              } : null,
+                            })
+                          } catch (err) {
+                            console.error('[Devis] download failed', err)
+                            toast.error(isPt ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                          }
+                        }}
+                      >
+                        {isPt ? 'Descarregar' : 'Télécharger'}
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-p"
