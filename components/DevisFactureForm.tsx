@@ -1067,6 +1067,7 @@ export default function DevisFactureForm({
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
       lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
+      isHorsEtablissement,
     })
   }
 
