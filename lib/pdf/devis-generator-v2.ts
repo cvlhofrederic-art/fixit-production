@@ -23,6 +23,7 @@ export interface DevisGeneratorInput {
     insurance_type: 'rc_pro' | 'decennale' | 'both' | null
     tva_mention: string
     mode_paiement: string
+    condition_paiement?: string | null
   }
   client: {
     nom: string
@@ -642,6 +643,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     `Délai d'exécution : ${input.devis.delai_execution || 'À convenir'}.`,
     "Toute modification fera l'objet d'un avenant signé par les deux parties.",
     `Mode de règlement : ${input.artisan.mode_paiement === 'Transferência bancária' ? 'Virement bancaire' : input.artisan.mode_paiement}.`,
+    ...(input.artisan.condition_paiement ? [`Conditions de paiement : ${input.artisan.condition_paiement}.`] : []),
     ...(input.dechets_chantier ? [input.dechets_chantier] : []), // FIX FINAL #6
   ]
   condLines.forEach(line => {
