@@ -313,8 +313,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     <input type="email" value={clientForm.email} onChange={e => setClientForm(prev => ({ ...prev, email: e.target.value }))} placeholder="contact@exemple.fr" className="v5-fi" />
                   </div>
                 </div>
-                {/* SIRET for pro */}
-                {clientForm.type === 'professionnel' && (
+                {/* SIRET pour tous les clients B2B (syndic, société, conciergerie, etc.) */}
+                {CLIENT_TYPES.find(t => t.value === clientForm.type)?.group === 'b2b' && (
                   <div className="v5-fg">
                     <label className="v5-fl">{t('proDash.clients.siret')}</label>
                     <input type="text" value={clientForm.siret} onChange={e => setClientForm(prev => ({ ...prev, siret: e.target.value }))} placeholder="123 456 789 00012" className="v5-fi" />
@@ -641,8 +641,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 </div>
               </div>
 
-              {/* SIRET for pro */}
-              {clientForm.type === 'professionnel' && (
+              {/* SIRET pour tous les clients B2B (syndic, société, conciergerie, etc.) */}
+              {CLIENT_TYPES.find(t => t.value === clientForm.type)?.group === 'b2b' && (
                 <div>
                   <label className="v22-form-label">{t('proDash.clients.siret')}</label>
                   <input
