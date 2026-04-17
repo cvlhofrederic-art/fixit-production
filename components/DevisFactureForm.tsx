@@ -1063,7 +1063,7 @@ export default function DevisFactureForm({
       artisanRcPro: artisan?.rc_pro as string | null,
       insuranceName: overrides.insName, insuranceNumber: overrides.insNumber,
       insuranceCoverage: overrides.insCoverage, insuranceType: overrides.insType,
-      tvaEnabled, paymentMode,
+      tvaEnabled, paymentMode, paymentCondition,
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
@@ -2652,6 +2652,43 @@ export default function DevisFactureForm({
                     })()}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ─── Section: Conditions de paiement (Devis) ─── */}
+            {docType === 'devis' && (
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">Conditions de paiement</span>
+                </div>
+                <div className="v22-card-body">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">Délai de paiement <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <select value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)}
+                        className={normalFieldClass}>
+                        <option value={t('devis.paymentCondValues.immediate')}>{t('devis.paymentCondOptions.immediate')}</option>
+                        <option value={t('devis.paymentCondValues.30end')}>{t('devis.paymentCondOptions.30end')}</option>
+                        <option value={t('devis.paymentCondValues.30date')}>{t('devis.paymentCondOptions.30date')}</option>
+                        <option value={t('devis.paymentCondValues.45end')}>{t('devis.paymentCondOptions.45end')}</option>
+                        <option value={t('devis.paymentCondValues.60date')}>{t('devis.paymentCondOptions.60date')}</option>
+                        <option value={t('devis.paymentCondValues.5050')}>{t('devis.paymentCondOptions.5050')}</option>
+                      </select>
+                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>Délai légal par défaut : 30 jours (art. L441-10 C. com.)</div>
+                    </div>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">Mode de règlement <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}
+                        className={normalFieldClass}>
+                        <option value={t('devis.paymentModeOptions.transfer')}>{t('devis.paymentModeOptions.transfer')}</option>
+                        <option value={t('devis.paymentModeOptions.card')}>{t('devis.paymentModeOptions.card')}</option>
+                        <option value={t('devis.paymentModeOptions.cheque')}>{t('devis.paymentModeOptions.cheque')}</option>
+                        <option value={t('devis.paymentModeOptions.cash')}>{t('devis.paymentModeOptions.cash')}</option>
+                        <option value={`${t('devis.paymentModeOptions.transfer')} + ${t('devis.paymentModeOptions.cheque')}`}>{t('devis.paymentModeOptions.transferCheque')}</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

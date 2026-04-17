@@ -23,6 +23,7 @@ export interface BuildV2InputParams {
   insuranceType: string | null
   tvaEnabled: boolean
   paymentMode: string
+  paymentCondition: string
 
   // Client
   clientName: string
@@ -69,7 +70,7 @@ export function buildV2Input(
     logoUrl, companyName, artisanCompanyName, companySiret,
     artisanRm, companyAddress, companyPhone, companyEmail, artisanRcPro,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
-    tvaEnabled, paymentMode,
+    tvaEnabled, paymentMode, paymentCondition,
     clientName, clientSiret, clientAddress, clientPhone, clientEmail,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
@@ -95,6 +96,7 @@ export function buildV2Input(
       insurance_type: (insuranceType as 'rc_pro' | 'decennale' | 'both' | null) || null,
       tva_mention: tvaEnabled ? 'TVA applicable' : 'TVA non applicable, article 293 B du CGI.',
       mode_paiement: paymentMode || 'Virement bancaire',
+      condition_paiement: paymentCondition || null,
     },
     client: {
       nom: clientName || '',
