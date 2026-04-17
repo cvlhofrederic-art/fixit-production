@@ -386,7 +386,10 @@ function DashboardPage() {
     if (page === 'devis') setShowDevisForm(false)
     if (page === 'factures') setShowFactureForm(false)
     // Push URL without full page reload — enables back/forward + bookmarks
-    const url = page === 'home' ? `/${locale}/pro/dashboard` : `/${locale}/pro/dashboard?p=${page}`
+    // Respecte le segment actuel (/pro/dashboard ou /artisan/dashboard selon rôle)
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+    const basePath = currentPath.includes('/artisan/dashboard') ? `/${locale}/artisan/dashboard` : `/${locale}/pro/dashboard`
+    const url = page === 'home' ? basePath : `${basePath}?p=${page}`
     window.history.pushState({}, '', url)
     // Update tab title with current section name
     const sectionName = page === 'home' ? 'Accueil' : page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g, ' ')

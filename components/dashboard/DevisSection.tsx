@@ -29,6 +29,12 @@ interface DevisDocument {
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
+// Identifie un document unique : préfère `id` (Date.now()), fallback `docNumber`+`savedAt` pour anciens docs
+const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
+  if (a.id && b.id) return a.id === b.id
+  return !!a.docNumber && a.docNumber === b.docNumber && a.savedAt === b.savedAt
+}
+
 interface DevisSectionProps {
   artisan: Artisan | null
   services: Service[]
@@ -196,8 +202,8 @@ export default function DevisSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = docs.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = drafts.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = docs.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
@@ -214,8 +220,8 @@ export default function DevisSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = docs.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = drafts.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = docs.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
@@ -225,11 +231,11 @@ export default function DevisSection({
                             </button>
                           )}
                           <button onClick={() => {
-                            if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${doc.docNumber} ?`)) return
+                            if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${doc.docNumber || ''} ?`)) return
                             const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                            const updDocs = docs.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
-                            const updDrafts = drafts.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
+                            const updDocs = docs.filter((d: DevisDocument) => !isSameDoc(d, doc))
+                            const updDrafts = drafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                             setSavedDocuments([...updDocs, ...updDrafts])
@@ -364,8 +370,8 @@ function DevisSectionV5({
                             const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                             const now = new Date().toISOString()
-                            const uDocs = allDocs.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                            const uDrafts = allDrafts.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                            const uDocs = allDocs.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                            const uDrafts = allDrafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                             setSavedDocuments([...uDocs, ...uDrafts])
@@ -397,11 +403,12 @@ function DevisSectionV5({
                         className="v5-btn v5-btn-sm v5-btn-d"
                         title={isPt ? 'Eliminar' : 'Supprimer'}
                         onClick={() => {
-                          if (!confirm(isPt ? `Eliminar orçamento ${doc.docNumber}?` : `Supprimer le devis ${doc.docNumber} ?`)) return
+                          const label = doc.docNumber || (doc.clientName || '')
+                          if (!confirm(isPt ? `Eliminar orçamento ${label}?` : `Supprimer le devis ${label} ?`)) return
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                          const uDocs = allDocs.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
-                          const uDrafts = allDrafts.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
+                          const uDocs = allDocs.filter((d: DevisDocument) => !isSameDoc(d, doc))
+                          const uDrafts = allDrafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                           setSavedDocuments([...uDocs, ...uDrafts])

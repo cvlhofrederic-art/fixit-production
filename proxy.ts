@@ -227,7 +227,7 @@ export async function proxy(request: NextRequest) {
   // Authenticated user on landing/login pages → redirect to their dashboard
   const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login'
   if (user && isLandingOrLogin) {
-    if (role === 'artisan') return localeRedirect('/pro/dashboard')
+    if (role === 'artisan') return localeRedirect('/artisan/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
     if (role === 'coproprio') return localeRedirect('/coproprietaire/dashboard')
@@ -239,11 +239,12 @@ export async function proxy(request: NextRequest) {
     strippedPathname.startsWith('/client/dashboard') ||
     strippedPathname.startsWith('/pro/dashboard') ||
     strippedPathname.startsWith('/pro/mobile') ||
+    strippedPathname.startsWith('/artisan/dashboard') ||
     strippedPathname.startsWith('/syndic/dashboard') ||
     strippedPathname.startsWith('/admin/dashboard') ||
     strippedPathname.startsWith('/coproprietaire/dashboard')
   )) {
-    if (strippedPathname.startsWith('/pro/')) {
+    if (strippedPathname.startsWith('/pro/') || strippedPathname.startsWith('/artisan/')) {
       return localeRedirect('/auth/login')
     } else if (strippedPathname.startsWith('/syndic/')) {
       return localeRedirect('/syndic/login')
@@ -263,23 +264,30 @@ export async function proxy(request: NextRequest) {
       if (
         strippedPathname.startsWith('/client/dashboard') ||
         strippedPathname.startsWith('/pro/dashboard') ||
-        strippedPathname.startsWith('/pro/mobile')
+        strippedPathname.startsWith('/pro/mobile') ||
+        strippedPathname.startsWith('/artisan/dashboard')
       ) {
         return localeRedirect('/syndic/dashboard')
       }
     }
 
-    // Artisan: can't access client or syndic dashboard
+    // Artisan: URL dédiée /artisan/dashboard — redirige /pro/dashboard vers /artisan/dashboard
     if (role === 'artisan') {
       if (strippedPathname.startsWith('/client/dashboard') || strippedPathname.startsWith('/syndic/dashboard')) {
-        return localeRedirect('/pro/dashboard')
+        return localeRedirect('/artisan/dashboard')
+      }
+      if (strippedPathname.startsWith('/pro/dashboard')) {
+        return localeRedirect('/artisan/dashboard')
       }
     }
 
-    // Pro roles (societe, conciergerie, gestionnaire)
+    // Pro roles (societe, conciergerie, gestionnaire) — restent sur /pro/dashboard
     const isProRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')
     if (isProRole) {
       if (strippedPathname.startsWith('/client/dashboard') || strippedPathname.startsWith('/syndic/dashboard')) {
+        return localeRedirect('/pro/dashboard')
+      }
+      if (strippedPathname.startsWith('/artisan/dashboard')) {
         return localeRedirect('/pro/dashboard')
       }
     }
@@ -287,14 +295,14 @@ export async function proxy(request: NextRequest) {
     // Coproprietaire / Locataire: redirect away from pro and syndic dashboards
     const isCoproRole = role === 'coproprio' || role === 'locataire'
     if (isCoproRole) {
-      if (strippedPathname.startsWith('/pro/dashboard') || strippedPathname.startsWith('/pro/mobile') || strippedPathname.startsWith('/syndic/dashboard')) {
+      if (strippedPathname.startsWith('/pro/dashboard') || strippedPathname.startsWith('/pro/mobile') || strippedPathname.startsWith('/artisan/dashboard') || strippedPathname.startsWith('/syndic/dashboard')) {
         return localeRedirect('/coproprietaire/dashboard')
       }
     }
 
     // Client (particulier): can't access pro or syndic dashboard
     if (!isSyndicRole(role) && role !== 'artisan' && !isProRole && !isCoproRole) {
-      if (strippedPathname.startsWith('/pro/dashboard') || strippedPathname.startsWith('/pro/mobile')) {
+      if (strippedPathname.startsWith('/pro/dashboard') || strippedPathname.startsWith('/pro/mobile') || strippedPathname.startsWith('/artisan/dashboard')) {
         return localeRedirect('/client/dashboard')
       }
       if (strippedPathname.startsWith('/syndic/dashboard')) {

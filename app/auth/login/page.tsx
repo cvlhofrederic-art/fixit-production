@@ -32,7 +32,8 @@ export default function LoginPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = session.user.user_metadata?.role
-        if (['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
+        if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
+        else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
         else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
         else window.location.href = `/${locale}/client/dashboard`
       }
@@ -62,7 +63,8 @@ export default function LoginPage() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
       const role = data.user?.user_metadata?.role
-      if (['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
+      if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
+      else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
       else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
       else window.location.href = `/${locale}/client/dashboard`
     } catch {

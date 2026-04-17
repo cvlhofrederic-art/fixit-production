@@ -81,6 +81,7 @@ export interface DevisAcompte {
 }
 
 export interface DevisFactureData {
+  id?: string
   docType: 'devis' | 'facture'
   docNumber: string
   docTitle: string

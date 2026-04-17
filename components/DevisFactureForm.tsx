@@ -198,7 +198,7 @@ export default function DevisFactureForm({
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
   const [editingDescLineId, setEditingDescLineId] = useState<number | null>(null)
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
-  const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
+  const [notes, setNotes] = useState(initialData?.notes || '')
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
   // Acomptes — charger l'échéancier par défaut si pas de données initiales
   const echeancierStorageKey = `fixit_echeancier_default_${artisan?.id || 'default'}`
@@ -367,8 +367,9 @@ export default function DevisFactureForm({
   // Generate document number — séquence atomique serveur (art. L441-9 C. com.)
   const isConversion = docType === 'facture' && initialData?.docType === 'devis' && initialData?.docNumber
 
-  const [docNumber, setDocNumber] = useState('')
-  const docNumberRef = useRef('')
+  const initialDocNumber = (initialData?.docNumber && initialData?.docType === initialDocType) ? initialData.docNumber : ''
+  const [docNumber, setDocNumber] = useState(initialDocNumber)
+  const docNumberRef = useRef(initialDocNumber)
 
   // Fetch next sequential number from server (atomic DB sequence)
   // 3 niveaux de fallback : API HTTP → RPC Supabase direct → compteur localStorage
@@ -440,6 +441,15 @@ export default function DevisFactureForm({
       return fallback
     }
   }
+
+  // Récupère le numéro de document dès l'ouverture du formulaire (new/duplicate/conversion)
+  // pour que la colonne N° et le PDF l'affichent même si on sauvegarde sans générer le PDF
+  useEffect(() => {
+    if (!docNumberRef.current && artisan?.id) {
+      fetchDocNumber().catch(() => { /* fallback localStorage utilisé dans fetchDocNumber */ })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artisan?.id])
 
   // ─── Signature: sign + SVG→PNG conversion ───
   const handleSignDocument = useCallback(async () => {
@@ -1079,11 +1089,16 @@ export default function DevisFactureForm({
   }
 
   // ─── Actions ───
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
+    // Garantir un numéro de document avant la sauvegarde (évite les N° vides en liste)
+    if (!docNumberRef.current) await fetchDocNumber().catch(() => {})
     const data = buildData()
     // Save to localStorage as draft
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    drafts.push({ ...data, savedAt: new Date().toISOString(), status: 'brouillon' })
+    const existingIdx = drafts.findIndex((d: Record<string, unknown>) => d.id && d.id === data.id)
+    const draftEntry = { ...data, savedAt: new Date().toISOString(), status: 'brouillon' }
+    if (existingIdx >= 0) drafts[existingIdx] = draftEntry
+    else drafts.push(draftEntry)
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
     setSavedMsg(`💾 ${t('devis.draftSaved')}`)
     setTimeout(() => setSavedMsg(''), 3000)
@@ -1335,6 +1350,8 @@ export default function DevisFactureForm({
   }
 
   const handleGeneratePDF = async () => {
+    // Garantir un numéro de document sur le PDF généré (sinon colonne N° vide)
+    if (!docNumberRef.current) await fetchDocNumber().catch(() => {})
     // Bloquer si acomptes activés mais total != 100%
     if (acomptesEnabled && acomptes.length > 0) {
       const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
@@ -1389,7 +1406,7 @@ export default function DevisFactureForm({
       // Generate PDF via extracted V3 generator
       await generateDevisPdfV3({
         locale, localeFormats, t,
-        docType, docNumber, docTitle, docDate, docValidity,
+        docType, docNumber: docNumberRef.current || docNumber, docTitle, docDate, docValidity,
         prestationDate, executionDelay,
         companyStatus, companyName, companySiret, companyAddress,
         companyRCS, companyCapital, companyPhone, companyEmail,
@@ -1435,7 +1452,7 @@ export default function DevisFactureForm({
       // Auto-sauvegarder le document dans l'historique à chaque génération PDF
       const data = buildData()
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      const existingIdx = docs.findIndex((d: Record<string, unknown>) => d.docNumber === data.docNumber)
+      const existingIdx = docs.findIndex((d: Record<string, unknown>) => d.id && d.id === data.id)
       const docEntry = { ...data, savedAt: new Date().toISOString(), status: 'envoye' as const, sentAt: new Date().toISOString() }
       if (existingIdx >= 0) {
         docs[existingIdx] = docEntry
@@ -1478,11 +1495,16 @@ export default function DevisFactureForm({
   }
 
   // ─── Save document helper (used by both send methods in validate mode) ───
-  const saveAndFinalize = (mode: 'pdf' | 'validate' | null) => {
+  const saveAndFinalize = async (mode: 'pdf' | 'validate' | null) => {
     if (mode === 'validate') {
+      // Garantir un numéro de document avant la sauvegarde
+      if (!docNumberRef.current) await fetchDocNumber().catch(() => {})
       const data = buildData()
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      docs.push({ ...data, savedAt: new Date().toISOString(), status: 'envoye', sentAt: new Date().toISOString() })
+      const existingIdx = docs.findIndex((d: Record<string, unknown>) => d.id && d.id === data.id)
+      const docEntry = { ...data, savedAt: new Date().toISOString(), status: 'envoye', sentAt: new Date().toISOString() }
+      if (existingIdx >= 0) docs[existingIdx] = docEntry
+      else docs.push(docEntry)
       localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
       onSave?.(data)
     }
@@ -1550,9 +1572,9 @@ export default function DevisFactureForm({
   }
 
   // ─── Enregistrer sans envoyer (sauvegarde en "envoyé" sans action) ───
-  const handleSaveOnly = () => {
+  const handleSaveOnly = async () => {
     const currentMode = showSendModal
-    saveAndFinalize(currentMode)
+    await saveAndFinalize(currentMode)
     setSavedMsg(`✅ ${docType === 'devis' ? 'Devis' : 'Facture'} enregistré sans envoi`)
     setTimeout(() => setSavedMsg(''), 3000)
   }
@@ -1613,8 +1635,9 @@ export default function DevisFactureForm({
   }
 
   const buildData = (): DevisFactureData => ({
+    id: (initialData as { id?: string })?.id || Date.now().toString(),
     docType,
-    docNumber,
+    docNumber: docNumberRef.current || docNumber,
     docTitle,
     companyStatus,
     companyName,

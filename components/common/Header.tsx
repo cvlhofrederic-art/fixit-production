@@ -59,7 +59,11 @@ export default function Header() {
   const userRole = user?.user_metadata?.role
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
   const userInitials = userName ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : '?'
-  const dashboardUrl = userRole === 'artisan' ? '/pro/dashboard' : '/client/dashboard'
+  const dashboardUrl = userRole === 'artisan'
+    ? '/artisan/dashboard'
+    : ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(userRole || '')
+      ? '/pro/dashboard'
+      : '/client/dashboard'
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-[68px] flex items-center justify-between px-[clamp(1.5rem,5%,5rem)] bg-white/97 backdrop-blur-[16px] border-b border-[#EFEFEF]">
