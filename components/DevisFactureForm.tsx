@@ -1965,37 +1965,25 @@ export default function DevisFactureForm({
                       Lieu d&apos;intervention
                       {isProClient && <span className="v22-tag v22-tag-amber">Client pro</span>}
                     </label>
-                    {/* Dropdown of pre-registered addresses OR free text */}
-                    {selectedClientInterventionAddresses.length > 0 ? (
-                      <div style={{ marginBottom: 8 }}>
-                        <select
-                          value={interventionAddress}
-                          onChange={(e) => {
-                            setInterventionAddress(e.target.value)
-                            if (e.target.value === '__custom__') setInterventionAddress('')
-                          }}
-                          className={normalFieldClass}
-                          style={{ marginBottom: 6 }}>
-                          <option value="">-- Sélectionner un lieu enregistré --</option>
-                          {selectedClientInterventionAddresses.map(addr => {
-                            const combined = addr.label && addr.address ? `${addr.label}, ${addr.address}` : (addr.address || addr.label)
-                            return (
-                              <option key={addr.id} value={combined}>
-                                {combined}
-                              </option>
-                            )
-                          })}
-                          <option value="__custom__">Saisir un autre lieu...</option>
-                        </select>
-                        <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
-                          placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
-                          className={normalFieldClass} />
-                      </div>
-                    ) : (
-                      <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
-                        placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
-                        className={normalFieldClass}
-                        style={{ marginBottom: 8 }} />
+                    {/* Combobox éditable : texte libre + dropdown natif HTML */}
+                    <input
+                      type="text"
+                      list={selectedClientInterventionAddresses.length > 0 ? 'intervention-addr-list' : undefined}
+                      value={interventionAddress}
+                      onChange={(e) => setInterventionAddress(e.target.value)}
+                      placeholder={selectedClientInterventionAddresses.length > 0
+                        ? 'Sélectionner un lieu enregistré ou saisir...'
+                        : 'Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille'}
+                      className={normalFieldClass}
+                      style={{ marginBottom: 8 }}
+                    />
+                    {selectedClientInterventionAddresses.length > 0 && (
+                      <datalist id="intervention-addr-list">
+                        {selectedClientInterventionAddresses.map(addr => {
+                          const combined = addr.label && addr.address ? `${addr.label}, ${addr.address}` : (addr.address || addr.label)
+                          return <option key={addr.id} value={combined} />
+                        })}
+                      </datalist>
                     )}
                     {/* Bâtiment + Étage */}
                     <div style={{ display: 'flex', gap: 10 }}>
