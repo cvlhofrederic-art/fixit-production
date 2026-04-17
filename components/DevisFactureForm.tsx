@@ -93,8 +93,9 @@ export default function DevisFactureForm({
   const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || tpl('insuranceCoverage') || (locale === 'pt' ? 'Portugal Continental' : 'France métropolitaine'))
   const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(initialData?.insuranceType || tpl('insuranceType') || 'rc_pro')
   // Médiateur de la consommation (obligatoire depuis 01/01/2016)
-  const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || tpl('mediatorName') || '')
-  const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || tpl('mediatorUrl') || '')
+  // Pas d'auto-remplissage depuis template : n'apparaît sur le PDF que si rempli explicitement
+  const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
+  const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
   // Droit de rétractation (contrat hors établissement)
   const [isHorsEtablissement, setIsHorsEtablissement] = useState(initialData?.isHorsEtablissement ?? true)
   const [companySiren, setCompanySiren] = useState('')
@@ -2453,8 +2454,9 @@ export default function DevisFactureForm({
                           <td style={{ verticalAlign: 'top' }}>
                             <input
                               type="number"
-                              value={line.priceHT}
+                              value={line.priceHT === 0 ? '' : line.priceHT}
                               onChange={(e) => updateLine(line.id, 'priceHT', parseFloat(e.target.value) || 0)}
+                              onFocus={(e) => e.target.select()}
                               step="0.01"
                               className="v22-form-input"
                             />

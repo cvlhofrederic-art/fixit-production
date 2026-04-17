@@ -778,14 +778,14 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',
     'TVA non applicable, article 293 B du CGI.',
     insuranceLine,
-    "Devis gratuit, conform\u00E9ment \u00E0 l'article L. 111-1 du Code de la consommation.",
+    'Devis gratuit.',
     'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).',
     'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.',
     input.mediateur
-      ? `M\u00E9diation de la consommation : ${input.mediateur}${input.mediateur_url ? ' \u2014 ' + input.mediateur_url : ''} (art. L. 612-1 C. conso.).`
-      : 'M\u00E9diation de la consommation (art. L. 612-1 C. conso.).',
+      ? `M\u00E9diation de la consommation (art. L. 612-1 C. conso.) : ${input.mediateur}${input.mediateur_url ? ', ' + input.mediateur_url : ''}.`
+      : null,
     `Document g\u00E9n\u00E9r\u00E9 par Vitfix Pro le ${genDate}.`,
-  ].join(' ')
+  ].filter(Boolean).join(' ')
 
   const legalY = pageH - 18
   if (y < legalY - 2) {
