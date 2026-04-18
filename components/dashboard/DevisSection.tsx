@@ -115,6 +115,7 @@ export default function DevisSection({
       dateLocale={dateLocale}
       locale={locale}
       t={t}
+      orgRole={orgRole}
     />
   }
 
@@ -219,6 +220,7 @@ export default function DevisSection({
                                   rm: (artisan as { rm?: string | null }).rm ?? null,
                                   rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                                 } : null,
+                                useBtpDesign: orgRole === 'pro_societe',
                               })
                             } catch (err) {
                               console.error('[Devis] download failed', err)
@@ -306,7 +308,7 @@ export default function DevisSection({
    ═══════════════════════════════════════════════════════ */
 function DevisSectionV5({
   devisDocs, setShowDevisForm, setConvertingDevis, convertDevisToFacture,
-  artisan, setSavedDocuments, dateLocale, locale, t,
+  artisan, setSavedDocuments, dateLocale, locale, t, orgRole,
 }: {
   devisDocs: DevisDocument[]
   setShowDevisForm: (v: boolean) => void
@@ -317,6 +319,7 @@ function DevisSectionV5({
   dateLocale: string
   locale: string
   t: (k: string) => string
+  orgRole?: OrgRole
 }) {
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
@@ -443,6 +446,7 @@ function DevisSectionV5({
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
                                 rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                               } : null,
+                              useBtpDesign: orgRole === 'pro_societe',
                             })
                           } catch (err) {
                             console.error('[Devis] download failed', err)

@@ -1,12 +1,18 @@
 /**
  * Télécharge directement un devis sauvegardé depuis la liste (sans ouvrir le formulaire).
- * Reconstruit les paramètres attendus par generateDevisPdfV3 à partir du document en localStorage.
+ *
+ * Deux chemins de rendu :
+ *  - Artisan / non-BTP (défaut) → generateDevisPdfV2 (design compact Vitfix Pro, identique à l'Aperçu)
+ *  - BTP pro (orgRole === 'pro_societe' → useBtpDesign: true) → generateDevisPdfV3 (design BTP)
+ *
+ * Reconstruit les paramètres attendus par chaque générateur à partir du document en localStorage.
  */
 
 import type { Locale } from '@/lib/i18n/config'
-import type { ProductLine } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
+import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
 
 interface SavedDevis {
@@ -71,6 +77,8 @@ interface DownloadContext {
   locale: Locale
   t: (k: string) => string
   artisan: { id?: string; company_name?: string | null; logo_url?: string | null; rm?: string | null; rc_pro?: string | null } | null
+  /** Force le rendu BTP (V3). Par défaut, utilise V2 (design Vitfix Pro compact, identique à l'Aperçu). */
+  useBtpDesign?: boolean
 }
 
 function svgToImageDataUrl(svgString: string, width: number, height: number): Promise<string> {
@@ -98,7 +106,122 @@ function currencyFormat(n: number, locale: Locale): string {
   return fmt.replace(/[\u202F\u00A0]/g, ' ') + ' €'
 }
 
-export async function downloadSavedDevis(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+// ─── Fetch fresh artisan data (logo + insurance) from profiles_artisan ─────
+// Align with DevisFactureForm.freshArtisanData behavior (priorise les valeurs
+// sauvegardées dans le devis, puis fallback Supabase, puis cache du contexte).
+async function fetchFreshArtisanData(
+  artisanId: string | undefined,
+  doc: SavedDevis,
+  cachedLogoUrl: string | null,
+): Promise<{
+  logoUrl: string | null
+  insuranceName: string | null
+  insuranceNumber: string | null
+  insuranceCoverage: string | null
+  insuranceType: 'rc_pro' | 'decennale' | 'both' | null
+}> {
+  let logoUrl: string | null = cachedLogoUrl
+  let insuranceName: string | null = doc.insuranceName || null
+  let insuranceNumber: string | null = doc.insuranceNumber || null
+  let insuranceCoverage: string | null = doc.insuranceCoverage || null
+  let insuranceType: 'rc_pro' | 'decennale' | 'both' | null = doc.insuranceType || null
+
+  if (!artisanId) return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType }
+
+  try {
+    const { data } = await supabase
+      .from('profiles_artisan')
+      .select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type')
+      .eq('id', artisanId)
+      .single()
+    if (data?.logo_url) logoUrl = data.logo_url as string
+    if (data?.insurance_name && !insuranceName) insuranceName = data.insurance_name as string
+    if (data?.insurance_number && !insuranceNumber) insuranceNumber = data.insurance_number as string
+    if (data?.insurance_coverage && !insuranceCoverage) insuranceCoverage = data.insurance_coverage as string
+    if (data?.insurance_type && !insuranceType) insuranceType = data.insurance_type as 'rc_pro' | 'decennale' | 'both'
+  } catch { /* fallback to cached values */ }
+
+  return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType }
+}
+
+// ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
+async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+  const { artisan } = ctx
+  const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
+  const materialLines = (doc.materialLines as ProductLine[]) || []
+  const laborLines = (doc.laborLines as ProductLine[]) || []
+  const mergedLines = lines.length > 0 ? lines : [...laborLines, ...materialLines]
+
+  const fresh = await fetchFreshArtisanData(artisan?.id, doc, artisan?.logo_url ?? null)
+
+  const delayStr = doc.executionDelay
+    || (doc.executionDelayDays && doc.executionDelayDays > 0
+      ? `${doc.executionDelayDays} ${doc.executionDelayType === 'calendaires' ? 'jours calendaires' : 'jours ouvrés'}`
+      : 'À convenir')
+
+  const input = buildV2Input({
+    // Artisan
+    logoUrl: fresh.logoUrl,
+    companyName: doc.companyName || '',
+    artisanCompanyName: artisan?.company_name ?? undefined,
+    companySiret: doc.companySiret || '',
+    artisanRm: (artisan?.rm as string | null) ?? null,
+    companyAddress: doc.companyAddress || '',
+    companyPhone: doc.companyPhone || '',
+    companyEmail: doc.companyEmail || '',
+    artisanRcPro: (artisan?.rc_pro as string | null) ?? null,
+    insuranceName: fresh.insuranceName,
+    insuranceNumber: fresh.insuranceNumber,
+    insuranceCoverage: fresh.insuranceCoverage,
+    insuranceType: fresh.insuranceType,
+    tvaEnabled: doc.tvaEnabled !== false,
+    paymentMode: doc.paymentMode || 'Virement bancaire',
+    paymentCondition: doc.paymentCondition || doc.escompte || '',
+
+    // Client
+    clientName: doc.clientName || '',
+    clientSiret: doc.clientSiret || null,
+    clientAddress: doc.clientAddress || null,
+    clientPhone: doc.clientPhone || null,
+    clientEmail: doc.clientEmail || null,
+    interventionAddress: doc.interventionAddress || null,
+    interventionBatiment: doc.interventionBatiment || null,
+    interventionEtage: doc.interventionEtage || null,
+    interventionEspacesCommuns: doc.interventionEspacesCommuns || null,
+    interventionExterieur: doc.interventionExterieur || null,
+
+    // Document
+    docType: doc.docType || 'devis',
+    docNumber: doc.docNumber || '',
+    docTitle: doc.docTitle || '',
+    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    docValidity: doc.docValidity || 30,
+    executionDelay: delayStr,
+    prestationDate: doc.prestationDate || doc.docDate || '',
+
+    // Lines
+    lines: mergedLines,
+
+    // Acomptes
+    acomptesEnabled: doc.acomptesEnabled || false,
+    acomptes: (doc.acomptes as DevisAcompte[]) || [],
+
+    // Notes & mediator
+    notes: doc.notes || '',
+    mediatorName: doc.mediatorName || '',
+    mediatorUrl: doc.mediatorUrl || '',
+
+    // Flags
+    isHorsEtablissement: doc.isHorsEtablissement ?? (doc.clientType === 'particulier'),
+  })
+
+  const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
+  const pdf = await generateDevisPdfV2(input)
+  pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+}
+
+// ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
+async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   const { locale, t, artisan } = ctx
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
@@ -202,4 +325,11 @@ export async function downloadSavedDevis(doc: SavedDevis, ctx: DownloadContext):
       }
     },
   })
+}
+
+export async function downloadSavedDevis(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+  if (ctx.useBtpDesign) {
+    return downloadWithV3(doc, ctx)
+  }
+  return downloadWithV2(doc, ctx)
 }
