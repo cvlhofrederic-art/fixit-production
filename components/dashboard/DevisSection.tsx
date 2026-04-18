@@ -220,7 +220,8 @@ export default function DevisSection({
                                   rm: (artisan as { rm?: string | null }).rm ?? null,
                                   rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                                 } : null,
-                                useBtpDesign: orgRole === 'pro_societe',
+                                // Layout V22 = pro_conciergerie / pro_gestionnaire / undefined → jamais BTP
+                                useBtpDesign: false,
                               })
                             } catch (err) {
                               console.error('[Devis] download failed', err)
