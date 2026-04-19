@@ -1,6 +1,6 @@
 import {
   EstimationInput, EstimationResult, Recipe, Geometry,
-  MaterialNeed, RecipeMaterial, ChantierProfile,
+  MaterialNeed, RecipeMaterial, ChantierProfile, MaterialPhase,
 } from '../types';
 
 /**
@@ -116,6 +116,16 @@ function applyGeometryMultiplier(
       return { multiplier: geo.height, warnings };
     case 'coats':
       return { multiplier: geo.coats ?? 1, warnings };
+    case 'perimeter': {
+      // Pour les joints périphériques : périmètre = explicite, ou 2(L+l) si dispo
+      const perim = geo.perimeter
+        ?? (geo.length && geo.width ? 2 * (geo.length + geo.width) : undefined);
+      if (perim === undefined) {
+        warnings.push(`Matériau "${mat.name}" dépend du périmètre mais non calculable — utilisé sans multiplicateur.`);
+        return { multiplier: 1, warnings };
+      }
+      return { multiplier: perim, warnings };
+    }
     case 'none':
     default:
       return { multiplier: 1, warnings };
@@ -173,6 +183,9 @@ export function computeMaterial(
     id: mat.id,
     name: mat.name,
     category: mat.category,
+    phase: mat.phase ?? 'principal',
+    optional: mat.optional ?? false,
+    condition: mat.condition,
     theoreticalQuantity: round(theoretical, 3),
     quantityWithWaste: round(withWaste, 3),
     unit: mat.unit,
@@ -200,11 +213,21 @@ export function computeMaterial(
 
 // ─── AGRÉGATION ────────────────────────────────────────────
 
+const PHASE_ORDER: Record<MaterialPhase, number> = {
+  preparation: 0,
+  principal: 1,
+  accessoires: 2,
+  finitions: 3,
+};
+
 export function aggregateNeeds(allNeeds: MaterialNeed[], perUnitContent: Map<string, number>): MaterialNeed[] {
   const map = new Map<string, MaterialNeed>();
 
   for (const n of allNeeds) {
-    const key = `${n.id}__${n.unit}`;
+    // Agrégation par id + unité + phase : un même matériau dans 2 phases
+    // différentes reste séparé (plus clair pour l'artisan).
+    // Optional séparés du non-optional (l'utilisateur peut choisir).
+    const key = `${n.id}__${n.unit}__${n.phase}__${n.optional ? 'opt' : 'req'}`;
     const existing = map.get(key);
     if (existing) {
       existing.theoreticalQuantity = round(existing.theoreticalQuantity + n.theoreticalQuantity, 3);
@@ -216,9 +239,9 @@ export function aggregateNeeds(allNeeds: MaterialNeed[], perUnitContent: Map<str
     }
   }
 
-  // Recalcul propre du packaging sur la somme
-  for (const [key, need] of map.entries()) {
-    const content = perUnitContent.get(key);
+  // Recalcul propre du packaging sur la somme (clé simplifiée id__unit pour packaging)
+  for (const [, need] of map.entries()) {
+    const content = perUnitContent.get(`${need.id}__${need.unit}`);
     if (content && need.packagingRecommendation) {
       const units = Math.ceil(need.quantityWithWaste / content);
       need.packagingRecommendation = {
@@ -230,6 +253,11 @@ export function aggregateNeeds(allNeeds: MaterialNeed[], perUnitContent: Map<str
   }
 
   return Array.from(map.values()).sort((a, b) => {
+    // Ordre : phase (prep → principal → acc → fin), puis optional à la fin, puis cat, puis nom
+    const pa = PHASE_ORDER[a.phase] ?? 99;
+    const pb = PHASE_ORDER[b.phase] ?? 99;
+    if (pa !== pb) return pa - pb;
+    if (a.optional !== b.optional) return a.optional ? 1 : -1;
     if (a.category !== b.category) return a.category.localeCompare(b.category);
     return a.name.localeCompare(b.name);
   });
@@ -290,10 +318,15 @@ export function estimateProject(
       dtuReferences: recipe.dtuReferences,
       materials: needs,
       warnings: itemWarnings,
+      hypotheses: recipe.hypothesesACommuniquer ?? [],
     });
   }
 
   const aggregated = aggregateNeeds(allNeeds, perUnitContent);
+
+  // Consolidation des hypothèses : union des hypothèses des recettes utilisées (sans doublon).
+  const hypothesesSet = new Set<string>();
+  for (const it of resultItems) for (const h of it.hypotheses) hypothesesSet.add(h);
 
   return {
     projectName: input.projectName,
@@ -302,14 +335,36 @@ export function estimateProject(
     items: resultItems,
     aggregated,
     warnings: globalWarnings,
+    hypothesesACommuniquer: Array.from(hypothesesSet),
     humanSummary: buildHumanSummary(aggregated),
   };
 }
 
 // ─── GÉNÉRATION DU RÉSUMÉ LISIBLE ──────────────────────────
 
+const PHASE_LABEL: Record<MaterialPhase, string> = {
+  preparation: '─── PRÉPARATION ───',
+  principal: '─── OUVRAGE PRINCIPAL ───',
+  accessoires: '─── ACCESSOIRES ───',
+  finitions: '─── FINITIONS ───',
+};
+
 function buildHumanSummary(aggregated: MaterialNeed[]): string[] {
-  return aggregated.map(m => {
+  const lines: string[] = [];
+  let currentPhase: MaterialPhase | null = null;
+  let hasOptionalHeader = false;
+
+  // aggregated est déjà trié par phase puis optional puis nom
+  for (const m of aggregated) {
+    if (m.optional && !hasOptionalHeader) {
+      lines.push('─── OPTIONS CONDITIONNELLES ───');
+      hasOptionalHeader = true;
+      currentPhase = null;
+    } else if (!m.optional && m.phase !== currentPhase) {
+      lines.push(PHASE_LABEL[m.phase]);
+      currentPhase = m.phase;
+    }
+
     const qty = formatQuantity(m.quantityWithWaste, m.unit);
     const pack = m.packagingRecommendation
       ? ` → ${m.packagingRecommendation.unitsToOrder} × ${m.packagingRecommendation.packagingLabel}`
@@ -318,8 +373,10 @@ function buildHumanSummary(aggregated: MaterialNeed[]): string[] {
     const waste = m.wasteBreakdown.totalPercent > 0
       ? ` [pertes +${m.wasteBreakdown.totalPercent}%]`
       : '';
-    return `${m.name} : ${qty}${pack}${waste}${refs}`;
-  });
+    const cond = m.optional && m.condition ? ` — ${m.condition}` : '';
+    lines.push(`${m.name} : ${qty}${pack}${waste}${cond}${refs}`);
+  }
+  return lines;
 }
 
 function formatQuantity(qty: number, unit: string): string {
