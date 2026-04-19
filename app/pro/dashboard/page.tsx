@@ -43,6 +43,7 @@ const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSec
 
 const ComptabiliteSection = dynamic(() => import('@/components/dashboard/ComptabiliteSection'), { loading: SectionLoader })
 const MateriauxSection = dynamic(() => import('@/components/dashboard/MateriauxSection'), { loading: SectionLoader })
+const EstimationMateriauxSection = dynamic(() => import('@/components/dashboard/EstimationMateriauxSection'), { loading: SectionLoader })
 const ClientsSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/ClientsSection'), { loading: SectionLoader })
 const RapportsSection = dynamic(() => import('@/components/dashboard/RapportsSection'), { loading: SectionLoader })
 const RFQSection = dynamic(() => import('@/components/dashboard/RFQSection'), { loading: SectionLoader })
@@ -687,6 +688,7 @@ function DashboardPage() {
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
             {isModuleEnabled('materiaux') && <V22SidebarItem label={isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro'} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} />}
+            {isModuleEnabled('estimation_materiaux') && <V22SidebarItem label={isPt ? 'Estimativa de materiais' : 'Estimation matériaux'} active={activePage === 'estimation_materiaux'} onClick={() => navigateTo('estimation_materiaux')} />}
             <V22SidebarItem label={t('proDash.modules.sitePhotos', 'Photos Chantier')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
             {isModuleEnabled('contrats') && orgRole === 'pro_gestionnaire' && (
               <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
@@ -984,6 +986,13 @@ function DashboardPage() {
                   navigateTo('devis')
                 }}
               />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── ESTIMATION MATÉRIAUX (quantitatifs DTU) ────── */}
+          {activePage === 'estimation_materiaux' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na estimativa' : 'Erreur dans l\'estimation'}>
+              <EstimationMateriauxSection artisan={artisan} />
             </SectionErrorBoundary>
           )}
 
