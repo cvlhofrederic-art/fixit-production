@@ -592,21 +592,20 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
         result: EstimationResult
       }
       // Remplir items à partir de l'extraction
-      const extractedItems: ProjectItem[] = data.extraction.items
-        .map(it => {
-          const recipe = allRecipes.find(r => r.id === it.recipeId)
-          if (!recipe) return null
-          return {
-            uid: `${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            recipeId: recipe.id,
-            recipeName: recipe.name,
-            recipeTrade: recipe.trade,
-            geometry: it.geometry,
-            label: it.label,
-            dimsLabel: buildDimsLabel(recipe, it.geometry),
-          }
+      const extractedItems: ProjectItem[] = []
+      for (const it of data.extraction.items) {
+        const recipe = allRecipes.find(r => r.id === it.recipeId)
+        if (!recipe) continue
+        extractedItems.push({
+          uid: `${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          recipeTrade: recipe.trade,
+          geometry: it.geometry,
+          label: it.label,
+          dimsLabel: buildDimsLabel(recipe, it.geometry),
         })
-        .filter((x): x is ProjectItem => x !== null)
+      }
       setItems(extractedItems)
       setIaAssumptions(data.extraction.assumptions || [])
       setIaQuestions(data.extraction.questions || [])

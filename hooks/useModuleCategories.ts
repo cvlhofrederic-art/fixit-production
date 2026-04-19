@@ -13,7 +13,7 @@ const DEFAULT_STRUCTURE: Array<{ id: string; name: string; namePt: string; modId
   { id: 'cat-chantiers', name: 'Chantiers', namePt: 'Obras', modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
   { id: 'cat-commercial', name: 'Commercial', namePt: 'Comercial', modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
   { id: 'cat-facturation', name: 'Facturation', namePt: 'Faturação', modIds: ['factures', 'situations', 'garanties'] },
-  { id: 'cat-achats', name: 'Sous-traitance & Achats', namePt: 'Subempreitada & Compras', modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'marketplace_btp'] },
+  { id: 'cat-achats', name: 'Sous-traitance & Achats', namePt: 'Subempreitada & Compras', modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'estimation_materiaux', 'marketplace_btp'] },
   { id: 'cat-finances', name: 'Finances', namePt: 'Finanças', modIds: ['compta_btp', 'rentabilite', 'comptabilite'] },
   { id: 'cat-communication', name: 'Communication', namePt: 'Comunicação', modIds: ['messages', 'clients', 'portail_client'] },
   { id: 'cat-admin', name: 'Administration', namePt: 'Administração', modIds: ['wallet', 'contrats', 'horaires'] },
