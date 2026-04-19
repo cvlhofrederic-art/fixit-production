@@ -76,8 +76,8 @@ export const RecipeMaterialSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: MaterialCategorySchema,
-  /** Phase du cycle d'exécution. Défaut 'principal' pour backward compat. */
-  phase: MaterialPhaseSchema.default('principal'),
+  /** Phase du cycle d'exécution. Si omis, traité comme 'principal'. */
+  phase: MaterialPhaseSchema.optional(),
   /** Quantité par unité de base (m², m³, ml, u) */
   quantityPerBase: z.number().positive(),
   unit: PhysicalUnitSchema,
@@ -105,8 +105,9 @@ export const RecipeMaterialSchema = z.object({
   /**
    * Matériau optionnel : non inclus par défaut, l'IA ou l'utilisateur
    * peut le rajouter si sa `condition` s'applique (ex: RE2020, zone humide).
+   * Si omis, traité comme false.
    */
-  optional: z.boolean().default(false),
+  optional: z.boolean().optional(),
   /** Si optional=true : quand inclure ce matériau (affiché à l'utilisateur). */
   condition: z.string().optional(),
 });
@@ -146,7 +147,7 @@ export const RecipeSchema = z.object({
    * pour que le devis soit complet et auditable.
    * Ex: "Hérisson 20 cm supposé, à adapter selon portance sol"
    */
-  hypothesesACommuniquer: z.array(z.string()).default([]),
+  hypothesesACommuniquer: z.array(z.string()).optional(),
   version: z.string().default('2.0.0'),
 });
 export type Recipe = z.infer<typeof RecipeSchema>;
@@ -174,8 +175,8 @@ export const MaterialNeedSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: MaterialCategorySchema,
-  phase: MaterialPhaseSchema.default('principal'),
-  optional: z.boolean().default(false),
+  phase: MaterialPhaseSchema,
+  optional: z.boolean(),
   condition: z.string().optional(),
   theoreticalQuantity: z.number(),
   quantityWithWaste: z.number(),
