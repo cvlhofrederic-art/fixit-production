@@ -1,25 +1,29 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import type {
   Recipe,
   EstimationInput,
   EstimationResult,
-  EstimationItem,
   Geometry,
   ChantierProfile,
   MaterialNeed,
 } from '@/lib/estimation-materiaux'
-import { allRecipes } from '@/lib/estimation-materiaux'
+import { allRecipes, searchRecipes } from '@/lib/estimation-materiaux'
 import './estimation-materiaux.css'
 
 type Trade = Recipe['trade']
+type Mode = 'form' | 'ia'
 
-interface ProjectItem extends EstimationItem {
+interface ProjectItem {
   uid: string
+  recipeId: string
   recipeName: string
-  geoSummary: string
+  recipeTrade: Trade
+  geometry: Geometry
+  label?: string
+  dimsLabel: string
 }
 
 interface Props {
@@ -27,23 +31,11 @@ interface Props {
   artisan?: { id?: string } | null
 }
 
-const TRADE_ICONS: Record<Trade | 'all', string> = {
-  all: '🧱',
+const TRADE_ICON: Record<Trade, string> = {
   maconnerie: '🏗️',
   placo: '🔨',
   peinture: '🎨',
   carrelage: '🟦',
-}
-
-const CAT_ICONS: Record<string, string> = {
-  liant: '🔘', granulat: '⚫', acier: '🔩',
-  bloc: '🧱', brique: '🧱', plaque: '▫️', ossature: '🔧',
-  colle: '🧪', joint: '🧴', enduit: '🪣',
-  peinture: '🎨', primaire: '🖌️',
-  carreau: '🟦', isolant: '🧶',
-  fixation: '⚙️', accessoire: '⚙️',
-  eau: '💧', etancheite: '🧴',
-  outillage: '🔨', autre: '📦', adjuvant: '💧', bois: '🪵',
 }
 
 const TRADE_LABEL_FR: Record<Trade, string> = {
@@ -60,260 +52,501 @@ const TRADE_LABEL_PT: Record<Trade, string> = {
   carrelage: 'Azulejo',
 }
 
-function emptyGeometry(): Geometry {
-  return {}
+function fr(n: number, decimals = 2): string {
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals === 0 ? 0 : 0, maximumFractionDigits: decimals })
 }
 
-function summarizeGeometry(geo: Geometry): string {
-  const parts: string[] = []
-  if (geo.length !== undefined) parts.push(`L: ${geo.length}m`)
-  if (geo.width !== undefined) parts.push(`l: ${geo.width}m`)
-  if (geo.height !== undefined) parts.push(`h: ${geo.height}m`)
-  if (geo.thickness !== undefined) parts.push(`ép: ${Math.round(geo.thickness * 100)}cm`)
-  if (geo.area !== undefined) parts.push(`surf: ${geo.area}m²`)
-  if (geo.volume !== undefined) parts.push(`vol: ${geo.volume}m³`)
-  if (geo.perimeter !== undefined) parts.push(`per: ${geo.perimeter}m`)
-  if (geo.openings !== undefined && geo.openings > 0) parts.push(`ouv: ${geo.openings}m²`)
-  if (geo.count !== undefined) parts.push(`nb: ${geo.count}`)
-  if (geo.coats !== undefined) parts.push(`couches: ${geo.coats}`)
-  return parts.join(' · ')
+function formatQty(q: number, unit: string): string {
+  if (unit === 'kg' && q >= 1000) return `${fr(q, 0)} kg`
+  if (unit === 'm3' && q < 10) return fr(q, 2).replace('.', ',')
+  if (q >= 100) return fr(q, 0)
+  if (q >= 10) return fr(q, 1)
+  return fr(q, 2)
 }
 
-interface GeoFormProps {
+function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
+  switch (recipe.geometryMode) {
+    case 'volume': {
+      if (geo.length && geo.width && geo.thickness !== undefined)
+        return `${fr(geo.length, 1)} × ${fr(geo.width, 1)} m · épaisseur ${fr(geo.thickness * 100, 0)} cm`
+      if (geo.area && geo.thickness !== undefined)
+        return `${fr(geo.area, 1)} m² · épaisseur ${fr(geo.thickness * 100, 0)} cm`
+      if (geo.volume !== undefined) return `${fr(geo.volume, 2)} m³`
+      return ''
+    }
+    case 'area':
+      if (geo.area !== undefined) return `${fr(geo.area, 1)} m²`
+      if (geo.length && geo.width) return `${fr(geo.length, 1)} × ${fr(geo.width, 1)} m`
+      return ''
+    case 'area_minus_openings': {
+      const parts: string[] = []
+      if (geo.length && geo.height) parts.push(`${fr(geo.length, 1)} × ${fr(geo.height, 1)} m`)
+      else if (geo.area) parts.push(`${fr(geo.area, 1)} m²`)
+      if (geo.openings && geo.openings > 0) parts.push(`ouvertures ${fr(geo.openings, 1)} m²`)
+      return parts.join(' · ')
+    }
+    case 'length':
+      return `${fr(geo.length ?? geo.perimeter ?? 0, 1)} ml`
+    case 'count':
+      return `${geo.count ?? 0} u`
+  }
+}
+
+function firstDTU(refs: string[]): string {
+  return refs.find(r => r.startsWith('DTU')) || refs.find(r => r.startsWith('NF')) || refs[0] || '—'
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Panneau de paramétrage (ouvrage sélectionné)
+   ═══════════════════════════════════════════════════════════ */
+interface ParamPanelProps {
   recipe: Recipe
+  editing: ProjectItem | null
   isPt: boolean
   onCancel: () => void
-  onAdd: (geo: Geometry, label?: string) => void
+  onSave: (geo: Geometry, label?: string) => void
 }
 
-function GeometryForm({ recipe, isPt, onCancel, onAdd }: GeoFormProps) {
-  const [geo, setGeo] = useState<Geometry>(emptyGeometry())
+function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps) {
+  const mode = recipe.geometryMode
+  const needsThickness = recipe.materials.some(m => m.geometryMultiplier === 'thickness')
+  const needsHeight = recipe.materials.some(m => m.geometryMultiplier === 'height')
+  const needsCoats = recipe.materials.some(m => m.geometryMultiplier === 'coats')
+
+  // Dimensions stockées en tant que strings côté UI (saisie libre),
+  // converties en nombres au moment de la sauvegarde.
+  const [length, setLength] = useState('')
+  const [width, setWidth] = useState('')
+  const [height, setHeight] = useState('')
+  const [thicknessCm, setThicknessCm] = useState('') // CM en UI, M dans geometry
+  const [area, setArea] = useState('')
+  const [volume, setVolume] = useState('')
+  const [perimeter, setPerimeter] = useState('')
+  const [openings, setOpenings] = useState('')
+  const [count, setCount] = useState('')
+  const [coats, setCoats] = useState('')
   const [label, setLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const mode = recipe.geometryMode
-  const materialsNeedThickness = recipe.materials.some(m => m.geometryMultiplier === 'thickness')
-  const materialsNeedHeight = recipe.materials.some(m => m.geometryMultiplier === 'height')
-  const materialsNeedCoats = recipe.materials.some(m => m.geometryMultiplier === 'coats')
-
-  const update = (k: keyof Geometry, v: string) => {
-    const n = v === '' ? undefined : Number(v)
-    setGeo(prev => ({ ...prev, [k]: n }))
+  // Pré-remplit depuis un item en édition
+  useEffect(() => {
+    if (!editing) {
+      setLength(''); setWidth(''); setHeight(''); setThicknessCm('')
+      setArea(''); setVolume(''); setPerimeter(''); setOpenings('')
+      setCount(''); setCoats(''); setLabel(''); setError(null)
+      return
+    }
+    const g = editing.geometry
+    setLength(g.length !== undefined ? String(g.length) : '')
+    setWidth(g.width !== undefined ? String(g.width) : '')
+    setHeight(g.height !== undefined ? String(g.height) : '')
+    setThicknessCm(g.thickness !== undefined ? String(Math.round(g.thickness * 100)) : '')
+    setArea(g.area !== undefined ? String(g.area) : '')
+    setVolume(g.volume !== undefined ? String(g.volume) : '')
+    setPerimeter(g.perimeter !== undefined ? String(g.perimeter) : '')
+    setOpenings(g.openings !== undefined ? String(g.openings) : '')
+    setCount(g.count !== undefined ? String(g.count) : '')
+    setCoats(g.coats !== undefined ? String(g.coats) : '')
+    setLabel(editing.label || '')
     setError(null)
-  }
+  }, [editing])
+
+  const num = (s: string) => (s === '' ? undefined : Number(s))
+
+  // Récap live selon le mode : liste de paires [label, valeur]
+  const summary = useMemo((): Array<[string, string]> | null => {
+    if (mode === 'volume') {
+      const L = parseFloat(length) || 0
+      const l = parseFloat(width) || 0
+      const e = (parseFloat(thicknessCm) || 0) / 100
+      const S = L * l
+      const V = S * e
+      if (S <= 0) return null
+      return [
+        [isPt ? 'Superfície' : 'Surface', `${fr(S, 2)} m²`],
+        ['Volume', `${fr(V, 2)} m³`],
+      ]
+    }
+    if (mode === 'area') {
+      const a = parseFloat(area) || (parseFloat(length) * parseFloat(width)) || 0
+      if (a <= 0) return null
+      return [[isPt ? 'Superfície' : 'Surface', `${fr(a, 2)} m²`]]
+    }
+    if (mode === 'area_minus_openings') {
+      const L = parseFloat(length) || 0
+      const h = parseFloat(height) || 0
+      const o = parseFloat(openings) || 0
+      const gross = L * h
+      if (gross <= 0) return null
+      const net = Math.max(0, gross - o)
+      return [
+        [isPt ? 'Bruta' : 'Brute', `${fr(gross, 2)} m²`],
+        [isPt ? 'Líquida' : 'Nette', `${fr(net, 2)} m²`],
+      ]
+    }
+    if (mode === 'length') {
+      const L = parseFloat(length) || parseFloat(perimeter) || 0
+      if (L <= 0) return null
+      return [[isPt ? 'Comprimento' : 'Longueur', `${fr(L, 2)} m`]]
+    }
+    if (mode === 'count') {
+      const c = parseInt(count) || 0
+      if (c <= 0) return null
+      return [[isPt ? 'Quantidade' : 'Quantité', `${c} u`]]
+    }
+    return null
+  }, [mode, length, width, thicknessCm, area, height, openings, perimeter, count, isPt])
 
   const submit = () => {
-    const hasLW = geo.length && geo.width
-    const hasLH = geo.length && geo.height
-    if (mode === 'volume' && !(geo.volume || (hasLW && geo.thickness) || (geo.area && geo.thickness))) {
-      setError(isPt ? 'Informe volume, ou comprimento+largura+espessura, ou superfície+espessura.' : 'Indiquez un volume, ou longueur+largeur+épaisseur, ou surface+épaisseur.')
-      return
+    const geo: Geometry = {}
+    const errors: string[] = []
+
+    if (mode === 'volume') {
+      const L = num(length), W = num(width)
+      const ecm = num(thicknessCm), A = num(area), V = num(volume)
+      if (V !== undefined) geo.volume = V
+      if (L !== undefined) geo.length = L
+      if (W !== undefined) geo.width = W
+      if (A !== undefined) geo.area = A
+      if (ecm !== undefined) geo.thickness = ecm / 100
+      if (geo.volume === undefined && !(geo.length && geo.width && geo.thickness) && !(geo.area && geo.thickness)) {
+        errors.push(isPt ? 'Indique comprimento+largura+espessura ou superfície+espessura ou volume.' : 'Indique longueur+largeur+épaisseur, surface+épaisseur, ou volume.')
+      }
+    } else if (mode === 'area') {
+      const A = num(area), L = num(length), W = num(width)
+      if (A !== undefined) geo.area = A
+      else if (L && W) { geo.length = L; geo.width = W }
+      else errors.push(isPt ? 'Indique a superfície.' : 'Indique la surface.')
+    } else if (mode === 'area_minus_openings') {
+      const L = num(length), H = num(height), A = num(area), O = num(openings)
+      if (A !== undefined) geo.area = A
+      else if (L && H) { geo.length = L; geo.height = H }
+      else errors.push(isPt ? 'Indique comprimento×altura ou superfície.' : 'Indique longueur×hauteur ou surface.')
+      if (O !== undefined) geo.openings = O
+    } else if (mode === 'length') {
+      const L = num(length), P = num(perimeter)
+      if (L !== undefined) geo.length = L
+      else if (P !== undefined) geo.perimeter = P
+      else errors.push(isPt ? 'Indique o comprimento.' : 'Indique la longueur.')
+    } else if (mode === 'count') {
+      const c = num(count)
+      if (c !== undefined) geo.count = c
+      else errors.push(isPt ? 'Indique a quantidade.' : 'Indique la quantité.')
     }
-    if (mode === 'area' && !(geo.area || hasLW || hasLH)) {
-      setError(isPt ? 'Informe a superfície ou comprimento×altura.' : 'Indiquez la surface ou longueur×hauteur.')
-      return
+
+    if (needsThickness && mode !== 'volume' && geo.thickness === undefined) {
+      const ecm = num(thicknessCm)
+      if (ecm !== undefined) geo.thickness = ecm / 100
     }
-    if (mode === 'area_minus_openings' && !(geo.area || hasLW || hasLH)) {
-      setError(isPt ? 'Informe a superfície ou comprimento×altura.' : 'Indiquez la surface ou longueur×hauteur.')
-      return
+    if (needsHeight && geo.height === undefined) {
+      const H = num(height)
+      if (H !== undefined) geo.height = H
     }
-    if (mode === 'length' && geo.length === undefined && geo.perimeter === undefined) {
-      setError(isPt ? 'Informe o comprimento ou perímetro.' : 'Indiquez la longueur ou le périmètre.')
-      return
+    if (needsCoats) {
+      const c = num(coats)
+      if (c !== undefined) geo.coats = c
     }
-    if (mode === 'count' && geo.count === undefined) {
-      setError(isPt ? 'Informe a quantidade.' : 'Indiquez le nombre.')
-      return
-    }
-    if (materialsNeedThickness && geo.thickness === undefined && mode !== 'volume') {
-      setError(isPt ? 'Informe a espessura.' : 'Indiquez l\'épaisseur.')
-      return
-    }
-    onAdd(geo, label.trim() || undefined)
+
+    if (errors.length) { setError(errors.join(' ')); return }
+    onSave(geo, label.trim() || undefined)
   }
 
+  const thicknessHint = (() => {
+    const c = recipe.constraints
+    if (!c) return null
+    if (c.minThickness === undefined && c.maxThickness === undefined) return null
+    const minCm = c.minThickness !== undefined ? c.minThickness * 100 : null
+    const maxCm = c.maxThickness !== undefined ? c.maxThickness * 100 : null
+    const dtu = recipe.dtuReferences[0]?.code
+    if (minCm !== null && maxCm !== null) return `${isPt ? 'entre' : 'entre'} ${fr(minCm, 0)} ${isPt ? 'e' : 'et'} ${fr(maxCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
+    if (minCm !== null) return `min ${fr(minCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
+    if (maxCm !== null) return `max ${fr(maxCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
+    return null
+  })()
+
   return (
-    <div className="em-recipe-detail">
-      <div className="em-rd-header">
-        <div>
-          <div className="em-rd-title">{TRADE_ICONS[recipe.trade]} {recipe.name}</div>
-          <div className="em-rd-desc">{recipe.description}</div>
+    <div className="param-panel show">
+      <div className="param-header">
+        <div className="param-title-wrap">
+          <div className="param-title">{TRADE_ICON[recipe.trade]} {recipe.name}</div>
+          {recipe.description && <div className="param-desc">{recipe.description}</div>}
         </div>
-        <button className="em-rd-close" onClick={onCancel} aria-label="Fermer">×</button>
+        <button type="button" className="param-close" onClick={onCancel} aria-label="Fermer">×</button>
       </div>
-      <div className="em-mat-refs" style={{ marginBottom: '.5rem' }}>
-        {recipe.dtuReferences.map(d => (
-          <span key={d.code} className="em-mat-ref em-ref-dtu">{d.code}</span>
-        ))}
+
+      <div className="param-label-field">
+        <label>{isPt ? 'Etiqueta (opcional)' : 'Libellé (optionnel)'}</label>
+        <input
+          type="text"
+          placeholder={isPt ? 'Ex: Laje fundação, Extensão…' : 'Ex : Dalle garage, Fondation extension…'}
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+        />
       </div>
-      <div style={{ fontSize: '10px', color: '#8B7D00', marginBottom: '.4rem', fontWeight: 600 }}>
-        📐 {isPt ? 'Indique a geometria:' : 'Renseignez la géométrie :'}
-      </div>
-      <div className="em-geo-form">
-        {(mode === 'volume' || mode === 'area' || mode === 'area_minus_openings' || mode === 'length') && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Comprimento (m)' : 'Longueur (m)'}</label>
-            <input type="number" step="0.01" value={geo.length ?? ''} onChange={e => update('length', e.target.value)} />
-          </div>
-        )}
-        {(mode === 'volume' || mode === 'area') && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Largura (m)' : 'Largeur (m)'}</label>
-            <input type="number" step="0.01" value={geo.width ?? ''} onChange={e => update('width', e.target.value)} />
-          </div>
-        )}
-        {(mode === 'area' || mode === 'area_minus_openings' || materialsNeedHeight) && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Altura (m)' : 'Hauteur (m)'}</label>
-            <input type="number" step="0.01" value={geo.height ?? ''} onChange={e => update('height', e.target.value)} />
-          </div>
-        )}
-        {(mode === 'volume' || materialsNeedThickness) && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Espessura (m)' : 'Épaisseur (m)'}</label>
-            <input type="number" step="0.001" value={geo.thickness ?? ''} onChange={e => update('thickness', e.target.value)} />
-          </div>
-        )}
-        {(mode === 'area' || mode === 'area_minus_openings' || mode === 'volume') && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Superfície (m²)' : 'Surface (m²)'}</label>
-            <input type="number" step="0.1" value={geo.area ?? ''} onChange={e => update('area', e.target.value)} />
+
+      <div className="param-grid">
+        {(mode === 'volume' || mode === 'area_minus_openings' || mode === 'length') && (
+          <div className="param-field">
+            <label>{isPt ? 'Comprimento' : 'Longueur'}</label>
+            <div className="param-input-wrap">
+              <input type="number" step="0.1" value={length} onChange={e => setLength(e.target.value)} />
+              <span className="param-unit">m</span>
+            </div>
           </div>
         )}
         {mode === 'volume' && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Volume (m³)' : 'Volume (m³)'}</label>
-            <input type="number" step="0.01" value={geo.volume ?? ''} onChange={e => update('volume', e.target.value)} />
+          <div className="param-field">
+            <label>{isPt ? 'Largura' : 'Largeur'}</label>
+            <div className="param-input-wrap">
+              <input type="number" step="0.1" value={width} onChange={e => setWidth(e.target.value)} />
+              <span className="param-unit">m</span>
+            </div>
           </div>
         )}
-        {mode === 'length' && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Perímetro (m)' : 'Périmètre (m)'}</label>
-            <input type="number" step="0.01" value={geo.perimeter ?? ''} onChange={e => update('perimeter', e.target.value)} />
+        {(mode === 'area_minus_openings' || needsHeight) && (
+          <div className="param-field">
+            <label>{isPt ? 'Altura' : 'Hauteur'}</label>
+            <div className="param-input-wrap">
+              <input type="number" step="0.1" value={height} onChange={e => setHeight(e.target.value)} />
+              <span className="param-unit">m</span>
+            </div>
+          </div>
+        )}
+        {(mode === 'volume' || needsThickness) && (
+          <div className="param-field">
+            <label>{isPt ? 'Espessura' : 'Épaisseur'}</label>
+            <div className="param-input-wrap">
+              <input type="number" step="1" value={thicknessCm} onChange={e => setThicknessCm(e.target.value)} />
+              <span className="param-unit">cm</span>
+            </div>
+            {thicknessHint && <div className="hint">{thicknessHint}</div>}
+          </div>
+        )}
+        {mode === 'area' && (
+          <div className="param-field">
+            <label>{isPt ? 'Superfície' : 'Surface'}</label>
+            <div className="param-input-wrap">
+              <input type="number" step="0.1" value={area} onChange={e => setArea(e.target.value)} />
+              <span className="param-unit">m²</span>
+            </div>
           </div>
         )}
         {mode === 'area_minus_openings' && (
-          <div className="em-geo-field">
-            <label>{isPt ? 'Aberturas (m²)' : 'Ouvertures (m²)'}</label>
-            <input type="number" step="0.1" value={geo.openings ?? ''} onChange={e => update('openings', e.target.value)} />
+          <div className="param-field">
+            <label>{isPt ? 'Aberturas' : 'Ouvertures'}</label>
+            <div className="param-input-wrap">
+              <input type="number" step="0.1" value={openings} onChange={e => setOpenings(e.target.value)} />
+              <span className="param-unit">m²</span>
+            </div>
           </div>
         )}
         {mode === 'count' && (
-          <div className="em-geo-field">
+          <div className="param-field">
             <label>{isPt ? 'Quantidade' : 'Nombre'}</label>
-            <input type="number" step="1" value={geo.count ?? ''} onChange={e => update('count', e.target.value)} />
+            <div className="param-input-wrap">
+              <input type="number" step="1" value={count} onChange={e => setCount(e.target.value)} />
+              <span className="param-unit">u</span>
+            </div>
           </div>
         )}
-        {materialsNeedCoats && (
-          <div className="em-geo-field">
+        {needsCoats && (
+          <div className="param-field">
             <label>{isPt ? 'Demãos' : 'Couches'}</label>
-            <input type="number" step="1" value={geo.coats ?? ''} onChange={e => update('coats', e.target.value)} />
+            <div className="param-input-wrap">
+              <input type="number" step="1" value={coats} onChange={e => setCoats(e.target.value)} />
+              <span className="param-unit">u</span>
+            </div>
           </div>
         )}
       </div>
-      <div className="em-geo-form" style={{ gridTemplateColumns: '1fr', marginTop: '.4rem' }}>
-        <div className="em-geo-field">
-          <label>{isPt ? 'Etiqueta (opcional)' : 'Libellé (optionnel)'}</label>
-          <input
-            type="text"
-            placeholder={isPt ? 'Ex: Fundação garagem' : 'Ex: Fondation garage'}
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-          />
+
+      {summary && (
+        <div className="param-summary">
+          <span>📐</span>
+          <div>
+            {summary.map(([label, value], i) => (
+              <span key={label}>
+                {i > 0 && ' · '}
+                {label} : <strong>{value}</strong>
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
       {error && (
-        <div className="em-warn-box" style={{ marginTop: '.6rem', marginBottom: 0 }}>
-          <span className="em-warn-icon">⚠️</span>
+        <div className="param-summary" style={{ borderColor: '#FFB74D', background: '#FFF3E0', color: '#E65100' }}>
+          <span>⚠️</span>
           <div>{error}</div>
         </div>
       )}
-      <button
-        className="v5-btn v5-btn-p"
-        onClick={submit}
-        style={{ marginTop: '.7rem', width: '100%', justifyContent: 'center', padding: '8px 18px' }}
-      >
-        ✓ {isPt ? 'Adicionar ao projeto' : 'Ajouter au projet'}
-      </button>
+
+      <div className="param-actions">
+        <button type="button" className="btn-cancel" onClick={onCancel}>
+          {isPt ? 'Cancelar' : 'Annuler'}
+        </button>
+        <button type="button" className="btn-add" onClick={submit}>
+          {editing
+            ? (isPt ? 'Guardar alterações' : 'Enregistrer les modifications')
+            : `+ ${isPt ? 'Adicionar à obra' : 'Ajouter au chantier'}`}
+        </button>
+      </div>
     </div>
   )
 }
 
-export default function EstimationMateriauxSection({ artisan }: Props) {
+/* ═══════════════════════════════════════════════════════════
+   Ligne de matériau (résultat, avec détail dépliable)
+   ═══════════════════════════════════════════════════════════ */
+function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
+  const [open, setOpen] = useState(false)
+  const dtu = firstDTU(need.references)
+  const packagingLabel = need.packagingRecommendation
+    ? `${need.packagingRecommendation.unitsToOrder} ${need.packagingRecommendation.packagingLabel}`
+    : null
+
+  return (
+    <div>
+      <div className="mat-line">
+        <div className="mat-line-left">
+          <div className="mat-line-name">{need.name}</div>
+          <div className="mat-line-ref">
+            <span className="dtu-tag">{dtu}</span>
+            +{fr(need.wasteBreakdown.totalPercent, 1)}% {isPt ? 'perdas' : 'pertes'}
+          </div>
+        </div>
+        <div className="mat-line-right">
+          <div className="mat-line-qty">{formatQty(need.quantityWithWaste, need.unit)} {need.unit}</div>
+          {packagingLabel && <div className="mat-line-pack">{packagingLabel}</div>}
+        </div>
+        <button
+          type="button"
+          className={`mat-line-toggle ${open ? 'open' : ''}`}
+          onClick={() => setOpen(o => !o)}
+          aria-label={isPt ? 'Detalhe' : 'Détail'}
+        >⌄</button>
+      </div>
+      <div className={`mat-detail ${open ? 'show' : ''}`}>
+        <div className="detail-row">
+          <span className="detail-label">{isPt ? 'Teórico' : 'Théorique'}</span>{' '}
+          {formatQty(need.theoreticalQuantity, need.unit)} {need.unit} ({isPt ? 'sem perdas' : 'sans pertes'})
+        </div>
+        <div className="detail-row">
+          <span className="detail-label">{isPt ? 'Perdas' : 'Pertes'}</span>{' '}
+          +{fr(need.wasteBreakdown.baseWastePercent, 1)}% — {need.wasteBreakdown.baseWasteReason}
+          {need.wasteBreakdown.profileBonusPercent > 0 && (
+            <> · {need.wasteBreakdown.profileBonusReason}</>
+          )}
+        </div>
+        <div className="detail-row">
+          <span className="detail-label">{isPt ? 'Referências' : 'Références'}</span>{' '}
+          {need.references.join(' · ')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SECTION PRINCIPALE
+   ═══════════════════════════════════════════════════════════ */
+export default function EstimationMateriauxSection({ artisan: _artisan }: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
 
-  const [projectName, setProjectName] = useState(isPt ? 'Nova estimativa' : 'Nouvelle estimation')
-  const [activeTrade, setActiveTrade] = useState<Trade | 'all'>('all')
-  const [search, setSearch] = useState('')
-  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
+  // Mode + état projet
+  const [mode, setMode] = useState<Mode>('form')
+  const [projectName, setProjectName] = useState('')
   const [items, setItems] = useState<ProjectItem[]>([])
-  const [profile, setProfile] = useState<ChantierProfile>({
-    difficulty: 'standard',
-    size: 'moyen',
-    workforceLevel: 'mixte',
-    complexShapes: false,
-    isPistoletPainting: false,
-  })
-  const [result, setResult] = useState<EstimationResult | null>(null)
+
+  // Recherche + panneau
+  const [query, setQuery] = useState('')
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
+  const [editingItem, setEditingItem] = useState<ProjectItem | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Profil
+  const [difficulty, setDifficulty] = useState<ChantierProfile['difficulty']>('standard')
+  const [size, setSize] = useState<ChantierProfile['size']>('moyen')
+  const [workforce, setWorkforce] = useState<ChantierProfile['workforceLevel']>('mixte')
+
+  // Résultats
   const [computing, setComputing] = useState(false)
-  const [computeError, setComputeError] = useState<string | null>(null)
+  const [result, setResult] = useState<EstimationResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const tradeCounts = useMemo(() => {
-    const counts: Record<Trade, number> = { maconnerie: 0, placo: 0, peinture: 0, carrelage: 0 }
-    for (const r of allRecipes) counts[r.trade]++
-    return counts
-  }, [])
+  // Mode IA
+  const [iaText, setIaText] = useState('')
+  const [iaAssumptions, setIaAssumptions] = useState<string[]>([])
+  const [iaQuestions, setIaQuestions] = useState<string[]>([])
+  const [iaAnalyzing, setIaAnalyzing] = useState(false)
 
-  const filteredRecipes = useMemo(() => {
-    const q = search.toLowerCase().trim()
-    return allRecipes.filter(r => {
-      if (activeTrade !== 'all' && r.trade !== activeTrade) return false
-      if (!q) return true
-      return (
-        r.name.toLowerCase().includes(q) ||
-        r.description?.toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q)
-      )
-    })
-  }, [activeTrade, search])
+  // Feedback bouton copier
+  const [copied, setCopied] = useState(false)
+
+  const searchResults = useMemo(() => {
+    const q = query.trim()
+    if (!q) return []
+    return searchRecipes(q).slice(0, 8)
+  }, [query])
 
   const selectedRecipe = useMemo(
     () => (selectedRecipeId ? allRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
     [selectedRecipeId]
   )
 
-  const addItem = useCallback((recipe: Recipe, geometry: Geometry, label?: string) => {
-    setItems(prev => [
-      ...prev,
-      {
-        uid: `${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        recipeId: recipe.id,
-        recipeName: recipe.name,
-        geometry,
-        label,
-        geoSummary: summarizeGeometry(geometry),
-      },
-    ])
-    setSelectedRecipeId(null)
-    setResult(null)
+  const openParam = useCallback((recipeId: string, editing: ProjectItem | null = null) => {
+    setSelectedRecipeId(recipeId)
+    setEditingItem(editing)
+    setQuery('')
   }, [])
 
-  const removeItem = useCallback((uid: string) => {
+  const closeParam = useCallback(() => {
+    setSelectedRecipeId(null)
+    setEditingItem(null)
+  }, [])
+
+  const saveItem = useCallback((geo: Geometry, label?: string) => {
+    if (!selectedRecipe) return
+    const dimsLabel = buildDimsLabel(selectedRecipe, geo)
+    if (editingItem) {
+      setItems(prev => prev.map(it => it.uid === editingItem.uid
+        ? { ...it, geometry: geo, label, dimsLabel }
+        : it
+      ))
+    } else {
+      const uid = `${selectedRecipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      setItems(prev => [...prev, {
+        uid,
+        recipeId: selectedRecipe.id,
+        recipeName: selectedRecipe.name,
+        recipeTrade: selectedRecipe.trade,
+        geometry: geo,
+        label,
+        dimsLabel,
+      }])
+    }
+    setResult(null)
+    closeParam()
+  }, [selectedRecipe, editingItem, closeParam])
+
+  const removeItem = (uid: string) => {
     setItems(prev => prev.filter(i => i.uid !== uid))
     setResult(null)
-  }, [])
+  }
+
+  const editItem = (it: ProjectItem) => openParam(it.recipeId, it)
 
   const compute = async () => {
     if (items.length === 0) return
     setComputing(true)
-    setComputeError(null)
+    setError(null)
     setResult(null)
     try {
       const payload: EstimationInput = {
-        projectName,
+        projectName: projectName.trim() || undefined,
         items: items.map(i => ({ recipeId: i.recipeId, geometry: i.geometry, label: i.label })),
-        chantierProfile: profile,
+        chantierProfile: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
       }
       const res = await fetch('/api/estimation/compute', {
         method: 'POST',
@@ -324,383 +557,337 @@ export default function EstimationMateriauxSection({ artisan }: Props) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
         throw new Error(err.error || (isPt ? 'Erro ao calcular' : 'Erreur de calcul'))
       }
-      const data = (await res.json()) as EstimationResult
-      setResult(data)
+      setResult(await res.json() as EstimationResult)
     } catch (e) {
-      setComputeError(e instanceof Error ? e.message : String(e))
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setComputing(false)
     }
   }
 
-  const copySummary = async () => {
-    if (!result) return
-    const text = result.humanSummary.join('\n')
+  const analyzeWithIA = async () => {
+    const text = iaText.trim()
+    if (!text) return
+    setIaAnalyzing(true)
+    setError(null)
+    setResult(null)
+    setIaAssumptions([])
+    setIaQuestions([])
     try {
-      await navigator.clipboard.writeText(text)
-      alert(isPt ? 'Resumo copiado!' : 'Résumé copié !')
-    } catch {
-      // noop
+      const res = await fetch('/api/estimation/ai-extract-and-compute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: text,
+          projectName: projectName.trim() || undefined,
+          profileFallback: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(err.error || (isPt ? 'Erro da IA' : 'Erreur IA'))
+      }
+      const data = await res.json() as {
+        extraction: { items: Array<{ recipeId: string; geometry: Geometry; label?: string }>; assumptions: string[]; questions: string[] }
+        result: EstimationResult
+      }
+      // Remplir items à partir de l'extraction
+      const extractedItems: ProjectItem[] = data.extraction.items
+        .map(it => {
+          const recipe = allRecipes.find(r => r.id === it.recipeId)
+          if (!recipe) return null
+          return {
+            uid: `${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            recipeId: recipe.id,
+            recipeName: recipe.name,
+            recipeTrade: recipe.trade,
+            geometry: it.geometry,
+            label: it.label,
+            dimsLabel: buildDimsLabel(recipe, it.geometry),
+          }
+        })
+        .filter((x): x is ProjectItem => x !== null)
+      setItems(extractedItems)
+      setIaAssumptions(data.extraction.assumptions || [])
+      setIaQuestions(data.extraction.questions || [])
+      setResult(data.result)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setIaAnalyzing(false)
     }
   }
 
-  const profileActive = profile.difficulty === 'difficile'
-    || profile.size === 'petit'
-    || profile.workforceLevel === 'apprenti'
-    || profile.complexShapes
-    || profile.isPistoletPainting
+  const copyList = async () => {
+    if (!result) return
+    try {
+      await navigator.clipboard.writeText(result.humanSummary.join('\n'))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* noop */ }
+  }
+
+  const soonAlert = () => {
+    alert(isPt ? 'Em breve' : 'Bientôt disponible')
+  }
+
+  const goToMateriaux = () => {
+    alert(isPt ? 'Em breve — redirecionamento para Materiais & Aprovisionamento' : 'Bientôt — redirection vers Matériaux & Appro')
+  }
 
   return (
     <div className="v5-fade">
-      {/* Titre */}
-      <div className="v5-pg-t">
-        <h1>{isPt ? 'Estimativa de materiais' : 'Estimation matériaux'}</h1>
-        <p>{isPt
-          ? 'Quantitativos detalhados com referências DTU — cálculo independente dos preços'
-          : 'Quantitatifs détaillés avec références DTU — calculs indépendants des prix'}
-        </p>
-      </div>
-
-      {/* KPIs */}
-      <div className="v5-kpi-g">
-        <div className="v5-kpi">
-          <div className="v5-kpi-l">{isPt ? 'Obras no catálogo' : 'Ouvrages au catalogue'}</div>
-          <div className="v5-kpi-v">{allRecipes.length}</div>
-          <div className="v5-kpi-s">{isPt ? '4 ofícios' : '4 corps d\'état'}</div>
+      <div className="estim-wrap">
+        {/* Titre */}
+        <div className="v5-pg-t">
+          <h1>{isPt ? 'Estimativa de materiais' : 'Estimation matériaux'}</h1>
+          <p>{isPt ? 'Quantitativos detalhados com referências DTU' : 'Quantitatifs détaillés avec références DTU'}</p>
         </div>
-        <div className="v5-kpi">
-          <div className="v5-kpi-l">{isPt ? 'Obras no projeto' : 'Ouvrages du projet'}</div>
-          <div className="v5-kpi-v">{items.length}</div>
-          <div className="v5-kpi-s">
-            {items.length === 0
-              ? (isPt ? 'nenhum adicionado' : 'aucun ajouté')
-              : (isPt ? 'pronto para calcular' : 'prêts à calculer')}
-          </div>
-        </div>
-        <div className="v5-kpi hl">
-          <div className="v5-kpi-l">{isPt ? 'Materiais calculados' : 'Matériaux calculés'}</div>
-          <div className="v5-kpi-v">{result ? result.aggregated.length : '—'}</div>
-          <div className="v5-kpi-s">{isPt ? 'com DTU e perdas' : 'avec DTU & pertes chantier'}</div>
-        </div>
-        <div className="v5-kpi">
-          <div className="v5-kpi-l">{isPt ? 'Ganho de tempo' : 'Gain de temps estimé'}</div>
-          <div className="v5-kpi-v">~3h</div>
-          <div className="v5-kpi-s">{isPt ? 'por obra vs metragem manual' : 'par chantier vs métré manuel'}</div>
-        </div>
-      </div>
 
-      {/* Project bar */}
-      <div className="em-project-bar">
-        <span style={{ fontSize: 18 }}>📐</span>
-        <input
-          type="text"
-          value={projectName}
-          placeholder={isPt ? 'Nome do projeto…' : 'Nom du projet…'}
-          onChange={e => setProjectName(e.target.value)}
-        />
-        <span className="em-proj-meta">{isPt ? 'Rascunho' : 'Brouillon'}</span>
-      </div>
-
-      {/* Mode toggle — IA désactivé pour l'instant (clé Anthropic non branchée) */}
-      <div className="em-mode-toggle">
-        <button className="active">📋 {isPt ? 'Formulário estruturado' : 'Formulaire structuré'}</button>
-        <button disabled title={isPt ? 'Em breve' : 'Bientôt disponible'}>
-          ✨ {isPt ? 'Descrição livre (IA)' : 'Description libre (IA)'}
-        </button>
-      </div>
-
-      {/* Profil chantier */}
-      <div className="em-profile-bar">
-        <span className="em-pb-label">🛠️ {isPt ? 'Perfil da obra' : 'Profil chantier'}</span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {isPt ? 'Dificuldade' : 'Difficulté'}
-          <select
-            value={profile.difficulty}
-            onChange={e => setProfile(p => ({ ...p, difficulty: e.target.value as ChantierProfile['difficulty'] }))}
-          >
-            <option value="facile">{isPt ? 'Fácil' : 'Facile'}</option>
-            <option value="standard">{isPt ? 'Padrão' : 'Standard'}</option>
-            <option value="difficile">{isPt ? 'Difícil (+5%)' : 'Difficile (+5%)'}</option>
-          </select>
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {isPt ? 'Tamanho' : 'Taille'}
-          <select
-            value={profile.size}
-            onChange={e => setProfile(p => ({ ...p, size: e.target.value as ChantierProfile['size'] }))}
-          >
-            <option value="petit">{isPt ? 'Pequena <10m² (+5%)' : 'Petit <10m² (+5%)'}</option>
-            <option value="moyen">{isPt ? 'Média' : 'Moyen'}</option>
-            <option value="grand">{isPt ? 'Grande >100m²' : 'Grand >100m²'}</option>
-          </select>
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {isPt ? 'Mão de obra' : 'Main d\'œuvre'}
-          <select
-            value={profile.workforceLevel}
-            onChange={e => setProfile(p => ({ ...p, workforceLevel: e.target.value as ChantierProfile['workforceLevel'] }))}
-          >
-            <option value="experimente">{isPt ? 'Experiente' : 'Expérimentée'}</option>
-            <option value="mixte">{isPt ? 'Mista' : 'Mixte'}</option>
-            <option value="apprenti">{isPt ? 'Aprendizes (+5%)' : 'Apprentis (+5%)'}</option>
-          </select>
-        </label>
-        <label className="em-pb-check">
+        {/* Barre projet */}
+        <div className="project-bar">
+          <span className="proj-icon">📐</span>
           <input
-            type="checkbox"
-            checked={profile.complexShapes}
-            onChange={e => setProfile(p => ({ ...p, complexShapes: e.target.checked }))}
+            type="text"
+            placeholder={isPt ? 'Nomear o projeto…' : 'Nommer le projet…'}
+            value={projectName}
+            onChange={e => setProjectName(e.target.value)}
           />
-          {isPt ? 'Formas complexas (+3%)' : 'Formes complexes (+3%)'}
-        </label>
-        <label className="em-pb-check">
-          <input
-            type="checkbox"
-            checked={profile.isPistoletPainting}
-            onChange={e => setProfile(p => ({ ...p, isPistoletPainting: e.target.checked }))}
-          />
-          {isPt ? 'Pintura pistola (+10%)' : 'Peinture pistolet (+10%)'}
-        </label>
-        <span className="em-pb-summary">
-          {profileActive
-            ? (isPt ? '⚠ Bónus aplicados' : '⚠ Bonus pertes appliqués')
-            : (isPt ? '✓ Perdas padrão' : '✓ Pertes standards')}
-        </span>
-      </div>
+          <span className="proj-meta">{isPt ? 'Rascunho' : 'Brouillon'}</span>
+          <button type="button" className="v5-btn" onClick={soonAlert}>{isPt ? 'Carregar' : 'Charger'}</button>
+          <button type="button" className="v5-btn v5-btn-p" onClick={soonAlert}>{isPt ? 'Guardar' : 'Enregistrer'}</button>
+        </div>
 
-      {/* Chips corps d'état */}
-      <div className="em-trade-chips">
-        <button
-          className={`em-trade-chip ${activeTrade === 'all' ? 'active' : ''}`}
-          onClick={() => setActiveTrade('all')}
-        >
-          {TRADE_ICONS.all} {isPt ? 'Todos' : 'Tous'}
-          <span className="em-count">{allRecipes.length}</span>
-        </button>
-        {(Object.keys(TRADE_LABEL_FR) as Trade[]).map(t => (
-          <button
-            key={t}
-            className={`em-trade-chip ${activeTrade === t ? 'active' : ''}`}
-            onClick={() => setActiveTrade(t)}
-          >
-            {TRADE_ICONS[t]} {isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]}
-            <span className="em-count">{tradeCounts[t]}</span>
+        {/* Toggle mode */}
+        <div className="mode-toggle">
+          <button type="button" className={mode === 'form' ? 'active' : ''} onClick={() => setMode('form')}>
+            {isPt ? 'Formulário' : 'Formulaire'}
           </button>
-        ))}
-      </div>
-
-      {/* 2 colonnes */}
-      <div className="em-form-split">
-        {/* Catalogue */}
-        <div>
-          <div className="em-col-t">📚 {isPt ? 'Catálogo de obras' : 'Catalogue ouvrages'}</div>
-          <div className="v5-search">
-            <input
-              className="v5-search-in"
-              placeholder={isPt ? '🔍 Pesquisar uma obra (ex: laje, parede, pintura…)' : '🔍 Rechercher un ouvrage (ex: dalle, cloison, peinture…)'}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-
-          {selectedRecipe && (
-            <GeometryForm
-              recipe={selectedRecipe}
-              isPt={isPt}
-              onCancel={() => setSelectedRecipeId(null)}
-              onAdd={(geo, label) => addItem(selectedRecipe, geo, label)}
-            />
-          )}
-
-          <div className="em-recipe-grid">
-            {filteredRecipes.length === 0 && (
-              <div className="em-empty">
-                <div className="em-empty-title">{isPt ? 'Nenhuma obra encontrada' : 'Aucun ouvrage trouvé'}</div>
-                <div className="em-empty-desc">{isPt ? 'Tente outra pesquisa ou outro ofício.' : 'Essayez une autre recherche ou un autre corps d\'état.'}</div>
-              </div>
-            )}
-            {filteredRecipes.map(r => (
-              <div
-                key={r.id}
-                className="em-recipe-card"
-                onClick={() => setSelectedRecipeId(r.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedRecipeId(r.id) }}
-              >
-                <div className="em-rec-trade">{TRADE_ICONS[r.trade]} {isPt ? TRADE_LABEL_PT[r.trade] : TRADE_LABEL_FR[r.trade]}</div>
-                <div className="em-rec-name">{r.name}</div>
-                {r.description && <div className="em-rec-desc">{r.description}</div>}
-                <div className="em-rec-meta">
-                  {r.dtuReferences[0] && <span className="em-rec-dtu">{r.dtuReferences[0].code}</span>}
-                  <span>·</span>
-                  <span>{r.baseUnit}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <button type="button" className={mode === 'ia' ? 'active' : ''} onClick={() => setMode('ia')}>
+            {isPt ? 'Descrição livre' : 'Description libre'}
+          </button>
         </div>
 
-        {/* Ouvrages du projet */}
-        <div>
-          <div className="em-col-t">
-            🗂️ {isPt ? 'Obras do projeto' : 'Ouvrages du projet'}
-            <span style={{ marginLeft: 'auto', background: 'var(--v5-primary-yellow)', color: '#333', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>
-              {items.length}
-            </span>
-          </div>
+        {/* MODE FORMULAIRE */}
+        {mode === 'form' && (
+          <>
+            <div className="v5-card">
+              <div className="v5-st">{isPt ? 'Obras da empreitada' : 'Ouvrages du chantier'}</div>
 
-          {items.length === 0 ? (
-            <div className="em-empty">
-              <div className="em-empty-title">{isPt ? 'Nenhuma obra adicionada' : 'Aucun ouvrage ajouté'}</div>
-              <div className="em-empty-desc">
-                {isPt
-                  ? 'Clique numa obra no catálogo para começar.'
-                  : 'Cliquez sur un ouvrage du catalogue pour commencer.'}
+              {/* Recherche */}
+              <div className="search-wrap">
+                <span className="search-icon">🔍</span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder={isPt
+                    ? 'Pesquisar uma obra (laje, parede, azulejo…)'
+                    : 'Rechercher un ouvrage (dalle béton, cloison, carrelage…)'}
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                />
               </div>
-            </div>
-          ) : (
-            <div className="em-items-list">
-              {items.map((it, idx) => (
-                <div key={it.uid} className="em-item-row">
-                  <div className="em-item-num">{idx + 1}</div>
-                  <div className="em-item-info">
-                    <div className="em-item-name">
-                      {TRADE_ICONS[allRecipes.find(r => r.id === it.recipeId)?.trade ?? 'maconnerie']}{' '}
-                      {it.recipeName}{it.label ? ` — ${it.label}` : ''}
+
+              {/* Dropdown résultats */}
+              <div className={`search-results ${searchResults.length > 0 ? 'show' : ''}`}>
+                {searchResults.map(r => (
+                  <div
+                    key={r.id}
+                    className="search-result"
+                    onClick={() => openParam(r.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter') openParam(r.id) }}
+                  >
+                    <span className="sr-icon">{TRADE_ICON[r.trade]}</span>
+                    <div className="sr-body">
+                      <div className="sr-name">{r.name}</div>
+                      <div className="sr-trade">
+                        {isPt ? TRADE_LABEL_PT[r.trade] : TRADE_LABEL_FR[r.trade]}
+                        {r.description ? ` — ${r.description.slice(0, 60)}${r.description.length > 60 ? '…' : ''}` : ''}
+                      </div>
                     </div>
-                    <div className="em-item-geo">
-                      {it.geoSummary.split(' · ').map((p, i) => <span key={i}>{p}</span>)}
-                    </div>
+                    <span className="sr-dtu">{r.dtuReferences[0]?.code || '—'}</span>
                   </div>
-                  <div className="em-item-actions">
-                    <button
-                      className="em-item-btn em-del"
-                      onClick={() => removeItem(it.uid)}
-                      title={isPt ? 'Remover' : 'Supprimer'}
-                    >🗑️</button>
+                ))}
+              </div>
+
+              {/* Panneau paramétrage */}
+              {selectedRecipe && (
+                <ParamPanel
+                  recipe={selectedRecipe}
+                  editing={editingItem}
+                  isPt={isPt}
+                  onCancel={closeParam}
+                  onSave={saveItem}
+                />
+              )}
+
+              {/* Liste ouvrages */}
+              <div className="items">
+                {items.map(it => (
+                  <div key={it.uid} className="item">
+                    <span className="item-icon">{TRADE_ICON[it.recipeTrade]}</span>
+                    <div className="item-text">
+                      <div className="item-title">{it.label || it.recipeName}</div>
+                      <div className="item-dims">{it.dimsLabel}</div>
+                    </div>
+                    <button type="button" className="item-edit" onClick={() => editItem(it)} title={isPt ? 'Modificar' : 'Modifier'}>✎</button>
+                    <button type="button" className="item-remove" onClick={() => removeItem(it.uid)} aria-label={isPt ? 'Remover' : 'Supprimer'}>×</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Réglages avancés */}
+              <details className="advanced">
+                <summary>{isPt ? 'Definições avançadas' : 'Réglages avancés'}</summary>
+                <div className="advanced-content">
+                  <div className="advanced-row">
+                    <span>{isPt ? 'Dificuldade da obra' : 'Difficulté du chantier'}</span>
+                    <select value={difficulty} onChange={e => setDifficulty(e.target.value as ChantierProfile['difficulty'])}>
+                      <option value="facile">{isPt ? 'Fácil' : 'Facile'}</option>
+                      <option value="standard">{isPt ? 'Padrão' : 'Standard'}</option>
+                      <option value="difficile">{isPt ? 'Difícil (+5%)' : 'Difficile (+5%)'}</option>
+                    </select>
+                  </div>
+                  <div className="advanced-row">
+                    <span>{isPt ? 'Tamanho' : 'Taille'}</span>
+                    <select value={size} onChange={e => setSize(e.target.value as ChantierProfile['size'])}>
+                      <option value="petit">{isPt ? 'Pequena (+5%)' : 'Petit (+5%)'}</option>
+                      <option value="moyen">{isPt ? 'Média' : 'Moyen'}</option>
+                      <option value="grand">{isPt ? 'Grande' : 'Grand'}</option>
+                    </select>
+                  </div>
+                  <div className="advanced-row">
+                    <span>{isPt ? 'Equipa' : 'Équipe'}</span>
+                    <select value={workforce} onChange={e => setWorkforce(e.target.value as ChantierProfile['workforceLevel'])}>
+                      <option value="experimente">{isPt ? 'Experiente' : 'Expérimentée'}</option>
+                      <option value="mixte">{isPt ? 'Mista' : 'Mixte'}</option>
+                      <option value="apprenti">{isPt ? 'Aprendizes (+5%)' : 'Apprentis (+5%)'}</option>
+                    </select>
                   </div>
                 </div>
-              ))}
+              </details>
             </div>
-          )}
 
-          <button
-            className="v5-btn v5-btn-p"
-            onClick={compute}
-            disabled={items.length === 0 || computing}
-            style={{ width: '100%', marginTop: '1rem', justifyContent: 'center', padding: '9px 18px', fontSize: 13 }}
-          >
-            {computing
-              ? (isPt ? '⏳ A calcular…' : '⏳ Calcul en cours…')
-              : `🧮 ${isPt ? 'Calcular materiais' : 'Calculer les matériaux'}`}
-          </button>
-          {computeError && (
-            <div className="em-warn-box" style={{ marginTop: '.6rem' }}>
-              <span className="em-warn-icon">⚠️</span>
-              <div>{computeError}</div>
-            </div>
-          )}
-        </div>
-      </div>
+            <button
+              type="button"
+              className="btn-compute"
+              onClick={compute}
+              disabled={items.length === 0 || computing}
+            >
+              {computing
+                ? (isPt ? 'A calcular…' : 'Calcul en cours…')
+                : (isPt ? 'Calcular os materiais' : 'Calculer les matériaux')}
+            </button>
+          </>
+        )}
 
-      {/* Résultats */}
-      {result && (
-        <>
-          <div className="em-results-header">
-            <h2>
-              📦 {isPt ? 'Materiais necessários' : 'Matériaux nécessaires'}{' '}
-              <span className="em-res-count">
-                — {result.aggregated.length} {isPt ? 'materiais agregados em' : 'matériaux agrégés sur'}{' '}
-                {result.items.length} {isPt ? 'obras' : 'ouvrages'}
-              </span>
-            </h2>
-            <div className="v5-btn-g">
-              <button className="v5-btn" onClick={copySummary}>📋 {isPt ? 'Copiar' : 'Copier'}</button>
-            </div>
-          </div>
-
-          <div className="em-summary-panel">
-            <h3>✨ {isPt ? 'Resumo para encomenda fornecedor / cliente' : 'Résumé pour commande fournisseur / client'}</h3>
-            <div className="em-sum-lines">
-              {result.humanSummary.map((line, i) => (
-                <div key={i} className="em-sum-line">{line}</div>
-              ))}
-            </div>
-            <div className="em-sum-actions">
-              <button className="v5-btn v5-btn-sm" onClick={copySummary}>📋 {isPt ? 'Copiar tudo' : 'Copier tout'}</button>
-            </div>
-          </div>
-
-          {(result.warnings.length > 0 || result.items.some(i => i.warnings.length > 0)) && (
-            <div className="em-warn-box">
-              <span className="em-warn-icon">⚠️</span>
-              <div>
-                <strong>{isPt ? 'Pontos de atenção:' : 'Points d\'attention :'}</strong>
-                <ul style={{ margin: '.3rem 0 0 1rem', padding: 0 }}>
-                  {result.warnings.map((w, i) => <li key={`g-${i}`}>{w}</li>)}
-                  {result.items.flatMap(it => it.warnings.map((w, i) => (
-                    <li key={`${it.recipeId}-${i}`}>{w}</li>
-                  )))}
-                </ul>
+        {/* MODE IA */}
+        {mode === 'ia' && (
+          <>
+            <div className="v5-card">
+              <div className="v5-st">{isPt ? 'Descreva a sua obra' : 'Décrivez votre chantier'}</div>
+              <div className="ia-zone">
+                <textarea
+                  placeholder={isPt
+                    ? 'Ex : Preciso de fazer uma laje de betão de 8m × 5m com 12 cm para uma garagem, depois levantar uma parede em tijolo de 20m sobre 2,5m de altura com uma porta. Seguidamente azulejo 45×45 em 40 m².'
+                    : 'Ex : Je dois faire une dalle béton de 8m × 5m en 12 cm pour un garage, puis monter un mur en parpaing de 20m sur 2,5m de haut avec une porte. Ensuite carrelage 45×45 sur 40 m².'}
+                  value={iaText}
+                  onChange={e => setIaText(e.target.value)}
+                />
               </div>
+
+              {iaAssumptions.length > 0 && (
+                <div className="ia-assumptions">
+                  <strong>{isPt ? 'Hipóteses da IA' : 'Hypothèses de l\'IA'}</strong>
+                  {iaAssumptions.map((a, i) => <div key={i}>• {a}</div>)}
+                </div>
+              )}
+              {iaQuestions.length > 0 && (
+                <div className="ia-questions">
+                  <strong>❓ {isPt ? 'A IA tem perguntas' : 'L\'IA a des questions'}</strong>
+                  {iaQuestions.map((q, i) => <div key={i}>• {q}</div>)}
+                </div>
+              )}
+
+              {items.length > 0 && (
+                <div className="items">
+                  {items.map(it => (
+                    <div key={it.uid} className="item">
+                      <span className="item-icon">{TRADE_ICON[it.recipeTrade]}</span>
+                      <div className="item-text">
+                        <div className="item-title">{it.label || it.recipeName}</div>
+                        <div className="item-dims">{it.dimsLabel}</div>
+                      </div>
+                      <button type="button" className="item-edit" onClick={() => editItem(it)} title={isPt ? 'Modificar' : 'Modifier'}>✎</button>
+                      <button type="button" className="item-remove" onClick={() => removeItem(it.uid)} aria-label={isPt ? 'Remover' : 'Supprimer'}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
 
-          <div className="v5-st">{isPt ? 'Detalhe por material' : 'Détail par matériau'}</div>
-          {result.aggregated.map(m => (
-            <MaterialCard key={`${m.id}-${m.unit}`} need={m} isPt={isPt} />
-          ))}
-        </>
-      )}
-    </div>
-  )
-}
+            <button
+              type="button"
+              className="btn-compute"
+              onClick={analyzeWithIA}
+              disabled={iaText.trim().length === 0 || iaAnalyzing}
+            >
+              {iaAnalyzing
+                ? (isPt ? 'IA a analisar…' : 'IA en cours d\'analyse…')
+                : (isPt ? 'Analisar e calcular' : 'Analyser et calculer')}
+            </button>
+          </>
+        )}
 
-function MaterialCard({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
-  const iconCat = CAT_ICONS[need.category] ?? '📦'
-  return (
-    <div className="em-material-card">
-      <div className={`em-mat-cat em-cat-${need.category}`}>{iconCat}</div>
-      <div className="em-mat-body">
-        <div className="em-mat-name">{need.name}</div>
-        <div className="em-mat-refs">
-          {need.references.map((ref, i) => {
-            const cls = ref.startsWith('DTU') ? 'em-ref-dtu'
-              : ref.startsWith('NF') ? 'em-ref-norm'
-              : 'em-ref-manuf'
-            return <span key={i} className={`em-mat-ref ${cls}`}>{ref}</span>
-          })}
-        </div>
-        <div className="em-mat-waste">
-          <span className="em-waste-pct">+{need.wasteBreakdown.totalPercent}%</span>
-          <span className="em-waste-reason">
-            {need.wasteBreakdown.baseWasteReason}
-            {need.wasteBreakdown.profileBonusReason ? ` · ${need.wasteBreakdown.profileBonusReason}` : ''}
-          </span>
-        </div>
-      </div>
-      <div className="em-mat-qty">
-        <div>
-          <span className="em-mat-qty-value">{formatQty(need.quantityWithWaste, need.unit)}</span>{' '}
-          <span className="em-mat-qty-unit">{need.unit}</span>
-        </div>
-        {need.packagingRecommendation && (
-          <div className="em-mat-pack">
-            {need.packagingRecommendation.unitsToOrder} × {need.packagingRecommendation.packagingLabel}
+        {error && (
+          <div className="ia-questions" style={{ marginTop: '.75rem', background: '#FFEBEE', borderColor: '#E53935', color: '#C62828' }}>
+            <strong>⚠️ {isPt ? 'Erro' : 'Erreur'}</strong>
+            <div>{error}</div>
           </div>
         )}
-        <div className="em-mat-theo">
-          {isPt ? 'Teórico' : 'Théorique'} : {formatQty(need.theoreticalQuantity, need.unit)} {need.unit}
-        </div>
+
+        {selectedRecipe && mode === 'ia' && (
+          <ParamPanel
+            recipe={selectedRecipe}
+            editing={editingItem}
+            isPt={isPt}
+            onCancel={closeParam}
+            onSave={saveItem}
+          />
+        )}
+
+        {/* RÉSULTATS */}
+        {result && (
+          <div className="results-section show">
+            <div className="v5-card">
+              <div className="result-headline">
+                <h2>📦 {isPt ? 'Materiais necessários' : 'Matériaux nécessaires'}</h2>
+                <div className="res-label">
+                  {result.aggregated.length} {isPt ? 'materiais calculados para' : 'matériaux calculés pour'}{' '}
+                  {result.items.length} {isPt ? 'obras' : 'ouvrages'}
+                </div>
+              </div>
+
+              <div className="mat-list">
+                {result.aggregated.map(m => (
+                  <MatLine key={`${m.id}-${m.unit}`} need={m} isPt={isPt} />
+                ))}
+              </div>
+
+              <div className="final-actions">
+                <button type="button" className="v5-btn" onClick={copyList}>
+                  📋 {copied ? (isPt ? '✓ Copiado!' : '✓ Copié !') : (isPt ? 'Copiar a lista' : 'Copier la liste')}
+                </button>
+                <button type="button" className="v5-btn" onClick={soonAlert}>📄 {isPt ? 'Exportar PDF' : 'Export PDF'}</button>
+                <button type="button" className="v5-btn" onClick={soonAlert}>📧 {isPt ? 'Enviar' : 'Envoyer'}</button>
+                <button type="button" className="v5-btn v5-btn-p btn-spacer" onClick={goToMateriaux}>🛒 {isPt ? 'Encomendar' : 'Commander'}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
-}
-
-function formatQty(q: number, unit: string): string {
-  if (unit === 'kg' && q >= 1000) return (q / 1000).toFixed(2).replace('.', ',')
-  if (q >= 100) return q.toFixed(0)
-  if (q >= 10) return q.toFixed(1).replace('.', ',')
-  return q.toFixed(2).replace('.', ',')
 }
