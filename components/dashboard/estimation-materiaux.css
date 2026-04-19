@@ -9,6 +9,11 @@
 /* Zone principale centrée */
 .estim-wrap { max-width: 820px; margin: 0 auto; }
 
+/* Pixel-perfect overrides du mockup final (neutralise les écarts v5) */
+.estim-wrap .v5-pg-t { margin-bottom: 1.25rem; }
+.estim-wrap .v5-card { transition: none; }
+.estim-wrap .v5-card:hover { box-shadow: none; border-color: #E8E8E8; }
+
 /* Barre projet */
 .estim-wrap .project-bar { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; padding: .65rem .9rem; background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; }
 .estim-wrap .project-bar .proj-icon { font-size: 15px; color: var(--v5-primary-yellow-dark); }
