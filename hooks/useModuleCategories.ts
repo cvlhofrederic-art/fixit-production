@@ -68,17 +68,62 @@ export function useModuleCategories(ALL_MODULES: ModuleDef[]) {
       }
     } catch {}
     const base = loaded ?? defaults
+
+    // Migrations one-shot : s'assurer que les modules ciblés sont dans la bonne catégorie
+    // (pour les users dont le localStorage date d'avant le déplacement du module).
+    const MIGRATIONS: Array<{ modId: string; targetCatId: string; insertAfter?: string }> = [
+      { modId: 'estimation_materiaux', targetCatId: 'cat-chantiers', insertAfter: 'pointage' },
+    ]
+    let migrated = false
+    for (const m of MIGRATIONS) {
+      let currentCat: ModCategory | undefined
+      let modData: CatMod | undefined
+      for (const c of base) {
+        const idx = c.modules.findIndex(x => x.id === m.modId)
+        if (idx !== -1) {
+          currentCat = c
+          modData = c.modules[idx]
+          break
+        }
+      }
+      if (!modData) continue // will be auto-added by the "missing" block below
+      if (currentCat?.id === m.targetCatId) continue // already at the right place
+      // Retire de la catégorie actuelle
+      currentCat!.modules = currentCat!.modules.filter(x => x.id !== m.modId)
+      // Insère dans la catégorie cible
+      let targetCat = base.find(c => c.id === m.targetCatId)
+      if (!targetCat) {
+        targetCat = { id: m.targetCatId, name: m.targetCatId, open: true, modules: [] }
+        base.push(targetCat)
+      }
+      const insertIdx = m.insertAfter
+        ? targetCat.modules.findIndex(x => x.id === m.insertAfter) + 1
+        : targetCat.modules.length
+      targetCat.modules.splice(insertIdx > 0 ? insertIdx : targetCat.modules.length, 0, modData)
+      migrated = true
+    }
+
     // Merge: append any ALL_MODULES id not in saved state (so new modules auto-appear)
     const placed = new Set(base.flatMap(c => c.modules.map(m => m.id)))
     const missing = ALL_MODULES.filter(m => !placed.has(m.id))
     if (missing.length > 0) {
-      const compteCat = base.find(c => c.id === 'cat-compte')
-      const additions = missing.map(m => ({ id: m.id, icon: m.icon, name: m.label, on: true }))
-      if (compteCat) {
-        compteCat.modules = [...compteCat.modules, ...additions]
-      } else {
-        base.push({ id: 'cat-compte', name: 'Compte', open: true, modules: additions })
+      // Respecter la catégorie déclarée dans ALL_MODULES pour chaque module manquant
+      for (const mod of missing) {
+        const targetCatId = 'cat-' + (mod.category === 'sous_traitance' ? 'achats' : mod.category)
+        let targetCat = base.find(c => c.id === targetCatId)
+        if (!targetCat) {
+          targetCat = base.find(c => c.id === 'cat-compte')
+          if (!targetCat) {
+            targetCat = { id: 'cat-compte', name: 'Compte', open: true, modules: [] }
+            base.push(targetCat)
+          }
+        }
+        targetCat.modules.push({ id: mod.id, icon: mod.icon, name: mod.label, on: true })
       }
+    }
+    // Persiste la migration si elle a eu lieu (pour éviter de la refaire à chaque mount)
+    if (migrated && loaded) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(base)) } catch {}
     }
     // Re-sync icon/name from ALL_MODULES (authoritative)
     const byId = new Map(ALL_MODULES.map(m => [m.id, { ...m, label: m.label }]))
