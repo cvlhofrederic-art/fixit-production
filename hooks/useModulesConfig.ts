@@ -48,6 +48,7 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     { id: 'sous_traitance_offres', icon: '🔍', label: isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants', description: isPt ? 'Pesquisa de subempreiteiros' : 'Recherche de sous-traitants', category: 'sous_traitance' },
     { id: 'rfq_btp', icon: '📋', label: isPt ? 'Orçamentos Fornecedores' : 'Devis Fournisseurs', description: isPt ? 'Pedidos de preço a fornecedores' : 'Demandes de prix fournisseurs', category: 'sous_traitance' },
     { id: 'materiaux', icon: '🧱', label: isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro', description: isPt ? 'Aprovisionamento e preços' : 'Approvisionnement et prix', category: 'sous_traitance' },
+    { id: 'estimation_materiaux', icon: '📐', label: isPt ? 'Estimativa de materiais' : 'Estimation matériaux', description: isPt ? 'Quantitativos DTU e perdas calculadas' : 'Quantitatifs DTU et pertes calculées', category: 'sous_traitance' },
     { id: 'marketplace_btp', icon: '🏪', label: 'Marketplace BTP', description: isPt ? 'Compras entre profissionais' : 'Achats entre professionnels', category: 'sous_traitance' },
     // ── Finances ──
     { id: 'compta_btp', icon: '🧠', label: isPt ? 'Contabilidade IA' : 'Compta Intelligente', description: isPt ? 'Contabilidade assistida por IA' : 'Comptabilité assistée par IA', category: 'finances' },

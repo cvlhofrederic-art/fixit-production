@@ -54,6 +54,7 @@ const PREFETCH_MAP: Record<string, () => void> = {
   messages: () => import('@/components/dashboard/MessagerieArtisan'),
   comptabilite: () => import('@/components/dashboard/ComptabiliteSection'),
   materiaux: () => import('@/components/dashboard/MateriauxSection'),
+  estimation_materiaux: () => import('@/components/dashboard/EstimationMateriauxSection'),
   rapports: () => import('@/components/dashboard/RapportsSection'),
   stats: () => import('@/components/dashboard/StatsRevenusSection'),
   settings: () => import('@/components/dashboard/SettingsSection'),

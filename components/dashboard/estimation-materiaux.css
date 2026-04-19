@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════════
+   Styles spécifiques au module Estimation Matériaux.
+   S'appuie sur les variables --v5-* définies dans dashboard-v5.css.
+   Préfixe `.em-` pour éviter toute collision avec le reste du dashboard.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Toggle Formulaire / IA */
+.em-mode-toggle { display: flex; gap: .4rem; margin-bottom: 1rem; background: #fff; border: 1px solid #E8E8E8; padding: .3rem; border-radius: 6px; width: fit-content; }
+.em-mode-toggle button { padding: .45rem 1rem; font-size: 12px; font-family: inherit; background: transparent; border: none; border-radius: 4px; cursor: pointer; color: #666; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all .15s; }
+.em-mode-toggle button:hover { background: #F5F5F5; }
+.em-mode-toggle button.active { background: var(--v5-primary-yellow); color: #333; font-weight: 600; }
+.em-mode-toggle button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Chips corps d'état */
+.em-trade-chips { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.em-trade-chip { padding: .4rem .8rem; background: #fff; border: 1px solid #E8E8E8; border-radius: 20px; font-size: 11px; font-weight: 500; color: #666; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all .15s; font-family: inherit; }
+.em-trade-chip:hover { border-color: #CCC; background: #FAFAFA; }
+.em-trade-chip.active { background: var(--v5-highlight-yellow); border-color: var(--v5-primary-yellow); color: #8B7D00; font-weight: 600; }
+.em-trade-chip .em-count { background: #E8E8E8; padding: 1px 6px; border-radius: 8px; font-size: 9px; font-weight: 700; color: #999; }
+.em-trade-chip.active .em-count { background: var(--v5-primary-yellow); color: #333; }
+
+/* Layout 2 colonnes */
+.em-form-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+@media (max-width: 980px) { .em-form-split { grid-template-columns: 1fr; } }
+.em-col-t { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: .5rem; letter-spacing: .3px; display: flex; align-items: center; gap: 5px; }
+
+/* Profil chantier */
+.em-profile-bar { display: flex; gap: .6rem; align-items: center; padding: .7rem .9rem; background: #FFF8E1; border: 1px solid #F5C741; border-radius: 5px; margin-bottom: 1rem; font-size: 11px; flex-wrap: wrap; }
+.em-profile-bar .em-pb-label { font-weight: 700; text-transform: uppercase; font-size: 10px; color: #8B7D00; letter-spacing: .3px; }
+.em-profile-bar select { padding: 3px 6px; border: 1px solid #F5C741; background: #fff; border-radius: 3px; font-size: 11px; font-family: inherit; color: #333; }
+.em-profile-bar .em-pb-check { display: flex; align-items: center; gap: 4px; color: #8B7D00; font-weight: 500; cursor: pointer; }
+.em-profile-bar .em-pb-summary { margin-left: auto; font-size: 10px; color: #8B7D00; font-weight: 600; }
+
+/* Project bar */
+.em-project-bar { display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; margin-bottom: 1rem; }
+.em-project-bar input { flex: 1; padding: 6px 10px; border: 1px solid transparent; border-radius: 4px; font-size: 13px; font-weight: 600; font-family: inherit; background: #FAFAFA; color: #1a1a1a; }
+.em-project-bar input:focus { outline: none; border-color: var(--v5-primary-yellow); background: #fff; }
+.em-project-bar .em-proj-meta { font-size: 10px; color: #999; }
+
+/* Recipe cards */
+.em-recipe-grid { display: grid; grid-template-columns: 1fr; gap: .55rem; }
+.em-recipe-card { background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; padding: .8rem .9rem; cursor: pointer; transition: all .15s; position: relative; }
+.em-recipe-card:hover { border-color: var(--v5-primary-yellow); box-shadow: 0 2px 8px rgba(255,193,7,.15); }
+.em-recipe-card .em-rec-trade { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--v5-primary-yellow-dark); letter-spacing: .3px; margin-bottom: .25rem; }
+.em-recipe-card .em-rec-name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: .25rem; line-height: 1.3; }
+.em-recipe-card .em-rec-desc { font-size: 11px; color: #888; line-height: 1.4; margin-bottom: .4rem; }
+.em-recipe-card .em-rec-meta { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; font-size: 10px; color: #999; }
+.em-recipe-card .em-rec-dtu { background: #F5F5F5; padding: 2px 6px; border-radius: 3px; font-weight: 600; color: #666; }
+
+/* Recipe detail (formulaire géométrie inline) */
+.em-recipe-detail { background: #FFF8E1; border: 2px solid var(--v5-primary-yellow); border-radius: 6px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.em-rd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .6rem; }
+.em-rd-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
+.em-rd-desc { font-size: 11px; color: #666; line-height: 1.4; }
+.em-rd-close { background: #fff; border: 1px solid #E8E8E8; border-radius: 3px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #999; font-size: 14px; font-family: inherit; }
+.em-rd-close:hover { background: #FFEBEE; color: #C62828; border-color: #E53935; }
+.em-geo-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; margin-top: .8rem; }
+.em-geo-field { display: flex; flex-direction: column; gap: 3px; }
+.em-geo-field label { font-size: 10px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .2px; }
+.em-geo-field input { padding: 6px 10px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; background: #fff; }
+.em-geo-field input:focus { outline: none; border-color: var(--v5-primary-yellow); }
+
+/* Items list */
+.em-items-list { display: flex; flex-direction: column; gap: .4rem; }
+.em-item-row { display: flex; align-items: center; padding: .6rem .75rem; background: #fff; border: 1px solid #E8E8E8; border-radius: 5px; gap: .7rem; }
+.em-item-row:hover { border-color: #CCC; background: #FAFAFA; }
+.em-item-num { background: var(--v5-primary-yellow); color: #333; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.em-item-info { flex: 1; min-width: 0; }
+.em-item-name { font-size: 12px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.em-item-geo { font-size: 10px; color: #888; }
+.em-item-geo span { background: #F5F5F5; padding: 1px 5px; border-radius: 3px; margin-right: 3px; }
+.em-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.em-item-btn { width: 24px; height: 24px; border-radius: 3px; border: 1px solid #E8E8E8; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999; font-family: inherit; }
+.em-item-btn:hover { border-color: #CCC; }
+.em-item-btn.em-del:hover { background: #FFEBEE; border-color: #E53935; color: #C62828; }
+
+/* Résultats */
+.em-results-header { display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0 .75rem; padding-bottom: .5rem; border-bottom: 2px solid #E8E8E8; gap: .6rem; flex-wrap: wrap; }
+.em-results-header h2 { font-size: 14px; font-weight: 600; margin: 0; }
+.em-res-count { font-size: 11px; color: #888; font-weight: 400; }
+
+/* Summary panel */
+.em-summary-panel { background: linear-gradient(135deg, #FFF8E1 0%, #FFE082 100%); border: 1px solid #F5C741; border-radius: 6px; padding: 1.1rem 1.25rem; margin-bottom: 1.25rem; }
+.em-summary-panel h3 { font-size: 12px; font-weight: 700; color: #8B7D00; text-transform: uppercase; letter-spacing: .3px; margin-bottom: .6rem; display: flex; align-items: center; gap: 6px; }
+.em-sum-lines { background: #fff; border-radius: 4px; padding: .7rem .9rem; font-family: 'SF Mono', 'Monaco', 'Courier New', monospace; font-size: 11px; line-height: 1.7; color: #444; max-height: 260px; overflow-y: auto; }
+.em-sum-line { padding: 2px 0; border-bottom: 1px dashed #F0F0F0; }
+.em-sum-line:last-child { border-bottom: none; }
+.em-sum-actions { display: flex; gap: .5rem; margin-top: .7rem; flex-wrap: wrap; }
+
+/* Warning box */
+.em-warn-box { background: #FFF3E0; border: 1px solid #FFB74D; border-radius: 5px; padding: .6rem .85rem; margin-bottom: .75rem; font-size: 11px; color: #E65100; display: flex; gap: .5rem; align-items: flex-start; }
+.em-warn-icon { flex-shrink: 0; margin-top: 1px; }
+
+/* Material cards */
+.em-material-card { background: #fff; border: 1px solid #E8E8E8; border-radius: 6px; padding: .9rem 1rem; margin-bottom: .5rem; display: flex; align-items: flex-start; gap: .8rem; transition: all .15s; }
+.em-material-card:hover { border-color: #CCC; }
+.em-mat-cat { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.em-mat-cat.em-cat-liant { background: #EDE7F6; color: #5E35B1; }
+.em-mat-cat.em-cat-granulat { background: #EFEBE9; color: #6D4C41; }
+.em-mat-cat.em-cat-acier { background: #ECEFF1; color: #37474F; }
+.em-mat-cat.em-cat-bloc, .em-mat-cat.em-cat-brique { background: #FFF3E0; color: #EF6C00; }
+.em-mat-cat.em-cat-plaque, .em-mat-cat.em-cat-ossature { background: #E3F2FD; color: #1565C0; }
+.em-mat-cat.em-cat-colle, .em-mat-cat.em-cat-joint, .em-mat-cat.em-cat-enduit { background: #F3E5F5; color: #7B1FA2; }
+.em-mat-cat.em-cat-peinture, .em-mat-cat.em-cat-primaire { background: #FFEBEE; color: #C62828; }
+.em-mat-cat.em-cat-carreau { background: #E8F5E9; color: #2E7D32; }
+.em-mat-cat.em-cat-isolant { background: #FFF8E1; color: #F57F17; }
+.em-mat-cat.em-cat-fixation, .em-mat-cat.em-cat-accessoire { background: #E0F7FA; color: #00838F; }
+.em-mat-cat.em-cat-eau { background: #E1F5FE; color: #0277BD; }
+.em-mat-cat.em-cat-etancheite { background: #FCE4EC; color: #AD1457; }
+.em-mat-cat.em-cat-outillage, .em-mat-cat.em-cat-autre, .em-mat-cat.em-cat-adjuvant, .em-mat-cat.em-cat-bois { background: #F5F5F5; color: #616161; }
+.em-mat-body { flex: 1; min-width: 0; }
+.em-mat-name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 3px; }
+.em-mat-refs { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: .4rem; }
+.em-mat-ref { font-size: 9px; font-weight: 600; padding: 1px 7px; border-radius: 3px; background: #F5F5F5; color: #666; }
+.em-mat-ref.em-ref-dtu { background: #E3F2FD; color: #1565C0; }
+.em-mat-ref.em-ref-norm { background: #F3E5F5; color: #7B1FA2; }
+.em-mat-ref.em-ref-manuf { background: #FFF3E0; color: #EF6C00; }
+.em-mat-waste { font-size: 11px; color: #888; line-height: 1.4; }
+.em-waste-pct { display: inline-block; background: #FFF8E1; color: #8B7D00; padding: 1px 6px; border-radius: 3px; font-weight: 600; font-size: 10px; margin-right: 4px; }
+.em-waste-reason { font-style: italic; color: #999; }
+.em-mat-qty { text-align: right; flex-shrink: 0; min-width: 140px; }
+.em-mat-qty-value { font-size: 16px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
+.em-mat-qty-unit { font-size: 12px; font-weight: 500; color: #888; }
+.em-mat-pack { display: inline-block; background: var(--v5-primary-yellow); color: #333; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; margin-top: .4rem; }
+.em-mat-theo { font-size: 10px; color: #999; margin-top: 2px; }
+
+/* Empty state */
+.em-empty { text-align: center; padding: 2.5rem 1rem; color: #999; border: 1px dashed #E8E8E8; border-radius: 6px; background: #FAFAFA; }
+.em-empty-title { font-size: 13px; font-weight: 600; color: #666; margin-bottom: .3rem; }
+.em-empty-desc { font-size: 11px; color: #999; max-width: 400px; margin: 0 auto; }
