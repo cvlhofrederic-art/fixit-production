@@ -143,4 +143,32 @@
 .estim-wrap .final-actions { display: flex; gap: .4rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #F0F0F0; flex-wrap: wrap; }
 .estim-wrap .final-actions .btn-spacer { margin-left: auto; }
 
+/* Phase sections dans les résultats */
+.estim-wrap .phase-section { margin-top: 1.1rem; }
+.estim-wrap .phase-section:first-child { margin-top: 0; }
+.estim-wrap .phase-header { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; margin-bottom: .2rem; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #8B7D00; border-bottom: 1px solid #F0D78C; }
+.estim-wrap .phase-header .phase-icon { font-size: 13px; }
+.estim-wrap .phase-header .phase-count { margin-left: auto; background: #FFF8E1; color: #8B7D00; padding: 1px 8px; border-radius: 8px; font-size: 9px; font-weight: 700; }
+.estim-wrap .phase-header.phase-preparation { color: #7B1FA2; border-bottom-color: #CE93D8; }
+.estim-wrap .phase-header.phase-preparation .phase-count { background: #F3E5F5; color: #7B1FA2; }
+.estim-wrap .phase-header.phase-principal { color: #1a1a1a; border-bottom-color: #E0E0E0; }
+.estim-wrap .phase-header.phase-principal .phase-count { background: #F5F5F5; color: #666; }
+.estim-wrap .phase-header.phase-accessoires { color: #00838F; border-bottom-color: #80DEEA; }
+.estim-wrap .phase-header.phase-accessoires .phase-count { background: #E0F7FA; color: #00838F; }
+.estim-wrap .phase-header.phase-finitions { color: #2E7D32; border-bottom-color: #A5D6A7; }
+.estim-wrap .phase-header.phase-finitions .phase-count { background: #E8F5E9; color: #2E7D32; }
+.estim-wrap .phase-header.phase-options { color: #EF6C00; border-bottom-color: #FFCC80; }
+.estim-wrap .phase-header.phase-options .phase-count { background: #FFF3E0; color: #EF6C00; }
+
+/* Ligne optionnelle : un peu atténuée + badge condition */
+.estim-wrap .mat-line.optional { opacity: .85; }
+.estim-wrap .mat-line .opt-badge { display: inline-block; background: #FFF3E0; color: #EF6C00; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; margin-left: 4px; }
+.estim-wrap .mat-line .opt-condition { display: block; font-size: 10px; color: #EF6C00; font-style: italic; margin-top: 3px; }
+
+/* Hypothèses IA */
+.estim-wrap .hypotheses-box { margin-top: 1rem; padding: .75rem .9rem; background: #FFF8E1; border: 1px solid #F0D78C; border-radius: 6px; }
+.estim-wrap .hypotheses-box h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: #8B7D00; margin-bottom: .4rem; display: flex; align-items: center; gap: 5px; }
+.estim-wrap .hypotheses-box ul { margin: 0; padding-left: 1.1rem; font-size: 11px; color: #555; line-height: 1.55; }
+.estim-wrap .hypotheses-box li { margin-bottom: 2px; }
+
 .estim-wrap .hidden { display: none; }

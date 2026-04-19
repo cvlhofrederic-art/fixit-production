@@ -407,13 +407,23 @@ function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
 
   return (
     <div>
-      <div className="mat-line">
+      <div className={`mat-line ${need.optional ? 'optional' : ''}`}>
         <div className="mat-line-left">
-          <div className="mat-line-name">{need.name}</div>
+          <div className="mat-line-name">
+            {need.name}
+            {need.optional && (
+              <span className="opt-badge" title={isPt ? 'Opcional' : 'Optionnel'}>
+                {isPt ? 'OPTION' : 'OPTION'}
+              </span>
+            )}
+          </div>
           <div className="mat-line-ref">
             <span className="dtu-tag">{dtu}</span>
             +{fr(need.wasteBreakdown.totalPercent, 1)}% {isPt ? 'perdas' : 'pertes'}
           </div>
+          {need.optional && need.condition && (
+            <span className="opt-condition">💡 {need.condition}</span>
+          )}
         </div>
         <div className="mat-line-right">
           <div className="mat-line-qty">{formatQty(need.quantityWithWaste, need.unit)} {need.unit}</div>
@@ -441,6 +451,117 @@ function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
         <div className="detail-row">
           <span className="detail-label">{isPt ? 'Referências' : 'Références'}</span>{' '}
           {need.references.join(' · ')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Panneau de résultats groupés par phase
+   ═══════════════════════════════════════════════════════════ */
+const PHASE_META_FR: Record<string, { icon: string; label: string }> = {
+  preparation: { icon: '🧱', label: 'Préparation (amont)' },
+  principal: { icon: '📦', label: 'Ouvrage principal' },
+  accessoires: { icon: '⚙️', label: 'Accessoires d\'exécution' },
+  finitions: { icon: '✨', label: 'Finitions' },
+  options: { icon: '➕', label: 'Options conditionnelles' },
+}
+const PHASE_META_PT: Record<string, { icon: string; label: string }> = {
+  preparation: { icon: '🧱', label: 'Preparação (a montante)' },
+  principal: { icon: '📦', label: 'Obra principal' },
+  accessoires: { icon: '⚙️', label: 'Acessórios de execução' },
+  finitions: { icon: '✨', label: 'Acabamentos' },
+  options: { icon: '➕', label: 'Opções condicionais' },
+}
+
+interface ResultsPanelProps {
+  result: EstimationResult
+  isPt: boolean
+  copied: boolean
+  onCopy: () => void
+  onSoon: () => void
+  onOrder: () => void
+}
+
+function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: ResultsPanelProps) {
+  // Regroupe aggregated en 5 buckets : preparation / principal / accessoires / finitions / options
+  const groups = useMemo(() => {
+    const g = {
+      preparation: [] as typeof result.aggregated,
+      principal: [] as typeof result.aggregated,
+      accessoires: [] as typeof result.aggregated,
+      finitions: [] as typeof result.aggregated,
+      options: [] as typeof result.aggregated,
+    }
+    for (const m of result.aggregated) {
+      if (m.optional) g.options.push(m)
+      else g[m.phase].push(m)
+    }
+    return g
+  }, [result.aggregated])
+
+  const meta = isPt ? PHASE_META_PT : PHASE_META_FR
+
+  const renderSection = (key: keyof typeof groups) => {
+    const arr = groups[key]
+    if (arr.length === 0) return null
+    return (
+      <div key={key} className="phase-section">
+        <div className={`phase-header phase-${key}`}>
+          <span className="phase-icon">{meta[key].icon}</span>
+          <span>{meta[key].label}</span>
+          <span className="phase-count">{arr.length}</span>
+        </div>
+        <div className="mat-list">
+          {arr.map(m => (
+            <MatLine
+              key={`${m.id}-${m.unit}-${m.phase}-${m.optional ? 'opt' : 'req'}`}
+              need={m}
+              isPt={isPt}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="results-section show">
+      <div className="v5-card">
+        <div className="result-headline">
+          <h2>📦 {isPt ? 'Materiais necessários' : 'Matériaux nécessaires'}</h2>
+          <div className="res-label">
+            {result.aggregated.length} {isPt ? 'materiais calculados para' : 'matériaux calculés pour'}{' '}
+            {result.items.length} {isPt ? 'obras' : 'ouvrages'}
+            {groups.options.length > 0 && (
+              <> · <strong>{groups.options.length} {isPt ? 'opção(ões)' : 'option(s)'}</strong></>
+            )}
+          </div>
+        </div>
+
+        {renderSection('preparation')}
+        {renderSection('principal')}
+        {renderSection('accessoires')}
+        {renderSection('finitions')}
+        {renderSection('options')}
+
+        {result.hypothesesACommuniquer && result.hypothesesACommuniquer.length > 0 && (
+          <div className="hypotheses-box">
+            <h3>💡 {isPt ? 'Hipóteses do estimador' : 'Hypothèses de l\'estimateur'}</h3>
+            <ul>
+              {result.hypothesesACommuniquer.map((h, i) => <li key={i}>{h}</li>)}
+            </ul>
+          </div>
+        )}
+
+        <div className="final-actions">
+          <button type="button" className="v5-btn" onClick={onCopy}>
+            📋 {copied ? (isPt ? '✓ Copiado!' : '✓ Copié !') : (isPt ? 'Copiar a lista' : 'Copier la liste')}
+          </button>
+          <button type="button" className="v5-btn" onClick={onSoon}>📄 {isPt ? 'Exportar PDF' : 'Export PDF'}</button>
+          <button type="button" className="v5-btn" onClick={onSoon}>📧 {isPt ? 'Enviar' : 'Envoyer'}</button>
+          <button type="button" className="v5-btn v5-btn-p btn-spacer" onClick={onOrder}>🛒 {isPt ? 'Encomendar' : 'Commander'}</button>
         </div>
       </div>
     </div>
@@ -859,32 +980,14 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
 
         {/* RÉSULTATS */}
         {result && (
-          <div className="results-section show">
-            <div className="v5-card">
-              <div className="result-headline">
-                <h2>📦 {isPt ? 'Materiais necessários' : 'Matériaux nécessaires'}</h2>
-                <div className="res-label">
-                  {result.aggregated.length} {isPt ? 'materiais calculados para' : 'matériaux calculés pour'}{' '}
-                  {result.items.length} {isPt ? 'obras' : 'ouvrages'}
-                </div>
-              </div>
-
-              <div className="mat-list">
-                {result.aggregated.map(m => (
-                  <MatLine key={`${m.id}-${m.unit}`} need={m} isPt={isPt} />
-                ))}
-              </div>
-
-              <div className="final-actions">
-                <button type="button" className="v5-btn" onClick={copyList}>
-                  📋 {copied ? (isPt ? '✓ Copiado!' : '✓ Copié !') : (isPt ? 'Copiar a lista' : 'Copier la liste')}
-                </button>
-                <button type="button" className="v5-btn" onClick={soonAlert}>📄 {isPt ? 'Exportar PDF' : 'Export PDF'}</button>
-                <button type="button" className="v5-btn" onClick={soonAlert}>📧 {isPt ? 'Enviar' : 'Envoyer'}</button>
-                <button type="button" className="v5-btn v5-btn-p btn-spacer" onClick={goToMateriaux}>🛒 {isPt ? 'Encomendar' : 'Commander'}</button>
-              </div>
-            </div>
-          </div>
+          <ResultsPanel
+            result={result}
+            isPt={isPt}
+            copied={copied}
+            onCopy={copyList}
+            onSoon={soonAlert}
+            onOrder={goToMateriaux}
+          />
         )}
       </div>
     </div>

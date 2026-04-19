@@ -26,36 +26,57 @@ export const carrelageRecipes: Recipe[] = [
     dtuReferences: [
       { code: 'DTU 52.2', title: 'Pose collée des revêtements céramiques et assimilés' },
     ],
-    version: '2.0.0',
+    version: '2.1.0',
     constraints: {
       minArea: 2,
       note: 'Format > 30×30 → double encollage obligatoire (DTU 52.2 § 6.4).',
     },
+    hypothesesACommuniquer: [
+      'Support supposé chape ciment ou dalle béton planche (tolérance 5 mm à la règle 2 m)',
+      'Pose droite (perte 10%) — majorer à 15% pour pose diagonale ou mosaïque',
+      'Primaire d\'accrochage inclus (obligatoire DTU 52.2 § 6.2)',
+      'Joints 3 mm type Ultracolor (format par format)',
+      'Joint périphérique silicone obligatoire (DTU 52.2 § 7.4 — dilatation)',
+      'Ragréage autolissant NON inclus — à ajouter si planéité du support non conforme',
+      'Plinthes assorties NON incluses — à ajouter au linéaire périmètre',
+    ],
     materials: [
-      {
-        id: 'carreau-gres-cerame-45', name: 'Carreau grès cérame 45×45',
-        category: 'carreau', quantityPerBase: 1, unit: 'm2', geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Découpes rives + coupes standards (DTU 52.2)',
-        dtu: 'DTU 52.2 § 5', notes: 'Pose droite. Majorer à 15% pour pose diagonale.',
-      },
+      // ═══════════ PRÉPARATION ═══════════
       {
         id: 'primaire-accrochage-sol', name: 'Primaire d\'accrochage (sur chape/béton)',
-        category: 'primaire', quantityPerBase: 0.15, unit: 'kg', geometryMultiplier: 'none',
+        category: 'primaire', phase: 'preparation', quantityPerBase: 0.15, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Bac + résidus pinceau',
         dtu: 'DTU 52.2 § 6.2', manufacturerRef: 'Weber Prim — 150 g/m² dilué',
         packaging: { unit: 'pot', contentQty: 5, contentUnit: 'kg', label: 'bidon 5 kg' },
       },
       {
+        id: 'ragreage-autolissant', name: 'Ragréage autolissant P3 (épaisseur 3 mm)',
+        category: 'enduit', phase: 'preparation', quantityPerBase: 5, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Résidus bac, sur-dosage',
+        dtu: 'DTU 52.2 § 6.2', manufacturerRef: 'Weber Niv Lex',
+        packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
+        optional: true,
+        condition: 'Si planéité support > 5 mm à la règle 2 m',
+      },
+      // ═══════════ PRINCIPAL ═══════════
+      {
+        id: 'carreau-gres-cerame-45', name: 'Carreau grès cérame 45×45',
+        category: 'carreau', phase: 'principal', quantityPerBase: 1, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Découpes rives + coupes standards (DTU 52.2)',
+        dtu: 'DTU 52.2 § 5', notes: 'Pose droite. Majorer à 15% pour pose diagonale.',
+      },
+      {
         id: 'colle-carrelage-c2', name: 'Mortier-colle C2 amélioré (double encollage peigne U9)',
-        category: 'colle', quantityPerBase: 5, unit: 'kg', geometryMultiplier: 'none',
+        category: 'colle', phase: 'principal', quantityPerBase: 5, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.12, wasteReason: 'Résidus bac + sur-dosage pratique',
         dtu: 'DTU 52.2 § 6.4', normRef: 'NF EN 12004 - classe C2',
         manufacturerRef: 'Weber colflex / Mapei Keraflex - 5 kg/m² double encollage',
         packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
       },
+      // ═══════════ ACCESSOIRES ═══════════
       {
         id: 'joint-carrelage-3mm', name: 'Joint mortier ciment (joints 3 mm)',
-        category: 'joint', quantityPerBase: 0.24, unit: 'kg', geometryMultiplier: 'none',
+        category: 'joint', phase: 'accessoires', quantityPerBase: 0.24, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Résidus, sur-dosage',
         dtu: 'DTU 52.2 § 7', manufacturerRef: 'Mapei Ultracolor Plus - formule par format',
         packaging: { unit: 'sac', contentQty: 5, contentUnit: 'kg', label: 'sac 5 kg' },
@@ -63,18 +84,28 @@ export const carrelageRecipes: Recipe[] = [
       },
       {
         id: 'croisillons-3mm', name: 'Croisillons auto-nivelants 3 mm',
-        category: 'accessoire', quantityPerBase: 5, unit: 'u', geometryMultiplier: 'none',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 5, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.20, wasteReason: 'Perte chantier, non récupérés',
         notes: 'Base : 1 croisillon/intersection = 1/(0,45×0,45) ≈ 5/m² (pas 4 par carreau !).',
         packaging: { unit: 'u', contentQty: 500, contentUnit: 'u', label: 'sachet 500 pièces' },
       },
+      // ═══════════ FINITIONS ═══════════
       {
         id: 'silicone-sanitaire', name: 'Silicone sanitaire (joint périphérique)',
-        category: 'joint', quantityPerBase: 0.4, unit: 'ml', geometryMultiplier: 'none',
+        category: 'joint', phase: 'finitions', quantityPerBase: 0.4, unit: 'ml', geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Purge début cartouche',
         dtu: 'DTU 52.2 § 7.4 - joint périphérique obligatoire',
         packaging: { unit: 'cartouche', contentQty: 12, contentUnit: 'ml', label: 'cartouche 310 ml (~12 ml joint)' },
         notes: 'Rendement cartouche pour joint 6×6 mm.',
+      },
+      // ═══════════ OPTIONS ═══════════
+      {
+        id: 'plinthe-assortie', name: 'Plinthe assortie (8 cm H) — linéaire périmètre',
+        category: 'carreau', phase: 'finitions', quantityPerBase: 1, unit: 'ml', geometryMultiplier: 'perimeter',
+        wasteFactor: 1.10, wasteReason: 'Coupes angles',
+        dtu: 'DTU 52.2',
+        optional: true,
+        condition: 'Si finition périphérique avec plinthe assortie (recommandé)',
       },
     ],
   },

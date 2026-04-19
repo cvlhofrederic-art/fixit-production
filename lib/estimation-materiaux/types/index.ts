@@ -62,10 +62,22 @@ export const MaterialCategorySchema = z.enum([
 ]);
 export type MaterialCategory = z.infer<typeof MaterialCategorySchema>;
 
+/**
+ * Phase d'un matériau dans le cycle d'exécution de l'ouvrage :
+ * - preparation : travaux amont (support, hérisson, primaire, ragréage…)
+ * - principal   : matériau porteur de l'ouvrage (béton, parpaing, carreau…)
+ * - accessoires : fixations, joints, adjuvants, cure, croisillons…
+ * - finitions   : cycle final (hydrofuge, vernis, joint de façade…)
+ */
+export const MaterialPhaseSchema = z.enum(['preparation', 'principal', 'accessoires', 'finitions']);
+export type MaterialPhase = z.infer<typeof MaterialPhaseSchema>;
+
 export const RecipeMaterialSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: MaterialCategorySchema,
+  /** Phase du cycle d'exécution. Défaut 'principal' pour backward compat. */
+  phase: MaterialPhaseSchema.default('principal'),
   /** Quantité par unité de base (m², m³, ml, u) */
   quantityPerBase: z.number().positive(),
   unit: PhysicalUnitSchema,
@@ -73,7 +85,7 @@ export const RecipeMaterialSchema = z.object({
    * Si le ratio dépend d'un paramètre géométrique (ex: épaisseur dalle),
    * multiplicateur à appliquer.
    */
-  geometryMultiplier: z.enum(['thickness', 'height', 'coats', 'none']).default('none'),
+  geometryMultiplier: z.enum(['thickness', 'height', 'coats', 'perimeter', 'none']).default('none'),
   /** Coefficient de perte : 1.05 = 5% */
   wasteFactor: z.number().min(1).max(2).default(1.05),
   /** Justification textuelle de la perte (affichée à l'artisan) */
@@ -90,6 +102,13 @@ export const RecipeMaterialSchema = z.object({
     label: z.string(),
   }).optional(),
   notes: z.string().optional(),
+  /**
+   * Matériau optionnel : non inclus par défaut, l'IA ou l'utilisateur
+   * peut le rajouter si sa `condition` s'applique (ex: RE2020, zone humide).
+   */
+  optional: z.boolean().default(false),
+  /** Si optional=true : quand inclure ce matériau (affiché à l'utilisateur). */
+  condition: z.string().optional(),
 });
 export type RecipeMaterial = z.infer<typeof RecipeMaterialSchema>;
 
@@ -122,6 +141,12 @@ export const RecipeSchema = z.object({
     title: z.string(),        // "Exécution des ouvrages en béton"
     section: z.string().optional(),
   })),
+  /**
+   * Hypothèses que l'IA (ou l'estimateur) doit communiquer à l'artisan
+   * pour que le devis soit complet et auditable.
+   * Ex: "Hérisson 20 cm supposé, à adapter selon portance sol"
+   */
+  hypothesesACommuniquer: z.array(z.string()).default([]),
   version: z.string().default('2.0.0'),
 });
 export type Recipe = z.infer<typeof RecipeSchema>;
@@ -149,6 +174,9 @@ export const MaterialNeedSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: MaterialCategorySchema,
+  phase: MaterialPhaseSchema.default('principal'),
+  optional: z.boolean().default(false),
+  condition: z.string().optional(),
   theoreticalQuantity: z.number(),
   quantityWithWaste: z.number(),
   unit: PhysicalUnitSchema,
@@ -189,9 +217,12 @@ export const EstimationResultSchema = z.object({
     })),
     materials: z.array(MaterialNeedSchema),
     warnings: z.array(z.string()),
+    hypotheses: z.array(z.string()).default([]),
   })),
   aggregated: z.array(MaterialNeedSchema),
   warnings: z.array(z.string()),
+  /** Hypothèses consolidées (union des hypothèses des recettes utilisées) */
+  hypothesesACommuniquer: z.array(z.string()).default([]),
   /** Résumé lisible pour l'artisan */
   humanSummary: z.array(z.string()),
 });

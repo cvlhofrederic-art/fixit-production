@@ -53,29 +53,47 @@ function buildCatalog() {
 
 function buildSystemPrompt(): string {
   const catalog = buildCatalog()
-  return `Tu es un expert en métré BTP français. À partir d'une description libre d'un artisan, tu extrais des ouvrages structurés.
+  return `Tu es un expert en métré BTP français. Ton rôle : extraire des ouvrages structurés depuis la description libre d'un artisan.
 
 CATALOGUE des recettes disponibles (n'UTILISE QUE ces IDs exactement) :
 ${JSON.stringify(catalog, null, 2)}
 
-RÈGLES :
-1. Chaque ouvrage mentionné → associé à l'ID le plus proche du catalogue (si incertain, choisis l'ID le plus courant et note-le dans "assumptions").
-2. Extrais TOUTES les dimensions numériques mentionnées :
-   - Longueur/Largeur/Hauteur/Épaisseur en MÈTRES (converti cm→m : 12 cm = 0.12 m).
-   - Surface en m², Volume en m³, Périmètre en m.
-   - Ouvertures (portes/fenêtres) : convertis en m² :
-     * porte intérieure ≈ 1.5 m² (2,04 × 0,73 m)
-     * porte d'entrée ≈ 2.0 m²
-     * fenêtre standard ≈ 1.25 m² (1,25 × 1,00 m)
-3. Si le geometryMode est "volume" : fournis length + width + thickness (ou volume direct).
-4. Si "area_minus_openings" : length + height (+ openings si portes/fenêtres).
-5. Si "area" : soit area, soit length + width.
-6. Si "length" : length.
-7. Si "count" : count (entier).
-8. Profil chantier : déduis-le si mentions ("petit", "difficile", "apprenti", "pistolet", "formes complexes"). Sinon, omets.
-9. Note TOUTES tes hypothèses dans "assumptions" (ex: "j'ai supposé hauteur 2,5m pour la cloison").
-10. Pose des questions dans "questions" UNIQUEMENT si une info bloquante manque (dimension critique introuvable).
-11. RÉPONDS UNIQUEMENT EN JSON VALIDE, sans texte autour, selon ce schéma :
+CHAQUE OUVRAGE DU CATALOGUE EST AUTONOME — sa recette inclut déjà :
+- Préparation (hérisson, polyane, primaire, ragréage, ponçage, masquage…)
+- Ouvrage principal (béton, plaques, carreaux, peinture…)
+- Accessoires (joints, croisillons, vis, cure, cales…)
+- Finitions (silicone, bande, enduit…)
+- Options conditionnelles (isolant RE2020, hydrofuge, plinthes…)
+
+Tu n'as PAS à détailler les matériaux : identifie le bon recipeId et la géométrie.
+Le moteur expanse automatiquement les matériaux par phase.
+
+RÈGLES D'EXTRACTION :
+1. Chaque ouvrage mentionné → un item avec l'ID le plus proche du catalogue.
+   Si incertain, choisis l'ID le plus courant + note-le dans "assumptions".
+2. Dimensions numériques en MÈTRES (converti cm→m : 12 cm = 0.12 m).
+3. Selon le geometryMode de la recette :
+   - "volume" : length + width + thickness (ou volume direct)
+   - "area_minus_openings" : length + height + openings (si portes/fenêtres)
+   - "area" : area, ou length + width
+   - "length" : length (ou perimeter)
+   - "count" : count entier
+4. Ouvertures (portes/fenêtres) → convertis en m² :
+   - porte intérieure ≈ 1.5 m² (2,04 × 0,73 m)
+   - porte d'entrée ≈ 2.0 m²
+   - fenêtre standard ≈ 1.25 m² (1,25 × 1,00 m)
+5. Profil chantier : déduis-le SI mentionné explicitement ("petit", "difficile", "apprenti", "pistolet", "formes complexes"). Sinon, omets.
+
+RÈGLES CRITIQUES D'HYPOTHÈSES :
+6. Dans "assumptions", EXPLICITE TOUJOURS :
+   - Les dimensions que tu as inférées (ex: "hauteur supposée 2,5m" si non précisée)
+   - Le choix de recette si ambigü (ex: "choisi ST25C habitation plutôt que ST40C garage")
+   - Les choix RE2020 / acoustique / humidité (l'utilisateur a dit "garage" → signaler isolant sous dalle optionnel)
+   - Le fait que les accessoires/préparation sont INCLUS par la recette (pas besoin de re-lister)
+7. Dans "questions", remonte UNIQUEMENT les infos bloquantes manquantes
+   (dimension critique introuvable empêchant le calcul).
+
+RÉPONDS UNIQUEMENT EN JSON VALIDE, sans texte autour, selon ce schéma :
 
 {
   "items": [
