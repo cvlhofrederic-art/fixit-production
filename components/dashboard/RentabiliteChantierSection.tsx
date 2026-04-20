@@ -3,6 +3,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { DollarSign, Settings, HardHat, MapPin, CheckCircle, AlertTriangle, AlertCircle, Boxes, Truck, Hourglass, SlidersHorizontal } from 'lucide-react'
+import { calculeRentabilite } from '@/lib/rentabilite/engine'
+import { loadRefTaux } from '@/lib/rentabilite/ref-taux'
+import { calculeQuotePartFixes } from '@/lib/rentabilite/repartition'
+import { useBTPSettings } from '@/lib/hooks/use-btp-data'
+import { formatPrice } from '@/lib/utils'
+import type { RefTaux, ResultatRentabilite, FormeJuridique, Juridiction } from '@/lib/rentabilite/types'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RENTABILITÉ CHANTIER — Module PRO BTP
@@ -144,6 +150,33 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
   const locale = useLocale()
   const isPt = locale === 'pt'
   const t = (fr: string, pt: string) => isPt ? pt : fr
+
+  // ── Engine integration ─────────────────────────────────────────────────────
+  const { settings } = useBTPSettings()
+  const [refTaux, setRefTaux] = useState<RefTaux[]>([])
+  const [resultats, setResultats] = useState<Record<string, ResultatRentabilite>>({})
+  const [chargesFixesMensuel, setChargesFixesMensuel] = useState(0)
+
+  useEffect(() => {
+    loadRefTaux().then(setRefTaux).catch(console.error)
+  }, [])
+
+  useEffect(() => {
+    const fetchFixes = async () => {
+      const res = await fetch('/api/btp?table=charges_fixes')
+      if (res.ok) {
+        const data = await res.json()
+        const mensuel = data.reduce((sum: number, c: any) => {
+          if (c.frequence === 'mensuel') return sum + Number(c.montant)
+          if (c.frequence === 'trimestriel') return sum + Number(c.montant) / 3
+          if (c.frequence === 'annuel') return sum + Number(c.montant) / 12
+          return sum
+        }, 0)
+        setChargesFixesMensuel(mensuel)
+      }
+    }
+    fetchFixes()
+  }, [])
 
   // ── Config coût horaire par type de poste ──────────────────────────────────
   const [coutsHoraires, setCoutsHoraires] = useState<Record<string, number>>(() => {
@@ -303,6 +336,45 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
       })
       .sort((a, b) => b.beneficeNet - a.beneficeNet)
   }, [chantiers, pointages, membres, expenses, situations, documents, coutsHoraires])
+
+  // ── Compute engine results for each chantier ───────────────────────────────
+  useEffect(() => {
+    if (refTaux.length === 0 || !financials.length) return
+
+    const formeJuridique = (settings?.statut_juridique || 'auto_entrepreneur') as FormeJuridique
+    const juridiction: Juridiction = (settings?.country || (isPt ? 'PT' : 'FR')) as Juridiction
+    const caTotalPeriode = financials.reduce((sum, f) => sum + f.caTotal, 0)
+
+    const computed: Record<string, ResultatRentabilite> = {}
+    for (const f of financials) {
+      const quotePartFixes = calculeQuotePartFixes({
+        mode: 'prorata_ca',
+        ca_chantier: f.caTotal,
+        ca_total_periode: caTotalPeriode,
+        jours_chantier: f.joursReel,
+        jours_total_periode: 22,
+        charges_fixes_mensuelles: chargesFixesMensuel,
+        duree_mois: 1,
+      })
+      computed[f.chantier.id] = calculeRentabilite({
+        chantier_id: f.chantier.id,
+        montant_facture_ht: f.caTotal,
+        montant_devis_ht: parseFloat(f.chantier.budget) || 0,
+        couts: {
+          materiaux: f.coutMateriaux,
+          main_oeuvre: f.coutMainOeuvre,
+          sous_traitance: 0,
+          frais_annexes: f.coutAutres,
+        },
+        masse_salariale_brute: f.coutMainOeuvre,
+        juridiction,
+        forme_juridique: formeJuridique,
+        regime_tva: settings?.regime_tva || 'reel_normal',
+        periode: new Date(),
+      }, refTaux, quotePartFixes)
+    }
+    setResultats(computed)
+  }, [refTaux, financials, chargesFixesMensuel, settings, isPt])
 
   const selected = financials.find(f => f.chantier.id === selectedId) || null
 
@@ -483,34 +555,91 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
               <div
                 key={f.chantier.id}
                 className={isV5 ? 'v5-card' : 'v22-card'}
-                onClick={() => { setSelectedId(f.chantier.id); resetSim() }}
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, borderLeft: `3px solid ${f.badgeColor}` }}
+                style={{ cursor: 'pointer', borderLeft: `3px solid ${f.badgeColor}` }}
               >
-                <div style={{
-                  width: 40, height: 40, borderRadius: '50%', background: f.badgeColor + '18',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 800, fontSize: 16, color: f.badgeColor, flexShrink: 0,
-                }}>
-                  {f.score}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{f.chantier.titre}</div>
-                  <div style={{ color: '#999', fontSize: 11, marginTop: 2 }}>
-                    {f.chantier.adresse || f.chantier.client} · {f.chantier.statut}
-                    {f.joursReel > 0 && ` · ${f.joursReel}j`}
+                {/* ── Ligne principale ── */}
+                <div
+                  onClick={() => { setSelectedId(f.chantier.id); resetSim() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14 }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%', background: f.badgeColor + '18',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 800, fontSize: 16, color: f.badgeColor, flexShrink: 0,
+                  }}>
+                    {f.score}
                   </div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: f.beneficeNet >= 0 ? '#2E7D32' : '#C62828' }}>
-                    {f.beneficeNet >= 0 ? '+' : ''}{fmt(f.beneficeNet)} &euro;
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{f.chantier.titre}</div>
+                    <div style={{ color: '#999', fontSize: 11, marginTop: 2 }}>
+                      {f.chantier.adresse || f.chantier.client} · {f.chantier.statut}
+                      {f.joursReel > 0 && ` · ${f.joursReel}j`}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 10, color: '#999' }}>
-                    {fmtPct(f.margePercent)} · {fmt(f.caTotal)} &euro; CA
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: f.beneficeNet >= 0 ? '#2E7D32' : '#C62828' }}>
+                      {f.beneficeNet >= 0 ? '+' : ''}{fmt(f.beneficeNet)} &euro;
+                    </div>
+                    <div style={{ fontSize: 10, color: '#999' }}>
+                      {fmtPct(f.margePercent)} · {fmt(f.caTotal)} &euro; CA
+                    </div>
                   </div>
+                  <span className={isV5 ? `v5-badge ${f.badge === 'rentable' ? 'v5-badge-green' : f.badge === 'moyen' ? 'v5-badge-orange' : 'v5-badge-red'}` : `v22-tag ${f.badge === 'rentable' ? 'v22-tag-green' : f.badge === 'moyen' ? 'v22-tag-orange' : 'v22-tag-red'}`}>
+                    {BADGE_LABELS[f.badge] && <BadgeIcon type={BADGE_LABELS[f.badge].icon} />}{BADGE_LABELS[f.badge]?.[isPt ? 'pt' : 'fr']}
+                  </span>
                 </div>
-                <span className={isV5 ? `v5-badge ${f.badge === 'rentable' ? 'v5-badge-green' : f.badge === 'moyen' ? 'v5-badge-orange' : 'v5-badge-red'}` : `v22-tag ${f.badge === 'rentable' ? 'v22-tag-green' : f.badge === 'moyen' ? 'v22-tag-orange' : 'v22-tag-red'}`}>
-                  {BADGE_LABELS[f.badge] && <BadgeIcon type={BADGE_LABELS[f.badge].icon} />}{BADGE_LABELS[f.badge]?.[isPt ? 'pt' : 'fr']}
-                </span>
+
+                {/* ── Level 1 — Bénéfice net réel (engine) ── */}
+                {resultats[f.chantier.id] && (() => {
+                  const res = resultats[f.chantier.id]
+                  const color = res.statut === 'rentable' ? 'bg-green-50 text-green-700' :
+                    res.statut === 'juste' ? 'bg-orange-50 text-orange-700' : 'bg-red-50 text-red-700'
+                  return (
+                    <div className={`rounded-lg p-3 mt-2 ${color}`}>
+                      <div className="text-lg font-bold">
+                        {isPt ? 'Esta obra rendeu-te' : "Ce chantier t'a rapporté"} {formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}
+                      </div>
+                      <div className="text-sm">Marge nette : {res.taux_marge_nette.toFixed(1)}%</div>
+
+                      {/* ── Level 2 — Détail des charges ── */}
+                      <details className="mt-2">
+                        <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">{t('Voir le détail des charges', 'Ver detalhe dos encargos')}</summary>
+                        <div className="mt-2 space-y-1 text-sm bg-gray-50 rounded-lg p-3">
+                          <div className="flex justify-between"><span>{t('Marge brute', 'Margem bruta')}</span><span className="font-medium">{formatPrice(res.marge_brute, isPt ? 'pt' : 'fr')}</span></div>
+                          <div className="flex justify-between"><span>{t('Charges sociales', 'Encargos sociais')}</span><span className="text-red-600">-{formatPrice(res.charges_sociales, isPt ? 'pt' : 'fr')}</span></div>
+                          <div className="flex justify-between"><span>{t('Charges fixes', 'Encargos fixos')}</span><span className="text-red-600">-{formatPrice(res.quote_part_fixes, isPt ? 'pt' : 'fr')}</span></div>
+                          <div className="flex justify-between"><span>{t(`Impôt (${isPt ? 'IRC' : 'IS'})`, `Imposto (${isPt ? 'IRC' : 'IS'})`)}</span><span className="text-red-600">-{formatPrice(res.charges_fiscales, isPt ? 'pt' : 'fr')}</span></div>
+                          <div className="flex justify-between border-t pt-1 font-semibold"><span>{t('Net dans ta poche', 'Líquido no teu bolso')}</span><span>{formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}</span></div>
+                        </div>
+                      </details>
+
+                      {/* ── Level 3 — Écart devis vs réalisé ── */}
+                      {res.ecart_devis.total.prevu > 0 && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">{t('Écart devis vs réalisé', 'Desvio orçamento vs real')}</summary>
+                          <div className="mt-2 text-xs bg-gray-50 rounded-lg p-3">
+                            <div className="grid grid-cols-4 gap-1 font-semibold text-gray-600 mb-1">
+                              <div></div><div className="text-right">{t('Prévu', 'Previsto')}</div><div className="text-right">{t('Réel', 'Real')}</div><div className="text-right">{t('Écart', 'Desvio')}</div>
+                            </div>
+                            {(['materiaux', 'main_oeuvre', 'sous_traitance', 'frais_annexes'] as const).map(poste => {
+                              const e = res.ecart_devis[poste]
+                              if (e.prevu === 0 && e.reel === 0) return null
+                              const ecartColor = Math.abs(e.ecart_pct) < 5 ? 'text-green-600' : Math.abs(e.ecart_pct) < 15 ? 'text-orange-600' : 'text-red-600'
+                              return (
+                                <div key={poste} className="grid grid-cols-4 gap-1">
+                                  <div className="capitalize">{poste.replace('_', ' ')}</div>
+                                  <div className="text-right">{formatPrice(e.prevu, isPt ? 'pt' : 'fr')}</div>
+                                  <div className="text-right">{formatPrice(e.reel, isPt ? 'pt' : 'fr')}</div>
+                                  <div className={`text-right font-medium ${ecartColor}`}>{e.ecart_pct > 0 ? '+' : ''}{e.ecart_pct.toFixed(1)}%</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>
