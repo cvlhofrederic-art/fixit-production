@@ -9,7 +9,7 @@ import type { Recipe } from '../../types'
  * - NF DTU 43.5   Réfection étanchéité
  * - NF DTU 44.1   Étanchéité joints façades
  * - NF DTU 14.1   Cuvelage (parties enterrées)
- * - NF DTU 52.10  Systèmes d'étanchéité sous carrelage (SPEC — SDB)
+ * - NF DTU 52.2 P1-1-4 Système de Protection à l'Eau sous Carrelage — SPEC (Mai 2022, SDB)
  */
 
 export const etancheiteRecipes: Recipe[] = [
@@ -176,7 +176,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 52.10 (Septembre 2013)', title: 'Systèmes d\'étanchéité sous carrelage (SPEC)' },
+      { code: 'NF DTU 52.2 P1-1-4 (Mai 2022)', title: 'SPEC — Système de Protection à l\'Eau sous Carrelage' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -191,13 +191,13 @@ export const etancheiteRecipes: Recipe[] = [
         id: 'primaire-spec', name: 'Primaire bitumineux ou époxy (selon système)',
         category: 'primaire', phase: 'preparation', quantityPerBase: 0.15, unit: 'L', geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Bac',
-        dtu: 'NF DTU 52.10',
+        dtu: 'NF DTU 52.2 P1-1-4',
       },
       {
         id: 'membrane-spec', name: 'Membrane SPEC (résine liquide bicomposant)',
         category: 'etancheite', phase: 'principal', quantityPerBase: 1.5, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Bac + sur-dosage',
-        dtu: 'NF DTU 52.10',
+        dtu: 'NF DTU 52.2 P1-1-4',
         manufacturerRef: 'Mapei Mapegum WPS / Weber.sys Protect / Sika Sanisol',
         packaging: { unit: 'u', contentQty: 8, contentUnit: 'kg', label: 'bidon 8 kg' },
       },
@@ -205,7 +205,7 @@ export const etancheiteRecipes: Recipe[] = [
         id: 'bande-angle-armee-spec', name: 'Bande d\'angle armée (jonctions sol/mur)',
         category: 'etancheite', phase: 'accessoires', quantityPerBase: 1, unit: 'ml', geometryMultiplier: 'perimeter',
         wasteFactor: 1.05, wasteReason: 'Coupes angles',
-        dtu: 'NF DTU 52.10',
+        dtu: 'NF DTU 52.2 P1-1-4',
       },
       {
         id: 'manchette-perforation-spec', name: 'Manchettes bonde + canalisations',
@@ -266,7 +266,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie', section: '§5.6 drainage mur enterré' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: '§5.6 drainage mur enterré' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

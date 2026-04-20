@@ -317,7 +317,7 @@ export const maconnerieRecipes: Recipe[] = [
         category: 'accessoire', phase: 'preparation', quantityPerBase: 1, unit: 'ml',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Coupes + raccords',
-        normRef: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)',
+        normRef: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)',
         manufacturerRef: 'Courant / Aldes',
         packaging: { unit: 'rouleau', contentQty: 100, contentUnit: 'ml', label: 'rouleau 100 ml' },
         optional: true,
