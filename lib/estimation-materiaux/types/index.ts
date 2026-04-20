@@ -119,7 +119,19 @@ export const RecipeSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  trade: z.enum(['maconnerie', 'placo', 'peinture', 'carrelage']),
+  trade: z.enum([
+    // Existants initiaux
+    'maconnerie', 'placo', 'peinture', 'carrelage',
+    // Extensions audit 28 trades (avril 2026)
+    'charpente', 'couverture', 'zinguerie',
+    'etancheite', 'isolation', 'facade',
+    'menuiserie_ext', 'menuiserie_int',
+    'revetement_sol', 'revetement_mural',
+    'plomberie', 'chauffage', 'ventilation', 'climatisation',
+    'electricite', 'electricite_cfa',
+    'vrd', 'assainissement',
+    'cloture', 'terrasse_ext', 'jardin', 'piscine',
+  ]),
   baseUnit: z.enum(['m3', 'm2', 'ml', 'u']),
   geometryMode: z.enum([
     'volume',
