@@ -132,14 +132,14 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 13.3 P1-1-2 (Décembre 2021)', title: 'Dallages', section: 'Partie 1 (maisons individuelles) / Partie 2 (autres bâtiments)' },
+      { code: 'NF DTU 13.3 P1-1-2 (Décembre 2021)', title: 'Dallages — Conception, calcul et exécution', section: 'Partie 1-1-2 : cahier des clauses techniques types des dallages de maisons individuelles' },
       { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution des ouvrages en béton' },
       { code: 'NF A 35-080-1 (Janvier 2013)', title: 'Aciers pour béton armé - Treillis soudés' },
     ],
     version: '2.1.0',
     constraints: {
       minThickness: 0.08, maxThickness: 0.20,
-      note: 'Épaisseur min 8 cm (DTU 13.3) pour dalle armée. Au-delà de 20 cm, passer à double nappe.',
+      note: 'Épaisseur min 8 cm (DTU 13.3 P1-1-2) pour dalle armée MI. Au-delà de 20 cm, passer à double nappe.',
     },
     hypothesesACommuniquer: [
       'Hérisson de 20 cm en concassé 20/40 supposé (à adapter selon portance du sol)',
@@ -372,12 +372,12 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 13.3 P1-1-2 (Décembre 2021)', title: 'Dallages — Partie 1', section: 'Maisons individuelles' },
+      { code: 'NF DTU 13.3 P1-1-1 (Décembre 2021)', title: 'Dallages — Conception, calcul et exécution', section: 'Partie 1-1-1 : cahier des clauses techniques types des dallages tous bâtiments hors maisons individuelles (industriels, tertiaires, garages pro)' },
       { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution béton' },
       { code: 'NF A 35-080-1 (Janvier 2013)', title: 'Treillis soudés' },
     ],
     version: '2.1.0',
-    constraints: { minThickness: 0.12, maxThickness: 0.25, note: 'Épaisseur min 12 cm pour garage (DTU 13.3 Partie 1-1-1 — usage industriel/circulation).' },
+    constraints: { minThickness: 0.12, maxThickness: 0.25, note: 'Épaisseur min 12 cm pour garage/dalle industrielle (DTU 13.3 P1-1-1 — usage tertiaire/industriel/circulation véhicules).' },
     hypothesesACommuniquer: [
       'Épaisseur minimale 12 cm (vs 8 cm ST25C) — circulation véhicules légers',
       'Treillis ST40C Ø8 (vs Ø7 ST25C) — charges renforcées',
@@ -835,7 +835,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 26.2 (Avril 2013)', title: 'Chapes et dalles à base de liants hydrauliques', section: 'rev. 2021' },
+      { code: 'NF DTU 26.2 (Avril 2013 + A1 Mai 2015)', title: 'Chapes et dalles à base de liants hydrauliques' },
       { code: 'NF EN 13813 (Mars 2003)', title: 'Matériaux de chape' },
       { code: 'NF EN 1008 (Juillet 2003)', title: 'Eau de gâchage' },
     ],
