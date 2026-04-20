@@ -1386,7 +1386,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: 'rev. septembre 2019 §5-6' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5 dimensions / §6 béton armé' },
       { code: 'NF EN 206+A2/CN (Avril 2021)', title: 'Béton — spécification' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1 — calcul structures béton' },
     ],
@@ -1492,7 +1492,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.1.2 semelles isolées' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.1.2 semelles isolées' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
     ],
     version: '2.1.0',
@@ -1560,7 +1560,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.4 Radiers' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.4 Radiers' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
       { code: 'NF EN 206+A2/CN (Avril 2021)', title: 'Béton C30/37' },
     ],
@@ -1661,7 +1661,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.5 Longrines' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.5 Longrines' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1 §9.2 Poutres' },
     ],
     version: '2.1.0',
@@ -1743,7 +1743,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.6 massifs semi-profonds' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.6 massifs semi-profonds' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
     ],
     version: '2.1.0',
