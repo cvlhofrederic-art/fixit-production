@@ -4,7 +4,7 @@ import type { Recipe } from '../../types'
  * COUVERTURE — audit #07
  *
  * Référentiels FR :
- * - NF DTU 40.21  Tuiles TC à emboîtement ou glissement à relief (rev. 2020)
+ * - NF DTU 40.21  Tuiles TC à emboîtement ou glissement à relief (Octobre 2013)
  * - NF DTU 40.22  Tuiles canal
  * - NF DTU 40.23  Tuiles plates TC
  * - NF DTU 40.24  Tuiles béton à glissement/emboîtement longitudinal
@@ -33,8 +33,8 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.21 (Juillet 2020)', title: 'Tuiles TC à emboîtement', section: 'rev. 2020' },
-      { code: 'NF DTU 40.29 (Septembre 2017)', title: 'Écrans souples de sous-toiture' },
+      { code: 'NF DTU 40.21 (Octobre 2013)', title: 'Tuiles TC à emboîtement ou à glissement à relief', section: 'Remplace NF P 31-202-1 Octobre 1997 et amendements A1/A2/A3' },
+      { code: 'NF DTU 40.29 (Novembre 2015)', title: 'Écrans souples de sous-toiture' },
       { code: 'NF EN 1304 (Octobre 2013)', title: 'Spécifications tuiles TC' },
     ],
     version: '2.1.0',
@@ -152,7 +152,7 @@ export const couvertureRecipes: Recipe[] = [
         id: 'solin-plomb-penetration', name: 'Solin plomb/alu (pénétration cheminée, VMC)',
         category: 'etancheite', phase: 'accessoires', quantityPerBase: 1, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.00, wasteReason: 'Pas de perte',
-        dtu: 'NF DTU 40.41 (Février 2023)',
+        dtu: 'NF DTU 40.41 (Juillet 2004)',
         manufacturerRef: 'Umicore VMZinc / Dani Alu',
         optional: true, condition: 'Si cheminée, sortie VMC, conduit gaz ou VMR',
       },
@@ -170,9 +170,9 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.24 (Mai 2006 + A1 2020)', title: 'Tuiles béton à glissement/emboîtement' },
+      { code: 'NF DTU 40.24 (Mars 2023)', title: 'Tuiles béton à glissement/emboîtement longitudinal', section: 'Révision 2023 — pente mini réduite à 25% avec écran' },
       { code: 'NF EN 490+A1 (Mars 2018)', title: 'Spécifications tuiles béton' },
-      { code: 'NF DTU 40.29 (Septembre 2017)', title: 'Écrans souples sous-toiture' },
+      { code: 'NF DTU 40.29 (Novembre 2015)', title: 'Écrans souples sous-toiture' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -233,7 +233,7 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.11 (Mai 1993 + A2 2021)', title: 'Couverture en ardoises naturelles' },
+      { code: 'NF DTU 40.11 (Décembre 2020)', title: 'Couverture en ardoises naturelles', section: 'Révision 2020 — remplace NF P 32-201-1 Mai 1993' },
       { code: 'NF EN 12326-1 (Septembre 2014)', title: 'Spécifications ardoises' },
     ],
     version: '2.1.0',
@@ -294,7 +294,7 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.41 (Février 2023)', title: 'Couverture zinc à joint debout' },
+      { code: 'NF DTU 40.41 (Juillet 2004)', title: 'Couverture zinc à joint debout' },
       { code: 'NF EN 988 (Septembre 1996)', title: 'Spécifications zinc' },
     ],
     version: '2.1.0',
@@ -350,7 +350,7 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.35 (Août 2018)', title: 'Plaques nervurées métalliques' },
+      { code: 'NF DTU 40.35 (Mai 1997 + A1 Juin 2006)', title: 'Couverture en plaques nervurées issues de tôles d\'acier revêtues' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -405,7 +405,7 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.14 (Mai 1993)', title: 'Couverture en bardeaux bitumés' },
+      { code: 'NF DTU 40.14 (Mai 1993 + A1 Janvier 2001)', title: 'Couverture en bardeaux bitumés' },
       { code: 'NF EN 544+A1 (Mai 2011)', title: 'Spécifications bardeaux' },
     ],
     version: '2.1.0',
