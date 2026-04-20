@@ -11,6 +11,8 @@ import { betonBancheRecipes } from './beton-banche';
 import { charpenteRecipes } from './charpente';
 import { zingerieRecipes } from './zinguerie';
 import { etancheiteRecipes } from './etancheite';
+import { isolationRecipes } from './isolation';
+import { facadeBardageRecipes } from './facade-bardage';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
@@ -25,6 +27,8 @@ export const allRecipes: Recipe[] = [
   ...charpenteRecipes,
   ...zingerieRecipes,
   ...etancheiteRecipes,
+  ...isolationRecipes,
+  ...facadeBardageRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -59,4 +63,6 @@ export {
   charpenteRecipes,
   zingerieRecipes,
   etancheiteRecipes,
+  isolationRecipes,
+  facadeBardageRecipes,
 };
