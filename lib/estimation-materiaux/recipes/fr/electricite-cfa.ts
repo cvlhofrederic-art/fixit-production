@@ -1,4 +1,4 @@
-import type { Recipe } from '../types'
+import type { Recipe } from '../../types'
 
 /**
  * ÉLECTRICITÉ COURANTS FAIBLES (CFA) — audit #22

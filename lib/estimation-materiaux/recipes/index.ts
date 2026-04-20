@@ -1,32 +1,37 @@
 import { Recipe, Country } from '../types';
-import { maconnerieRecipes } from './maconnerie';
-import { placoRecipes } from './placo';
-import { peintureRecipes } from './peinture';
-import { carrelageRecipes } from './carrelage';
-import { plomberieRecipes } from './plomberie';
-import { couvertureRecipes } from './couverture';
-import { menuiseriesExtRecipes } from './menuiseries-ext';
-import { electriciteRecipes } from './electricite';
-import { betonBancheRecipes } from './beton-banche';
-import { charpenteRecipes } from './charpente';
-import { zingerieRecipes } from './zinguerie';
-import { etancheiteRecipes } from './etancheite';
-import { isolationRecipes } from './isolation';
-import { facadeBardageRecipes } from './facade-bardage';
-import { menuiseriesIntRecipes } from './menuiseries-int';
-import { revetementsSolsRecipes } from './revetements-sols';
-import { revetementsMurauxRecipes } from './revetements-muraux';
-import { chauffageRecipes } from './chauffage';
-import { ventilationRecipes } from './ventilation';
-import { climatisationRecipes } from './climatisation';
-import { vrdRecipes } from './vrd';
-import { assainissementRecipes } from './assainissement';
-import { electriciteCfaRecipes } from './electricite-cfa';
-import { voirieExterieureRecipes } from './voirie-exterieure';
-import { cloturesPortailsRecipes } from './clotures-portails';
-import { terrasseExterieureRecipes } from './terrasse-exterieure';
-import { jardinRecipes } from './jardin';
-import { piscineRecipes } from './piscine';
+// ══════════════════════════════════════════════════════════════════════════
+//  ISOLATION FILESYSTEM — recipes/fr/ et recipes/pt/ strictement séparés.
+//  Test d'isolation : tests/estimation-materiaux-isolation.test.ts
+//  vérifie qu'aucun import croisé n'existe entre fr/ et pt/.
+// ══════════════════════════════════════════════════════════════════════════
+import { maconnerieRecipes } from './fr/maconnerie';
+import { placoRecipes } from './fr/placo';
+import { peintureRecipes } from './fr/peinture';
+import { carrelageRecipes } from './fr/carrelage';
+import { plomberieRecipes } from './fr/plomberie';
+import { couvertureRecipes } from './fr/couverture';
+import { menuiseriesExtRecipes } from './fr/menuiseries-ext';
+import { electriciteRecipes } from './fr/electricite';
+import { betonBancheRecipes } from './fr/beton-banche';
+import { charpenteRecipes } from './fr/charpente';
+import { zingerieRecipes } from './fr/zinguerie';
+import { etancheiteRecipes } from './fr/etancheite';
+import { isolationRecipes } from './fr/isolation';
+import { facadeBardageRecipes } from './fr/facade-bardage';
+import { menuiseriesIntRecipes } from './fr/menuiseries-int';
+import { revetementsSolsRecipes } from './fr/revetements-sols';
+import { revetementsMurauxRecipes } from './fr/revetements-muraux';
+import { chauffageRecipes } from './fr/chauffage';
+import { ventilationRecipes } from './fr/ventilation';
+import { climatisationRecipes } from './fr/climatisation';
+import { vrdRecipes } from './fr/vrd';
+import { assainissementRecipes } from './fr/assainissement';
+import { electriciteCfaRecipes } from './fr/electricite-cfa';
+import { voirieExterieureRecipes } from './fr/voirie-exterieure';
+import { cloturesPortailsRecipes } from './fr/clotures-portails';
+import { terrasseExterieureRecipes } from './fr/terrasse-exterieure';
+import { jardinRecipes } from './fr/jardin';
+import { piscineRecipes } from './fr/piscine';
 
 /**
  * Normalise le pays d'une recette : défaut 'FR' si absent (recettes historiques).
