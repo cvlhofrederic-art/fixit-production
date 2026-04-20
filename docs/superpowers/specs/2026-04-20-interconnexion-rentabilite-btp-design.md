@@ -35,9 +35,38 @@ CREATE TABLE ref_taux (
   seuil_max NUMERIC(12,2),
   date_debut_validite DATE NOT NULL,
   date_fin_validite DATE,
-  source_reglementaire TEXT,
+  source_reglementaire TEXT NOT NULL,
+  description TEXT,
+  updated_by UUID REFERENCES auth.users,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Index composite pour lookup rapide par le moteur
+CREATE INDEX idx_ref_taux_lookup
+  ON ref_taux(juridiction, regime, type_charge, date_debut_validite DESC);
+
+-- Audit : historique des modifications
+CREATE TABLE ref_taux_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ref_taux_id UUID REFERENCES ref_taux(id) NOT NULL,
+  ancien_taux NUMERIC(8,4),
+  nouveau_taux NUMERIC(8,4),
+  modifie_par UUID REFERENCES auth.users NOT NULL,
+  motif TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- RLS : lecture pour tous les authentifiés, écriture admin uniquement
+ALTER TABLE ref_taux ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "read_all" ON ref_taux FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "admin_write" ON ref_taux FOR ALL USING (
+  auth.uid() IN (SELECT id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin')
+);
+
+ALTER TABLE ref_taux_audit ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_only" ON ref_taux_audit FOR ALL USING (
+  auth.uid() IN (SELECT id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin')
 );
 ```
 
@@ -61,7 +90,8 @@ CREATE TABLE charges_fixes (
   )),
   date_debut DATE,
   date_fin DATE,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 ALTER TABLE charges_fixes ENABLE ROW LEVEL SECURITY;
@@ -109,11 +139,12 @@ Ajoute à la vue existante :
 - `montant_facture_ht` — somme des factures liées au chantier
 - `montant_devis_ht` — somme des devis liés au chantier
 - `total_frais_annexes` — somme des frais annexes des factures liées
-- `quote_part_fixes_mensuelle` — charges fixes mensuelles réparties au prorata
 - `marge_brute` — montant_facture_ht - coûts directs
 - `taux_marge_brute` — marge_brute / montant_facture_ht × 100
+- `nb_devis_lies` — nombre de devis liés (pour détecter les chantiers sans devis)
+- `nb_factures_liees` — nombre de factures liées
 
-Les charges sociales/fiscales sont calculées côté moteur TS (dépendent de la forme juridique du profil, pas du chantier).
+La quote-part des charges fixes et les charges sociales/fiscales sont calculées côté moteur TS (dépendent de la forme juridique du profil et des autres chantiers de la période — pas calculable en SQL pur par chantier).
 
 ### 2.6. Migration des données existantes
 
@@ -156,10 +187,22 @@ interface CalculRentabiliteInput {
   }
   masse_salariale_brute: number
   juridiction: 'FR' | 'PT'
-  forme_juridique: string
+  forme_juridique: FormeJuridique
   regime_tva: string
   periode: Date
+  sous_traitance_autoliquidation?: boolean  // auto-liquidation TVA/IVA BTP
 }
+
+type FormeJuridiqueFR =
+  | 'auto_entrepreneur' | 'micro_bic' | 'micro_bnc'
+  | 'ei' | 'eurl_is' | 'eurl_ir'
+  | 'sarl' | 'sasu' | 'sas' | 'sa_fr'
+
+type FormeJuridiquePT =
+  | 'eni' | 'trabalhador_independente'
+  | 'unipessoal_lda' | 'lda' | 'sa_pt'
+
+type FormeJuridique = FormeJuridiqueFR | FormeJuridiquePT
 
 interface ResultatRentabilite {
   // Niveau 1 — chiffre clé
@@ -230,11 +273,25 @@ interface ResultatRentabilite {
 
 | Statut | Taux marge nette | Couleur | Message |
 |--------|-----------------|---------|---------|
-| `rentable` | > 15% | 🟢 vert | "Ce chantier t'a rapporté X €" |
-| `juste` | 5% - 15% | 🟠 orange | "Ce chantier t'a rapporté X € — marge serrée" |
-| `perte` | < 5% | 🔴 rouge | "Attention, ce chantier t'a coûté plus que prévu" |
+| `rentable` | > 15% | 🟢 vert | FR: "Ce chantier t'a rapporté X €" / PT: "Esta obra rendeu-te X €" |
+| `juste` | 5% - 15% | 🟠 orange | FR: "Marge serrée sur ce chantier" / PT: "Margem apertada nesta obra" |
+| `perte` | < 5% | 🔴 rouge | FR: "Attention, ce chantier est en perte" / PT: "Atenção, esta obra está com prejuízo" |
 
 Seuils configurables par l'artisan dans ses préférences.
+
+### 3.6. Auto-liquidation TVA/IVA sous-traitance BTP
+
+Cas spécifique à traiter dans le moteur :
+- **FR** : article 283-2 nonies CGI — le donneur d'ordre reverse la TVA, pas le sous-traitant. La facture de sous-traitance est HT, la TVA est auto-liquidée.
+- **PT** : autoliquidação na construção civil — même mécanisme, le sous-traitant facture sans IVA.
+- Impact sur le calcul : le montant de sous-traitance entre dans les coûts HT sans TVA déductible séparée.
+
+### 3.7. Source de la forme juridique et juridiction
+
+Le moteur récupère `forme_juridique` et `juridiction` depuis `profiles_artisan` :
+- `profiles_artisan.pays` → détermine la juridiction (FR ou PT)
+- `profiles_artisan.forme_juridique` → champ existant ou à ajouter si absent
+- Ces valeurs sont héritées par tous les chantiers du compte, jamais saisies par chantier
 
 ### 3.5. Répartition des charges fixes
 
@@ -344,7 +401,17 @@ Interface admin pour gérer les taux de référence :
 
 ---
 
-## 8. Hors scope (phase ultérieure)
+## 8. Tests
+
+- Tests unitaires pour chaque forme juridique × juridiction (12 combinaisons minimum)
+- Tests du moteur avec les exemples chiffrés de la spec originale (SASU FR → 4 610,40 €, Lda PT → 3 850,84 €)
+- Tests de non-rétroactivité : modifier un taux ne change pas les résultats des chantiers clôturés
+- Tests de la vue matérialisée : vérifier les agrégats factures/devis/frais annexes
+- Tests E2E : liaison devis ↔ chantier, saisie charges fixes, affichage rentabilité
+
+---
+
+## 9. Hors scope (phase ultérieure)
 
 - OCR des factures fournisseurs
 - Retenues de garantie, acomptes, paiements échelonnés
