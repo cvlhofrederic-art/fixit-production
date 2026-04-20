@@ -28,6 +28,18 @@ interface ProjectItem {
 
 interface Props {
   artisan?: { id?: string } | null
+  /**
+   * Si true, affiche le sélecteur de corps de métier dans le mode IA.
+   * Réservé au super-admin — les entreprises standards sont calibrées sur
+   * leur(s) corps de métier attribué(s) côté profile (cf. props `allowedTrades`).
+   */
+  isAdminOverride?: boolean
+  /**
+   * Corps de métier autorisés pour cette entreprise. Si non renseigné ou vide :
+   * tout le catalogue est accessible (défaut super-admin / test).
+   * Si renseigné : l'IA est cantonnée à ces trades (anti-abus).
+   */
+  allowedTrades?: Trade[]
 }
 
 const TRADE_ICON: Record<Trade, string> = {
@@ -750,7 +762,11 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
 /* ═══════════════════════════════════════════════════════════
    SECTION PRINCIPALE
    ═══════════════════════════════════════════════════════════ */
-export default function EstimationMateriauxSection({ artisan: _artisan }: Props) {
+export default function EstimationMateriauxSection({
+  artisan: _artisan,
+  isAdminOverride = false,
+  allowedTrades,
+}: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const country: 'FR' | 'PT' = isPt ? 'PT' : 'FR'
@@ -785,6 +801,16 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
   const [iaAssumptions, setIaAssumptions] = useState<string[]>([])
   const [iaQuestions, setIaQuestions] = useState<string[]>([])
   const [iaAnalyzing, setIaAnalyzing] = useState(false)
+
+  // Périmètre métier effectif pour l'IA.
+  // - Super-admin : sélection libre parmi les 26 trades (default = tous)
+  // - Autres : restreint à `allowedTrades` passé en props (company-calibrated)
+  const [selectedTrades, setSelectedTrades] = useState<Trade[]>([])
+  const effectiveTrades = useMemo<Trade[] | undefined>(() => {
+    if (isAdminOverride) return selectedTrades.length > 0 ? selectedTrades : undefined
+    if (allowedTrades && allowedTrades.length > 0) return allowedTrades
+    return undefined
+  }, [isAdminOverride, selectedTrades, allowedTrades])
 
   // Feedback bouton copier
   const [copied, setCopied] = useState(false)
@@ -887,6 +913,7 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
           projectName: projectName.trim() || undefined,
           profileFallback: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
           country,
+          trades: effectiveTrades,
         }),
       })
       if (!res.ok) {
@@ -1094,6 +1121,56 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
           <>
             <div className="v5-card">
               <div className="v5-st">{isPt ? 'Descreva a sua obra' : 'Décrivez votre chantier'}</div>
+
+              {/* Sélecteur de corps de métier — super-admin uniquement */}
+              {isAdminOverride && (
+                <div className="ia-trade-selector">
+                  <div className="ia-trade-label">
+                    🛠️ {isPt ? 'Âmbito — corpos de métier (admin)' : 'Périmètre — corps de métier (admin)'}
+                    <span className="ia-trade-hint">
+                      {selectedTrades.length === 0
+                        ? (isPt ? 'Tudo o catálogo' : 'Tout le catalogue')
+                        : `${selectedTrades.length} / 26`}
+                    </span>
+                  </div>
+                  <div className="ia-trade-chips">
+                    {(Object.keys(TRADE_LABEL_FR) as Trade[]).map(t => {
+                      const active = selectedTrades.includes(t)
+                      const label = isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          className={`ia-trade-chip ${active ? 'active' : ''}`}
+                          onClick={() => setSelectedTrades(prev =>
+                            prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                          )}
+                        >
+                          {TRADE_ICON[t]} {label}
+                        </button>
+                      )
+                    })}
+                    {selectedTrades.length > 0 && (
+                      <button
+                        type="button"
+                        className="ia-trade-chip ia-trade-clear"
+                        onClick={() => setSelectedTrades([])}
+                      >
+                        ✕ {isPt ? 'Limpar' : 'Tout effacer'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Indicateur périmètre entreprise (non-admin) */}
+              {!isAdminOverride && allowedTrades && allowedTrades.length > 0 && (
+                <div className="ia-trade-locked">
+                  🔒 {isPt ? 'IA calibrada para' : 'IA calibrée pour'} :{' '}
+                  {allowedTrades.map(t => isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]).join(' · ')}
+                </div>
+              )}
+
               <div className="ia-zone">
                 <textarea
                   placeholder={isPt

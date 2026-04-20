@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { callGroqWithRetry } from '@/lib/groq'
 import { allRecipes } from '../recipes'
-import type { EstimationInput, ChantierProfile } from '../types'
+import type { EstimationInput, ChantierProfile, Recipe } from '../types'
 import { EstimationInputSchema } from '../types'
 
 /**
@@ -46,9 +46,11 @@ export type ExtractionResult = z.infer<typeof ExtractionResultSchema>
  * que le LLM choisisse le bon recipeId. Économie : ~60 % de tokens sur le
  * prompt système (passe de ~30k à ~12k tokens pour le catalogue).
  */
-function buildCatalog(): string {
+function buildCatalog(scope?: { trades?: Recipe['trade'][]; country?: 'FR' | 'PT' }): string {
   const byTrade: Record<string, string[]> = {}
   for (const r of allRecipes) {
+    if (scope?.country && r.country && r.country !== scope.country) continue
+    if (scope?.trades && scope.trades.length > 0 && !scope.trades.includes(r.trade)) continue
     if (!byTrade[r.trade]) byTrade[r.trade] = []
     byTrade[r.trade].push(`  ${r.id} | ${r.name} (${r.geometryMode}→${r.baseUnit})`)
   }
@@ -60,8 +62,11 @@ function buildCatalog(): string {
   return parts.join('\n')
 }
 
-function buildSystemPrompt(): string {
-  return `Tu es un CONDUCTEUR DE TRAVAUX EXPÉRIMENTÉ — tu ANALYSES, tu PROPOSES, tu QUESTIONNES.
+function buildSystemPrompt(scope?: { trades?: Recipe['trade'][]; country?: 'FR' | 'PT' }): string {
+  const scopeNote = scope?.trades && scope.trades.length > 0
+    ? `\n⚠️ PÉRIMÈTRE RESTREINT : ne propose QUE des recettes des corps de métier suivants : ${scope.trades.join(', ')}. Si l'utilisateur demande un ouvrage hors périmètre, pose une question dans "questions" pour clarifier (ne choisis PAS de recipeId hors du catalogue ci-dessous).\n`
+    : ''
+  return `Tu es un CONDUCTEUR DE TRAVAUX EXPÉRIMENTÉ — tu ANALYSES, tu PROPOSES, tu QUESTIONNES.${scopeNote}
 Tu ne devines pas au hasard : si une info manque, tu POSES UNE QUESTION précise.
 Quand tu peux proposer une valeur calibrée par le contexte, tu la PROPOSES explicitement dans "assumptions".
 
@@ -71,7 +76,7 @@ EstimationInput structuré AVEC valeurs par défaut CALIBRÉES et QUESTIONS de p
 =================================================================
 CATALOGUE (recipeId | nom (mode_géométrie→unité_base)) — IDs autorisés UNIQUEMENT
 =================================================================
-${buildCatalog()}
+${buildCatalog(scope)}
 
 =================================================================
 RÈGLE N°1 — TOUJOURS PROPOSER UNE VALEUR CALIBRÉE (jamais "je ne sais pas")
@@ -253,9 +258,10 @@ FORMAT DE RÉPONSE — JSON VALIDE UNIQUEMENT (aucun texte autour) :
 
 export async function extractEstimationWithGroq(
   userDescription: string,
-  apiKey?: string
+  apiKey?: string,
+  scope?: { trades?: Recipe['trade'][]; country?: 'FR' | 'PT' }
 ): Promise<ExtractionResult> {
-  const systemPrompt = buildSystemPrompt()
+  const systemPrompt = buildSystemPrompt(scope)
 
   const response = await callGroqWithRetry(
     {
@@ -293,11 +299,21 @@ export async function extractEstimationWithGroq(
 
   const result = ExtractionResultSchema.parse(parsed)
 
-  // Filtrer les recipeId inconnus (safety)
-  const validIds = new Set(allRecipes.map(r => r.id))
+  // Filtrer les recipeId inconnus (safety) + scope pays/trades si fourni.
+  // Ceinture + bretelles : même si le LLM a triché en proposant une recette
+  // hors périmètre, on la rejette ici (anti-abus multi-tenant).
+  const scopedRecipes = allRecipes.filter(r => {
+    if (scope?.country && r.country && r.country !== scope.country) return false
+    if (scope?.trades && scope.trades.length > 0 && !scope.trades.includes(r.trade)) return false
+    return true
+  })
+  const validIds = new Set(scopedRecipes.map(r => r.id))
   const unknownIds = result.items.filter(i => !validIds.has(i.recipeId)).map(i => i.recipeId)
   if (unknownIds.length > 0) {
-    result.assumptions.push(`Recettes inconnues ignorées : ${unknownIds.join(', ')}`)
+    const reason = scope?.trades && scope.trades.length > 0
+      ? `hors périmètre métier autorisé (${scope.trades.join(', ')})`
+      : 'inconnues'
+    result.assumptions.push(`Recettes ${reason} ignorées : ${unknownIds.join(', ')}`)
     result.items = result.items.filter(i => validIds.has(i.recipeId))
   }
 
