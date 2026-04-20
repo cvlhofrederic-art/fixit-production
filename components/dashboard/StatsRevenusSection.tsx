@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -25,6 +25,126 @@ async function downloadCsv(type: 'clients' | 'bookings' | 'revenue', errorMsg = 
 }
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
+/* ═══════════════════════════════════════════════════════
+   Pilotage banner — monthly financial summary
+   Fetches BTP rentability + charges fixes via /api/btp
+   ═══════════════════════════════════════════════════════ */
+interface PilotageData {
+  caTotal: number
+  chargesTotal: number
+  netPoche: number
+  margePct: number
+  alertes: string[]
+}
+
+function usePilotageData() {
+  const [pilotageData, setPilotageData] = useState<PilotageData | null>(null)
+
+  useEffect(() => {
+    async function fetchPilotage() {
+      try {
+        const [rentaRes, chargesRes] = await Promise.all([
+          fetch('/api/btp?table=rentabilite'),
+          fetch('/api/btp?table=charges_fixes'),
+        ])
+
+        if (!rentaRes.ok || !chargesRes.ok) return
+
+        const rentaJson = await rentaRes.json() as { rentabilite?: Array<{ ca_reel?: number; benefice_net?: number; chantier_nom?: string; nom?: string }> }
+        const chargesJson = await chargesRes.json() as { charges_fixes?: Array<{ montant_mensuel?: number; montant?: number }> }
+
+        const rentabilite = rentaJson.rentabilite || []
+        const chargesFixes = chargesJson.charges_fixes || []
+
+        const now = new Date()
+        const currentMonth = now.getMonth()
+        const currentYear = now.getFullYear()
+
+        // Try to filter by current month if rows have a date field; fall back to all rows
+        const rentaRows = rentabilite.filter((r) => {
+          const d = (r as Record<string, unknown>).mois || (r as Record<string, unknown>).date || (r as Record<string, unknown>).created_at
+          if (!d || typeof d !== 'string') return true // no date column — include all
+          const parsed = new Date(d)
+          return parsed.getMonth() === currentMonth && parsed.getFullYear() === currentYear
+        })
+        const rowsToUse = rentaRows.length > 0 ? rentaRows : rentabilite
+
+        const caTotal = rowsToUse.reduce((s, r) => s + (r.ca_reel || 0), 0)
+        const chargesFromView = rowsToUse.reduce((s, r) => {
+          const b = r.benefice_net ?? 0
+          const ca = r.ca_reel ?? 0
+          return s + Math.max(ca - b, 0)
+        }, 0)
+        const chargesFixesMonthly = chargesFixes.reduce((s, c) => s + (c.montant_mensuel ?? c.montant ?? 0), 0)
+        const chargesTotal = chargesFromView + chargesFixesMonthly
+        const netPoche = caTotal - chargesTotal
+        const margePct = caTotal > 0 ? (netPoche / caTotal) * 100 : 0
+
+        const alertes: string[] = rowsToUse
+          .filter((r) => (r.benefice_net ?? 0) < 0)
+          .map((r) => {
+            const nom = r.chantier_nom || r.nom || 'Chantier'
+            return `${nom} — marge négative (${formatPrice(r.benefice_net ?? 0)})`
+          })
+
+        setPilotageData({ caTotal, chargesTotal, netPoche, margePct, alertes })
+      } catch {
+        // Silent — don't show broken banner
+      }
+    }
+
+    fetchPilotage()
+  }, [])
+
+  return pilotageData
+}
+
+function PilotageBanner() {
+  const pilotageData = usePilotageData()
+
+  if (!pilotageData) return null
+
+  const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
+      <h3 className="text-sm font-semibold text-gray-500 mb-3 capitalize">{monthLabel}</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div>
+          <div className="text-xs text-gray-500">CA facturé</div>
+          <div className="text-lg font-bold">{formatPrice(pilotageData.caTotal)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Charges totales</div>
+          <div className="text-lg font-bold text-red-600">{formatPrice(pilotageData.chargesTotal)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Net dans ta poche</div>
+          <div className="text-lg font-bold text-green-600">{formatPrice(pilotageData.netPoche)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Marge</div>
+          <div className={`text-lg font-bold ${
+            pilotageData.margePct > 15 ? 'text-green-600' :
+            pilotageData.margePct >= 5 ? 'text-orange-500' : 'text-red-600'
+          }`}>
+            {pilotageData.margePct.toFixed(1)}%
+          </div>
+        </div>
+      </div>
+      {pilotageData.alertes.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {pilotageData.alertes.map((alerte, i) => (
+            <div key={i} className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+              ⚠️ {alerte}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface StatsRevenusSectionProps {
   artisan: import('@/lib/types').Artisan
@@ -61,6 +181,7 @@ export default function StatsRevenusSection({
   if (activePage === 'stats') {
     return (
       <div>
+        <PilotageBanner />
         <div className="v22-page-header">
           <div>
             <div className="v22-page-title">{'📊'} {t('proDash.stats.title')}</div>
@@ -99,6 +220,7 @@ export default function StatsRevenusSection({
   // activePage === 'revenus'
   return (
     <div>
+      <PilotageBanner />
       <ExportHeader t={t} />
       <div style={{ padding: '20px' }}>
         <ResumeActivite />
@@ -415,6 +537,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 
   return (
     <div className="v5-fade">
+      <PilotageBanner />
       <div className="v5-pg-t"><h1>{isPt ? 'Estatísticas' : 'Statistiques'}</h1><p>{isPt ? 'Análise da atividade BTP' : 'Analyse de l\'activité BTP'}</p></div>
 
       {/* 4 KPIs */}
@@ -596,6 +719,7 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
 
   return (
     <div className="v5-fade">
+      <PilotageBanner />
       <div className="v5-pg-t"><h1>Revenus</h1><p>Flux de trésorerie et encaissements</p></div>
 
       {/* 4 KPIs */}
