@@ -166,7 +166,11 @@ export function computeMaterial(
   const { multiplier, warnings: mw } = applyGeometryMultiplier(mat, geometry);
   warnings.push(...mw);
 
-  const theoretical = baseQuantity * mat.quantityPerBase * multiplier;
+  // Cas `perimeter` : le matériau est linéique (bande, chaînage, joint périphérique…),
+  // il ne scale QUE sur le périmètre, pas sur l'aire. On remplace donc baseQuantity
+  // par 1 pour éviter la double-multiplication aire × périmètre (bug v2.0).
+  const effectiveBase = mat.geometryMultiplier === 'perimeter' ? 1 : baseQuantity;
+  const theoretical = effectiveBase * mat.quantityPerBase * multiplier;
 
   const profileWaste = computeProfileWasteBonus(profile, mat.category);
   const baseWastePercent = (mat.wasteFactor - 1) * 100;
