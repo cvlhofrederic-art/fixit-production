@@ -376,37 +376,89 @@ export async function extractEstimationWithGroq(
     throw new Error(`JSON invalide de l'IA : ${clean.slice(0, 200)}`)
   }
 
-  // Nettoyage pré-validation : le LLM retourne parfois des champs numériques à 0,
-  // null ou NaN au lieu de les omettre (par ex. length:0, width:0 quand l'user
-  // n'a donné que la surface). Le schéma Zod exige `.positive()` → on strip
-  // tout champ numérique non-strictement-positif avant parse.
+  // ════════════════════════════════════════════════════════════
+  //  NORMALISATION PRÉ-ZOD — tolérance aux sorties LLM imparfaites
+  // ════════════════════════════════════════════════════════════
+  // Llama 3.3 peut retourner : champs numériques à 0 au lieu d'omettre, strings
+  // au lieu de numbers ("50"), geometry null, items absents, etc.
+  // On normalise AVANT la validation stricte Zod pour que l'UX marche à 100 %.
   const NUMERIC_GEO_KEYS = [
     'length', 'width', 'height', 'thickness',
     'area', 'volume', 'perimeter',
     'count', 'coats', 'openings',
   ]
-  if (parsed && typeof parsed === 'object' && 'items' in parsed) {
-    const items = (parsed as { items?: unknown[] }).items
-    if (Array.isArray(items)) {
-      for (const item of items) {
-        if (item && typeof item === 'object' && 'geometry' in item) {
-          const geo = (item as { geometry?: Record<string, unknown> }).geometry
-          if (geo && typeof geo === 'object') {
-            for (const k of NUMERIC_GEO_KEYS) {
-              const v = geo[k]
-              if (typeof v === 'number' && (v <= 0 || !Number.isFinite(v))) {
-                delete geo[k]
-              } else if (v === null) {
-                delete geo[k]
-              }
-            }
-          }
-        }
+
+  function toNumberOrUndef(v: unknown): number | undefined {
+    if (typeof v === 'number') {
+      return Number.isFinite(v) && v > 0 ? v : undefined
+    }
+    if (typeof v === 'string') {
+      // Accepte "50", "50.5", "50,5" (virgule FR), " 50 " (espaces)
+      const cleaned = v.trim().replace(',', '.').replace(/\s/g, '')
+      if (cleaned === '') return undefined
+      const n = Number(cleaned)
+      return Number.isFinite(n) && n > 0 ? n : undefined
+    }
+    return undefined
+  }
+
+  function normalizeGeometry(geo: unknown): Record<string, number> {
+    if (!geo || typeof geo !== 'object') return {}
+    const out: Record<string, number> = {}
+    const g = geo as Record<string, unknown>
+    for (const k of NUMERIC_GEO_KEYS) {
+      const n = toNumberOrUndef(g[k])
+      if (n !== undefined) out[k] = n
+    }
+    return out
+  }
+
+  // Normalisation items : geometry toujours objet propre, label string
+  if (parsed && typeof parsed === 'object') {
+    const p = parsed as Record<string, unknown>
+    // items doit être un array
+    if (!Array.isArray(p.items)) p.items = []
+    // Normalise chaque item
+    p.items = (p.items as unknown[]).map(item => {
+      if (!item || typeof item !== 'object') return null
+      const it = item as Record<string, unknown>
+      return {
+        recipeId: typeof it.recipeId === 'string' ? it.recipeId : '',
+        geometry: normalizeGeometry(it.geometry),
+        label: typeof it.label === 'string' ? it.label : undefined,
       }
+    }).filter((x: unknown) => x !== null && (x as { recipeId: string }).recipeId !== '')
+    // Assumptions / questions : arrays de strings
+    if (!Array.isArray(p.assumptions)) p.assumptions = []
+    if (!Array.isArray(p.questions)) p.questions = []
+    p.assumptions = (p.assumptions as unknown[]).filter((x): x is string => typeof x === 'string')
+    p.questions = (p.questions as unknown[]).filter((x): x is string => typeof x === 'string')
+    // chantierProfile : objet ou absent (Zod gère l'optionnel)
+    if (p.chantierProfile !== undefined && (!p.chantierProfile || typeof p.chantierProfile !== 'object')) {
+      delete p.chantierProfile
     }
   }
 
-  const result = ExtractionResultSchema.parse(parsed)
+  let result: ExtractionResult
+  try {
+    result = ExtractionResultSchema.parse(parsed)
+  } catch (zodErr) {
+    // En cas d'échec de validation (cas rare après normalisation), on renvoie
+    // une extraction vide avec message d'erreur explicite — pas un crash.
+    const msg = zodErr instanceof Error ? zodErr.message.slice(0, 300) : String(zodErr).slice(0, 300)
+    return {
+      items: [],
+      assumptions: [
+        `L'IA a retourné une réponse malformée (détail : ${msg}).`,
+        'Réessayez avec une description plus précise (surface, épaisseur, matériau).',
+      ],
+      questions: [
+        'Pouvez-vous préciser le type d\'ouvrage (dalle, mur, cloison, carrelage, peinture…) ?',
+        'Quelle surface ou linéaire en mètres ?',
+        'Quelle épaisseur / hauteur si pertinente ?',
+      ],
+    }
+  }
 
   // Filtrer les recipeId inconnus (safety) + scope pays/trades si fourni.
   // Ceinture + bretelles : même si le LLM a triché en proposant une recette
