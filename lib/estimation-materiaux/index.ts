@@ -19,4 +19,5 @@ export {
   plomberieRecipes,
   couvertureRecipes,
   menuiseriesExtRecipes,
+  electriciteRecipes,
 } from './recipes'
