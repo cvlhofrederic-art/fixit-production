@@ -61,7 +61,7 @@ export const vrdRecipes: Recipe[] = [
     geometryMode: 'length',
     dtuReferences: [
       { code: 'NF EN 1610 (Mars 2016)', title: 'Construction réseaux évacuation' },
-      { code: 'NF DTU 60.33 (Janvier 2007)', title: 'Canalisations PVC enterrées' },
+      { code: 'NF DTU 60.33 (Octobre 2007)', title: 'Canalisations PVC enterrées' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

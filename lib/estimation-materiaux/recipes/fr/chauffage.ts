@@ -7,7 +7,8 @@ import type { Recipe } from '../../types'
  * - NF DTU 65.3   Chauffage central
  * - NF DTU 65.4   Chaudières
  * - NF DTU 65.7   Radiateurs
- * - NF DTU 65.10  Canalisations chauffage
+ * - NF DTU 65.10  Canalisations chauffage (annulé 2017 — contenu repris dans
+ *                 NF DTU 60.1 + règles professionnelles FFB/Cochebat)
  * - NF DTU 65.11  Dispositifs sécurité installations chauffage
  * - NF DTU 65.14  Plancher chauffant hydraulique (PCBT)
  * - NF DTU 65.16  Pompes à chaleur
@@ -29,7 +30,7 @@ export const chauffageRecipes: Recipe[] = [
     geometryMode: 'count',
     dtuReferences: [
       { code: 'NF DTU 65.7 (Mai 1993, historique)', title: 'Radiateurs' },
-      { code: 'NF DTU 65.10 (Septembre 2012)', title: 'Canalisations chauffage' },
+      { code: 'NF DTU 65.10 (Mai 1993, annulé 2017)', title: 'Canalisations chauffage — référence historique (contenu transféré vers NF DTU 60.1 + règles professionnelles)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
