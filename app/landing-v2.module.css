@@ -184,7 +184,7 @@
     display: block;
     font-size: 0.72rem;
     font-weight: 700;
-    color: #888;
+    color: #555;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 0.4rem;
@@ -269,7 +269,7 @@
 }
 .sectionDesc {
     font-size: 0.95rem;
-    color: #777;
+    color: #555;
     margin-bottom: 3rem;
 }
 .servicesGrid {
@@ -307,7 +307,7 @@
 }
 .serviceCard p {
     font-size: 0.78rem;
-    color: #999;
+    color: #555;
     line-height: 1.4;
 }
 .extraServices { margin-top: 1rem; }
@@ -356,7 +356,7 @@
     margin-bottom: 1.2rem;
 }
 .howStep h4 { font-size: 1.1rem; font-weight: 800; margin-bottom: 0.6rem; }
-.howStep p { font-size: 0.88rem; color: #777; line-height: 1.6; }
+.howStep p { font-size: 0.88rem; color: #555; line-height: 1.6; }
 
 /* REVIEWS */
 .reviews {
@@ -365,7 +365,7 @@
 }
 .reviewsSubtitle {
     font-size: 0.92rem;
-    color: #888;
+    color: #555;
     margin-bottom: 3rem;
     margin-top: 0.4rem;
 }
@@ -411,7 +411,7 @@
     flex-shrink: 0;
 }
 .reviewName { font-size: 0.88rem; font-weight: 700; }
-.reviewMeta { font-size: 0.75rem; color: #999; }
+.reviewMeta { font-size: 0.75rem; color: #555; }
 .reviewVerified {
     display: flex;
     align-items: center;
@@ -438,7 +438,7 @@
 .proEyebrow {
     font-size: 0.75rem;
     font-weight: 700;
-    color: #999;
+    color: #555;
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 1rem;
@@ -532,14 +532,14 @@
     flex-shrink: 0;
 }
 .artisanName { font-size: 1rem; font-weight: 700; }
-.artisanJob { font-size: 0.82rem; color: #888; margin-top: 0.1rem; }
+.artisanJob { font-size: 0.82rem; color: #555; margin-top: 0.1rem; }
 .artisanRating { margin-left: auto; text-align: right; }
 .artisanStars { color: #FFD600; font-size: 0.9rem; }
-.artisanRatingSub { font-size: 0.72rem; color: #999; margin-top: 0.1rem; }
+.artisanRatingSub { font-size: 0.72rem; color: #555; margin-top: 0.1rem; }
 .artisanStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
 .artisanStat { background: #FAFAFA; border-radius: 10px; padding: 0.9rem 0.6rem; text-align: center; }
 .artisanStatVal { font-size: 1.4rem; font-weight: 900; color: #0D0D0D; line-height: 1; }
-.artisanStatLabel { font-size: 0.68rem; color: #999; margin-top: 0.25rem; }
+.artisanStatLabel { font-size: 0.68rem; color: #555; margin-top: 0.25rem; }
 .slotsLabel { font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 0.75rem; }
 .slotsWrap { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .slot { padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }
@@ -597,8 +597,8 @@
     margin-bottom: 0.3rem;
     letter-spacing: -0.03em;
 }
-.pricingPrice .per { font-size: 1rem; font-weight: 500; color: #999; }
-.pricingDesc { font-size: 0.82rem; color: #999; margin-bottom: 1.5rem; line-height: 1.4; }
+.pricingPrice .per { font-size: 1rem; font-weight: 500; color: #555; }
+.pricingDesc { font-size: 0.82rem; color: #555; margin-bottom: 1.5rem; line-height: 1.4; }
 .pricingFeatures { list-style: none; margin-bottom: 2rem; }
 .pricingFeatures li { display: flex; align-items: center; gap: 0.6rem; font-size: 0.88rem; color: #444; font-weight: 500; margin-bottom: 0.65rem; }
 .pfCheck { color: #FFD600; font-size: 0.9rem; flex-shrink: 0; }
@@ -659,7 +659,7 @@
     gap: 3.5rem;
     flex-wrap: wrap;
 }
-.certItem { display: flex; align-items: center; gap: 0.6rem; color: #888; }
+.certItem { display: flex; align-items: center; gap: 0.6rem; color: #555; }
 .certIcon { font-size: 1.4rem; }
 .certName { font-size: 0.85rem; font-weight: 600; }
 
@@ -733,7 +733,7 @@
 }
 .footerCol ul { list-style: none; }
 .footerCol ul li { margin-bottom: 0.65rem; }
-.footerCol ul li a { color: #888; text-decoration: none; font-size: 0.88rem; transition: color 0.2s; }
+.footerCol ul li a { color: #555; text-decoration: none; font-size: 0.88rem; transition: color 0.2s; }
 .footerCol ul li a:hover { color: #FFD600; }
 .footerBottom {
     border-top: 1px solid rgba(255,255,255,0.08);
