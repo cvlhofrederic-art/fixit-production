@@ -16,4 +16,5 @@ export {
   placoRecipes,
   peintureRecipes,
   carrelageRecipes,
+  plomberieRecipes,
 } from './recipes'

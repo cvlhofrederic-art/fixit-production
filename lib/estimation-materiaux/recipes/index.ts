@@ -3,12 +3,14 @@ import { maconnerieRecipes } from './maconnerie';
 import { placoRecipes } from './placo';
 import { peintureRecipes } from './peinture';
 import { carrelageRecipes } from './carrelage';
+import { plomberieRecipes } from './plomberie';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
   ...placoRecipes,
   ...peintureRecipes,
   ...carrelageRecipes,
+  ...plomberieRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -30,4 +32,4 @@ export function searchRecipes(query: string): Recipe[] {
   );
 }
 
-export { maconnerieRecipes, placoRecipes, peintureRecipes, carrelageRecipes };
+export { maconnerieRecipes, placoRecipes, peintureRecipes, carrelageRecipes, plomberieRecipes };
