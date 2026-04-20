@@ -24,20 +24,24 @@ CREATE TABLE IF NOT EXISTS ref_taux (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_ref_taux_lookup
+CREATE INDEX IF NOT EXISTS idx_ref_taux_lookup
   ON ref_taux(juridiction, regime, type_charge, date_debut_validite DESC);
 
 ALTER TABLE ref_taux ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ref_taux_read" ON ref_taux;
 CREATE POLICY "ref_taux_read" ON ref_taux
   FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "ref_taux_admin_write" ON ref_taux;
 CREATE POLICY "ref_taux_admin_write" ON ref_taux
   FOR INSERT WITH CHECK (
     auth.uid() IN (SELECT id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin')
   );
+DROP POLICY IF EXISTS "ref_taux_admin_update" ON ref_taux;
 CREATE POLICY "ref_taux_admin_update" ON ref_taux
   FOR UPDATE USING (
     auth.uid() IN (SELECT id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin')
   );
+DROP POLICY IF EXISTS "ref_taux_admin_delete" ON ref_taux;
 CREATE POLICY "ref_taux_admin_delete" ON ref_taux
   FOR DELETE USING (
     auth.uid() IN (SELECT id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin')
@@ -58,6 +62,7 @@ CREATE TABLE IF NOT EXISTS ref_taux_audit (
 );
 
 ALTER TABLE ref_taux_audit ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ref_taux_audit_admin" ON ref_taux_audit;
 CREATE POLICY "ref_taux_audit_admin" ON ref_taux_audit
   FOR ALL USING (
     auth.uid() IN (SELECT id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin')
@@ -85,15 +90,18 @@ CREATE TABLE IF NOT EXISTS charges_fixes (
 );
 
 ALTER TABLE charges_fixes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "charges_fixes_owner" ON charges_fixes;
 CREATE POLICY "charges_fixes_owner" ON charges_fixes
   FOR ALL USING (owner_id = auth.uid());
 
-CREATE INDEX idx_charges_fixes_owner ON charges_fixes(owner_id);
+CREATE INDEX IF NOT EXISTS idx_charges_fixes_owner ON charges_fixes(owner_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Migrate existing JSONB frais_fixes_mensuels → charges_fixes
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Migration idempotente : n'insère que si charges_fixes est vide pour cet owner
+-- (évite doublons si la migration est rejouée).
 INSERT INTO charges_fixes (owner_id, label, montant, frequence, categorie)
 SELECT
   s.owner_id,
@@ -103,7 +111,10 @@ SELECT
   'autre'
 FROM settings_btp s,
   jsonb_array_elements(s.frais_fixes_mensuels) AS ff
-WHERE jsonb_array_length(s.frais_fixes_mensuels) > 0;
+WHERE jsonb_array_length(s.frais_fixes_mensuels) > 0
+  AND NOT EXISTS (
+    SELECT 1 FROM charges_fixes cf WHERE cf.owner_id = s.owner_id
+  );
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 5. Liaison devis/factures ↔ chantier + frais annexes
@@ -114,8 +125,8 @@ ALTER TABLE factures ADD COLUMN IF NOT EXISTS chantier_id UUID REFERENCES chanti
 ALTER TABLE devis ADD COLUMN IF NOT EXISTS frais_annexes JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE factures ADD COLUMN IF NOT EXISTS frais_annexes JSONB DEFAULT '[]'::jsonb;
 
-CREATE INDEX idx_devis_chantier ON devis(chantier_id) WHERE chantier_id IS NOT NULL;
-CREATE INDEX idx_factures_chantier ON factures(chantier_id) WHERE chantier_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_devis_chantier ON devis(chantier_id) WHERE chantier_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_factures_chantier ON factures(chantier_id) WHERE chantier_id IS NOT NULL;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 6. Enrichir la vue v_rentabilite_chantier
