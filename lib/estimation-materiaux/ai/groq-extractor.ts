@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { callGroqWithRetry } from '@/lib/groq'
 import { allRecipes } from '../recipes'
-import type { EstimationInput, ChantierProfile } from '../types'
+import type { EstimationInput, ChantierProfile, Recipe } from '../types'
 import { EstimationInputSchema } from '../types'
 
 /**
@@ -40,125 +40,241 @@ const ExtractionResultSchema = z.object({
 
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>
 
-function buildCatalog() {
-  // Catalogue groupé par trade pour lisibilité + mention des ouvrages "obligatoirement complémentaires"
-  const byTrade: Record<string, Array<{ id: string; name: string; baseUnit: string; geometryMode: string; description?: string }>> = {}
+/**
+ * Catalogue compact : `id | name (mode)` sur une ligne par recette, groupé par
+ * trade. Évite le JSON lourd (×4 plus compact) et contient l'essentiel pour
+ * que le LLM choisisse le bon recipeId. Économie : ~60 % de tokens sur le
+ * prompt système (passe de ~30k à ~12k tokens pour le catalogue).
+ */
+function buildCatalog(scope?: { trades?: Recipe['trade'][]; country?: 'FR' | 'PT' }): string {
+  const byTrade: Record<string, string[]> = {}
   for (const r of allRecipes) {
+    if (scope?.country && r.country && r.country !== scope.country) continue
+    if (scope?.trades && scope.trades.length > 0 && !scope.trades.includes(r.trade)) continue
     if (!byTrade[r.trade]) byTrade[r.trade] = []
-    byTrade[r.trade].push({
-      id: r.id,
-      name: r.name,
-      baseUnit: r.baseUnit,
-      geometryMode: r.geometryMode,
-      description: r.description?.slice(0, 80),
-    })
+    byTrade[r.trade].push(`  ${r.id} | ${r.name} (${r.geometryMode}→${r.baseUnit})`)
   }
-  return byTrade
+  const parts: string[] = []
+  for (const trade of Object.keys(byTrade).sort()) {
+    parts.push(`[${trade}]`)
+    parts.push(byTrade[trade].join('\n'))
+  }
+  return parts.join('\n')
 }
 
-function buildSystemPrompt(): string {
-  const catalog = buildCatalog()
-  return `Tu es un CONDUCTEUR DE TRAVAUX EXPÉRIMENTÉ — pas un simple extracteur.
+function buildSystemPrompt(scope?: { trades?: Recipe['trade'][]; country?: 'FR' | 'PT' }): string {
+  const scopeNote = scope?.trades && scope.trades.length > 0
+    ? `\n⚠️ PÉRIMÈTRE RESTREINT : ne propose QUE des recettes des corps de métier suivants : ${scope.trades.join(', ')}. Si l'utilisateur demande un ouvrage hors périmètre, pose une question dans "questions" pour clarifier (ne choisis PAS de recipeId hors du catalogue ci-dessous).\n`
+    : ''
+  return `Tu es un CONDUCTEUR DE TRAVAUX EXPÉRIMENTÉ — tu ANALYSES, tu PROPOSES, tu QUESTIONNES.${scopeNote}
+Tu ne devines pas au hasard : si une info manque, tu POSES UNE QUESTION précise.
+Quand tu peux proposer une valeur calibrée par le contexte, tu la PROPOSES explicitement dans "assumptions".
 
-MISSION : à partir d'une description libre d'artisan, identifier TOUS les ouvrages nécessaires
-(pas seulement ceux explicitement cités) et produire un EstimationInput structuré.
-
-=================================================================
-CATALOGUE DES RECETTES (par corps de métier) — UTILISE UNIQUEMENT CES IDs
-=================================================================
-${JSON.stringify(catalog, null, 2)}
-
-=================================================================
-CHAQUE OUVRAGE EST AUTONOME
-=================================================================
-Sa recette inclut déjà tous ses matériaux décomposés en 5 strates :
-- Préparation (hérisson, polyane, primaire, ragréage, arase…)
-- Principal (béton, plaques, carreaux, peinture…)
-- Accessoires (joints, croisillons, vis, cure, cales…)
-- Finitions (silicone, bande, enduit, durcisseur, hydrofuge…)
-- Options conditionnelles (isolant RE2020, hydrofuge, plinthes, sécurité…)
-
-Tu n'as PAS à détailler les matériaux. Identifie le bon recipeId et la géométrie.
-Le moteur expanse automatiquement.
+MISSION : à partir d'une description libre, identifier les ouvrages nécessaires et produire un
+EstimationInput structuré AVEC valeurs par défaut CALIBRÉES et QUESTIONS de précision.
 
 =================================================================
-RÈGLES D'EXTRACTION
+CATALOGUE (recipeId | nom (mode_géométrie→unité_base)) — IDs autorisés UNIQUEMENT
 =================================================================
-
-1. SÉLECTION DE RECETTE CONTEXTUELLE (ne pas choisir "par défaut") :
-   - "dalle garage" → dalle-ba-armee-st40c (charges lourdes) PAS ST25C habitation
-   - "dalle maison" → dalle-ba-armee-st25c (charges courantes)
-   - "mur extérieur porteur" → mur-parpaing-20 OU mur-monomur-30 OU mur-beton-cellulaire-30
-   - "cloison" → cloison-placo-72-48 (standard) ou 98/48 si H>2,6m
-   - "fenêtre PVC" → menuiserie-fenetre-pvc (par unité)
-   - "carrelage sol" → carrelage-sol-colle-45 (standard) ou 60 (grand format)
-   - "tuile" → couv-tuile-tc-emboitement OU couv-tuile-beton selon matériau
-
-2. UNITÉS ET GÉOMÉTRIE :
-   - Dimensions en MÈTRES (converti cm→m : 12 cm = 0.12 m)
-   - Selon le geometryMode de la recette :
-     • "volume" : length + width + thickness (ou volume direct)
-     • "area" : area, ou length + width
-     • "area_minus_openings" : length + height + openings (si ouvertures)
-     • "length" : length (ou perimeter)
-     • "count" : count entier (par unité — fenêtres, portes, WC, luminaires…)
-
-3. CONVERSION OUVERTURES :
-   - porte intérieure ≈ 1.5 m² (2,04 × 0,73)
-   - porte d'entrée ≈ 2.0 m² (2,15 × 0,93)
-   - fenêtre standard ≈ 1.25 m² (1,25 × 1,00)
-   - baie vitrée ≈ 3.0 m² (2,15 × 1,40)
-
-4. PROFIL CHANTIER : déduis-le SI mentionné ("petit", "difficile", "apprenti", "pistolet",
-   "formes complexes"). Sinon, omets.
+${buildCatalog(scope)}
 
 =================================================================
-RÈGLES CRITIQUES D'ANTICIPATION (PENSE CONDUCTEUR DE TRAVAUX)
+RÈGLE N°1 — TOUJOURS PROPOSER UNE VALEUR CALIBRÉE (jamais "je ne sais pas")
+=================================================================
+Si l'utilisateur ne précise pas une dimension, tu PROPOSES une valeur standard
+adaptée au CONTEXTE (habitation / garage / tertiaire…) et tu l'annonces
+explicitement dans "assumptions". L'utilisateur peut corriger, mais tu ne laisses
+JAMAIS un calcul impossible.
+
+VALEURS PAR DÉFAUT CALIBRÉES selon CONTEXTE :
+
+DALLE BÉTON — épaisseur selon usage :
+  • Habitation / pièces à vivre : 12 cm + ST25C
+  • Garage véhicules légers : 15 cm + ST40C
+  • Garage pro / atelier charges lourdes : 20 cm + ST40C ou ST60C
+  • Terrasse extérieure piétonne : 10 cm + ST25C
+  • Plage piscine : 12 cm + ST25C
+  → Choisis la recette ET l'épaisseur ET annonce dans assumptions.
+
+MUR — hauteur selon usage :
+  • Habitation standard : 2,50 m
+  • Garage simple : 2,40 m
+  • Étage haut : 2,70 m
+  • Mezzanine / combles : 1,80 m
+  → Si non précisé, propose 2,50 m (habitation) dans assumptions.
+
+CLOISON PLACO — choix selon hauteur :
+  • H ≤ 2,60 m : cloison-placo-72-48 (standard)
+  • H > 2,60 m : cloison-placo-98-48 (renforcée) si disponible catalogue
+  → Si hauteur non précisée : suppose 2,50 m + cloison 72/48.
+
+PEINTURE — couches selon finition :
+  • Travaux courants (classe B DTU 59.1) : 2 couches + 1 sous-couche = standard
+  • Finition soignée (classe A) : 3 couches
+  • Rafraîchissement sur support peint non dégradé : 2 couches sans sous-couche
+  → Par défaut : 2 couches + sous-couche (neuf) ou 2 couches sans (rénovation).
+
+CARRELAGE SOL — format selon pièce :
+  • Cuisine / salle d'eau : 45×45 cm (collage simple)
+  • Séjour / grand volume : 60×60 ou 80×80 (grand format, double encollage)
+  • Extérieur terrasse : 60×60 anti-dérapant R11
+  → Propose le format par défaut selon pièce.
+
+COUVERTURE — tuile selon région / style :
+  • Sud / PACA : tuile canal OU TC à emboîtement
+  • Nord / Picardie : ardoise ou tuile plate
+  • Rénovation économique : tuile béton (moins chère, plus lourde)
+  → Si non précisé, propose TC à emboîtement + mentionne alternatives en assumptions.
+
+CHAUFFAGE — choix selon isolation :
+  • Neuf RE2020 bien isolé : PAC air/eau + plancher chauffant
+  • Rénovation passable : PAC + radiateurs chaleur douce
+  • Gros débit chauffe ponctuel : poêle granulés (appoint)
+  → Propose la recette cohérente avec l'isolation déclarée.
+
+PLOMBERIE SANITAIRE — par équipement :
+  • Cuisine : 1 évier + 1 lave-vaisselle + 1 robinet → distribution PER
+  • SDB classique : 1 lavabo + 1 WC + 1 douche ou baignoire
+  • SDB PMR : idem + barres + larges passages
+  → Demande si logement neuf/rénovation/extension.
+
+=================================================================
+RÈGLE N°2 — POSER DES QUESTIONS SI CONTEXTE MANQUE (dans "questions")
+=================================================================
+DÈS QUE tu rencontres une ambiguïté qui CHANGE un choix de recette, d'épaisseur,
+de format, ou de matériau : tu POSES UNE QUESTION dans "questions".
+Tu ne devines PAS au hasard. Tu proposes une valeur par défaut DANS assumptions
+ET tu demandes confirmation DANS questions.
+
+MINIMUM 1 QUESTION par ouvrage si l'utilisateur n'a pas précisé TOUS les
+paramètres critiques. Objectif : affiner progressivement en 2-3 échanges.
+
+CHECKLIST DES AMBIGUÏTÉS À QUESTIONNER (par corps de métier) :
+
+MAÇONNERIE / BÉTON :
+  - "Dalle : habitation, garage, terrasse, ou atelier pro ?" (change ST25C/ST40C/ST60C + épaisseur)
+  - "Neuf sous RE2020 ou rénovation ?" (change isolant sous dalle obligatoire)
+  - "Sol : dur rocheux, argileux, sableux, ou remblai ?" (change hérisson/géotextile)
+  - "Mur : intérieur porteur, extérieur porteur, ou refend non-porteur ?"
+  - "Exposé vent (zone côtière H3) ou abrité ?" (renforts chaînages)
+
+PLACO / CLOISONS :
+  - "Hauteur sous plafond exacte ? (>2,60 m = 98/48 obligatoire)"
+  - "Zone humide (SDB, cuisine) → plaque hydrofuge ?"
+  - "Contrainte acoustique spéciale (mitoyenneté, studio, hôtel) ?"
+
+CARRELAGE :
+  - "Format souhaité : 30×30 / 45×45 / 60×60 / grand format 80×80 ?" (change colle)
+  - "Classement P/U/E du local ? (ex: résidentiel P3 / commerce P4+)"
+  - "Sol ou mur ? (change peigne et collage)"
+  - "Intérieur ou extérieur (gel) ? (change C2S1 vs C2T)"
+
+PEINTURE :
+  - "Neuf Placo ou rénovation sur support peint ?" (sous-couche ou pas)
+  - "Finition : mate, velours, satinée, brillante ?"
+  - "Classe DTU 59.1 : A (soigné) / B (courant) / C (ordinaire) ?"
+  - "Humidité locale (SDB, cuisine) → peinture spéciale anti-condensation ?"
+
+COUVERTURE :
+  - "Zone climatique (H1 froid, H2 tempéré, H3 sud) ?" (change pente mini DTU 40.2x)
+  - "Pente du toit (en %/° ou cm/m) ?"
+  - "Matériau souhaité : tuile TC, tuile béton, ardoise naturelle, zinc, bac acier ?"
+  - "Charpente existante adaptée au poids ? (tuile béton > TC > ardoise)"
+
+MENUISERIES EXT :
+  - "Matériau : PVC, alu, bois, mixte ?" (coût ×2-3)
+  - "Norme thermique visée : Uw ≤ 1,4 standard ou ≤ 1,1 Passivhaus ?"
+  - "Dormants à changer ou conserver ? (pose en rénovation ou dépose totale)"
+
+PLOMBERIE :
+  - "Logement neuf (distribution étoile PER) ou rénovation (cuivre/multicouche) ?"
+  - "Nombre de points d'eau par type : évier, lavabo, WC, douche, baignoire ?"
+  - "Évacuation gravitaire ou pompe de relevage ?"
+  - "Production ECS : ballon électrique, thermodynamique, solaire, PAC, gaz ?"
+
+CHAUFFAGE :
+  - "Isolation du logement : passoire, moyenne, RT2012, RE2020 ?" (dimensionne kW)
+  - "Source énergie préférée : élec, gaz, bois granulés, PAC air/eau, hybride ?"
+  - "Émetteurs : radiateurs (chaleur rapide) ou plancher chauffant (inertie) ?"
+  - "Obligation RE2020 / prime MaPrimeRénov' à capturer ?"
+
+ÉLECTRICITÉ :
+  - "T1/T2/T3/T4/T5 ? (dimensionne nb circuits + disjoncteurs)"
+  - "Fourniture neuve avec Consuel ou rénovation partielle ?"
+  - "IRVE (borne VE) prévue ? (change tableau + ajout circuit dédié)"
+  - "Domotique / smart home prévue ?"
+
+VENTILATION / CLIM :
+  - "VMC simple flux hygro B (habitation standard) ou double flux (RE2020) ?"
+  - "Clim mono-split (1 pièce) ou multi-split/gainable (plusieurs pièces) ?"
+
+ISOLATION :
+  - "Combles perdus (soufflage) ou combles aménageables (sous rampant) ?"
+  - "ITI (intérieur, perd m² habitable) ou ITE (extérieur, meilleur mais + cher) ?"
+  - "R visé ? (RE2020 = R≥6 combles, R≥4,4 murs)"
+
+PISCINE :
+  - "Coque polyester (rapide pose, limité 9×4 max), béton banché (sur mesure), ou bois kit ?"
+  - "Accessible aux enfants < 5 ans ? (dispositif sécurité obligatoire L.128-1)"
+  - "Traitement : chlore, brome, sel (électrolyseur), UV ?"
+
+RÈGLE FORMELLE : chaque item de la réponse doit au moins avoir 1 hypothèse calibrée
+ET (si le user n'a pas tout précisé) 1 question de relance concrète qui affine
+la prochaine proposition. Mieux vaut 3 questions pertinentes que 1 devinette hasardeuse.
+
+=================================================================
+RÈGLE N°3 — ANTICIPER LES OUVRAGES COMPLÉMENTAIRES (dans "assumptions")
+=================================================================
+Mentionne EXPLICITEMENT dans assumptions les ouvrages à ajouter au devis :
+  - "mur parpaing extérieur" → semelle-filante-ba + enduit-ext-monocouche
+  - "tuiles" → charpente-traditionnelle ou charpente-fermettes EN AMONT
+  - "SDB" → membrane SPEC douche + faïence + plomberie + ventilation
+  - "PAC" → émetteurs (plancher-chauffant-hydraulique OU radiateurs) + MALT
+  - "piscine" → plage carrelage 1-2 m + dispositif sécurité L.128-1 + local technique
+
+=================================================================
+GÉOMÉTRIE & CONVERSIONS
+=================================================================
+- Dimensions en MÈTRES TOUJOURS (12 cm → 0.12 m ; 25 cm → 0.25 m)
+- Modes :
+  • "volume" : length+width+thickness OU surface+thickness OU volume direct
+  • "area" : area OU length×width
+  • "area_minus_openings" : length+height+openings
+  • "length" : length OU perimeter
+  • "count" : nombre entier (fenêtres, portes, WC, appareils…)
+- Ouvertures standards :
+  • Porte intérieure ≈ 1,5 m² (2,04×0,73)
+  • Porte d'entrée ≈ 2,0 m² (2,15×0,93)
+  • Fenêtre standard ≈ 1,25 m² (1,25×1,00)
+  • Baie vitrée ≈ 3,0 m² (2,15×1,40)
+
+=================================================================
+EXEMPLES COMPLETS (à reproduire exactement ce style)
 =================================================================
 
-5. AJOUTE LES OUVRAGES COMPLÉMENTAIRES ÉVIDENTS (dans "assumptions") :
-   - "mur parpaing extérieur" → sous-entendu : fondations + enduit extérieur
-     → liste-les dans assumptions, le devis devrait inclure "semelle-filante-ba" ET
-        "enduit-ext-monocouche" en plus du mur
-   - "tuiles" → sous-entendu : CHARPENTE préalable
-     → signale dans assumptions qu'il faut "charpente-traditionnelle" en amont
-   - "carrelage SDB" → sous-entendu : SPEC douche, faïence mur, plomberie sanitaires
-   - "PAC" → sous-entendu : circuit chauffage (radiateurs OU PCBT) + éventuellement ballon ECS
+INPUT : "Dalle béton pour habitation 8×10m épaisseur à définir"
+OUTPUT :
+{
+  "items": [
+    { "recipeId": "dalle-ba-armee-st25c", "geometry": { "length": 8, "width": 10, "thickness": 0.12 }, "label": "Dalle habitation" }
+  ],
+  "assumptions": [
+    "Usage habitation pressenti → choisi ST25C (charges courantes) + épaisseur standard 12 cm.",
+    "Si l'usage change (garage véhicules / atelier charges lourdes), passer à ST40C + 15-20 cm.",
+    "Hérisson 20 cm en concassé 20/40 inclus par défaut (à adapter selon portance sol).",
+    "Isolant XPS sous dalle NON inclus par défaut — à ajouter pour conformité RE2020 (neuf)."
+  ],
+  "questions": [
+    "Confirmez l'usage : habitation (pièces à vivre) ou sol technique type garage/atelier ?",
+    "Construction neuve sous RE2020, ou rénovation existant ? (change l'isolant sous dalle)",
+    "Plancher chauffant prévu ? (change l'épaisseur de la chape au-dessus)"
+  ]
+}
 
-6. HYPOTHÈSES OBLIGATOIRES ("assumptions") — TOUJOURS REMPLIR :
-   - Dimensions inférées (ex: "hauteur mur supposée 2,5 m")
-   - Choix de recette si ambigu (ex: "choisi ST25C habitation plutôt que ST40C")
-   - Contexte RE2020 / acoustique / humidité (ex: "isolant XPS sous dalle optionnel")
-   - Préparation/accessoires INCLUS par recette (ne pas re-lister)
-   - Ouvrages complémentaires attendus (fondations, enduit, charpente, sécurité piscine…)
+INPUT : "Je dois faire une dalle béton pour habitation, 8 x 10 épaisseur à toi de définir en fonction du contexte"
+(MÊME INPUT que ci-dessus en français naturel — MÊME OUTPUT)
 
-7. QUESTIONS DE RELANCE ("questions") — quand infos bloquantes manquent :
-   - Dimension critique introuvable (hauteur mur, nb ouvertures, surface…)
-   - Choix de système ambigu (PCBT ou radiateurs ? PVC ou cuivre plomberie ?)
-   - Zone climatique pour couverture (pente mini dépend)
-   - Nb d'étages, accessibilité PMR, classement P/U/E du local
-   - Typologie usage (résidentiel / tertiaire / industriel)
-
-=================================================================
-RÈGLES BLOQUANTES
-=================================================================
-
-8. Si un ouvrage nécessite une dimension CRITIQUE et elle est absente ET non inférable :
-   → NE crée PAS l'item (sortie incomplète = faux devis)
-   → À la place, pose une question précise dans "questions"
-   Exemple : "dalle béton" sans surface → question : "Quelle surface pour la dalle en m² ?"
-
-9. Si la description est trop vague pour extraire quoi que ce soit :
-   → items vide
-   → questions avec 3-5 relances utiles pour cadrer le projet
-
-10. Ne JAMAIS inventer de recipeId. Tu peux UNIQUEMENT utiliser les IDs du catalogue ci-dessus.
-
-=================================================================
-EXEMPLES DE BONNES EXTRACTIONS
-=================================================================
-
-INPUT : "Je fais une dalle béton 8×5m en 12 cm pour un garage + un mur parpaing 20m sur 2,5m"
+INPUT : "Je fais une dalle béton 8×5m en 12 cm pour un garage + mur parpaing 20m×2,5m"
 OUTPUT :
 {
   "items": [
@@ -166,35 +282,39 @@ OUTPUT :
     { "recipeId": "mur-parpaing-20", "geometry": { "length": 20, "height": 2.5, "openings": 0 }, "label": "Mur parpaing" }
   ],
   "assumptions": [
-    "Choisi ST40C (garage = charges véhicules) plutôt que ST25C habitation",
-    "Aucune ouverture mentionnée pour le mur — supposé 0 m²",
-    "Préparation (hérisson, polyane, joints) + accessoires + cure inclus dans les recettes",
-    "Fondations du mur parpaing NON incluses — à ajouter avec recette 'semelle-filante-ba'",
-    "Enduit extérieur NON inclus — à ajouter avec 'enduit-ext-monocouche' si finition prévue"
+    "Garage → choisi ST40C (charges véhicules) plutôt que ST25C.",
+    "Mur parpaing 20 m × 2,5 m : 0 ouverture supposée — ajoutez si porte/fenêtre.",
+    "Fondations du mur NON incluses → ajouter recette 'semelle-filante-ba'.",
+    "Enduit extérieur NON inclus → ajouter 'enduit-ext-monocouche' si finition prévue."
   ],
-  "questions": []
+  "questions": [
+    "Zone climatique (H1/H2/H3) pour dimensionner les fondations ?",
+    "Enduit extérieur prévu (monocouche traditionnel / ETICS) ?"
+  ]
 }
 
 INPUT : "je veux faire une cuisine"
 OUTPUT :
 {
   "items": [],
-  "assumptions": ["Description trop vague pour un métré précis"],
+  "assumptions": ["Description trop vague pour un métré précis — besoin de cadrer les surfaces et systèmes."],
   "questions": [
-    "Quelle surface de carrelage sol ?",
-    "Quelle surface de faïence mur (crédence ou pleine hauteur) ?",
-    "Nombre de prises électriques supplémentaires prévues ?",
-    "Nouvelle arrivée d'eau / évacuations nécessaires ou existantes ?",
-    "Hotte : conduit à créer ou existant ?"
+    "Quelle surface au sol de la cuisine (m²) ?",
+    "Hauteur sous plafond et surface de faïence murale (crédence seule ou pleine hauteur) ?",
+    "Réaménagement complet ou rénovation partielle (carrelage seul / élec seule / plomberie) ?",
+    "Hotte : conduit à créer ou existant déjà ?",
+    "Budget fourchette : premier prix / standard / haut de gamme ?"
   ]
 }
 
 =================================================================
-FORMAT DE RÉPONSE
+RÈGLES BLOQUANTES
 =================================================================
+- Ne JAMAIS inventer un recipeId. Utilise UNIQUEMENT ceux du catalogue.
+- Si surface/quantité CRITIQUE absente ET non inférable : NE crée PAS l'item, pose question.
+- Si description totalement vague : items=[] + 3-5 questions utiles.
 
-RÉPONDS UNIQUEMENT EN JSON VALIDE, sans texte autour :
-
+FORMAT DE RÉPONSE — JSON VALIDE UNIQUEMENT (aucun texte autour) :
 {
   "items": [{ "recipeId": "...", "geometry": { ... }, "label": "..." }],
   "chantierProfile": { "difficulty": "standard", "size": "moyen", "workforceLevel": "mixte" },
@@ -205,9 +325,10 @@ RÉPONDS UNIQUEMENT EN JSON VALIDE, sans texte autour :
 
 export async function extractEstimationWithGroq(
   userDescription: string,
-  apiKey?: string
+  apiKey?: string,
+  scope?: { trades?: Recipe['trade'][]; country?: 'FR' | 'PT' }
 ): Promise<ExtractionResult> {
-  const systemPrompt = buildSystemPrompt()
+  const systemPrompt = buildSystemPrompt(scope)
 
   const response = await callGroqWithRetry(
     {
@@ -219,7 +340,14 @@ export async function extractEstimationWithGroq(
       max_tokens: 2000,
       response_format: { type: 'json_object' },
     },
-    { apiKey }
+    {
+      apiKey,
+      // Désactive le fallback Llama 3.1 8B : son context effective (~7k) ne
+      // suffit pas pour le catalogue 162 recettes + règles calibrées (→ 413).
+      // On garde le 70B uniquement, avec retries sur 429.
+      fallbackModel: 'llama-3.3-70b-versatile',
+      maxRetries: 3,
+    }
   )
 
   const content = response.choices?.[0]?.message?.content
@@ -238,12 +366,54 @@ export async function extractEstimationWithGroq(
 
   const result = ExtractionResultSchema.parse(parsed)
 
-  // Filtrer les recipeId inconnus (safety)
-  const validIds = new Set(allRecipes.map(r => r.id))
+  // Filtrer les recipeId inconnus (safety) + scope pays/trades si fourni.
+  // Ceinture + bretelles : même si le LLM a triché en proposant une recette
+  // hors périmètre, on la rejette ici (anti-abus multi-tenant).
+  const scopedRecipes = allRecipes.filter(r => {
+    if (scope?.country && r.country && r.country !== scope.country) return false
+    if (scope?.trades && scope.trades.length > 0 && !scope.trades.includes(r.trade)) return false
+    return true
+  })
+  const validIds = new Set(scopedRecipes.map(r => r.id))
   const unknownIds = result.items.filter(i => !validIds.has(i.recipeId)).map(i => i.recipeId)
   if (unknownIds.length > 0) {
-    result.assumptions.push(`Recettes inconnues ignorées : ${unknownIds.join(', ')}`)
+    const reason = scope?.trades && scope.trades.length > 0
+      ? `hors périmètre métier autorisé (${scope.trades.join(', ')})`
+      : 'inconnues'
+    result.assumptions.push(`Recettes ${reason} ignorées : ${unknownIds.join(', ')}`)
     result.items = result.items.filter(i => validIds.has(i.recipeId))
+  }
+
+  // Post-validation : pour chaque item, vérifier que la géométrie contient
+  // les dimensions requises par les matériaux (thickness, height, perimeter).
+  // Si une dimension critique manque, ajoute une question de relance pour que
+  // l'utilisateur la renseigne AVANT calcul (évite résultats à 0 surprises).
+  for (const item of result.items) {
+    const recipe = allRecipes.find(r => r.id === item.recipeId)
+    if (!recipe) continue
+
+    const needsThickness = recipe.materials.some(m => m.geometryMultiplier === 'thickness')
+    const needsHeight = recipe.materials.some(m => m.geometryMultiplier === 'height')
+    const needsPerimeter = recipe.materials.some(m => m.geometryMultiplier === 'perimeter')
+
+    if (needsThickness && item.geometry.thickness === undefined) {
+      result.questions.push(
+        `Quelle épaisseur (en cm) pour "${recipe.name}" ? Sans cette valeur, `
+        + `le calcul des matériaux liés au volume (béton, ciment, eau, gravier, sable) est impossible.`
+      )
+    }
+    if (needsHeight && item.geometry.height === undefined && !item.geometry.length) {
+      result.questions.push(
+        `Quelle hauteur pour "${recipe.name}" ?`
+      )
+    }
+    if (needsPerimeter && item.geometry.perimeter === undefined
+        && !(item.geometry.length && item.geometry.width)) {
+      result.assumptions.push(
+        `"${recipe.name}" : périmètre non calculable — certains accessoires `
+        + `(joints, bandes, chaînages périphériques) sortiront à 0.`
+      )
+    }
   }
 
   return result

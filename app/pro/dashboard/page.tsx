@@ -991,7 +991,10 @@ function DashboardPage() {
           {/* ────── ESTIMATION MATÉRIAUX (quantitatifs DTU) ────── */}
           {activePage === 'estimation_materiaux' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na estimativa' : 'Erreur dans l\'estimation'}>
-              <EstimationMateriauxSection artisan={artisan} />
+              <EstimationMateriauxSection
+                artisan={artisan}
+                isAdminOverride={showAdminBtn}
+              />
             </SectionErrorBoundary>
           )}
 

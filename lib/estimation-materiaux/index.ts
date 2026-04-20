@@ -7,10 +7,13 @@
 
 export * from './types'
 export * from './engine/estimator'
+export * from './guards/country'
 export {
   allRecipes,
   recipeRegistry,
   getRecipesByTrade,
+  getRecipesByCountry,
+  getRecipesByTradeAndCountry,
   searchRecipes,
   maconnerieRecipes,
   placoRecipes,

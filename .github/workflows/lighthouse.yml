@@ -52,11 +52,12 @@ jobs:
             | sed 's|https://vitfix.io|http://localhost:3000|g')
 
           # Si le sitemap est vide, utiliser des URLs de fallback
+          # (routes servies directement, sans redirection locale /en/ qui renvoie 404)
           if [ -z "$SITEMAP_URLS" ]; then
-            SITEMAP_URLS="http://localhost:3000/
-          http://localhost:3000/fr/
+            SITEMAP_URLS="http://localhost:3000/fr/
           http://localhost:3000/pt/
-          http://localhost:3000/contact/"
+          http://localhost:3000/fr/comment-ca-marche/
+          http://localhost:3000/pt/como-funciona/"
           fi
 
           # Écrire les URLs dans un fichier

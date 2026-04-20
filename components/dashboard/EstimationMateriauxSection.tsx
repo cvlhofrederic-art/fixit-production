@@ -10,7 +10,7 @@ import type {
   ChantierProfile,
   MaterialNeed,
 } from '@/lib/estimation-materiaux'
-import { allRecipes, searchRecipes } from '@/lib/estimation-materiaux'
+import { getRecipesByCountry, searchRecipes } from '@/lib/estimation-materiaux'
 import './estimation-materiaux.css'
 
 type Trade = Recipe['trade']
@@ -27,8 +27,19 @@ interface ProjectItem {
 }
 
 interface Props {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   artisan?: { id?: string } | null
+  /**
+   * Si true, affiche le sélecteur de corps de métier dans le mode IA.
+   * Réservé au super-admin — les entreprises standards sont calibrées sur
+   * leur(s) corps de métier attribué(s) côté profile (cf. props `allowedTrades`).
+   */
+  isAdminOverride?: boolean
+  /**
+   * Corps de métier autorisés pour cette entreprise. Si non renseigné ou vide :
+   * tout le catalogue est accessible (défaut super-admin / test).
+   * Si renseigné : l'IA est cantonnée à ces trades (anti-abus).
+   */
+  allowedTrades?: Trade[]
 }
 
 const TRADE_ICON: Record<Trade, string> = {
@@ -541,6 +552,78 @@ const PHASE_META_PT: Record<string, { icon: string; label: string }> = {
   options: { icon: '➕', label: 'Opções condicionais' },
 }
 
+/**
+ * Règles heuristiques "cohérence du devis" :
+ * pour un recipeId, suggère des ouvrages complémentaires typiquement attendus.
+ * Déclenche uniquement si AUCUN des complementRecipeIds n'est présent dans le devis.
+ */
+const COHERENCE_RULES: Array<{
+  triggerRecipeId: string
+  complementRecipeIds: string[]
+  messageFr: string
+  messagePt: string
+}> = [
+  {
+    triggerRecipeId: 'mur-parpaing-20',
+    complementRecipeIds: ['semelle-filante-ba'],
+    messageFr: 'Mur parpaing extérieur sans fondation — semelle filante BA attendue',
+    messagePt: 'Parede em bloco exterior sem fundação — sapata corrida em BA esperada',
+  },
+  {
+    triggerRecipeId: 'mur-parpaing-20',
+    complementRecipeIds: ['enduit-ext-monocouche', 'enduit-ext-multicouche'],
+    messageFr: 'Mur parpaing sans enduit extérieur — finition façade à prévoir',
+    messagePt: 'Parede em bloco sem reboco exterior — acabamento de fachada a prever',
+  },
+  {
+    triggerRecipeId: 'couv-tuile-tc-emboitement',
+    complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes', 'mob-murs'],
+    messageFr: 'Couverture tuile sans charpente — structure porteuse manquante',
+    messagePt: 'Cobertura em telha sem estrutura — estrutura portante em falta',
+  },
+  {
+    triggerRecipeId: 'couv-tuile-beton',
+    complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes', 'mob-murs'],
+    messageFr: 'Couverture tuile béton sans charpente — structure porteuse manquante',
+    messagePt: 'Cobertura em telha de betão sem estrutura — estrutura portante em falta',
+  },
+  {
+    triggerRecipeId: 'couv-ardoise-naturelle',
+    complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes'],
+    messageFr: 'Couverture ardoise sans charpente — structure porteuse manquante',
+    messagePt: 'Cobertura em ardósia sem estrutura — estrutura portante em falta',
+  },
+  {
+    triggerRecipeId: 'pac-air-eau',
+    complementRecipeIds: ['plancher-chauffant-hydraulique', 'radiateur-acier-panneau', 'radiateur-eau-chaude'],
+    messageFr: 'PAC air/eau sans émetteurs — radiateurs ou plancher chauffant attendus',
+    messagePt: 'Bomba de calor ar/água sem emissores — radiadores ou piso radiante esperados',
+  },
+  {
+    triggerRecipeId: 'piscine-coque-polyester',
+    complementRecipeIds: ['terrasse-bois-plots', 'terrasse-carrelage-ext', 'terrasse-composite-wpc'],
+    messageFr: 'Piscine sans plage périphérique — terrasse 1-2 m à prévoir séparément',
+    messagePt: 'Piscina sem pavimento periférico — terraço 1-2 m a prever separadamente',
+  },
+  {
+    triggerRecipeId: 'piscine-beton-banche',
+    complementRecipeIds: ['terrasse-bois-plots', 'terrasse-carrelage-ext', 'terrasse-composite-wpc'],
+    messageFr: 'Piscine sans plage périphérique — terrasse 1-2 m à prévoir séparément',
+    messagePt: 'Piscina sem pavimento periférico — terraço 1-2 m a prever separadamente',
+  },
+]
+
+function deriveCoherenceAlerts(result: EstimationResult, isPt: boolean): string[] {
+  const presentIds = new Set(result.items.map(i => i.recipeId))
+  const alerts: string[] = []
+  for (const rule of COHERENCE_RULES) {
+    if (!presentIds.has(rule.triggerRecipeId)) continue
+    const hasComplement = rule.complementRecipeIds.some(id => presentIds.has(id))
+    if (!hasComplement) alerts.push(isPt ? rule.messagePt : rule.messageFr)
+  }
+  return alerts
+}
+
 interface ResultsPanelProps {
   result: EstimationResult
   isPt: boolean
@@ -551,6 +634,12 @@ interface ResultsPanelProps {
 }
 
 function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: ResultsPanelProps) {
+  const coherenceAlerts = useMemo(() => deriveCoherenceAlerts(result, isPt), [result, isPt])
+  const itemWarnings = useMemo(
+    () => result.items.flatMap(it => it.warnings.map(w => `${it.label || it.recipeName} — ${w}`)),
+    [result.items]
+  )
+
   // Regroupe aggregated en 5 buckets : preparation / principal / accessoires / finitions / options
   const groups = useMemo(() => {
     const g = {
@@ -612,6 +701,42 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
         {renderSection('finitions')}
         {renderSection('options')}
 
+        {(coherenceAlerts.length > 0 || itemWarnings.length > 0 || result.warnings.length > 0) && (
+          <div className="coherence-box">
+            <h3>⚠️ {isPt ? 'Coerência do orçamento' : 'Cohérence du devis'}</h3>
+            {coherenceAlerts.length > 0 && (
+              <>
+                <div className="coherence-subtitle">
+                  {isPt ? 'Obras complementares em falta' : 'Ouvrages complémentaires manquants'}
+                </div>
+                <ul>
+                  {coherenceAlerts.map((a, i) => <li key={`c-${i}`}>{a}</li>)}
+                </ul>
+              </>
+            )}
+            {itemWarnings.length > 0 && (
+              <>
+                <div className="coherence-subtitle">
+                  {isPt ? 'Avisos de cálculo' : 'Avertissements de calcul'}
+                </div>
+                <ul>
+                  {itemWarnings.map((w, i) => <li key={`w-${i}`}>{w}</li>)}
+                </ul>
+              </>
+            )}
+            {result.warnings.length > 0 && (
+              <>
+                <div className="coherence-subtitle">
+                  {isPt ? 'Avisos gerais' : 'Avertissements globaux'}
+                </div>
+                <ul>
+                  {result.warnings.map((w, i) => <li key={`g-${i}`}>{w}</li>)}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
         {result.hypothesesACommuniquer && result.hypothesesACommuniquer.length > 0 && (
           <div className="hypotheses-box">
             <h3>💡 {isPt ? 'Hipóteses do estimador' : 'Hypothèses de l\'estimateur'}</h3>
@@ -637,9 +762,18 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
 /* ═══════════════════════════════════════════════════════════
    SECTION PRINCIPALE
    ═══════════════════════════════════════════════════════════ */
-export default function EstimationMateriauxSection({ artisan: _artisan }: Props) {
+export default function EstimationMateriauxSection({
+  artisan: _artisan,
+  isAdminOverride = false,
+  allowedTrades,
+}: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
+  const country: 'FR' | 'PT' = isPt ? 'PT' : 'FR'
+
+  // Isolation stricte : l'UI n'expose QUE les recettes du pays de l'utilisateur.
+  // Aucune recette FR ne peut remonter pour un artisan PT et inversement.
+  const countryRecipes = useMemo(() => getRecipesByCountry(country), [country])
 
   // Mode + état projet
   const [mode, setMode] = useState<Mode>('form')
@@ -668,18 +802,28 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
   const [iaQuestions, setIaQuestions] = useState<string[]>([])
   const [iaAnalyzing, setIaAnalyzing] = useState(false)
 
+  // Périmètre métier effectif pour l'IA.
+  // - Super-admin : sélection libre parmi les 26 trades (default = tous)
+  // - Autres : restreint à `allowedTrades` passé en props (company-calibrated)
+  const [selectedTrades, setSelectedTrades] = useState<Trade[]>([])
+  const effectiveTrades = useMemo<Trade[] | undefined>(() => {
+    if (isAdminOverride) return selectedTrades.length > 0 ? selectedTrades : undefined
+    if (allowedTrades && allowedTrades.length > 0) return allowedTrades
+    return undefined
+  }, [isAdminOverride, selectedTrades, allowedTrades])
+
   // Feedback bouton copier
   const [copied, setCopied] = useState(false)
 
   const searchResults = useMemo(() => {
     const q = query.trim()
     if (!q) return []
-    return searchRecipes(q).slice(0, 8)
-  }, [query])
+    return searchRecipes(q, country).slice(0, 8)
+  }, [query, country])
 
   const selectedRecipe = useMemo(
-    () => (selectedRecipeId ? allRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
-    [selectedRecipeId]
+    () => (selectedRecipeId ? countryRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
+    [selectedRecipeId, countryRecipes]
   )
 
   const openParam = useCallback((recipeId: string, editing: ProjectItem | null = null) => {
@@ -738,7 +882,7 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
       const res = await fetch('/api/estimation/compute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, country }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -768,6 +912,8 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
           description: text,
           projectName: projectName.trim() || undefined,
           profileFallback: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
+          country,
+          trades: effectiveTrades,
         }),
       })
       if (!res.ok) {
@@ -778,10 +924,11 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
         extraction: { items: Array<{ recipeId: string; geometry: Geometry; label?: string }>; assumptions: string[]; questions: string[] }
         result: EstimationResult
       }
-      // Remplir items à partir de l'extraction
+      // Remplir items à partir de l'extraction (filtre strict par pays :
+      // si l'IA retourne un recipeId hors scope pays, on l'ignore).
       const extractedItems: ProjectItem[] = []
       for (const it of data.extraction.items) {
-        const recipe = allRecipes.find(r => r.id === it.recipeId)
+        const recipe = countryRecipes.find(r => r.id === it.recipeId)
         if (!recipe) continue
         extractedItems.push({
           uid: `${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -974,6 +1121,56 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
           <>
             <div className="v5-card">
               <div className="v5-st">{isPt ? 'Descreva a sua obra' : 'Décrivez votre chantier'}</div>
+
+              {/* Sélecteur de corps de métier — super-admin uniquement */}
+              {isAdminOverride && (
+                <div className="ia-trade-selector">
+                  <div className="ia-trade-label">
+                    🛠️ {isPt ? 'Âmbito — corpos de métier (admin)' : 'Périmètre — corps de métier (admin)'}
+                    <span className="ia-trade-hint">
+                      {selectedTrades.length === 0
+                        ? (isPt ? 'Tudo o catálogo' : 'Tout le catalogue')
+                        : `${selectedTrades.length} / 26`}
+                    </span>
+                  </div>
+                  <div className="ia-trade-chips">
+                    {(Object.keys(TRADE_LABEL_FR) as Trade[]).map(t => {
+                      const active = selectedTrades.includes(t)
+                      const label = isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          className={`ia-trade-chip ${active ? 'active' : ''}`}
+                          onClick={() => setSelectedTrades(prev =>
+                            prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                          )}
+                        >
+                          {TRADE_ICON[t]} {label}
+                        </button>
+                      )
+                    })}
+                    {selectedTrades.length > 0 && (
+                      <button
+                        type="button"
+                        className="ia-trade-chip ia-trade-clear"
+                        onClick={() => setSelectedTrades([])}
+                      >
+                        ✕ {isPt ? 'Limpar' : 'Tout effacer'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Indicateur périmètre entreprise (non-admin) */}
+              {!isAdminOverride && allowedTrades && allowedTrades.length > 0 && (
+                <div className="ia-trade-locked">
+                  🔒 {isPt ? 'IA calibrada para' : 'IA calibrée pour'} :{' '}
+                  {allowedTrades.map(t => isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]).join(' · ')}
+                </div>
+              )}
+
               <div className="ia-zone">
                 <textarea
                   placeholder={isPt

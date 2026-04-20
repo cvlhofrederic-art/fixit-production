@@ -171,4 +171,25 @@
 .estim-wrap .hypotheses-box ul { margin: 0; padding-left: 1.1rem; font-size: 11px; color: #555; line-height: 1.55; }
 .estim-wrap .hypotheses-box li { margin-bottom: 2px; }
 
+/* Sélecteur corps de métier — mode IA super-admin */
+.estim-wrap .ia-trade-selector { background: #FFF8E1; border: 1px solid #F0D78C; border-radius: 6px; padding: .6rem .75rem; margin-bottom: .75rem; }
+.estim-wrap .ia-trade-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #8B7D00; margin-bottom: .5rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.estim-wrap .ia-trade-hint { background: #FFC107; color: #1a1a1a; padding: 1px 8px; border-radius: 8px; font-size: 9px; font-weight: 700; }
+.estim-wrap .ia-trade-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.estim-wrap .ia-trade-chip { background: #fff; border: 1px solid #E0E0E0; border-radius: 14px; padding: 3px 10px; font-size: 10px; cursor: pointer; transition: all .15s; }
+.estim-wrap .ia-trade-chip:hover { border-color: #FFC107; background: #FFF8E1; }
+.estim-wrap .ia-trade-chip.active { background: #FFC107; border-color: #FFC107; color: #1a1a1a; font-weight: 600; }
+.estim-wrap .ia-trade-chip.ia-trade-clear { background: #FFEBEE; border-color: #E53935; color: #C62828; font-weight: 600; }
+
+/* Badge périmètre IA calibrée (non-admin) */
+.estim-wrap .ia-trade-locked { background: #E3F2FD; border: 1px solid #90CAF9; border-radius: 6px; padding: .5rem .75rem; margin-bottom: .75rem; font-size: 11px; color: #0D47A1; }
+
+/* Cohérence du devis — alertes et avertissements */
+.estim-wrap .coherence-box { margin-top: 1rem; padding: .75rem .9rem; background: #FFF3E0; border: 1px solid #FFB74D; border-radius: 6px; }
+.estim-wrap .coherence-box h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: #E65100; margin-bottom: .5rem; display: flex; align-items: center; gap: 5px; }
+.estim-wrap .coherence-box .coherence-subtitle { font-size: 10px; font-weight: 600; color: #BF360C; margin-top: .5rem; margin-bottom: .2rem; }
+.estim-wrap .coherence-box .coherence-subtitle:first-of-type { margin-top: 0; }
+.estim-wrap .coherence-box ul { margin: 0 0 .3rem; padding-left: 1.1rem; font-size: 11px; color: #5D4037; line-height: 1.55; }
+.estim-wrap .coherence-box li { margin-bottom: 2px; }
+
 .estim-wrap .hidden { display: none; }

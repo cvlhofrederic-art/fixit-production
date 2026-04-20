@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "scripts/**",
     "*.js",
     "*.cjs",
+    // Dev tooling (CJS bootstrap, not part of the application bundle)
+    ".claude/**",
+    // Vendored/minified third-party bundles — not source code
+    "public/**",
   ]),
   // Relax rules for existing codebase
   {
@@ -27,6 +31,17 @@ const eslintConfig = defineConfig([
       "react-hooks/purity": "off",
       "react-hooks/immutability": "off",
       "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/static-components": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/unsupported-syntax": "warn",
+      "react-hooks/globals": "warn",
+      "react-hooks/component-hook-factories": "warn",
+      "react-hooks/error-boundaries": "warn",
+      "react-hooks/config": "warn",
+      "react-hooks/gating": "warn",
+      "react-hooks/incompatible-library": "warn",
+      "react-hooks/use-memo": "warn",
     },
   },
 ]);

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { getServerTranslation } from '@/lib/i18n/server'
 
 export const metadata: Metadata = {
@@ -155,7 +156,7 @@ export default async function TermsPage() {
             </p>
             <p className="mt-3">
               {t('cgu.art10.p5')}{' '}
-              <a href="/en/privacy" className="text-yellow hover:underline">{t('cgu.art10.privacyLink')}</a>.
+              <Link href="/en/privacy" className="text-yellow hover:underline">{t('cgu.art10.privacyLink')}</Link>.
             </p>
           </section>
 

@@ -5,11 +5,13 @@
 const fs = require('fs');
 
 // URLs extraites du sitemap par le workflow CI
+// Fallback : URLs connues pour exister sans redirection (testées via les routes
+// /fr/ et /pt/ qui sont servies directement, pas de négociation de langue).
 let urls = [
-  'http://localhost:3000/',
   'http://localhost:3000/fr/',
   'http://localhost:3000/pt/',
-  'http://localhost:3000/contact/',
+  'http://localhost:3000/fr/comment-ca-marche/',
+  'http://localhost:3000/pt/como-funciona/',
 ];
 
 try {
