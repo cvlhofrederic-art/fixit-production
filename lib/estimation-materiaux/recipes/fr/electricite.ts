@@ -4,8 +4,12 @@ import type { Recipe } from '../../types'
  * ÉLECTRICITÉ COURANT FORT — audit #21
  *
  * Référentiels FR :
- * - NF C 15-100 — installations électriques basse tension (édition 2015 + A1-A5)
- *   AMENDEMENT A5 (2023) : IRVE, pilotage, sécurité incendie
+ * - NF C 15-100 — installations électriques basse tension
+ *   Édition Août 2024 en vigueur depuis Septembre 2025 (série NF C 15-100-1 à 15-100-7-7xx,
+ *   21 normes). Remplace Édition Décembre 2002 + amendements A1 à A5 (A5 Juin 2015).
+ *   Les numéros de section cités dans les matériaux (§771, §531.2, §411.3.2.5, §542…)
+ *   viennent historiquement de l'édition 2002 — contenu technique équivalent conservé
+ *   dans la nouvelle série de normes 2024.
  * - NF DTU 70.1 — installations électriques habitation
  * - NF C 14-100 — branchement
  * - NF C 15-722 — spécifique IRVE
@@ -24,12 +28,12 @@ export const electriciteRecipes: Recipe[] = [
   {
     id: 'elec-tableau-principal',
     name: 'Tableau électrique principal (GTL + coffret + disjoncteurs)',
-    description: 'Coffret 2-4 rangées T2-T5 selon nb circuits. Disjoncteurs diff 30 mA type AC/A + magnéto-thermiques. NF C 15-100 amendement A5.',
+    description: 'Coffret 2-4 rangées T2-T5 selon nb circuits. Disjoncteurs diff 30 mA type AC/A + magnéto-thermiques. Conforme NF C 15-100 Édition 2024.',
     trade: 'electricite',
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Installations électriques basse tension', section: 'Édition 2015 + A5 2023' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Installations électriques basse tension', section: 'Édition 2024 en vigueur — remplace Édition 2002 + A1 à A5 (A5 Juin 2015)' },
       { code: 'NF EN 61439-3 (Avril 2012)', title: 'Tableaux' },
       { code: 'UTE C 15-712-1 (Juillet 2013)', title: 'Installations photovoltaïques' },
     ],
@@ -108,8 +112,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Installations électriques BT', section: '§771 équipements logement' },
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Section conducteurs', section: '§531.2' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Installations électriques BT', section: '§771 équipements logement' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Section conducteurs', section: '§531.2' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -191,8 +195,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Mise à la terre', section: '§542' },
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Liaisons équipotentielles', section: '§541' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Mise à la terre', section: '§542' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Liaisons équipotentielles', section: '§541' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -254,8 +258,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Appareillage et luminaires éclairage extérieur', section: '§559 (IP min 44)' },
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Câbles enterrés', section: '§528' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Appareillage et luminaires éclairage extérieur', section: '§559 (IP min 44)' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Câbles enterrés', section: '§528' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -319,7 +323,7 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Amendement A5 2023 — IRVE' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Amendement A5 2023 — IRVE' },
       { code: 'NF C 15-722 (Novembre 2013)', title: 'Spécifique IRVE' },
       { code: 'Décret LOM', title: 'Pré-équipement IRVE obligatoire logements neufs' },
     ],
@@ -388,7 +392,7 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Protection surtensions', section: '§534 + A5 2023' },
+      { code: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)', title: 'Protection surtensions', section: '§534 + A5 2023' },
       { code: 'NF EN 61643-11 (Mai 2013)', title: 'Parafoudres BT' },
     ],
     version: '2.1.0',
