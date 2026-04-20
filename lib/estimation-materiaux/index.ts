@@ -20,4 +20,6 @@ export {
   couvertureRecipes,
   menuiseriesExtRecipes,
   electriciteRecipes,
+  betonBancheRecipes,
+  charpenteRecipes,
 } from './recipes'
