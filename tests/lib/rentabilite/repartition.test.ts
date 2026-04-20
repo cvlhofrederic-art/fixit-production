@@ -67,4 +67,18 @@ describe('calculeQuotePartFixes', () => {
     })
     expect(result).toBe(0)
   })
+
+  it('negative ca_chantier returns 0', () => {
+    expect(calculeQuotePartFixes({
+      mode: 'prorata_ca', ca_chantier: -5000, ca_total_periode: 100000,
+      jours_chantier: 0, jours_total_periode: 0, charges_fixes_mensuelles: 1355, duree_mois: 1,
+    })).toBe(0)
+  })
+
+  it('negative jours_chantier returns 0', () => {
+    expect(calculeQuotePartFixes({
+      mode: 'prorata_temps', ca_chantier: 0, ca_total_periode: 0,
+      jours_chantier: -3, jours_total_periode: 22, charges_fixes_mensuelles: 1355, duree_mois: 1,
+    })).toBe(0)
+  })
 })

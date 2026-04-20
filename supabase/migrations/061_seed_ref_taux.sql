@@ -6,6 +6,9 @@ INSERT INTO ref_taux (juridiction, type_charge, regime, taux, date_debut_validit
   ('FR', 'versement_liberatoire', 'auto_entrepreneur', 1.7000, '2026-01-01', 'CGI art. 151-0', 'Versement libératoire IR optionnel'),
   ('FR', 'cotisations_sociales', 'micro_bic', 22.0000, '2026-01-01', 'URSSAF barème 2026', 'Cotisations micro-BIC artisan'),
   ('FR', 'abattement_micro', 'micro_bic', 50.0000, '2026-01-01', 'CGI art. 50-0', 'Abattement forfaitaire BIC'),
+  -- Micro-BNC
+  ('FR', 'cotisations_sociales', 'micro_bnc', 22.0000, '2026-01-01', 'URSSAF barème 2026', 'Cotisations micro-BNC artisan'),
+  ('FR', 'abattement_micro', 'micro_bnc', 34.0000, '2026-01-01', 'CGI art. 102 ter', 'Abattement forfaitaire BNC'),
   ('FR', 'cotisations_sociales', 'ei', 45.0000, '2026-01-01', 'SSI barème 2026 — fourchette haute', 'Cotisations SSI sur bénéfice (variable 40-45%)'),
   -- EURL IS
   ('FR', 'charges_patronales', 'eurl_is', 42.0000, '2026-01-01', 'URSSAF barème employeur 2026', 'Charges patronales standard sur masse salariale'),

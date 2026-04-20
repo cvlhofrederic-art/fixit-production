@@ -104,6 +104,22 @@ describe('calculeChargesSociales', () => {
     expect(result.taux_appliques).toHaveLength(2)
   })
 
+  it('micro-BNC FR: 22% of CA 10000 = 2200', () => {
+    const result = calculeChargesSociales({
+      allTaux: mockTaux, juridiction: 'FR', formeJuridique: 'micro_bnc',
+      ca: 10000, masseSalariale: 0, beneficeBrut: 0, date: date2026,
+    })
+    expect(result.montant).toBe(2200)
+  })
+
+  it('Unipessoal Lda PT: (23.75% + 1%) of 2000 = 495', () => {
+    const result = calculeChargesSociales({
+      allTaux: mockTaux, juridiction: 'PT', formeJuridique: 'unipessoal_lda',
+      ca: 20000, masseSalariale: 2000, beneficeBrut: 0, date: date2026,
+    })
+    expect(result.montant).toBe(495)
+  })
+
   it('Trabalhador Independente PT: 21.4% on 70% of 15000 = 2247', () => {
     const result = calculeChargesSociales({
       allTaux: mockTaux,
@@ -175,6 +191,14 @@ describe('calculeChargesFiscales', () => {
       formeJuridique: 'lda',
       beneficeAvantImpot: 0,
       date: date2026,
+    })
+    expect(result.montant).toBe(0)
+  })
+
+  it('micro-BNC has no IS', () => {
+    const result = calculeChargesFiscales({
+      allTaux: mockTaux, juridiction: 'FR', formeJuridique: 'micro_bnc',
+      beneficeAvantImpot: 15000, date: date2026,
     })
     expect(result.montant).toBe(0)
   })
