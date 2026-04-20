@@ -16,7 +16,7 @@
   --v22-border-dark: #D0D0C8;
   --v22-text: #0D0D0D;
   --v22-text-mid: #555;
-  --v22-text-muted: #767676;
+  --v22-text-muted: #595957;
   --v22-sidebar-bg: #0D0D0D;
   --v22-sidebar-hover: #1A1A1A;
   --v22-sidebar-active: #2A2A2A;
@@ -1489,7 +1489,7 @@
   --color-dark: #111110;
   --color-mid: #2A2A28;
   --color-warm-gray: #F5F3EF;
-  --color-text-muted: #7A7870;
+  --color-text-muted: #595957;
   --color-border: rgba(0, 0, 0, 0.08);
 
   /* ── Legacy aliases (backward compat) ── */
