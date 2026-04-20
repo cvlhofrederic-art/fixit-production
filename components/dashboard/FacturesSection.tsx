@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
+import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
 import { useThemeVars, ThemeVars } from './useThemeVars'
@@ -54,6 +55,18 @@ export default function FacturesSection({
   }
 
   if (showFactureForm) {
+    // Pixel-perfect cohérence avec DevisSection : BTP (pro_societe) utilise
+    // DevisFactureFormBTP avec split MAIN D'ŒUVRE / MATÉRIAUX / FRAIS ANNEXES.
+    // Les autres rôles restent sur l'ancien DevisFactureForm (une seule table).
+    if (orgRole === 'pro_societe') {
+      return (
+        <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="facture"
+          initialData={convertingDevis as any}
+          onBack={() => { setShowFactureForm(false); setConvertingDevis(null); refreshDocuments() }}
+          onSave={() => { setConvertingDevis(null); refreshDocuments() }}
+        />
+      )
+    }
     return (
       <DevisFactureForm artisan={artisan} services={services} bookings={bookings} initialDocType="facture"
         initialData={convertingDevis as Partial<DevisFactureData> | undefined}
