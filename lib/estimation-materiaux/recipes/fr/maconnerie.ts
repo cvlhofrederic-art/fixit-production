@@ -557,7 +557,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm3',
     geometryMode: 'volume',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Ouvrages en maçonnerie de petits éléments' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments' },
       { code: 'NF DTU 26.1 (Avril 2008)', title: 'Enduits aux mortiers de ciments, chaux' },
     ],
     version: '2.0.0',
@@ -599,7 +599,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: 'rev. juillet 2020' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: '§5 hourdage / §6 chaînages (mur parpaing)' },
       { code: 'NF EN 771-3+A1 (Octobre 2015)', title: 'Spécifications éléments maçonnerie béton granulats' },
       { code: 'NF EN 998-2 (Mai 2017)', title: 'Mortiers de maçonnerie' },
       { code: 'Eurocode 6', title: 'NF EN 1996-1-1 — calcul structures maçonnerie' },
@@ -703,7 +703,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie de petits éléments', section: 'rev. juillet 2020' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Maçonnerie de petits éléments', section: '§5.3 mortier joint mince (monomur) / §6 chaînages' },
       { code: 'NF EN 771-1+A1 (Octobre 2015)', title: 'Spécifications briques terre cuite' },
       { code: 'Eurocode 6', title: 'NF EN 1996-1-1' },
     ],
@@ -991,7 +991,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: 'rev. 2020' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: '§5 éléments terre cuite / §6 chaînages' },
       { code: 'NF EN 771-1+A1 (Octobre 2015)', title: 'Spécifications éléments maçonnerie terre cuite' },
     ],
     version: '2.1.0',
@@ -1077,7 +1077,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie petits éléments', section: '§5.4 pierre' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Maçonnerie petits éléments', section: '§5.4 pierre' },
       { code: 'NF EN 771-6+A1 (Octobre 2015)', title: 'Spécifications pierre naturelle' },
       { code: 'NF EN 459-1 (Décembre 2015)', title: 'Chaux de construction' },
     ],
@@ -1139,7 +1139,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie petits éléments', section: '§5.5 blocs cellulaires' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Maçonnerie petits éléments', section: '§5.5 blocs cellulaires' },
       { code: 'NF EN 771-4+A1 (Octobre 2015)', title: 'Spécifications blocs cellulaires autoclavés' },
     ],
     version: '2.1.0',
