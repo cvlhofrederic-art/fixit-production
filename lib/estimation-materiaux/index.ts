@@ -29,4 +29,7 @@ export {
   menuiseriesIntRecipes,
   revetementsSolsRecipes,
   revetementsMurauxRecipes,
+  chauffageRecipes,
+  ventilationRecipes,
+  climatisationRecipes,
 } from './recipes'
