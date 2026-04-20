@@ -125,8 +125,19 @@ function applyGeometryMultiplier(
         return { multiplier: 0, warnings };
       }
       return { multiplier: geo.height, warnings };
-    case 'coats':
-      return { multiplier: geo.coats ?? 1, warnings };
+    case 'coats': {
+      // Peinture : défaut 2 couches (DTU 59.1 §5.3 — minimum 2 couches d'application
+      // en classe B travaux courants). Si l'utilisateur veut 1 seule couche
+      // (cas monocouche opacifiante), il doit le spécifier explicitement.
+      if (geo.coats === undefined) {
+        warnings.push(
+          `ℹ️ "${mat.name}" : 2 couches par défaut (DTU 59.1 classe B). `
+          + `Précisez si monocouche opacifiante ou 3 couches finition soignée.`
+        );
+        return { multiplier: 2, warnings };
+      }
+      return { multiplier: geo.coats, warnings };
+    }
     case 'perimeter': {
       // Pour les joints périphériques : périmètre = explicite, ou 2(L+l) si dispo
       const perim = geo.perimeter

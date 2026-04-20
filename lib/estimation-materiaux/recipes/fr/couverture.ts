@@ -81,21 +81,22 @@ export const couvertureRecipes: Recipe[] = [
       },
       // ═══ PRINCIPAL ═══
       {
-        id: 'tuile-tc-emboitement', name: 'Tuile TC à emboîtement grand moule',
-        category: 'plaque', phase: 'principal', quantityPerBase: 13, unit: 'u', geometryMultiplier: 'none',
+        id: 'tuile-tc-emboitement', name: 'Tuile TC à emboîtement grand moule (10 u/m²)',
+        category: 'plaque', phase: 'principal', quantityPerBase: 10.5, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Casse transport + coupes rives/faîtage',
         dtu: 'NF DTU 40.21', normRef: 'NF EN 1304',
-        manufacturerRef: 'Monier Redland 10 / Imerys Rubis / Terreal Romane',
+        manufacturerRef: 'Monier Redland 10 / Imerys HP10 / Terreal — 9,9-12 u/m² selon pureau (fiche Imerys HP10)',
+        notes: 'Ratio moyen 10,5/m² (Imerys HP10 pureau 388 mm = 10/m² ; pureau réduit 340 mm = 12/m²).',
         packaging: { unit: 'u', contentQty: 240, contentUnit: 'u', label: 'palette 240 tuiles' },
       },
       // ═══ ACCESSOIRES ═══
       {
         id: 'crochet-tuile-inox', name: 'Crochets/pattes de tuile inox A2',
-        category: 'fixation', phase: 'accessoires', quantityPerBase: 4.3, unit: 'u', geometryMultiplier: 'none',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 3.5, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Perte chantier',
         dtu: 'NF DTU 40.21 §5.3',
         packaging: { unit: 'u', contentQty: 500, contentUnit: 'u', label: 'boîte 500 crochets' },
-        notes: '1 tuile sur 3 fixée × 13 tuiles/m² ≈ 4,3/m² (plaine). Zones exposées : majorer.',
+        notes: '1 tuile sur 3 fixée × 10,5 tuiles/m² ≈ 3,5/m² (plaine). Zones exposées : majorer.',
       },
       // ═══ ACCESSOIRES RIVES / FAÎTAGE (ajout audit Lot C) ═══
       {
