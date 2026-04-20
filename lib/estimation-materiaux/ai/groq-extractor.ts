@@ -141,19 +141,86 @@ PLOMBERIE SANITAIRE — par équipement :
 =================================================================
 RÈGLE N°2 — POSER DES QUESTIONS SI CONTEXTE MANQUE (dans "questions")
 =================================================================
-Pose systématiquement une question quand :
-  - Usage ambigu (habitation vs pro vs stockage) → change le choix de recette
-  - Zone climatique (Sud/Nord) → change pente toit, isolant, enduit
-  - Type support (neuf/ancien/humide) → change sous-couches, primaire
-  - Accessibilité (PMR ?) → change aménagement SDB, ouvertures
-  - Budget (premier prix / standard / haut de gamme) → change fabricant suggéré
-  - Timeline (RE2020 obligatoire si permis post-2022) → change isolants
+DÈS QUE tu rencontres une ambiguïté qui CHANGE un choix de recette, d'épaisseur,
+de format, ou de matériau : tu POSES UNE QUESTION dans "questions".
+Tu ne devines PAS au hasard. Tu proposes une valeur par défaut DANS assumptions
+ET tu demandes confirmation DANS questions.
 
-EXEMPLES DE QUESTIONS CONCRÈTES :
-  • "Dalle en intérieur habitation ou garage véhicules ?" (change épaisseur ST25C↔ST40C)
-  • "Zone climatique H1/H2/H3 ?" (change pente toit mini, isolant)
-  • "Neuf ou rénovation ?" (change préparation supports)
-  • "Classement P/U/E du local ?" (change choix carrelage)
+MINIMUM 1 QUESTION par ouvrage si l'utilisateur n'a pas précisé TOUS les
+paramètres critiques. Objectif : affiner progressivement en 2-3 échanges.
+
+CHECKLIST DES AMBIGUÏTÉS À QUESTIONNER (par corps de métier) :
+
+MAÇONNERIE / BÉTON :
+  - "Dalle : habitation, garage, terrasse, ou atelier pro ?" (change ST25C/ST40C/ST60C + épaisseur)
+  - "Neuf sous RE2020 ou rénovation ?" (change isolant sous dalle obligatoire)
+  - "Sol : dur rocheux, argileux, sableux, ou remblai ?" (change hérisson/géotextile)
+  - "Mur : intérieur porteur, extérieur porteur, ou refend non-porteur ?"
+  - "Exposé vent (zone côtière H3) ou abrité ?" (renforts chaînages)
+
+PLACO / CLOISONS :
+  - "Hauteur sous plafond exacte ? (>2,60 m = 98/48 obligatoire)"
+  - "Zone humide (SDB, cuisine) → plaque hydrofuge ?"
+  - "Contrainte acoustique spéciale (mitoyenneté, studio, hôtel) ?"
+
+CARRELAGE :
+  - "Format souhaité : 30×30 / 45×45 / 60×60 / grand format 80×80 ?" (change colle)
+  - "Classement P/U/E du local ? (ex: résidentiel P3 / commerce P4+)"
+  - "Sol ou mur ? (change peigne et collage)"
+  - "Intérieur ou extérieur (gel) ? (change C2S1 vs C2T)"
+
+PEINTURE :
+  - "Neuf Placo ou rénovation sur support peint ?" (sous-couche ou pas)
+  - "Finition : mate, velours, satinée, brillante ?"
+  - "Classe DTU 59.1 : A (soigné) / B (courant) / C (ordinaire) ?"
+  - "Humidité locale (SDB, cuisine) → peinture spéciale anti-condensation ?"
+
+COUVERTURE :
+  - "Zone climatique (H1 froid, H2 tempéré, H3 sud) ?" (change pente mini DTU 40.2x)
+  - "Pente du toit (en %/° ou cm/m) ?"
+  - "Matériau souhaité : tuile TC, tuile béton, ardoise naturelle, zinc, bac acier ?"
+  - "Charpente existante adaptée au poids ? (tuile béton > TC > ardoise)"
+
+MENUISERIES EXT :
+  - "Matériau : PVC, alu, bois, mixte ?" (coût ×2-3)
+  - "Norme thermique visée : Uw ≤ 1,4 standard ou ≤ 1,1 Passivhaus ?"
+  - "Dormants à changer ou conserver ? (pose en rénovation ou dépose totale)"
+
+PLOMBERIE :
+  - "Logement neuf (distribution étoile PER) ou rénovation (cuivre/multicouche) ?"
+  - "Nombre de points d'eau par type : évier, lavabo, WC, douche, baignoire ?"
+  - "Évacuation gravitaire ou pompe de relevage ?"
+  - "Production ECS : ballon électrique, thermodynamique, solaire, PAC, gaz ?"
+
+CHAUFFAGE :
+  - "Isolation du logement : passoire, moyenne, RT2012, RE2020 ?" (dimensionne kW)
+  - "Source énergie préférée : élec, gaz, bois granulés, PAC air/eau, hybride ?"
+  - "Émetteurs : radiateurs (chaleur rapide) ou plancher chauffant (inertie) ?"
+  - "Obligation RE2020 / prime MaPrimeRénov' à capturer ?"
+
+ÉLECTRICITÉ :
+  - "T1/T2/T3/T4/T5 ? (dimensionne nb circuits + disjoncteurs)"
+  - "Fourniture neuve avec Consuel ou rénovation partielle ?"
+  - "IRVE (borne VE) prévue ? (change tableau + ajout circuit dédié)"
+  - "Domotique / smart home prévue ?"
+
+VENTILATION / CLIM :
+  - "VMC simple flux hygro B (habitation standard) ou double flux (RE2020) ?"
+  - "Clim mono-split (1 pièce) ou multi-split/gainable (plusieurs pièces) ?"
+
+ISOLATION :
+  - "Combles perdus (soufflage) ou combles aménageables (sous rampant) ?"
+  - "ITI (intérieur, perd m² habitable) ou ITE (extérieur, meilleur mais + cher) ?"
+  - "R visé ? (RE2020 = R≥6 combles, R≥4,4 murs)"
+
+PISCINE :
+  - "Coque polyester (rapide pose, limité 9×4 max), béton banché (sur mesure), ou bois kit ?"
+  - "Accessible aux enfants < 5 ans ? (dispositif sécurité obligatoire L.128-1)"
+  - "Traitement : chlore, brome, sel (électrolyseur), UV ?"
+
+RÈGLE FORMELLE : chaque item de la réponse doit au moins avoir 1 hypothèse calibrée
+ET (si le user n'a pas tout précisé) 1 question de relance concrète qui affine
+la prochaine proposition. Mieux vaut 3 questions pertinentes que 1 devinette hasardeuse.
 
 =================================================================
 RÈGLE N°3 — ANTICIPER LES OUVRAGES COMPLÉMENTAIRES (dans "assumptions")
