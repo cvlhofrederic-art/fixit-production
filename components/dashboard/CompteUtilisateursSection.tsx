@@ -17,12 +17,15 @@ import {
 } from '@/lib/permissions'
 import type { Artisan } from '@/lib/types'
 
+type ContractType = 'cdi' | 'cdd' | 'sous_traitant' | 'interim' | 'stagiaire' | 'apprenti'
+
 interface TeamMember {
   id: string
   email: string
   full_name: string
   phone: string
   role: ProTeamRole
+  contract_type?: ContractType | null
   assigned_chantiers: string[]
   invite_sent_at: string | null
   accepted_at: string | null
@@ -30,6 +33,16 @@ interface TeamMember {
   is_active: boolean
   created_at: string
   permission_overrides: { module_id: string; access_level: string }[]
+}
+
+// Chips colorés par type de contrat (FR/PT)
+const CONTRACT_LABELS: Record<ContractType, { fr: string; pt: string; bg: string; color: string }> = {
+  cdi:           { fr: 'CDI',          pt: 'Sem termo',   bg: '#DCFCE7', color: '#15803D' }, // vert
+  cdd:           { fr: 'CDD',          pt: 'A termo',     bg: '#FEF3C7', color: '#B45309' }, // ambre
+  sous_traitant: { fr: 'Sous-traitant', pt: 'Subcontrata', bg: '#DBEAFE', color: '#1D4ED8' }, // bleu
+  interim:       { fr: 'Intérim',       pt: 'Temporário',  bg: '#EDE9FE', color: '#6D28D9' }, // violet
+  stagiaire:     { fr: 'Stagiaire',     pt: 'Estagiário',  bg: '#F3F4F6', color: '#4B5563' }, // gris
+  apprenti:      { fr: 'Apprenti',      pt: 'Aprendiz',    bg: '#FFE4E6', color: '#BE123C' }, // rose
 }
 
 interface Props {
@@ -341,8 +354,8 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       <div className="v5-pg-t">
           <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
           <p>{isPt
-            ? `Gerir os acessos da sua equipa — ${members.length} contas ativas / 20 max`
-            : `Gérez les accès de votre équipe — ${members.length} comptes actifs / 20 max`}</p>
+            ? `Acessos da equipa : ${members.length} contas ativas / 20 max`
+            : `Accès équipe : ${members.length} comptes actifs / 20 max`}</p>
       </div>
 
       {/* Search + Create */}
@@ -363,7 +376,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
               <th>{isPt ? 'Utilizador' : 'Utilisateur'}</th>
               <th>Email</th>
               <th>{isPt ? 'Papel' : 'Rôle'}</th>
-              <th>{isPt ? 'Obras' : 'Chantiers'}</th>
+              <th>{isPt ? 'Contrato' : 'Contrat'}</th>
               <th>{isPt ? 'Estado' : 'Statut'}</th>
               <th>{isPt ? 'Última conexão' : 'Dernière connexion'}</th>
               <th>{isPt ? 'Ações' : 'Actions'}</th>
@@ -387,7 +400,21 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   </td>
                   <td>{member.email}</td>
                   <td><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{ROLE_LABELS[member.role]?.[isPt ? 'pt' : 'fr'] || member.role}</span></td>
-                  <td>{member.role === 'GERANT' ? (isPt ? 'Todos' : 'Tous') : (member.assigned_chantiers?.length ? member.assigned_chantiers.map(id => chantiersMap[id] || id.slice(0, 8) + '…').join(', ') : '—')}</td>
+                  <td>
+                    {(() => {
+                      // Gérant = statut dirigeant (pas de chip contrat salarié classique)
+                      if (member.role === 'GERANT') {
+                        return <span style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>{isPt ? 'Dirigente' : 'Dirigeant'}</span>
+                      }
+                      const ct = member.contract_type || 'cdi'
+                      const meta = CONTRACT_LABELS[ct] ?? CONTRACT_LABELS.cdi
+                      return (
+                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: meta.bg, color: meta.color }}>
+                          {isPt ? meta.pt : meta.fr}
+                        </span>
+                      )
+                    })()}
+                  </td>
                   <td><span className={`v5-badge ${member.is_active ? 'v5-badge-green' : 'v5-badge-gray'}`}>{member.is_active ? (isPt ? 'Ativo' : 'Actif') : (isPt ? 'Inativo' : 'Inactif')}</span></td>
                   <td>{getRelativeLogin(member.last_login_at || member.accepted_at)}</td>
                   <td>
@@ -410,12 +437,12 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       <div className="v5-card">
         <div className="v5-st">{isPt ? 'Papéis & permissões' : 'Rôles & permissions'}</div>
         <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6 }}>
-          <strong>{isPt ? 'Gerente' : 'Gérant'}</strong> — {isPt ? 'Acesso completo. Único a gerir as contas.' : 'Accès complet. Seul à gérer les comptes.'}<br/>
-          <strong>{isPt ? 'Condutor de obras' : 'Conducteur de travaux'}</strong> — {isPt ? 'Obras, equipas, planning, orçamentos fornecedores, subempreitada.' : 'Chantiers, équipes, planning, devis fournisseurs, sous-traitance.'}<br/>
-          <strong>{isPt ? 'Chefe de obra' : 'Chef de chantier'}</strong> — {isPt ? 'As suas obras: planning, marcação, relatórios, fotos.' : 'Ses chantiers : planning, pointage, rapports, photos.'}<br/>
-          <strong>{isPt ? 'Secretária' : 'Secrétaire'}</strong> — {isPt ? 'Orçamentos, faturas, mensagens, clientes, conformidade.' : 'Devis, factures, messagerie, clients, conformité.'}<br/>
-          <strong>{isPt ? 'Contabilista' : 'Comptable'}</strong> — {isPt ? 'Contabilidade, rentabilidade, faturas, situações, retenções, receitas.' : 'Compta, rentabilité, factures, situations, retenues, revenus.'}<br/>
-          <strong>{isPt ? 'Operário' : 'Ouvrier'}</strong> — {isPt ? 'Marcação pessoal, fotos, planning apenas leitura.' : 'Pointage personnel, photos, planning lecture seule.'}
+          <strong>{isPt ? 'Gerente' : 'Gérant'}</strong> : {isPt ? 'accès complet. Seul à gérer les comptes.' : 'accès complet. Seul à gérer les comptes.'}<br/>
+          <strong>{isPt ? 'Condutor de obras' : 'Conducteur de travaux'}</strong> : {isPt ? 'obras, equipas, planning, orçamentos fornecedores, subempreitada.' : 'chantiers, équipes, planning, devis fournisseurs, sous-traitance.'}<br/>
+          <strong>{isPt ? 'Chefe de obra' : 'Chef de chantier'}</strong> : {isPt ? 'as suas obras (planning, marcação, relatórios, fotos).' : 'ses chantiers (planning, pointage, rapports, photos).'}<br/>
+          <strong>{isPt ? 'Secretária' : 'Secrétaire'}</strong> : {isPt ? 'orçamentos, faturas, mensagens, clientes, conformidade.' : 'devis, factures, messagerie, clients, conformité.'}<br/>
+          <strong>{isPt ? 'Contabilista' : 'Comptable'}</strong> : {isPt ? 'contabilidade, rentabilidade, faturas, situações, retenções, receitas.' : 'compta, rentabilité, factures, situations, retenues, revenus.'}<br/>
+          <strong>{isPt ? 'Operário' : 'Ouvrier'}</strong> : {isPt ? 'marcação pessoal, fotos, planning apenas leitura.' : 'pointage personnel, photos, planning en lecture seule.'}
         </div>
       </div>
       {/* ═══ INVITE MODAL ═══ */}
