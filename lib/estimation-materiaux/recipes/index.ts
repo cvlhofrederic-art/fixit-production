@@ -6,6 +6,7 @@ import { carrelageRecipes } from './carrelage';
 import { plomberieRecipes } from './plomberie';
 import { couvertureRecipes } from './couverture';
 import { menuiseriesExtRecipes } from './menuiseries-ext';
+import { electriciteRecipes } from './electricite';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
@@ -15,6 +16,7 @@ export const allRecipes: Recipe[] = [
   ...plomberieRecipes,
   ...couvertureRecipes,
   ...menuiseriesExtRecipes,
+  ...electriciteRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -44,4 +46,5 @@ export {
   plomberieRecipes,
   couvertureRecipes,
   menuiseriesExtRecipes,
+  electriciteRecipes,
 };
