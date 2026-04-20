@@ -68,7 +68,9 @@ export default function LoginPage() {
       else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
       else window.location.href = `/${locale}/client/dashboard`
     } catch {
-      setError(t('auth.genericError'))
+      // Anti-phishing : toute erreur de login affiche le même message
+      // (évite de divulguer si l'email existe ou si c'est une erreur réseau).
+      setError(t('auth.emailOrPasswordIncorrect'))
       setLoading(false)
     }
   }

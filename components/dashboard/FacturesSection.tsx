@@ -44,6 +44,8 @@ export default function FacturesSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   const refreshDocuments = () => {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -62,8 +64,6 @@ export default function FacturesSection({
   }
 
   const factureDocs = savedDocuments.filter(d => d.docType === 'facture')
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
 
   const getStatusTag = (doc: PersistedDocument, isOverdue: boolean) => {
     if (isOverdue && doc.status !== 'envoye') return { cls: 'v22-tag v22-tag-red', label: t('proDash.factures.echue') }

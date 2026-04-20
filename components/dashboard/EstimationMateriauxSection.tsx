@@ -27,7 +27,6 @@ interface ProjectItem {
 }
 
 interface Props {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   artisan?: { id?: string } | null
 }
 

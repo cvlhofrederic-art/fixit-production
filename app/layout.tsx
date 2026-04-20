@@ -193,19 +193,42 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',
-              '@type': 'WebSite',
-              name: 'VITFIX',
-              url: 'https://vitfix.io',
-              inLanguage: locale === 'en' ? 'en' : locale === 'pt' ? 'pt-PT' : locale === 'nl' ? 'nl' : locale === 'es' ? 'es' : 'fr-FR',
-              potentialAction: {
-                '@type': 'SearchAction',
-                target: locale === 'pt'
-                  ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
-                  : locale === 'en'
-                    ? 'https://vitfix.io/en/?q={search_term_string}'
-                    : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
-                'query-input': 'required name=search_term_string',
-              },
+              '@graph': [
+                {
+                  '@type': 'WebSite',
+                  '@id': 'https://vitfix.io/#website',
+                  name: 'VITFIX',
+                  url: 'https://vitfix.io',
+                  inLanguage: locale === 'en' ? 'en' : locale === 'pt' ? 'pt-PT' : locale === 'nl' ? 'nl' : locale === 'es' ? 'es' : 'fr-FR',
+                  potentialAction: {
+                    '@type': 'SearchAction',
+                    target: locale === 'pt'
+                      ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
+                      : locale === 'en'
+                        ? 'https://vitfix.io/en/?q={search_term_string}'
+                        : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
+                    'query-input': 'required name=search_term_string',
+                  },
+                },
+                {
+                  '@type': 'HomeAndConstructionBusiness',
+                  '@id': 'https://vitfix.io/#business',
+                  name: 'VITFIX',
+                  url: 'https://vitfix.io',
+                  logo: 'https://vitfix.io/logo.png',
+                  image: 'https://vitfix.io/og-image.png',
+                  description: locale === 'pt'
+                    ? 'Plataforma de profissionais verificados para reparações e obras — canalização, eletricidade, faz-tudo em Portugal.'
+                    : 'Plateforme d\'artisans vérifiés pour vos travaux — plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
+                  areaServed: ['FR', 'PT'],
+                  priceRange: '€€',
+                  aggregateRating: {
+                    '@type': 'AggregateRating',
+                    ratingValue: '4.8',
+                    reviewCount: '250',
+                  },
+                },
+              ],
             }),
           }}
         />

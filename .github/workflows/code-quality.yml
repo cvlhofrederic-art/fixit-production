@@ -69,6 +69,43 @@ jobs:
             CREATE EXTENSION IF NOT EXISTS pgcrypto;
           "
 
+      - name: Stub des schémas Supabase (auth, storage, cron)
+        # Les migrations référencent auth.users, storage.objects et cron.schedule
+        # (fournis en prod par Supabase). Le runner postgres vanilla n'a pas ces
+        # schémas — on crée des stubs minimalistes pour permettre la validation
+        # syntaxique et structurelle sans dépendre de l'infra Supabase.
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/fixit_test -v ON_ERROR_STOP=1 <<'SQL'
+            CREATE SCHEMA IF NOT EXISTS auth;
+            CREATE TABLE IF NOT EXISTS auth.users (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              email TEXT,
+              encrypted_password TEXT,
+              raw_user_meta_data JSONB DEFAULT '{}'::jsonb,
+              raw_app_meta_data JSONB DEFAULT '{}'::jsonb,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID LANGUAGE SQL STABLE AS $stub$ SELECT NULL::UUID $stub$;
+            CREATE OR REPLACE FUNCTION auth.role() RETURNS TEXT LANGUAGE SQL STABLE AS $stub$ SELECT 'anon'::TEXT $stub$;
+            CREATE OR REPLACE FUNCTION auth.jwt() RETURNS JSONB LANGUAGE SQL STABLE AS $stub$ SELECT '{}'::JSONB $stub$;
+
+            CREATE SCHEMA IF NOT EXISTS storage;
+            CREATE TABLE IF NOT EXISTS storage.objects (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              bucket_id TEXT,
+              name TEXT,
+              owner UUID,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW(),
+              metadata JSONB
+            );
+
+            CREATE SCHEMA IF NOT EXISTS cron;
+            CREATE OR REPLACE FUNCTION cron.schedule(jobname TEXT, schedule TEXT, command TEXT) RETURNS BIGINT LANGUAGE SQL AS $stub$ SELECT 0::BIGINT $stub$;
+            CREATE OR REPLACE FUNCTION cron.unschedule(job_name TEXT) RETURNS BOOLEAN LANGUAGE SQL AS $stub$ SELECT true $stub$;
+          SQL
+
       - name: Appliquer les migrations séquentiellement
         run: |
           FAIL=0
@@ -111,6 +148,10 @@ jobs:
           fetch-depth: 0
 
       - name: Analyse SonarCloud
+        # continue-on-error: SonarCloud est configuré en "Automatic Analysis"
+        # côté projet → il refuse le CI analysis en parallèle (exit code 3).
+        # Ne bloque pas la PR, l'analyse automatique côté SonarCloud reste active.
+        continue-on-error: true
         uses: SonarSource/sonarcloud-github-action@ba3875ecf642b2129de2b589510c81a8b53dbf4e # master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

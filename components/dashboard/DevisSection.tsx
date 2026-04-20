@@ -71,6 +71,8 @@ export default function DevisSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   const refreshDocuments = () => {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -98,8 +100,6 @@ export default function DevisSection({
   }
 
   const devisDocs = savedDocuments.filter(d => d.docType === 'devis')
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const tv = useThemeVars(isV5)
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only

@@ -8,15 +8,17 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- Activer le cleanup des idempotency_keys > 24h (chaque heure)
-DO $$ BEGIN
+-- Note: delimiters nommes $outer$ pour eviter conflit avec $$ imbrique
+-- dans la chaine SQL passee a cron.schedule (bug migration pre-existante).
+DO $outer$ BEGIN
   PERFORM cron.schedule(
     'cleanup-idempotency',
     '17 * * * *',
-    $$DELETE FROM idempotency_keys WHERE created_at < NOW() - INTERVAL '24 hours'$$
+    $inner$DELETE FROM idempotency_keys WHERE created_at < NOW() - INTERVAL '24 hours'$inner$
   );
 EXCEPTION WHEN undefined_function OR insufficient_privilege THEN
   RAISE WARNING 'pg_cron not available — idempotency_keys cleanup not scheduled. Enable pg_cron in Supabase Dashboard > Database > Extensions.';
-END $$;
+END $outer$;
 
 -- Verification : lister tous les jobs pg_cron actifs
 -- SELECT * FROM cron.job ORDER BY jobname;
