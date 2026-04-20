@@ -314,6 +314,18 @@ RÈGLES BLOQUANTES
 - Si surface/quantité CRITIQUE absente ET non inférable : NE crée PAS l'item, pose question.
 - Si description totalement vague : items=[] + 3-5 questions utiles.
 
+=================================================================
+⚠️ RÈGLE FORMAT GEOMETRY (CRITIQUE)
+=================================================================
+Dans "geometry", N'INCLUS QUE les champs dont tu CONNAIS la valeur.
+- Si tu ne connais PAS length/width (user a donné uniquement "surface"):
+  OMETS length ET width du JSON. NE METS PAS length:0 ni width:0.
+- Idem pour thickness, height, count, etc.
+- Tout champ numérique DOIT être STRICTEMENT POSITIF (>0) ou ABSENT.
+- Exemple CORRECT :  "geometry": { "area": 50, "thickness": 0.20 }
+- Exemple INVALIDE : "geometry": { "length": 0, "width": 0, "area": 50, "thickness": 0.20 }
+  (Le 0 fait crasher la validation, donne une erreur à l'utilisateur.)
+
 FORMAT DE RÉPONSE — JSON VALIDE UNIQUEMENT (aucun texte autour) :
 {
   "items": [{ "recipeId": "...", "geometry": { ... }, "label": "..." }],
@@ -362,6 +374,36 @@ export async function extractEstimationWithGroq(
     parsed = JSON.parse(clean)
   } catch {
     throw new Error(`JSON invalide de l'IA : ${clean.slice(0, 200)}`)
+  }
+
+  // Nettoyage pré-validation : le LLM retourne parfois des champs numériques à 0,
+  // null ou NaN au lieu de les omettre (par ex. length:0, width:0 quand l'user
+  // n'a donné que la surface). Le schéma Zod exige `.positive()` → on strip
+  // tout champ numérique non-strictement-positif avant parse.
+  const NUMERIC_GEO_KEYS = [
+    'length', 'width', 'height', 'thickness',
+    'area', 'volume', 'perimeter',
+    'count', 'coats', 'openings',
+  ]
+  if (parsed && typeof parsed === 'object' && 'items' in parsed) {
+    const items = (parsed as { items?: unknown[] }).items
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        if (item && typeof item === 'object' && 'geometry' in item) {
+          const geo = (item as { geometry?: Record<string, unknown> }).geometry
+          if (geo && typeof geo === 'object') {
+            for (const k of NUMERIC_GEO_KEYS) {
+              const v = geo[k]
+              if (typeof v === 'number' && (v <= 0 || !Number.isFinite(v))) {
+                delete geo[k]
+              } else if (v === null) {
+                delete geo[k]
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   const result = ExtractionResultSchema.parse(parsed)
