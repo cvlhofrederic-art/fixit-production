@@ -195,6 +195,7 @@ export default async function RootLayout({
               '@context': 'https://schema.org',
               '@graph': [
                 {
+                  '@context': 'https://schema.org',
                   '@type': 'WebSite',
                   '@id': 'https://vitfix.io/#website',
                   name: 'VITFIX',
@@ -211,6 +212,7 @@ export default async function RootLayout({
                   },
                 },
                 {
+                  '@context': 'https://schema.org',
                   '@type': 'HomeAndConstructionBusiness',
                   '@id': 'https://vitfix.io/#business',
                   name: 'VITFIX',
