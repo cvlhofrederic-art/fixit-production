@@ -4,6 +4,7 @@ import { placoRecipes } from './placo';
 import { peintureRecipes } from './peinture';
 import { carrelageRecipes } from './carrelage';
 import { plomberieRecipes } from './plomberie';
+import { couvertureRecipes } from './couverture';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
@@ -11,6 +12,7 @@ export const allRecipes: Recipe[] = [
   ...peintureRecipes,
   ...carrelageRecipes,
   ...plomberieRecipes,
+  ...couvertureRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -32,4 +34,11 @@ export function searchRecipes(query: string): Recipe[] {
   );
 }
 
-export { maconnerieRecipes, placoRecipes, peintureRecipes, carrelageRecipes, plomberieRecipes };
+export {
+  maconnerieRecipes,
+  placoRecipes,
+  peintureRecipes,
+  carrelageRecipes,
+  plomberieRecipes,
+  couvertureRecipes,
+};
