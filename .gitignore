@@ -44,3 +44,4 @@ next-env.d.ts
 security/outputs/*
 !security/outputs/.gitkeep
 .worktrees/
+.claude/scheduled_tasks.lock

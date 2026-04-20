@@ -1,4 +1,4 @@
-import { Recipe } from '../types';
+import { Recipe, Country } from '../types';
 import { maconnerieRecipes } from './maconnerie';
 import { placoRecipes } from './placo';
 import { peintureRecipes } from './peinture';
@@ -28,7 +28,15 @@ import { terrasseExterieureRecipes } from './terrasse-exterieure';
 import { jardinRecipes } from './jardin';
 import { piscineRecipes } from './piscine';
 
-export const allRecipes: Recipe[] = [
+/**
+ * Normalise le pays d'une recette : défaut 'FR' si absent (recettes historiques).
+ * Garantit qu'à la sortie, `recipe.country` est toujours défini.
+ */
+function withCountry(recipe: Recipe, fallback: Country): Recipe {
+  return recipe.country ? recipe : { ...recipe, country: fallback };
+}
+
+const frRecipesRaw: Recipe[] = [
   ...maconnerieRecipes,
   ...placoRecipes,
   ...peintureRecipes,
@@ -59,6 +67,15 @@ export const allRecipes: Recipe[] = [
   ...piscineRecipes,
 ];
 
+const ptRecipesRaw: Recipe[] = [
+  // Lot F à venir — 20 recettes PT miroirs écrites à la main (pt-PT, NP/LNEC, fabricantes PT)
+];
+
+export const allRecipes: Recipe[] = [
+  ...frRecipesRaw.map(r => withCountry(r, 'FR')),
+  ...ptRecipesRaw.map(r => withCountry(r, 'PT')),
+];
+
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
   (acc, r) => { acc[r.id] = r; return acc; },
   {} as Record<string, Recipe>
@@ -68,10 +85,26 @@ export function getRecipesByTrade(trade: Recipe['trade']): Recipe[] {
   return allRecipes.filter(r => r.trade === trade);
 }
 
-export function searchRecipes(query: string): Recipe[] {
+/**
+ * Filtre par pays. Isolation stricte : une recette FR ne remonte JAMAIS sur un projet PT
+ * et inversement. Utilisé par la UI (filtre selon locale) et le prompt IA (whitelist IDs).
+ */
+export function getRecipesByCountry(country: Country): Recipe[] {
+  return allRecipes.filter(r => r.country === country);
+}
+
+export function getRecipesByTradeAndCountry(
+  trade: Recipe['trade'],
+  country: Country,
+): Recipe[] {
+  return allRecipes.filter(r => r.trade === trade && r.country === country);
+}
+
+export function searchRecipes(query: string, country?: Country): Recipe[] {
   const q = query.toLowerCase().trim();
   if (!q) return [];
-  return allRecipes.filter(r =>
+  const scope = country ? allRecipes.filter(r => r.country === country) : allRecipes;
+  return scope.filter(r =>
     r.name.toLowerCase().includes(q) ||
     r.description?.toLowerCase().includes(q) ||
     r.id.toLowerCase().includes(q)

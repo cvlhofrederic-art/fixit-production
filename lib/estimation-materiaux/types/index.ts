@@ -115,10 +115,24 @@ export type RecipeMaterial = z.infer<typeof RecipeMaterialSchema>;
 
 // ─── RECETTE ────────────────────────────────────────────────
 
+/**
+ * Code pays au format ISO 3166-1 alpha-2.
+ * FR = référentiel NF DTU + fabricants France
+ * PT = referencial NP EN / LNEC / RGEU + fabricantes Portugal
+ * Isolation stricte à l'exécution (assertSameCountry) + filtrage UI.
+ */
+export const CountrySchema = z.enum(['FR', 'PT']);
+export type Country = z.infer<typeof CountrySchema>;
+
 export const RecipeSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
+  /**
+   * Pays d'application. Absent = 'FR' (historique, recettes v1).
+   * Normalisé à la construction d'`allRecipes` dans recipes/index.ts.
+   */
+  country: CountrySchema.optional(),
   trade: z.enum([
     // Existants initiaux
     'maconnerie', 'placo', 'peinture', 'carrelage',
