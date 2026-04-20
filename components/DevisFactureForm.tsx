@@ -10,6 +10,7 @@ import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/Recei
 import {
   type SignatureData,
   type ProductLine,
+  type FraisAnnexeItem,
   type DevisEtape,
   type DevisAcompte,
   type DevisFactureData,
@@ -17,6 +18,8 @@ import {
   type ServiceBasic,
   UNITES_DEVIS,
   UNITE_VALUES,
+  FRAIS_ANNEXES_CATEGORIES,
+  FRAIS_ANNEXES_UNITES,
 } from '@/lib/devis-types'
 import {
   resolveLineUnit,
@@ -196,6 +199,8 @@ export default function DevisFactureForm({
   const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
+  const [fraisAnnexes, setFraisAnnexes] = useState<FraisAnnexeItem[]>(initialData?.fraisAnnexes ?? [])
+  const [chantierId, setChantierId] = useState<string>(initialData?.chantierId ?? '')
   const [editingDescLineId, setEditingDescLineId] = useState<number | null>(null)
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
   const [notes, setNotes] = useState(initialData?.notes || '')
@@ -635,6 +640,38 @@ export default function DevisFactureForm({
     setLines(prev => prev.filter(l => l.id !== id))
   }
 
+  // ─── Frais annexes helpers ───
+  const addFraisAnnexe = () => {
+    const defaultTva = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
+    setFraisAnnexes(prev => [...prev, {
+      id: Date.now(),
+      designation: '',
+      categorie: 'deplacement',
+      quantite: 1,
+      unite: 'forfait',
+      prix_unitaire_ht: 0,
+      tva_applicable: defaultTva,
+      total_ht: 0,
+    }])
+  }
+
+  const updateFraisAnnexe = (id: number, field: keyof FraisAnnexeItem, value: string | number) => {
+    setFraisAnnexes(prev => prev.map(item => {
+      if (item.id !== id) return item
+      const updated = { ...item, [field]: value }
+      if (field === 'quantite' || field === 'prix_unitaire_ht') {
+        updated.total_ht = updated.quantite * updated.prix_unitaire_ht
+      }
+      return updated
+    }))
+  }
+
+  const removeFraisAnnexe = (id: number) => {
+    setFraisAnnexes(prev => prev.filter(item => item.id !== id))
+  }
+
+  const totalFraisAnnexesHT = fraisAnnexes.reduce((sum, item) => sum + item.total_ht, 0)
+
   // Déduire une unité par défaut à partir du nom du service/motif
   const getDefaultUnitByServiceName = (name: string): string => {
     const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -913,9 +950,10 @@ export default function DevisFactureForm({
   }, [])
 
   // ─── Calculations ───
-  const subtotalHT = lines.reduce((sum, l) => sum + l.totalHT, 0)
+  const subtotalHT = lines.reduce((sum, l) => sum + l.totalHT, 0) + totalFraisAnnexesHT
   const totalTVA = tvaEnabled
     ? lines.reduce((sum, l) => sum + (l.totalHT * l.tvaRate / 100), 0)
+      + fraisAnnexes.reduce((sum, item) => sum + (item.total_ht * item.tva_applicable / 100), 0)
     : 0
   const totalTTC = subtotalHT + totalTVA
 
@@ -1680,6 +1718,8 @@ export default function DevisFactureForm({
     iban,
     bic,
     lines,
+    fraisAnnexes,
+    chantierId: chantierId || undefined,
     etapes: lines.some(l => l.etapes?.length) ? lines.flatMap(l => l.etapes || []) : undefined,
     notes,
     acomptesEnabled,
@@ -2680,6 +2720,151 @@ export default function DevisFactureForm({
 
             {/* Étapes moved inside prestation table, under description */}
 
+            {/* ─── Section: Frais Annexes ─── */}
+            <div className="v22-card">
+              <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="v22-card-title">Frais annexes</span>
+                <button
+                  onClick={addFraisAnnexe}
+                  className="v22-btn"
+                  style={{ border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)', fontSize: 12 }}
+                >
+                  + Ajouter
+                </button>
+              </div>
+              <div className="v22-card-body" style={{ padding: 0 }}>
+                {fraisAnnexes.length === 0 ? (
+                  <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--v22-text-muted)', textAlign: 'center' }}>
+                    Aucun frais annexe. Cliquez sur &quot;+ Ajouter&quot; pour ajouter des frais de déplacement, location, hébergement…
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="v22-devis-table" style={{ minWidth: 640, tableLayout: 'fixed', width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '28%' }}>Désignation</th>
+                          <th style={{ width: '16%' }}>Catégorie</th>
+                          <th style={{ width: '8%' }}>Qté</th>
+                          <th style={{ width: '10%' }}>Unité</th>
+                          <th style={{ width: '13%' }}>PU HT</th>
+                          {tvaEnabled && <th style={{ width: '8%' }}>TVA %</th>}
+                          <th style={{ width: '13%' }}>Total HT</th>
+                          <th style={{ width: '6%' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fraisAnnexes.map((item) => (
+                          <tr key={item.id}>
+                            <td>
+                              <input
+                                type="text"
+                                value={item.designation}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'designation', e.target.value)}
+                                placeholder="Ex : Trajet chantier"
+                                className="v22-form-input"
+                              />
+                            </td>
+                            <td>
+                              <select
+                                value={item.categorie}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'categorie', e.target.value)}
+                                className="v22-form-input"
+                              >
+                                {FRAIS_ANNEXES_CATEGORIES.map(c => (
+                                  <option key={c.value} value={c.value}>{c.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                value={item.quantite || ''}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'quantite', parseFloat(e.target.value) || 0)}
+                                onFocus={(e) => e.target.select()}
+                                min={0}
+                                step="0.01"
+                                className="v22-form-input"
+                              />
+                            </td>
+                            <td>
+                              <select
+                                value={item.unite}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'unite', e.target.value)}
+                                className="v22-form-input"
+                              >
+                                {FRAIS_ANNEXES_UNITES.map(u => (
+                                  <option key={u.value} value={u.value}>{u.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                value={item.prix_unitaire_ht || ''}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', parseFloat(e.target.value) || 0)}
+                                onFocus={(e) => e.target.select()}
+                                min={0}
+                                step="0.01"
+                                className="v22-form-input"
+                              />
+                            </td>
+                            {tvaEnabled && (
+                              <td>
+                                <select
+                                  value={item.tva_applicable}
+                                  onChange={(e) => updateFraisAnnexe(item.id, 'tva_applicable', parseFloat(e.target.value))}
+                                  className="v22-form-input"
+                                >
+                                  {locale === 'pt' ? (
+                                    <>
+                                      <option value={23}>23%</option>
+                                      <option value={13}>13%</option>
+                                      <option value={6}>6%</option>
+                                      <option value={0}>0%</option>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <option value={20}>20%</option>
+                                      <option value={10}>10%</option>
+                                      <option value={5.5}>5,5%</option>
+                                      <option value={0}>0%</option>
+                                    </>
+                                  )}
+                                </select>
+                              </td>
+                            )}
+                            <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, paddingRight: 8 }}>
+                              {formatPrice(item.total_ht)}
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => removeFraisAnnexe(item.id)}
+                                className="v22-btn v22-btn-danger v22-btn-sm"
+                                style={{ width: '100%' }}
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={tvaEnabled ? 6 : 5} style={{ textAlign: 'right', fontWeight: 600, fontSize: 12, paddingRight: 8, paddingTop: 8, paddingBottom: 8, color: 'var(--v22-text-mid)' }}>
+                            Total frais annexes HT
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, paddingRight: 8 }}>
+                            {formatPrice(totalFraisAnnexesHT)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* ─── Section: Acomptes & Paiement échelonné (Devis only) ─── */}
             {docType === 'devis' && (
               <div className="v22-card">
@@ -3076,6 +3261,12 @@ export default function DevisFactureForm({
                   <span>{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
                   <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(subtotalHT)}</span>
                 </div>
+                {totalFraisAnnexesHT > 0 && (
+                  <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
+                    <span>dont frais annexes HT</span>
+                    <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(totalFraisAnnexesHT)}</span>
+                  </div>
+                )}
                 {tvaEnabled && (
                   <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
                     <span>{t('devis.taxLabel')}</span>

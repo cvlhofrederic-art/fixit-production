@@ -80,6 +80,33 @@ export interface DevisAcompte {
   declencheur: string
 }
 
+export interface FraisAnnexeItem {
+  id: number
+  designation: string
+  categorie: 'deplacement' | 'location_materiel' | 'hebergement' | 'peage' | 'carburant' | 'autre'
+  quantite: number
+  unite: 'forfait' | 'km' | 'jour' | 'heure'
+  prix_unitaire_ht: number
+  tva_applicable: number
+  total_ht: number
+}
+
+export const FRAIS_ANNEXES_CATEGORIES = [
+  { value: 'deplacement', label: 'Déplacement' },
+  { value: 'location_materiel', label: 'Location matériel' },
+  { value: 'hebergement', label: 'Hébergement' },
+  { value: 'peage', label: 'Péage' },
+  { value: 'carburant', label: 'Carburant' },
+  { value: 'autre', label: 'Autre' },
+] as const
+
+export const FRAIS_ANNEXES_UNITES = [
+  { value: 'forfait', label: 'Forfait' },
+  { value: 'km', label: 'km' },
+  { value: 'jour', label: 'Jour' },
+  { value: 'heure', label: 'Heure' },
+] as const
+
 export interface DevisFactureData {
   id?: string
   docType: 'devis' | 'facture'
@@ -133,6 +160,8 @@ export interface DevisFactureData {
   bic: string
   // Lines
   lines: ProductLine[]
+  fraisAnnexes: FraisAnnexeItem[]
+  chantierId?: string
   // Étapes d'intervention (descriptif pour le client)
   etapes?: DevisEtape[]
   // Notes
