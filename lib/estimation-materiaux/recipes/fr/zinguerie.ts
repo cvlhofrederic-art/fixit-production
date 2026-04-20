@@ -22,7 +22,7 @@ export const zingerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 40.5 (Juin 2018)', title: 'Évacuation eaux pluviales', section: '§5-6' },
+      { code: 'NF DTU 40.5 (Novembre 1993 + A1 Décembre 1997)', title: 'Évacuation eaux pluviales', section: '§5-6' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -74,8 +74,8 @@ export const zingerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 40.5 (Juin 2018)', title: 'Évacuation EP' },
-      { code: 'NF DTU 60.11 (Décembre 2012)', title: 'Dimensionnement (Ø80 < 50 m² / Ø100 > 50 m²)' },
+      { code: 'NF DTU 40.5 (Novembre 1993 + A1 Décembre 1997)', title: 'Évacuation EP' },
+      { code: 'NF DTU 60.11 (Août 2013)', title: 'Dimensionnement (Ø80 < 50 m² / Ø100 > 50 m²)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -132,8 +132,8 @@ export const zingerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 40.21 (Juillet 2020)', title: 'Tuiles TC', section: '§6.7 noues' },
-      { code: 'NF DTU 40.41 (Février 2023)', title: 'Zinc', section: '§7 noues' },
+      { code: 'NF DTU 40.21 (Octobre 2013)', title: 'Tuiles TC', section: '§6.7 noues' },
+      { code: 'NF DTU 40.41 (Juillet 2004)', title: 'Zinc', section: '§7 noues' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -182,8 +182,8 @@ export const zingerieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 40.5 (Juin 2018)', title: 'Évacuation EP' },
-      { code: 'NF DTU 40.41 (Février 2023)', title: 'Zinc joint debout / solins' },
+      { code: 'NF DTU 40.5 (Novembre 1993 + A1 Décembre 1997)', title: 'Évacuation EP' },
+      { code: 'NF DTU 40.41 (Juillet 2004)', title: 'Zinc joint debout / solins' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

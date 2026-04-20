@@ -25,7 +25,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 43.1 (Mai 2020)', title: 'Étanchéité toitures-terrasses avec porteurs maçonnerie', section: 'rev. nov. 2004 + A1 2007' },
+      { code: 'NF DTU 43.1 (Novembre 2004 + A1 Septembre 2007)', title: 'Étanchéité des toitures-terrasses et toitures inclinées avec éléments porteurs en maçonnerie en climat de plaine' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -108,7 +108,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 43.1 (Mai 2020)', title: 'Étanchéité toitures-terrasses' },
+      { code: 'NF DTU 43.1 (Novembre 2004 + A1 Septembre 2007)', title: 'Étanchéité toitures-terrasses' },
       { code: 'Règles CSFE', title: 'Complémentaires accessibilité' },
     ],
     version: '2.1.0',
