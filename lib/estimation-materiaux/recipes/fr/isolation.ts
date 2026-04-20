@@ -28,7 +28,7 @@ export const isolationRecipes: Recipe[] = [
     geometryMode: 'area',
     dtuReferences: [
       { code: 'Cahier CSTB 3035', title: 'ITE sous enduit mince' },
-      { code: 'NF DTU 45.4 (Juillet 2019)', title: 'Isolation intérieure (référence)' },
+      { code: 'NF DTU 45.4 (Octobre 2021)', title: 'Isolation intérieure (référence)' },
       { code: 'RE2020', title: 'Performance thermique R > 3' },
     ],
     version: '2.1.0',
@@ -124,7 +124,7 @@ export const isolationRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 45.10 (Décembre 2021)', title: 'Isolation combles perdus par soufflage' },
+      { code: 'NF DTU 45.10 (Juillet 2020)', title: 'Isolation combles perdus par soufflage' },
       { code: 'RE2020', title: 'R > 7 m²K/W' },
     ],
     version: '2.1.0',

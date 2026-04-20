@@ -82,7 +82,7 @@ export const facadeBardageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 41.2 (Septembre 2015)', title: 'Bardage bois et panneaux dérivés', section: '§5-7' },
+      { code: 'NF DTU 41.2 (Août 2015 + 2e tirage P1-1 Juillet 2024)', title: 'Bardage bois et panneaux dérivés', section: '§5-7' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -154,7 +154,7 @@ export const facadeBardageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 41.2 (Septembre 2015)', title: 'Bardage (référence)' },
+      { code: 'NF DTU 41.2 (Août 2015 + 2e tirage P1-1 Juillet 2024)', title: 'Bardage (référence)' },
       { code: 'ATEC fabricant', title: 'Cedral / HardiePlank' },
     ],
     version: '2.1.0',
