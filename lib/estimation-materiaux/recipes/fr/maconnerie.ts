@@ -997,7 +997,9 @@ export const maconnerieRecipes: Recipe[] = [
     version: '2.1.0',
     constraints: { maxHeight: 2.8 },
     hypothesesACommuniquer: [
-      'Brique TC format 5,5×10,5×22 cm — 60 briques/m² (1 rang horizontal)',
+      'Configuration de référence : mur épaisseur 11 cm (une demi-brique), briques posées en panneresse',
+      'Brique TC format 5,5×10,5×22 cm avec joints mortier 1,5 cm — ratio face visible : 1/((22+1,5)×(5,5+1,5)) = 60,8 briques/m²',
+      'Pour un mur plein 22 cm (brique en boutisse, double paroi) : doubler à ~120 briques/m²',
       'Mortier traditionnel ciment + sable (8 kg ciment/m²)',
       'Arase étanche bitumineuse obligatoire en pied (DTU 20.1 §5.2.2)',
       'Chaînages verticaux + horizontaux (idem mur parpaing)',
@@ -1017,7 +1019,7 @@ export const maconnerieRecipes: Recipe[] = [
         wasteFactor: 1.10, wasteReason: 'Casse + coupes rives',
         dtu: 'NF DTU 20.1', normRef: 'NF EN 771-1',
         manufacturerRef: 'Bouyer Leroux / Terreal / Wienerberger',
-        notes: '1 m² ≈ 60 briques format standard (appareillage simple).',
+        notes: 'Calcul géométrique : mur 11 cm (1/2 brique), briques en panneresse (face visible 22×5,5 cm) + joints mortier 1,5 cm → 1/((0,22+0,015)×(0,055+0,015)) = 60,8 briques/m². Pour mur plein 22 cm ou appareillage spécifique, recalculer.',
       },
       {
         id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (mortier hourdage)',
