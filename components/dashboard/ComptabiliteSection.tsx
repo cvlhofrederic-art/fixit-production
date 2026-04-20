@@ -58,9 +58,24 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     serviceName: b.services?.name || services.find((s: import('@/lib/types').Service) => s.id === b.service_id)?.name || 'Intervention',
   })), [bookings, services])
 
+  // ── Données équipe / paie (source : localStorage pointage + profile artisan) ──
+  interface StoredTeamMember { id: string; nom: string; prenom?: string; typeContrat?: string; salaireBrutMensuel?: number; coutHoraireTTC?: number; heuresMois?: number }
+  let teamPayroll: StoredTeamMember[] = []
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(`fixit_team_payroll_${artisan?.id}`) : null
+    if (raw) teamPayroll = JSON.parse(raw)
+  } catch { /* no-op : pas de données paie synchronisées */ }
+  const masseSalarialeAnnuelle = teamPayroll.reduce((s, m) => s + (m.salaireBrutMensuel || 0) * 12, 0)
+
   const financialContext = {
+    // ── PAYS & FORME JURIDIQUE (verrou fiscalité — ne jamais mélanger FR/PT) ──
+    country: locale === 'pt' ? 'PT' : 'FR',
+    locale,
+    legalForm: (artisan as { legal_form?: string })?.legal_form || undefined,
+
     // Statut juridique (micro-entrepreneur ou entreprise)
     orgRole: orgRole || 'artisan',
+
     // Agrégats (référence rapide)
     annualCA,
     annualCAHT: annualHT,
@@ -70,9 +85,14 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     totalExpenses,
     expenseCategories,
     quarterData,
-    // ── DONNÉES BRUTES COMPLÈTES (pour calculs sur période)
+
+    // ── DONNÉES BRUTES COMPLÈTES (pour calculs sur période) ──
     allBookings: allBookingsEnriched,   // Toutes les interventions avec client + service résolus
     allExpenses: expenses,              // Toutes les dépenses avec date, catégorie, montant, notes
+
+    // ── ÉQUIPES & PAIE (frais par ouvrier) ──
+    teamPayroll,
+    masseSalariale: masseSalarialeAnnuelle,
   }
 
   const isEntreprise = orgRole === 'pro_societe'
@@ -1342,14 +1362,14 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
       )}
 
       {/* ══════════════════════════════════════════════════════════════
-           TAB 5: ASSISTANT IA (design v7)
+           TAB 5: ASSISTANT IA (design v7) — FAQ en chips haut + chat pleine largeur
          ══════════════════════════════════════════════════════════════ */}
       {activeComptaTab === 'assistant' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '.75rem' }}>
-          {/* FAQ buttons */}
-          <div className="card">
-            <div className="st">{isPt ? 'Perguntas frequentes' : 'Questions fréquentes'}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', width: '100%' }}>
+          {/* FAQ chips — ribbon haut */}
+          <div className="card" style={{ padding: '.65rem .9rem' }}>
+            <div className="st" style={{ marginBottom: '.5rem' }}>{isPt ? 'Perguntas frequentes' : 'Questions fréquentes'}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
               {[
                 isPt ? '💡 Qual é a minha taxa de IVA aplicável?' : '💡 Quel est mon taux de TVA applicable ?',
                 isPt ? `📊 Resumo do mês de ${MONTH_FULL[currentMonth]} ${currentYear}` : `📊 Résumé du mois de ${MONTH_FULL[currentMonth]} ${currentYear}`,
@@ -1360,7 +1380,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <button
                   key={i}
                   className="btn"
-                  style={{ justifyContent: 'flex-start', textAlign: 'left', height: 'auto', padding: '.5rem .65rem', lineHeight: 1.4, cursor: 'pointer' }}
+                  style={{ padding: '.35rem .75rem', fontSize: '.85rem', lineHeight: 1.3, cursor: 'pointer', borderRadius: '16px' }}
                   onClick={() => window.dispatchEvent(new CustomEvent('lea-ask', { detail: q }))}
                 >
                   {q}
@@ -1368,8 +1388,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               ))}
             </div>
           </div>
-          {/* Chat Léa */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Chat Léa — pleine largeur */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
             <AgentComptable
               bookings={bookings}
               artisan={artisan}

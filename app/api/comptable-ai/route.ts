@@ -51,6 +51,21 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
   const orgRole = ctx.orgRole || 'artisan'
   const isEntreprise = orgRole === 'pro_societe'
 
+  // ── Détection pays & forme juridique (lock FR ≠ PT) ──
+  const country: 'FR' | 'PT' = (ctx.country === 'PT' || ctx.locale === 'pt') ? 'PT' : 'FR'
+  const legalForm = (ctx.legalForm as string) || ''
+    // FR : micro-entrepreneur, EI, EIRL, EURL, SARL, SAS, SASU, SA, SCI
+    // PT : ENI, Sociedade Unipessoal (Lda), Lda, SA
+
+  // ── Masse salariale : priorité ctx.masseSalariale, sinon agrège depuis teamPayroll
+  interface TeamMemberPayroll { id: string; nom: string; prenom?: string; salaireBrutMensuel?: number; coutHoraireTTC?: number; heuresMois?: number; typeContrat?: string }
+  const teamPayroll = (ctx.teamPayroll as TeamMemberPayroll[]) || []
+  const masseSalarialeAuto = teamPayroll.reduce((sum, m) => sum + (m.salaireBrutMensuel || 0) * 12, 0)
+  const masseSalarialeTotal = (ctx.masseSalariale as number | undefined) ?? masseSalarialeAuto
+  const teamCostLines = teamPayroll
+    .map(m => `  ${m.prenom ?? ''} ${m.nom} (${m.typeContrat ?? 'N/A'}) | Brut mensuel : ${fmt(m.salaireBrutMensuel ?? 0)} | Coût horaire TTC : ${fmt(m.coutHoraireTTC ?? 0)}`)
+    .join('\n') || '  (Aucune donnée de paie synchronisée)'
+
   // ── Calculs fiscaux adaptés au statut ──
   let fiscalBlock = ''
   let fiscalReferentiel = ''
@@ -182,13 +197,86 @@ ${quarterLines}`
 
   const statutLabel = isEntreprise ? 'entreprise BTP (SARL/SAS/EURL)' : 'auto-entrepreneurs, SARL, SAS, EURL, micro-entreprises ou sociétés classiques'
 
-  return `Tu es **Léa**, agent IA se comportant exactement comme un **expert-comptable senior** spécialisé dans toutes les sociétés du secteur du **bâtiment et de l'artisanat**, y compris les entreprises de construction, rénovation, dératisation, plomberie, électricité, menuiserie, peinture et autres métiers artisanaux en France.
+  // ─── BLOC PAYS (critique : NE JAMAIS MÉLANGER FR ET PT) ───
+  const countryLock = country === 'PT'
+    ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🇵🇹 VERROU PAYS : PORTUGAL — fiscalité 100% PT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ Cette entreprise est basée au PORTUGAL. Tu réponds EXCLUSIVEMENT avec la
+fiscalité portugaise (AT — Autoridade Tributária, Segurança Social, Modelo 3 IRS,
+IVA 23% normal / 13% intermédiaire / 6% reduzida, Código do IRC).
+INTERDICTION ABSOLUE : aucune mention URSSAF, IS français, TVA française 20%,
+plafond micro-entrepreneur 77 700 €, barème km FR. Ces notions N'EXISTENT PAS
+au Portugal.
+
+FORMES JURIDIQUES PORTUGAISES :
+  • ENI (Empresário em Nome Individual) — équivalent micro-entreprise PT
+    └ Regime Simplificado : CA < 200 000 € → coef 0,35-0,75 pour base IRS
+    └ Contribuição Segurança Social : 21,4% base contributiva (21,4% TI 2026)
+    └ IVA : franquia pequenos retalhistas se CA < 15 000 € (2026)
+  • Sociedade Unipessoal por Quotas (Lda) — équivalent EURL
+    └ IRC 21% sur bénéfice + derrama municipal 0-1,5% selon commune
+    └ Tributação autónoma (véhicules, frais représentation)
+    └ IVA régime normal 23% ou isenção si CA < 15 000 €
+  • Sociedade por Quotas (Lda) — équivalent SARL
+    └ IRC 21% + derrama + pagamento especial por conta (PEC)
+  • Sociedade Anónima (SA) — équivalent SA FR
+    └ IRC 21% + derrama + derrama estadual progressive (3-9%)
+
+VERROU LINGUISTIQUE : réponds en português europeu (pt-PT), PAS en pt-BR.
+Canalizador (pas plombier), obras (pas chantier), telemóvel (pas portable),
+casa de banho (pas salle de bain), fatura (pas facture).
+`
+    : `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🇫🇷 VERROU PAYS : FRANCE — fiscalité 100% FR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ Cette entreprise est basée en FRANCE. Tu réponds EXCLUSIVEMENT avec la
+fiscalité française (URSSAF, DGFIP, CGI, Code du Commerce, Code du travail).
+INTERDICTION ABSOLUE : aucune mention AT portugaise, IRC 21%, IVA 23%,
+Segurança Social, derrama. Ces notions N'EXISTENT PAS en France.
+
+FORMES JURIDIQUES FRANÇAISES${legalForm ? ` (forme déclarée : ${legalForm})` : ''} :
+  • Micro-entrepreneur / Auto-entrepreneur
+    └ URSSAF 21,2% BTP services 2026, IR libératoire optionnel 1,7%
+    └ Plafond CA HT : 77 700 € (services/BTP) · 188 700 € (ventes)
+    └ Franchise TVA : 37 500 € (tolérance 41 250 €)
+  • EI (Entreprise Individuelle) — régime réel BIC
+    └ IR sur bénéfice réel (barème progressif), SSI TNS ~45%
+    └ TVA régime réel normal ou simplifié
+  • EIRL : supprimé depuis 2022, tous basculés en EI
+  • EURL (1 associé) / SARL (2+ associés)
+    └ IS 15% ≤42 500 € + 25% au-delà (PME CA <10M€)
+    └ Gérant majoritaire SARL (TNS) : ~45% cotisations SSI sur rémunération nette
+    └ Gérant minoritaire = assimilé salarié : ~80% charges (patronales + salariales)
+  • SASU (1 associé) / SAS (2+ associés)
+    └ IS 15% + 25% identique SARL
+    └ Président = assimilé salarié : ~80% charges sur salaire brut
+    └ Dividendes : flat tax 30% (12,8 IR + 17,2 prélèv. sociaux)
+  • SA : idem SAS, plus de formalisme (CA, directoire, commissaire aux comptes)
+  • SCI : immobilier uniquement, pas BTP chantier
+
+VERROU LINGUISTIQUE : réponds en français.
+`
+
+  return `Tu es **Léa**, agent IA se comportant exactement comme un **expert-comptable senior** spécialisé dans toutes les sociétés du secteur du **bâtiment et de l'artisanat**.
 
 📅 Aujourd'hui : ${today}
-
-Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation française 2026**.
-${isEntreprise ? '\n⚠️ IMPORTANT : Ce professionnel est une ENTREPRISE BTP (société), PAS un auto-entrepreneur. N\'applique JAMAIS les règles micro-entrepreneur (21,2% URSSAF, plafond 77 700€, IR libératoire 1,7%). Utilise les règles IS, TVA régime réel, charges sociales régime général ou TNS selon la forme juridique.\n' : ''}
+${countryLock}
+Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation ${country === 'PT' ? 'portugaise' : 'française'} 2026**.
+${isEntreprise ? '\n⚠️ IMPORTANT : Ce professionnel est une ENTREPRISE (société), PAS un travailleur indépendant simple. Utilise les règles IRC/IS, TVA régime réel, charges sociales régime général ou TNS selon la forme juridique DÉCLARÉE (ci-dessus).\n' : ''}
 ${fiscalBlock}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👷 COÛTS D'ÉQUIPE (frais par ouvrier — source pointage/paie)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Masse salariale annuelle déclarée : ${fmt(masseSalarialeTotal)}
+Détail par membre :
+${teamCostLines}
+${masseSalarialeTotal > 0 ? `
+Estimation charges patronales ${country === 'PT' ? '(23,75% TSU PT)' : '(~45% FR)'} : ${fmt(masseSalarialeTotal * (country === 'PT' ? 0.2375 : 0.45))}
+Coût total employeur (brut + charges) : ${fmt(masseSalarialeTotal * (country === 'PT' ? 1.2375 : 1.45))}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 TOUTES LES INTERVENTIONS TERMINÉES (brut, ligne par ligne)
