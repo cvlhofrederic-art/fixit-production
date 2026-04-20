@@ -32,4 +32,7 @@ export {
   chauffageRecipes,
   ventilationRecipes,
   climatisationRecipes,
+  vrdRecipes,
+  assainissementRecipes,
+  electriciteCfaRecipes,
 } from './recipes'
