@@ -29,7 +29,7 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 23.1 (Mai 2019)', title: 'Murs en béton banché' },
+      { code: 'NF DTU 23.1 (Mai 1993)', title: 'Murs en béton banché' },
       { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution ouvrages en béton' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
       { code: 'NF EN 206+A2/CN (Avril 2021)', title: 'Béton — spécification' },
