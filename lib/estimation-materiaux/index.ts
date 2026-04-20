@@ -22,4 +22,6 @@ export {
   electriciteRecipes,
   betonBancheRecipes,
   charpenteRecipes,
+  zingerieRecipes,
+  etancheiteRecipes,
 } from './recipes'
