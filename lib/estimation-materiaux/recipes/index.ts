@@ -13,6 +13,9 @@ import { zingerieRecipes } from './zinguerie';
 import { etancheiteRecipes } from './etancheite';
 import { isolationRecipes } from './isolation';
 import { facadeBardageRecipes } from './facade-bardage';
+import { menuiseriesIntRecipes } from './menuiseries-int';
+import { revetementsSolsRecipes } from './revetements-sols';
+import { revetementsMurauxRecipes } from './revetements-muraux';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
@@ -29,6 +32,9 @@ export const allRecipes: Recipe[] = [
   ...etancheiteRecipes,
   ...isolationRecipes,
   ...facadeBardageRecipes,
+  ...menuiseriesIntRecipes,
+  ...revetementsSolsRecipes,
+  ...revetementsMurauxRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -65,4 +71,7 @@ export {
   etancheiteRecipes,
   isolationRecipes,
   facadeBardageRecipes,
+  menuiseriesIntRecipes,
+  revetementsSolsRecipes,
+  revetementsMurauxRecipes,
 };

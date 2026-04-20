@@ -26,4 +26,7 @@ export {
   etancheiteRecipes,
   isolationRecipes,
   facadeBardageRecipes,
+  menuiseriesIntRecipes,
+  revetementsSolsRecipes,
+  revetementsMurauxRecipes,
 } from './recipes'
