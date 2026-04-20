@@ -1,4 +1,10 @@
 -- Migration 061 — Seed ref_taux with 2026 rates for FR and PT
+-- Idempotente : n'insère que si la table est vide (évite doublons en rejeu).
+
+DO $seed$ BEGIN
+IF (SELECT COUNT(*) FROM ref_taux) > 0 THEN
+  RAISE NOTICE 'ref_taux déjà seedée (% lignes) — migration 061 skip.', (SELECT COUNT(*) FROM ref_taux);
+ELSE
 
 -- FRANCE — Cotisations sociales
 INSERT INTO ref_taux (juridiction, type_charge, regime, taux, date_debut_validite, source_reglementaire, description) VALUES
@@ -92,3 +98,6 @@ INSERT INTO ref_taux (juridiction, type_charge, regime, taux, date_debut_validit
   ('PT', 'iva', 'normal', 23.0000, '2026-01-01', 'CIVA art. 18 n.1-c', 'IVA taxa normal'),
   ('PT', 'iva', 'intermediaire', 13.0000, '2026-01-01', 'CIVA Lista II', 'IVA taxa intermédia'),
   ('PT', 'iva', 'reduit', 6.0000, '2026-01-01', 'CIVA Lista I', 'IVA taxa reduzida');
+
+END IF;
+END $seed$;
