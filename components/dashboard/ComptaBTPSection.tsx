@@ -5,6 +5,7 @@ import { Loader, Brain, BarChart3, User, HardHat, Building2, Coins, Lightbulb, C
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
+import { formatPrice } from '@/lib/utils'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
 import { calculateChantierProfitability, calculateGlobalProfitability } from '@/lib/services/profitability'
@@ -52,8 +53,14 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
   const [tab, setTab] = useState<'dashboard' | 'profil' | 'equipe' | 'frais'>('dashboard')
   const [simDays, setSimDays] = useState(0)
   const [simWorkers, setSimWorkers] = useState(0)
-  // Frais fixes form
+  // Frais fixes form (JSONB legacy)
   const [newFrai, setNewFrai] = useState<FraiFixe>({ label: '', montant: 0, frequence: 'mensuel' })
+  // Relational charges_fixes
+  const [chargesFixes, setChargesFixes] = useState<Array<{ id: string; label: string; montant: number; frequence: string; categorie: string }>>([])
+  const [newChargeCategorie, setNewChargeCategorie] = useState<string>('autre')
+  const [newChargeFrequence, setNewChargeFrequence] = useState<string>('mensuel')
+  const [newChargeLabel, setNewChargeLabel] = useState<string>('')
+  const [newChargeMontant, setNewChargeMontant] = useState<number>(0)
   // Membres pour l'onglet équipe
   interface MembreCompta { id: string; prenom?: string; nom?: string; typeCompte?: string; type_compte?: string; type_contrat?: string; cout_horaire?: number; coutHoraire?: number; charges_pct?: number; chargesPct?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number }
   const [membres, setMembres] = useState<MembreCompta[]>([])
@@ -64,9 +71,10 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
         const { data: sess } = await supabase.auth.getSession()
         const headers: Record<string, string> = {}
         if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-        const [rentaRes, membresRes] = await Promise.all([
+        const [rentaRes, membresRes, chargesRes] = await Promise.all([
           fetch('/api/btp?table=rentabilite', { headers }),
           fetch('/api/btp?table=membres', { headers }),
+          fetch('/api/btp?table=charges_fixes', { headers }),
         ])
         if (rentaRes.ok) {
           const j = await rentaRes.json()
@@ -75,6 +83,10 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
         if (membresRes.ok) {
           const j = await membresRes.json()
           setMembres(j.membres || [])
+        }
+        if (chargesRes.ok) {
+          const j = await chargesRes.json()
+          setChargesFixes(j.charges_fixes || [])
         }
       } catch { /* silent */ }
       setLoading(false)
@@ -89,6 +101,15 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
     const list = settings.frais_fixes_mensuels || []
     return list.reduce((s: number, f: FraiFixe) => s + (f.frequence === 'annuel' ? f.montant / 12 : f.montant), 0)
   }, [settings.frais_fixes_mensuels])
+
+  const totalFixesMensuel = useMemo(() => {
+    return chargesFixes.reduce((sum, c) => {
+      if (c.frequence === 'mensuel') return sum + c.montant
+      if (c.frequence === 'trimestriel') return sum + c.montant / 3
+      if (c.frequence === 'annuel') return sum + c.montant / 12
+      return sum
+    }, 0)
+  }, [chargesFixes])
 
   const salairePatronCharge = useMemo(() => {
     const base = settings.salaire_patron_mensuel || 0
@@ -207,6 +228,48 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
   const removeFrai = (idx: number) => {
     const updated = (settings.frais_fixes_mensuels || []).filter((_: FraiFixe, i: number) => i !== idx)
     saveSettings({ frais_fixes_mensuels: updated })
+  }
+
+  const fetchChargesFixes = useCallback(async () => {
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const headers: Record<string, string> = {}
+      if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
+      const res = await fetch('/api/btp?table=charges_fixes', { headers })
+      if (res.ok) {
+        const j = await res.json()
+        setChargesFixes(j.charges_fixes || [])
+      }
+    } catch { /* silent */ }
+  }, [])
+
+  const addChargeFix = async (label: string, montant: number, frequence: string, categorie: string) => {
+    if (!label || !montant) return
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
+      await fetch('/api/btp', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ table: 'charges_fixes', action: 'insert', data: { label, montant, frequence, categorie } }),
+      })
+      await fetchChargesFixes()
+    } catch { /* silent */ }
+  }
+
+  const removeChargeFix = async (id: string) => {
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
+      await fetch('/api/btp', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ table: 'charges_fixes', action: 'delete', id }),
+      })
+      setChargesFixes(prev => prev.filter(c => c.id !== id))
+    } catch { /* silent */ }
   }
 
   if (loading || loadingS) return (
@@ -407,52 +470,111 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
               : 'Tout ce que vous payez chaque mois quel que soit le nombre de chantiers : loyer, assurance, comptable, véhicules, etc.'}
           </p>
 
-          {/* Liste frais existants */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-            {(settings.frais_fixes_mensuels || []).map((f: FraiFixe, i: number) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FAFAFA', borderRadius: 6, border: '1px solid #E8E8E8' }}>
-                <div>
-                  <span style={{ fontWeight: 600, fontSize: 12 }}>{f.label}</span>
-                  <span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"} style={{ marginLeft: 8 }}>{f.frequence}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 600, color: '#C62828', fontSize: 12 }}>{fmt(f.montant, dl)} &euro;{f.frequence === 'annuel' ? '/an' : '/mois'}</span>
-                  <button onClick={() => removeFrai(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C62828' }} aria-label="Supprimer ce frais"><X size={14} /></button>
+          {/* Alertes contextuelles */}
+          {settings.country === 'FR' && !chargesFixes.some(c => c.categorie === 'decennale') && (
+            <div className={isV5 ? "v5-al warn" : "v22-alert v22-alert-amber"} style={{ marginBottom: 12 }}>
+              <AlertTriangle size={14} /> {"Tu n'as pas renseigné d'assurance décennale. C'est obligatoire en BTP."}
+            </div>
+          )}
+          {settings.country === 'PT' && !chargesFixes.some(c => c.categorie === 'rc_pro') && (
+            <div className={isV5 ? "v5-al warn" : "v22-alert v22-alert-amber"} style={{ marginBottom: 12 }}>
+              <AlertTriangle size={14} /> {"Seguro de acidentes de trabalho não registado. É obrigatório na construção."}
+            </div>
+          )}
+
+          {/* Groupes par catégorie */}
+          {([
+            { label: isPt ? 'Seguros' : 'Assurances', categories: ['decennale', 'rc_pro'] },
+            { label: isPt ? 'Local & veículos' : 'Local & véhicule', categories: ['loyer', 'leasing', 'vehicule'] },
+            { label: isPt ? 'Administrativo' : 'Administratif', categories: ['comptabilite', 'telephone', 'logiciel', 'formation'] },
+            { label: isPt ? 'Outros' : 'Autres', categories: ['autre'] },
+          ] as { label: string; categories: string[] }[]).map(group => {
+            const items = chargesFixes.filter(c => group.categories.includes(c.categorie))
+            if (items.length === 0) return null
+            return (
+              <div key={group.label} style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{group.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {items.map(c => (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FAFAFA', borderRadius: 6, border: '1px solid #E8E8E8' }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>{c.label}</span>
+                        <span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"} style={{ marginLeft: 8 }}>{c.categorie}</span>
+                        <span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"} style={{ marginLeft: 4 }}>{c.frequence}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: '#C62828', fontSize: 12 }}>
+                          {formatPrice(c.montant, locale)}{c.frequence === 'annuel' ? isPt ? '/ano' : '/an' : c.frequence === 'trimestriel' ? isPt ? '/trim.' : '/trim.' : isPt ? '/mês' : '/mois'}
+                        </span>
+                        <button onClick={() => removeChargeFix(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C62828' }} aria-label={isPt ? 'Remover encargo' : 'Supprimer ce frais'}><X size={14} /></button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-            {(settings.frais_fixes_mensuels || []).length === 0 && (
-              <div style={{ padding: 20, textAlign: 'center', color: '#999', fontSize: 12 }}>
-                {isPt ? 'Nenhum encargo registado' : 'Aucun frais enregistré'}
-              </div>
-            )}
-          </div>
+            )
+          })}
+          {chargesFixes.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: '#999', fontSize: 12, marginBottom: 16 }}>
+              {isPt ? 'Nenhum encargo registado' : 'Aucun frais enregistré'}
+            </div>
+          )}
 
           {/* Formulaire ajout */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ flex: 2 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', borderTop: '1px solid #E8E8E8', paddingTop: 16 }}>
+            <div style={{ flex: 2, minWidth: 140 }}>
               <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Descrição' : 'Libellé'}</label>
-              <input className={isV5 ? "v5-fi" : "v22-input"} value={newFrai.label} onChange={e => setNewFrai({ ...newFrai, label: e.target.value })}
-                placeholder={isPt ? 'ex: Renda do escritório' : 'ex: Loyer bureau'} />
+              <input className={isV5 ? "v5-fi" : "v22-input"} value={newChargeLabel}
+                onChange={e => setNewChargeLabel(e.target.value)}
+                placeholder={isPt ? 'ex: Seguro decenário' : 'ex: Assurance décennale'} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 90 }}>
               <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Montante' : 'Montant'} (&euro;)</label>
-              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={newFrai.montant || ''} onChange={e => setNewFrai({ ...newFrai, montant: Number(e.target.value) })} />
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={newChargeMontant || ''}
+                onChange={e => setNewChargeMontant(Number(e.target.value))} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 110 }}>
               <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Frequência' : 'Fréquence'}</label>
-              <select className={isV5 ? "v5-fi" : "v22-input"} value={newFrai.frequence} onChange={e => setNewFrai({ ...newFrai, frequence: e.target.value as any })}>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={newChargeFrequence}
+                onChange={e => setNewChargeFrequence(e.target.value)}>
                 <option value="mensuel">{isPt ? 'Mensal' : 'Mensuel'}</option>
+                <option value="trimestriel">{isPt ? 'Trimestral' : 'Trimestriel'}</option>
                 <option value="annuel">{isPt ? 'Anual' : 'Annuel'}</option>
               </select>
             </div>
-            <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={addFrai} disabled={!newFrai.label || !newFrai.montant}><PlusCircle size={14} /></button>
+            <div style={{ flex: 1, minWidth: 130 }}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Categoria' : 'Catégorie'}</label>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={newChargeCategorie}
+                onChange={e => setNewChargeCategorie(e.target.value)}>
+                <option value="decennale">{isPt ? 'Seguro decenário' : 'Décennale'}</option>
+                <option value="rc_pro">{isPt ? 'RC Profissional' : 'RC Pro'}</option>
+                <option value="loyer">{isPt ? 'Renda' : 'Loyer'}</option>
+                <option value="leasing">Leasing</option>
+                <option value="vehicule">{isPt ? 'Veículo' : 'Véhicule'}</option>
+                <option value="comptabilite">{isPt ? 'Contabilidade' : 'Comptabilité'}</option>
+                <option value="telephone">{isPt ? 'Telefone' : 'Téléphone'}</option>
+                <option value="logiciel">Logiciel</option>
+                <option value="formation">{isPt ? 'Formação' : 'Formation'}</option>
+                <option value="autre">{isPt ? 'Outro' : 'Autre'}</option>
+              </select>
+            </div>
+            <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
+              onClick={async () => {
+                await addChargeFix(newChargeLabel, newChargeMontant, newChargeFrequence, newChargeCategorie)
+                setNewChargeLabel('')
+                setNewChargeMontant(0)
+                setNewChargeFrequence('mensuel')
+                setNewChargeCategorie('autre')
+              }}
+              disabled={!newChargeLabel || !newChargeMontant}>
+              <PlusCircle size={14} />
+            </button>
           </div>
 
-          {/* Total */}
+          {/* Total mensuel */}
           <div className={isV5 ? "v5-kpi" : "v22-kpi"} style={{ marginTop: 16, padding: 12 }}>
-            <Row label={isPt ? 'Total encargos fixos mensais' : 'Total frais fixes mensuels'} value={`${fmt(fraisFixes, dl)} € / ${isPt ? 'mês' : 'mois'}`} color="#C62828" bold />
-            <Row label={isPt ? 'Por dia ouvré' : 'Par jour ouvré'} value={`${fmt(fraisFixes / 22, dl)} € / ${isPt ? 'dia' : 'jour'}`} color="#EF6C00" />
+            <Row label={isPt ? 'TOTAL mensal' : 'TOTAL mensuel'} value={`${formatPrice(totalFixesMensuel, locale)} / ${isPt ? 'mês' : 'mois'}`} color="#C62828" bold />
+            <Row label={isPt ? 'Por dia ouvré (÷22)' : 'Par jour ouvré (÷22)'} value={`${formatPrice(totalFixesMensuel / 22, locale)} / ${isPt ? 'dia' : 'jour'}`} color="#EF6C00" />
           </div>
         </div>
       )}
