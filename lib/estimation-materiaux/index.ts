@@ -18,4 +18,5 @@ export {
   carrelageRecipes,
   plomberieRecipes,
   couvertureRecipes,
+  menuiseriesExtRecipes,
 } from './recipes'
