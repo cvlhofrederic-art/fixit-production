@@ -24,4 +24,6 @@ export {
   charpenteRecipes,
   zingerieRecipes,
   etancheiteRecipes,
+  isolationRecipes,
+  facadeBardageRecipes,
 } from './recipes'
