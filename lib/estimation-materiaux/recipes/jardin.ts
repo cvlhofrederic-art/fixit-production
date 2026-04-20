@@ -69,7 +69,10 @@ export const jardinRecipes: Recipe[] = [
     trade: 'jardin',
     baseUnit: 'u',
     geometryMode: 'count',
-    dtuReferences: [],
+    dtuReferences: [
+      { code: 'NF P90-201', title: 'Aménagements paysagers — plantations d\'arbres et arbustes' },
+      { code: 'Fascicule 35', title: 'CCTG travaux — Aménagements paysagers, aires de sports' },
+    ],
     version: '2.1.0',
     hypothesesACommuniquer: [
       '1 unité = 1 plant (arbre ou arbuste)',
@@ -120,7 +123,10 @@ export const jardinRecipes: Recipe[] = [
     trade: 'jardin',
     baseUnit: 'u',
     geometryMode: 'count',
-    dtuReferences: [],
+    dtuReferences: [
+      { code: 'NF EN 12484', title: 'Systèmes d\'irrigation — arrosage intégré' },
+      { code: 'NF EN 805', title: 'Alimentation en eau — conduites extérieures' },
+    ],
     version: '2.1.0',
     hypothesesACommuniquer: [
       '1 unité = 1 installation 4 zones (3 gazon + 1 massif)',

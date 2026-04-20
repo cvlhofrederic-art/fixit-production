@@ -541,6 +541,78 @@ const PHASE_META_PT: Record<string, { icon: string; label: string }> = {
   options: { icon: '➕', label: 'Opções condicionais' },
 }
 
+/**
+ * Règles heuristiques "cohérence du devis" :
+ * pour un recipeId, suggère des ouvrages complémentaires typiquement attendus.
+ * Déclenche uniquement si AUCUN des complementRecipeIds n'est présent dans le devis.
+ */
+const COHERENCE_RULES: Array<{
+  triggerRecipeId: string
+  complementRecipeIds: string[]
+  messageFr: string
+  messagePt: string
+}> = [
+  {
+    triggerRecipeId: 'mur-parpaing-20',
+    complementRecipeIds: ['semelle-filante-ba'],
+    messageFr: 'Mur parpaing extérieur sans fondation — semelle filante BA attendue',
+    messagePt: 'Parede em bloco exterior sem fundação — sapata corrida em BA esperada',
+  },
+  {
+    triggerRecipeId: 'mur-parpaing-20',
+    complementRecipeIds: ['enduit-ext-monocouche', 'enduit-ext-multicouche'],
+    messageFr: 'Mur parpaing sans enduit extérieur — finition façade à prévoir',
+    messagePt: 'Parede em bloco sem reboco exterior — acabamento de fachada a prever',
+  },
+  {
+    triggerRecipeId: 'couv-tuile-tc-emboitement',
+    complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes', 'mob-murs'],
+    messageFr: 'Couverture tuile sans charpente — structure porteuse manquante',
+    messagePt: 'Cobertura em telha sem estrutura — estrutura portante em falta',
+  },
+  {
+    triggerRecipeId: 'couv-tuile-beton',
+    complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes', 'mob-murs'],
+    messageFr: 'Couverture tuile béton sans charpente — structure porteuse manquante',
+    messagePt: 'Cobertura em telha de betão sem estrutura — estrutura portante em falta',
+  },
+  {
+    triggerRecipeId: 'couv-ardoise-naturelle',
+    complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes'],
+    messageFr: 'Couverture ardoise sans charpente — structure porteuse manquante',
+    messagePt: 'Cobertura em ardósia sem estrutura — estrutura portante em falta',
+  },
+  {
+    triggerRecipeId: 'pac-air-eau',
+    complementRecipeIds: ['plancher-chauffant-hydraulique', 'radiateur-acier-panneau', 'radiateur-eau-chaude'],
+    messageFr: 'PAC air/eau sans émetteurs — radiateurs ou plancher chauffant attendus',
+    messagePt: 'Bomba de calor ar/água sem emissores — radiadores ou piso radiante esperados',
+  },
+  {
+    triggerRecipeId: 'piscine-coque-polyester',
+    complementRecipeIds: ['terrasse-bois-plots', 'terrasse-carrelage-ext', 'terrasse-composite-wpc'],
+    messageFr: 'Piscine sans plage périphérique — terrasse 1-2 m à prévoir séparément',
+    messagePt: 'Piscina sem pavimento periférico — terraço 1-2 m a prever separadamente',
+  },
+  {
+    triggerRecipeId: 'piscine-beton-banche',
+    complementRecipeIds: ['terrasse-bois-plots', 'terrasse-carrelage-ext', 'terrasse-composite-wpc'],
+    messageFr: 'Piscine sans plage périphérique — terrasse 1-2 m à prévoir séparément',
+    messagePt: 'Piscina sem pavimento periférico — terraço 1-2 m a prever separadamente',
+  },
+]
+
+function deriveCoherenceAlerts(result: EstimationResult, isPt: boolean): string[] {
+  const presentIds = new Set(result.items.map(i => i.recipeId))
+  const alerts: string[] = []
+  for (const rule of COHERENCE_RULES) {
+    if (!presentIds.has(rule.triggerRecipeId)) continue
+    const hasComplement = rule.complementRecipeIds.some(id => presentIds.has(id))
+    if (!hasComplement) alerts.push(isPt ? rule.messagePt : rule.messageFr)
+  }
+  return alerts
+}
+
 interface ResultsPanelProps {
   result: EstimationResult
   isPt: boolean
@@ -551,6 +623,12 @@ interface ResultsPanelProps {
 }
 
 function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: ResultsPanelProps) {
+  const coherenceAlerts = useMemo(() => deriveCoherenceAlerts(result, isPt), [result, isPt])
+  const itemWarnings = useMemo(
+    () => result.items.flatMap(it => it.warnings.map(w => `${it.label || it.recipeName} — ${w}`)),
+    [result.items]
+  )
+
   // Regroupe aggregated en 5 buckets : preparation / principal / accessoires / finitions / options
   const groups = useMemo(() => {
     const g = {
@@ -611,6 +689,42 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
         {renderSection('accessoires')}
         {renderSection('finitions')}
         {renderSection('options')}
+
+        {(coherenceAlerts.length > 0 || itemWarnings.length > 0 || result.warnings.length > 0) && (
+          <div className="coherence-box">
+            <h3>⚠️ {isPt ? 'Coerência do orçamento' : 'Cohérence du devis'}</h3>
+            {coherenceAlerts.length > 0 && (
+              <>
+                <div className="coherence-subtitle">
+                  {isPt ? 'Obras complementares em falta' : 'Ouvrages complémentaires manquants'}
+                </div>
+                <ul>
+                  {coherenceAlerts.map((a, i) => <li key={`c-${i}`}>{a}</li>)}
+                </ul>
+              </>
+            )}
+            {itemWarnings.length > 0 && (
+              <>
+                <div className="coherence-subtitle">
+                  {isPt ? 'Avisos de cálculo' : 'Avertissements de calcul'}
+                </div>
+                <ul>
+                  {itemWarnings.map((w, i) => <li key={`w-${i}`}>{w}</li>)}
+                </ul>
+              </>
+            )}
+            {result.warnings.length > 0 && (
+              <>
+                <div className="coherence-subtitle">
+                  {isPt ? 'Avisos gerais' : 'Avertissements globaux'}
+                </div>
+                <ul>
+                  {result.warnings.map((w, i) => <li key={`g-${i}`}>{w}</li>)}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
 
         {result.hypothesesACommuniquer && result.hypothesesACommuniquer.length > 0 && (
           <div className="hypotheses-box">

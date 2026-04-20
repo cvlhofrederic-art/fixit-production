@@ -20,7 +20,10 @@ export const cloturesPortailsRecipes: Recipe[] = [
     trade: 'cloture',
     baseUnit: 'ml',
     geometryMode: 'length',
-    dtuReferences: [],
+    dtuReferences: [
+      { code: 'NF EN 10244', title: 'Revêtements métalliques non ferreux sur fil d\'acier' },
+      { code: 'NF P98-409', title: 'Clôtures et portails — spécifications techniques' },
+    ],
     version: '2.1.0',
     hypothesesACommuniquer: [
       'Panneaux rigides soudés largeur 2,50 m (le plus courant)',

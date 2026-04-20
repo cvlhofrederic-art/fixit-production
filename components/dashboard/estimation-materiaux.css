@@ -171,4 +171,12 @@
 .estim-wrap .hypotheses-box ul { margin: 0; padding-left: 1.1rem; font-size: 11px; color: #555; line-height: 1.55; }
 .estim-wrap .hypotheses-box li { margin-bottom: 2px; }
 
+/* Cohérence du devis — alertes et avertissements */
+.estim-wrap .coherence-box { margin-top: 1rem; padding: .75rem .9rem; background: #FFF3E0; border: 1px solid #FFB74D; border-radius: 6px; }
+.estim-wrap .coherence-box h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: #E65100; margin-bottom: .5rem; display: flex; align-items: center; gap: 5px; }
+.estim-wrap .coherence-box .coherence-subtitle { font-size: 10px; font-weight: 600; color: #BF360C; margin-top: .5rem; margin-bottom: .2rem; }
+.estim-wrap .coherence-box .coherence-subtitle:first-of-type { margin-top: 0; }
+.estim-wrap .coherence-box ul { margin: 0 0 .3rem; padding-left: 1.1rem; font-size: 11px; color: #5D4037; line-height: 1.55; }
+.estim-wrap .coherence-box li { margin-bottom: 2px; }
+
 .estim-wrap .hidden { display: none; }

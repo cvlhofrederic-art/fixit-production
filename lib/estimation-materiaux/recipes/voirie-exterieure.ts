@@ -167,7 +167,10 @@ export const voirieExterieureRecipes: Recipe[] = [
     trade: 'vrd',
     baseUnit: 'm2',
     geometryMode: 'area',
-    dtuReferences: [],
+    dtuReferences: [
+      { code: 'NF P98-331', title: 'Tranchées : ouverture, remblayage, réfection' },
+      { code: 'Guide SETRA', title: 'Chaussées à faible trafic — structures types' },
+    ],
     version: '2.1.0',
     hypothesesACommuniquer: [
       'Forme grave 0/31,5 compactée 10 cm',
