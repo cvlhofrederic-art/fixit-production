@@ -19,6 +19,9 @@ import { revetementsMurauxRecipes } from './revetements-muraux';
 import { chauffageRecipes } from './chauffage';
 import { ventilationRecipes } from './ventilation';
 import { climatisationRecipes } from './climatisation';
+import { vrdRecipes } from './vrd';
+import { assainissementRecipes } from './assainissement';
+import { electriciteCfaRecipes } from './electricite-cfa';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
@@ -41,6 +44,9 @@ export const allRecipes: Recipe[] = [
   ...chauffageRecipes,
   ...ventilationRecipes,
   ...climatisationRecipes,
+  ...vrdRecipes,
+  ...assainissementRecipes,
+  ...electriciteCfaRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -83,4 +89,7 @@ export {
   chauffageRecipes,
   ventilationRecipes,
   climatisationRecipes,
+  vrdRecipes,
+  assainissementRecipes,
+  electriciteCfaRecipes,
 };
