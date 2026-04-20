@@ -182,7 +182,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
       <div className="v22-card" style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e)', color: '#fff', position: 'relative', overflow: 'hidden', padding: '20px' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, width: 160, height: 160, background: 'rgba(255,193,7,0.1)', borderRadius: '50%', transform: 'translate(50%,-50%)' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '10px', position: 'relative' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff', border: '1px solid #E8E8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             <LeaAvatar size={36} />
           </div>
           <div>
@@ -228,7 +228,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
         {/* Chat header */}
         <div style={{ borderBottom: `1px solid ${tv.border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, background: tv.bg }}>
-          <div style={{ width: 30, height: 30, borderRadius: 10, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={22} /></div>
+          <div style={{ width: 30, height: 30, borderRadius: 10, background: '#fff', border: '1px solid #E8E8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={22} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{isPt ? 'Léa — Contabilista IA' : 'Léa — Agent Comptable IA'}</div>
             <div style={{ fontSize: 11, color: tv.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -259,7 +259,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
             <div style={{ paddingTop: 12 }}>
               {/* Welcome */}
               <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={26} /></div>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', border: '1px solid #E8E8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={26} /></div>
                 <div style={{ background: tv.bg, borderRadius: '14px 14px 14px 4px', padding: '10px 14px', maxWidth: '82%' }}>
                   <p style={{ fontSize: 13, color: tv.text, lineHeight: 1.6, margin: 0 }}>
                     {isPt ? (
@@ -309,7 +309,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
               {isLoading && (
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={26} /></div>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', border: '1px solid #E8E8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={26} /></div>
                   <div style={{ background: tv.bg, borderRadius: '4px 14px 14px 14px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 11, color: tv.textMuted, marginRight: 4 }}>{isPt ? 'Léa está a analisar os seus dados' : 'Léa analyse vos données'}</span>
                     <div style={{ width: 5, height: 5, borderRadius: '50%', background: tv.textMuted, animation: 'bounce 1s infinite', animationDelay: '0ms' }} />
