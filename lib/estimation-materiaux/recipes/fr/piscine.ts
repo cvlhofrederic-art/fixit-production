@@ -127,7 +127,7 @@ export const piscineRecipes: Recipe[] = [
     geometryMode: 'count',
     dtuReferences: [
       { code: 'NF P90-308 (Décembre 2013)', title: 'Piscines privatives' },
-      { code: 'NF DTU 43.1 (Mai 2020)', title: 'Étanchéité (référence)' },
+      { code: 'NF DTU 43.1 (Novembre 2004 + A1 Septembre 2007)', title: 'Étanchéité (référence)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
