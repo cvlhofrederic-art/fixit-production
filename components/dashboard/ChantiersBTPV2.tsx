@@ -5,6 +5,7 @@ import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
+import { toast } from 'sonner'
 import {
   PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
   User, Euro, FileText, CheckCircle2, AlertTriangle, AlertCircle,
@@ -96,6 +97,11 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
   // Confirmation suppression
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // Liaison devis/factures
+  const [linkedDocs, setLinkedDocs] = useState<Record<string, Array<{id: string, type: 'devis'|'facture', numero: string, client_name: string, total_ht: number|null, status: string}>>>({})
+  const [showLinkModal, setShowLinkModal] = useState<string | null>(null)
+  const [availableDevis, setAvailableDevis] = useState<Array<{id: string, numero: string, client_name: string, total_ht: number|null, status: string}>>([])
 
   // Search
   const [search, setSearch] = useState('')
@@ -328,6 +334,64 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   // ── Charger membres au mount ──
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
 
+  // ── Fetch linked docs (devis + factures with chantier_id set) ──
+  const loadLinkedDocs = useCallback(async () => {
+    if (!artisan?.id) return
+    try {
+      const [devisRes, facturesRes] = await Promise.all([
+        supabase.from('devis').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null),
+        supabase.from('factures').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null),
+      ])
+      const grouped: Record<string, Array<{id: string, type: 'devis'|'facture', numero: string, client_name: string, total_ht: number|null, status: string}>> = {}
+      for (const d of (devisRes.data || [])) {
+        const cid = (d as any).chantier_id as string
+        if (!grouped[cid]) grouped[cid] = []
+        grouped[cid].push({ id: d.id, type: 'devis', numero: d.numero || '', client_name: d.client_name || '', total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null, status: d.status || '' })
+      }
+      for (const f of (facturesRes.data || [])) {
+        const cid = (f as any).chantier_id as string
+        if (!grouped[cid]) grouped[cid] = []
+        grouped[cid].push({ id: f.id, type: 'facture', numero: (f as any).numero || '', client_name: f.client_name || '', total_ht: f.total_ht_cents != null ? f.total_ht_cents / 100 : null, status: f.status || '' })
+      }
+      setLinkedDocs(grouped)
+    } catch (e) { console.error('loadLinkedDocs:', e) }
+  }, [artisan?.id])
+
+  useEffect(() => { loadLinkedDocs() }, [loadLinkedDocs])
+
+  // ── Open link modal: fetch unlinked devis ──
+  const openLinkModal = useCallback(async (chantierId: string) => {
+    setShowLinkModal(chantierId)
+    try {
+      const { data } = await supabase
+        .from('devis')
+        .select('id, numero, client_name, total_ht_cents, status')
+        .eq('artisan_id', artisan?.id)
+        .is('chantier_id', null)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      setAvailableDevis((data || []).map((d: any) => ({
+        id: d.id,
+        numero: d.numero || '',
+        client_name: d.client_name || '',
+        total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null,
+        status: d.status || '',
+      })))
+    } catch (e) { console.error('openLinkModal:', e) }
+  }, [artisan?.id])
+
+  // ── Link a devis to a chantier ──
+  const linkDevis = useCallback(async (devisId: string, chantierId: string) => {
+    const { error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId)
+    if (error) {
+      toast.error('Erreur lors de la liaison')
+    } else {
+      toast.success('Devis lié au chantier')
+      setShowLinkModal(null)
+      await loadLinkedDocs()
+    }
+  }, [loadLinkedDocs])
+
   // ── Filter + search ──
   const filtered = useMemo(() => {
     let list = filter === 'Tous'
@@ -534,6 +598,59 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               })}
             </tbody>
           </table>
+
+          {/* ── Devis et factures liés ── */}
+          <div style={{ marginTop: 12 }}>
+            {filtered.map((c: ChantierForm & { id: string; statut?: string }) => {
+              const docs = linkedDocs[c.id] || []
+              return (
+                <div key={`linked-${c.id}`} style={{
+                  marginBottom: 8, border: '1px solid #E0E0E0', borderRadius: 6, overflow: 'hidden', fontSize: 11,
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '7px 12px', background: '#F5F5F5', borderBottom: docs.length > 0 ? '1px solid #E0E0E0' : undefined,
+                  }}>
+                    <span style={{ fontWeight: 600, color: '#444', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <FileText size={12} /> {c.titre} — {isPt ? 'Documentos ligados' : 'Devis et factures liés'}
+                    </span>
+                    <button
+                      className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"}
+                      style={{ fontSize: 10 }}
+                      onClick={() => openLinkModal(c.id)}
+                    >
+                      + {isPt ? 'Ligar orçamento' : 'Lier un devis'}
+                    </button>
+                  </div>
+                  {docs.length === 0 ? (
+                    <div style={{ padding: '6px 12px', color: '#999', fontStyle: 'italic' }}>
+                      {isPt ? 'Nenhum documento ligado' : 'Aucun document lié'}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {docs.map(doc => (
+                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span>{doc.type === 'devis' ? '📋' : '🧾'}</span>
+                          <span style={{ fontWeight: 600 }}>{doc.numero}</span>
+                          <span style={{ color: '#666' }}>{doc.client_name}</span>
+                          {doc.total_ht != null && (
+                            <span style={{ color: '#333' }}>{doc.total_ht.toLocaleString(dl)} €</span>
+                          )}
+                          <span style={{
+                            fontSize: 9, padding: '1px 6px', borderRadius: 10, fontWeight: 600,
+                            background: doc.status === 'sent' || doc.status === 'accepted' ? '#E8F5E9' : doc.status === 'draft' ? '#FFF8E1' : '#E3F2FD',
+                            color: doc.status === 'sent' || doc.status === 'accepted' ? '#2E7D32' : doc.status === 'draft' ? '#F57F17' : '#1565C0',
+                          }}>
+                            {doc.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
           {/* ── Rentabilité details below table ── */}
           {filtered.some((c: ChantierForm & { id: string; statut?: string }) => getRenta(c) !== null) && (
@@ -874,6 +991,51 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                 {' '}{editId ? (isPt ? 'Guardar' : 'Enregistrer') : (isPt ? 'Criar obra' : 'Créer le chantier')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════ MODAL LIAISON DEVIS ══════ */}
+      {showLinkModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <FileText size={14} /> {isPt ? 'Ligar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
+              </span>
+              <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowLinkModal(null)}>✕</button>
+            </div>
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+              {availableDevis.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '20px 0' }}>
+                  {isPt ? 'Nenhum orçamento disponível (sem chantier associado)' : 'Aucun devis disponible (non liés à un chantier)'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {availableDevis.map(d => (
+                    <button
+                      key={d.id}
+                      className={isV5 ? "v5-btn" : "v22-btn"}
+                      style={{ width: '100%', textAlign: 'left', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-start' }}
+                      onClick={() => linkDevis(d.id, showLinkModal)}
+                    >
+                      <span style={{ fontSize: 16 }}>📋</span>
+                      <span style={{ fontWeight: 600, flex: '0 0 auto' }}>{d.numero}</span>
+                      <span style={{ color: '#555', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.client_name}</span>
+                      {d.total_ht != null && (
+                        <span style={{ color: '#333', fontWeight: 600, flex: '0 0 auto' }}>{d.total_ht.toLocaleString(dl)} €</span>
+                      )}
+                      <span style={{
+                        fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, flex: '0 0 auto',
+                        background: '#E3F2FD', color: '#1565C0',
+                      }}>
+                        {d.status}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
