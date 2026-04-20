@@ -21,8 +21,8 @@ export const jardinRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF P98-332', title: 'Pelouses' },
-      { code: 'NF V12-040', title: 'Terre végétale' },
+      { code: 'NF P98-332 (Février 2005)', title: 'Pelouses' },
+      { code: 'NF V12-040 (Juin 2018)', title: 'Terre végétale' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -70,7 +70,7 @@ export const jardinRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF P90-201', title: 'Aménagements paysagers — plantations d\'arbres et arbustes' },
+      { code: 'NF P90-201 (Avril 2003)', title: 'Aménagements paysagers — plantations d\'arbres et arbustes' },
       { code: 'Fascicule 35', title: 'CCTG travaux — Aménagements paysagers, aires de sports' },
     ],
     version: '2.1.0',
@@ -124,8 +124,8 @@ export const jardinRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 12484', title: 'Systèmes d\'irrigation — arrosage intégré' },
-      { code: 'NF EN 805', title: 'Alimentation en eau — conduites extérieures' },
+      { code: 'NF EN 12484-1/2/3/4 (Octobre 2013)', title: 'Systèmes d\'irrigation — arrosage intégré' },
+      { code: 'NF EN 805 (Juillet 2000)', title: 'Alimentation en eau — conduites extérieures' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

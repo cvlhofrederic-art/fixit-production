@@ -28,8 +28,8 @@ export const chauffageRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 65.7', title: 'Radiateurs' },
-      { code: 'NF DTU 65.10', title: 'Canalisations chauffage' },
+      { code: 'NF DTU 65.7 (Mai 1993, historique)', title: 'Radiateurs' },
+      { code: 'NF DTU 65.10 (Septembre 2012)', title: 'Canalisations chauffage' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -91,7 +91,7 @@ export const chauffageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 65.14', title: 'Plancher chauffant basse température' },
+      { code: 'NF DTU 65.14 (Juillet 2023)', title: 'Plancher chauffant basse température' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -173,8 +173,8 @@ export const chauffageRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 65.4', title: 'Chaudières' },
-      { code: 'NF DTU 24.1', title: 'Conduits fumée (ventouse)' },
+      { code: 'NF DTU 65.4 (Mai 1969, historique)', title: 'Chaudières' },
+      { code: 'NF DTU 24.1 P1 (Septembre 2020)', title: 'Conduits fumée (ventouse)' },
       { code: 'RE2020', title: 'Performance HPE' },
     ],
     version: '2.1.0',
@@ -241,7 +241,7 @@ export const chauffageRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 65.16', title: 'PAC air/eau' },
+      { code: 'NF DTU 65.16 (Mai 2006)', title: 'PAC air/eau' },
       { code: 'RE2020', title: 'Chauffage bas-carbone privilégié' },
     ],
     version: '2.1.0',
@@ -311,8 +311,8 @@ export const chauffageRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 24.1', title: 'Conduits fumée' },
-      { code: 'NF EN 14785', title: 'Poêles granulés' },
+      { code: 'NF DTU 24.1 P1 (Septembre 2020)', title: 'Conduits fumée' },
+      { code: 'NF EN 14785 (Novembre 2006)', title: 'Poêles granulés' },
       { code: 'Flamme Verte 7★', title: 'Label RE2020' },
     ],
     version: '2.1.0',
@@ -373,7 +373,7 @@ export const chauffageRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 24.1', title: 'Conduits fumée (rev. 2020)' },
+      { code: 'NF DTU 24.1 P1 (Septembre 2020)', title: 'Conduits fumée (rev. 2020)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

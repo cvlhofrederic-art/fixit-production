@@ -23,7 +23,7 @@ export const electriciteCfaRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 50173-1', title: 'Câblage informatique structuré (classe E min)' },
+      { code: 'NF EN 50173-1 (Octobre 2018)', title: 'Câblage informatique structuré (classe E min)' },
       { code: 'NF C 15-100 §771.5', title: 'Précâblage obligatoire logement neuf' },
     ],
     version: '2.1.0',
@@ -87,7 +87,7 @@ export const electriciteCfaRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 50173-1', title: 'Câblage structuré' },
+      { code: 'NF EN 50173-1 (Octobre 2018)', title: 'Câblage structuré' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -213,7 +213,7 @@ export const electriciteCfaRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 50173-1', title: 'Câblage cat 6 min' },
+      { code: 'NF EN 50173-1 (Octobre 2018)', title: 'Câblage cat 6 min' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

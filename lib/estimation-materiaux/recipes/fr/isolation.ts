@@ -28,7 +28,7 @@ export const isolationRecipes: Recipe[] = [
     geometryMode: 'area',
     dtuReferences: [
       { code: 'Cahier CSTB 3035', title: 'ITE sous enduit mince' },
-      { code: 'NF DTU 45.4', title: 'Isolation intérieure (référence)' },
+      { code: 'NF DTU 45.4 (Juillet 2019)', title: 'Isolation intérieure (référence)' },
       { code: 'RE2020', title: 'Performance thermique R > 3' },
     ],
     version: '2.1.0',
@@ -124,7 +124,7 @@ export const isolationRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 45.10', title: 'Isolation combles perdus par soufflage' },
+      { code: 'NF DTU 45.10 (Décembre 2021)', title: 'Isolation combles perdus par soufflage' },
       { code: 'RE2020', title: 'R > 7 m²K/W' },
     ],
     version: '2.1.0',
@@ -190,7 +190,7 @@ export const isolationRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 45.1', title: 'Isolation combles aménagés' },
+      { code: 'NF DTU 45.1 (Mai 2022)', title: 'Isolation combles aménagés' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -262,7 +262,7 @@ export const isolationRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 45.11', title: 'Isolation supports discontinus par-dessus' },
+      { code: 'NF DTU 45.11 (Décembre 2021)', title: 'Isolation supports discontinus par-dessus' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

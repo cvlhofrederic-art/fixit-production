@@ -29,9 +29,9 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100', title: 'Installations électriques basse tension', section: 'Édition 2015 + A5 2023' },
-      { code: 'NF EN 61439-3', title: 'Tableaux' },
-      { code: 'UTE C 15-712-1', title: 'Installations photovoltaïques' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Installations électriques basse tension', section: 'Édition 2015 + A5 2023' },
+      { code: 'NF EN 61439-3 (Avril 2012)', title: 'Tableaux' },
+      { code: 'UTE C 15-712-1 (Juillet 2013)', title: 'Installations photovoltaïques' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -108,8 +108,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100', title: 'Installations électriques BT', section: '§771 équipements logement' },
-      { code: 'NF C 15-100', title: 'Section conducteurs', section: '§531.2' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Installations électriques BT', section: '§771 équipements logement' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Section conducteurs', section: '§531.2' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -191,8 +191,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100', title: 'Mise à la terre', section: '§542' },
-      { code: 'NF C 15-100', title: 'Liaisons équipotentielles', section: '§541' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Mise à la terre', section: '§542' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Liaisons équipotentielles', section: '§541' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -254,8 +254,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100', title: 'Appareillage et luminaires éclairage extérieur', section: '§559 (IP min 44)' },
-      { code: 'NF C 15-100', title: 'Câbles enterrés', section: '§528' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Appareillage et luminaires éclairage extérieur', section: '§559 (IP min 44)' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Câbles enterrés', section: '§528' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -319,8 +319,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100', title: 'Amendement A5 2023 — IRVE' },
-      { code: 'NF C 15-722', title: 'Spécifique IRVE' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Amendement A5 2023 — IRVE' },
+      { code: 'NF C 15-722 (Novembre 2013)', title: 'Spécifique IRVE' },
       { code: 'Décret LOM', title: 'Pré-équipement IRVE obligatoire logements neufs' },
     ],
     version: '2.1.0',
@@ -388,8 +388,8 @@ export const electriciteRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF C 15-100', title: 'Protection surtensions', section: '§534 + A5 2023' },
-      { code: 'NF EN 61643-11', title: 'Parafoudres BT' },
+      { code: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)', title: 'Protection surtensions', section: '§534 + A5 2023' },
+      { code: 'NF EN 61643-11 (Mai 2013)', title: 'Parafoudres BT' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

@@ -22,7 +22,7 @@ export const peintureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'DTU 59.1', title: 'Travaux de peinture des bâtiments', section: 'Classe C - travaux courants' },
+      { code: 'NF DTU 59.1 (Janvier 2013)', title: 'Travaux de peinture des bâtiments', section: 'Classe C - travaux courants' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -91,7 +91,7 @@ export const peintureRecipes: Recipe[] = [
     trade: 'peinture',
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
-    dtuReferences: [{ code: 'DTU 59.1', title: 'Travaux de peinture - entretien' }],
+    dtuReferences: [{ code: 'NF DTU 59.1 (Janvier 2013)', title: 'Travaux de peinture - entretien' }],
     version: '2.0.0',
     materials: [
       {
@@ -134,7 +134,7 @@ export const peintureRecipes: Recipe[] = [
     trade: 'peinture',
     baseUnit: 'm2',
     geometryMode: 'area',
-    dtuReferences: [{ code: 'DTU 59.1', title: 'Travaux de peinture - plafonds' }],
+    dtuReferences: [{ code: 'NF DTU 59.1 (Janvier 2013)', title: 'Travaux de peinture - plafonds' }],
     version: '2.0.0',
     materials: [
       {
@@ -170,7 +170,7 @@ export const peintureRecipes: Recipe[] = [
     trade: 'peinture',
     baseUnit: 'm2',
     geometryMode: 'area',
-    dtuReferences: [{ code: 'DTU 59.1', title: 'Peinture - travaux sur bois' }],
+    dtuReferences: [{ code: 'NF DTU 59.1 (Janvier 2013)', title: 'Peinture - travaux sur bois' }],
     version: '2.0.0',
     materials: [
       {

@@ -29,10 +29,10 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 23.1', title: 'Murs en béton banché' },
-      { code: 'NF DTU 21', title: 'Exécution ouvrages en béton' },
+      { code: 'NF DTU 23.1 (Mai 2019)', title: 'Murs en béton banché' },
+      { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution ouvrages en béton' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
-      { code: 'NF EN 206', title: 'Béton — spécification' },
+      { code: 'NF EN 206+A2/CN (Avril 2021)', title: 'Béton — spécification' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -149,7 +149,7 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 21', title: 'Exécution ouvrages en béton' },
+      { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution ouvrages en béton' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1 §5.8 Poteaux' },
     ],
     version: '2.1.0',
@@ -226,7 +226,7 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 21', title: 'Exécution ouvrages en béton' },
+      { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution ouvrages en béton' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1 §9.2 Poutres' },
     ],
     version: '2.1.0',
@@ -303,7 +303,7 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 21', title: 'Exécution ouvrages en béton' },
+      { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution ouvrages en béton' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
     ],
     version: '2.1.0',
@@ -381,8 +381,8 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 23.2', title: 'Prédalles et planchers béton' },
-      { code: 'NF DTU 22.1', title: 'Dalles et murs béton préfabriqué' },
+      { code: 'NF DTU 23.2 (Octobre 2008)', title: 'Prédalles et planchers béton' },
+      { code: 'NF DTU 22.1 (Décembre 1988)', title: 'Dalles et murs béton préfabriqué' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -451,7 +451,7 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 23.2', title: 'Prédalles', section: 'Partie 1' },
+      { code: 'NF DTU 23.2 (Octobre 2008)', title: 'Prédalles', section: 'Partie 1' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -508,7 +508,7 @@ export const betonBancheRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 21', title: 'Exécution ouvrages en béton' },
+      { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution ouvrages en béton' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
     ],
     version: '2.1.0',

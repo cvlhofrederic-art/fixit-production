@@ -33,6 +33,9 @@ import { terrasseExterieureRecipes } from './fr/terrasse-exterieure';
 import { jardinRecipes } from './fr/jardin';
 import { piscineRecipes } from './fr/piscine';
 
+// ── Recettes PT (20 recettes écrites à la main en pt-PT) ────────────
+import { allPtRecipes } from './pt';
+
 /**
  * Normalise le pays d'une recette : défaut 'FR' si absent (recettes historiques).
  * Garantit qu'à la sortie, `recipe.country` est toujours défini.
@@ -72,9 +75,7 @@ const frRecipesRaw: Recipe[] = [
   ...piscineRecipes,
 ];
 
-const ptRecipesRaw: Recipe[] = [
-  // Lot F à venir — 20 recettes PT miroirs écrites à la main (pt-PT, NP/LNEC, fabricantes PT)
-];
+const ptRecipesRaw: Recipe[] = allPtRecipes;
 
 export const allRecipes: Recipe[] = [
   ...frRecipesRaw.map(r => withCountry(r, 'FR')),

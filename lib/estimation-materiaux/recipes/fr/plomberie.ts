@@ -27,10 +27,10 @@ export const plomberieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 60.1', title: 'Plomberie sanitaire bâtiments' },
-      { code: 'NF DTU 60.11', title: 'Règles de calcul plomberie' },
-      { code: 'NF EN ISO 15875-1', title: 'Tubes PER' },
-      { code: 'NF EN 21003-1', title: 'Multicouche' },
+      { code: 'NF DTU 60.1 (Décembre 2012 + A1 2020)', title: 'Plomberie sanitaire bâtiments' },
+      { code: 'NF DTU 60.11 (Décembre 2012)', title: 'Règles de calcul plomberie' },
+      { code: 'NF EN ISO 15875-1 (Novembre 2004)', title: 'Tubes PER' },
+      { code: 'NF EN 21003-1 (Juillet 2008)', title: 'Multicouche' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -129,8 +129,8 @@ export const plomberieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 60.5', title: 'Canalisations cuivre' },
-      { code: 'NF EN 1057', title: 'Tubes cuivre' },
+      { code: 'NF DTU 60.5 (Décembre 2013)', title: 'Canalisations cuivre' },
+      { code: 'NF EN 1057+A1 (Septembre 2010)', title: 'Tubes cuivre' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -192,9 +192,9 @@ export const plomberieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 60.32', title: 'PVC évacuation intérieure' },
-      { code: 'NF DTU 60.33', title: 'PVC évacuation extérieure' },
-      { code: 'NF EN 1451-1', title: 'PVC évacuation' },
+      { code: 'NF DTU 60.32 (Janvier 2007)', title: 'PVC évacuation intérieure' },
+      { code: 'NF DTU 60.33 (Janvier 2007)', title: 'PVC évacuation extérieure' },
+      { code: 'NF EN 1451-1 (Mai 2000)', title: 'PVC évacuation' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -280,8 +280,8 @@ export const plomberieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 60.1', title: 'Plomberie sanitaire' },
-      { code: 'NF EN 997', title: 'Cuvettes WC céramique' },
+      { code: 'NF DTU 60.1 (Décembre 2012 + A1 2020)', title: 'Plomberie sanitaire' },
+      { code: 'NF EN 997+A1 (Juillet 2015)', title: 'Cuvettes WC céramique' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -350,7 +350,7 @@ export const plomberieRecipes: Recipe[] = [
     trade: 'plomberie',
     baseUnit: 'u',
     geometryMode: 'count',
-    dtuReferences: [{ code: 'NF DTU 60.1', title: 'Plomberie sanitaire' }],
+    dtuReferences: [{ code: 'NF DTU 60.1 (Décembre 2012 + A1 2020)', title: 'Plomberie sanitaire' }],
     version: '2.1.0',
     hypothesesACommuniquer: [
       'Mitigeur chromé standard (Grohe Eurosmart niveau gamme économique)',
@@ -412,8 +412,8 @@ export const plomberieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 60.1', title: 'Plomberie sanitaire' },
-      { code: 'NF DTU 52.10', title: 'SPEC sous carrelage' },
+      { code: 'NF DTU 60.1 (Décembre 2012 + A1 2020)', title: 'Plomberie sanitaire' },
+      { code: 'NF DTU 52.10 (Septembre 2013)', title: 'SPEC sous carrelage' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -479,7 +479,7 @@ export const plomberieRecipes: Recipe[] = [
     trade: 'plomberie',
     baseUnit: 'u',
     geometryMode: 'count',
-    dtuReferences: [{ code: 'NF DTU 60.1', title: 'Plomberie sanitaire' }],
+    dtuReferences: [{ code: 'NF DTU 60.1 (Décembre 2012 + A1 2020)', title: 'Plomberie sanitaire' }],
     version: '2.1.0',
     hypothesesACommuniquer: [
       'Baignoire acrylique 170×70 (format standard)',
@@ -543,8 +543,8 @@ export const plomberieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 60.1', title: 'Plomberie sanitaire', section: '§6.4 groupe sécurité' },
-      { code: 'NF EN 60335-2-21', title: 'Sécurité chauffe-eau électriques' },
+      { code: 'NF DTU 60.1 (Décembre 2012 + A1 2020)', title: 'Plomberie sanitaire', section: '§6.4 groupe sécurité' },
+      { code: 'NF EN 60335-2-21+A11 (Mars 2019)', title: 'Sécurité chauffe-eau électriques' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

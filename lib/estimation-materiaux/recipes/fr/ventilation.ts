@@ -22,8 +22,8 @@ export const ventilationRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 68.3', title: 'Installations VMC (rev. 2017)' },
-      { code: 'NF EN 13141-4', title: 'Performance' },
+      { code: 'NF DTU 68.3 (Juin 2013)', title: 'Installations VMC (rev. 2017)' },
+      { code: 'NF EN 13141-4 (Mai 2011)', title: 'Performance' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -96,8 +96,8 @@ export const ventilationRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 68.3', title: 'Installations VMC' },
-      { code: 'NF EN 13141-7', title: 'Performance échangeurs' },
+      { code: 'NF DTU 68.3 (Juin 2013)', title: 'Installations VMC' },
+      { code: 'NF EN 13141-7 (Février 2021)', title: 'Performance échangeurs' },
       { code: 'RE2020', title: 'Rendement > 85% obligatoire' },
     ],
     version: '2.1.0',
@@ -184,7 +184,7 @@ export const ventilationRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 68.3', title: 'VMC (référence)' },
+      { code: 'NF DTU 68.3 (Juin 2013)', title: 'VMC (référence)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

@@ -25,7 +25,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 43.1', title: 'Étanchéité toitures-terrasses avec porteurs maçonnerie', section: 'rev. nov. 2004 + A1 2007' },
+      { code: 'NF DTU 43.1 (Mai 2020)', title: 'Étanchéité toitures-terrasses avec porteurs maçonnerie', section: 'rev. nov. 2004 + A1 2007' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -108,7 +108,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 43.1', title: 'Étanchéité toitures-terrasses' },
+      { code: 'NF DTU 43.1 (Mai 2020)', title: 'Étanchéité toitures-terrasses' },
       { code: 'Règles CSFE', title: 'Complémentaires accessibilité' },
     ],
     version: '2.1.0',
@@ -176,7 +176,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 52.10', title: 'Systèmes d\'étanchéité sous carrelage (SPEC)' },
+      { code: 'NF DTU 52.10 (Septembre 2013)', title: 'Systèmes d\'étanchéité sous carrelage (SPEC)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -227,7 +227,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 14.1', title: 'Cuvelage (étanchéité parties enterrées)' },
+      { code: 'NF DTU 14.1 P1-1 (Mars 2017)', title: 'Cuvelage (étanchéité parties enterrées)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -266,7 +266,7 @@ export const etancheiteRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 20.1', title: 'Maçonnerie', section: '§5.6 drainage mur enterré' },
+      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie', section: '§5.6 drainage mur enterré' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

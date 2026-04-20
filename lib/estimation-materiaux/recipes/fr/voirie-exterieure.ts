@@ -24,7 +24,7 @@ export const voirieExterieureRecipes: Recipe[] = [
     geometryMode: 'area',
     dtuReferences: [
       { code: 'Fascicule 25 (CCTG)', title: 'Chaussées enrobé' },
-      { code: 'NF EN 13242', title: 'Granulats' },
+      { code: 'NF EN 13242+A1 (Mars 2008)', title: 'Granulats' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -69,7 +69,7 @@ export const voirieExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF EN 1338', title: 'Pavés béton' },
+      { code: 'NF EN 1338/AC (Mars 2009)', title: 'Pavés béton' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -123,7 +123,7 @@ export const voirieExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF EN 1339', title: 'Dalles béton' },
+      { code: 'NF EN 1339/AC (Mars 2009)', title: 'Dalles béton' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -168,7 +168,7 @@ export const voirieExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF P98-331', title: 'Tranchées : ouverture, remblayage, réfection' },
+      { code: 'NF P98-331 (Février 2005)', title: 'Tranchées : ouverture, remblayage, réfection' },
       { code: 'Guide SETRA', title: 'Chaussées à faible trafic — structures types' },
     ],
     version: '2.1.0',
@@ -211,7 +211,7 @@ export const voirieExterieureRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF EN 1340', title: 'Bordures béton' },
+      { code: 'NF EN 1340/AC (Mars 2009)', title: 'Bordures béton' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

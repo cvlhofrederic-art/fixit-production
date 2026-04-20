@@ -23,8 +23,8 @@ export const piscineRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF P90-308', title: 'Piscines privatives familiales' },
-      { code: 'NF P90-309', title: 'Sécurité piscines' },
+      { code: 'NF P90-308 (Décembre 2013)', title: 'Piscines privatives familiales' },
+      { code: 'NF P90-309 (Juin 2007)', title: 'Sécurité piscines' },
       { code: 'L.128-1 code construction', title: 'Dispositif sécurité obligatoire' },
     ],
     version: '2.1.0',
@@ -126,8 +126,8 @@ export const piscineRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF P90-308', title: 'Piscines privatives' },
-      { code: 'NF DTU 43.1', title: 'Étanchéité (référence)' },
+      { code: 'NF P90-308 (Décembre 2013)', title: 'Piscines privatives' },
+      { code: 'NF DTU 43.1 (Mai 2020)', title: 'Étanchéité (référence)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -185,7 +185,7 @@ export const piscineRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF P90-308', title: 'Piscines privatives' },
+      { code: 'NF P90-308 (Décembre 2013)', title: 'Piscines privatives' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

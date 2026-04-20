@@ -22,7 +22,7 @@ export const terrasseExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 51.4', title: 'Platelages extérieurs bois (rev. 2018)' },
+      { code: 'NF DTU 51.4 (Juin 2010)', title: 'Platelages extérieurs bois (rev. 2018)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -76,7 +76,7 @@ export const terrasseExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 51.4', title: 'Platelages extérieurs (référence)' },
+      { code: 'NF DTU 51.4 (Juin 2010)', title: 'Platelages extérieurs (référence)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -122,7 +122,7 @@ export const terrasseExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 52.2', title: 'Pose collée revêtements céramiques' },
+      { code: 'NF DTU 52.2 (Mai 2022)', title: 'Pose collée revêtements céramiques' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

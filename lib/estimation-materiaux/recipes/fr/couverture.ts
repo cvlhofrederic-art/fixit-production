@@ -33,9 +33,9 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.21', title: 'Tuiles TC à emboîtement', section: 'rev. 2020' },
-      { code: 'NF DTU 40.29', title: 'Écrans souples de sous-toiture' },
-      { code: 'NF EN 1304', title: 'Spécifications tuiles TC' },
+      { code: 'NF DTU 40.21 (Juillet 2020)', title: 'Tuiles TC à emboîtement', section: 'rev. 2020' },
+      { code: 'NF DTU 40.29 (Septembre 2017)', title: 'Écrans souples de sous-toiture' },
+      { code: 'NF EN 1304 (Octobre 2013)', title: 'Spécifications tuiles TC' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -111,9 +111,9 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.24', title: 'Tuiles béton à glissement/emboîtement' },
-      { code: 'NF EN 490', title: 'Spécifications tuiles béton' },
-      { code: 'NF DTU 40.29', title: 'Écrans souples sous-toiture' },
+      { code: 'NF DTU 40.24 (Mai 2006 + A1 2020)', title: 'Tuiles béton à glissement/emboîtement' },
+      { code: 'NF EN 490+A1 (Mars 2018)', title: 'Spécifications tuiles béton' },
+      { code: 'NF DTU 40.29 (Septembre 2017)', title: 'Écrans souples sous-toiture' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -174,8 +174,8 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.11', title: 'Couverture en ardoises naturelles' },
-      { code: 'NF EN 12326', title: 'Spécifications ardoises' },
+      { code: 'NF DTU 40.11 (Mai 1993 + A2 2021)', title: 'Couverture en ardoises naturelles' },
+      { code: 'NF EN 12326-1 (Septembre 2014)', title: 'Spécifications ardoises' },
     ],
     version: '2.1.0',
     constraints: { note: 'Pente minimum 22° (DTU 40.11 §4.3).' },
@@ -235,8 +235,8 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.41', title: 'Couverture zinc à joint debout' },
-      { code: 'NF EN 988', title: 'Spécifications zinc' },
+      { code: 'NF DTU 40.41 (Février 2023)', title: 'Couverture zinc à joint debout' },
+      { code: 'NF EN 988 (Septembre 1996)', title: 'Spécifications zinc' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -291,7 +291,7 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.35', title: 'Plaques nervurées métalliques' },
+      { code: 'NF DTU 40.35 (Août 2018)', title: 'Plaques nervurées métalliques' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -346,8 +346,8 @@ export const couvertureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.14', title: 'Couverture en bardeaux bitumés' },
-      { code: 'NF EN 544', title: 'Spécifications bardeaux' },
+      { code: 'NF DTU 40.14 (Mai 1993)', title: 'Couverture en bardeaux bitumés' },
+      { code: 'NF EN 544+A1 (Mai 2011)', title: 'Spécifications bardeaux' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

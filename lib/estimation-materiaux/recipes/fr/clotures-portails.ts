@@ -21,8 +21,8 @@ export const cloturesPortailsRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF EN 10244', title: 'Revêtements métalliques non ferreux sur fil d\'acier' },
-      { code: 'NF P98-409', title: 'Clôtures et portails — spécifications techniques' },
+      { code: 'NF EN 10244-2 (Décembre 2009)', title: 'Revêtements métalliques non ferreux sur fil d\'acier' },
+      { code: 'NF P98-409 (Mars 1991)', title: 'Clôtures et portails — spécifications techniques' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -77,7 +77,7 @@ export const cloturesPortailsRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF EN 14081', title: 'Classement bois (classe 4 sol)' },
+      { code: 'NF EN 14081-1/2/3 (2016-2018)', title: 'Classement bois (classe 4 sol)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

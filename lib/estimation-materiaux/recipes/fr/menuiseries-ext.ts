@@ -30,8 +30,8 @@ export const menuiseriesExtRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 36.5', title: 'Mise en œuvre fenêtres et portes extérieures' },
-      { code: 'NF EN 14351-1', title: 'Spécifications fenêtres et portes extérieures' },
+      { code: 'NF DTU 36.5 P1-1 (Septembre 2020)', title: 'Mise en œuvre fenêtres et portes extérieures' },
+      { code: 'NF EN 14351-1+A2 (Mars 2016)', title: 'Spécifications fenêtres et portes extérieures' },
       { code: 'RE2020', title: 'Performance Uw ≤ 1,3 W/m²K' },
     ],
     version: '2.1.0',
@@ -123,8 +123,8 @@ export const menuiseriesExtRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 36.5', title: 'Mise en œuvre fenêtres et portes extérieures' },
-      { code: 'NF EN 14351-1', title: 'Spécifications fenêtres et portes extérieures' },
+      { code: 'NF DTU 36.5 P1-1 (Septembre 2020)', title: 'Mise en œuvre fenêtres et portes extérieures' },
+      { code: 'NF EN 14351-1+A2 (Mars 2016)', title: 'Spécifications fenêtres et portes extérieures' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -190,8 +190,8 @@ export const menuiseriesExtRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 36.5', title: 'Fenêtres/portes extérieures' },
-      { code: 'NF EN 14351-1', title: 'Spécifications' },
+      { code: 'NF DTU 36.5 P1-1 (Septembre 2020)', title: 'Fenêtres/portes extérieures' },
+      { code: 'NF EN 14351-1+A2 (Mars 2016)', title: 'Spécifications' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -256,8 +256,8 @@ export const menuiseriesExtRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 36.5', title: 'Fenêtres et portes extérieures' },
-      { code: 'NF EN 14351-1', title: 'Spécifications portes' },
+      { code: 'NF DTU 36.5 P1-1 (Septembre 2020)', title: 'Fenêtres et portes extérieures' },
+      { code: 'NF EN 14351-1+A2 (Mars 2016)', title: 'Spécifications portes' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -333,8 +333,8 @@ export const menuiseriesExtRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 13241', title: 'Performance portes industrielles/garage' },
-      { code: 'NF DTU 36.5', title: 'Principes pose menuiseries ext.' },
+      { code: 'NF EN 13241+A2 (Mai 2016)', title: 'Performance portes industrielles/garage' },
+      { code: 'NF DTU 36.5 P1-1 (Septembre 2020)', title: 'Principes pose menuiseries ext.' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -398,7 +398,7 @@ export const menuiseriesExtRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 13659', title: 'Performance volets' },
+      { code: 'NF EN 13659+A1 (Septembre 2015)', title: 'Performance volets' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -454,7 +454,7 @@ export const menuiseriesExtRecipes: Recipe[] = [
     trade: 'menuiserie_ext',
     baseUnit: 'u',
     geometryMode: 'count',
-    dtuReferences: [{ code: 'NF EN 13241', title: 'Performance portails' }],
+    dtuReferences: [{ code: 'NF EN 13241+A2 (Mai 2016)', title: 'Performance portails' }],
     version: '2.1.0',
     hypothesesACommuniquer: [
       'Portail 3 m × 1,50 m — 2 vantaux battants (alu premium, acier standard)',

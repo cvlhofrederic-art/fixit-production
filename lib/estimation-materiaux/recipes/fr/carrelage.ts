@@ -24,7 +24,7 @@ export const carrelageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'DTU 52.2', title: 'Pose collée des revêtements céramiques et assimilés' },
+      { code: 'NF DTU 52.2 (Mai 2022)', title: 'Pose collée des revêtements céramiques et assimilés' },
     ],
     version: '2.1.0',
     constraints: {
@@ -121,7 +121,7 @@ export const carrelageRecipes: Recipe[] = [
     trade: 'carrelage',
     baseUnit: 'm2',
     geometryMode: 'area',
-    dtuReferences: [{ code: 'DTU 52.2', title: 'Pose collée des revêtements céramiques' }],
+    dtuReferences: [{ code: 'NF DTU 52.2 (Mai 2022)', title: 'Pose collée des revêtements céramiques' }],
     version: '2.0.0',
     constraints: { minArea: 4, note: 'Format > 60×60 → C2S1 obligatoire (DTU 52.2).' },
     materials: [
@@ -180,7 +180,7 @@ export const carrelageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'DTU 52.2', title: 'Pose collée' },
+      { code: 'NF DTU 52.2 (Mai 2022)', title: 'Pose collée' },
       { code: 'CPT 3578', title: 'Systèmes de protection à l\'eau sous carrelage (SPEC)' },
     ],
     version: '2.0.0',
@@ -242,7 +242,7 @@ export const carrelageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'DTU 52.2', title: 'Pose collée céramiques' },
+      { code: 'NF DTU 52.2 (Mai 2022)', title: 'Pose collée céramiques' },
       { code: 'CPT 3578', title: 'SPEC sous carrelage extérieur' },
     ],
     version: '2.0.0',

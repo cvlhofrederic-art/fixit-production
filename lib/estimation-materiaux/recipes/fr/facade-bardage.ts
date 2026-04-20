@@ -23,7 +23,7 @@ export const facadeBardageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 26.1', title: 'Enduits aux mortiers' },
+      { code: 'NF DTU 26.1 (Avril 2008)', title: 'Enduits aux mortiers' },
       { code: 'Cahier CSTB 3678', title: 'Enduits monocouches' },
     ],
     version: '2.1.0',
@@ -81,7 +81,7 @@ export const facadeBardageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 41.2', title: 'Bardage bois et panneaux dérivés', section: '§5-7' },
+      { code: 'NF DTU 41.2 (Septembre 2015)', title: 'Bardage bois et panneaux dérivés', section: '§5-7' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -153,7 +153,7 @@ export const facadeBardageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 41.2', title: 'Bardage (référence)' },
+      { code: 'NF DTU 41.2 (Septembre 2015)', title: 'Bardage (référence)' },
       { code: 'ATEC fabricant', title: 'Cedral / HardiePlank' },
     ],
     version: '2.1.0',
@@ -204,7 +204,7 @@ export const facadeBardageRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 40.35', title: 'Plaques nervurées métalliques' },
+      { code: 'NF DTU 40.35 (Août 2018)', title: 'Plaques nervurées métalliques' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

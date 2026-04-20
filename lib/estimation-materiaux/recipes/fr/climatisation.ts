@@ -27,8 +27,8 @@ export const climatisationRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 378', title: 'Systèmes frigorifiques et PAC (sécurité fluide)' },
-      { code: 'F-Gaz', title: 'Certification technicien obligatoire' },
+      { code: 'NF EN 378-1/2/3/4 (Novembre 2016)', title: 'Systèmes frigorifiques et PAC (sécurité fluide)' },
+      { code: 'Règlement UE 517/2014 F-Gaz (Avril 2014 + révision 2024)', title: 'Certification technicien obligatoire' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -99,8 +99,8 @@ export const climatisationRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 378', title: 'Sécurité fluide frigo' },
-      { code: 'F-Gaz', title: 'Certification' },
+      { code: 'NF EN 378-1/2/3/4 (Novembre 2016)', title: 'Sécurité fluide frigo' },
+      { code: 'Règlement UE 517/2014 F-Gaz (Avril 2014 + révision 2024)', title: 'Certification' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -177,7 +177,7 @@ export const climatisationRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 378', title: 'Sécurité fluide' },
+      { code: 'NF EN 378-1/2/3/4 (Novembre 2016)', title: 'Sécurité fluide' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

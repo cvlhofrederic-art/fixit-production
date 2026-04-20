@@ -26,7 +26,7 @@ export const vrdRecipes: Recipe[] = [
     baseUnit: 'm3',
     geometryMode: 'volume',
     dtuReferences: [
-      { code: 'NF DTU 12', title: 'Terrassements pour bâtiments' },
+      { code: 'NF DTU 12 (Juin 1964, référence historique)', title: 'Terrassements pour bâtiments' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -60,8 +60,8 @@ export const vrdRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF EN 1610', title: 'Construction réseaux évacuation' },
-      { code: 'NF DTU 60.33', title: 'Canalisations PVC enterrées' },
+      { code: 'NF EN 1610 (Mars 2016)', title: 'Construction réseaux évacuation' },
+      { code: 'NF DTU 60.33 (Janvier 2007)', title: 'Canalisations PVC enterrées' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -113,8 +113,8 @@ export const vrdRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF EN 1917', title: 'Regards préfa béton' },
-      { code: 'NF EN 124', title: 'Classification tampons (A15, B125, C250, D400)' },
+      { code: 'NF EN 1917/CN (2008)', title: 'Regards préfa béton' },
+      { code: 'NF EN 124-1/2 (Avril 2015)', title: 'Classification tampons (A15, B125, C250, D400)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

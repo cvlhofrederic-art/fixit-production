@@ -27,9 +27,9 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 31.1', title: 'Charpentes et escaliers en bois (rev. 2017)' },
+      { code: 'NF DTU 31.1 (Mai 2017)', title: 'Charpentes et escaliers en bois (rev. 2017)' },
       { code: 'Eurocode 5', title: 'NF EN 1995-1-1' },
-      { code: 'NF EN 14081', title: 'Classement résistance bois C18-C24' },
+      { code: 'NF EN 14081-1/2/3 (2016-2018)', title: 'Classement résistance bois C18-C24' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -121,7 +121,7 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 31.3', title: 'Charpentes industrielles (fermettes)' },
+      { code: 'NF DTU 31.3 (Mai 2023)', title: 'Charpentes industrielles (fermettes)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -175,8 +175,8 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 31.2', title: 'Construction MOB (rev. 2019 + A1 2021)' },
-      { code: 'NF EN 1995', title: 'Eurocode 5' },
+      { code: 'NF DTU 31.2 (Janvier 2019 + A1 2021)', title: 'Construction MOB (rev. 2019 + A1 2021)' },
+      { code: 'NF EN 1995-1-1+A2 (Septembre 2014 — Eurocode 5)', title: 'Eurocode 5' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -272,8 +272,8 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 31.1', title: 'Charpentes bois', section: '§4.2 lamellé-collé' },
-      { code: 'NF EN 14080', title: 'Lamellé-collé' },
+      { code: 'NF DTU 31.1 (Mai 2017)', title: 'Charpentes bois', section: '§4.2 lamellé-collé' },
+      { code: 'NF EN 14080+A1 (Août 2013)', title: 'Lamellé-collé' },
       { code: 'Eurocode 5', title: 'NF EN 1995-1-1' },
     ],
     version: '2.1.0',

@@ -24,7 +24,7 @@ export const placoRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'DTU 25.41', title: 'Ouvrages en plaques de plâtre (cloisons, plafonds, doublages sur ossature)' },
+      { code: 'NF DTU 25.41 (Février 2022)', title: 'Ouvrages en plaques de plâtre (cloisons, plafonds, doublages sur ossature)' },
     ],
     version: '2.1.0',
     constraints: { maxHeight: 2.6, note: 'Au-delà de 2,60 m, passer en 98/48 ou 100/70.' },
@@ -156,7 +156,7 @@ export const placoRecipes: Recipe[] = [
     trade: 'placo',
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
-    dtuReferences: [{ code: 'NF DTU 25.41', title: 'Ouvrages en plaques de plâtre sur ossature', section: 'homologué 2012' }],
+    dtuReferences: [{ code: 'NF DTU 25.41 (Février 2022)', title: 'Ouvrages en plaques de plâtre sur ossature', section: 'homologué 2012' }],
     version: '2.1.0',
     constraints: { maxHeight: 3.3 },
     hypothesesACommuniquer: [
@@ -269,8 +269,8 @@ export const placoRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 25.42', title: 'Doublages et habillages collés', section: 'rev. 2012' },
-      { code: 'NF EN 13162', title: 'Laine minérale pour isolation' },
+      { code: 'NF DTU 25.42 (Août 2008)', title: 'Doublages et habillages collés', section: 'rev. 2012' },
+      { code: 'NF EN 13162+A1 (Juin 2015)', title: 'Laine minérale pour isolation' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -359,8 +359,8 @@ export const placoRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 25.41', title: 'Ouvrages en plaques de plâtre — plafonds' },
-      { code: 'NF DTU 25.31', title: 'Plafonds fixés en plaques de plâtre' },
+      { code: 'NF DTU 25.41 (Février 2022)', title: 'Ouvrages en plaques de plâtre — plafonds' },
+      { code: 'NF DTU 25.31 (Octobre 2008)', title: 'Plafonds fixés en plaques de plâtre' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -468,8 +468,8 @@ export const placoRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 25.41', title: 'Ouvrages en plaques de plâtre', section: '§9 cloisons alvéolaires' },
-      { code: 'NF EN 520', title: 'Plaques de plâtre' },
+      { code: 'NF DTU 25.41 (Février 2022)', title: 'Ouvrages en plaques de plâtre', section: '§9 cloisons alvéolaires' },
+      { code: 'NF EN 520+A1 (Décembre 2009)', title: 'Plaques de plâtre' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -547,7 +547,7 @@ export const placoRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 25.41', title: 'Ouvrages en plaques de plâtre sur ossature' },
+      { code: 'NF DTU 25.41 (Février 2022)', title: 'Ouvrages en plaques de plâtre sur ossature' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

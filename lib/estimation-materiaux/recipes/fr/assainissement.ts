@@ -23,8 +23,8 @@ export const assainissementRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 64.1', title: 'Assainissement non collectif (rev. 2013 + A1 2020)' },
-      { code: 'NF EN 12566', title: 'Petites installations traitement eaux usées' },
+      { code: 'NF DTU 64.1 (Août 2013)', title: 'Assainissement non collectif (rev. 2013 + A1 2020)' },
+      { code: 'NF EN 12566-1 à 7 (2013-2018)', title: 'Petites installations traitement eaux usées' },
       { code: 'Arrêté 7/9/2009', title: 'Prescriptions techniques ANC' },
     ],
     version: '2.1.0',
@@ -94,8 +94,8 @@ export const assainissementRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 64.1', title: 'ANC (§4.2 agréments)' },
-      { code: 'NF EN 12566-3', title: 'Spécifications microstations' },
+      { code: 'NF DTU 64.1 (Août 2013)', title: 'ANC (§4.2 agréments)' },
+      { code: 'NF EN 12566-3+A2 (Novembre 2013)', title: 'Spécifications microstations' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -139,7 +139,7 @@ export const assainissementRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 64.1', title: 'ANC' },
+      { code: 'NF DTU 64.1 (Août 2013)', title: 'ANC' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -179,7 +179,7 @@ export const assainissementRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 60.33', title: 'PVC enterré' },
+      { code: 'NF DTU 60.33 (Janvier 2007)', title: 'PVC enterré' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
