@@ -1319,4 +1319,436 @@ export const maconnerieRecipes: Recipe[] = [
       },
     ],
   },
+
+  // ══════════════════════════════════════════════════════════
+  //  FONDATIONS SUPERFICIELLES — NF DTU 13.1 rev. 2019
+  //  Audit #02
+  // ══════════════════════════════════════════════════════════
+
+  // #02.1 Semelle filante BA
+  {
+    id: 'semelle-filante-ba',
+    name: 'Semelle filante béton armé (sous mur)',
+    description: 'Fondation continue sous mur porteur. Dimensions min 40 cm L × 20 cm H (DTU 13.1).',
+    trade: 'maconnerie',
+    baseUnit: 'ml',
+    geometryMode: 'length',
+    dtuReferences: [
+      { code: 'NF DTU 13.1', title: 'Fondations superficielles', section: 'rev. septembre 2019 §5-6' },
+      { code: 'NF EN 206', title: 'Béton — spécification' },
+      { code: 'Eurocode 2', title: 'NF EN 1992-1-1 — calcul structures béton' },
+    ],
+    version: '2.1.0',
+    constraints: {
+      note: 'Largeur 40 cm mini, hauteur 20 cm mini (DTU 13.1 §5.1). Profondeur hors-gel selon zone (70-90 cm).',
+    },
+    hypothesesACommuniquer: [
+      'Semelle standard 40 cm largeur × 20 cm hauteur supposée (à adapter selon G2 PRO)',
+      'Étude de sol G2 PRO obligatoire avant exécution (loi Elan 2018)',
+      'Béton de propreté 5 cm obligatoire sous armatures (DTU 13.1 §5.3)',
+      'Ferraillage : 4 HA10 filants + cadres HA8 tous 25 cm (DTU 13.1 §6.2)',
+      'Profondeur à adapter au hors-gel local (70 cm Nord, 90 cm montagne)',
+      'Arase étanche obligatoire haut semelle avant montage mur (NF DTU 20.1)',
+      'Film polyane optionnel si sol humide/argileux ou nappe < 2 m',
+    ],
+    materials: [
+      // ═══ PRÉPARATION ═══
+      {
+        id: 'beton-proprete', name: 'Béton de propreté 5 cm (250 kg/m³)',
+        category: 'liant', phase: 'preparation', quantityPerBase: 0.02, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Coulage en fond de fouille',
+        dtu: 'NF DTU 13.1 §5.3',
+      },
+      // ═══ PRINCIPAL — Béton semelle ═══
+      {
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (béton 350 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 28, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.03, wasteReason: 'Résidus sacs',
+        dtu: 'NF DTU 13.1 §6.1', normRef: 'NF EN 197-1',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+        notes: '0,08 m³/ml (40×20 cm) × 350 kg = 28 kg/ml.',
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.04, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'gravier-4-20', name: 'Gravier 4/20', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.056, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-beton', name: 'Eau de gâchage', category: 'eau', phase: 'principal',
+        quantityPerBase: 14, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis', normRef: 'NF EN 1008',
+      },
+      // ═══ PRINCIPAL — Armatures ═══
+      {
+        id: 'acier-ha10-filant', name: 'Acier HA10 filants (4 barres)',
+        category: 'acier', phase: 'principal', quantityPerBase: 2.48, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + recouvrements 30 cm',
+        dtu: 'NF DTU 13.1 §6.2', normRef: 'NF A 35-080',
+        notes: '4 HA10 × 0,62 kg/ml = 2,48 kg/ml.',
+      },
+      {
+        id: 'acier-ha8-cadres', name: 'Acier HA8 cadres tous 25 cm',
+        category: 'acier', phase: 'principal', quantityPerBase: 1.58, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + ligatures',
+        dtu: 'NF DTU 13.1 §6.2',
+      },
+      // ═══ ACCESSOIRES ═══
+      {
+        id: 'cales-beton-30', name: 'Cales enrobage 30 mm',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 4, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Casse',
+        dtu: 'NF DTU 21 §7.2',
+      },
+      {
+        id: 'ligatures-fil-recuit', name: 'Ligatures fil recuit 1,4 mm',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 0.1, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Perte chantier',
+        dtu: 'NF DTU 21 §3.4',
+        packaging: { unit: 'rouleau', contentQty: 5, contentUnit: 'kg', label: 'bobine 5 kg' },
+      },
+      // ═══ FINITIONS ═══
+      {
+        id: 'arase-etanche-bitume', name: 'Arase étanche bitumineuse (avant mur)',
+        category: 'etancheite', phase: 'finitions', quantityPerBase: 1, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes angles',
+        dtu: 'NF DTU 20.1 §5.2.2',
+        packaging: { unit: 'rouleau', contentQty: 10, contentUnit: 'ml', label: 'rouleau 10 m × 20 cm' },
+      },
+      // ═══ OPTIONS ═══
+      {
+        id: 'film-polyane-200', name: 'Film polyane 200 μm (si sol humide)',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 0.5, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Recouvrements + remontées',
+        dtu: 'NF DTU 13.1 §5.3',
+        optional: true,
+        condition: 'Si sol humide, argileux ou nappe phréatique < 2 m',
+      },
+    ],
+  },
+
+  // #02.2 Semelle isolée (sous poteau)
+  {
+    id: 'semelle-isolee-ba',
+    name: 'Semelle isolée béton armé (sous poteau)',
+    description: 'Fondation ponctuelle 60×60×45 cm sous poteau. Grille bi-directionnelle HA10.',
+    trade: 'maconnerie',
+    baseUnit: 'u',
+    geometryMode: 'count',
+    dtuReferences: [
+      { code: 'NF DTU 13.1', title: 'Fondations superficielles', section: '§5.1.2 semelles isolées' },
+      { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
+    ],
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Semelle standard 60×60×45 cm (0,16 m³ béton/u)',
+      'Grille bidirectionnelle HA10 : 8 barres/semelle (4 sens × 2 directions)',
+      'Béton propreté 10 cm sous armatures',
+      'Enrobage 3 cm mini (cales béton sous armatures)',
+      'Dimensions à adapter selon descente de charges poteau',
+    ],
+    materials: [
+      {
+        id: 'beton-proprete', name: 'Béton de propreté (4 cm × 60×60)',
+        category: 'liant', phase: 'preparation', quantityPerBase: 0.04, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Coulage', dtu: 'NF DTU 13.1 §5.3',
+      },
+      {
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (béton 350 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 56, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.03, wasteReason: 'Résidus',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+        notes: '0,16 m³ × 350 kg = 56 kg/u.',
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.08, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'gravier-4-20', name: 'Gravier 4/20', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.112, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-beton', name: 'Eau', category: 'eau', phase: 'principal',
+        quantityPerBase: 28, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage',
+      },
+      {
+        id: 'acier-ha10-grille-semelle', name: 'Acier HA10 grille bi-directionnelle (8 barres)',
+        category: 'acier', phase: 'principal', quantityPerBase: 3, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + recouvrements',
+        dtu: 'NF DTU 13.1 §6.2',
+        notes: '8 × 60 cm × 0,62 kg/ml ≈ 3 kg/u.',
+      },
+      {
+        id: 'cales-beton-30', name: 'Cales enrobage 30 mm',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 4, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Casse', dtu: 'NF DTU 21 §7.2',
+      },
+      {
+        id: 'ligatures-fil-recuit', name: 'Ligatures fil recuit',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 0.05, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Perte chantier',
+      },
+    ],
+  },
+
+  // #02.3 Radier général
+  {
+    id: 'radier-general',
+    name: 'Radier général béton armé (dalle de fondation)',
+    description: 'Radier épaisseur 25+ cm, double nappe armatures HA12. Sols à faible portance ou charges importantes.',
+    trade: 'maconnerie',
+    baseUnit: 'm2',
+    geometryMode: 'area',
+    dtuReferences: [
+      { code: 'NF DTU 13.1', title: 'Fondations superficielles', section: '§5.4 Radiers' },
+      { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
+      { code: 'NF EN 206', title: 'Béton C30/37' },
+    ],
+    version: '2.1.0',
+    constraints: { minThickness: 0.25, note: 'Épaisseur minimum 25 cm (DTU 13.1 §5.4).' },
+    hypothesesACommuniquer: [
+      'Épaisseur 30 cm supposée (à adapter selon calcul Eurocode 2)',
+      'Béton C30/37 (plus résistant que dalle standard)',
+      'Double nappe armatures HA12 maille 15×15 (haut + bas)',
+      'Hydrofuge de masse OBLIGATOIRE (vs optionnel dallage)',
+      'Joint de reprise hydrogonflant à chaque reprise bétonnage',
+      'Polyane 200 μm obligatoire sous radier',
+      'Étude de sol G2 PRO + calcul structure obligatoires',
+    ],
+    materials: [
+      {
+        id: 'geotextile-200', name: 'Géotextile 200 g/m²',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 1, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Recouvrements',
+        packaging: { unit: 'rouleau', contentQty: 100, contentUnit: 'm2', label: 'rouleau 50×2m' },
+      },
+      {
+        id: 'film-polyane-200', name: 'Film polyane 200 μm',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 1, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Recouvrements',
+        dtu: 'NF DTU 13.1',
+        packaging: { unit: 'rouleau', contentQty: 150, contentUnit: 'm2', label: 'rouleau 25×6m' },
+      },
+      {
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (béton 400 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 400, unit: 'kg', geometryMultiplier: 'thickness',
+        wasteFactor: 1.03, wasteReason: 'Résidus',
+        dtu: 'NF EN 206', normRef: 'NF EN 197-1',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.5, unit: 'm3', geometryMultiplier: 'thickness',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'gravier-4-20', name: 'Gravier 4/20', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.7, unit: 'm3', geometryMultiplier: 'thickness',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-beton', name: 'Eau', category: 'eau', phase: 'principal',
+        quantityPerBase: 180, unit: 'L', geometryMultiplier: 'thickness',
+        wasteFactor: 1.00, wasteReason: 'Dosage',
+      },
+      {
+        id: 'acier-ha12-binappe', name: 'Acier HA12 bi-nappe (haut + bas, maille 15×15)',
+        category: 'acier', phase: 'principal', quantityPerBase: 3.56, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Recouvrements + chutes',
+        dtu: 'NF DTU 13.1 §5.4 / Eurocode 2',
+        notes: '2 × 1,78 kg/m² (nappe haute + basse).',
+      },
+      {
+        id: 'chaise-armatures', name: 'Chaises d\'armatures (support nappe sup.)',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 2, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes',
+      },
+      {
+        id: 'cales-beton-30', name: 'Cales enrobage 30 mm',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 8, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Casse',
+      },
+      {
+        id: 'hydrofuge-masse-beton-radier', name: 'Hydrofuge de masse radier (OBLIGATOIRE)',
+        category: 'adjuvant', phase: 'principal', quantityPerBase: 4, unit: 'kg', geometryMultiplier: 'thickness',
+        wasteFactor: 1.00, wasteReason: 'Dosage exact (1% ciment)',
+        manufacturerRef: 'Sika 1 / Weber Sysfuge',
+        notes: 'Obligatoire radier contrairement au dallage.',
+      },
+      {
+        id: 'joint-hydrogonflant', name: 'Joint hydrogonflant (reprises bétonnage)',
+        category: 'joint', phase: 'accessoires', quantityPerBase: 0.1, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes',
+        manufacturerRef: 'Sika Swellstop / Fosroc',
+        notes: 'Au droit des reprises de coulage.',
+      },
+      {
+        id: 'produit-cure-beton', name: 'Produit de cure',
+        category: 'adjuvant', phase: 'finitions', quantityPerBase: 0.2, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Pulvérisation',
+        dtu: 'DTU 21 §8',
+        packaging: { unit: 'u', contentQty: 25, contentUnit: 'L', label: 'bidon 25 L' },
+      },
+    ],
+  },
+
+  // #02.4 Longrine BA
+  {
+    id: 'longrine-ba',
+    name: 'Longrine béton armé (poutre de fondation 30×40)',
+    description: 'Poutre béton sur pieux ou entre semelles. Section type 30×40 cm.',
+    trade: 'maconnerie',
+    baseUnit: 'ml',
+    geometryMode: 'length',
+    dtuReferences: [
+      { code: 'NF DTU 13.1', title: 'Fondations superficielles', section: '§5.5 Longrines' },
+      { code: 'Eurocode 2', title: 'NF EN 1992-1-1 §9.2 Poutres' },
+    ],
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Section standard 30×40 cm (0,12 m³ béton/ml)',
+      'Armatures : 4 HA12 longitudinaux + cadres HA8 tous 20 cm',
+      'Coffrage contreplaqué CTBX 18 mm (si hors sol)',
+      'Décoffrant obligatoire avant coulage',
+      'Dimensions à adapter selon portée et charges',
+    ],
+    materials: [
+      {
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (béton 350 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 42, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.03, wasteReason: 'Résidus',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.06, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'gravier-4-20', name: 'Gravier 4/20', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.084, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-beton', name: 'Eau', category: 'eau', phase: 'principal',
+        quantityPerBase: 21, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage',
+      },
+      {
+        id: 'acier-ha12-longrine', name: 'Acier HA12 longitudinaux (4 barres)',
+        category: 'acier', phase: 'principal', quantityPerBase: 3.55, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + recouvrements',
+        dtu: 'NF DTU 13.1 §5.5', normRef: 'NF A 35-080',
+      },
+      {
+        id: 'acier-ha8-cadres-longrine', name: 'Cadres HA8 tous 20 cm',
+        category: 'acier', phase: 'principal', quantityPerBase: 2, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes', dtu: 'NF DTU 13.1 §5.5',
+      },
+      {
+        id: 'coffrage-ctbx-18', name: 'Coffrage contreplaqué CTBX 18 mm',
+        category: 'bois', phase: 'preparation', quantityPerBase: 1.3, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Réutilisation limitée + coupes',
+        optional: true,
+        condition: 'Si longrine hors sol (non enterrée)',
+      },
+      {
+        id: 'decoffrant-huile', name: 'Huile de décoffrage',
+        category: 'adjuvant', phase: 'preparation', quantityPerBase: 0.15, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Sur-dosage',
+        manufacturerRef: 'Sika Separol / Chryso Decofrage',
+        packaging: { unit: 'u', contentQty: 25, contentUnit: 'L', label: 'bidon 25 L' },
+        optional: true,
+        condition: 'Si coffrage utilisé',
+      },
+      {
+        id: 'cales-beton-30', name: 'Cales enrobage 30 mm',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 4, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Casse', dtu: 'NF DTU 21 §7.2',
+      },
+      {
+        id: 'ligatures-fil-recuit', name: 'Ligatures fil recuit',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 0.1, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Perte',
+      },
+    ],
+  },
+
+  // #02.5 Puits court / massif semi-profond
+  {
+    id: 'puits-court-ba',
+    name: 'Puits court béton armé (massif semi-profond)',
+    description: 'Fondation par puits court (élancement ≤ 5 — DTU 13.1). Typique reprise fondations ou sol hétérogène.',
+    trade: 'maconnerie',
+    baseUnit: 'u',
+    geometryMode: 'count',
+    dtuReferences: [
+      { code: 'NF DTU 13.1', title: 'Fondations superficielles', section: '§5.6 massifs semi-profonds' },
+      { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
+    ],
+    version: '2.1.0',
+    constraints: {
+      note: 'Élancement ≤ 5. Au-delà → fondation profonde (NF DTU 13.2).',
+    },
+    hypothesesACommuniquer: [
+      'Puits Ø80 cm × hauteur 2-3 m supposé (volume 1-1,5 m³/u)',
+      'Cage armatures : 4 HA14 + cadres HA8',
+      'Béton dosé 350 kg/m³',
+      'Étude de sol G2 PRO obligatoire (élancement, portance)',
+      'Au-delà d\'un élancement 5, passer à fondation profonde DTU 13.2',
+    ],
+    materials: [
+      {
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (puits 350 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 440, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.03, wasteReason: 'Résidus',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+        notes: '~1,25 m³ béton × 350 kg/m³ = 440 kg/u.',
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.63, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'gravier-4-20', name: 'Gravier 4/20', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.88, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-beton', name: 'Eau', category: 'eau', phase: 'principal',
+        quantityPerBase: 220, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage',
+      },
+      {
+        id: 'acier-ha14-cage-puits', name: 'Acier HA14 cage longitudinal (4 barres)',
+        category: 'acier', phase: 'principal', quantityPerBase: 15, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes',
+        notes: '4 × 3 m × 1,21 kg/ml ≈ 15 kg/u.',
+      },
+      {
+        id: 'acier-ha8-cadres-puits', name: 'Cadres HA8 puits',
+        category: 'acier', phase: 'principal', quantityPerBase: 4, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes',
+      },
+      {
+        id: 'cales-beton-30', name: 'Cales enrobage 30 mm',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 6, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Casse',
+      },
+      {
+        id: 'ligatures-fil-recuit', name: 'Ligatures',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 0.2, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Perte',
+      },
+    ],
+  },
 ];
