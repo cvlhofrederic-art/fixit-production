@@ -246,6 +246,38 @@ export async function extractEstimationWithGroq(
     result.items = result.items.filter(i => validIds.has(i.recipeId))
   }
 
+  // Post-validation : pour chaque item, vérifier que la géométrie contient
+  // les dimensions requises par les matériaux (thickness, height, perimeter).
+  // Si une dimension critique manque, ajoute une question de relance pour que
+  // l'utilisateur la renseigne AVANT calcul (évite résultats à 0 surprises).
+  for (const item of result.items) {
+    const recipe = allRecipes.find(r => r.id === item.recipeId)
+    if (!recipe) continue
+
+    const needsThickness = recipe.materials.some(m => m.geometryMultiplier === 'thickness')
+    const needsHeight = recipe.materials.some(m => m.geometryMultiplier === 'height')
+    const needsPerimeter = recipe.materials.some(m => m.geometryMultiplier === 'perimeter')
+
+    if (needsThickness && item.geometry.thickness === undefined) {
+      result.questions.push(
+        `Quelle épaisseur (en cm) pour "${recipe.name}" ? Sans cette valeur, `
+        + `le calcul des matériaux liés au volume (béton, ciment, eau, gravier, sable) est impossible.`
+      )
+    }
+    if (needsHeight && item.geometry.height === undefined && !item.geometry.length) {
+      result.questions.push(
+        `Quelle hauteur pour "${recipe.name}" ?`
+      )
+    }
+    if (needsPerimeter && item.geometry.perimeter === undefined
+        && !(item.geometry.length && item.geometry.width)) {
+      result.assumptions.push(
+        `"${recipe.name}" : périmètre non calculable — certains accessoires `
+        + `(joints, bandes, chaînages périphériques) sortiront à 0.`
+      )
+    }
+  }
+
   return result
 }
 

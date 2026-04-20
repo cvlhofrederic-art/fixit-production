@@ -107,12 +107,23 @@ function applyGeometryMultiplier(
   switch (mat.geometryMultiplier) {
     case 'thickness':
       if (geo.thickness === undefined) {
-        warnings.push(`Matériau "${mat.name}" dépend de l'épaisseur mais non fournie — utilisé sans multiplicateur.`);
-        return { multiplier: 1, warnings };
+        // CRITIQUE : sans épaisseur, renvoyer 0 (et non 1) évite une
+        // sur-estimation catastrophique (×16 pour une dalle 12 cm). L'UI
+        // doit alors forcer l'utilisateur à renseigner l'épaisseur.
+        warnings.push(
+          `⚠️ ÉPAISSEUR MANQUANTE pour "${mat.name}" — quantité non calculable. `
+          + `Renseignez l'épaisseur (en cm) pour obtenir un résultat fiable.`
+        );
+        return { multiplier: 0, warnings };
       }
       return { multiplier: geo.thickness, warnings };
     case 'height':
-      if (geo.height === undefined) return { multiplier: 1, warnings };
+      if (geo.height === undefined) {
+        warnings.push(
+          `⚠️ HAUTEUR MANQUANTE pour "${mat.name}" — quantité non calculable.`
+        );
+        return { multiplier: 0, warnings };
+      }
       return { multiplier: geo.height, warnings };
     case 'coats':
       return { multiplier: geo.coats ?? 1, warnings };
@@ -121,8 +132,10 @@ function applyGeometryMultiplier(
       const perim = geo.perimeter
         ?? (geo.length && geo.width ? 2 * (geo.length + geo.width) : undefined);
       if (perim === undefined) {
-        warnings.push(`Matériau "${mat.name}" dépend du périmètre mais non calculable — utilisé sans multiplicateur.`);
-        return { multiplier: 1, warnings };
+        warnings.push(
+          `⚠️ PÉRIMÈTRE NON CALCULABLE pour "${mat.name}" — fournissez longueur+largeur ou périmètre.`
+        );
+        return { multiplier: 0, warnings };
       }
       return { multiplier: perim, warnings };
     }
