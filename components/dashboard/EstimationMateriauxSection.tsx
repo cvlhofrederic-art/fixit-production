@@ -10,7 +10,7 @@ import type {
   ChantierProfile,
   MaterialNeed,
 } from '@/lib/estimation-materiaux'
-import { allRecipes, searchRecipes } from '@/lib/estimation-materiaux'
+import { getRecipesByCountry, searchRecipes } from '@/lib/estimation-materiaux'
 import './estimation-materiaux.css'
 
 type Trade = Recipe['trade']
@@ -754,6 +754,11 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
 export default function EstimationMateriauxSection({ artisan: _artisan }: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
+  const country: 'FR' | 'PT' = isPt ? 'PT' : 'FR'
+
+  // Isolation stricte : l'UI n'expose QUE les recettes du pays de l'utilisateur.
+  // Aucune recette FR ne peut remonter pour un artisan PT et inversement.
+  const countryRecipes = useMemo(() => getRecipesByCountry(country), [country])
 
   // Mode + état projet
   const [mode, setMode] = useState<Mode>('form')
@@ -788,12 +793,12 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
   const searchResults = useMemo(() => {
     const q = query.trim()
     if (!q) return []
-    return searchRecipes(q).slice(0, 8)
-  }, [query])
+    return searchRecipes(q, country).slice(0, 8)
+  }, [query, country])
 
   const selectedRecipe = useMemo(
-    () => (selectedRecipeId ? allRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
-    [selectedRecipeId]
+    () => (selectedRecipeId ? countryRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
+    [selectedRecipeId, countryRecipes]
   )
 
   const openParam = useCallback((recipeId: string, editing: ProjectItem | null = null) => {
@@ -852,7 +857,7 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
       const res = await fetch('/api/estimation/compute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, country }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -882,6 +887,7 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
           description: text,
           projectName: projectName.trim() || undefined,
           profileFallback: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
+          country,
         }),
       })
       if (!res.ok) {
@@ -892,10 +898,11 @@ export default function EstimationMateriauxSection({ artisan: _artisan }: Props)
         extraction: { items: Array<{ recipeId: string; geometry: Geometry; label?: string }>; assumptions: string[]; questions: string[] }
         result: EstimationResult
       }
-      // Remplir items à partir de l'extraction
+      // Remplir items à partir de l'extraction (filtre strict par pays :
+      // si l'IA retourne un recipeId hors scope pays, on l'ignore).
       const extractedItems: ProjectItem[] = []
       for (const it of data.extraction.items) {
-        const recipe = allRecipes.find(r => r.id === it.recipeId)
+        const recipe = countryRecipes.find(r => r.id === it.recipeId)
         if (!recipe) continue
         extractedItems.push({
           uid: `${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,

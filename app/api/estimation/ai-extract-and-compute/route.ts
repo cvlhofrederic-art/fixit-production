@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { estimateProject, recipeRegistry } from '@/lib/estimation-materiaux'
+import {
+  estimateProject,
+  recipeRegistry,
+  CountrySchema,
+  getRecipesByCountry,
+} from '@/lib/estimation-materiaux'
 import { extractEstimationWithGroq, extractionToEstimationInput } from '@/lib/estimation-materiaux/ai/groq-extractor'
 import type { ChantierProfile } from '@/lib/estimation-materiaux'
 
@@ -21,6 +26,7 @@ const BodySchema = z.object({
   description: z.string().min(5).max(5000),
   projectName: z.string().max(200).optional(),
   profileFallback: ProfileSchema,
+  country: CountrySchema.optional(),
 })
 
 /**
@@ -48,10 +54,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Entrée invalide', details: parsed.error.issues }, { status: 400 })
   }
 
-  const { description, projectName, profileFallback } = parsed.data
+  const { description, projectName, profileFallback, country } = parsed.data
 
   try {
     const extraction = await extractEstimationWithGroq(description)
+
+    // Isolation pays : si `country` est renseigné, on FILTRE les items
+    // hors-scope de l'extraction IA (anti-leak, redondant avec whitelist prompt
+    // mais indispensable — ceinture + bretelles).
+    if (country) {
+      const allowedIds = new Set(getRecipesByCountry(country).map(r => r.id))
+      const rejected: string[] = []
+      extraction.items = extraction.items.filter(it => {
+        if (allowedIds.has(it.recipeId)) return true
+        rejected.push(it.recipeId)
+        return false
+      })
+      if (rejected.length > 0) {
+        extraction.assumptions.push(
+          `Recettes hors scope pays ${country} ignorées : ${rejected.join(', ')}`
+        )
+      }
+    }
+
     if (extraction.items.length === 0) {
       return NextResponse.json({
         extraction,
