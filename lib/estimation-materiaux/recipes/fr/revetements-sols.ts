@@ -28,7 +28,7 @@ export const revetementsSolsRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 53.2 (Juillet 2018)', title: 'Revêtements PVC' },
+      { code: 'NF DTU 53.2 (Avril 2007)', title: 'Revêtements PVC' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -104,7 +104,7 @@ export const revetementsSolsRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 53.1 (Mai 2019)', title: 'Revêtements textile moquette' },
+      { code: 'NF DTU 53.1 (Avril 2001)', title: 'Revêtements textile moquette' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

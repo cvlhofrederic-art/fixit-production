@@ -4,9 +4,10 @@ import type { Recipe } from '../../types'
  * CHARPENTE BOIS — audit #06
  *
  * Référentiels FR :
- * - NF DTU 31.1  Charpentes et escaliers en bois (rev. 2017)
- * - NF DTU 31.2  MOB — Maison à ossature bois (rev. 2019 + A1 2021)
- * - NF DTU 31.3  Charpentes industrielles (fermettes)
+ * - NF DTU 31.1  Charpentes et escaliers en bois (Juin 2017)
+ * - NF DTU 31.2  Construction de maisons et bâtiments à ossature en bois (Mai 2019)
+ *                remplace édition Janvier 2011 + A1 Juin 2014
+ * - NF DTU 31.3  Charpentes en bois assemblées par connecteurs (Janvier 2012 + P3 Avril 2014)
  * - NF DTU 31.4  Façades à ossature bois
  * - NF EN 1995   Eurocode 5 — conception structures bois
  * - NF EN 14081  Classement résistance bois
@@ -27,7 +28,7 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 31.1 (Mai 2017)', title: 'Charpentes et escaliers en bois (rev. 2017)' },
+      { code: 'NF DTU 31.1 (Juin 2017)', title: 'Charpentes et escaliers en bois' },
       { code: 'Eurocode 5', title: 'NF EN 1995-1-1' },
       { code: 'NF EN 14081-1/2/3 (2016-2018)', title: 'Classement résistance bois C18-C24' },
     ],
@@ -121,7 +122,7 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 31.3 (Mai 2023)', title: 'Charpentes industrielles (fermettes)' },
+      { code: 'NF DTU 31.3 (Janvier 2012 + P3 Avril 2014)', title: 'Charpentes en bois assemblées par connecteurs métalliques ou goussets (fermettes)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -175,7 +176,7 @@ export const charpenteRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 31.2 (Janvier 2019 + A1 2021)', title: 'Construction MOB (rev. 2019 + A1 2021)' },
+      { code: 'NF DTU 31.2 (Mai 2019)', title: 'Construction de maisons et bâtiments à ossature en bois — remplace édition Janvier 2011 + A1 Juin 2014' },
       { code: 'NF EN 1995-1-1+A2 (Septembre 2014 — Eurocode 5)', title: 'Eurocode 5' },
     ],
     version: '2.1.0',

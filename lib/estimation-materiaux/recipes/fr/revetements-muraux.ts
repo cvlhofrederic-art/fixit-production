@@ -28,7 +28,7 @@ export const revetementsMurauxRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 59.4 (Juillet 2013)', title: 'Papier peint / tentures' },
+      { code: 'NF DTU 59.4 (Février 1998)', title: 'Papier peint / tentures' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -94,7 +94,7 @@ export const revetementsMurauxRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 25.1 (Février 2010)', title: 'Plâtrerie traditionnelle' },
+      { code: 'NF DTU 25.1 (Novembre 2010)', title: 'Plâtrerie traditionnelle' },
       { code: 'NF EN 459-1 (Décembre 2015)', title: 'Chaux construction' },
     ],
     version: '2.1.0',
@@ -142,7 +142,7 @@ export const revetementsMurauxRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 36.2 (Novembre 2019)', title: 'Menuiseries intérieures' },
+      { code: 'NF DTU 36.2 (Mai 2016)', title: 'Menuiseries intérieures' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

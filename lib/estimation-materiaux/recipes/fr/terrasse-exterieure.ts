@@ -4,7 +4,7 @@ import type { Recipe } from '../../types'
  * TERRASSES EXTÉRIEURES — audit #26
  *
  * Référentiels FR :
- * - NF DTU 51.4   Platelages bois extérieurs (rev. 2018)
+ * - NF DTU 51.4   Platelages extérieurs en bois (Novembre 2018, remplace Décembre 2010)
  * - NF DTU 52.2   Carrelage extérieur collé (cf. carrelage.ts)
  * - NF DTU 43.1   Si terrasse-toiture (cf. etancheite.ts)
  */
@@ -22,7 +22,7 @@ export const terrasseExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 51.4 (Juin 2010)', title: 'Platelages extérieurs bois (rev. 2018)' },
+      { code: 'NF DTU 51.4 (Novembre 2018)', title: 'Platelages extérieurs bois (rev. 2018)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -76,7 +76,7 @@ export const terrasseExterieureRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 51.4 (Juin 2010)', title: 'Platelages extérieurs (référence)' },
+      { code: 'NF DTU 51.4 (Novembre 2018)', title: 'Platelages extérieurs (référence)' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

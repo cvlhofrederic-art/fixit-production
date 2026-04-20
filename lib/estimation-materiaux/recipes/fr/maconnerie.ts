@@ -132,14 +132,14 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 13.3 P1-1-2 (Décembre 2021)', title: 'Dallages', section: 'Partie 1 (maisons individuelles) / Partie 2 (autres bâtiments)' },
+      { code: 'NF DTU 13.3 P1-1-2 (Décembre 2021)', title: 'Dallages — Conception, calcul et exécution', section: 'Partie 1-1-2 : cahier des clauses techniques types des dallages de maisons individuelles' },
       { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution des ouvrages en béton' },
       { code: 'NF A 35-080-1 (Janvier 2013)', title: 'Aciers pour béton armé - Treillis soudés' },
     ],
     version: '2.1.0',
     constraints: {
       minThickness: 0.08, maxThickness: 0.20,
-      note: 'Épaisseur min 8 cm (DTU 13.3) pour dalle armée. Au-delà de 20 cm, passer à double nappe.',
+      note: 'Épaisseur min 8 cm (DTU 13.3 P1-1-2) pour dalle armée MI. Au-delà de 20 cm, passer à double nappe.',
     },
     hypothesesACommuniquer: [
       'Hérisson de 20 cm en concassé 20/40 supposé (à adapter selon portance du sol)',
@@ -317,7 +317,7 @@ export const maconnerieRecipes: Recipe[] = [
         category: 'accessoire', phase: 'preparation', quantityPerBase: 1, unit: 'ml',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Coupes + raccords',
-        normRef: 'NF C 15-100 (Décembre 2002 + A5 2015 + A6 2023)',
+        normRef: 'NF C 15-100 (Édition Août 2024, applicable depuis Septembre 2025)',
         manufacturerRef: 'Courant / Aldes',
         packaging: { unit: 'rouleau', contentQty: 100, contentUnit: 'ml', label: 'rouleau 100 ml' },
         optional: true,
@@ -372,12 +372,12 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 13.3 P1-1-2 (Décembre 2021)', title: 'Dallages — Partie 1', section: 'Maisons individuelles' },
+      { code: 'NF DTU 13.3 P1-1-1 (Décembre 2021)', title: 'Dallages — Conception, calcul et exécution', section: 'Partie 1-1-1 : cahier des clauses techniques types des dallages tous bâtiments hors maisons individuelles (industriels, tertiaires, garages pro)' },
       { code: 'NF DTU 21 (Mars 2017)', title: 'Exécution béton' },
       { code: 'NF A 35-080-1 (Janvier 2013)', title: 'Treillis soudés' },
     ],
     version: '2.1.0',
-    constraints: { minThickness: 0.12, maxThickness: 0.25, note: 'Épaisseur min 12 cm pour garage (DTU 13.3 Partie 1-1-1 — usage industriel/circulation).' },
+    constraints: { minThickness: 0.12, maxThickness: 0.25, note: 'Épaisseur min 12 cm pour garage/dalle industrielle (DTU 13.3 P1-1-1 — usage tertiaire/industriel/circulation véhicules).' },
     hypothesesACommuniquer: [
       'Épaisseur minimale 12 cm (vs 8 cm ST25C) — circulation véhicules légers',
       'Treillis ST40C Ø8 (vs Ø7 ST25C) — charges renforcées',
@@ -557,7 +557,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm3',
     geometryMode: 'volume',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Ouvrages en maçonnerie de petits éléments' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments' },
       { code: 'NF DTU 26.1 (Avril 2008)', title: 'Enduits aux mortiers de ciments, chaux' },
     ],
     version: '2.0.0',
@@ -599,7 +599,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: 'rev. juillet 2020' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: '§5 hourdage / §6 chaînages (mur parpaing)' },
       { code: 'NF EN 771-3+A1 (Octobre 2015)', title: 'Spécifications éléments maçonnerie béton granulats' },
       { code: 'NF EN 998-2 (Mai 2017)', title: 'Mortiers de maçonnerie' },
       { code: 'Eurocode 6', title: 'NF EN 1996-1-1 — calcul structures maçonnerie' },
@@ -703,7 +703,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie de petits éléments', section: 'rev. juillet 2020' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Maçonnerie de petits éléments', section: '§5.3 mortier joint mince (monomur) / §6 chaînages' },
       { code: 'NF EN 771-1+A1 (Octobre 2015)', title: 'Spécifications briques terre cuite' },
       { code: 'Eurocode 6', title: 'NF EN 1996-1-1' },
     ],
@@ -835,7 +835,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 26.2 (Avril 2013)', title: 'Chapes et dalles à base de liants hydrauliques', section: 'rev. 2021' },
+      { code: 'NF DTU 26.2 (Avril 2013 + A1 Mai 2015)', title: 'Chapes et dalles à base de liants hydrauliques' },
       { code: 'NF EN 13813 (Mars 2003)', title: 'Matériaux de chape' },
       { code: 'NF EN 1008 (Juillet 2003)', title: 'Eau de gâchage' },
     ],
@@ -991,7 +991,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: 'rev. 2020' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Ouvrages en maçonnerie de petits éléments', section: '§5 éléments terre cuite / §6 chaînages' },
       { code: 'NF EN 771-1+A1 (Octobre 2015)', title: 'Spécifications éléments maçonnerie terre cuite' },
     ],
     version: '2.1.0',
@@ -1077,7 +1077,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie petits éléments', section: '§5.4 pierre' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Maçonnerie petits éléments', section: '§5.4 pierre' },
       { code: 'NF EN 771-6+A1 (Octobre 2015)', title: 'Spécifications pierre naturelle' },
       { code: 'NF EN 459-1 (Décembre 2015)', title: 'Chaux de construction' },
     ],
@@ -1139,7 +1139,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'NF DTU 20.1 P1-1 (Octobre 2008 + A1 2020)', title: 'Maçonnerie petits éléments', section: '§5.5 blocs cellulaires' },
+      { code: 'NF DTU 20.1 P1-1 (Juillet 2020)', title: 'Maçonnerie petits éléments', section: '§5.5 blocs cellulaires' },
       { code: 'NF EN 771-4+A1 (Octobre 2015)', title: 'Spécifications blocs cellulaires autoclavés' },
     ],
     version: '2.1.0',
@@ -1386,7 +1386,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: 'rev. septembre 2019 §5-6' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5 dimensions / §6 béton armé' },
       { code: 'NF EN 206+A2/CN (Avril 2021)', title: 'Béton — spécification' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1 — calcul structures béton' },
     ],
@@ -1492,7 +1492,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.1.2 semelles isolées' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.1.2 semelles isolées' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
     ],
     version: '2.1.0',
@@ -1560,7 +1560,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.4 Radiers' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.4 Radiers' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
       { code: 'NF EN 206+A2/CN (Avril 2021)', title: 'Béton C30/37' },
     ],
@@ -1661,7 +1661,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.5 Longrines' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.5 Longrines' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1 §9.2 Poutres' },
     ],
     version: '2.1.0',
@@ -1743,7 +1743,7 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 13.1 (Avril 2022)', title: 'Fondations superficielles', section: '§5.6 massifs semi-profonds' },
+      { code: 'NF DTU 13.1 P1-1 (Septembre 2019)', title: 'Fondations superficielles', section: '§5.6 massifs semi-profonds' },
       { code: 'Eurocode 2', title: 'NF EN 1992-1-1' },
     ],
     version: '2.1.0',

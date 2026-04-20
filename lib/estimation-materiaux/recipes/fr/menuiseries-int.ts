@@ -24,7 +24,7 @@ export const menuiseriesIntRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 36.2 (Novembre 2019)', title: 'Menuiseries intérieures bois', section: '§5-6' },
+      { code: 'NF DTU 36.2 (Mai 2016)', title: 'Menuiseries intérieures bois', section: '§5-6' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -86,7 +86,7 @@ export const menuiseriesIntRecipes: Recipe[] = [
     trade: 'menuiserie_int',
     baseUnit: 'u',
     geometryMode: 'count',
-    dtuReferences: [{ code: 'NF DTU 36.2 (Novembre 2019)', title: 'Menuiseries intérieures bois' }],
+    dtuReferences: [{ code: 'NF DTU 36.2 (Mai 2016)', title: 'Menuiseries intérieures bois' }],
     version: '2.1.0',
     hypothesesACommuniquer: [
       'Placard 2 vantaux × 1 m (largeur totale 2 m standard)',
@@ -134,7 +134,7 @@ export const menuiseriesIntRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 36.2 (Novembre 2019)', title: 'Menuiseries intérieures bois', section: '§8 Escaliers' },
+      { code: 'NF DTU 36.2 (Mai 2016)', title: 'Menuiseries intérieures bois', section: '§8 Escaliers' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -194,7 +194,7 @@ export const menuiseriesIntRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area',
     dtuReferences: [
-      { code: 'NF DTU 51.1 (Janvier 2014)', title: 'Parquet massif cloué' },
+      { code: 'NF DTU 51.1 (Décembre 2010 + A1 Avril 2023)', title: 'Parquet massif cloué' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
@@ -303,7 +303,7 @@ export const menuiseriesIntRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 36.2 (Novembre 2019)', title: 'Menuiseries intérieures' },
+      { code: 'NF DTU 36.2 (Mai 2016)', title: 'Menuiseries intérieures' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [

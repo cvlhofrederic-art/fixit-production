@@ -4,7 +4,7 @@ import type { Recipe } from '../../types'
  * ASSAINISSEMENT — audit #23
  *
  * Référentiels FR :
- * - NF DTU 64.1     Assainissement non collectif (rev. 2013 + A1 2020)
+ * - NF DTU 64.1     Assainissement non collectif
  * - NF EN 12566     Petites installations traitement eaux usées
  * - Arrêté 7 sept. 2009  Prescriptions ANC
  * - NF DTU 60.33    Canalisations enterrées
@@ -23,7 +23,7 @@ export const assainissementRecipes: Recipe[] = [
     baseUnit: 'u',
     geometryMode: 'count',
     dtuReferences: [
-      { code: 'NF DTU 64.1 (Août 2013)', title: 'Assainissement non collectif (rev. 2013 + A1 2020)' },
+      { code: 'NF DTU 64.1 (Août 2013)', title: 'Assainissement non collectif' },
       { code: 'NF EN 12566-1 à 7 (2013-2018)', title: 'Petites installations traitement eaux usées' },
       { code: 'Arrêté 7/9/2009', title: 'Prescriptions techniques ANC' },
     ],
@@ -179,7 +179,7 @@ export const assainissementRecipes: Recipe[] = [
     baseUnit: 'ml',
     geometryMode: 'length',
     dtuReferences: [
-      { code: 'NF DTU 60.33 (Janvier 2007)', title: 'PVC enterré' },
+      { code: 'NF DTU 60.33 (Octobre 2007)', title: 'PVC enterré' },
     ],
     version: '2.1.0',
     hypothesesACommuniquer: [
