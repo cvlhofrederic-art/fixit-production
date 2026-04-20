@@ -38,8 +38,8 @@ async function authHeaders(): Promise<Record<string, string>> {
 // Invalider le cache quand la session change (login/logout)
 supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
-type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp'
-type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf'
+type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes'
+type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes'
 
 const TABLE_MAP: Record<ShortName, TableName> = {
   chantiers: 'chantiers_btp',
@@ -52,6 +52,7 @@ const TABLE_MAP: Record<ShortName, TableName> = {
   dc4: 'dc4_btp',
   dce_analyses: 'dce_analyses_btp',
   dpgf: 'dpgf_btp',
+  charges_fixes: 'charges_fixes',
 }
 
 // localStorage keys to check for import
@@ -66,6 +67,7 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
   dc4: (id) => `dc4_${id}`,
   dce_analyses: (id) => `dce_analyses_${id}`,
   dpgf: (id) => `dpgf_${id}`,
+  charges_fixes: (id) => `charges_fixes_${id}`,
 }
 
 // Map localStorage fields → Supabase columns
@@ -646,6 +648,17 @@ export function useBTPSettings() {
   }, [settings])
 
   return { settings, loading, save, refresh }
+}
+
+// ── Charges fixes hook ────────────────────────────────────────────────────────
+
+export function useChargesFixes({ artisanId, userId }: { artisanId: string; userId: string }) {
+  return useBTPData<{ id: string; owner_id: string; categorie: string; label: string; montant: number; frequence: string; [key: string]: unknown }>({
+    table: 'charges_fixes',
+    artisanId,
+    userId,
+    autoImport: false,
+  })
 }
 
 // ── Geo-pointage helper ───────────────────────────────────────────────────────
