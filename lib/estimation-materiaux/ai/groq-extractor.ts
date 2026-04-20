@@ -349,7 +349,10 @@ export async function extractEstimationWithGroq(
         { role: 'user', content: userDescription },
       ],
       temperature: 0.1,
-      max_tokens: 2000,
+      // 4000 tokens couvre sans troncation un chantier jusqu'à ~15 ouvrages
+      // (chaque ouvrage ~200 tokens JSON + assumptions/questions). Au-delà,
+      // la détection `finish_reason === 'length'` ci-dessous alerte l'artisan.
+      max_tokens: 4000,
       response_format: { type: 'json_object' },
     },
     {
@@ -364,6 +367,9 @@ export async function extractEstimationWithGroq(
 
   const content = response.choices?.[0]?.message?.content
   if (!content) throw new Error("Groq n'a pas renvoyé de contenu")
+
+  const finishReason = response.choices?.[0]?.finish_reason
+  const wasTruncated = finishReason === 'length'
 
   const raw = typeof content === 'string' ? content : String(content)
   // Nettoie d'éventuels blocs markdown que Llama pourrait retourner malgré json mode
@@ -458,6 +464,13 @@ export async function extractEstimationWithGroq(
         'Quelle épaisseur / hauteur si pertinente ?',
       ],
     }
+  }
+
+  if (wasTruncated) {
+    result.assumptions.push(
+      "⚠️ Réponse IA tronquée (max_tokens atteint) — certains ouvrages peuvent "
+      + "manquer. Relancez en décomposant le chantier en 2-3 descriptions plus courtes."
+    )
   }
 
   // Filtrer les recipeId inconnus (safety) + scope pays/trades si fourni.

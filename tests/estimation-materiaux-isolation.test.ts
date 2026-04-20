@@ -58,6 +58,12 @@ describe('Isolation filesystem FR/PT', () => {
     const frFiles = listTsFiles(frDir)
     expect(frFiles.length).toBe(28)
   })
+
+  it('recipes/pt/ contient bien les fichiers PT attendus (hors index)', () => {
+    const ptFiles = listTsFiles(ptDir).filter(f => !f.endsWith('index.ts'))
+    // PT : alvenaria, extras, pintura, pladur, revestimento = 5 fichiers métier
+    expect(ptFiles.length).toBeGreaterThanOrEqual(5)
+  })
 })
 
 // ════════════════════════════════════════════════════════════

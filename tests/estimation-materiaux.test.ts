@@ -22,11 +22,13 @@ import type { EstimationInput, Recipe } from '@/lib/estimation-materiaux'
 
 describe('Base de connaissances — intégrité structurelle', () => {
 
-  it('contient 128 ouvrages répartis sur 28 corps de métier', () => {
-    expect(allRecipes.length).toBeGreaterThanOrEqual(120)
+  it('contient au moins 160 ouvrages répartis sur les 26 corps de métier', () => {
+    // Seuil durci post-audit pré-déploiement : 162 recettes codées (FR+PT).
+    // Un seuil à 120 laissait passer une disparition silencieuse de 42 recettes.
+    expect(allRecipes.length).toBeGreaterThanOrEqual(160)
 
     const trades = new Set(allRecipes.map(r => r.trade))
-    expect(trades.size).toBeGreaterThanOrEqual(20) // au moins 20 trades distincts
+    expect(trades.size).toBeGreaterThanOrEqual(25)
   })
 
   it('chaque recette a un ID unique', () => {

@@ -136,7 +136,8 @@ export const RecipeSchema = z.object({
   trade: z.enum([
     // Existants initiaux
     'maconnerie', 'placo', 'peinture', 'carrelage',
-    // Extensions audit 28 trades (avril 2026)
+    // Extensions audit 26 trades (avril 2026)
+    // Note : dallage + fondations sont regroupés sous `maconnerie`, terrassement sous `vrd`.
     'charpente', 'couverture', 'zinguerie',
     'etancheite', 'isolation', 'facade',
     'menuiserie_ext', 'menuiserie_int',
