@@ -544,49 +544,99 @@ export const maconnerieRecipes: Recipe[] = [
   {
     id: 'mur-parpaing-20',
     name: 'Mur en parpaings creux 20×20×50 (hourdage mortier + chaînages)',
-    description: 'Mur porteur ou de refend, bloc creux B40 NF. Mortier de hourdage et chaînages verticaux inclus.',
+    description: 'Mur porteur ou de refend, bloc creux B40 NF. Arase + mortier + chaînages + linteaux inclus.',
     trade: 'maconnerie',
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'DTU 20.1', title: 'Ouvrages en maçonnerie de petits éléments', section: '§ 6.4 Chaînages' },
-      { code: 'NF EN 771-3', title: 'Spécifications pour éléments de maçonnerie en béton de granulats' },
+      { code: 'NF DTU 20.1', title: 'Ouvrages en maçonnerie de petits éléments', section: 'rev. juillet 2020' },
+      { code: 'NF EN 771-3', title: 'Spécifications éléments maçonnerie béton granulats' },
+      { code: 'NF EN 998-2', title: 'Mortiers de maçonnerie' },
+      { code: 'Eurocode 6', title: 'NF EN 1996-1-1 — calcul structures maçonnerie' },
     ],
-    version: '2.0.0',
+    version: '2.1.0',
     constraints: { maxHeight: 2.8, note: 'Au-delà de 2,80 m : chaînages intermédiaires obligatoires (DTU 20.1 § 6.4).' },
+    hypothesesACommuniquer: [
+      'Arase étanche bitumineuse obligatoire en pied de mur (NF DTU 20.1 §5.2.2)',
+      'Chaînages verticaux HA10 tous les 5 m + 4 angles (1 chaînage / 5 m²)',
+      'Chaînage horizontal haut 2 HA8 filantes (DTU 20.1 §6.4.2)',
+      'Cadres HA6 tous 15 cm dans chaînages verticaux',
+      'Linteaux préfa estimés à 70 cm/m² d\'ouvertures (ouverture moyenne 1,50 m)',
+      'Mortier traditionnel ciment + sable + eau (E/C = 0,55)',
+      'Enduit extérieur NON inclus — à ajouter via recette "enduit-ext-multicouche" ou "-monocouche"',
+    ],
     materials: [
+      // ═══════════ PRÉPARATION ═══════════
+      {
+        id: 'arase-etanche-bitume', name: 'Arase étanche bitumineuse (barrière capillaire 20 cm)',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 0.4, unit: 'ml',
+        geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes aux angles',
+        dtu: 'NF DTU 20.1 §5.2.2',
+        manufacturerRef: 'Siplast Veral / Icopal',
+        packaging: { unit: 'rouleau', contentQty: 10, contentUnit: 'ml', label: 'rouleau 10 m × 20 cm' },
+        notes: 'Base : 0,4 ml/m² pour mur hauteur standard 2,50 m (1 ml arase / 2,5 m² mur).',
+      },
+      // ═══════════ PRINCIPAL ═══════════
       {
         id: 'parpaing-20', name: 'Parpaing creux B40 20×20×50 (bloc NF)',
-        category: 'bloc', quantityPerBase: 10, unit: 'u', geometryMultiplier: 'none',
+        category: 'bloc', phase: 'principal', quantityPerBase: 10, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Casse transport + coupes en rives',
-        dtu: 'DTU 20.1', normRef: 'NF EN 771-3', manufacturerRef: 'Alkern / Bouyer Leroux',
+        dtu: 'NF DTU 20.1', normRef: 'NF EN 771-3', manufacturerRef: 'Alkern / Bouyer Leroux',
         notes: 'Géométrie 50×20 → 10 blocs/m² exactement.',
       },
       {
-        id: 'ciment-cem2-325r', name: 'Ciment (mortier de hourdage)',
-        category: 'liant', quantityPerBase: 8, unit: 'kg', geometryMultiplier: 'none',
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (mortier hourdage)',
+        category: 'liant', phase: 'principal', quantityPerBase: 8, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Résidus + sur-dosage pratique',
-        dtu: 'DTU 20.1 § 5', manufacturerRef: 'Mortier ciment 350 kg/m³ × 0,022 m³/m²',
+        dtu: 'NF DTU 20.1 § 5', normRef: 'NF EN 197-1',
         packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
-        notes: 'Base : 0,022 m³ mortier/m² × 350 kg ciment/m³ mortier = 7,7 kg arrondi à 8.',
+        notes: 'Base : 0,022 m³ mortier/m² × 350 kg ciment/m³ = 7,7 kg arrondi à 8.',
       },
       {
-        id: 'sable-0-4', name: 'Sable 0/4 (pour mortier hourdage)',
-        category: 'granulat', quantityPerBase: 0.022, unit: 'm3', geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Manutention', dtu: 'DTU 20.1',
+        id: 'sable-0-4', name: 'Sable 0/4 (mortier hourdage)',
+        category: 'granulat', phase: 'principal', quantityPerBase: 0.022, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention', dtu: 'NF DTU 20.1',
       },
       {
-        id: 'acier-ha10-chainage', name: 'Acier HA10 chaînages verticaux (angles + tous les 5m)',
-        category: 'acier', quantityPerBase: 0.8, unit: 'kg', geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Chutes coupes + ligatures (DTU 21)',
-        dtu: 'DTU 20.1 § 6.4', normRef: 'NF A 35-080',
-        notes: '4 HA10 + cadres HA6 tous 15 cm par chaînage. Hypothèse : 1 chaînage/5 m² + angles.',
+        id: 'eau-mortier', name: 'Eau de gâchage mortier',
+        category: 'eau', phase: 'principal', quantityPerBase: 4, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis (E/C = 0,55)',
+        normRef: 'NF EN 1008',
       },
       {
-        id: 'beton-chainage', name: 'Béton chaînage (section 15×15 cm)',
-        category: 'liant', quantityPerBase: 0.01, unit: 'm3', geometryMultiplier: 'none',
-        wasteFactor: 1.05, wasteReason: 'Perte coulage', dtu: 'DTU 20.1 § 6.4',
-        notes: '0,15×0,15 m² × hauteur moyenne / 5 m² ≈ 0,01 m³/m² de mur.',
+        id: 'acier-ha10-chainage', name: 'Acier HA10 chaînages verticaux (angles + tous les 5 m)',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.8, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + ligatures (DTU 21)',
+        dtu: 'NF DTU 20.1 § 6.4', normRef: 'NF A 35-080',
+        notes: '4 HA10 + cadres HA6 tous 15 cm par chaînage. Hypothèse : 1 chaînage/5 m² + 4 angles.',
+      },
+      {
+        id: 'acier-ha6-cadres', name: 'Acier HA6 cadres chaînages (tous les 15 cm)',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.25, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + ligatures',
+        dtu: 'NF DTU 20.1 § 6.4', normRef: 'NF A 35-080',
+      },
+      {
+        id: 'acier-ha8-chainage-horiz', name: 'Acier HA8 chaînage horizontal (2 filantes haut)',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.6, unit: 'kg', geometryMultiplier: 'height',
+        wasteFactor: 1.10, wasteReason: 'Chutes + recouvrements 30 cm',
+        dtu: 'NF DTU 20.1 §6.4.2',
+        notes: '2 filantes HA8 × longueur mur (géométrie multipliée par hauteur).',
+      },
+      {
+        id: 'beton-chainage', name: 'Béton chaînage (section 15×15 cm, 350 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 0.01, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Perte coulage', dtu: 'NF DTU 20.1 § 6.4',
+        notes: '0,15×0,15 m² × hauteur / 5 m² ≈ 0,01 m³/m² de mur.',
+      },
+      {
+        id: 'linteau-prefa-beton', name: 'Linteau préfabriqué béton armé (au-dessus ouvertures)',
+        category: 'bloc', phase: 'principal', quantityPerBase: 0.7, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes appuis',
+        dtu: 'NF DTU 20.1 §6.6', normRef: 'NF EN 845-2',
+        manufacturerRef: 'Alkern / Fabemi',
+        notes: 'Estimation 0,7 ml de linteau/m² d\'ouvertures (hypothèse ouverture moyenne 1,50 m).',
       },
     ],
   },
@@ -603,24 +653,83 @@ export const maconnerieRecipes: Recipe[] = [
     baseUnit: 'm2',
     geometryMode: 'area_minus_openings',
     dtuReferences: [
-      { code: 'DTU 20.1', title: 'Maçonnerie de petits éléments' },
-      { code: 'NF EN 771-1', title: 'Spécifications briques en terre cuite' },
+      { code: 'NF DTU 20.1', title: 'Maçonnerie de petits éléments', section: 'rev. juillet 2020' },
+      { code: 'NF EN 771-1', title: 'Spécifications briques terre cuite' },
+      { code: 'Eurocode 6', title: 'NF EN 1996-1-1' },
     ],
-    version: '2.0.0',
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Briques monomur Porotherm 30 (37,3×30×21,4 cm) — 12,5 briques/m²',
+      'Pose au mortier-colle joint mince (1,3 kg/m² — Wienerberger Poroplus)',
+      'Arase étanche bitumineuse obligatoire en pied (NF DTU 20.1 §5.2.2)',
+      'Chaînages verticaux HA10 tous les 5 m + 4 angles',
+      'Chaînage horizontal haut 2 HA8 filantes',
+      'Linteau spécial monomur préfa (Wienerberger Porolith) au-dessus ouvertures',
+      'Pas d\'enduit extérieur inclus — brique monomur peut rester apparente ou être enduite',
+    ],
     materials: [
+      // ═══════════ PRÉPARATION ═══════════
+      {
+        id: 'arase-etanche-bitume', name: 'Arase étanche bitumineuse (barrière capillaire 30 cm)',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 0.4, unit: 'ml',
+        geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes aux angles',
+        dtu: 'NF DTU 20.1 §5.2.2',
+        manufacturerRef: 'Siplast Veral / Icopal',
+        packaging: { unit: 'rouleau', contentQty: 10, contentUnit: 'ml', label: 'rouleau 10 m × 30 cm' },
+      },
+      // ═══════════ PRINCIPAL ═══════════
       {
         id: 'brique-monomur-30', name: 'Brique monomur 30 cm (37,3×30×21,4 cm)',
-        category: 'brique', quantityPerBase: 12.5, unit: 'u', geometryMultiplier: 'none',
+        category: 'brique', phase: 'principal', quantityPerBase: 12.5, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.07, wasteReason: 'Casse transport + coupes',
-        dtu: 'DTU 20.1', manufacturerRef: 'Wienerberger Porotherm 30',
+        dtu: 'NF DTU 20.1', normRef: 'NF EN 771-1', manufacturerRef: 'Wienerberger Porotherm 30',
         notes: '1 m² = 1/(0,373×0,214) = 12,5 briques.',
       },
       {
-        id: 'mortier-joint-mince', name: 'Mortier-colle à joint mince',
-        category: 'colle', quantityPerBase: 1.3, unit: 'kg', geometryMultiplier: 'none',
+        id: 'mortier-joint-mince', name: 'Mortier-colle à joint mince (Porotherm)',
+        category: 'colle', phase: 'principal', quantityPerBase: 1.3, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Résidus bac, sur-dosage',
         manufacturerRef: 'Wienerberger Poroplus — 1,3 kg/m²',
         packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
+      },
+      {
+        id: 'eau-mortier-joint-mince', name: 'Eau de gâchage mortier-colle',
+        category: 'eau', phase: 'principal', quantityPerBase: 0.8, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis (20% poids poudre)',
+        normRef: 'NF EN 1008',
+      },
+      {
+        id: 'acier-ha10-chainage', name: 'Acier HA10 chaînages verticaux',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.8, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + ligatures',
+        dtu: 'NF DTU 20.1 §6.4', normRef: 'NF A 35-080',
+      },
+      {
+        id: 'acier-ha6-cadres', name: 'Acier HA6 cadres chaînages (tous les 15 cm)',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.25, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + ligatures',
+        dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'acier-ha8-chainage-horiz', name: 'Acier HA8 chaînage horizontal (2 filantes haut)',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.6, unit: 'kg', geometryMultiplier: 'height',
+        wasteFactor: 1.10, wasteReason: 'Chutes + recouvrements 30 cm',
+        dtu: 'NF DTU 20.1 §6.4.2',
+      },
+      {
+        id: 'beton-chainage', name: 'Béton chaînage (section 15×15 cm)',
+        category: 'liant', phase: 'principal', quantityPerBase: 0.01, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Perte coulage',
+        dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'linteau-monomur', name: 'Linteau spécial monomur (Porolith / Porotherm)',
+        category: 'brique', phase: 'principal', quantityPerBase: 0.7, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes appuis',
+        dtu: 'NF DTU 20.1 §6.6',
+        manufacturerRef: 'Wienerberger Porolith',
+        notes: 'Estimation 0,7 ml de linteau/m² d\'ouvertures.',
       },
     ],
   },
@@ -816,6 +925,397 @@ export const maconnerieRecipes: Recipe[] = [
         geometryMultiplier: 'none',
         wasteFactor: 1.00, wasteReason: 'Dosage précis (≈ 20% poids poudre)',
         normRef: 'NF EN 1008',
+      },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  //  MUR BRIQUE TERRE CUITE TRADITIONNELLE — audit #04.3
+  // ══════════════════════════════════════════════════════════
+
+  {
+    id: 'mur-brique-tc-traditionnelle',
+    name: 'Mur brique terre cuite traditionnelle (format 5,5×10,5×22)',
+    description: 'Mur porteur ou refend en briques TC pleines/creuses format courant, hourdage mortier classique.',
+    trade: 'maconnerie',
+    baseUnit: 'm2',
+    geometryMode: 'area_minus_openings',
+    dtuReferences: [
+      { code: 'NF DTU 20.1', title: 'Ouvrages en maçonnerie de petits éléments', section: 'rev. 2020' },
+      { code: 'NF EN 771-1', title: 'Spécifications éléments maçonnerie terre cuite' },
+    ],
+    version: '2.1.0',
+    constraints: { maxHeight: 2.8 },
+    hypothesesACommuniquer: [
+      'Brique TC format 5,5×10,5×22 cm — 60 briques/m² (1 rang horizontal)',
+      'Mortier traditionnel ciment + sable (8 kg ciment/m²)',
+      'Arase étanche bitumineuse obligatoire en pied (DTU 20.1 §5.2.2)',
+      'Chaînages verticaux + horizontaux (idem mur parpaing)',
+      'Enduit extérieur à prévoir séparément',
+    ],
+    materials: [
+      {
+        id: 'arase-etanche-bitume', name: 'Arase étanche bitumineuse',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 0.4, unit: 'ml',
+        geometryMultiplier: 'none', wasteFactor: 1.05,
+        wasteReason: 'Coupes angles', dtu: 'NF DTU 20.1 §5.2.2',
+        packaging: { unit: 'rouleau', contentQty: 10, contentUnit: 'ml', label: 'rouleau 10 m × 20 cm' },
+      },
+      {
+        id: 'brique-tc-tradi', name: 'Brique TC creuse/pleine 5,5×10,5×22',
+        category: 'brique', phase: 'principal', quantityPerBase: 60, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Casse + coupes rives',
+        dtu: 'NF DTU 20.1', normRef: 'NF EN 771-1',
+        manufacturerRef: 'Bouyer Leroux / Terreal / Wienerberger',
+        notes: '1 m² ≈ 60 briques format standard (appareillage simple).',
+      },
+      {
+        id: 'ciment-cem2-325r', name: 'Ciment CEM II 32,5 R (mortier hourdage)',
+        category: 'liant', phase: 'principal', quantityPerBase: 8, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Résidus + sur-dosage', dtu: 'NF DTU 20.1',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4', category: 'granulat', phase: 'principal',
+        quantityPerBase: 0.025, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention', dtu: 'NF DTU 20.1',
+      },
+      {
+        id: 'eau-mortier', name: 'Eau de gâchage', category: 'eau', phase: 'principal',
+        quantityPerBase: 4, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis', normRef: 'NF EN 1008',
+      },
+      {
+        id: 'acier-ha10-chainage', name: 'Acier HA10 chaînages verticaux',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.8, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes + ligatures', dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'acier-ha6-cadres', name: 'Acier HA6 cadres chaînages',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.25, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes', dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'acier-ha8-chainage-horiz', name: 'Acier HA8 chaînage horizontal',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.6, unit: 'kg', geometryMultiplier: 'height',
+        wasteFactor: 1.10, wasteReason: 'Chutes + recouvrements', dtu: 'NF DTU 20.1 §6.4.2',
+      },
+      {
+        id: 'beton-chainage', name: 'Béton chaînage',
+        category: 'liant', phase: 'principal', quantityPerBase: 0.01, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Perte coulage', dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'linteau-prefa-beton', name: 'Linteau préfabriqué béton',
+        category: 'bloc', phase: 'principal', quantityPerBase: 0.7, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes appuis', dtu: 'NF DTU 20.1 §6.6',
+      },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  //  MUR PIERRE MOELLONS (chaux NHL obligatoire) — audit #04.4
+  // ══════════════════════════════════════════════════════════
+
+  {
+    id: 'mur-pierre-moellons',
+    name: 'Mur pierre moellons hourdés (chaux NHL 3,5)',
+    description: 'Mur traditionnel en pierre locale hourdée à la chaux. Chaux obligatoire — pas de ciment pur (pathologie).',
+    trade: 'maconnerie',
+    baseUnit: 'm2',
+    geometryMode: 'area_minus_openings',
+    dtuReferences: [
+      { code: 'NF DTU 20.1', title: 'Maçonnerie petits éléments', section: '§5.4 pierre' },
+      { code: 'NF EN 771-6', title: 'Spécifications pierre naturelle' },
+      { code: 'NF EN 459-1', title: 'Chaux de construction' },
+    ],
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Mur pierre épaisseur 30 cm supposée (1 t moellons/m²)',
+      'Chaux NHL 3,5 OBLIGATOIRE (ciment pur interdit sur pierre ancienne — pathologie humidité)',
+      'Ratio mortier chaux : 1 volume chaux / 2 volumes sable',
+      'Pertes moellons 25% (calage + rejets selon calibrage)',
+      'Harpages inox recommandés aux angles',
+      'Variabilité forte selon pierre locale (carrière) — ratios indicatifs',
+    ],
+    materials: [
+      {
+        id: 'moellon-pierre-locale', name: 'Moellons pierre locale (calibre ~20-30 cm)',
+        category: 'autre', phase: 'principal', quantityPerBase: 1, unit: 't', geometryMultiplier: 'none',
+        wasteFactor: 1.25, wasteReason: 'Calage + rejet selon calibrage (pierre = matière brute)',
+        normRef: 'NF EN 771-6',
+        notes: '1 t moellons/m² pour mur 30 cm (densité 2,4 t/m³ × 0,3 × foisonnement 1,4).',
+      },
+      {
+        id: 'chaux-nhl-35-pierre', name: 'Chaux hydraulique naturelle NHL 3,5',
+        category: 'liant', phase: 'principal', quantityPerBase: 15, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Résidus + sur-dosage',
+        normRef: 'NF EN 459-1', manufacturerRef: 'Saint-Astier / Baumit Romanzement',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+      },
+      {
+        id: 'sable-0-4', name: 'Sable 0/4 (mortier chaux)',
+        category: 'granulat', phase: 'principal', quantityPerBase: 0.04, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-mortier-chaux', name: 'Eau de gâchage mortier chaux',
+        category: 'eau', phase: 'principal', quantityPerBase: 5, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage (E/L 0,8 plus élevé pour chaux)',
+        normRef: 'NF EN 1008',
+      },
+      {
+        id: 'feuillard-harpage-inox', name: 'Feuillards harpage inox (aux angles)',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 0.5, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes',
+        dtu: 'NF DTU 20.1 §6.3',
+        optional: true,
+        condition: 'Si jonction avec autre matériau ou mur ancien',
+      },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  //  MUR BÉTON CELLULAIRE (Ytong / Cellumat) — audit #04.5
+  // ══════════════════════════════════════════════════════════
+
+  {
+    id: 'mur-beton-cellulaire-30',
+    name: 'Mur béton cellulaire 30 cm (Ytong / Cellumat)',
+    description: 'Mur porteur en blocs béton cellulaire autoclave. Pose au mortier-colle joint mince. R ≈ 2,5.',
+    trade: 'maconnerie',
+    baseUnit: 'm2',
+    geometryMode: 'area_minus_openings',
+    dtuReferences: [
+      { code: 'NF DTU 20.1', title: 'Maçonnerie petits éléments', section: '§5.5 blocs cellulaires' },
+      { code: 'NF EN 771-4', title: 'Spécifications blocs cellulaires autoclavés' },
+    ],
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Blocs Ytong 625×250×300 mm — 4 blocs/m²',
+      'Mortier-colle joint mince spécifique cellulaire (Ytong ThermoKleber)',
+      '1er rang posé au mortier traditionnel classique (réglage niveau)',
+      'Arase étanche obligatoire (NF DTU 20.1 §5.2.2)',
+      'Chaînages verticaux HA10 + horizontaux HA8 (DTU 20.1 §6.4)',
+      'Linteaux béton cellulaire préfa (Ytong Porolith) ou béton classique',
+    ],
+    materials: [
+      {
+        id: 'arase-etanche-bitume', name: 'Arase étanche bitumineuse',
+        category: 'etancheite', phase: 'preparation', quantityPerBase: 0.4, unit: 'ml',
+        geometryMultiplier: 'none', wasteFactor: 1.05,
+        wasteReason: 'Coupes angles', dtu: 'NF DTU 20.1 §5.2.2',
+        packaging: { unit: 'rouleau', contentQty: 10, contentUnit: 'ml', label: 'rouleau 10 m × 30 cm' },
+      },
+      {
+        id: 'mortier-hourdage-1er-rang', name: 'Mortier classique 1er rang (réglage)',
+        category: 'liant', phase: 'preparation', quantityPerBase: 0.02, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+        dtu: 'NF DTU 20.1',
+        notes: 'Seulement pour 1er rang — permet réglage précis avant joint mince.',
+      },
+      {
+        id: 'bloc-beton-cellulaire-30', name: 'Bloc béton cellulaire Ytong 625×250×300',
+        category: 'bloc', phase: 'principal', quantityPerBase: 4, unit: 'u', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Casse + coupes',
+        dtu: 'NF DTU 20.1 §5.5', normRef: 'NF EN 771-4',
+        manufacturerRef: 'Xella Ytong / Cellumat',
+      },
+      {
+        id: 'colle-joint-mince-cellulaire', name: 'Colle joint mince spéciale béton cellulaire',
+        category: 'colle', phase: 'principal', quantityPerBase: 3, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Résidus bac',
+        manufacturerRef: 'Ytong ThermoKleber',
+        packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
+      },
+      {
+        id: 'eau-colle-cellulaire', name: 'Eau de gâchage colle cellulaire',
+        category: 'eau', phase: 'principal', quantityPerBase: 1, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis',
+        normRef: 'NF EN 1008',
+      },
+      {
+        id: 'acier-ha10-chainage', name: 'Acier HA10 chaînages verticaux',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.8, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes', dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'acier-ha6-cadres', name: 'Acier HA6 cadres chaînages',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.25, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Chutes', dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'acier-ha8-chainage-horiz', name: 'Acier HA8 chaînage horizontal',
+        category: 'acier', phase: 'principal', quantityPerBase: 0.6, unit: 'kg', geometryMultiplier: 'height',
+        wasteFactor: 1.10, wasteReason: 'Recouvrements', dtu: 'NF DTU 20.1 §6.4.2',
+      },
+      {
+        id: 'beton-chainage', name: 'Béton chaînage 15×15 cm',
+        category: 'liant', phase: 'principal', quantityPerBase: 0.01, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Perte coulage', dtu: 'NF DTU 20.1 §6.4',
+      },
+      {
+        id: 'linteau-cellulaire', name: 'Linteau béton cellulaire préfa (Ytong Porolith)',
+        category: 'bloc', phase: 'principal', quantityPerBase: 0.7, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.05, wasteReason: 'Coupes appuis',
+        dtu: 'NF DTU 20.1 §6.6', manufacturerRef: 'Xella Ytong Porolith',
+      },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  //  ENDUIT EXTÉRIEUR MULTICOUCHE (NF DTU 26.1) — audit #04.6
+  // ══════════════════════════════════════════════════════════
+
+  {
+    id: 'enduit-ext-multicouche',
+    name: 'Enduit extérieur multicouche traditionnel (gobetis + corps + finition)',
+    description: '3 couches DTU 26.1 : gobetis accrochage + corps + finition. 20-25 mm total.',
+    trade: 'maconnerie',
+    baseUnit: 'm2',
+    geometryMode: 'area',
+    dtuReferences: [
+      { code: 'NF DTU 26.1', title: 'Enduits aux mortiers de liants hydrauliques', section: '§6.3 3 couches' },
+      { code: 'NF EN 998-1', title: 'Mortiers d\'enduits' },
+    ],
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Cycle complet 3 couches DTU 26.1 §6.3 : gobetis 1-5 mm + corps 10-15 mm + finition 3-5 mm',
+      'Délais : gobetis → corps 48h / corps → finition 7 jours',
+      'Grillage armature obligatoire aux jonctions entre matériaux différents',
+      'Cornières d\'angle PVC + treillis à inclure pour tous les angles',
+      'Alternative : enduit monocouche (recette dédiée enduit-ext-monocouche)',
+    ],
+    materials: [
+      // ═══════════ PRÉPARATION ═══════════
+      {
+        id: 'grillage-armature-enduit', name: 'Grillage armature fibre de verre (jonctions)',
+        category: 'fixation', phase: 'preparation', quantityPerBase: 0.15, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Recouvrements + chutes',
+        dtu: 'NF DTU 26.1 §6.4.3',
+        optional: true,
+        condition: 'Obligatoire si mur en multiples matériaux (brique+parpaing, changement support)',
+      },
+      // ═══════════ PRINCIPAL — Couche 1 Gobetis ═══════════
+      {
+        id: 'ciment-gobetis', name: 'Ciment CEM II (gobetis 600 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 12, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Résidus',
+        dtu: 'NF DTU 26.1 §6.3.1',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+        notes: 'Gobetis dosé ciment 600 kg/m³ × épaisseur 20 mm = 12 kg/m².',
+      },
+      {
+        id: 'sable-gobetis', name: 'Sable 0/4 (gobetis)',
+        category: 'granulat', phase: 'principal', quantityPerBase: 0.02, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-gobetis', name: 'Eau gâchage gobetis',
+        category: 'eau', phase: 'principal', quantityPerBase: 3, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis',
+      },
+      // ═══════════ PRINCIPAL — Couche 2 Corps ═══════════
+      {
+        id: 'liant-corps-enduit', name: 'Liant ciment + chaux NHL (corps d\'enduit, 500 kg/m³)',
+        category: 'liant', phase: 'principal', quantityPerBase: 15, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Résidus',
+        dtu: 'NF DTU 26.1 §6.3.2',
+        packaging: { unit: 'sac', contentQty: 35, contentUnit: 'kg', label: 'sac 35 kg' },
+      },
+      {
+        id: 'sable-corps', name: 'Sable 0/4 (corps)',
+        category: 'granulat', phase: 'principal', quantityPerBase: 0.015, unit: 'm3', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Manutention',
+      },
+      {
+        id: 'eau-corps', name: 'Eau gâchage corps',
+        category: 'eau', phase: 'principal', quantityPerBase: 3, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis',
+      },
+      // ═══════════ FINITIONS — Couche 3 ═══════════
+      {
+        id: 'enduit-finition-pigmente', name: 'Mortier finition chaux pigmenté (3-5 mm)',
+        category: 'enduit', phase: 'finitions', quantityPerBase: 5, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Taloche + projections',
+        dtu: 'NF DTU 26.1 §6.3.3',
+        manufacturerRef: 'Weber.monorex / Parex Lanko',
+        packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
+      },
+      {
+        id: 'eau-finition', name: 'Eau gâchage finition',
+        category: 'eau', phase: 'finitions', quantityPerBase: 1, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis',
+      },
+      // ═══════════ ACCESSOIRES ═══════════
+      {
+        id: 'corniere-angle-pvc-enduit', name: 'Cornière d\'angle PVC avec treillis (aux angles)',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 0.2, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Coupes angles',
+        dtu: 'NF DTU 26.1 §6.5',
+        manufacturerRef: 'PAM / Weber',
+        packaging: { unit: 'u', contentQty: 2.5, contentUnit: 'ml', label: 'cornière 2,50 m' },
+        notes: 'Base : 0,2 ml/m² (1 angle tous les 5 m² moyen).',
+      },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  //  ENDUIT EXTÉRIEUR MONOCOUCHE — alternative #04.6
+  // ══════════════════════════════════════════════════════════
+
+  {
+    id: 'enduit-ext-monocouche',
+    name: 'Enduit extérieur monocouche (2 passes en 1 application)',
+    description: 'Enduit prêt à l\'emploi pâteux ou hydraulique. Mise en œuvre rapide 2 passes. Format fabricant.',
+    trade: 'maconnerie',
+    baseUnit: 'm2',
+    geometryMode: 'area',
+    dtuReferences: [
+      { code: 'NF DTU 26.1', title: 'Enduits aux mortiers' },
+      { code: 'Cahier CSTB 3678', title: 'Enduits monocouches' },
+      { code: 'NF EN 998-1', title: 'Mortiers d\'enduits' },
+    ],
+    version: '2.1.0',
+    hypothesesACommuniquer: [
+      'Enduit monocouche dosé 25 kg/m² pour 15-18 mm d\'épaisseur',
+      'Fabricant : Weber.monorex / Parex Lanko / PRB (prêt à l\'emploi)',
+      'Mise en œuvre en 2 passes rapprochées (pas 3 couches)',
+      'Humidification support obligatoire avant application',
+      'Cornières d\'angle + profils de départ + grillage armature inclus',
+      'Alternative à l\'enduit multicouche traditionnel (plus rapide mais moins durable)',
+    ],
+    materials: [
+      {
+        id: 'enduit-monocouche', name: 'Enduit monocouche prêt à l\'emploi (15-18 mm)',
+        category: 'enduit', phase: 'principal', quantityPerBase: 25, unit: 'kg', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Projection + taloche',
+        dtu: 'Cahier CSTB 3678', normRef: 'NF EN 998-1',
+        manufacturerRef: 'Weber.monorex / Parex Lanko / PRB',
+        packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
+      },
+      {
+        id: 'eau-enduit-mono', name: 'Eau gâchage enduit',
+        category: 'eau', phase: 'principal', quantityPerBase: 4, unit: 'L', geometryMultiplier: 'none',
+        wasteFactor: 1.00, wasteReason: 'Dosage précis',
+      },
+      {
+        id: 'corniere-angle-pvc-enduit', name: 'Cornière d\'angle PVC (angles + rives)',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 0.2, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Coupes angles', dtu: 'NF DTU 26.1 §6.5',
+      },
+      {
+        id: 'profil-depart-enduit', name: 'Profilé de départ alu (bas de façade)',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 0.3, unit: 'ml', geometryMultiplier: 'none',
+        wasteFactor: 1.10, wasteReason: 'Coupes',
+        notes: 'Base : estimation 0,3 ml/m² (~1 ml de départ tous les 3 m² de façade).',
+      },
+      {
+        id: 'grillage-armature-enduit', name: 'Grillage armature fibre de verre',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 0.15, unit: 'm2', geometryMultiplier: 'none',
+        wasteFactor: 1.15, wasteReason: 'Recouvrements', dtu: 'NF DTU 26.1 §6.4.3',
+        optional: true,
+        condition: 'Obligatoire si mur en multiples matériaux',
       },
     ],
   },
