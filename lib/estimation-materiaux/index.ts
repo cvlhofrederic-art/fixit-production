@@ -35,4 +35,9 @@ export {
   vrdRecipes,
   assainissementRecipes,
   electriciteCfaRecipes,
+  voirieExterieureRecipes,
+  cloturesPortailsRecipes,
+  terrasseExterieureRecipes,
+  jardinRecipes,
+  piscineRecipes,
 } from './recipes'

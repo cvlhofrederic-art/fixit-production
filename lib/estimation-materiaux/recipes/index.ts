@@ -22,6 +22,11 @@ import { climatisationRecipes } from './climatisation';
 import { vrdRecipes } from './vrd';
 import { assainissementRecipes } from './assainissement';
 import { electriciteCfaRecipes } from './electricite-cfa';
+import { voirieExterieureRecipes } from './voirie-exterieure';
+import { cloturesPortailsRecipes } from './clotures-portails';
+import { terrasseExterieureRecipes } from './terrasse-exterieure';
+import { jardinRecipes } from './jardin';
+import { piscineRecipes } from './piscine';
 
 export const allRecipes: Recipe[] = [
   ...maconnerieRecipes,
@@ -47,6 +52,11 @@ export const allRecipes: Recipe[] = [
   ...vrdRecipes,
   ...assainissementRecipes,
   ...electriciteCfaRecipes,
+  ...voirieExterieureRecipes,
+  ...cloturesPortailsRecipes,
+  ...terrasseExterieureRecipes,
+  ...jardinRecipes,
+  ...piscineRecipes,
 ];
 
 export const recipeRegistry: Record<string, Recipe> = allRecipes.reduce(
@@ -92,4 +102,9 @@ export {
   vrdRecipes,
   assainissementRecipes,
   electriciteCfaRecipes,
+  voirieExterieureRecipes,
+  cloturesPortailsRecipes,
+  terrasseExterieureRecipes,
+  jardinRecipes,
+  piscineRecipes,
 };
