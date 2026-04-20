@@ -35,10 +35,10 @@ export const cloturesPortailsRecipes: Recipe[] = [
     materials: [
       {
         id: 'panneau-grillage-rigide', name: 'Panneau grillage rigide soudé 2,50 m',
-        category: 'plaque', phase: 'principal', quantityPerBase: 0.42, unit: 'm2', geometryMultiplier: 'height',
-        wasteFactor: 1.05, wasteReason: 'Pertes',
+        category: 'plaque', phase: 'principal', quantityPerBase: 1, unit: 'm2', geometryMultiplier: 'height',
+        wasteFactor: 1.05, wasteReason: 'Pertes coupes aux angles',
         manufacturerRef: 'Dirickx / Betafence',
-        notes: '1 m² panneau par ml × hauteur (géométrie multipliée par hauteur).',
+        notes: 'Fix audit : 1 m² panneau par ml × hauteur (v1 avait 0,42 = sous-estimation 58%).',
       },
       {
         id: 'poteau-acier-galva', name: 'Poteaux acier galvanisé (entraxe 2,50 m)',

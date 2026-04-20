@@ -37,11 +37,12 @@ export const facadeBardageRecipes: Recipe[] = [
     materials: [
       {
         id: 'enduit-monocouche', name: 'Enduit monocouche prêt à l\'emploi',
-        category: 'enduit', phase: 'principal', quantityPerBase: 25, unit: 'kg', geometryMultiplier: 'none',
+        category: 'enduit', phase: 'principal', quantityPerBase: 22, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Projection + taloche',
         dtu: 'Cahier CSTB 3678',
-        manufacturerRef: 'Weber.monorex / Parex Lanko / PRB',
+        manufacturerRef: 'Weber.monorex / Parex Lanko / PRB — 1,3-1,4 kg/m²/mm × 15-17 mm = ~22 kg/m²',
         packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'sac 25 kg' },
+        notes: 'Fix audit : 22 kg/m² pour ép. 15-17 mm moyenne (v1 25 kg/m² valait pour 18 mm, surestime 12%).',
       },
       {
         id: 'eau-enduit-facade', name: 'Eau de gâchage',

@@ -63,9 +63,10 @@ export const revetementsMurauxRecipes: Recipe[] = [
       },
       {
         id: 'colle-papier-peint', name: 'Colle papier peint (sachet)',
-        category: 'colle', phase: 'principal', quantityPerBase: 0.1, unit: 'kg', geometryMultiplier: 'none',
+        category: 'colle', phase: 'principal', quantityPerBase: 0.012, unit: 'kg', geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Sur-dosage',
         packaging: { unit: 'sac', contentQty: 0.3, contentUnit: 'kg', label: 'sachet 300 g (25 m²)' },
+        notes: 'Fix audit : fabricant 1 sachet 300 g pour 25 m² = 12 g/m² = 0,012 kg/m² (v1 bug 0,1 kg/m² = 8× trop).',
       },
       // ═══ ACCESSOIRES ═══
       {

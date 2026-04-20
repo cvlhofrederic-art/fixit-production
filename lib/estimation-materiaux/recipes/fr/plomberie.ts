@@ -98,8 +98,9 @@ export const plomberieRecipes: Recipe[] = [
       },
       {
         id: 'collier-per', name: 'Collier de fixation tube PER (tous les 50 cm)',
-        category: 'fixation', phase: 'accessoires', quantityPerBase: 16, unit: 'u', geometryMultiplier: 'none',
+        category: 'fixation', phase: 'accessoires', quantityPerBase: 26, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Perte chantier',
+        notes: 'Fix audit : 26 u/point = 13 ml gaine ICTA bi-tube EF+ECS / 0,5 m pas DTU 60.1 (v1 16 u sous-estimait 40%).',
       },
       {
         id: 'gaine-fourreau-passage', name: 'Gaine fourreau protection passage mur',
