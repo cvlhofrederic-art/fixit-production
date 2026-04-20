@@ -57,7 +57,7 @@ export default function HorairesSection({
         .h-tgl input { opacity: 0; width: 0; height: 0; position: absolute; }
         .h-tgl .sl { position: absolute; inset: 0; background: #E0E0E0; border-radius: 10px; transition: .3s; }
         .h-tgl .sl::before { content: ''; position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; left: 2px; bottom: 2px; transition: .3s; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
-        .h-tgl input:checked + .sl { background: #F57C00; }
+        .h-tgl input:checked + .sl { background: ${tv.primary}; }
         .h-tgl input:checked + .sl::before { left: 18px; }
         .h-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid ${tv.border}; border-radius: 8px; background: #fff; }
         .h-row + .h-row { margin-top: 8px; }
