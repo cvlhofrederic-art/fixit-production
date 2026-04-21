@@ -34,11 +34,12 @@ type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnair
 // Identifie un document unique
 // 1) id (Date.now() par save) — nouveaux docs
 // 2) savedAt (ISO timestamp unique par save) — anciens docs sans id
-// 3) docNumber non-vide — dernier recours
+// Pas de fallback par docNumber : plusieurs docs peuvent partager un numéro
+// (brouillon + doublons historiques) — utiliser docNumber ferait tout supprimer.
 const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
   if (a.id && b.id) return a.id === b.id
   if (a.savedAt && b.savedAt) return a.savedAt === b.savedAt
-  return !!a.docNumber && a.docNumber === b.docNumber
+  return false
 }
 
 // Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".

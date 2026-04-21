@@ -376,6 +376,9 @@ export default function DevisFactureForm({
   const initialDocNumber = (initialData?.docNumber && initialData?.docType === initialDocType) ? initialData.docNumber : ''
   const [docNumber, setDocNumber] = useState(initialDocNumber)
   const docNumberRef = useRef(initialDocNumber)
+  // Stable id across all saves of this form session : garantit que brouillon et
+  // document final partagent le même id (évite les doublons en liste).
+  const docIdRef = useRef<string>((initialData as { id?: string })?.id || Date.now().toString())
 
   // Fetch next sequential number from server (atomic DB sequence)
   // 3 niveaux de fallback : API HTTP → RPC Supabase direct → compteur localStorage
@@ -1560,6 +1563,14 @@ export default function DevisFactureForm({
       if (existingIdx >= 0) docs[existingIdx] = docEntry
       else docs.push(docEntry)
       localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
+      // Retire le brouillon correspondant (mêmes id ou docNumber) pour éviter les doublons
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const cleanedDrafts = drafts.filter((d: Record<string, unknown>) => {
+        if (d.id && data.id && d.id === data.id) return false
+        if (d.docNumber && data.docNumber && d.docNumber === data.docNumber) return false
+        return true
+      })
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(cleanedDrafts))
       onSave?.(data)
     }
     setShowSendModal(null)
@@ -1689,7 +1700,7 @@ export default function DevisFactureForm({
   }
 
   const buildData = (): DevisFactureData => ({
-    id: (initialData as { id?: string })?.id || Date.now().toString(),
+    id: docIdRef.current,
     docType,
     docNumber: docNumberRef.current || docNumber,
     docTitle,
