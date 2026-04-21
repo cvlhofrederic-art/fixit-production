@@ -256,6 +256,9 @@ export default function DevisFactureFormBTP({
       const last = [...docs, ...drafts].find((d: { insuranceType?: string }) => d.insuranceType)
       if (last?.insuranceType) return last.insuranceType as 'rc_pro' | 'decennale' | 'both'
     } catch { /* ignore */ }
+    if ((artisan as { insurance_type?: string })?.insurance_type) {
+      return (artisan as { insurance_type: 'rc_pro' | 'decennale' | 'both' }).insurance_type
+    }
     return 'rc_pro'
   })
   const [insuranceName, setInsuranceName] = useState(() => {
@@ -266,7 +269,7 @@ export default function DevisFactureFormBTP({
       const last = [...docs, ...drafts].find((d: { insuranceName?: string }) => d.insuranceName)
       if (last?.insuranceName) return last.insuranceName
     } catch { /* ignore */ }
-    return ''
+    return (artisan as { insurance_name?: string })?.insurance_name || ''
   })
   const [insuranceNumber, setInsuranceNumber] = useState(() => {
     if (initialData?.insuranceNumber) return initialData.insuranceNumber
@@ -276,7 +279,7 @@ export default function DevisFactureFormBTP({
       const last = [...docs, ...drafts].find((d: { insuranceNumber?: string }) => d.insuranceNumber)
       if (last?.insuranceNumber) return last.insuranceNumber
     } catch { /* ignore */ }
-    return ''
+    return (artisan as { insurance_number?: string })?.insurance_number || ''
   })
   const [insuranceCoverage, setInsuranceCoverage] = useState(() => {
     if (initialData?.insuranceCoverage) return initialData.insuranceCoverage
@@ -286,7 +289,7 @@ export default function DevisFactureFormBTP({
       const last = [...docs, ...drafts].find((d: { insuranceCoverage?: string }) => d.insuranceCoverage)
       if (last?.insuranceCoverage) return last.insuranceCoverage
     } catch { /* ignore */ }
-    return 'France métropolitaine'
+    return (artisan as { insurance_coverage?: string })?.insurance_coverage || 'France métropolitaine'
   })
   const [mediatorName, setMediatorName] = useState(() => {
     if (initialData?.mediatorName) return initialData.mediatorName
