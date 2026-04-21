@@ -19,14 +19,7 @@ interface Chantier {
   alertes: string[]; timeline: TimelineEntry[]
 }
 
-const MOCK_CHANTIERS: Chantier[] = [
-  { id:'CH-031', titre:'Étanchéité terrasse Bât. A', client:'Foncia Gestion', adresse:'45 bd Haussmann, Paris 9e', statut:'encours', dateDebut:'15/03/2026', dateFin:'25/03/2026', montant:5400, devis:'DEV-039', facture:null, rapport:'RP-031', photos:3, notes:'Accès difficile côté nord.', alertes:['facture_manquante'], timeline:[{date:'15/03/2026',label:'Démarrage chantier',type:'green'},{date:'19/03/2026',label:'Diagnostic réalisé',type:'green'},{date:'25/03/2026',label:'Finalisation prévue',type:'gray'}] },
-  { id:'CH-027', titre:'Peinture appartement 85m²', client:'SCI Les Tilleuls', adresse:'12 rue des Acacias, Vincennes', statut:'encours', dateDebut:'17/03/2026', dateFin:'22/03/2026', montant:7440, devis:'DEV-039', facture:'FAC-018', rapport:null, photos:5, notes:'', alertes:['rapport_manquant'], timeline:[{date:'17/03/2026',label:'Préparation sols',type:'green'},{date:'18/03/2026',label:'Sous-couche',type:'green'},{date:'22/03/2026',label:'Finition',type:'gray'}] },
-  { id:'CH-025', titre:'Rénovation sanitaires école', client:'Mairie de Ségur', adresse:'3 rue Voltaire, Montreuil', statut:'avenir', dateDebut:'28/03/2026', dateFin:'05/04/2026', montant:18000, devis:'DEV-041', facture:null, rapport:null, photos:0, notes:'', alertes:[], timeline:[{date:'28/03/2026',label:'Démarrage prévu',type:'gray'}] },
-  { id:'CH-022', titre:'Tableau électrique NF C15-100', client:'Thomas Mercier', adresse:'24 rue du Temple, Montreuil', statut:'cloture', dateDebut:'10/03/2026', dateFin:'10/03/2026', montant:2520, devis:'DEV-033', facture:'FAC-016', rapport:'RP-022', photos:4, notes:'Client satisfait.', alertes:[], timeline:[{date:'10/03/2026',label:'Intervention',type:'green'},{date:'12/03/2026',label:'Facture envoyée',type:'green'},{date:'15/03/2026',label:'Paiement reçu',type:'green'}] },
-  { id:'CH-019', titre:'Pose carrelage cuisine', client:'Nadia Rousseau', adresse:'6 impasse des Lilas, Bagnolet', statut:'cloture', dateDebut:'12/03/2026', dateFin:'13/03/2026', montant:1740, devis:'DEV-033', facture:'FAC-016', rapport:'RP-025', photos:6, notes:'', alertes:[], timeline:[{date:'12/03/2026',label:'Dépose',type:'green'},{date:'13/03/2026',label:'Pose + joints',type:'green'}] },
-  { id:'CH-015', titre:'Diagnostic fuite robinet', client:'Marie Fontaine', adresse:'5 rue des Lilas, Paris 11e', statut:'cloture', dateDebut:'08/03/2026', dateFin:'08/03/2026', montant:384, devis:'DEV-035', facture:'FAC-014', rapport:null, photos:2, notes:'Joint remplacé.', alertes:['facture_impayee','rapport_manquant'], timeline:[{date:'08/03/2026',label:'Intervention',type:'green'},{date:'19/03/2026',label:'Facture impayée',type:'red'}] },
-]
+const MOCK_CHANTIERS: Chantier[] = []
 
 const TABS: { key: Statut; label: string }[] = [
   { key: 'tous', label: 'Tous' },

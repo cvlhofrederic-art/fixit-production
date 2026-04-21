@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslation } from '@/lib/i18n/context'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 import { useThemeVars } from './useThemeVars'
 import type { Service } from '@/lib/types'
@@ -22,7 +22,7 @@ interface MotifsSectionProps {
   savingMotif: boolean
   openNewMotif: () => void
   openEditMotif: (service: Service) => void
-  saveMotif: () => void
+  saveMotif: () => void | Promise<Service | null>
   toggleMotifActive: (serviceId: string, currentActive: boolean) => void | Promise<void>
   deleteMotif: (serviceId: string) => void | Promise<void>
   getPriceRangeLabel: (service: Service) => string
@@ -37,13 +37,74 @@ export default function MotifsSection({
   getPriceRangeLabel, getPricingUnit, getCleanDescription, orgRole,
 }: MotifsSectionProps) {
   const { t } = useTranslation()
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const [localEtapes, setLocalEtapes] = useState<string[]>([])
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [savingWithEtapes, setSavingWithEtapes] = useState(false)
-  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const isV5 = isSociete
+  const isArtisan = orgRole === 'artisan'
+  const isBtpSociete = orgRole === 'pro_societe'
+  const isV5 = isBtpSociete || isArtisan
   const tv = useThemeVars(isV5)
+
+  // Libellés côté artisan : "Prestations" (FR) / "Prestações" (PT)
+  const L = {
+    title: isBtpSociete
+      ? '🏗️ Lots & Prestations BTP'
+      : isArtisan
+        ? (isPt ? '🛠️ Prestações' : '🛠️ Prestations')
+        : `🔧 ${t('proDash.motifs.title')}`,
+    subtitle: isBtpSociete
+      ? 'Définissez vos lots de travaux, postes de devis et prix unitaires'
+      : isArtisan
+        ? (isPt ? 'Configure as suas prestações, preços e duração' : 'Configurez vos prestations, prix et durées')
+        : t('proDash.motifs.subtitle'),
+    newBtn: isBtpSociete
+      ? '+ Nouveau lot'
+      : isArtisan
+        ? (isPt ? '+ Nova prestação' : '+ Nouvelle prestation')
+        : t('proDash.motifs.nouveauMotif'),
+    tip: isBtpSociete
+      ? { title: '💡 Conseil BTP', body: 'Créez un lot par type de prestation (Maçonnerie, Charpente, Électricité…) avec prix unitaire ou forfait. Ces lots alimenteront vos devis et situations de travaux.' }
+      : isArtisan
+        ? (isPt
+            ? { title: '💡 Dica', body: 'Crie uma prestação por tipo de serviço (encanamento, elétrica, pintura…) com preço e duração. Estas prestações alimentarão as reservas dos seus clientes.' }
+            : { title: '💡 Astuce', body: 'Créez une prestation par type de service (plomberie, électricité, peinture…) avec un prix et une durée. Ces prestations alimenteront les réservations de vos clients.' })
+        : { title: `💡 ${t('proDash.motifs.astuce')}`, body: t('proDash.motifs.astuceTexte') },
+    emptyTitle: isBtpSociete
+      ? 'Aucun lot défini'
+      : isArtisan
+        ? (isPt ? 'Nenhuma prestação configurada' : 'Aucune prestation configurée')
+        : t('proDash.motifs.aucunMotif'),
+    emptyBody: isBtpSociete
+      ? 'Créez vos premiers lots de travaux pour les intégrer dans vos devis BTP'
+      : isArtisan
+        ? (isPt ? 'Crie a sua primeira prestação para que os seus clientes possam reservar' : 'Créez votre première prestation pour que vos clients puissent réserver')
+        : t('proDash.motifs.aucunMotifDesc'),
+    createBtn: isBtpSociete
+      ? '+ Créer un lot'
+      : isArtisan
+        ? (isPt ? '+ Criar uma prestação' : '+ Créer une prestation')
+        : t('proDash.motifs.creerMotif'),
+    modalEdit: isBtpSociete
+      ? 'Modifier le lot'
+      : isArtisan
+        ? (isPt ? 'Modificar a prestação' : 'Modifier la prestation')
+        : t('proDash.motifs.modifierMotif'),
+    modalNew: isBtpSociete
+      ? '🏗️ Nouveau lot BTP'
+      : isArtisan
+        ? (isPt ? '🛠️ Nova prestação' : '🛠️ Nouvelle prestation')
+        : `🔧 ${t('proDash.motifs.nouveauMotifTitle')}`,
+    namePlaceholder: isBtpSociete
+      ? 'Ex: Maçonnerie, Charpente bois, Électricité CFO…'
+      : isArtisan
+        ? (isPt ? 'Ex: Reparação de torneira, Pintura, Limpeza…' : 'Ex: Dépannage plomberie, Peinture, Nettoyage…')
+        : t('proDash.motifs.nomMotifPlaceholder'),
+    rowIcon: isBtpSociete ? '🏗️' : isArtisan ? '🛠️' : '🌿',
+    emptyIcon: isBtpSociete ? '🏗️' : isArtisan ? '🛠️' : '🔧',
+  }
 
   // Reset local étapes when modal opens/closes
   const origOpenNewMotif = openNewMotif
@@ -54,28 +115,18 @@ export default function MotifsSection({
       {/* Page header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className={isV5 ? '' : 'v22-page-title'}>
-            {isSociete ? '🏗️ Lots & Prestations BTP' : `${'🔧'} ${t('proDash.motifs.title')}`}
-          </h1>
-          <p className={isV5 ? '' : 'v22-page-sub'}>
-            {isSociete
-              ? 'Définissez vos lots de travaux, postes de devis et prix unitaires'
-              : t('proDash.motifs.subtitle')}
-          </p>
+          <h1 className={isV5 ? '' : 'v22-page-title'}>{L.title}</h1>
+          <p className={isV5 ? '' : 'v22-page-sub'}>{L.subtitle}</p>
         </div>
         <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
-          {isSociete ? '+ Nouveau lot' : t('proDash.motifs.nouveauMotif')}
+          {L.newBtn}
         </button>
       </div>
 
       {/* Info box - amber alert */}
       <div className={isV5 ? 'v5-al v5-al-amber' : 'v22-alert v22-alert-amber'} style={{ marginBottom: 16, cursor: 'default' }}>
         <span style={{ fontSize: 12 }}>
-          {isSociete ? (
-            <><strong>{'💡'} Conseil BTP</strong> Créez un lot par type de prestation (Maçonnerie, Charpente, Électricité…) avec prix unitaire ou forfait. Ces lots alimenteront vos devis et situations de travaux.</>
-          ) : (
-            <><strong>{'💡'} {t('proDash.motifs.astuce')}</strong> {t('proDash.motifs.astuceTexte')}</>
-          )}
+          <strong>{L.tip.title}</strong> {L.tip.body}
         </span>
       </div>
 
@@ -97,7 +148,7 @@ export default function MotifsSection({
             {services.map((service) => (
               <tr key={service.id}>
                 <td>
-                  <div style={{ fontWeight: 500 }}>{isSociete ? '🏗️' : '🌿'} {service.name}</div>
+                  <div style={{ fontWeight: 500 }}>{L.rowIcon} {service.name}</div>
                   {getCleanDescription(service) && (
                     <div className="v22-ref" style={{ marginTop: 2 }}>{getCleanDescription(service)}</div>
                   )}
@@ -152,17 +203,11 @@ export default function MotifsSection({
             {services.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '40px 14px' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{isSociete ? '🏗️' : '🔧'}</div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                    {isSociete ? 'Aucun lot défini' : t('proDash.motifs.aucunMotif')}
-                  </div>
-                  <div className="v22-ref" style={{ marginBottom: 12 }}>
-                    {isSociete
-                      ? 'Créez vos premiers lots de travaux pour les intégrer dans vos devis BTP'
-                      : t('proDash.motifs.aucunMotifDesc')}
-                  </div>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{L.emptyIcon}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{L.emptyTitle}</div>
+                  <div className="v22-ref" style={{ marginBottom: 12 }}>{L.emptyBody}</div>
                   <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
-                    {isSociete ? '+ Créer un lot' : t('proDash.motifs.creerMotif')}
+                    {L.createBtn}
                   </button>
                 </td>
               </tr>
@@ -177,9 +222,7 @@ export default function MotifsSection({
           <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
               <span className={isV5 ? 'v5-modal-t' : ''} style={{ fontWeight: 600, fontSize: 14 }}>
-                {editingMotif
-                  ? `✏️ ${isSociete ? 'Modifier le lot' : t('proDash.motifs.modifierMotif')}`
-                  : isSociete ? '🏗️ Nouveau lot BTP' : `🔧 ${t('proDash.motifs.nouveauMotifTitle')}`}
+                {editingMotif ? `✏️ ${L.modalEdit}` : L.modalNew}
               </span>
               <button onClick={() => setShowMotifModal(false)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>✕</button>
             </div>
@@ -189,7 +232,7 @@ export default function MotifsSection({
                 <div className={isV5 ? 'v5-fg' : ''}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.nomMotif')} *</label>
                   <input type="text" value={motifForm.name} onChange={(e) => setMotifForm({...motifForm, name: e.target.value})}
-                    placeholder={isSociete ? 'Ex: Maçonnerie, Charpente bois, Électricité CFO…' : t('proDash.motifs.nomMotifPlaceholder')}
+                    placeholder={L.namePlaceholder}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
 
@@ -272,7 +315,7 @@ export default function MotifsSection({
                       { value: 'kg', label: `⚖️ ${t('proDash.motifs.kg')}`, desc: t('proDash.motifs.kgDesc') },
                       { value: 'tonne', label: `♻️ ${t('proDash.motifs.tonne')}`, desc: t('proDash.motifs.tonneDesc') },
                       { value: 'lot', label: `📦 ${t('proDash.motifs.lot')}`, desc: t('proDash.motifs.lotDesc') },
-                      ...(isSociete ? [
+                      ...(isBtpSociete ? [
                         { value: 'jour', label: '📅 Journée', desc: 'Prix à la journée de travail (MO)' },
                         { value: 'semaine', label: '🗓️ Semaine', desc: 'Prix à la semaine (chantier)' },
                       ] : []),
@@ -385,17 +428,13 @@ export default function MotifsSection({
                 setSavingWithEtapes(true)
                 try {
                   const etapesToSave = !editingMotif ? localEtapes.filter(e => e.trim()) : []
-                  await saveMotif()
-                  // Nouveau motif avec étapes → insérer après sauvegarde
-                  if (etapesToSave.length > 0) {
+                  const saved = await saveMotif()
+                  // Nouveau motif avec étapes → insérer après sauvegarde (si l'ID est retourné)
+                  if (etapesToSave.length > 0 && saved && 'id' in saved && saved.id) {
                     try {
-                      const { supabase } = await import('@/lib/supabase')
-                      const { data: found } = await supabase.from('services').select('id').eq('name', motifForm.name).order('created_at', { ascending: false }).limit(1)
-                      if (found?.[0]) {
-                        for (let i = 0; i < etapesToSave.length; i++) {
-                          await fetch('/api/service-etapes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ service_id: found[0].id, designation: etapesToSave[i], ordre: i + 1 }) })
-                        }
+                      for (let i = 0; i < etapesToSave.length; i++) {
+                        await fetch('/api/service-etapes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ service_id: saved.id, designation: etapesToSave[i], ordre: i + 1 }) })
                       }
                     } catch { /* non-bloquant */ }
                     setLocalEtapes([])
