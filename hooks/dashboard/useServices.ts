@@ -117,7 +117,12 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
         throw new Error('Aucune donnée retournée')
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
+      // Supabase PostgrestError n'est pas un Error standard mais expose message/code/details/hint
+      const e = err as { message?: string; code?: string; details?: string; hint?: string } | null
+      const parts = [e?.message, e?.details, e?.hint, e?.code].filter(Boolean)
+      const msg = parts.length > 0 ? parts.join(' — ') : 'Erreur inconnue'
+      // eslint-disable-next-line no-console
+      console.error('[saveMotif] erreur sauvegarde service:', err)
       toast.error(`Échec de la sauvegarde : ${msg}`)
       return null
     } finally {
