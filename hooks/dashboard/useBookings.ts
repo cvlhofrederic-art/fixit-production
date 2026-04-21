@@ -186,7 +186,17 @@ export function useBookings(
   }, [services, isPt])
 
   const convertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
-    setConvertingDevis(devis)
+    const {
+      id: _id,
+      docNumber: _dn,
+      docType: _dt,
+      status: _st,
+      savedAt: _sa,
+      sentAt: _se,
+      signatureData: _sig,
+      ...rest
+    } = devis as Record<string, unknown>
+    setConvertingDevis({ ...rest, docType: 'facture' })
     setShowFactureForm(true)
   }, [])
 
