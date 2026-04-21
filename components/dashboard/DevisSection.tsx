@@ -95,6 +95,7 @@ export default function DevisSection({
         initialData={convertingDevis as any}
         onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
         onSave={() => { setConvertingDevis(null); refreshDocuments() }}
+        onConvertToFacture={(data) => { convertDevisToFacture(data as unknown as DevisDocument) }}
       />
     )
   }

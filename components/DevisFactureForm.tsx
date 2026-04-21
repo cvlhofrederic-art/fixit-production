@@ -47,6 +47,7 @@ export default function DevisFactureForm({
   initialData,
   onBack,
   onSave,
+  onConvertToFacture,
 }: DevisFactureFormProps) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -1140,6 +1141,21 @@ export default function DevisFactureForm({
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
     setSavedMsg(`💾 ${t('devis.draftSaved')}`)
     setTimeout(() => setSavedMsg(''), 3000)
+    onSave?.(draftEntry as DevisFactureData)
+  }
+
+  const handleConvertToFacture = async () => {
+    if (!onConvertToFacture) return
+    if (!docNumberRef.current) await fetchDocNumber().catch(() => {})
+    const data = buildData()
+    // Persiste d'abord le devis courant (brouillon) pour ne rien perdre
+    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+    const existingIdx = drafts.findIndex((d: Record<string, unknown>) => d.id && d.id === data.id)
+    const draftEntry = { ...data, savedAt: new Date().toISOString(), status: 'brouillon' }
+    if (existingIdx >= 0) drafts[existingIdx] = draftEntry
+    else drafts.push(draftEntry)
+    localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
+    onConvertToFacture(draftEntry as DevisFactureData)
   }
 
   // ─── Shared V2 input builder helper ───
@@ -3617,6 +3633,15 @@ export default function DevisFactureForm({
                 >
                   {t('devis.validateAndSend')}
                 </button>
+                {docType === 'devis' && onConvertToFacture && (
+                  <button
+                    onClick={handleConvertToFacture}
+                    className="v22-btn"
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', border: '1px solid #c7a300', color: '#8a6d00', background: '#fff8db' }}
+                  >
+                    🧾 {locale === 'pt' ? 'Faturar' : 'Facturer'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
