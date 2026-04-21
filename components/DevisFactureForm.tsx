@@ -3645,15 +3645,6 @@ export default function DevisFactureForm({
                 >
                   {t('devis.validateAndSend')}
                 </button>
-                {docType === 'devis' && onConvertToFacture && (
-                  <button
-                    onClick={handleConvertToFacture}
-                    className="v22-btn"
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', border: '1px solid #c7a300', color: '#8a6d00', background: '#fff8db' }}
-                  >
-                    🧾 {locale === 'pt' ? 'Faturar' : 'Facturer'}
-                  </button>
-                )}
               </div>
             </div>
           </div>
