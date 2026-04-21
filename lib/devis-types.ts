@@ -217,4 +217,5 @@ export interface DevisFactureFormProps {
   initialData?: Partial<DevisFactureData>
   onBack: () => void
   onSave?: (data: DevisFactureData) => void
+  onConvertToFacture?: (data: DevisFactureData) => void
 }
