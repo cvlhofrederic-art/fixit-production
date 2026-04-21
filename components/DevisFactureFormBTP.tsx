@@ -1710,7 +1710,7 @@ export default function DevisFactureFormBTP({
                           </div>
                         )}
                       </td>
-                      <td><input type="number" min={0} step={1} placeholder="0" value={l.qty || ''} onChange={(e) => updateLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
@@ -1808,7 +1808,7 @@ export default function DevisFactureFormBTP({
                           )}
                         </div>
                       </td>
-                      <td><input type="number" min={0} step={1} placeholder="0" value={l.qty || ''} onChange={(e) => updateMaterialLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateMaterialLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateMaterialLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}

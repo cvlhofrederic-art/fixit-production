@@ -2608,19 +2608,20 @@ export default function DevisFactureForm({
                           <td style={{ verticalAlign: 'top' }}>
                             <input
                               type="number"
+                              inputMode="decimal"
+                              step="0.01"
                               value={line.qty === 0 ? '' : line.qty}
                               onChange={(e) => {
-                                const v = e.target.value
-                                // Accepter la saisie brute (y compris vide temporairement)
-                                updateLine(line.id, 'qty', v === '' ? 0 : parseInt(v) || 0)
+                                const v = e.target.value.replace(',', '.')
+                                updateLine(line.id, 'qty', v === '' ? 0 : parseFloat(v) || 0)
                               }}
                               onFocus={(e) => e.target.select()}
                               onBlur={(e) => {
-                                // Au blur, forcer minimum 1
-                                const v = parseInt(e.target.value)
-                                if (!v || v < 1) updateLine(line.id, 'qty', 1)
+                                // Au blur, forcer minimum > 0 (accepte décimales)
+                                const v = parseFloat(e.target.value.replace(',', '.'))
+                                if (!v || v <= 0) updateLine(line.id, 'qty', 1)
                               }}
-                              min={1}
+                              min={0}
                               className="v22-form-input"
                               style={{ textAlign: 'center' }}
                             />
