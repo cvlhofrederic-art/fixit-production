@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { parseServiceRange } from '@/lib/service-utils'
+import { parseServiceRange, parseServiceScope, type ServiceScope } from '@/lib/service-utils'
 import type { Service } from '@/lib/types'
 
 interface MotifForm {
@@ -15,11 +15,13 @@ interface MotifForm {
   pricing_unit: string
   validation_auto: boolean
   delai_minimum_heures: number
+  scope: ServiceScope // 'mo' = main d'œuvre (public) / 'mat' = matériau (interne)
 }
 
 const EMPTY_MOTIF_FORM: MotifForm = {
   name: '', description: '', duration_minutes: '', price_min: '', price_max: '',
   pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0,
+  scope: 'mo',
 }
 
 export function useServices(artisanId: string | undefined, t: (key: string) => string) {
@@ -29,9 +31,9 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
   const [motifForm, setMotifForm] = useState<MotifForm>(EMPTY_MOTIF_FORM)
   const [savingMotif, setSavingMotif] = useState(false)
 
-  const openNewMotif = useCallback(() => {
+  const openNewMotif = useCallback((scope: ServiceScope = 'mo') => {
     setEditingMotif(null)
-    setMotifForm(EMPTY_MOTIF_FORM)
+    setMotifForm({ ...EMPTY_MOTIF_FORM, scope })
     setShowMotifModal(true)
   }, [])
 
@@ -40,6 +42,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
     const cleanDesc = (service.description || '')
       .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
       .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+      .replace(/\s*\[scope:(mo|mat)\]\s*/g, '')
       .trim()
     setEditingMotif(service)
     setMotifForm({
@@ -51,6 +54,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       pricing_unit: unit,
       validation_auto: service.validation_auto || false,
       delai_minimum_heures: service.delai_minimum_heures || 0,
+      scope: parseServiceScope(service),
     })
     setShowMotifModal(true)
   }, [])
@@ -70,9 +74,14 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
       const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
       const durationMins = motifForm.duration_minutes === '' ? null : Number(motifForm.duration_minutes)
+      const scope: ServiceScope = motifForm.scope === 'mat' ? 'mat' : 'mo'
       const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
-      const description = `${motifForm.description || ''} ${rangeTag}`.trim()
+      const scopeTag = `[scope:${scope}]`
+      const description = `${motifForm.description || ''} ${rangeTag} ${scopeTag}`.trim()
 
+      // Les matériaux (scope='mat') sont persistés en DB mais `active=false` pour qu'ils
+      // ne soient JAMAIS exposés via la policy services_public_read (active=true). L'artisan
+      // les voit via services_owner_read. Idem logique BTP pro mais sans localStorage éphémère.
       const payload = {
         artisan_id: artisanId,
         name: motifForm.name.trim(),
@@ -80,17 +89,18 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
         duration_minutes: durationMins,
         price_ht: priceMin,
         price_ttc: priceMax,
-        active: true,
+        active: scope === 'mat' ? false : true,
         validation_auto: motifForm.validation_auto,
         delai_minimum_heures: motifForm.delai_minimum_heures,
       }
 
+      const label = scope === 'mat' ? 'Matériau' : 'Prestation'
       if (editingMotif) {
         const { data, error } = await supabase.from('services').update(payload).eq('id', editingMotif.id).select().single()
         if (error) throw error
         if (data) {
           setServices(prev => prev.map(s => s.id === editingMotif.id ? data : s))
-          toast.success('Prestation modifiée')
+          toast.success(`${label} modifié${scope === 'mat' ? '' : 'e'}`)
           setShowMotifModal(false)
           return data as Service
         }
@@ -100,7 +110,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
         if (error) throw error
         if (data) {
           setServices(prev => [...prev, data])
-          toast.success('Prestation créée')
+          toast.success(`${label} créé${scope === 'mat' ? '' : 'e'}`)
           setShowMotifModal(false)
           return data as Service
         }

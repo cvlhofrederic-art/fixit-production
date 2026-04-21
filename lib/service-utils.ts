@@ -42,5 +42,15 @@ export function getCleanDescription(service: Service): string {
   return (service.description || '')
     .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
     .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+    .replace(/\s*\[scope:(mo|mat)\]\s*/g, '')
     .trim()
+}
+
+/** Artisan scope: 'mo' (main d'œuvre, public) ou 'mat' (matériau, interne) */
+export type ServiceScope = 'mo' | 'mat'
+
+/** Extrait le scope depuis la description (tag [scope:mo] ou [scope:mat]). Défaut = 'mo'. */
+export function parseServiceScope(service: Service): ServiceScope {
+  const m = (service.description || '').match(/\[scope:(mo|mat)\]/)
+  return (m?.[1] as ServiceScope) || 'mo'
 }
