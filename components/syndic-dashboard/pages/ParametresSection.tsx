@@ -211,7 +211,7 @@ export default function ParametresSection({
           <div className="flex items-center justify-between">
             <div>
               <p className="font-bold text-[#0D1B2E]">{locale === 'pt' ? 'Teste gratuito' : 'Essai gratuit'}</p>
-              <p className="text-sm text-[#C9A84C]">{locale === 'pt' ? '14 dias restantes · Acesso completo' : '14 jours restants · Accès complet'}</p>
+              <p className="text-sm text-[#C9A84C]">{locale === 'pt' ? '30 dias restantes · Acesso completo' : '30 jours restants · Accès complet'}</p>
             </div>
             <span className="bg-[#0D1B2E] text-white text-xs font-bold px-3 py-1 rounded-full">TRIAL</span>
           </div>

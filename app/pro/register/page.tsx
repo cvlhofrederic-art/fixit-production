@@ -324,7 +324,7 @@ function FormulaireArtisan() {
     if (selectedCategories.length === 0) { setError(t('register.selectOneTrade')); return false }
     if (!kbisFile) { setError(t('register.kbisRequired')); return false }
     if (!idFile) { setError(t('register.idRequired')); return false }
-    if (!formData.password || formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) { setError(t('register.passwordTooShort')); return false }
+    if (!formData.password || formData.password.length < 12 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password) || !/[^A-Za-z0-9]/.test(formData.password)) { setError(t('register.passwordTooShort')); return false }
     if (formData.password !== formData.confirmPassword) { setError(t('register.passwordMismatch')); return false }
     return true
   }
@@ -637,7 +637,7 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
-              <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required minLength={8} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordMin')} />
+              <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordMin')} />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.confirmPwd')} <span className="text-red-500">*</span></label>
@@ -801,7 +801,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError(t('register.passwordMismatch')); return }
-    if (form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password)) { setError(t('register.passwordMin8')); return }
+    if (form.password.length < 12 || !/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password) || !/[^A-Za-z0-9]/.test(form.password)) { setError(t('register.passwordMin8')); return }
     trackEvent(AnalyticsEventType.SIGNUP_STARTED, { role: orgType })
     setLoading(true); setError('')
     try {
@@ -1148,7 +1148,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
-            <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} required minLength={8} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordPlaceholder')} />
+            <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordPlaceholder')} />
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.confirmPasswordLabel')}</label>
