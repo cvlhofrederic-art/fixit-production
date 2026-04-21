@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 import { useThemeVars } from './useThemeVars'
 import type { Service } from '@/lib/types'
+import { parseServiceScope, type ServiceScope } from '@/lib/service-utils'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 type MotifForm = {
-  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number
+  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number; scope: ServiceScope
 }
 
 interface MotifsSectionProps {
@@ -20,7 +21,7 @@ interface MotifsSectionProps {
   motifForm: MotifForm
   setMotifForm: (v: MotifForm) => void
   savingMotif: boolean
-  openNewMotif: () => void
+  openNewMotif: (scope?: ServiceScope) => void
   openEditMotif: (service: Service) => void
   saveMotif: () => void | Promise<Service | null>
   toggleMotifActive: (serviceId: string, currentActive: boolean) => void | Promise<void>
@@ -106,9 +107,28 @@ export default function MotifsSection({
     emptyIcon: isBtpSociete ? '🏗️' : isArtisan ? '🛠️' : '🔧',
   }
 
-  // Reset local étapes when modal opens/closes
-  const origOpenNewMotif = openNewMotif
-  const wrappedOpenNewMotif = () => { setLocalEtapes([]); origOpenNewMotif() }
+  // Toggle Main d'œuvre / Matériaux (artisan uniquement — BTP pro a son propre composant)
+  const [activeScope, setActiveScope] = useState<ServiceScope>('mo')
+  const filteredServices = useMemo(() => {
+    if (!isArtisan) return services
+    return services.filter((s) => parseServiceScope(s) === activeScope)
+  }, [services, isArtisan, activeScope])
+
+  const L2 = {
+    moBtn: isPt ? '🛠️ Mão de obra' : "🛠️ Main d'œuvre",
+    matBtn: isPt ? '🧱 Materiais' : '🧱 Matériaux',
+    visibilityHint: activeScope === 'mo'
+      ? (isPt ? 'Visíveis pelos clientes nas reservas.' : 'Visibles par vos clients lors des réservations.')
+      : (isPt ? 'Uso interno apenas — nunca expostos aos clientes.' : 'Usage interne uniquement, jamais exposés aux clients.'),
+    emptyMat: isPt ? 'Nenhum material referenciado' : 'Aucun matériau référencé',
+    emptyMatBody: isPt ? 'Adicione os seus materiais, ferramentas ou consumíveis para referência interna.' : 'Ajoutez vos matériaux, outils ou consommables pour votre usage interne.',
+    createMatBtn: isPt ? '+ Adicionar um material' : '+ Ajouter un matériau',
+    newMatBtn: isPt ? '+ Novo material' : '+ Nouveau matériau',
+  }
+  const effectiveNewBtn = isArtisan && activeScope === 'mat' ? L2.newMatBtn : L.newBtn
+  const effectiveEmptyTitle = isArtisan && activeScope === 'mat' ? L2.emptyMat : L.emptyTitle
+  const effectiveEmptyBody = isArtisan && activeScope === 'mat' ? L2.emptyMatBody : L.emptyBody
+  const effectiveCreateBtn = isArtisan && activeScope === 'mat' ? L2.createMatBtn : L.createBtn
 
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
@@ -118,8 +138,8 @@ export default function MotifsSection({
           <h1 className={isV5 ? '' : 'v22-page-title'}>{L.title}</h1>
           <p className={isV5 ? '' : 'v22-page-sub'}>{L.subtitle}</p>
         </div>
-        <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
-          {L.newBtn}
+        <button onClick={() => { setLocalEtapes([]); openNewMotif(isArtisan ? activeScope : undefined) }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
+          {effectiveNewBtn}
         </button>
       </div>
 
@@ -129,6 +149,41 @@ export default function MotifsSection({
           <strong>{L.tip.title}</strong> {L.tip.body}
         </span>
       </div>
+
+      {/* Toggle Main d'œuvre / Matériaux — artisan uniquement */}
+      {isArtisan && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+            <button
+              type="button"
+              onClick={() => setActiveScope('mo')}
+              style={{
+                padding: '6px 12px', fontWeight: 600, fontSize: 12, border: 'none',
+                background: activeScope === 'mo' ? tv.primary : 'transparent',
+                color: activeScope === 'mo' ? '#fff' : '#555',
+                cursor: 'pointer', borderRadius: 6,
+              }}
+            >
+              {L2.moBtn}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveScope('mat')}
+              style={{
+                padding: '6px 12px', fontWeight: 600, fontSize: 12, border: 'none',
+                background: activeScope === 'mat' ? tv.primary : 'transparent',
+                color: activeScope === 'mat' ? '#fff' : '#555',
+                cursor: 'pointer', borderRadius: 6,
+              }}
+            >
+              {L2.matBtn}
+            </button>
+          </div>
+          <span className="v22-ref" style={{ fontSize: 11, color: activeScope === 'mat' ? '#92400e' : '#059669' }}>
+            {activeScope === 'mat' ? '🔒' : '👁️'} {L2.visibilityHint}
+          </span>
+        </div>
+      )}
 
       {/* Table */}
       <div className={isV5 ? 'v5-card' : 'v22-card'}>
@@ -145,10 +200,10 @@ export default function MotifsSection({
             </tr>
           </thead>
           <tbody>
-            {services.map((service) => (
+            {filteredServices.map((service) => (
               <tr key={service.id}>
                 <td>
-                  <div style={{ fontWeight: 500 }}>{L.rowIcon} {service.name}</div>
+                  <div style={{ fontWeight: 500 }}>{isArtisan && parseServiceScope(service) === 'mat' ? '🧱' : L.rowIcon} {service.name}</div>
                   {getCleanDescription(service) && (
                     <div className="v22-ref" style={{ marginTop: 2 }}>{getCleanDescription(service)}</div>
                   )}
@@ -200,14 +255,14 @@ export default function MotifsSection({
                 </td>
               </tr>
             ))}
-            {services.length === 0 && (
+            {filteredServices.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '40px 14px' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{L.emptyIcon}</div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{L.emptyTitle}</div>
-                  <div className="v22-ref" style={{ marginBottom: 12 }}>{L.emptyBody}</div>
-                  <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
-                    {L.createBtn}
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{isArtisan && activeScope === 'mat' ? '🧱' : L.emptyIcon}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{effectiveEmptyTitle}</div>
+                  <div className="v22-ref" style={{ marginBottom: 12 }}>{effectiveEmptyBody}</div>
+                  <button onClick={() => { setLocalEtapes([]); openNewMotif(isArtisan ? activeScope : undefined) }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
+                    {effectiveCreateBtn}
                   </button>
                 </td>
               </tr>
@@ -222,7 +277,9 @@ export default function MotifsSection({
           <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
               <span className={isV5 ? 'v5-modal-t' : ''} style={{ fontWeight: 600, fontSize: 14 }}>
-                {editingMotif ? `✏️ ${L.modalEdit}` : L.modalNew}
+                {editingMotif
+                  ? `✏️ ${isArtisan && motifForm.scope === 'mat' ? (isPt ? 'Modificar o material' : 'Modifier le matériau') : L.modalEdit}`
+                  : (isArtisan && motifForm.scope === 'mat' ? (isPt ? '🧱 Novo material' : '🧱 Nouveau matériau') : L.modalNew)}
               </span>
               <button onClick={() => setShowMotifModal(false)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>✕</button>
             </div>
