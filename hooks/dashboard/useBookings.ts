@@ -196,7 +196,17 @@ export function useBookings(
       signatureData: _sig,
       ...rest
     } = devis as Record<string, unknown>
-    setConvertingDevis({ ...rest, docType: 'facture' })
+    // Cohérence devis → facture : si acomptes désactivés sur devis (ou non
+    // renseignés), la facture correspondante hérite du même état pour éviter
+    // de bloquer la validation (total acomptes != 100 %).
+    const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled
+    const inheritedAcomptesEnabled = srcAcomptesEnabled === true
+    setConvertingDevis({
+      ...rest,
+      docType: 'facture',
+      acomptesEnabled: inheritedAcomptesEnabled,
+      acomptes: inheritedAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
+    })
     setShowFactureForm(true)
   }, [])
 
