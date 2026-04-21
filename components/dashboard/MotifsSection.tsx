@@ -152,7 +152,7 @@ export default function MotifsSection({
 
       {/* Toggle Main d'œuvre / Matériaux — artisan uniquement */}
       {isArtisan && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8 }}>
             <button
               type="button"
