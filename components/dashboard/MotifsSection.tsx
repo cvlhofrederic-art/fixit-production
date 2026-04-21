@@ -117,18 +117,20 @@ export default function MotifsSection({
   const L2 = {
     moBtn: isPt ? '🛠️ Mão de obra' : "🛠️ Main d'œuvre",
     matBtn: isPt ? '🧱 Materiais' : '🧱 Matériaux',
-    visibilityHint: activeScope === 'mo'
-      ? (isPt ? 'Visíveis pelos clientes nas reservas.' : 'Visibles par vos clients lors des réservations.')
-      : (isPt ? 'Uso interno apenas — nunca expostos aos clientes.' : 'Usage interne uniquement, jamais exposés aux clients.'),
+    fraisBtn: isPt ? '💰 Despesas diversas' : '💰 Frais divers',
     emptyMat: isPt ? 'Nenhum material referenciado' : 'Aucun matériau référencé',
     emptyMatBody: isPt ? 'Adicione os seus materiais, ferramentas ou consumíveis para referência interna.' : 'Ajoutez vos matériaux, outils ou consommables pour votre usage interne.',
     createMatBtn: isPt ? '+ Adicionar um material' : '+ Ajouter un matériau',
     newMatBtn: isPt ? '+ Novo material' : '+ Nouveau matériau',
+    emptyFrais: isPt ? 'Nenhuma despesa registada' : 'Aucun frais référencé',
+    emptyFraisBody: isPt ? 'Adicione as suas despesas diversas (deslocações, consumíveis…) para uso interno.' : 'Ajoutez vos frais divers (déplacements, consommables…) pour votre usage interne.',
+    createFraisBtn: isPt ? '+ Adicionar uma despesa' : '+ Ajouter un frais',
+    newFraisBtn: isPt ? '+ Nova despesa' : '+ Nouveau frais',
   }
-  const effectiveNewBtn = isArtisan && activeScope === 'mat' ? L2.newMatBtn : L.newBtn
-  const effectiveEmptyTitle = isArtisan && activeScope === 'mat' ? L2.emptyMat : L.emptyTitle
-  const effectiveEmptyBody = isArtisan && activeScope === 'mat' ? L2.emptyMatBody : L.emptyBody
-  const effectiveCreateBtn = isArtisan && activeScope === 'mat' ? L2.createMatBtn : L.createBtn
+  const effectiveNewBtn = isArtisan && activeScope === 'mat' ? L2.newMatBtn : isArtisan && activeScope === 'frais' ? L2.newFraisBtn : L.newBtn
+  const effectiveEmptyTitle = isArtisan && activeScope === 'mat' ? L2.emptyMat : isArtisan && activeScope === 'frais' ? L2.emptyFrais : L.emptyTitle
+  const effectiveEmptyBody = isArtisan && activeScope === 'mat' ? L2.emptyMatBody : isArtisan && activeScope === 'frais' ? L2.emptyFraisBody : L.emptyBody
+  const effectiveCreateBtn = isArtisan && activeScope === 'mat' ? L2.createMatBtn : isArtisan && activeScope === 'frais' ? L2.createFraisBtn : L.createBtn
 
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
@@ -150,38 +152,26 @@ export default function MotifsSection({
         </span>
       </div>
 
-      {/* Toggle Main d'œuvre / Matériaux — artisan uniquement */}
+      {/* Toggle Main d'œuvre / Matériaux / Frais divers — artisan uniquement */}
       {isArtisan && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-            <button
-              type="button"
-              onClick={() => setActiveScope('mo')}
-              style={{
-                padding: '6px 12px', fontWeight: 600, fontSize: 12, border: 'none',
-                background: activeScope === 'mo' ? tv.primary : 'transparent',
-                color: activeScope === 'mo' ? '#fff' : '#555',
-                cursor: 'pointer', borderRadius: 6,
-              }}
-            >
-              {L2.moBtn}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveScope('mat')}
-              style={{
-                padding: '6px 12px', fontWeight: 600, fontSize: 12, border: 'none',
-                background: activeScope === 'mat' ? tv.primary : 'transparent',
-                color: activeScope === 'mat' ? '#fff' : '#555',
-                cursor: 'pointer', borderRadius: 6,
-              }}
-            >
-              {L2.matBtn}
-            </button>
+            {(['mo', 'mat', 'frais'] as ServiceScope[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setActiveScope(s)}
+                style={{
+                  padding: '6px 12px', fontWeight: 600, fontSize: 12, border: 'none',
+                  background: activeScope === s ? tv.primary : 'transparent',
+                  color: activeScope === s ? '#fff' : '#555',
+                  cursor: 'pointer', borderRadius: 6,
+                }}
+              >
+                {s === 'mo' ? L2.moBtn : s === 'mat' ? L2.matBtn : L2.fraisBtn}
+              </button>
+            ))}
           </div>
-          <span className="v22-ref" style={{ fontSize: 11, color: activeScope === 'mat' ? '#92400e' : '#059669' }}>
-            {activeScope === 'mat' ? '🔒' : '👁️'} {L2.visibilityHint}
-          </span>
         </div>
       )}
 
@@ -203,7 +193,7 @@ export default function MotifsSection({
             {filteredServices.map((service) => (
               <tr key={service.id}>
                 <td>
-                  <div style={{ fontWeight: 500 }}>{isArtisan && parseServiceScope(service) === 'mat' ? '🧱' : L.rowIcon} {service.name}</div>
+                  <div style={{ fontWeight: 500 }}>{isArtisan && parseServiceScope(service) === 'mat' ? '🧱' : isArtisan && parseServiceScope(service) === 'frais' ? '💰' : L.rowIcon} {service.name}</div>
                   {getCleanDescription(service) && (
                     <div className="v22-ref" style={{ marginTop: 2 }}>{getCleanDescription(service)}</div>
                   )}

@@ -42,7 +42,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
     const cleanDesc = (service.description || '')
       .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
       .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
-      .replace(/\s*\[scope:(mo|mat)\]\s*/g, '')
+      .replace(/\s*\[scope:(mo|mat|frais)\]\s*/g, '')
       .trim()
     setEditingMotif(service)
     setMotifForm({
@@ -74,7 +74,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
       const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
       const durationMins = motifForm.duration_minutes === '' ? 60 : Number(motifForm.duration_minutes)
-      const scope: ServiceScope = motifForm.scope === 'mat' ? 'mat' : 'mo'
+      const scope: ServiceScope = motifForm.scope === 'mat' ? 'mat' : motifForm.scope === 'frais' ? 'frais' : 'mo'
       const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
       const scopeTag = `[scope:${scope}]`
       const description = `${motifForm.description || ''} ${rangeTag} ${scopeTag}`.trim()
@@ -89,18 +89,19 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
         duration_minutes: durationMins,
         price_ht: priceMin,
         price_ttc: priceMax,
-        active: scope === 'mat' ? false : true,
+        active: scope === 'mo',
         validation_auto: motifForm.validation_auto,
         delai_minimum_heures: motifForm.delai_minimum_heures,
       }
 
-      const label = scope === 'mat' ? 'Matériau' : 'Prestation'
+      const label = scope === 'mat' ? 'Matériau' : scope === 'frais' ? 'Frais divers' : 'Prestation'
+      const fem = scope === 'mo' // seul "Prestation" est féminin
       if (editingMotif) {
         const { data, error } = await supabase.from('services').update(payload).eq('id', editingMotif.id).select().single()
         if (error) throw error
         if (data) {
           setServices(prev => prev.map(s => s.id === editingMotif.id ? data : s))
-          toast.success(`${label} modifié${scope === 'mat' ? '' : 'e'}`)
+          toast.success(`${label} modifié${fem ? 'e' : ''}`)
           setShowMotifModal(false)
           return data as Service
         }
@@ -110,7 +111,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
         if (error) throw error
         if (data) {
           setServices(prev => [...prev, data])
-          toast.success(`${label} créé${scope === 'mat' ? '' : 'e'}`)
+          toast.success(`${label} créé${fem ? 'e' : ''}`)
           setShowMotifModal(false)
           return data as Service
         }
