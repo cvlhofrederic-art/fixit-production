@@ -420,14 +420,45 @@ function DashboardPage() {
     const devis = pendingConvDevisRef.current
     setShowFactureConvModal(false)
     if (!devis) return
-    // 1. Navigate first (this resets showFactureForm to false)
+    const newId = Date.now().toString()
+    // Pré-enregistre immédiatement une facture brouillon dans localStorage
+    // pour qu'elle apparaisse dans la liste même si l'utilisateur ferme
+    // le formulaire sans valider l'envoi.
+    try {
+      if (artisan?.id) {
+        const {
+          id: _id, docNumber: _dn, docType: _dt, status: _st,
+          savedAt: _sa, sentAt: _se, signatureData: _sig,
+          ...rest
+        } = devis as Record<string, unknown>
+        const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled === true
+        const draftFacture = {
+          ...rest,
+          id: newId,
+          docType: 'facture',
+          status: 'brouillon',
+          savedAt: new Date().toISOString(),
+          acomptesEnabled: srcAcomptesEnabled,
+          acomptes: srcAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
+        }
+        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
+        drafts.push(draftFacture)
+        localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(drafts))
+        setSavedDocuments([
+          ...JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]'),
+          ...drafts,
+        ] as typeof savedDocuments)
+      }
+    } catch (err) {
+      console.warn('[ConvertDevisToFacture] Pré-enregistrement échoué:', err)
+    }
+    // Navigate first (this resets showFactureForm to false), then re-open form
     navigateTo('factures')
-    // 2. Re-open the form with the devis data on next tick
     setTimeout(() => {
-      convertDevisToFacture(devis)
+      convertDevisToFacture(devis, newId)
       pendingConvDevisRef.current = null
     }, 60)
-  }, [convertDevisToFacture, navigateTo])
+  }, [convertDevisToFacture, navigateTo, artisan?.id, setSavedDocuments])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()

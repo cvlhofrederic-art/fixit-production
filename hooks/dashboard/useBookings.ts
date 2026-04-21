@@ -185,7 +185,7 @@ export function useBookings(
     return devisData
   }, [services, isPt])
 
-  const convertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
+  const convertDevisToFacture = useCallback((devis: Record<string, unknown>, overrideId?: string) => {
     const {
       id: _id,
       docNumber: _dn,
@@ -203,6 +203,7 @@ export function useBookings(
     const inheritedAcomptesEnabled = srcAcomptesEnabled === true
     setConvertingDevis({
       ...rest,
+      id: overrideId,
       docType: 'facture',
       acomptesEnabled: inheritedAcomptesEnabled,
       acomptes: inheritedAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
