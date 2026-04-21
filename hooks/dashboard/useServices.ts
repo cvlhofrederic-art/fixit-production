@@ -73,7 +73,7 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
     try {
       const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
       const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
-      const durationMins = motifForm.duration_minutes === '' ? null : Number(motifForm.duration_minutes)
+      const durationMins = motifForm.duration_minutes === '' ? 60 : Number(motifForm.duration_minutes)
       const scope: ServiceScope = motifForm.scope === 'mat' ? 'mat' : 'mo'
       const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
       const scopeTag = `[scope:${scope}]`
