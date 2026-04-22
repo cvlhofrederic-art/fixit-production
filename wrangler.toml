@@ -5,9 +5,25 @@
 # Used with @opennextjs/cloudflare for Next.js deployment.
 
 name = "vitfix"
+main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".open-next"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+
+# Worker Routes — custom domains
+[[routes]]
+pattern = "vitfix.io/*"
+zone_name = "vitfix.io"
+
+[[routes]]
+pattern = "www.vitfix.io/*"
+zone_name = "vitfix.io"
 
 # ── Workers Limits ───────────────────────────────────────────────────────────
 # Workers Paid: 30s CPU time, 128 MB memory, 10 MB compressed bundle
