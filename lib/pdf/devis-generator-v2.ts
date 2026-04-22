@@ -485,6 +485,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const headerH = ptToMm(29)
   const minRowH = ptToMm(32)
 
+  // Franchise en base (art. 293 B CGI) → pas de TVA → colonnes "PRIX U." / "TOTAL"
+  // TVA applicable → colonnes "PRIX U. TTC" / "TOTAL TTC"
+  const isFranchise293B = /non applicable/i.test(input.artisan.tva_mention || '')
   const drawTableHeader = () => {
     pdf.setFillColor(COLOR.BLACK)
     pdf.rect(ML, y, contentW, headerH, 'F')
@@ -493,8 +496,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text('DÉSIGNATION', ptToMm(62), hTextY)
     pdf.text('QTÉ', 121.92, hTextY, { align: 'center' })
     pdf.text('UNITÉ', 135.41, hTextY, { align: 'center' })
-    pdf.text('PRIX U. TTC', 162.26, hTextY, { align: 'right' })
-    pdf.text('TOTAL TTC', 188.71, hTextY, { align: 'right' })
+    pdf.text(isFranchise293B ? 'PRIX U.' : 'PRIX U. TTC', 162.26, hTextY, { align: 'right' })
+    pdf.text(isFranchise293B ? 'TOTAL' : 'TOTAL TTC', 188.71, hTextY, { align: 'right' })
     y += headerH
     drawHLine(ML, y, ML + contentW, COLOR.ACCENT, 0.7)
   }
