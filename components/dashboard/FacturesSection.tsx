@@ -100,6 +100,7 @@ export default function FacturesSection({
       locale={locale}
       t={t}
       tv={tv}
+      orgRole={orgRole}
     />
   }
 
@@ -270,7 +271,7 @@ export default function FacturesSection({
    ═══════════════════════════════════════════════════════ */
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis,
-  artisan, setSavedDocuments, dateLocale, locale, t, tv,
+  artisan, setSavedDocuments, dateLocale, locale, t, tv, orgRole,
 }: {
   factureDocs: PersistedDocument[]
   setShowFactureForm: (v: boolean) => void
@@ -281,6 +282,7 @@ function FacturesSectionV5({
   locale: string
   t: (k: string) => string
   tv: ThemeVars
+  orgRole?: OrgRole
 }) {
   const [search, setSearch] = useState('')
 
@@ -386,6 +388,30 @@ function FacturesSectionV5({
                           setSavedDocuments([...uDocs, ...uDrafts])
                         }}>
                           {t('proDash.factures.envoyerEmail')}
+                        </button>
+                      )}
+                      {orgRole === 'artisan' && (
+                        <button className="v5-btn v5-btn-sm" title={locale === 'pt' ? 'Descarregar PDF' : 'Télécharger le PDF'} onClick={async e => {
+                          e.stopPropagation()
+                          try {
+                            await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
+                              locale: locale as 'fr' | 'pt' | 'en',
+                              t,
+                              artisan: artisan ? {
+                                id: artisan.id,
+                                company_name: artisan.company_name,
+                                logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
+                                rm: (artisan as { rm?: string | null }).rm ?? null,
+                                rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
+                              } : null,
+                              useBtpDesign: false,
+                            })
+                          } catch (err) {
+                            console.error('[Facture] download failed', err)
+                            toast.error(locale === 'pt' ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                          }
+                        }}>
+                          {locale === 'pt' ? 'Descarregar' : 'Télécharger'}
                         </button>
                       )}
                       <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => {
