@@ -6,13 +6,21 @@ import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
-type Espace = 'particulier' | 'artisan' | 'syndic'
+type Espace = 'particulier' | 'artisan' | 'pro'
 
 const SPACES = [
   { id: 'particulier' as Espace, emoji: '🏠', labelKey: 'auth.espaceParticulier', descKey: 'auth.espaceParticulierDesc', registerHref: '/auth/register' },
   { id: 'artisan' as Espace, emoji: '🔧', labelKey: 'auth.espaceArtisan', descKey: 'auth.espaceArtisanDesc', registerHref: '/pro/register' },
-  { id: 'syndic' as Espace, emoji: '🏢', labelKey: 'auth.espacePro', descKey: 'auth.espaceProDesc', registerHref: '/pro/register' },
+  { id: 'pro' as Espace, emoji: '🏢', labelKey: 'auth.espacePro', descKey: 'auth.espaceProDesc', registerHref: '/pro/register' },
 ]
+
+// Rôles dont le module est dormant (désactivé en attendant la réactivation).
+// Un utilisateur avec ce rôle est déconnecté à l'arrivée avec un message explicite.
+const DORMANT_ROLES = new Set(['syndic', 'pro_conciergerie', 'pro_gestionnaire'])
+function isDormantRole(role: string | undefined | null): boolean {
+  if (!role) return false
+  return DORMANT_ROLES.has(role) || role.startsWith('syndic')
+}
 
 export default function LoginPage() {
   const { t } = useTranslation()
@@ -32,9 +40,13 @@ export default function LoginPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = session.user.user_metadata?.role
+        if (isDormantRole(role)) {
+          await supabase.auth.signOut()
+          setError('Ce module est temporairement désactivé. Contactez l\'administrateur.')
+          return
+        }
         if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
-        else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
-        else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
+        else if (role === 'pro_societe') window.location.href = `/${locale}/pro/dashboard`
         else window.location.href = `/${locale}/client/dashboard`
       }
     }
@@ -63,9 +75,14 @@ export default function LoginPage() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
       const role = data.user?.user_metadata?.role
+      if (isDormantRole(role)) {
+        await supabase.auth.signOut()
+        setError('Ce module est temporairement désactivé. Contactez l\'administrateur.')
+        setLoading(false)
+        return
+      }
       if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
-      else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
-      else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
+      else if (role === 'pro_societe') window.location.href = `/${locale}/pro/dashboard`
       else window.location.href = `/${locale}/client/dashboard`
     } catch {
       // Anti-phishing : toute erreur de login affiche le même message

@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 
-export const runtime = 'edge'
-
+// OpenNext Cloudflare exécute déjà tout sur Workers (edge-like) — pas besoin
+// du flag `runtime = 'edge'` de Vercel qui empêche le bundling par OpenNext.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const title = searchParams.get('title') || 'VITFIX'

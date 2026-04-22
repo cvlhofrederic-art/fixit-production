@@ -59,7 +59,7 @@
     "jspdf-autotable": "^5.0.7",
     "langfuse": "^3.38.6",
     "lucide-react": "^0.563.0",
-    "next": "^16.2.2",
+    "next": "15.5.15",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.59.1",
@@ -78,6 +78,7 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.3",
+    "@opennextjs/cloudflare": "^1.19.3",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",

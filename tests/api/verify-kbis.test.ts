@@ -13,7 +13,7 @@ import {
   extractFormeJuridiqueFR,
   extractFormeJuridiquePT,
   buildExtracted,
-} from '@/app/api/verify-kbis/route'
+} from '@/lib/kbis-extract'
 
 // ─── extractIdentifiantFR ─────────────────────────────────────────────────────
 
