@@ -346,7 +346,16 @@ function FacturesSectionV5({
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
               const totalHT = doc.lines?.reduce((s: number, l) => s + (l.totalHT || 0), 0) || 0
-              const totalTTC = totalHT * 1.2 // TVA 20%
+              // Respecte la franchise TVA (art. 293 B) : si tvaEnabled === false,
+              // le total TTC = HT (pas de TVA). Sinon, calcul par ligne selon tvaRate.
+              const tvaEnabled = (doc as { tvaEnabled?: boolean }).tvaEnabled !== false
+              const totalTTC = tvaEnabled
+                ? (doc.lines || []).reduce((s: number, l) => {
+                    const ht = (l.totalHT as number) || 0
+                    const rate = ((l as { tvaRate?: number }).tvaRate as number) ?? 20
+                    return s + ht * (1 + rate / 100)
+                  }, 0)
+                : totalHT
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
