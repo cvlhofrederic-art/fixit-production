@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
+import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 
 // A persisted document extends DevisFactureData with storage metadata
@@ -187,6 +189,28 @@ export default function FacturesSection({
                               {t('proDash.factures.marquerEnvoyee')}
                             </button>
                           )}
+                          <button className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Descarregar PDF' : 'Télécharger le PDF'} onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
+                                locale: locale as 'fr' | 'pt' | 'en',
+                                t,
+                                artisan: artisan ? {
+                                  id: artisan.id,
+                                  company_name: artisan.company_name,
+                                  logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
+                                  rm: (artisan as { rm?: string | null }).rm ?? null,
+                                  rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
+                                } : null,
+                                useBtpDesign: false,
+                              })
+                            } catch (err) {
+                              console.error('[Facture] download failed', err)
+                              toast.error(locale === 'pt' ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                            }
+                          }}>
+                            {'⬇️'}
+                          </button>
                           {doc.clientEmail && (
                             <button className="v22-btn v22-btn-sm" onClick={(e) => {
                               e.stopPropagation()

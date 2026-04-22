@@ -117,6 +117,7 @@ export function buildV2Input(
       validite_jours: docValidity || 30,
       delai_execution: executionDelay || 'À convenir',
       date_prestation: prestationDate ? new Date(prestationDate) : null,
+      docType,
     },
     mode_affichage: 'bloc' as const,
     lignes: lines.filter(l => l.description.trim()).map(l => ({
