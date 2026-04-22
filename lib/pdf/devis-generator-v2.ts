@@ -44,6 +44,7 @@ export interface DevisGeneratorInput {
     validite_jours: number
     delai_execution: string
     date_prestation: Date | null
+    docType?: 'devis' | 'facture'
   }
   mode_affichage: 'bloc' | 'sections'
   lignes: LigneDevis[]
@@ -621,7 +622,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFillColor(COLOR.BG_GRAY)
   pdf.rect(DEST_X0, y, DEST_W, totH, 'F')
   pdf.setFontSize(12); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text('TOTAL NET', DEST_X0 + boxPadX, y + totH / 2 + 1.5)
+  pdf.text(input.devis.docType === 'facture' ? 'TOTAL À RÉGLER' : 'TOTAL NET', DEST_X0 + boxPadX, y + totH / 2 + 1.5)
   pdf.text(formatPrice(totalNet), DEST_X0 + DEST_W - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
   y += totH + 4
 
@@ -638,14 +639,21 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   let cy = condStartY + 13
 
   pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
-  const condLines = [
-    `Validité du devis : ${input.devis.validite_jours} jours à compter de la date d'émission.`,
-    `Délai d'exécution : ${input.devis.delai_execution || 'À convenir'}.`,
-    "Toute modification fera l'objet d'un avenant signé par les deux parties.",
-    `Mode de règlement : ${input.artisan.mode_paiement === 'Transferência bancária' ? 'Virement bancaire' : input.artisan.mode_paiement}.`,
-    ...(input.artisan.condition_paiement ? [`Conditions de paiement : ${input.artisan.condition_paiement}.`] : []),
-    ...(input.dechets_chantier ? [input.dechets_chantier] : []), // FIX FINAL #6
-  ]
+  const isFacture = input.devis.docType === 'facture'
+  const condLines = isFacture
+    ? [
+        `Date d'émission : ${formatDate(input.devis.date_emission)}.`,
+        `Mode de règlement : ${input.artisan.mode_paiement === 'Transferência bancária' ? 'Virement bancaire' : input.artisan.mode_paiement}.`,
+        ...(input.artisan.condition_paiement ? [`Conditions de paiement : ${input.artisan.condition_paiement}.`] : []),
+      ]
+    : [
+        `Validité du devis : ${input.devis.validite_jours} jours à compter de la date d'émission.`,
+        `Délai d'exécution : ${input.devis.delai_execution || 'À convenir'}.`,
+        "Toute modification fera l'objet d'un avenant signé par les deux parties.",
+        `Mode de règlement : ${input.artisan.mode_paiement === 'Transferência bancária' ? 'Virement bancaire' : input.artisan.mode_paiement}.`,
+        ...(input.artisan.condition_paiement ? [`Conditions de paiement : ${input.artisan.condition_paiement}.`] : []),
+        ...(input.dechets_chantier ? [input.dechets_chantier] : []), // FIX FINAL #6
+      ]
   condLines.forEach(line => {
     const wrapped = pdf.splitTextToSize(line, EM_W - 4)
     pdf.text(wrapped, ML, cy)
@@ -684,7 +692,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.line(DEST_X0, condStartY + sigH, DEST_X0 + DEST_W, condStartY + sigH)   // bas
 
   pdf.setFontSize(9.5); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text('BON POUR ACCORD', DEST_X0 + boxPadX, condStartY + 5)
+  pdf.text(isFacture ? 'RÈGLEMENT' : 'BON POUR ACCORD', DEST_X0 + boxPadX, condStartY + 5)
 
   let sy = condStartY + 12
   pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
@@ -698,6 +706,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
       pdf.text(formatDate(input.signature.signe_le), DEST_X0 + boxPadX, sy + 3)
     } catch { pdf.text(input.signature.signe_par, DEST_X0 + boxPadX, sy) }
+  } else if (isFacture) {
+    const payLines = [
+      'Montant à régler selon les modalités indiquées ci-contre.',
+      'Merci de rappeler le numéro de facture lors du paiement.',
+    ]
+    const wrapped = pdf.splitTextToSize(payLines.join(' '), DEST_W - boxPadX * 2)
+    pdf.text(wrapped, DEST_X0 + boxPadX, sy)
   } else {
     const appWrapped = pdf.splitTextToSize('Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.', DEST_W - boxPadX * 2)
     pdf.text(appWrapped, DEST_X0 + boxPadX, sy)
@@ -777,14 +792,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     throw new Error('Assurance RC Pro obligatoire pour générer un devis (art. L243-2 C. assurances)')
   }
   // Rétractation et délai 7 jours : applicables UNIQUEMENT B2C hors établissement
-  // (art. L.221-18 et L.221-10 C. conso. — pas pour client pro avec SIRET,
-  //  ni si l'artisan a explicitement désactivé le toggle)
-  const showRetractation = input.isHorsEtablissement !== false && !input.client.siret
+  // et seulement pour un devis (pas sur une facture émise après prestation)
+  const showRetractation = !isFacture && input.isHorsEtablissement !== false && !input.client.siret
   const legalParagraph = [
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',
     'TVA non applicable, article 293 B du CGI.',
     insuranceLine,
-    'Devis gratuit.',
+    isFacture ? null : 'Devis gratuit.',
     showRetractation ? 'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).' : null,
     showRetractation ? 'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.' : null,
     input.mediateur
@@ -810,7 +824,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // PAGE 2: DROIT DE RÉTRACTATION (B2C uniquement — art. L. 221-18 C. conso.)
   // ═══════════════════════════════════════════════════════════
 
-  if (input.isHorsEtablissement !== false && !input.client.siret) {
+  if (!isFacture && input.isHorsEtablissement !== false && !input.client.siret) {
   pdf.addPage()
   let ry = 8
   pdf.setFillColor(COLOR.ACCENT); pdf.rect(ML, ry, contentW, ptToMm(3), 'F')
