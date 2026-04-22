@@ -340,7 +340,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   ey += ptToMm(18)
 
   pdf.setFontSize(10); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(`Société : ${input.artisan.nom}`, TEXT_X_EM, ey)
+  // Mention "EI" accolée au nom — art. L.526-22 C. com. (loi n°2022-172)
+  const nomAvecEI = /\b(EI|EIRL|SAS|SASU|SARL|EURL|SA|SCI|SNC)\b/i.test(input.artisan.nom)
+    ? input.artisan.nom
+    : `${input.artisan.nom} — EI`
+  pdf.text(`Société : ${nomAvecEI}`, TEXT_X_EM, ey)
   ey += ptToMm(14)
   if (input.artisan.siret) { pdf.text(`SIRET : ${input.artisan.siret}`, TEXT_X_EM, ey); ey += ptToMm(14) }
 
@@ -669,12 +673,15 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   }
 
   // FIX FINAL #1: Pénalités de retard (obligation légale, toujours affiché)
+  // Art. L.441-9 / L.441-10 / D.441-5 C. com. — indemnité 40 € B2B uniquement
   cy += 3
   pdf.setFontSize(7); pdf.setFont(FONT, 'normal'); pdf.setTextColor('#888888')
   const penaltyRate = input.penalite_retard || '3 fois le taux d\'intérêt légal'
+  const isB2B = !!input.client.siret
   const penaltyLines = [
     `Pénalités de retard : ${penaltyRate}.`,
-    'Indemnité forfaitaire de recouvrement : 40 €.',
+    ...(isB2B ? ['Indemnité forfaitaire de recouvrement : 40 € (art. D.441-5 C. com.).'] : []),
+    'Aucun escompte accordé pour paiement anticipé (art. L.441-9 C. com.).',
   ]
   penaltyLines.forEach(line => {
     pdf.text(line, ML, cy)
