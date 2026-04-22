@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { MODULE_CONCIERGERIE_ENABLED, MODULE_GESTIONNAIRE_ENABLED } from '@/lib/features'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
@@ -1161,22 +1162,22 @@ function DashboardPage() {
             </div>
           )}
 
-          {/* ────── PROPRIÉTÉS (Conciergerie) ────── */}
-          {activePage === 'proprietes' && (
+          {/* ────── PROPRIÉTÉS (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'proprietes' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les propriétés">
             <ProprietesConciergerieSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
-          {/* ────── ACCÈS & CLÉS (Conciergerie) ────── */}
-          {activePage === 'acces' && (
+          {/* ────── ACCÈS & CLÉS (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'acces' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les accès">
             <AccesConciergerieSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
-          {/* ────── CHANNEL MANAGER (Conciergerie) ────── */}
-          {activePage === 'channel_manager' && (
+          {/* ────── CHANNEL MANAGER (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'channel_manager' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le channel manager">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <ChannelManagerSection userId={artisan?.id || ''} />
@@ -1184,8 +1185,8 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── TARIFICATION (Conciergerie) ────── */}
-          {activePage === 'tarification' && (
+          {/* ────── TARIFICATION (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'tarification' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans la tarification">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <TarificationSection userId={artisan?.id || ''} />
@@ -1193,8 +1194,8 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── CHECK-IN / CHECK-OUT (Conciergerie) ────── */}
-          {activePage === 'checkinout' && (
+          {/* ────── CHECK-IN / CHECK-OUT (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'checkinout' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le check-in/out">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <CheckinOutSection userId={artisan?.id || ''} />
@@ -1202,8 +1203,8 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── LIVRET D'ACCUEIL (Conciergerie) ────── */}
-          {activePage === 'livret' && (
+          {/* ────── LIVRET D'ACCUEIL (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'livret' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le livret d'accueil">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <LivretAccueilSection userId={artisan?.id || ''} />
@@ -1211,8 +1212,8 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── PLANNING MÉNAGE (Conciergerie) ────── */}
-          {activePage === 'menage' && (
+          {/* ────── PLANNING MÉNAGE (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'menage' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le planning ménage">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PlanningMenageSection userId={artisan?.id || ''} />
@@ -1220,8 +1221,8 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── REVPAR (Conciergerie) ────── */}
-          {activePage === 'revpar' && (
+          {/* ────── REVPAR (Conciergerie — dormant) ────── */}
+          {MODULE_CONCIERGERIE_ENABLED && activePage === 'revpar' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le RevPAR">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RevPARSection userId={artisan?.id || ''} />
@@ -1229,22 +1230,22 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── IMMEUBLES (Gestionnaire) ────── */}
-          {activePage === 'immeubles' && (
+          {/* ────── IMMEUBLES (Gestionnaire — dormant) ────── */}
+          {MODULE_GESTIONNAIRE_ENABLED && activePage === 'immeubles' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les immeubles">
             <ImmeublesGestionnaireSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
-          {/* ────── ORDRES DE MISSION (Gestionnaire) ────── */}
-          {activePage === 'missions' && (
+          {/* ────── ORDRES DE MISSION (Gestionnaire — dormant) ────── */}
+          {MODULE_GESTIONNAIRE_ENABLED && activePage === 'missions' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les missions">
             <MissionsGestionnaireSection artisan={artisan!} bookings={bookings} />
             </SectionErrorBoundary>
           )}
 
-          {/* ────── CONTRATS ────── */}
-          {activePage === 'contrats' && (
+          {/* ────── CONTRATS (Gestionnaire — dormant) ────── */}
+          {MODULE_GESTIONNAIRE_ENABLED && activePage === 'contrats' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les contrats">
             <ContratsSection artisan={artisan!} />
             </SectionErrorBoundary>

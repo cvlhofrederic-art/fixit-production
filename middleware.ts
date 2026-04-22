@@ -1,9 +1,38 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Middleware Next 15 — Edge runtime par défaut, requis par OpenNext/Cloudflare.
+// Downgrade Next 16.2 → 15.5.15 pour débloquer la migration Cloudflare
+// (Next 16 force proxy.ts sur Node.js, incompatible avec OpenNext 1.19.3).
+// Re-upgrade vers Next 16 prévu quand OpenNext 1.20.x supportera Node proxy.
+
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
 const DEFAULT_LOCALE = 'fr'
+
+// ─── Feature flags modules dormants (migration Cloudflare) ───
+// Voir MODULES.md pour la procédure de réactivation.
+const SYNDIC_ON = process.env.MODULE_SYNDIC_ENABLED === 'true'
+const COPRO_ON = process.env.MODULE_COPRO_ENABLED === 'true'
+
+const LOCALE_PREFIX_RE = /^\/(?:fr|pt|en|nl|es)(?=\/|$)/
+
+function normalizeForGating(pathname: string): string {
+  return pathname.replace(LOCALE_PREFIX_RE, '') || '/'
+}
+
+function dormantGone(module: string): NextResponse {
+  return new NextResponse(
+    JSON.stringify({ error: 'gone', module, message: `Le module ${module} est temporairement désactivé.` }),
+    { status: 410, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
+  )
+}
+
+function dormantNotFound(req: NextRequest): NextResponse {
+  const url = req.nextUrl.clone()
+  url.pathname = '/not-found'
+  return NextResponse.rewrite(url, { status: 404 })
+}
 
 function getLocaleFromPath(pathname: string): string | null {
   for (const locale of SUPPORTED_LOCALES) {
@@ -48,8 +77,28 @@ function detectPreferredLocale(request: NextRequest): string {
   return DEFAULT_LOCALE
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+
+  // ── GATE MODULES DORMANTS (migration Cloudflare, voir MODULES.md) ──
+  // Exception : /api/syndic/notify-artisan reste actif (lu par le dashboard
+  // artisan/BTP pour ses propres notifications).
+  const normalizedForGate = normalizeForGating(pathname)
+  const isApiPath = normalizedForGate.startsWith('/api/')
+
+  if (!normalizedForGate.startsWith('/api/syndic/notify-artisan')) {
+    if (!SYNDIC_ON && (normalizedForGate.startsWith('/syndic') || normalizedForGate.startsWith('/api/syndic'))) {
+      return isApiPath ? dormantGone('syndic') : dormantNotFound(request)
+    }
+    if (
+      !COPRO_ON &&
+      (normalizedForGate.startsWith('/coproprietaire') ||
+        normalizedForGate.startsWith('/api/coproprietaire') ||
+        normalizedForGate.startsWith('/api/copro-ai'))
+    ) {
+      return isApiPath ? dormantGone('copro') : dormantNotFound(request)
+    }
+  }
 
   // ── CSP nonce (replaces static unsafe-inline for script-src) ──
   const nonce = btoa(crypto.randomUUID())

@@ -149,7 +149,7 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
-          // F09: CSP statique sans unsafe-inline (le middleware proxy.ts injecte un nonce en prod)
+          // F09: CSP statique sans unsafe-inline (middleware.ts injecte un nonce en prod)
           { key: 'Content-Security-Policy', value: [
             "default-src 'self'",
             `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-inline' 'unsafe-eval'" : ''} https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io`,
