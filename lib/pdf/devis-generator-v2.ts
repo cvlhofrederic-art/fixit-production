@@ -443,12 +443,23 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFillColor(COLOR.BG_GRAY); pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
   pdf.rect(ML, y, contentW, dateBoxH, 'FD')
 
-  const dateCols = [
-    { label: "DATE D'ÉMISSION", value: formatDate(input.devis.date_emission) },
-    { label: 'VALIDITÉ', value: `${input.devis.validite_jours} jours` },
-    { label: "DÉLAI D'EXÉCUTION", value: input.devis.delai_execution || 'À convenir' },
-    { label: 'DATE PRESTATION', value: input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—' },
-  ]
+  const isFactureHdr = input.devis.docType === 'facture'
+  // Date d'échéance facture : date_emission + validite_jours (fallback 30)
+  const echeanceDate = new Date(input.devis.date_emission)
+  echeanceDate.setDate(echeanceDate.getDate() + (input.devis.validite_jours || 30))
+  const dateCols = isFactureHdr
+    ? [
+        { label: "DATE D'ÉMISSION", value: formatDate(input.devis.date_emission) },
+        { label: "DATE D'ÉCHÉANCE", value: formatDate(echeanceDate) },
+        { label: 'DATE PRESTATION', value: input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—' },
+        { label: 'N° FACTURE', value: input.devis.numero },
+      ]
+    : [
+        { label: "DATE D'ÉMISSION", value: formatDate(input.devis.date_emission) },
+        { label: 'VALIDITÉ', value: `${input.devis.validite_jours} jours` },
+        { label: "DÉLAI D'EXÉCUTION", value: input.devis.delai_execution || 'À convenir' },
+        { label: 'DATE PRESTATION', value: input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—' },
+      ]
 
   const dateVSeps = [60.52, 103.05, 147.51]
   const dateCenters = [(ML + dateVSeps[0]) / 2, (dateVSeps[0] + dateVSeps[1]) / 2, (dateVSeps[1] + dateVSeps[2]) / 2, (dateVSeps[2] + xRight) / 2]
