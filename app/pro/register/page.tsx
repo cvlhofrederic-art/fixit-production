@@ -11,7 +11,7 @@ import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculato
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrgType = 'artisan' | 'societe_btp' | 'conciergerie' | 'gestionnaire' | 'syndic' | null
+type OrgType = 'artisan' | 'societe_btp' | null
 type SiretStatus = 'idle' | 'checking' | 'verified' | 'error'
 
 // ─── Mapping secteur BTP label → specialty slug ───────────────────────────────
@@ -53,34 +53,7 @@ function getOrgTypes(t: (key: string) => string) {
       role: 'artisan',
       examples: t('register.orgArtisanExamples'),
     },
-    {
-      id: 'syndic' as OrgType,
-      emoji: '🏛️',
-      label: t('register.orgSyndicLabel'),
-      desc: t('register.orgSyndicDesc'),
-      color: 'purple',
-      role: 'syndic',
-      examples: t('register.orgSyndicExamples'),
-    },
-    {
-      id: 'gestionnaire' as OrgType,
-      emoji: '🏢',
-      label: t('register.orgGestionnaireLabel'),
-      desc: t('register.orgGestionnaireDesc'),
-      color: 'green',
-      role: 'pro_gestionnaire',
-      examples: t('register.orgGestionnaireExamples'),
-    },
-    {
-      id: 'conciergerie' as OrgType,
-      emoji: '🗝️',
-      label: t('register.orgConciergerieLabel'),
-      desc: t('register.orgConciergerieDesc'),
-      color: 'blue',
-      role: 'pro_conciergerie',
-      examples: t('register.orgConciergerieExamples'),
-    },
-    {
+{
       id: 'societe_btp' as OrgType,
       emoji: '🏗️',
       label: t('register.orgBtpLabel'),
@@ -129,9 +102,6 @@ function StepChoixOrganisation({ onChoose }: { onChoose: (type: OrgType) => void
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="font-bold text-dark text-base">{org.label}</span>
-                  {org.id === 'artisan' && (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{t('register.orgArtisanBadge')}</span>
-                  )}
                 </div>
                 <p className="text-sm text-text-muted mb-1">{org.desc}</p>
                 <p className="text-xs text-text-muted">{org.examples}</p>
@@ -936,11 +906,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const accent = org.color === 'blue' ? 'border-blue-400 bg-blue-50 text-blue-600' : org.color === 'purple' ? 'border-purple-400 bg-purple-50 text-purple-600' : 'border-green-400 bg-green-50 text-green-600'
   const btnClass = org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-px' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700 text-white hover:-translate-y-px' : 'bg-green-600 hover:bg-green-700 text-white hover:-translate-y-px'
 
-  const secteurs = orgType === 'societe_btp'
-    ? [t('register.sectorBtpGrosOeuvre'), t('register.sectorBtpElecPlomb'), t('register.sectorBtpPeinture'), t('register.sectorBtpMenuiserie'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'), t('register.sectorBtpMetallerie'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'), t('register.sectorBtpAutre')]
-    : orgType === 'conciergerie'
-    ? [t('register.sectorConcAirbnb'), t('register.sectorConcResidentiel'), t('register.sectorConcLocative'), t('register.sectorConcLuxe'), t('register.sectorConcEntreprises')]
-    : [t('register.sectorGestResidentiel'), t('register.sectorGestCopro'), t('register.sectorGestFonciere'), t('register.sectorGestCommerciale'), t('register.sectorGestPromoteur')]
+  const secteurs = [t('register.sectorBtpGrosOeuvre'), t('register.sectorBtpElecPlomb'), t('register.sectorBtpPeinture'), t('register.sectorBtpMenuiserie'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'), t('register.sectorBtpMetallerie'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'), t('register.sectorBtpAutre')]
 
   return (
     <div className="space-y-6">

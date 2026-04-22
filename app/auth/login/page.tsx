@@ -135,7 +135,7 @@ export default function LoginPage() {
           fontFamily: "'Montserrat', sans-serif",
           transition: 'all 0.2s',
         }}>
-          ← Retour à l&apos;accueil
+          ← {t('confirmation.backHome')}
         </LocaleLink>
       </nav>
 
