@@ -13,12 +13,13 @@ pages_build_output_dir = ".open-next"
 # Workers Paid: 30s CPU time, 128 MB memory, 10 MB compressed bundle
 # Queues consumers get up to 15 minutes per batch
 
-# ── KV Namespace Bindings ──────────────���─────────────────────────────────────
-# App cache layer (replaces in-memory Map for stateless Workers)
-# Create with: wrangler kv namespace create CACHE
-# [[kv_namespaces]]
-# binding = "CACHE"
-# id = "<KV_NAMESPACE_ID>"
+# ── KV Namespace Bindings ────────────────────────────────────────────────────
+# App cache layer (stateless Workers, replaces in-memory Map).
+# Provisionné par ./scripts/cf-provision.sh — copier l'ID renvoyé ici.
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
 
 # ── Cron Triggers ─────────��──────────────────────────────────────────────────
 # Migrated from vercel.json crons.
@@ -38,19 +39,20 @@ crons = [
   "0 8 * * *",
 ]
 
-# ── Queue Bindings ─────────────────────────────────────��─────────────────────
-# For long-running jobs that exceed Workers 30s CPU limit.
-# Producers enqueue, consumers process in background (up to 15 min).
+# ── Queue Bindings ───────────────────────────────────────────────────────────
+# Jobs > 30s CPU (scans marchés publics, exports, syncs externes).
+# Producers enqueue depuis une route API ; consumer processe jusqu'à 15 min.
+# Provisionné par ./scripts/cf-provision.sh.
+[[queues.producers]]
+binding = "SYNC_QUEUE"
+queue = "fixit-sync-jobs"
 
-# Create with: wrangler queues create fixit-sync-jobs
-# [[queues.producers]]
-# binding = "SYNC_QUEUE"
-# queue = "fixit-sync-jobs"
-
-# [[queues.consumers]]
-# queue = "fixit-sync-jobs"
-# max_batch_timeout = 30
-# max_retries = 2
+[[queues.consumers]]
+queue = "fixit-sync-jobs"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 2
+dead_letter_queue = "fixit-sync-jobs-dlq"
 
 # ── Long-Running Jobs (require Queues or external service) ──────────────────
 # These were Vercel crons with maxDuration > 30s:
