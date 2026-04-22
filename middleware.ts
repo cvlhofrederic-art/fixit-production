@@ -61,9 +61,10 @@ function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
   const cookieLocale = request.cookies.get('locale')?.value
   if (cookieLocale && SUPPORTED_LOCALES.includes(cookieLocale)) return cookieLocale
-  // 2. Vercel geolocation (available on Vercel Edge Runtime)
-  const country = (request as any).geo?.country
-  if (country) {
+  // 2. Cloudflare geolocation via CF-IPCountry header (natif Workers/Pages)
+  //    Vercel fournissait request.geo.country ; CF injecte le header automatiquement.
+  const country = request.headers.get('cf-ipcountry')?.toUpperCase()
+  if (country && country !== 'XX' && country !== 'T1') {
     if (LUSOPHONE_COUNTRIES.includes(country)) return 'pt'
     if (FRANCOPHONE_COUNTRIES.includes(country)) return 'fr'
   }
