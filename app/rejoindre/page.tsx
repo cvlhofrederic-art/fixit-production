@@ -111,7 +111,7 @@ export default function RejoindreParrainage() {
           borderRadius: 20, padding: '6px 16px', marginBottom: 24,
           fontSize: 14, fontWeight: 600, color: '#B8860B',
         }}>
-          🎁 1 mois gratuit avec ce lien
+          🎁 2ᵉ mois offert avec ce lien
         </div>
 
         <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0D1B2E', lineHeight: 1.3, marginBottom: 16 }}>
@@ -161,7 +161,7 @@ export default function RejoindreParrainage() {
               e.currentTarget.style.boxShadow = '0 4px 14px rgba(201,168,76,0.3)'
             }}
           >
-            Créer mon compte — 1er mois offert
+            Créer mon compte — 2ᵉ mois offert
           </a>
         </div>
 
@@ -180,7 +180,7 @@ export default function RejoindreParrainage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <Step number={1} text="Créez votre compte gratuitement en 2 minutes" />
-            <Step number={2} text="Activez votre abonnement Pro (votre 1er mois est offert)" />
+            <Step number={2} text="Payez votre 1er mois — le 2ᵉ vous est automatiquement offert" />
             <Step number={3} text={`${parrainName || 'Votre parrain'} reçoit aussi 1 mois offert — tout le monde gagne`} />
           </div>
         </div>
