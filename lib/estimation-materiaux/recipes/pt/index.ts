@@ -18,6 +18,14 @@ import { pladurRecipes } from './pladur'
 import { pinturaRecipes } from './pintura'
 import { revestimentoRecipes } from './revestimento'
 import { extrasPtRecipes } from './extras'
+import { saneamentoRecipes } from './saneamento'
+import { jardimRecipes } from './jardim'
+import { piscinaRecipes } from './piscina'
+import { vedacoesRecipes } from './vedacoes'
+import { terracoRecipes } from './terraco'
+import { eletricidadeRecipes } from './eletricidade'
+import { canalizacaoRecipes } from './canalizacao'
+import { climatizacaoRecipes } from './climatizacao'
 
 export const allPtRecipes: Recipe[] = [
   ...alvenariaRecipes,
@@ -25,6 +33,14 @@ export const allPtRecipes: Recipe[] = [
   ...pinturaRecipes,
   ...revestimentoRecipes,
   ...extrasPtRecipes,
+  ...saneamentoRecipes,
+  ...jardimRecipes,
+  ...piscinaRecipes,
+  ...vedacoesRecipes,
+  ...terracoRecipes,
+  ...eletricidadeRecipes,
+  ...canalizacaoRecipes,
+  ...climatizacaoRecipes,
 ]
 
 export {
@@ -33,4 +49,12 @@ export {
   pinturaRecipes,
   revestimentoRecipes,
   extrasPtRecipes,
+  saneamentoRecipes,
+  jardimRecipes,
+  piscinaRecipes,
+  vedacoesRecipes,
+  terracoRecipes,
+  eletricidadeRecipes,
+  canalizacaoRecipes,
+  climatizacaoRecipes,
 }
