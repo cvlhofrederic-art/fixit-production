@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const { user_id, role, org_type } = parsed.data
 
     // Authorize: caller must be the target user or super_admin
-    const callerRole = caller.user_metadata?.role
+    const callerRole = caller.app_metadata?.role
     if (caller.id !== user_id && callerRole !== 'super_admin') {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
