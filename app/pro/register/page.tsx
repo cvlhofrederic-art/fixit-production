@@ -937,11 +937,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     { label: 'Mudanças', cae: 'Serviços de mudanças (CAE 49420)' },
     { label: 'Desentupimentos', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
     { label: 'Fachadas', cae: 'Outras atividades de acabamento em edifícios (CAE 43350)' },
-    { label: 'Terraços / Varandas', cae: 'Construção de edifícios residenciais e não residenciais (CAE 41000)' },
+    { label: 'Terraços / Varandas', cae: 'Construção de edifícios (CAE 41200)' },
     { label: 'Piscinas', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
     { label: 'Controlo de pragas', cae: 'Atividades de desinfeção, desratização e similares (CAE 81231)' },
     { label: 'Bricolagem', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
-    { label: 'Renovação geral', cae: 'Construção de edifícios residenciais e não residenciais (CAE 41000)' },
+    { label: 'Renovação geral', cae: 'Construção de edifícios (CAE 41200)' },
     { label: 'Outro setor', cae: '' },
   ] : [
     { label: 'Maçonnerie', cae: 'Travaux de maçonnerie générale (NAF 43.99A)' },
