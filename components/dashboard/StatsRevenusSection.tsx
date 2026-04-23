@@ -101,30 +101,33 @@ function usePilotageData() {
 }
 
 function PilotageBanner() {
+  const { t } = useTranslation()
+  const locale = useLocale()
   const pilotageData = usePilotageData()
 
   if (!pilotageData) return null
 
-  const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const monthLabel = new Date().toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })
 
   return (
     <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
       <h3 className="text-sm font-semibold text-gray-500 mb-3 capitalize">{monthLabel}</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div>
-          <div className="text-xs text-gray-500">CA facturé</div>
+          <div className="text-xs text-gray-500">{t('proDash.stats.caFacture')}</div>
           <div className="text-lg font-bold">{formatPrice(pilotageData.caTotal)}</div>
         </div>
         <div>
-          <div className="text-xs text-gray-500">Charges totales</div>
+          <div className="text-xs text-gray-500">{t('proDash.stats.chargesTotales')}</div>
           <div className="text-lg font-bold text-red-600">{formatPrice(pilotageData.chargesTotal)}</div>
         </div>
         <div>
-          <div className="text-xs text-gray-500">Net dans ta poche</div>
+          <div className="text-xs text-gray-500">{t('proDash.stats.netPoche')}</div>
           <div className="text-lg font-bold text-green-600">{formatPrice(pilotageData.netPoche)}</div>
         </div>
         <div>
-          <div className="text-xs text-gray-500">Marge</div>
+          <div className="text-xs text-gray-500">{t('proDash.stats.marge')}</div>
           <div className={`text-lg font-bold ${
             pilotageData.margePct > 15 ? 'text-green-600' :
             pilotageData.margePct >= 5 ? 'text-orange-500' : 'text-red-600'
@@ -720,42 +723,42 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   return (
     <div className="v5-fade">
       <PilotageBanner />
-      <div className="v5-pg-t"><h1>Revenus</h1><p>Flux de trésorerie et encaissements</p></div>
+      <div className="v5-pg-t"><h1>{t('proDash.stats.revenusTitle')}</h1><p>{t('proDash.stats.revenusSubtitle')}</p></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
         <div className="v5-kpi hl">
-          <div className="v5-kpi-l">CA {currentYear}</div>
+          <div className="v5-kpi-l">{t('proDash.stats.ca')} {currentYear}</div>
           <div className="v5-kpi-v">{formatPrice(caYear, locale)}</div>
-          <div className="v5-kpi-s">cumulé</div>
+          <div className="v5-kpi-s">{t('proDash.stats.cumule')}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Encaissements {now.toLocaleDateString(dateLocale, { month: 'long' })}</div>
+          <div className="v5-kpi-l">{t('proDash.stats.encaissementsMois')} {now.toLocaleDateString(dateLocale, { month: 'long' })}</div>
           <div className="v5-kpi-v">{formatPrice(monthlyEncaissements, locale)}</div>
-          <div className="v5-kpi-s">{monthlyCount} opération{monthlyCount > 1 ? 's' : ''}</div>
+          <div className="v5-kpi-s">{monthlyCount} {monthlyCount > 1 ? t('proDash.stats.operations') : t('proDash.stats.operation')}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Factures en attente</div>
+          <div className="v5-kpi-l">{t('proDash.stats.facturesEnAttente')}</div>
           <div className="v5-kpi-v">{formatPrice(pendingAmount, locale)}</div>
-          <div className="v5-kpi-s">{hasBookings ? pendingBookings.length : pendingFactures.length} facture{(hasBookings ? pendingBookings.length : pendingFactures.length) > 1 ? 's' : ''}</div>
+          <div className="v5-kpi-s">{hasBookings ? pendingBookings.length : pendingFactures.length} {(hasBookings ? pendingBookings.length : pendingFactures.length) > 1 ? t('proDash.stats.factures') : t('proDash.stats.facture')}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">Recouvrement</div>
+          <div className="v5-kpi-l">{t('proDash.stats.recouvrement')}</div>
           <div className="v5-kpi-v">{recouvrementPct}%</div>
-          <div className="v5-kpi-s">{recouvrementPct >= 80 ? 'bon' : recouvrementPct >= 60 ? 'moyen' : 'faible'}</div>
+          <div className="v5-kpi-s">{recouvrementPct >= 80 ? t('proDash.stats.bon') : recouvrementPct >= 60 ? t('proDash.stats.moyen') : t('proDash.stats.faible')}</div>
         </div>
       </div>
 
       {/* Encaissements récents table */}
       <div className="v5-card">
-        <div className="v5-st">Encaissements récents</div>
+        <div className="v5-st">{t('proDash.stats.encaissementsRecents')}</div>
         <table className="v5-dt">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Client</th>
-              <th>Chantier</th>
-              <th>Montant</th>
+              <th>{t('proDash.stats.date')}</th>
+              <th>{t('proDash.stats.client')}</th>
+              <th>{t('proDash.stats.chantier')}</th>
+              <th>{t('proDash.stats.montant')}</th>
             </tr>
           </thead>
           <tbody>
