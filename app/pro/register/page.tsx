@@ -185,6 +185,9 @@ function getAllowedMetiers(nafCode: string | undefined): string[] | null {
 
 function FormulaireArtisan() {
   const { t } = useTranslation()
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const taxIdLength = isPt ? 9 : 14
   const searchParams = useSearchParams()
   const METIERS = getMetiers(t)
   const [step, setStep] = useState<1 | 2>(1)
@@ -258,15 +261,15 @@ function FormulaireArtisan() {
 
   const verifySiret = async () => {
     const clean = siretInput.replace(/\s/g, '')
-    if (clean.length !== 14) { setSiretError(t('register.taxId14digits')); setSiretStatus('error'); return }
+    if (clean.length !== taxIdLength) { setSiretError(isPt ? '9 dígitos necessários' : '14 chiffres nécessaires'); setSiretStatus('error'); return }
     setSiretStatus('checking'); setSiretError(''); setSiretWarning('')
     try {
-      const res = await fetch(`/api/verify-siret?siret=${clean}`)
+      const endpoint = isPt ? `/api/verify-nif?nif=${clean}` : `/api/verify-siret?siret=${clean}`
+      const res = await fetch(endpoint)
       const data = await res.json()
       if (data.verified) {
         setSiretStatus('verified'); setVerifiedCompany(data.company); setSiretWarning(data.warning || '')
-        setFormData(prev => ({ ...prev, companyName: data.company.name, siret: clean }))
-        // Filtrer les catégories sélectionnées pour ne garder que celles autorisées par le NAF
+        setFormData(prev => ({ ...prev, companyName: data.company.name || prev.companyName, siret: clean }))
         const allowed = getAllowedMetiers(data.company.nafCode)
         if (allowed) setSelectedCategories(prev => prev.filter(c => allowed.includes(c)))
       } else { setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid')) }
@@ -474,7 +477,7 @@ function FormulaireArtisan() {
             <div className="flex gap-3">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(formatSiret(e.target.value)); setSiretStatus('idle'); setSiretError(''); setVerifiedCompany(null); setSelectedCategories([]) }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); verifySiret() } }} maxLength={17}
                 className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl text-lg font-mono tracking-wider focus:outline-none transition ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400 bg-red-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-[#BDBDBD] focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
-              <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== 14 || siretStatus === 'checking'}
+              <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== taxIdLength || siretStatus === 'checking'}
                 className="bg-yellow hover:bg-yellow-light text-dark px-5 py-3 rounded-xl font-semibold transition hover:-translate-y-px disabled:opacity-40 whitespace-nowrap">
                 {siretStatus === 'checking' ? '⏳' : t('register.verify')}
               </button>
@@ -734,16 +737,19 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const [idPreview, setIdPreview] = useState('')
   const [legalStructure, setLegalStructure] = useState('')
 
+  const isPt = locale === 'pt'
+  const taxIdLength = isPt ? 9 : 14
+
   const verifySiret = async () => {
     const clean = siretInput.replace(/\s/g, '')
-    if (clean.length !== 14) { setSiretError(t('register.taxId14digits')); setSiretStatus('error'); return }
+    if (clean.length !== taxIdLength) { setSiretError(isPt ? '9 dígitos necessários' : '14 chiffres nécessaires'); setSiretStatus('error'); return }
     setSiretStatus('checking'); setSiretError('')
     try {
-      const res = await fetch(`/api/verify-siret?siret=${clean}`)
+      const endpoint = isPt ? `/api/verify-nif?nif=${clean}` : `/api/verify-siret?siret=${clean}`
+      const res = await fetch(endpoint)
       const data = await res.json()
       if (data.verified) {
-        setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name }))
-        // Auto-map legal form from API to companyTypes key
+        setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name || f.companyName }))
         if (data.company.legalForm) {
           const mapped = mapLegalFormToKey(data.company.legalForm, registrationCountry)
           if (mapped) setLegalStructure(mapped)
@@ -955,7 +961,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <div className="flex gap-2">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(e.target.value); setSiretStatus('idle') }} maxLength={17}
                 className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl font-mono text-sm focus:outline-none ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400' : 'border-[#E0E0E0] bg-warm-gray focus:border-purple-400 focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
-              <button type="button" onClick={verifySiret} disabled={siretStatus === 'checking'} className={`px-4 py-3 rounded-xl font-semibold transition text-sm ${btnClass}`}>
+              <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== taxIdLength || siretStatus === 'checking'} className={`px-4 py-3 rounded-xl font-semibold transition text-sm ${btnClass}`}>
                 {siretStatus === 'checking' ? '⏳' : t('register.verify')}
               </button>
             </div>
