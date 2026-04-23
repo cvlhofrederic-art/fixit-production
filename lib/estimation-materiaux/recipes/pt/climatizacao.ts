@@ -55,7 +55,7 @@ export const climatizacaoRecipes: Recipe[] = [
       },
       {
         id: 'tubagem-frigo-pt', name: 'Tubagem frigorífica cobre isolado (par pré-isolado)',
-        category: 'plaque', phase: 'principal', quantityPerBase: 10, unit: 'ml', geometryMultiplier: 'none',
+        category: 'plaque', phase: 'principal', quantityPerBase: 5, unit: 'ml', geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Cortes + raccords',
       },
       {
@@ -136,9 +136,9 @@ export const climatizacaoRecipes: Recipe[] = [
       },
       {
         id: 'juntas-refnet-pt', name: 'Juntas de derivação (refnet Y)',
-        category: 'accessoire', phase: 'accessoires', quantityPerBase: 2, unit: 'u', geometryMultiplier: 'none',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 4, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.00, wasteReason: 'Sem perdas',
-        notes: '2 juntas Y para derivar de 1 UE para 3 UI.',
+        notes: '4 juntas Y para derivar de 1 UE para 3 UI (2 liquid + 2 gas).',
       },
       {
         id: 'suporte-mural-ue-multi-pt', name: 'Suporte mural UE (consolas reforçadas)',
@@ -178,7 +178,7 @@ export const climatizacaoRecipes: Recipe[] = [
     dtuReferences: ptRefs('reh', 'bombas_calor', 'tubagens_pex'),
     hypothesesACommuniquer: [
       'Isolamento base XPS 30 mm obrigatório (REH)',
-      'Tubo PEX Ø16 em espiral, espaçamento 15 cm (6,5 ml/m²)',
+      'Tubo PEX Ø16 em espiral, espaçamento 15 cm (6,7 ml/m²)',
       'Coletor de distribuição com caudalímetros (1 por cada ~20 m²)',
       'Betonilha de regularização 5 cm sobre tubo (NÃO incluída — ver receita betonilha)',
       'Temperatura máxima da água: 45 °C (conforto e eficiência REH)',
@@ -201,7 +201,7 @@ export const climatizacaoRecipes: Recipe[] = [
       },
       {
         id: 'tubo-pex-16-piso-pt', name: 'Tubo PEX Ø16 (espiral espaçamento 15 cm)',
-        category: 'plaque', phase: 'principal', quantityPerBase: 6.5, unit: 'ml', geometryMultiplier: 'none',
+        category: 'plaque', phase: 'principal', quantityPerBase: 6.7, unit: 'ml', geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Ligações ao coletor',
         normRef: 'NP EN ISO 15875 (2005)', manufacturerRef: 'Uponor PT / Giacomini',
         packaging: { unit: 'rouleau', contentQty: 120, contentUnit: 'ml', label: 'rolo 120 m' },
@@ -215,10 +215,10 @@ export const climatizacaoRecipes: Recipe[] = [
       },
       {
         id: 'coletor-piso-radiante-pt', name: 'Coletor de distribuição com caudalímetros',
-        category: 'accessoire', phase: 'principal', quantityPerBase: 0.05, unit: 'u', geometryMultiplier: 'none',
+        category: 'accessoire', phase: 'principal', quantityPerBase: 0.06, unit: 'u', geometryMultiplier: 'none',
         wasteFactor: 1.00, wasteReason: 'Sem perdas',
         manufacturerRef: 'Uponor PT / Giacomini',
-        notes: '1 coletor para ~20 m² (0,05 u/m²).',
+        notes: '1 coletor para ~17 m² (0,06 u/m², respeitar 120 m max por circuito).',
       },
       {
         id: 'faixa-perimetral-pt', name: 'Faixa perimetral espuma PE 10 mm × 150 mm',
