@@ -726,7 +726,6 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     nafCode?: string
     nafLabel?: string
     legalForm?: string
-    address?: string
     city?: string
     postalCode?: string
   } | null>(null)
