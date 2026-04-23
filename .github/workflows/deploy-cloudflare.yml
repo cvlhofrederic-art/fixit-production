@@ -60,8 +60,9 @@ jobs:
       - name: Smoke test
         run: |
           sleep 10
-          for url in https://vitfix.io https://vitfix.io/robots.txt; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+          # Follow redirects (middleware sends / → /fr/) and check final 200
+          for url in https://vitfix.io https://vitfix.io/fr https://vitfix.io/robots.txt; do
+            code=$(curl -sL -o /dev/null -w "%{http_code}" "$url")
             echo "$url → $code"
             if [ "$code" != "200" ]; then
               echo "::error::Smoke test failed for $url (HTTP $code)"
