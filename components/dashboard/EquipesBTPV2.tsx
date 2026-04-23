@@ -308,7 +308,8 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
 
   const defaultChargesSalariales = Math.round(companyConfig.employee_charge_rate * 100)
   const defaultChargesPatronales = Math.round(companyConfig.employer_charge_rate * 100)
-  const [mForm, setMForm] = useState({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales })
+  const defaultHeuresHebdo = isPt ? 40 : 35
+  const [mForm, setMForm] = useState({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo })
   const [eForm, setEForm] = useState({ nom: '', metier: '', chantierId: '', membreIds: [] as string[] })
 
   // Computed: real cost per member using payroll engine
@@ -383,7 +384,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
     setSaving(false)
     setShowMembreModal(false)
     setEditingMembre(null)
-    setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales })
+    setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo })
     setShowFinance(false)
   }
 
@@ -463,7 +464,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && (
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales }); setShowFinance(false); setShowMembreModal(true) }}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo }); setShowFinance(false); setShowMembreModal(true) }}>
               + {isPt ? 'Membro' : 'Membre'}
             </button>
           )}
@@ -849,7 +850,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
                       <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
                         onChange={e => {
-                          const h = parseFloat(e.target.value) || 35
+                          const h = parseFloat(e.target.value) || defaultHeuresHebdo
                           if (calcMode === 'auto') {
                             const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
                             setMForm({ ...mForm, heures_hebdo: h, coutHoraire: brut > 0 ? coutHoraireFromBrut(brut, h) : mForm.coutHoraire })
