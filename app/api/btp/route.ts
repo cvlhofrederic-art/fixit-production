@@ -146,7 +146,8 @@ export async function POST(request: NextRequest) {
     if (action === 'import' && Array.isArray(data)) {
       if (data.length > 500) return NextResponse.json({ error: 'Import limité à 500 lignes max' }, { status: 400 })
       const rows = data.map((d: Record<string, unknown>) => {
-        const { created_at: _ca, updated_at: _ua, ...rest } = d
+        // F02: strip system/dangerous fields before spreading user data
+        const { created_at: _ca, updated_at: _ua, owner_id: _oid, id: _id, ...rest } = d
         return { ...rest, owner_id: user.id }
       })
       const { data: inserted, error } = await supabaseAdmin
@@ -160,9 +161,11 @@ export async function POST(request: NextRequest) {
 
     // ── Upsert settings ──────────────────────────────────────────────────────
     if (action === 'upsert_settings') {
+      // F02: strip blacklisted fields before spreading user data
+      const { owner_id: _oid, id: _id, created_at: _ca, ...safeData } = (data || {}) as Record<string, unknown>
       const { data: result, error } = await supabaseAdmin
         .from('settings_btp')
-        .upsert({ owner_id: user.id, ...data, updated_at: new Date().toISOString() })
+        .upsert({ ...safeData, updated_at: new Date().toISOString(), owner_id: user.id })
         .select()
         .single()
       if (error) throw error
