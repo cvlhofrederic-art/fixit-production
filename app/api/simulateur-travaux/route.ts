@@ -2,9 +2,12 @@
 // POST /api/simulateur-travaux
 // Body: { messages: [{role, content}], userId?: string }
 
+import { NextRequest } from 'next/server'
 import { callGroqStreaming } from '@/lib/groq'
 import { BASE_PRIX, COEFFICIENTS_GAMME, COEFFICIENTS_ZONE, COEFFICIENTS_ETAT } from '@/lib/prix-travaux'
 import { validateBody, simulateurTravauxSchema } from '@/lib/validation'
+import { getAuthUser, unauthorizedResponse } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export const maxDuration = 30
 export const runtime = 'nodejs'
@@ -77,7 +80,15 @@ ${JSON.stringify(COEFFICIENTS_GAMME, null, 0)}
 COEFFICIENTS ÉTAT :
 ${JSON.stringify(COEFFICIENTS_ETAT, null, 0)}`
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Auth check: user must be authenticated
+  const user = await getAuthUser(req)
+  if (!user) return unauthorizedResponse()
+
+  // Rate limit: 10 requests per minute per IP (LLM call)
+  const ip = getClientIP(req)
+  if (!(await checkRateLimit(`sim_travaux_${ip}`, 10, 60_000))) return rateLimitResponse()
+
   try {
     const body = await req.json()
     const v = validateBody(simulateurTravauxSchema, body)

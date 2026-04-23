@@ -7,14 +7,21 @@
  *   npx tsx scripts/seed-demo-btp-pt.ts          → Crée le compte + insère les données
  *   npx tsx scripts/seed-demo-btp-pt.ts --clean   → Supprime les données [DEMO-PT]
  *
- * Compte créé : admincvlhopt@gmail.com / Fixit2024!
+ * Compte créé : admincvlhopt@gmail.com / (SEED_PASSWORD env var or random UUID)
  * Société     : Construções Valho & Filhos, Lda
  * Locale      : PT — noms, moradas, NIF, preços adaptados a Portugal
  */
 
 import { createClient } from '@supabase/supabase-js'
+import * as crypto from 'crypto'
 import * as dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
+
+// ── Production guard ──
+if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('prod')) {
+  console.error('SEED BLOCKED: cannot run against production')
+  process.exit(1)
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -32,7 +39,7 @@ const DEMO_TAG = '[DEMO-PT]'
 // ────────────────────────────────────────────────────────────
 const ACCOUNT = {
   email: 'admincvlhopt@gmail.com',
-  password: 'Fixit2024!',
+  password: process.env.SEED_PASSWORD || crypto.randomUUID(),
   full_name: 'Carlos Valho',
   company_name: 'Construções Valho & Filhos, Lda',
   nif: '512 345 678',
@@ -697,7 +704,7 @@ async function seed() {
 ║        ✅ CONTA DEMO PT CRIADA COM SUCESSO               ║
 ╠══════════════════════════════════════════════════════════╣
 ║  Email    : admincvlhopt@gmail.com                       ║
-║  Password : Fixit2024!                                   ║
+║  Password : ${ACCOUNT.password.substring(0, 4)}****                                 ║
 ║  Empresa  : Construções Valho & Filhos, Lda              ║
 ║  NIPC     : 512 345 678                                  ║
 ║  Morada   : Rua de Santa Catarina, 247 — Porto           ║

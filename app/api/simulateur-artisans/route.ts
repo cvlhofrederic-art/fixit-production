@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser, unauthorizedResponse } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // Mapping slug simulateur → catégories dans profiles_artisan
 const SLUG_TO_CATEGORIES: Record<string, string[]> = {
@@ -24,6 +26,14 @@ function normalizeStr(s: string) {
 }
 
 export async function GET(req: NextRequest) {
+  // Auth check: user must be authenticated
+  const user = await getAuthUser(req)
+  if (!user) return unauthorizedResponse()
+
+  // Rate limit: 20 requests per minute per IP
+  const ip = getClientIP(req)
+  if (!(await checkRateLimit(`sim_artisans_${ip}`, 20, 60_000))) return rateLimitResponse()
+
   try {
     const { searchParams } = new URL(req.url)
     const city    = searchParams.get('city')    || ''
