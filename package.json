@@ -78,6 +78,7 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.3",
+    "@opennextjs/cloudflare": "^1.19.3",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
@@ -95,6 +96,7 @@
     "pg": "^8.18.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wrangler": "^4.84.1"
   }
 }
