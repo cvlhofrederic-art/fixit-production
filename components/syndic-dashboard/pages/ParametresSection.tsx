@@ -115,7 +115,7 @@ export default function ParametresSection({
             <div className="flex items-center gap-4">
               {syndicSignature ? (
                 <div className="relative">
-                  <div className="border border-gray-200 rounded-lg bg-white p-2" style={{ width: 200, height: 80 }} dangerouslySetInnerHTML={{ __html: syndicSignature.svg_data.replace(/width="400"/, 'width="200"').replace(/height="160"/, 'height="80"') }} />
+                  <img className="border border-gray-200 rounded-lg bg-white p-2" style={{ width: 200, height: 80 }} src={`data:image/svg+xml,${encodeURIComponent(syndicSignature.svg_data)}`} alt="Signature" />
                   <div className="text-[10px] text-gray-500 mt-1">{syndicSignature.signataire} — {new Date(syndicSignature.timestamp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</div>
                   <button onClick={() => { setSyndicSignature(null); if (user) localStorage.removeItem(`fixit_syndic_signature_${user.id}`) }} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">×</button>
                 </div>
