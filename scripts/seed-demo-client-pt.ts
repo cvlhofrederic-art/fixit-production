@@ -9,8 +9,15 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import * as crypto from 'crypto'
 import * as dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
+
+// ── Production guard ──
+if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('prod')) {
+  console.error('SEED BLOCKED: cannot run against production')
+  process.exit(1)
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -24,7 +31,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 const ACCOUNT = {
   email: 'democlientpt@gmail.com',
-  password: 'Fixit2024!',
+  password: process.env.SEED_PASSWORD || crypto.randomUUID(),
   full_name: 'Maria Silva',
   phone: '+351 912 345 678',
   address: 'Rua de Santa Catarina, 150',

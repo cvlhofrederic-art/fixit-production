@@ -98,5 +98,8 @@
     "typescript": "^5",
     "vitest": "^4.0.18",
     "wrangler": "^4.84.1"
+  },
+  "overrides": {
+    "uuid": "^14.0.0"
   }
 }

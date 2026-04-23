@@ -1,10 +1,19 @@
 const { createClient } = require('@supabase/supabase-js')
+const crypto = require('crypto')
+
+// ── Production guard ──
+if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('prod')) {
+  console.error('SEED BLOCKED: cannot run against production')
+  process.exit(1)
+}
 
 // Utilisation de la clé service_role pour bypass RLS
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+const SEED_PASSWORD = process.env.SEED_PASSWORD || crypto.randomUUID()
 
 async function seed() {
   console.log('🌱 Début du seeding Lepore Sebastien...\n')
@@ -44,7 +53,7 @@ async function seed() {
   console.log('\n2️⃣  Création du compte auth...')
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: 'leporesebastien.pro@gmail.com',
-    password: 'ChangeMe123!',
+    password: SEED_PASSWORD,
     email_confirm: true,
     user_metadata: {
       full_name: 'Lepore Sebastien',
@@ -159,7 +168,7 @@ async function createProfile(userId: string, category: any) {
   console.log(`📍 Adresse     : Rés. L'Aurore Bât. B, 13600 La Ciotat`)
   console.log(`🌿 Métier      : Paysagiste`)
   console.log(`📋 Services    : Entretien jardin (90€) + Élagage (150€)`)
-  console.log(`🔐 Mot de passe: ChangeMe123!`)
+  console.log(`🔐 Mot de passe: ${SEED_PASSWORD}`)
   console.log(`🆔 ID Artisan  : ${artisan.id}`)
   console.log(`🔗 Profil      : https://vitfix.io/artisan/${artisan.id}`)
   console.log(`🔗 Login       : https://vitfix.io/auth/login`)
