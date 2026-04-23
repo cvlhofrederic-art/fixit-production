@@ -151,12 +151,12 @@ export default function FacturesSection({
             <table>
               <thead>
                 <tr>
-                  <th>{locale === 'pt' ? 'Ref' : 'Réf'}</th>
-                  <th>{locale === 'pt' ? 'Cliente' : 'Client'}</th>
-                  <th style={{ textAlign: 'right' }}>{locale === 'pt' ? 'Montante s/ IVA' : 'Montant HT'}</th>
-                  <th>{locale === 'pt' ? 'Emitida em' : 'Émise le'}</th>
-                  <th>{locale === 'pt' ? 'Vencimento' : 'Échéance'}</th>
-                  <th>{locale === 'pt' ? 'Estado' : 'Statut'}</th>
+                  <th>{t('proDash.factures.colRef')}</th>
+                  <th>{t('proDash.factures.colClient')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('proDash.factures.colMontantHT')}</th>
+                  <th>{t('proDash.factures.colEmiseLe')}</th>
+                  <th>{t('proDash.factures.colEcheance')}</th>
+                  <th>{t('proDash.factures.colStatut')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -190,7 +190,7 @@ export default function FacturesSection({
                               {t('proDash.factures.marquerEnvoyee')}
                             </button>
                           )}
-                          <button className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Descarregar PDF' : 'Télécharger le PDF'} onClick={async (e) => {
+                          <button className="v22-btn v22-btn-sm" title={t('proDash.factures.telechargerPDF')} onClick={async (e) => {
                             e.stopPropagation()
                             try {
                               await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
@@ -207,7 +207,7 @@ export default function FacturesSection({
                               })
                             } catch (err) {
                               console.error('[Facture] download failed', err)
-                              toast.error(locale === 'pt' ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                              toast.error(t('proDash.factures.erreurPDF'))
                             }
                           }}>
                             {'⬇️'}
@@ -216,7 +216,7 @@ export default function FacturesSection({
                             <button className="v22-btn v22-btn-sm" onClick={(e) => {
                               e.stopPropagation()
                               const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                              const body = encodeURIComponent(`${locale === 'pt' ? 'Olá' : 'Bonjour'} ${doc.clientName || ''},\n\n${locale === 'pt' ? `Segue em anexo a sua fatura N.º${doc.docNumber} no valor de ${totalHT.toFixed(2)} € s/ IVA.` : `Veuillez trouver ci-joint votre facture N°${doc.docNumber} d'un montant de ${totalHT.toFixed(2)} € HT.`}\n\n${locale === 'pt' ? 'Com os melhores cumprimentos' : 'Cordialement'},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                              const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                               window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -241,7 +241,7 @@ export default function FacturesSection({
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                             setSavedDocuments([...updDocs, ...updDrafts])
                           }}>
-                            {locale === 'pt' ? 'Apagar' : 'Suppr.'}
+                            {t('proDash.factures.supprimer')}
                           </button>
                         </div>
                       </td>
@@ -298,35 +298,35 @@ function FacturesSectionV5({
     .sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime())
 
   const getV5Badge = (doc: PersistedDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: 'Émise' }
-    if (doc.status === 'payee') return { cls: 'v5-badge v5-badge-green', label: 'Payée' }
-    return { cls: 'v5-badge v5-badge-yellow', label: 'Brouillon' }
+    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.factures.emise') }
+    if (doc.status === 'payee') return { cls: 'v5-badge v5-badge-green', label: t('proDash.factures.payee') }
+    return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.factures.brouillon') }
   }
 
   // Guess facture type from docNumber or title
   const guessType = (doc: PersistedDocument) => {
     const num = doc.docNumber?.toLowerCase() || ''
     const title = doc.docTitle?.toLowerCase() || ''
-    if (num.includes('sit') || title.includes('situation')) return 'Situation'
-    if (num.includes('aco') || title.includes('acompte')) return 'Acompte'
-    if (num.includes('sol') || title.includes('solde')) return 'Solde'
-    return 'Facture'
+    if (num.includes('sit') || title.includes('situation')) return t('proDash.factures.typeSituation')
+    if (num.includes('aco') || title.includes('acompte')) return t('proDash.factures.typeAcompte')
+    if (num.includes('sol') || title.includes('solde')) return t('proDash.factures.typeSolde')
+    return t('proDash.factures.title')
   }
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Factures</h1><p>Situations, acomptes, solde</p></div>
+      <div className="v5-pg-t"><h1>{t('proDash.factures.title')}</h1><p>{t('proDash.factures.subtitleV5')}</p></div>
 
       {/* Search + Create */}
       <div className="v5-search">
         <input
           className="v5-search-in"
-          placeholder="Rechercher…"
+          placeholder={t('proDash.factures.rechercher')}
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <button className="v5-btn v5-btn-p" onClick={() => setShowFactureForm(true)}>
-          + Nouvelle facture
+          {t('proDash.factures.nouvelle')}
         </button>
       </div>
 
@@ -335,11 +335,11 @@ function FacturesSectionV5({
         <table className="v5-dt">
           <thead>
             <tr>
-              <th>N°</th>
-              <th>Client</th>
-              <th>Type</th>
-              <th>Montant TTC</th>
-              <th>Statut</th>
+              <th>{t('proDash.factures.colNum')}</th>
+              <th>{t('proDash.factures.colClient')}</th>
+              <th>{t('proDash.factures.colType')}</th>
+              <th>{t('proDash.factures.colMontantTTC')}</th>
+              <th>{t('proDash.factures.colStatut')}</th>
               <th></th>
             </tr>
           </thead>
@@ -360,9 +360,9 @@ function FacturesSectionV5({
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
                   <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
-                  <td>{doc.clientName || 'Non renseigné'}</td>
+                  <td>{doc.clientName || t('proDash.factures.nonRenseigne')}</td>
                   <td>{guessType(doc)}</td>
-                  <td>{totalTTC.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
+                  <td>{totalTTC.toLocaleString(dateLocale, { maximumFractionDigits: 0 })} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -384,8 +384,8 @@ function FacturesSectionV5({
                       {doc.clientEmail && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
-                          const subject = encodeURIComponent(`Facture ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                          const body = encodeURIComponent(`Bonjour ${doc.clientName || ''},\n\nVeuillez trouver ci-joint votre facture N°${doc.docNumber} d'un montant de ${totalHT.toFixed(2)} € HT.\n\nCordialement,\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                          const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                          const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                           window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -400,7 +400,7 @@ function FacturesSectionV5({
                         </button>
                       )}
                       {orgRole === 'artisan' && (
-                        <button className="v5-btn v5-btn-sm" title={locale === 'pt' ? 'Descarregar PDF' : 'Télécharger le PDF'} onClick={async e => {
+                        <button className="v5-btn v5-btn-sm" title={t('proDash.factures.telechargerPDF')} onClick={async e => {
                           e.stopPropagation()
                           try {
                             await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
@@ -417,15 +417,15 @@ function FacturesSectionV5({
                             })
                           } catch (err) {
                             console.error('[Facture] download failed', err)
-                            toast.error(locale === 'pt' ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                            toast.error(t('proDash.factures.erreurPDF'))
                           }
                         }}>
-                          {locale === 'pt' ? 'Descarregar' : 'Télécharger'}
+                          {t('proDash.factures.telecharger')}
                         </button>
                       )}
                       <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => {
                         e.stopPropagation()
-                        if (!confirm(`Supprimer la facture ${doc.docNumber} ?`)) return
+                        if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
                         const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                         const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                         const uDocs = (allDocs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
@@ -434,7 +434,7 @@ function FacturesSectionV5({
                         localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                         setSavedDocuments([...uDocs, ...uDrafts])
                       }}>
-                        Suppr.
+                        {t('proDash.factures.supprimer')}
                       </button>
                     </div>
                   </td>
@@ -443,7 +443,7 @@ function FacturesSectionV5({
             }) : (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
-                  {search ? 'Aucune facture trouvée' : 'Aucune facture. Créez votre première facture.'}
+                  {search ? t('proDash.factures.aucuneRecherche') : t('proDash.factures.aucune')}
                 </td>
               </tr>
             )}

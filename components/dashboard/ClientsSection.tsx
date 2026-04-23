@@ -243,7 +243,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const typeLabel = (c: ClientRecord) => {
     const ct = CLIENT_TYPES.find(ct => ct.value === c.type)
     if (ct) return ct.label
-    return isEntreprise(c) ? 'B2B' : 'Particulier'
+    return isEntreprise(c) ? t('proDash.clients.b2bFallback') : t('proDash.clients.particulierFallback')
   }
 
   // ═══════════════════════════════════════════════════════
@@ -278,12 +278,12 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     }}
                     className="v5-fi"
                   >
-                    <optgroup label="Particuliers (B2C)">
+                    <optgroup label={t('proDash.clients.particuliersB2C')}>
                       {CLIENT_TYPES.filter(ct => ct.group === 'b2c').map(ct => (
                         <option key={ct.value} value={ct.value}>{ct.label}</option>
                       ))}
                     </optgroup>
-                    <optgroup label="Professionnels (B2B)">
+                    <optgroup label={t('proDash.clients.professionnelsB2B')}>
                       {CLIENT_TYPES.filter(ct => ct.group === 'b2b').map(ct => (
                         <option key={ct.value} value={ct.value}>{ct.label}</option>
                       ))}
@@ -379,24 +379,24 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
         {/* Page title */}
         <div className="v5-pg-t">
-          <h1>Base clients</h1>
-          <p>Ma&icirc;tres d&apos;ouvrage, syndics, architectes</p>
+          <h1>{t('proDash.clients.title')}</h1>
+          <p>{t('proDash.clients.subtitle')}</p>
         </div>
 
         {/* Search + new */}
         <div className="v5-search">
           <input
             className="v5-search-in"
-            placeholder="Rechercher..."
+            placeholder={t('proDash.clients.rechercher')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <select className="v5-filter-sel" value={activeTab} onChange={e => setActiveTab(e.target.value as typeof activeTab)}>
-            <option value="tous">Tous ({allClients.length})</option>
+            <option value="tous">{t('proDash.clients.tous')} ({allClients.length})</option>
             <option value="particuliers">B2C ({particuliersCount})</option>
             <option value="entreprises">B2B ({entreprisesCount})</option>
           </select>
-          <button className="v5-btn v5-btn-p" onClick={openNew}>+ Nouveau client</button>
+          <button className="v5-btn v5-btn-p" onClick={openNew}>{t('proDash.clients.nouveau')}</button>
         </div>
 
         {/* Loading */}
@@ -424,12 +424,12 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
             <table className="v5-dt">
               <thead>
                 <tr>
-                  <th>Nom</th>
-                  <th>Type</th>
-                  <th>Contact</th>
-                  <th>Chantiers</th>
-                  <th>CA cumul&eacute;</th>
-                  <th>Actions</th>
+                  <th>{t('proDash.clients.nom')}</th>
+                  <th>{t('proDash.clients.typeCol')}</th>
+                  <th>{t('proDash.clients.contact')}</th>
+                  <th>{t('proDash.clients.chantiers')}</th>
+                  <th>{t('proDash.clients.caCumule')}</th>
+                  <th>{t('proDash.clients.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -446,11 +446,11 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                       <td>{ca > 0 ? `${ca.toLocaleString('fr-FR')} \u20AC` : '\u2014'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="v5-btn v5-btn-sm" onClick={e => { e.stopPropagation(); onNewDevis(c.name) }}>Devis</button>
+                          <button className="v5-btn v5-btn-sm" onClick={e => { e.stopPropagation(); onNewDevis(c.name) }}>{t('proDash.devis.title')}</button>
                           {isManual && (
                             <>
-                              <button className="v5-btn v5-btn-sm" onClick={e => { e.stopPropagation(); openEdit(c) }}>Modifier</button>
-                              <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => { e.stopPropagation(); deleteManualClient(c.id) }}>Suppr.</button>
+                              <button className="v5-btn v5-btn-sm" onClick={e => { e.stopPropagation(); openEdit(c) }}>{t('proDash.motifs.modifier')}</button>
+                              <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => { e.stopPropagation(); deleteManualClient(c.id) }}>{t('proDash.clients.supprimer')}</button>
                             </>
                           )}
                         </div>
@@ -509,7 +509,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
                     <button onClick={() => onNewRdv(c.name)} className="v5-btn v5-btn-p">{t('proDash.clients.rdv')}</button>
-                    <button onClick={() => onNewDevis(c.name)} className="v5-btn">Devis</button>
+                    <button onClick={() => onNewDevis(c.name)} className="v5-btn">{t('proDash.devis.title')}</button>
                     {isManual && (
                       <>
                         <button onClick={() => openEdit(c)} className="v5-btn v5-btn-sm">{t('proDash.motifs.modifier') || 'Modifier'}</button>
@@ -587,12 +587,12 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   }}
                   className="v22-form-input"
                 >
-                  <optgroup label="Particuliers (B2C)">
+                  <optgroup label={t('proDash.clients.particuliersB2C')}>
                     {CLIENT_TYPES.filter(ct => ct.group === 'b2c').map(ct => (
                       <option key={ct.value} value={ct.value}>{ct.label}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="Professionnels (B2B)">
+                  <optgroup label={t('proDash.clients.professionnelsB2B')}>
                     {CLIENT_TYPES.filter(ct => ct.group === 'b2b').map(ct => (
                       <option key={ct.value} value={ct.value}>{ct.label}</option>
                     ))}
@@ -836,8 +836,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
           <table>
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Type</th>
+                <th>{t('proDash.clients.client')}</th>
+                <th>{t('proDash.clients.typeCol')}</th>
                 <th>{t('proDash.clients.ville') || 'Ville'}</th>
                 <th>{t('proDash.clients.interventions') || 'Interventions'}</th>
                 <th style={{ textAlign: 'right' }}>{t('proDash.clients.caTotal') || 'CA total'}</th>

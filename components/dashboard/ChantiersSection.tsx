@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useTranslation } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 
 interface ChantiersSectionProps {
@@ -21,22 +22,23 @@ interface Chantier {
 
 const MOCK_CHANTIERS: Chantier[] = []
 
-const TABS: { key: Statut; label: string }[] = [
-  { key: 'tous', label: 'Tous' },
-  { key: 'avenir', label: 'A venir' },
-  { key: 'encours', label: 'En cours' },
-  { key: 'cloture', label: 'Clôturés' },
+const TAB_KEYS: { key: Statut; i18nKey: string }[] = [
+  { key: 'tous', i18nKey: 'proDash.chantiers.tous' },
+  { key: 'avenir', i18nKey: 'proDash.chantiers.aVenir' },
+  { key: 'encours', i18nKey: 'proDash.chantiers.enCours' },
+  { key: 'cloture', i18nKey: 'proDash.chantiers.clotures' },
 ]
 
-const statutLabel = (s: string) => s === 'encours' ? 'En cours' : s === 'avenir' ? 'A venir' : 'Clôturé'
+const statutLabelKey = (s: string) => s === 'encours' ? 'proDash.chantiers.enCours' : s === 'avenir' ? 'proDash.chantiers.aVenir' : 'proDash.chantiers.cloture'
 const statutColor = (s: string, tv: { primaryLight: string; primary: string; greenLight: string; green: string }) => s === 'encours' ? { bg: tv.primaryLight, color: tv.primary } : s === 'avenir' ? { bg: '#E8F0FE', color: '#1A56DB' } : { bg: tv.greenLight, color: tv.green }
 const formatEur = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 })
 
-const alerteLabel = (a: string) => a === 'facture_manquante' ? 'Facture manquante' : a === 'rapport_manquant' ? 'Rapport manquant' : a === 'facture_impayee' ? 'Facture impayée' : a
+const alerteLabelKey = (a: string) => a === 'facture_manquante' ? 'proDash.chantiers.factureManquante' : a === 'rapport_manquant' ? 'proDash.chantiers.rapportManquant' : a === 'facture_impayee' ? 'proDash.chantiers.factureImpayee' : ''
 const alerteColor = (a: string, tv: { redBg: string; red: string; primaryLight: string; primary: string }) => a === 'facture_impayee' ? { bg: tv.redBg, color: tv.red } : { bg: tv.primaryLight, color: tv.primary }
 const statutBadgeV5 = (s: string) => s === 'encours' ? 'v5-badge v5-badge-blue' : s === 'avenir' ? 'v5-badge v5-badge-yellow' : 'v5-badge v5-badge-green'
 
 export default function ChantiersSection({ artisan, navigateTo, orgRole }: ChantiersSectionProps) {
+  const { t } = useTranslation()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const [tab, setTab] = useState<Statut>('tous')
@@ -73,7 +75,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
           <div className={isV5 ? '' : 'flex-1'}>
             <div className={isV5 ? '' : 'flex items-center gap-2'}>
               <span className={isV5 ? '' : 'text-xs font-mono'} style={isV5 ? undefined : { color: tv.textMuted }}>{selected.id}</span>
-              <span className={isV5 ? statutBadgeV5(selected.statut) : 'text-xs px-2 py-0.5 rounded-full font-medium'} style={isV5 ? undefined : { background: sc.bg, color: sc.color }}>{statutLabel(selected.statut)}</span>
+              <span className={isV5 ? statutBadgeV5(selected.statut) : 'text-xs px-2 py-0.5 rounded-full font-medium'} style={isV5 ? undefined : { background: sc.bg, color: sc.color }}>{t(statutLabelKey(selected.statut))}</span>
             </div>
             <h1 className={isV5 ? '' : 'text-lg font-semibold'} style={isV5 ? undefined : { color: tv.text }}>{selected.titre}</h1>
           </div>
@@ -83,20 +85,20 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         <div className={isV5 ? 'v5-card' : 'rounded-md p-4 grid grid-cols-2 gap-3 text-sm'} style={isV5 ? undefined : { background: tv.cardBg, border: `1px solid ${tv.border}` }}>
           {isV5 ? (
             <div className="v5-dt">
-              <div><span>Client</span><p>{selected.client}</p></div>
-              <div><span>Montant</span><p>{formatEur(selected.montant)}</p></div>
-              <div><span>Adresse</span><p>{selected.adresse}</p></div>
-              <div><span>Dates</span><p>{selected.dateDebut} &rarr; {selected.dateFin}</p></div>
-              <div><span>Devis</span><p>{selected.devis}</p></div>
-              <div><span>Facture</span><p style={{ color: selected.facture ? undefined : tv.red }}>{selected.facture || 'Non émise'}</p></div>
+              <div><span>{t('proDash.chantiers.client')}</span><p>{selected.client}</p></div>
+              <div><span>{t('proDash.chantiers.montant')}</span><p>{formatEur(selected.montant)}</p></div>
+              <div><span>{t('proDash.chantiers.adresse')}</span><p>{selected.adresse}</p></div>
+              <div><span>{t('proDash.chantiers.dates')}</span><p>{selected.dateDebut} &rarr; {selected.dateFin}</p></div>
+              <div><span>{t('proDash.chantiers.devisLabel')}</span><p>{selected.devis}</p></div>
+              <div><span>{t('proDash.chantiers.factureLabel')}</span><p style={{ color: selected.facture ? undefined : tv.red }}>{selected.facture || t('proDash.chantiers.nonEmise')}</p></div>
             </div>
           ) : (<>
-            <div><span style={{ color: tv.textMuted }}>Client</span><p className="font-medium" style={{ color: tv.text }}>{selected.client}</p></div>
-            <div><span style={{ color: tv.textMuted }}>Montant</span><p className="font-medium" style={{ color: tv.text }}>{formatEur(selected.montant)}</p></div>
-            <div><span style={{ color: tv.textMuted }}>Adresse</span><p style={{ color: tv.text }}>{selected.adresse}</p></div>
-            <div><span style={{ color: tv.textMuted }}>Dates</span><p style={{ color: tv.text }}>{selected.dateDebut} &rarr; {selected.dateFin}</p></div>
-            <div><span style={{ color: tv.textMuted }}>Devis</span><p className="font-mono" style={{ color: tv.text }}>{selected.devis}</p></div>
-            <div><span style={{ color: tv.textMuted }}>Facture</span><p className="font-mono" style={{ color: selected.facture ? tv.text : tv.red }}>{selected.facture || 'Non émise'}</p></div>
+            <div><span style={{ color: tv.textMuted }}>{t('proDash.chantiers.client')}</span><p className="font-medium" style={{ color: tv.text }}>{selected.client}</p></div>
+            <div><span style={{ color: tv.textMuted }}>{t('proDash.chantiers.montant')}</span><p className="font-medium" style={{ color: tv.text }}>{formatEur(selected.montant)}</p></div>
+            <div><span style={{ color: tv.textMuted }}>{t('proDash.chantiers.adresse')}</span><p style={{ color: tv.text }}>{selected.adresse}</p></div>
+            <div><span style={{ color: tv.textMuted }}>{t('proDash.chantiers.dates')}</span><p style={{ color: tv.text }}>{selected.dateDebut} &rarr; {selected.dateFin}</p></div>
+            <div><span style={{ color: tv.textMuted }}>{t('proDash.chantiers.devisLabel')}</span><p className="font-mono" style={{ color: tv.text }}>{selected.devis}</p></div>
+            <div><span style={{ color: tv.textMuted }}>{t('proDash.chantiers.factureLabel')}</span><p className="font-mono" style={{ color: selected.facture ? tv.text : tv.red }}>{selected.facture || t('proDash.chantiers.nonEmise')}</p></div>
           </>)}
         </div>
 
@@ -104,14 +106,14 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         {selected.alertes.length > 0 && (
           <div className={isV5 ? '' : 'flex flex-wrap gap-2'}>
             {selected.alertes.map(a => { const ac = alerteColor(a, tv); return (
-              <span key={a} className={isV5 ? 'v5-badge v5-badge-red' : 'text-xs px-2.5 py-1 rounded-full font-medium'} style={isV5 ? undefined : { background: ac.bg, color: ac.color }}>{alerteLabel(a)}</span>
+              <span key={a} className={isV5 ? 'v5-badge v5-badge-red' : 'text-xs px-2.5 py-1 rounded-full font-medium'} style={isV5 ? undefined : { background: ac.bg, color: ac.color }}>{alerteLabelKey(a) ? t(alerteLabelKey(a)) : a}</span>
             )})}
           </div>
         )}
 
         {/* Timeline */}
         <div className={isV5 ? 'v5-card' : 'rounded-md p-4'} style={isV5 ? undefined : { background: tv.cardBg, border: `1px solid ${tv.border}` }}>
-          <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-3'} style={isV5 ? undefined : { color: tv.text }}>Chronologie</h3>
+          <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-3'} style={isV5 ? undefined : { color: tv.text }}>{t('proDash.chantiers.chronologie')}</h3>
           <div className={isV5 ? '' : 'space-y-3'}>
             {selected.timeline.map((t, i) => (
               <div key={i} className={isV5 ? 'v5-prog-row' : 'flex items-start gap-3'}>
@@ -127,18 +129,18 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
 
         {/* Notes */}
         <div className={isV5 ? 'v5-card' : 'rounded-md p-4'} style={isV5 ? undefined : { background: tv.cardBg, border: `1px solid ${tv.border}` }}>
-          <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-2'} style={isV5 ? undefined : { color: tv.text }}>Notes</h3>
+          <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-2'} style={isV5 ? undefined : { color: tv.text }}>{t('proDash.chantiers.notes')}</h3>
           <textarea
             className={isV5 ? 'v5-fi' : 'w-full rounded p-2.5 text-sm resize-none focus:outline-none focus:ring-2'}
             style={isV5 ? undefined : { border: `1px solid ${tv.border}`, color: tv.text, background: tv.bg, '--tw-ring-color': tv.primary } as React.CSSProperties}
-            rows={3} value={currentNotes} placeholder="Ajouter une note..."
+            rows={3} value={currentNotes} placeholder={t('proDash.chantiers.ajouterNote')}
             onChange={e => setNotes(prev => ({ ...prev, [selected.id]: e.target.value }))}
           />
         </div>
 
         {/* Documents & Photos */}
         <div className={isV5 ? 'v5-card' : 'rounded-md p-4'} style={isV5 ? undefined : { background: tv.cardBg, border: `1px solid ${tv.border}` }}>
-          <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-3'} style={isV5 ? undefined : { color: tv.text }}>Documents & Photos</h3>
+          <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-3'} style={isV5 ? undefined : { color: tv.text }}>{t('proDash.chantiers.documentsPhotos')}</h3>
           <div className={isV5 ? '' : 'flex flex-wrap gap-2 text-xs'}>
             {selected.devis && <span className={isV5 ? 'v5-badge' : 'px-2.5 py-1 rounded-md'} style={isV5 ? undefined : { background: tv.bg, border: `1px solid ${tv.border}`, color: tv.text }}>Devis {selected.devis}</span>}
             {selected.facture && <span className={isV5 ? 'v5-badge v5-badge-green' : 'px-2.5 py-1 rounded-md'} style={isV5 ? undefined : { background: tv.greenLight, color: tv.green }}>Facture {selected.facture}</span>}
@@ -158,21 +160,21 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         {/* Actions */}
         <div className={isV5 ? '' : 'flex gap-2'} style={isV5 ? { display: 'flex', gap: '8px' } : undefined}>
           {selected.statut === 'avenir' && (
-            <button onClick={() => showToast('Chantier démarré')} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: tv.green }}>
-              Démarrer le chantier
+            <button onClick={() => showToast(t('proDash.chantiers.chantierDemarre'))} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: tv.green }}>
+              {t('proDash.chantiers.demarrerChantier')}
             </button>
           )}
           {selected.statut === 'encours' && (<>
-            <button onClick={() => showToast('Chantier clôturé')} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: tv.green }}>
-              Clôturer
+            <button onClick={() => showToast(t('proDash.chantiers.chantierCloture'))} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: tv.green }}>
+              {t('proDash.chantiers.cloturer')}
             </button>
-            <button onClick={() => { navigateTo('devis-factures'); showToast('Redirection vers factures') }} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: tv.primary, color: tv.text }}>
-              Créer facture
+            <button onClick={() => { navigateTo('devis-factures'); showToast(t('proDash.chantiers.redirectionFactures')) }} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: tv.primary, color: tv.text }}>
+              {t('proDash.chantiers.creerFacture')}
             </button>
           </>)}
           {selected.statut === 'cloture' && (
-            <button onClick={() => showToast('PDF exporté')} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: tv.bg, border: `1px solid ${tv.border}`, color: tv.text }}>
-              Exporter PDF
+            <button onClick={() => showToast(t('proDash.chantiers.pdfExporte'))} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: tv.bg, border: `1px solid ${tv.border}`, color: tv.text }}>
+              {t('proDash.chantiers.exporterPDF')}
             </button>
           )}
         </div>
@@ -186,17 +188,17 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
       {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded text-sm text-white" style={{ background: tv.green }}>{toast}</div>}
 
       <div className={isV5 ? 'v5-pg-t' : ''}>
-        <h1 className={isV5 ? '' : 'text-lg font-semibold'} style={isV5 ? undefined : { color: tv.text }}>Chantiers</h1>
-        {isV5 && <p>Suivi de vos chantiers en cours, à venir et clôturés</p>}
+        <h1 className={isV5 ? '' : 'text-lg font-semibold'} style={isV5 ? undefined : { color: tv.text }}>{t('proDash.chantiers.titre')}</h1>
+        {isV5 && <p>{t('proDash.chantiers.sousTitre')}</p>}
       </div>
 
       {/* Stats */}
       <div className={isV5 ? 'v5-kpi-g' : 'grid grid-cols-4 gap-3'}>
         {[
-          { label: 'En cours', value: encoursCount, color: tv.primary },
-          { label: 'A venir', value: avenirCount, color: '#1A56DB' },
-          { label: 'Clôturés (mars)', value: clotureCount, color: tv.green },
-          { label: 'CA chantiers', value: formatEur(caChantiers), color: tv.text },
+          { label: t('proDash.chantiers.enCours'), value: encoursCount, color: tv.primary },
+          { label: t('proDash.chantiers.aVenir'), value: avenirCount, color: '#1A56DB' },
+          { label: t('proDash.chantiers.clotures'), value: clotureCount, color: tv.green },
+          { label: t('proDash.chantiers.caChantiers'), value: formatEur(caChantiers), color: tv.text },
         ].map(s => (
           isV5 ? (
             <div key={s.label} className="v5-kpi">
@@ -215,12 +217,12 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
       {/* Alertes */}
       {allAlertes.length > 0 && (
         <div className={isV5 ? 'v5-card' : 'rounded-md p-3 space-y-2'} style={isV5 ? undefined : { background: tv.primaryLight, border: '1px solid #EED580' }}>
-          <p className={isV5 ? 'v5-st' : 'text-xs font-semibold'} style={isV5 ? undefined : { color: tv.primary }}>Alertes ({allAlertes.length})</p>
+          <p className={isV5 ? 'v5-st' : 'text-xs font-semibold'} style={isV5 ? undefined : { color: tv.primary }}>{t('proDash.chantiers.alertes')} ({allAlertes.length})</p>
           {allAlertes.map((a, i) => (
             <div key={i} className={isV5 ? '' : 'flex items-center justify-between text-xs'} style={isV5 ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } : undefined}>
               <span style={isV5 ? undefined : { color: tv.text }}><strong>{a.chantier}</strong> {a.titre}</span>
               <span className={isV5 ? 'v5-badge v5-badge-red' : 'px-2 py-0.5 rounded-full font-medium'} style={isV5 ? undefined : { ...alerteColor(a.alerte, tv), background: alerteColor(a.alerte, tv).bg, color: alerteColor(a.alerte, tv).color }}>
-                {alerteLabel(a.alerte)}
+                {alerteLabelKey(a.alerte) ? t(alerteLabelKey(a.alerte)) : a.alerte}
               </span>
             </div>
           ))}
@@ -229,11 +231,11 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
 
       {/* Filter tabs */}
       <div className={isV5 ? 'v5-tabs' : 'flex gap-1 p-1 rounded'} style={isV5 ? undefined : { background: tv.bg }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={isV5 ? `v5-tab-b${tab === t.key ? ' active' : ''}` : 'flex-1 py-1.5 text-sm rounded-md font-medium transition-colors'}
-            style={isV5 ? undefined : (tab === t.key ? { background: tv.cardBg, color: tv.text, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' } : { color: tv.textMuted })}>
-            {t.label}
+        {TAB_KEYS.map(tk => (
+          <button key={tk.key} onClick={() => setTab(tk.key)}
+            className={isV5 ? `v5-tab-b${tab === tk.key ? ' active' : ''}` : 'flex-1 py-1.5 text-sm rounded-md font-medium transition-colors'}
+            style={isV5 ? undefined : (tab === tk.key ? { background: tv.cardBg, color: tv.text, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' } : { color: tv.textMuted })}>
+            {t(tk.i18nKey)}
           </button>
         ))}
       </div>
@@ -250,7 +252,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
                 <div className={isV5 ? '' : 'min-w-0 flex-1'} style={isV5 ? { minWidth: 0, flex: 1 } : undefined}>
                   <div className={isV5 ? '' : 'flex items-center gap-2 mb-0.5'} style={isV5 ? { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' } : undefined}>
                     <span className={isV5 ? '' : 'text-xs font-mono'} style={isV5 ? undefined : { color: tv.textMuted }}>{c.id}</span>
-                    <span className={isV5 ? statutBadgeV5(c.statut) : 'text-xs px-2 py-0.5 rounded-full font-medium'} style={isV5 ? undefined : { background: sc.bg, color: sc.color }}>{statutLabel(c.statut)}</span>
+                    <span className={isV5 ? statutBadgeV5(c.statut) : 'text-xs px-2 py-0.5 rounded-full font-medium'} style={isV5 ? undefined : { background: sc.bg, color: sc.color }}>{t(statutLabelKey(c.statut))}</span>
                     {c.alertes.length > 0 && <span className={isV5 ? 'v5-badge v5-badge-red' : 'w-2 h-2 rounded-full'} style={isV5 ? undefined : { background: tv.red }}>{isV5 ? '!' : ''}</span>}
                   </div>
                   <p className={isV5 ? '' : 'text-sm font-medium truncate'} style={isV5 ? undefined : { color: tv.text }}>{c.titre}</p>
@@ -272,7 +274,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
           )
         })}
         {filtered.length === 0 && (
-          <p className={isV5 ? 'v5-card' : 'text-center py-8 text-sm'} style={isV5 ? { textAlign: 'center', padding: '32px 0' } : { color: tv.textMuted }}>Aucun chantier dans cette catégorie.</p>
+          <p className={isV5 ? 'v5-card' : 'text-center py-8 text-sm'} style={isV5 ? { textAlign: 'center', padding: '32px 0' } : { color: tv.textMuted }}>{t('proDash.chantiers.aucunChantierCategorie')}</p>
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from '@/lib/i18n/context'
 
 interface ItemLigne { designation: string; qty: number; unit: string; prixUnitaire: number }
 interface BonCommande {
@@ -19,9 +20,9 @@ const STATUT_COLORS: Record<string, string> = {
   livré_partiel: 'bg-amber-100 text-amber-700', livré: 'bg-green-100 text-green-700',
   facturé: 'bg-purple-100 text-purple-700',
 }
-const STATUT_LABELS: Record<string, string> = {
-  brouillon: 'Brouillon', envoyé: 'Envoyé', livré_partiel: 'Livré partiel',
-  livré: 'Livré', facturé: 'Facturé',
+const STATUT_LABEL_KEYS: Record<string, string> = {
+  brouillon: 'proDash.achats.brouillon', envoyé: 'proDash.achats.envoye', livré_partiel: 'proDash.achats.livrePartiel',
+  livré: 'proDash.achats.livre', facturé: 'proDash.achats.facture',
 }
 
 function genRef(prefix: string, list: { reference: string }[]) {
@@ -32,6 +33,7 @@ function genRef(prefix: string, list: { reference: string }[]) {
 }
 
 export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
+  const { t } = useTranslation()
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'commandes' | 'fournisseurs'>('commandes')
   const [commandes, setCommandes] = useState<BonCommande[]>([])
@@ -92,9 +94,9 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Achats & Fournisseurs</h2>
+        <h2 className="text-lg font-semibold text-gray-900">{t('proDash.achats.titre')}</h2>
         <button onClick={() => tab === 'commandes' ? setShowModal(true) : setShowFournisseurModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-medium">
-          + {tab === 'commandes' ? 'Bon de commande' : 'Fournisseur'}
+          + {tab === 'commandes' ? t('proDash.achats.bonCommande') : t('proDash.achats.fournisseur')}
         </button>
       </div>
 
@@ -102,30 +104,30 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white rounded-md border p-4">
           <p className="text-base font-semibold text-gray-900">{commandes.length}</p>
-          <p className="text-sm text-gray-500">Commandes</p>
+          <p className="text-sm text-gray-500">{t('proDash.achats.commandes')}</p>
         </div>
         <div className="bg-white rounded-md border p-4">
           <p className="text-base font-semibold text-amber-600">{totalMontant.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</p>
-          <p className="text-sm text-gray-500">Montant total</p>
+          <p className="text-sm text-gray-500">{t('proDash.achats.montantTotal')}</p>
         </div>
         <div className="bg-white rounded-md border p-4">
           <p className="text-base font-semibold text-blue-600">{enAttente}</p>
-          <p className="text-sm text-gray-500">En attente livraison</p>
+          <p className="text-sm text-gray-500">{t('proDash.achats.enAttenteLivraison')}</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-2 border-b">
-        {(['commandes', 'fournisseurs'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {t === 'commandes' ? 'Bons de commande' : 'Fournisseurs'}
+        {(['commandes', 'fournisseurs'] as const).map(tb => (
+          <button key={tb} onClick={() => setTab(tb)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === tb ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {tb === 'commandes' ? t('proDash.achats.bonsCommande') : t('proDash.achats.fournisseurs')}
           </button>
         ))}
       </div>
 
       {tab === 'commandes' && (
         <div className="space-y-3">
-          {commandes.length === 0 && <p className="text-gray-400 text-center py-8">Aucun bon de commande</p>}
+          {commandes.length === 0 && <p className="text-gray-400 text-center py-8">{t('proDash.achats.aucunBonCommande')}</p>}
           {commandes.map(bc => (
             <div key={bc.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
@@ -134,16 +136,16 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
                   <span className="ml-2 text-sm text-gray-500">{bc.fournisseur}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUT_COLORS[bc.statut]}`}>{STATUT_LABELS[bc.statut]}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUT_COLORS[bc.statut]}`}>{t(STATUT_LABEL_KEYS[bc.statut])}</span>
                   <select value={bc.statut} onChange={e => updateStatut(bc.id, e.target.value as BonCommande['statut'])} className="text-xs border rounded px-1 py-0.5">
-                    {STATUTS_BC.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
+                    {STATUTS_BC.map(s => <option key={s} value={s}>{t(STATUT_LABEL_KEYS[s])}</option>)}
                   </select>
                   <button onClick={() => deleteCommande(bc.id)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
                 </div>
               </div>
               <div className="text-sm text-gray-600">
-                <span>Chantier : {bc.chantier}</span>
-                <span className="ml-4">Livraison : {bc.dateLivraisonPrevue || '—'}</span>
+                <span>{t('proDash.achats.chantier')} : {bc.chantier}</span>
+                <span className="ml-4">{t('proDash.achats.livraison')} : {bc.dateLivraisonPrevue || '—'}</span>
                 <span className="ml-4 font-medium">{bc.items.reduce((a, i) => a + i.qty * i.prixUnitaire, 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</span>
               </div>
               <div className="mt-2 text-xs text-gray-400">{bc.items.map(i => `${i.designation} (${i.qty} ${i.unit})`).join(', ')}</div>
@@ -154,7 +156,7 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
 
       {tab === 'fournisseurs' && (
         <div className="space-y-3">
-          {fournisseurs.length === 0 && <p className="text-gray-400 text-center py-8">Aucun fournisseur</p>}
+          {fournisseurs.length === 0 && <p className="text-gray-400 text-center py-8">{t('proDash.achats.aucunFournisseur')}</p>}
           {fournisseurs.map(f => (
             <div key={f.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between">
@@ -172,7 +174,7 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
                 {f.contactEmail && <span className="ml-3">{f.contactEmail}</span>}
                 {f.contactTel && <span className="ml-3">{f.contactTel}</span>}
               </div>
-              {f.siret && <p className="text-xs text-gray-400 mt-1">SIRET : {f.siret}</p>}
+              {f.siret && <p className="text-xs text-gray-400 mt-1">{t('proDash.achats.siret')} : {f.siret}</p>}
             </div>
           ))}
         </div>
@@ -182,27 +184,27 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold mb-4">Nouveau bon de commande</h3>
+            <h3 className="text-sm font-semibold mb-4">{t('proDash.achats.nouveauBonCommande')}</h3>
             <div className="space-y-3">
-              <input placeholder="Fournisseur" value={bcForm.fournisseur} onChange={e => setBcForm({ ...bcForm, fournisseur: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="Chantier" value={bcForm.chantier} onChange={e => setBcForm({ ...bcForm, chantier: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.fournisseur')} value={bcForm.fournisseur} onChange={e => setBcForm({ ...bcForm, fournisseur: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.chantier')} value={bcForm.chantier} onChange={e => setBcForm({ ...bcForm, chantier: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <input type="date" value={bcForm.dateLivraisonPrevue} onChange={e => setBcForm({ ...bcForm, dateLivraisonPrevue: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">Articles</p>
+                <p className="text-sm font-medium text-gray-700">{t('proDash.achats.articles')}</p>
                 {bcForm.items.map((item, idx) => (
                   <div key={idx} className="flex gap-2">
-                    <input placeholder="Désignation" value={item.designation} onChange={e => updateItem(idx, 'designation', e.target.value)} className="flex-1 border rounded px-2 py-1 text-sm" />
+                    <input placeholder={t('proDash.achats.designation')} value={item.designation} onChange={e => updateItem(idx, 'designation', e.target.value)} className="flex-1 border rounded px-2 py-1 text-sm" />
                     <input type="number" min={1} value={item.qty} onChange={e => updateItem(idx, 'qty', +e.target.value)} className="w-16 border rounded px-2 py-1 text-sm" />
                     <input placeholder="u" value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="w-14 border rounded px-2 py-1 text-sm" />
-                    <input type="number" min={0} step={0.01} value={item.prixUnitaire} onChange={e => updateItem(idx, 'prixUnitaire', +e.target.value)} className="w-24 border rounded px-2 py-1 text-sm" placeholder="Prix" />
+                    <input type="number" min={0} step={0.01} value={item.prixUnitaire} onChange={e => updateItem(idx, 'prixUnitaire', +e.target.value)} className="w-24 border rounded px-2 py-1 text-sm" placeholder={t('proDash.achats.prix')} />
                   </div>
                 ))}
-                <button onClick={() => setBcForm({ ...bcForm, items: [...bcForm.items, { designation: '', qty: 1, unit: 'u', prixUnitaire: 0 }] })} className="text-sm text-amber-600 hover:text-amber-700">+ Ajouter une ligne</button>
+                <button onClick={() => setBcForm({ ...bcForm, items: [...bcForm.items, { designation: '', qty: 1, unit: 'u', prixUnitaire: 0 }] })} className="text-sm text-amber-600 hover:text-amber-700">+ {t('proDash.achats.ajouterLigne')}</button>
               </div>
             </div>
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
-              <button onClick={addCommande} disabled={!bcForm.fournisseur.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+              <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">{t('proDash.achats.annuler')}</button>
+              <button onClick={addCommande} disabled={!bcForm.fournisseur.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">{t('proDash.achats.creer')}</button>
             </div>
           </div>
         </div>
@@ -212,23 +214,23 @@ export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/
       {showFournisseurModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowFournisseurModal(false)}>
           <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold mb-4">Nouveau fournisseur</h3>
+            <h3 className="text-sm font-semibold mb-4">{t('proDash.achats.nouveauFournisseur')}</h3>
             <div className="space-y-3">
-              <input placeholder="Nom" value={fForm.nom} onChange={e => setFForm({ ...fForm, nom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="SIRET" value={fForm.siret} onChange={e => setFForm({ ...fForm, siret: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="Spécialité" value={fForm.specialite} onChange={e => setFForm({ ...fForm, specialite: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="Contact - Nom" value={fForm.contactNom} onChange={e => setFForm({ ...fForm, contactNom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="Contact - Email" value={fForm.contactEmail} onChange={e => setFForm({ ...fForm, contactEmail: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="Contact - Téléphone" value={fForm.contactTel} onChange={e => setFForm({ ...fForm, contactTel: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
-              <input placeholder="Adresse" value={fForm.adresse} onChange={e => setFForm({ ...fForm, adresse: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.nom')} value={fForm.nom} onChange={e => setFForm({ ...fForm, nom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.siret')} value={fForm.siret} onChange={e => setFForm({ ...fForm, siret: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.specialite')} value={fForm.specialite} onChange={e => setFForm({ ...fForm, specialite: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.contactNom')} value={fForm.contactNom} onChange={e => setFForm({ ...fForm, contactNom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.contactEmail')} value={fForm.contactEmail} onChange={e => setFForm({ ...fForm, contactEmail: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.contactTel')} value={fForm.contactTel} onChange={e => setFForm({ ...fForm, contactTel: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder={t('proDash.achats.adresse')} value={fForm.adresse} onChange={e => setFForm({ ...fForm, adresse: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <div>
-                <label className="text-sm text-gray-600">Note : {fForm.note}/5</label>
+                <label className="text-sm text-gray-600">{t('proDash.achats.note')} : {fForm.note}/5</label>
                 <input type="range" min={1} max={5} value={fForm.note} onChange={e => setFForm({ ...fForm, note: +e.target.value })} className="w-full" />
               </div>
             </div>
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowFournisseurModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
-              <button onClick={addFournisseur} disabled={!fForm.nom.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+              <button onClick={() => setShowFournisseurModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">{t('proDash.achats.annuler')}</button>
+              <button onClick={addFournisseur} disabled={!fForm.nom.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">{t('proDash.achats.creer')}</button>
             </div>
           </div>
         </div>
