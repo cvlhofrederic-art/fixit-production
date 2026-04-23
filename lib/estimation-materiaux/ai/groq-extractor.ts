@@ -66,7 +66,10 @@ function buildSystemPrompt(scope?: { trades?: Recipe['trade'][]; country?: 'FR' 
   const scopeNote = scope?.trades && scope.trades.length > 0
     ? `\n⚠️ PÉRIMÈTRE RESTREINT : ne propose QUE des recettes des corps de métier suivants : ${scope.trades.join(', ')}. Si l'utilisateur demande un ouvrage hors périmètre, pose une question dans "questions" pour clarifier (ne choisis PAS de recipeId hors du catalogue ci-dessous).\n`
     : ''
-  return `Tu es un CONDUCTEUR DE TRAVAUX EXPÉRIMENTÉ — tu ANALYSES, tu PROPOSES, tu QUESTIONNES.${scopeNote}
+  const countryNote = scope?.country === 'PT'
+    ? `\n⚠️ PAYS : PORTUGAL. Réponds en PORTUGAIS EUROPÉEN. Utilise les normes NP (Normas Portuguesas) et LNEC au lieu de DTU/NF. Les "assumptions" et "questions" DOIVENT être en portugais.\n`
+    : ''
+  return `Tu es un CONDUCTEUR DE TRAVAUX EXPÉRIMENTÉ — tu ANALYSES, tu PROPOSES, tu QUESTIONNES.${scopeNote}${countryNote}
 Tu ne devines pas au hasard : si une info manque, tu POSES UNE QUESTION précise.
 Quand tu peux proposer une valeur calibrée par le contexte, tu la PROPOSES explicitement dans "assumptions".
 
@@ -365,8 +368,10 @@ export async function extractEstimationWithGroq(
     }
   )
 
+  const isPt = scope?.country === 'PT'
+
   const content = response.choices?.[0]?.message?.content
-  if (!content) throw new Error("Groq n'a pas renvoyé de contenu")
+  if (!content) throw new Error(isPt ? 'Groq não devolveu conteúdo' : "Groq n'a pas renvoyé de contenu")
 
   const finishReason = response.choices?.[0]?.finish_reason
   const wasTruncated = finishReason === 'length'
@@ -379,7 +384,7 @@ export async function extractEstimationWithGroq(
   try {
     parsed = JSON.parse(clean)
   } catch {
-    throw new Error(`JSON invalide de l'IA : ${clean.slice(0, 200)}`)
+    throw new Error(isPt ? `JSON inválido da IA: ${clean.slice(0, 200)}` : `JSON invalide de l'IA : ${clean.slice(0, 200)}`)
   }
 
   // ════════════════════════════════════════════════════════════
@@ -454,22 +459,34 @@ export async function extractEstimationWithGroq(
     const msg = zodErr instanceof Error ? zodErr.message.slice(0, 300) : String(zodErr).slice(0, 300)
     return {
       items: [],
-      assumptions: [
-        `L'IA a retourné une réponse malformée (détail : ${msg}).`,
-        'Réessayez avec une description plus précise (surface, épaisseur, matériau).',
-      ],
-      questions: [
-        'Pouvez-vous préciser le type d\'ouvrage (dalle, mur, cloison, carrelage, peinture…) ?',
-        'Quelle surface ou linéaire en mètres ?',
-        'Quelle épaisseur / hauteur si pertinente ?',
-      ],
+      assumptions: isPt
+        ? [
+            `A IA devolveu uma resposta malformada (detalhe: ${msg}).`,
+            'Tente novamente com uma descrição mais precisa (superfície, espessura, material).',
+          ]
+        : [
+            `L'IA a retourné une réponse malformée (détail : ${msg}).`,
+            'Réessayez avec une description plus précise (surface, épaisseur, matériau).',
+          ],
+      questions: isPt
+        ? [
+            'Pode precisar o tipo de obra (laje, parede, divisória, azulejo, pintura…)?',
+            'Qual a superfície ou comprimento linear em metros?',
+            'Qual a espessura / altura, se relevante?',
+          ]
+        : [
+            'Pouvez-vous préciser le type d\'ouvrage (dalle, mur, cloison, carrelage, peinture…) ?',
+            'Quelle surface ou linéaire en mètres ?',
+            'Quelle épaisseur / hauteur si pertinente ?',
+          ],
     }
   }
 
   if (wasTruncated) {
     result.assumptions.push(
-      "⚠️ Réponse IA tronquée (max_tokens atteint) — certains ouvrages peuvent "
-      + "manquer. Relancez en décomposant le chantier en 2-3 descriptions plus courtes."
+      isPt
+        ? '⚠️ Resposta da IA truncada (max_tokens atingido) — algumas obras podem estar em falta. Relance dividindo a obra em 2-3 descrições mais curtas.'
+        : "⚠️ Réponse IA tronquée (max_tokens atteint) — certains ouvrages peuvent manquer. Relancez en décomposant le chantier en 2-3 descriptions plus courtes."
     )
   }
 
@@ -484,10 +501,16 @@ export async function extractEstimationWithGroq(
   const validIds = new Set(scopedRecipes.map(r => r.id))
   const unknownIds = result.items.filter(i => !validIds.has(i.recipeId)).map(i => i.recipeId)
   if (unknownIds.length > 0) {
-    const reason = scope?.trades && scope.trades.length > 0
-      ? `hors périmètre métier autorisé (${scope.trades.join(', ')})`
-      : 'inconnues'
-    result.assumptions.push(`Recettes ${reason} ignorées : ${unknownIds.join(', ')}`)
+    const reason = isPt
+      ? (scope?.trades && scope.trades.length > 0
+          ? `fora do âmbito de especialidades autorizado (${scope.trades.join(', ')})`
+          : 'desconhecidas')
+      : (scope?.trades && scope.trades.length > 0
+          ? `hors périmètre métier autorisé (${scope.trades.join(', ')})`
+          : 'inconnues')
+    result.assumptions.push(isPt
+      ? `Receitas ${reason} ignoradas: ${unknownIds.join(', ')}`
+      : `Recettes ${reason} ignorées : ${unknownIds.join(', ')}`)
     result.items = result.items.filter(i => validIds.has(i.recipeId))
   }
 
@@ -505,20 +528,24 @@ export async function extractEstimationWithGroq(
 
     if (needsThickness && item.geometry.thickness === undefined) {
       result.questions.push(
-        `Quelle épaisseur (en cm) pour "${recipe.name}" ? Sans cette valeur, `
-        + `le calcul des matériaux liés au volume (béton, ciment, eau, gravier, sable) est impossible.`
+        isPt
+          ? `Qual a espessura (em cm) para "${recipe.name}"? Sem este valor, o cálculo dos materiais ligados ao volume (betão, cimento, água, brita, areia) é impossível.`
+          : `Quelle épaisseur (en cm) pour "${recipe.name}" ? Sans cette valeur, le calcul des matériaux liés au volume (béton, ciment, eau, gravier, sable) est impossible.`
       )
     }
     if (needsHeight && item.geometry.height === undefined && !item.geometry.length) {
       result.questions.push(
-        `Quelle hauteur pour "${recipe.name}" ?`
+        isPt
+          ? `Qual a altura para "${recipe.name}"?`
+          : `Quelle hauteur pour "${recipe.name}" ?`
       )
     }
     if (needsPerimeter && item.geometry.perimeter === undefined
         && !(item.geometry.length && item.geometry.width)) {
       result.assumptions.push(
-        `"${recipe.name}" : périmètre non calculable — certains accessoires `
-        + `(joints, bandes, chaînages périphériques) sortiront à 0.`
+        isPt
+          ? `"${recipe.name}": perímetro não calculável — alguns acessórios (juntas, fitas, cintas periféricas) sairão a 0.`
+          : `"${recipe.name}" : périmètre non calculable — certains accessoires (joints, bandes, chaînages périphériques) sortiront à 0.`
       )
     }
   }
