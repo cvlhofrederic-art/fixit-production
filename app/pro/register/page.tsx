@@ -447,11 +447,11 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.firstName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Jean" />
+              <input type="text" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Jean" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.lastName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Dupont" />
+              <input type="text" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Dupont" />
             </div>
           </div>
 
@@ -459,11 +459,11 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.proEmail')} <span className="text-red-500">*</span></label>
-              <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="pro@email.com" />
+              <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="pro@email.com" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.phone')}</label>
-              <input type="tel" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
+              <input type="tel" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
             </div>
           </div>
 
@@ -473,7 +473,7 @@ function FormulaireArtisan() {
             <p className="text-xs text-text-muted mb-2">{t('register.taxIdHelp')} <a href="https://annuaire-entreprises.data.gouv.fr" target="_blank" rel="noopener noreferrer" className="underline text-blue-500 font-semibold">{t('register.taxIdSite')}</a></p>
             <div className="flex gap-3">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(formatSiret(e.target.value)); setSiretStatus('idle'); setSiretError(''); setVerifiedCompany(null); setSelectedCategories([]) }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); verifySiret() } }} maxLength={17}
-                className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl text-lg font-mono tracking-wider focus:outline-none transition ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400 bg-red-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-yellow focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
+                className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl text-lg font-mono tracking-wider focus:outline-none transition ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400 bg-red-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-[#BDBDBD] focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
               <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== 14 || siretStatus === 'checking'}
                 className="bg-yellow hover:bg-yellow-light text-dark px-5 py-3 rounded-xl font-semibold transition hover:-translate-y-px disabled:opacity-40 whitespace-nowrap">
                 {siretStatus === 'checking' ? '⏳' : t('register.verify')}
@@ -492,13 +492,13 @@ function FormulaireArtisan() {
           {siretStatus !== 'verified' && (
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.companyName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Ma Société" />
+              <input type="text" value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Ma Société" />
             </div>
           )}
 
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.activityDesc')}</label>
-            <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={2} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none resize-none" placeholder={t('register.activityPlaceholder')} />
+            <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={2} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none resize-none" placeholder={t('register.activityPlaceholder')} />
           </div>
 
           <div>
@@ -607,11 +607,11 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
-              <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordMin')} />
+              <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.passwordMin')} />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.confirmPwd')} <span className="text-red-500">*</span></label>
-              <input type="password" value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.repeatPwd')} />
+              <input type="password" value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.repeatPwd')} />
             </div>
           </div>
 
@@ -916,7 +916,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     t('register.sectorBtpEletrodomesticos'), t('register.sectorBtpLimpeza'), t('register.sectorBtpJardinagem'),
     t('register.sectorBtpMudancas'), t('register.sectorBtpDesentupimentos'), t('register.sectorBtpFachadas'),
     t('register.sectorBtpTerracos'), t('register.sectorBtpPiscinas'), t('register.sectorBtpPragas'),
-    t('register.sectorBtpBricolagem'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'),
+    t('register.sectorBtpBricolagem'), t('register.sectorBtpGeneral'),
     t('register.sectorBtpAutre'),
   ]
 
@@ -974,7 +974,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.legalStructureLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{registrationCountry === 'PT' ? 'As contribuições variam conforme a forma jurídica' : 'Les charges et cotisations varient selon votre forme juridique'}</p>
             <select value={legalStructure} onChange={e => setLegalStructure(e.target.value)}
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none bg-white ${legalStructure ? 'border-green-400 bg-green-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-yellow focus:bg-white'}`}>
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none bg-white ${legalStructure ? 'border-green-400 bg-green-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-[#BDBDBD] focus:bg-white'}`}>
               <option value="">{registrationCountry === 'PT' ? '— Selecione a forma jurídica —' : '— Sélectionnez la forme juridique —'}</option>
               {getLegalStructureOptions(registrationCountry).map(opt => (
                 <option key={opt.key} value={opt.key}>{opt.label}</option>
@@ -1006,7 +1006,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
 
           <div>
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.employeesLabel')}</label>
-            <select value={form.nbEmployes} onChange={e => setForm(f => ({...f, nbEmployes: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none bg-white">
+            <select value={form.nbEmployes} onChange={e => setForm(f => ({...f, nbEmployes: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none bg-white">
               <option value="">{t('register.selectPlaceholder')}</option>
               <option value="2-5">{t('register.employees2to5')}</option>
               <option value="6-20">{t('register.employees6to20')}</option>
@@ -1031,29 +1031,29 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.firstName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={form.prenom} onChange={e => setForm(f => ({...f, prenom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Jean" />
+              <input type="text" value={form.prenom} onChange={e => setForm(f => ({...f, prenom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Jean" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.lastName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={form.nom} onChange={e => setForm(f => ({...f, nom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Dupont" />
+              <input type="text" value={form.nom} onChange={e => setForm(f => ({...f, nom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Dupont" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.proEmail')} <span className="text-red-500">*</span></label>
-            <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="jean@masociete.fr" />
+            <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="jean@masociete.fr" />
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.phone')}</label>
-            <input type="tel" value={form.telephone} onChange={e => setForm(f => ({...f, telephone: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
+            <input type="tel" value={form.telephone} onChange={e => setForm(f => ({...f, telephone: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-mid mb-1">{t('register.ville')}</label>
-              <input type="text" value={form.ville} onChange={e => setForm(f => ({...f, ville: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Paris" />
+              <input type="text" value={form.ville} onChange={e => setForm(f => ({...f, ville: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Paris" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.codePostal')}</label>
-              <input type="text" value={form.codePostal} onChange={e => setForm(f => ({...f, codePostal: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="75001" />
+              <input type="text" value={form.codePostal} onChange={e => setForm(f => ({...f, codePostal: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="75001" />
             </div>
           </div>
           {/* Documents obligatoires */}
@@ -1126,11 +1126,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
-            <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordPlaceholder')} />
+            <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.passwordPlaceholder')} />
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.confirmPasswordLabel')}</label>
-            <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({...f, confirmPassword: e.target.value}))} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.repeatPassword')} />
+            <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({...f, confirmPassword: e.target.value}))} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.repeatPassword')} />
           </div>
 
           {/* Récap */}
