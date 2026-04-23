@@ -51,21 +51,20 @@ function detectPreferredLocale(request: NextRequest): string {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  // ── CSP nonce (replaces static unsafe-inline for script-src) ──
-  const nonce = btoa(crypto.randomUUID())
-  const isDev = process.env.NODE_ENV === 'development'
+  // ── CSP header ──
   const cspHeader = [
     "default-src 'self'",
-    isDev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : `script-src 'nonce-${nonce}' 'strict-dynamic'`,
-    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https:",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://*.vercel-insights.com",
-    "frame-src https://js.stripe.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://*.vercel-insights.com https://cloudflareinsights.com",
+    "frame-src 'self' https://js.stripe.com https://*.stripe.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
+    "worker-src 'self' blob:",
   ].join('; ')
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
@@ -133,9 +132,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ── Inject nonce/locale into request headers so the app (layout.tsx) can read them ──
+  // ── Inject locale into request headers so the app (layout.tsx) can read it ──
   const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('x-locale', locale)
   const supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
