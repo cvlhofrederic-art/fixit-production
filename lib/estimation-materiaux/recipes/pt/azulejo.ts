@@ -22,7 +22,7 @@ export const azulejoRecipes: Recipe[] = [
   //  1. REVESTIMENTO CERÂMICO DE PAREDE (AZULEJO 20×20)
   // ══════════════════════════════════════════════════════════════
   {
-    id: 'azulejo-parede-20-pt',
+    id: 'azulejo-parede-20x20-pt',
     name: 'Azulejo de parede 20×20 cm (casa de banho / cozinha)',
     description: 'Azulejo cerâmico formato pequeno para revestimento mural. Colagem simples peigne U6. SPEC em zonas húmidas.',
     country: 'PT',

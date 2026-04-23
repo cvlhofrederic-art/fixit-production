@@ -194,7 +194,7 @@ export const impermeabilizacaoRecipes: Recipe[] = [
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Sobreposições',
         manufacturerRef: 'Imperalum / Sotecnisol',
-        notes: 'Tipo Delta MS — protege a impermeabilização contra remblais.',
+        notes: 'Tipo Delta MS — protege a impermeabilização contra aterros.',
       },
       {
         id: 'tubo-drenante-100-pt', name: 'Tubo drenante PVC Ø100 perfurado',
