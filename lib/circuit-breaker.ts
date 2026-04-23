@@ -1,6 +1,16 @@
 // ── Circuit Breaker Pattern ─────────────────────────────────────────────────
 // Prevents cascading failures when external services are down
 // States: CLOSED (normal) → OPEN (failing, reject fast) → HALF_OPEN (testing)
+//
+// F08: KNOWN LIMITATION — In-memory state on stateless workers
+// This circuit breaker stores state in a module-level Map. On platforms with
+// multiple worker instances (Vercel serverless, Cloudflare Workers), each
+// isolate gets its own independent state. This means:
+//   - Failures on one instance don't trip the breaker on others
+//   - The breaker may never reach its threshold if requests spread across instances
+//   - After a cold start the breaker resets to CLOSED regardless of service health
+// TODO: Migrate circuit state to a shared store (Redis / KV) for cross-instance
+// coordination. Track in: https://github.com/your-org/fixit-cf/issues (F08)
 
 type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
 
