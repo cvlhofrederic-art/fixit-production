@@ -323,6 +323,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  runtime: 'edge',
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
@@ -330,7 +331,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (images, etc.)
+     * - robots.txt, sitemap.xml, manifest, .well-known (static metadata)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|woff2|woff|ico|mp4)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|manifest.json|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|woff2|woff|ico|mp4|xml|txt|webmanifest)$).*)',
   ],
 }
