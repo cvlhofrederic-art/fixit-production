@@ -98,6 +98,9 @@ const TRADE_LABEL_FR: Record<Trade, string> = {
   terrasse_ext: 'Terrasses extérieures',
   jardin: 'Espaces verts',
   piscine: 'Piscine & spa',
+  menuiserie: 'Menuiserie',
+  metallerie: 'Métallerie / Ferronnerie',
+  revetements_sols: 'Revêtements de sols',
 }
 
 const TRADE_LABEL_PT: Record<Trade, string> = {
@@ -127,6 +130,9 @@ const TRADE_LABEL_PT: Record<Trade, string> = {
   terrasse_ext: 'Terraços exteriores',
   jardin: 'Jardim',
   piscine: 'Piscina e spa',
+  menuiserie: 'Carpintaria',
+  metallerie: 'Serralharia / Ferragem',
+  revetements_sols: 'Pavimentos',
 }
 
 function fr(n: number, decimals = 2): string {
