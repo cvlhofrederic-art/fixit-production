@@ -77,10 +77,11 @@ export async function POST(request: NextRequest) {
     const updatePayload: Record<string, any> = {}
     const skippedFields: string[] = []
 
-    // Auto-générer le slug quand company_name change
+    // Auto-générer le slug quand company_name ou city change
     let slug: string | undefined = undefined
     if (company_name) {
-      slug = generateSlug(company_name)
+      const city = body.company_city || body.city || ''
+      slug = generateSlug(company_name, city)
     }
 
     const fields: Record<string, any> = {

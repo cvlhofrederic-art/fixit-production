@@ -3,6 +3,7 @@ export const revalidate = 3600
 
 import { MetadataRoute } from 'next'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
+import { getProfilePath } from '@/lib/utils'
 import { getAllPageCombos, getAllUrgencyCombos, BLOG_ARTICLES, CITIES, SERVICES } from '@/lib/data/seo-pages-data'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
 import { EN_SERVICE_PAGES } from '@/lib/data/en-services-data'
@@ -233,15 +234,20 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
     const supabase = await createServerSupabaseClient()
     const { data: artisans } = await supabase
       .from('profiles_artisan')
-      .select('id, slug, updated_at')
+      .select('id, slug, updated_at, org_role, country')
       .eq('is_verified', true)
 
-    return (artisans || []).map((a) => ({
-      url: `${baseUrl}/fr/artisan/${a.slug || a.id}/`,
-      lastModified: a.updated_at ? new Date(a.updated_at) : now,
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    }))
+    return (artisans || []).map((a) => {
+      const isPT = a.country === 'PT' || a.country === 'Portugal'
+      const locale = isPT ? 'pt' : 'fr'
+      const profilePath = getProfilePath({ slug: a.slug, id: a.id, org_role: a.org_role }, locale)
+      return {
+        url: `${baseUrl}${profilePath}/`,
+        lastModified: a.updated_at ? new Date(a.updated_at) : now,
+        changeFrequency: 'weekly' as const,
+        priority: 0.8,
+      }
+    })
   } catch {
     return []
   }

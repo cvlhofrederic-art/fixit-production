@@ -44,7 +44,6 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
-  const [generating, setGenerating] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -52,10 +51,28 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
         fetch('/api/referral/stats'),
         fetch('/api/referral/history'),
       ])
-      if (statsRes.ok) setStats(await statsRes.json())
+      let statsData: ReferralStats | null = null
+      if (statsRes.ok) {
+        statsData = await statsRes.json()
+        setStats(statsData)
+      }
       if (historyRes.ok) {
         const data = await historyRes.json()
         setHistory(data.history || [])
+      }
+
+      // Auto-generate referral code if none exists
+      if (statsData && !statsData.referral_code) {
+        try {
+          const genRes = await fetch('/api/referral/generate-code', { method: 'POST' })
+          if (genRes.ok) {
+            // Re-fetch stats to get the new code & link
+            const refreshRes = await fetch('/api/referral/stats')
+            if (refreshRes.ok) setStats(await refreshRes.json())
+          }
+        } catch {
+          console.error('[parrainage] auto-generate code failed')
+        }
       }
     } catch (err) {
       console.error('[parrainage] fetch error:', err)
@@ -63,17 +80,6 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
       setLoading(false)
     }
   }, [])
-
-  useEffect(() => { fetchData() }, [fetchData])
-
-  const generateCode = async () => {
-    setGenerating(true)
-    try {
-      const res = await fetch('/api/referral/generate-code', { method: 'POST' })
-      if (res.ok) await fetchData()
-    } catch {}
-    setGenerating(false)
-  }
 
   const copyLink = () => {
     if (!stats?.referral_link) return
@@ -132,22 +138,33 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
           <p>{isPt ? 'Programa B2B' : 'Programme B2B'}</p>
         </div>
 
-        {/* Referral code box */}
+        {/* Referral link box */}
         <div className="v5-card" style={{ marginBottom: '0.75rem', textAlign: 'center', padding: '1.25rem' }}>
-          {stats?.referral_code ? (
+          {stats?.referral_link ? (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 8 }}>{isPt ? 'O seu código' : 'Votre code'}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 8 }}>{isPt ? 'O seu link de referenciação' : 'Votre lien de parrainage'}</div>
               <div style={{
-                display: 'inline-block', padding: '10px 28px', borderRadius: 6,
+                display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center',
+                padding: '8px 14px', borderRadius: 6,
                 border: '2px dashed var(--v5-primary-yellow)', background: 'var(--v5-highlight-yellow)',
-                fontSize: 18, fontWeight: 700, letterSpacing: 2, color: '#1a1a1a', marginBottom: 12,
+                fontSize: 13, fontFamily: 'monospace', color: '#1a1a1a', marginBottom: 12,
+                wordBreak: 'break-all',
               }}>
-                {stats.referral_code}
+                <span style={{ flex: 1, textAlign: 'left' }}>{stats.referral_link}</span>
+                <button
+                  onClick={copyLink}
+                  title={isPt ? 'Copiar' : 'Copier'}
+                  style={{
+                    padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                    fontWeight: 600, fontSize: 12, flexShrink: 0, transition: 'all 0.15s',
+                    background: copied ? '#1D9E75' : 'var(--v5-primary-yellow)',
+                    color: copied ? '#fff' : '#1a1a1a',
+                  }}
+                >
+                  {copied ? (isPt ? 'Copiado!' : 'Copié !') : (isPt ? 'Copiar' : 'Copier')}
+                </button>
               </div>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-                <button onClick={copyLink} className={`v5-btn${copied ? ' v5-btn-s' : ' v5-btn-p'}`}>
-                  {copied ? (isPt ? '✅ Copiado' : '✅ Copié') : (isPt ? 'Copiar link' : 'Copier le lien')}
-                </button>
                 <button onClick={shareWhatsApp} className="v5-btn v5-btn-s">
                   WhatsApp
                 </button>
@@ -158,10 +175,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
             </>
           ) : (
             <div style={{ padding: 12 }}>
-              <p style={{ color: '#666', marginBottom: 12, fontSize: 12 }}>{isPt ? 'Ainda não tem código de referenciação.' : 'Vous n\'avez pas encore de code de parrainage.'}</p>
-              <button onClick={generateCode} disabled={generating} className="v5-btn v5-btn-p" style={{ opacity: generating ? 0.5 : 1 }}>
-                {generating ? (isPt ? 'A gerar...' : 'Génération...') : (isPt ? 'Gerar o meu código' : 'Générer mon code')}
-              </button>
+              <p style={{ color: '#666', fontSize: 12 }}>{isPt ? 'A gerar o seu link...' : 'Génération de votre lien...'}</p>
             </div>
           )}
         </div>
@@ -280,7 +294,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
           <div className="v22-card-title">{isPt ? 'O meu link de referenciação' : 'Mon lien de parrainage'}</div>
         </div>
         <div className="v22-card-body">
-          {stats?.referral_code ? (
+          {stats?.referral_link ? (
             <>
               <div style={{
                 display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16,
@@ -288,7 +302,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
               }}>
                 <input
                   readOnly
-                  value={stats.referral_link || ''}
+                  value={stats.referral_link}
                   style={{
                     flex: 1, border: 'none', background: 'transparent', fontSize: 14,
                     color: '#0D1B2E', fontFamily: 'monospace', outline: 'none',
@@ -303,7 +317,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
                     color: copied ? '#fff' : '#0D1B2E',
                   }}
                 >
-                  {copied ? (isPt ? '✅ Copiado' : '✅ Copié') : (isPt ? 'Copiar' : 'Copier')}
+                  {copied ? (isPt ? 'Copiado!' : 'Copié !') : (isPt ? 'Copiar' : 'Copier')}
                 </button>
               </div>
 
@@ -326,14 +340,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: 20 }}>
-              <p style={{ color: '#4A5E78', marginBottom: 12 }}>{isPt ? 'Ainda não tem código de referenciação.' : 'Vous n\'avez pas encore de code de parrainage.'}</p>
-              <button onClick={generateCode} disabled={generating} style={{
-                padding: '12px 28px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                fontWeight: 600, fontSize: 15, background: '#FFD600', color: '#0D1B2E',
-                opacity: generating ? 0.5 : 1,
-              }}>
-                {generating ? (isPt ? 'A gerar...' : 'Génération...') : (isPt ? 'Gerar o meu código' : 'Générer mon code')}
-              </button>
+              <p style={{ color: '#4A5E78' }}>{isPt ? 'A gerar o seu link...' : 'Génération de votre lien...'}</p>
             </div>
           )}
         </div>

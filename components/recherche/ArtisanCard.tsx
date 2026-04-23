@@ -12,6 +12,7 @@ import {
   Calendar,
 } from 'lucide-react'
 import { getCategoryLabel } from '@/lib/search-categories'
+import { getProfilePath } from '@/lib/utils'
 
 // ------------------------------------------------------------------
 // Types
@@ -38,6 +39,7 @@ export interface Artisan {
   latitude?: number | null
   longitude?: number | null
   distance_km?: number | null
+  org_role?: string | null
   source?: 'registered' | 'catalogue'
   telephone_pro?: string | null
   adresse?: string | null
@@ -142,6 +144,7 @@ export function ArtisanCard({
   const rating = artisan.rating_avg || 0
   const reviewCount = artisan.rating_count || 0
   const isCatalogue = artisan.source === 'catalogue'
+  const profileHref = getProfilePath(artisan, locale)
 
   // Badges
   const badges: { icon: React.ReactNode; label: string; color: string }[] = []
@@ -199,7 +202,7 @@ export function ArtisanCard({
                 {isCatalogue ? (
                   <span className="font-bold text-lg">{artisan.company_name || 'Artisan'}</span>
                 ) : (
-                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
+                  <Link href={profileHref} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
                     {artisan.company_name || 'Artisan'}
                   </Link>
                 )}
@@ -297,7 +300,7 @@ export function ArtisanCard({
             ) : (
               <div className="flex flex-col gap-3 h-full justify-center">
                 <Link
-                  href={`/artisan/${artisan.slug || artisan.id}`}
+                  href={profileHref}
                   className="flex items-center justify-center gap-2 bg-yellow hover:bg-yellow-light text-dark font-bold py-3 px-4 rounded-xl transition text-sm hover:-translate-y-px"
                 >
                   <Calendar className="w-4 h-4" />
