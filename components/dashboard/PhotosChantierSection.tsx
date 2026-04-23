@@ -83,7 +83,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
       const json = await res.json()
       if (json.data) setPhotos(json.data)
-    } catch (e) { console.error('Error loading photos:', e); toast.error('Erreur lors du chargement des photos') }
+    } catch (e) { console.error('Error loading photos:', e); toast.error(t('proDash.photos.erreurChargementPhotos')) }
     finally { setLoading(false) }
   }
 
@@ -100,7 +100,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       })
       setAssigning(null)
       loadPhotos()
-    } catch (e) { console.error('Error assigning photo:', e); toast.error('Erreur lors de l\'attribution de la photo') }
+    } catch (e) { console.error('Error assigning photo:', e); toast.error(t('proDash.photos.erreurAttributionPhoto')) }
   }
 
   const deletePhoto = async (photoId: string) => {
@@ -113,7 +113,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         headers: { 'Authorization': `Bearer ${token}` },
       })
       loadPhotos()
-    } catch (e) { console.error('Error deleting photo:', e); toast.error('Erreur lors de la suppression') }
+    } catch (e) { console.error('Error deleting photo:', e); toast.error(t('proDash.photos.erreurSuppression')) }
   }
 
   const handleUploadPhotos = async (files: FileList | null) => {
@@ -122,11 +122,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      if (!token) { toast.error('Session expirée'); setUploading(false); return }
+      if (!token) { toast.error(t('proDash.photos.sessionExpiree')); setUploading(false); return }
       let successCount = 0
       for (const file of Array.from(files)) {
         // Validation MIME côté client
-        if (!file.type.startsWith('image/')) { toast.error(`${file.name} : type non supporté`); continue }
+        if (!file.type.startsWith('image/')) { toast.error(`${file.name} : ${t('proDash.photos.typeNonSupporte')}`); continue }
         const formData = new FormData()
         formData.append('file', file)
         formData.append('artisan_id', artisan.id)
@@ -140,15 +140,15 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         if (res.ok) successCount++
       }
       if (successCount > 0) {
-        toast.success(`${successCount} photo(s) ajoutee(s)`)
+        toast.success(`${successCount} ${t('proDash.photos.photosAjoutees')}`)
         loadPhotos()
       }
       if (successCount < files.length) {
-        toast.error(`${files.length - successCount} photo(s) en erreur`)
+        toast.error(`${files.length - successCount} ${t('proDash.photos.photosEnErreur')}`)
       }
     } catch (e) {
       console.error('Upload error:', e)
-      toast.error('Erreur lors de l\'upload')
+      toast.error(t('proDash.photos.erreurUpload'))
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -195,7 +195,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
               background: 'rgba(0,0,0,0.5)', borderRadius: '50%', width: 36, height: 36,
               display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer'
             }}
-          aria-label="Fermer la photo">✕</button>
+          aria-label={t('proDash.photos.fermerPhoto')}>✕</button>
         </div>
       )}
 
@@ -371,7 +371,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                           <button onClick={() => setAssigningRapport(photo.id)} className={"v5-btn v5-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
                             {'📋'} {t('proDash.photos.rapport')}
                           </button>
-                          <button onClick={() => deletePhoto(photo.id)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label="Supprimer la photo">
+                          <button onClick={() => deletePhoto(photo.id)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label={t('proDash.photos.supprimerLaPhoto')}>
                             {'🗑️'}
                           </button>
                         </>
