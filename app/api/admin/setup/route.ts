@@ -69,9 +69,11 @@ export async function GET(request: NextRequest) {
 
         if (existing) {
           const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+            app_metadata: {
+              role: 'super_admin',
+            },
             user_metadata: {
               ...existing.user_metadata,
-              role: 'super_admin',
               full_name: 'Super Admin Vitfix',
             }
           })
@@ -80,7 +82,7 @@ export async function GET(request: NextRequest) {
             action: 'updated',
             user_id: existing.id,
             email: existing.email,
-            role: data?.user?.user_metadata?.role,
+            role: data?.user?.app_metadata?.role,
             error: error?.message,
           }
         } else {
@@ -88,8 +90,10 @@ export async function GET(request: NextRequest) {
             email: ADMIN_EMAIL,
             password: ADMIN_PASSWORD,
             email_confirm: true,
-            user_metadata: {
+            app_metadata: {
               role: 'super_admin',
+            },
+            user_metadata: {
               full_name: 'Super Admin Vitfix',
             }
           })
@@ -98,7 +102,7 @@ export async function GET(request: NextRequest) {
             action: 'created',
             user_id: data?.user?.id,
             email: data?.user?.email,
-            role: data?.user?.user_metadata?.role,
+            role: data?.user?.app_metadata?.role,
             error: error?.message,
           }
         }

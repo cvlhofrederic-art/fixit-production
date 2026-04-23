@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,9 @@ const contactSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIP(req as any)
+    if (!(await checkRateLimit(`contact_${ip}`, 3, 60_000))) return rateLimitResponse()
+
     const body = await req.json()
     const data = contactSchema.parse(body)
 

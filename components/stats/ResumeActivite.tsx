@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { safeMarkdownToHTML } from '@/lib/sanitize'
 import type { PhrasesActivite } from '@/lib/stats-phrases'
 
 type Periode = 'mois_en_cours' | 'mois_precedent' | 'annee_en_cours'
@@ -138,8 +139,7 @@ function ResumeContent({ phrases }: { phrases: PhrasesActivite }) {
           lineHeight: '1.5',
         }}
         dangerouslySetInnerHTML={{
-          __html: phrases.phrase_principale
-            .replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--v22-green)">$1</strong>'),
+          __html: safeMarkdownToHTML(phrases.phrase_principale),
         }}
       />
 
@@ -156,8 +156,7 @@ function ResumeContent({ phrases }: { phrases: PhrasesActivite }) {
                 lineHeight: '1.5',
               }}
               dangerouslySetInnerHTML={{
-                __html: phrase
-                  .replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--v22-text)">$1</strong>'),
+                __html: safeMarkdownToHTML(phrase),
               }}
             />
           ))}

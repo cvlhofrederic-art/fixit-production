@@ -1257,7 +1257,7 @@ export default function ClientDashboardPage() {
                             {m.companyName && <p className="text-xs text-text-muted mt-0.5">{t('clientDash.devis.from')} : {m.companyName}</p>}
                             {isSigned && <p className="text-xs text-green-700 mt-1 font-semibold">{t('clientDash.devis.signed')}{m.signer_name ? ` ${t('clientDash.devis.signedBy')} ${m.signer_name}` : ''}{m.signed_at ? ` ${t('clientDash.devis.onDate')} ${new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}` : ''}</p>}
                             {isSigned && m.signature_svg && (
-                              <div className="mt-2 border border-green-200 rounded-lg p-2 bg-white" dangerouslySetInnerHTML={{ __html: m.signature_svg }} style={{ maxHeight: 60, overflow: 'hidden' }} />
+                              <img className="mt-2 border border-green-200 rounded-lg p-2 bg-white" src={`data:image/svg+xml,${encodeURIComponent(m.signature_svg)}`} alt="Signature" style={{ maxHeight: 60, overflow: 'hidden' }} />
                             )}
                           </div>
                           {!isSigned && (
@@ -1299,7 +1299,7 @@ export default function ClientDashboardPage() {
                           {m.signer_name && <p className="text-xs text-green-600 mt-0.5">{t('clientDash.devis.signedBy')} {m.signer_name}</p>}
                           {m.signed_at && <p className="text-xs text-green-600">{t('clientDash.devis.onDate')} {new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} {t('clientDash.tracking.at')} {new Date(m.signed_at).toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>}
                           {m.signature_svg && (
-                            <div className="mt-2 border border-green-200 rounded-lg p-1.5 bg-white" dangerouslySetInnerHTML={{ __html: m.signature_svg }} style={{ maxHeight: 50, overflow: 'hidden' }} />
+                            <img className="mt-2 border border-green-200 rounded-lg p-1.5 bg-white" src={`data:image/svg+xml,${encodeURIComponent(m.signature_svg)}`} alt="Signature" style={{ maxHeight: 50, overflow: 'hidden' }} />
                           )}
                           {m.signature_hash && <p className="text-[8px] text-gray-400 mt-1 font-mono">SHA-256: {m.signature_hash.substring(0, 20)}...</p>}
                           <p className="text-[10px] text-text-muted mt-1">{time}</p>

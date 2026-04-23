@@ -101,10 +101,12 @@ export async function POST(request: NextRequest) {
       email: invite.email,
       password,
       email_confirm: true, // Confirmer directement sans email
-      user_metadata: {
-        full_name: invite.full_name,
+      app_metadata: {
         role: invite.role,
         cabinet_id: invite.cabinet_id,
+      },
+      user_metadata: {
+        full_name: invite.full_name,
       },
     })
 
@@ -126,8 +128,7 @@ export async function POST(request: NextRequest) {
         if (existingUser) {
           // Mettre à jour les metadata
           await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            user_metadata: {
-              ...existingUser.user_metadata,
+            app_metadata: {
               role: invite.role,
               cabinet_id: invite.cabinet_id,
             },
