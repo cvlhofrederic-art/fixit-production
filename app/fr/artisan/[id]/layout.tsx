@@ -1,17 +1,18 @@
 import type { Metadata } from 'next'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
+import { getProfilePath } from '@/lib/utils'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
 
-  let artisan: { company_name: string | null; bio: string | null; categories: string[] | null; company_city: string | null; rating_avg: number | null; rating_count: number; country: string | null; profile_photo_url: string | null; slug: string | null } | null = null
+  let artisan: { company_name: string | null; bio: string | null; categories: string[] | null; company_city: string | null; rating_avg: number | null; rating_count: number; country: string | null; profile_photo_url: string | null; slug: string | null; org_role: string | null } | null = null
 
   try {
     const supabase = await createServerSupabaseClient()
     const { data } = await supabase
       .from('profiles_artisan')
-      .select('company_name, bio, categories, company_city, rating_avg, rating_count, country, profile_photo_url, slug')
+      .select('company_name, bio, categories, company_city, rating_avg, rating_count, country, profile_photo_url, slug, org_role')
       .eq('id', id)
       .single()
     artisan = data
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
   const categories = (artisan.categories || []).join(', ')
   const city = artisan.company_city || (isPT ? 'Portugal' : 'France')
-  const locale = isPT ? 'pt_PT' : 'fr_FR'
+  const ogLocale = isPT ? 'pt_PT' : 'fr_FR'
   const siteName = isPT ? 'VITFIX' : 'Vitfix'
 
   const rating = artisan.rating_avg ? artisan.rating_avg.toFixed(1) : null
@@ -43,7 +44,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? (artisan.bio?.substring(0, 160) || `${name}, ${categories} em ${city}.${ratingText} Reserve online no VITFIX.`)
     : (artisan.bio?.substring(0, 160) || `${name}, artisan ${categories} à ${city}.${ratingText} Réservez en ligne sur Vitfix.`)
 
-  const canonicalPath = artisan.slug ? `/artisan/${artisan.slug}` : `/artisan/${id}`
+  const locale = isPT ? 'pt' : 'fr'
+  const canonicalPath = getProfilePath({ slug: artisan.slug, id, org_role: artisan.org_role }, locale)
 
   return {
     title,
@@ -52,7 +54,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       title: `${name} - ${categories || (isPT ? 'Profissional' : 'Artisan')} ${isPT ? 'em' : 'à'} ${city}`,
       description,
       siteName,
-      locale,
+      locale: ogLocale,
       type: 'profile',
       ...(artisan.profile_photo_url ? { images: [{ url: artisan.profile_photo_url, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }] }),
     },
@@ -77,7 +79,7 @@ export default async function ArtisanLayout({
     const supabase = await createServerSupabaseClient()
     const { data: artisan } = await supabase
       .from('profiles_artisan')
-      .select('company_name, categories, company_city, rating_avg, rating_count, country, latitude, longitude, profile_photo_url, slug, phone')
+      .select('company_name, categories, company_city, rating_avg, rating_count, country, latitude, longitude, profile_photo_url, slug, phone, org_role')
       .eq('id', id)
       .single()
 
@@ -86,7 +88,8 @@ export default async function ArtisanLayout({
       const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
       const categories = artisan.categories || []
       const city = artisan.company_city || ''
-      const canonicalPath = artisan.slug ? `/artisan/${artisan.slug}` : `/artisan/${id}`
+      const jsonLdLocale = isPT ? 'pt' : 'fr'
+      const canonicalPath = getProfilePath({ slug: artisan.slug, id, org_role: artisan.org_role }, jsonLdLocale)
 
       const jsonLd = {
         '@context': 'https://schema.org',
