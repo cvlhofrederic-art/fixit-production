@@ -556,7 +556,7 @@ export interface BTPSettings {
   amortissements_mensuels: number
 }
 
-const DEFAULT_SETTINGS: BTPSettings = {
+const DEFAULT_SETTINGS_FR: BTPSettings = {
   country: 'FR',
   company_type: 'sarl',
   depot_rayon_m: 100,
@@ -577,13 +577,42 @@ const DEFAULT_SETTINGS: BTPSettings = {
   amortissements_mensuels: 0,
 }
 
+const DEFAULT_SETTINGS_PT: BTPSettings = {
+  country: 'PT',
+  company_type: 'lda',
+  depot_rayon_m: 100,
+  cout_horaire_ouvrier: 10,
+  cout_horaire_chef_chantier: 16,
+  cout_horaire_conducteur: 22,
+  charges_patronales_pct: 24,
+  geo_pointage_enabled: false,
+  devise: 'EUR',
+  salaire_patron_mensuel: 0,
+  salaire_patron_type: 'net',
+  taux_cotisations_patron: 24,
+  statut_juridique: 'lda',
+  regime_tva: 'reel_normal',
+  taux_is: 21,
+  frais_fixes_mensuels: [],
+  objectif_marge_pct: 20,
+  amortissements_mensuels: 0,
+}
+
+function getDefaultSettings(): BTPSettings {
+  if (typeof document !== 'undefined') {
+    const locale = document.cookie.match(/(?:^|;\s*)locale=([^;]*)/)?.[1]
+    if (locale === 'pt') return DEFAULT_SETTINGS_PT
+  }
+  return DEFAULT_SETTINGS_FR
+}
+
 // Settings cache
 let _settingsCache: { data: BTPSettings; at: number } | null = null
 const SETTINGS_CACHE_TTL = 300_000 // 5 min
 
 export function useBTPSettings() {
   const hasFresh = _settingsCache && (Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL)
-  const [settings, setSettings] = useState<BTPSettings>(hasFresh ? _settingsCache!.data : DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<BTPSettings>(hasFresh ? _settingsCache!.data : getDefaultSettings())
   const [loading, setLoading] = useState(!hasFresh)
 
   const refresh = useCallback(async () => {
@@ -592,7 +621,21 @@ export function useBTPSettings() {
       if (!res.ok) throw new Error()
       const json = await res.json()
       if (json.settings) {
-        const merged = { ...DEFAULT_SETTINGS, ...json.settings }
+        const defaults = getDefaultSettings()
+        const merged = { ...defaults, ...json.settings }
+        // Si le locale est PT mais les settings indiquent FR, corriger automatiquement
+        if (typeof document !== 'undefined') {
+          const locale = document.cookie.match(/(?:^|;\s*)locale=([^;]*)/)?.[1]
+          if (locale === 'pt' && merged.country === 'FR') {
+            merged.country = 'PT'
+            merged.company_type = merged.company_type === 'sarl' ? 'lda' : merged.company_type
+            merged.statut_juridique = merged.statut_juridique === 'sarl' ? 'lda' : merged.statut_juridique
+            const ptConfig = resolveCompanyType(merged.company_type, 'PT')
+            merged.charges_patronales_pct = Math.round(ptConfig.employer_charge_rate * 100)
+            merged.taux_cotisations_patron = Math.round(ptConfig.boss_charge_rate * 100)
+            merged.taux_is = Math.round(ptConfig.default_taux_is * 100)
+          }
+        }
         setSettings(merged)
         _settingsCache = { data: merged, at: Date.now() }
       } else {
