@@ -58,7 +58,7 @@ function getOrgTypes(t: (key: string) => string) {
       emoji: '🏗️',
       label: t('register.orgBtpLabel'),
       desc: t('register.orgBtpDesc'),
-      color: 'blue',
+      color: 'amber',
       role: 'pro_societe',
       examples: t('register.orgBtpExamples'),
     },
