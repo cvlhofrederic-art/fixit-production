@@ -912,19 +912,39 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const accent = 'border-amber-400 bg-amber-50 text-amber-600'
   const btnClass = 'bg-yellow hover:bg-yellow-light text-dark hover:-translate-y-px'
 
-  const secteurs = [
-    t('register.sectorBtpAlvenaria'), t('register.sectorBtpElec'), t('register.sectorBtpPlomb'),
-    t('register.sectorBtpPeinture'), t('register.sectorBtpRevetements'), t('register.sectorBtpMenuiserie'),
-    t('register.sectorBtpCharpente'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'),
-    t('register.sectorBtpMetallerie'), t('register.sectorBtpImpermeabilizacao'), t('register.sectorBtpIsolamento'),
-    t('register.sectorBtpPavimentos'), t('register.sectorBtpCaixilharia'), t('register.sectorBtpPortas'),
-    t('register.sectorBtpEstores'), t('register.sectorBtpVidreiro'), t('register.sectorBtpGas'),
-    t('register.sectorBtpEletrodomesticos'), t('register.sectorBtpLimpeza'), t('register.sectorBtpJardinagem'),
-    t('register.sectorBtpMudancas'), t('register.sectorBtpDesentupimentos'), t('register.sectorBtpFachadas'),
-    t('register.sectorBtpTerracos'), t('register.sectorBtpPiscinas'), t('register.sectorBtpPragas'),
-    t('register.sectorBtpBricolagem'), t('register.sectorBtpGeneral'),
-    t('register.sectorBtpAutre'),
+  const secteursData = [
+    { label: t('register.sectorBtpAlvenaria'), cae: isPt ? 'CAE 43910' : 'NAF 43.99A' },
+    { label: t('register.sectorBtpElec'), cae: isPt ? 'CAE 43210' : 'NAF 43.21A' },
+    { label: t('register.sectorBtpPlomb'), cae: isPt ? 'CAE 43221' : 'NAF 43.22A' },
+    { label: t('register.sectorBtpPeinture'), cae: isPt ? 'CAE 43340' : 'NAF 43.34Z' },
+    { label: t('register.sectorBtpRevetements'), cae: isPt ? 'CAE 43330' : 'NAF 43.33Z' },
+    { label: t('register.sectorBtpMenuiserie'), cae: isPt ? 'CAE 43320' : 'NAF 43.32A' },
+    { label: t('register.sectorBtpCharpente'), cae: isPt ? 'CAE 16230' : 'NAF 43.91A' },
+    { label: t('register.sectorBtpCvc'), cae: isPt ? 'CAE 43222' : 'NAF 43.22B' },
+    { label: t('register.sectorBtpToiture'), cae: isPt ? 'CAE 43410' : 'NAF 43.91B' },
+    { label: t('register.sectorBtpMetallerie'), cae: isPt ? 'CAE 25110' : 'NAF 25.11Z' },
+    { label: t('register.sectorBtpImpermeabilizacao'), cae: isPt ? 'CAE 43992' : 'NAF 43.99B' },
+    { label: t('register.sectorBtpIsolamento'), cae: isPt ? 'CAE 43230' : 'NAF 43.29A' },
+    { label: t('register.sectorBtpPavimentos'), cae: isPt ? 'CAE 43330' : 'NAF 43.33Z' },
+    { label: t('register.sectorBtpCaixilharia'), cae: isPt ? 'CAE 43320' : 'NAF 43.32B' },
+    { label: t('register.sectorBtpPortas'), cae: isPt ? 'CAE 25120' : 'NAF 25.12Z' },
+    { label: t('register.sectorBtpEstores'), cae: isPt ? 'CAE 47530' : 'NAF 47.53Z' },
+    { label: t('register.sectorBtpVidreiro'), cae: isPt ? 'CAE 43340' : 'NAF 43.34Z' },
+    { label: t('register.sectorBtpGas'), cae: isPt ? 'CAE 43221' : 'NAF 43.22A' },
+    { label: t('register.sectorBtpEletrodomesticos'), cae: isPt ? 'CAE 33140' : 'NAF 33.14Z' },
+    { label: t('register.sectorBtpLimpeza'), cae: isPt ? 'CAE 81210' : 'NAF 81.21Z' },
+    { label: t('register.sectorBtpJardinagem'), cae: isPt ? 'CAE 81300' : 'NAF 81.30Z' },
+    { label: t('register.sectorBtpMudancas'), cae: isPt ? 'CAE 49420' : 'NAF 49.42Z' },
+    { label: t('register.sectorBtpDesentupimentos'), cae: isPt ? 'CAE 43992' : 'NAF 43.99C' },
+    { label: t('register.sectorBtpFachadas'), cae: isPt ? 'CAE 43350' : 'NAF 43.31Z' },
+    { label: t('register.sectorBtpTerracos'), cae: isPt ? 'CAE 41000' : 'NAF 41.20B' },
+    { label: t('register.sectorBtpPiscinas'), cae: isPt ? 'CAE 43992' : 'NAF 43.99D' },
+    { label: t('register.sectorBtpPragas'), cae: isPt ? 'CAE 81231' : 'NAF 81.29A' },
+    { label: t('register.sectorBtpBricolagem'), cae: isPt ? 'CAE 43992' : 'NAF 43.99Z' },
+    { label: t('register.sectorBtpGeneral'), cae: isPt ? 'CAE 41000' : 'NAF 41.20A' },
+    { label: t('register.sectorBtpAutre'), cae: '' },
   ]
+  const secteurs = secteursData.map(s => s.label)
 
   return (
     <div className="space-y-6">
@@ -995,15 +1015,16 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{t('register.multipleChoiceHint')}</p>
             <div className="grid grid-cols-1 gap-2">
-              {secteurs.map(s => {
-                const selected = form.secteurs.includes(s)
+              {secteursData.map(sd => {
+                const selected = form.secteurs.includes(sd.label)
                 return (
-                  <button key={s} type="button" onClick={() => setForm(f => ({
+                  <button key={sd.label} type="button" onClick={() => setForm(f => ({
                     ...f,
-                    secteurs: selected ? f.secteurs.filter(x => x !== s) : [...f.secteurs, s]
+                    secteurs: selected ? f.secteurs.filter(x => x !== sd.label) : [...f.secteurs, sd.label]
                   }))}
                     className={`text-left px-4 py-2.5 rounded-xl border-2 text-sm transition ${selected ? `${accent} border-2 font-semibold` : 'border-[#EFEFEF] hover:border-[#D0D0D0] text-mid'}`}>
-                    {selected ? '✓ ' : ''}{s}
+                    <span>{selected ? '✓ ' : ''}{sd.label}</span>
+                    {sd.cae && <span className="block text-[10px] text-[#999] font-normal mt-0.5">{sd.cae}</span>}
                   </button>
                 )
               })}
