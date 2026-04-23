@@ -941,6 +941,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     { label: 'Piscinas', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
     { label: 'Controlo de pragas', cae: 'Atividades de desinfeção, desratização e similares (CAE 81231)' },
     { label: 'Bricolagem', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
+    { label: 'Construção de edifícios', cae: 'Construção de edifícios residenciais e não residenciais (CAE 41200)' },
     { label: 'Renovação geral', cae: 'Construção de edifícios (CAE 41200)' },
     { label: 'Outro setor', cae: '' },
   ] : [
@@ -1019,8 +1020,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             {siretStatus === 'error' && <p className="text-red-600 text-xs mt-1">❌ {siretError}</p>}
             {siretStatus === 'verified' && company && (
               <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
-                <p className="font-semibold text-green-800">✅ {company.name}</p>
-                <p className="text-xs text-green-600">{company.address}</p>
+                <p className="font-semibold text-green-800">✅ {company.name || (isPt ? `NIF ${company.nif} validado` : `SIRET ${company.siret} validé`)}</p>
+                {company.address && <p className="text-xs text-green-600">{company.address}</p>}
+                {!company.name && isPt && <p className="text-xs text-amber-600 mt-0.5">NIF válido mas não registado no VIES (pode ser isento de IVA)</p>}
                 {company.nafLabel && <p className="text-xs text-green-600 mt-0.5">{t('register.activityLabel')} : {company.nafLabel} ({company.nafCode})</p>}
                 {company.legalForm && <p className="text-xs text-green-600">{t('register.formLabel')} : {company.legalForm}</p>}
               </div>
