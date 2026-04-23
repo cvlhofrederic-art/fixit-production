@@ -165,7 +165,7 @@ function DashboardPage() {
   // ── Dynamic tab title: show company name (reset on unmount) ──
   useEffect(() => {
     if (artisan?.company_name) {
-      document.title = `Vitfix — ${artisan.company_name}`
+      document.title = `Vitfix - ${artisan.company_name}`
       return () => { document.title = 'Vitfix' }
     }
   }, [artisan?.company_name])
@@ -393,8 +393,39 @@ function DashboardPage() {
     const url = page === 'home' ? basePath : `${basePath}?p=${page}`
     window.history.pushState({}, '', url)
     // Update tab title with current section name
-    const sectionName = page === 'home' ? 'Accueil' : page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g, ' ')
-    document.title = `Vitfix — ${sectionName}`
+    const PAGE_TITLES_FR: Record<string, string> = {
+      home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
+      chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage',
+      estimation_materiaux: 'Estimation matériaux', calendar: 'Agenda', meteo: 'Météo',
+      photos_chantier: 'Photos chantier', rapports: 'Rapports', pipeline: 'Pipeline',
+      devis: 'Devis', dpgf: 'Appels d\'offres', marches: 'Marchés', factures: 'Factures',
+      situations: 'Situations', garanties: 'Retenues de garantie', sous_traitance: 'Sous-traitance',
+      sous_traitance_offres: 'Recruter sous-traitants', rfq_btp: 'Devis fournisseurs',
+      marketplace_btp: 'Marketplace', compta_btp: 'Comptabilité IA', rentabilite: 'Rentabilité',
+      comptabilite: 'Comptabilité', messages: 'Messagerie', clients: 'Clients',
+      portail_client: 'Portail client', wallet: 'Conformité', contrats: 'Contrats',
+      horaires: 'Horaires', portfolio: 'Références', parrainage: 'Parrainage',
+      settings: 'Mon profil', modules: 'Modules', help: 'Aide', gestion_comptes: 'Comptes utilisateurs',
+      bibliotheque: 'Bibliothèque',
+    }
+    const PAGE_TITLES_PT: Record<string, string> = {
+      home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Prestações',
+      chantiers: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Marcação de horas',
+      estimation_materiaux: 'Estimativa de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
+      photos_chantier: 'Fotos de obra', rapports: 'Relatórios', pipeline: 'Pipeline',
+      devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de Mercados', factures: 'Faturas',
+      situations: 'Situações de obra', garanties: 'Retenções de garantia', sous_traitance: 'Subempreitada',
+      sous_traitance_offres: 'Recrutar subempreiteiros', rfq_btp: 'Orçamentos fornecedores',
+      marketplace_btp: 'Marketplace', compta_btp: 'Contabilidade IA', rentabilite: 'Rentabilidade',
+      comptabilite: 'Contabilidade', messages: 'Mensagens', clients: 'Clientes',
+      portail_client: 'Portal cliente', wallet: 'Conformidade', contrats: 'Contratos',
+      horaires: 'Horários', portfolio: 'Referências', parrainage: 'Apadrinhamento',
+      settings: 'Meu perfil', modules: 'Módulos', help: 'Ajuda', gestion_comptes: 'Contas de utilizadores',
+      bibliotheque: 'Biblioteca',
+    }
+    const titles = locale === 'pt' ? PAGE_TITLES_PT : PAGE_TITLES_FR
+    const sectionName = titles[page] || page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g, ' ')
+    document.title = `Vitfix - ${sectionName}`
   }, [setShowDevisForm, setShowFactureForm, locale])
 
   // Keep ref in sync for notification callbacks
