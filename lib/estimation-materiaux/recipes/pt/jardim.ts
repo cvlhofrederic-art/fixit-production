@@ -41,8 +41,8 @@ export const jardimRecipes: Recipe[] = [
     ],
     materials: [
       {
-        id: 'terra-vegetal-pt', name: 'Terra vegetal crivada (10 cm)',
-        category: 'granulat', phase: 'preparation', quantityPerBase: 0.10, unit: 'm3',
+        id: 'terra-vegetal-pt', name: 'Terra vegetal crivada (12 cm)',
+        category: 'granulat', phase: 'preparation', quantityPerBase: 0.12, unit: 'm3',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Assentamento',
       },
@@ -54,7 +54,7 @@ export const jardimRecipes: Recipe[] = [
       },
       {
         id: 'semente-relva-pt', name: 'Semente de relva rústica (mistura)',
-        category: 'autre', phase: 'principal', quantityPerBase: 40, unit: 'g',
+        category: 'autre', phase: 'principal', quantityPerBase: 35, unit: 'g',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Sementeira manual',
         manufacturerRef: 'Fertiberia / Lusosem',

@@ -78,7 +78,7 @@ export const coberturaRecipes: Recipe[] = [
         geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Quebras transporte + cortes',
         normRef: 'NP EN 1304 (2014)', manufacturerRef: 'Umbelino Monteiro / CS Coelho da Silva',
-        packaging: { unit: 'panneau', contentQty: 240, contentUnit: 'u', label: 'palete 240 telhas' },
+        packaging: { unit: 'panneau', contentQty: 288, contentUnit: 'u', label: 'palete 288 telhas' },
       },
       {
         id: 'gancho-telha-inox-pt', name: 'Ganchos/grampos telha inox A2',

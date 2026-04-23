@@ -41,7 +41,7 @@ export const isolamentoRecipes: Recipe[] = [
       'Armadura rede de fibra de vidro 160 g/m² no reboco base',
       'Acabamento reboco fino acrílico 1,5 mm (Weber PT / Sika PT)',
       'Cantoneiras PVC/alumínio com rede integrada nos ângulos',
-      'REH exige U ≤ 0,40 W/m²K em paredes exteriores (zona climática I2)',
+      'REH exige U ≤ 0,30 W/m²K em paredes exteriores (zona climática I2, Portaria 138-I/2021). I1: 0,40 | I2: 0,30 | I3: 0,25',
     ],
     materials: [
       {
@@ -77,9 +77,9 @@ export const isolamentoRecipes: Recipe[] = [
       },
       {
         id: 'rede-fibra-vidro-etics-pt', name: 'Rede de fibra de vidro 160 g/m² (armadura)',
-        category: 'fixation', phase: 'principal', quantityPerBase: 1.15, unit: 'm2',
+        category: 'fixation', phase: 'principal', quantityPerBase: 1.10, unit: 'm2',
         geometryMultiplier: 'none',
-        wasteFactor: 1.15, wasteReason: 'Sobreposições 10 cm',
+        wasteFactor: 1.10, wasteReason: 'Sobreposições 10 cm',
       },
       {
         id: 'reboco-base-etics-pt', name: 'Reboco base armado (marouflagem)',
@@ -134,7 +134,7 @@ export const isolamentoRecipes: Recipe[] = [
       'Barreira pára-vapor lado quente obrigatória',
       'Forro interior em gesso cartonado 12,5 mm sobre perfilaria',
       'Subtelha existente assumida (ventilação pelo exterior)',
-      'REH exige U ≤ 0,35 W/m²K em coberturas (zona climática I2)',
+      'REH exige U ≤ 0,25 W/m²K em coberturas (zona I2, Portaria 138-I/2021). I1: 0,30 | I2: 0,25 | I3: 0,20',
       'Alternativa: isolamento sobre varas (sarking) — mais eficaz mas mais caro',
     ],
     materials: [
@@ -324,7 +324,7 @@ export const isolamentoRecipes: Recipe[] = [
       'Geotêxtil de separação sobre isolante',
       'Proteção pesada: seixo rolado 40/60 (espessura 5 cm, ≈ 80 kg/m²)',
       'Sistema invertido: isolante protege a membrana (maior durabilidade)',
-      'REH exige U ≤ 0,35 W/m²K em coberturas',
+      'REH exige U ≤ 0,25 W/m²K em coberturas (zona I2, Portaria 138-I/2021). I1: 0,30 | I2: 0,25 | I3: 0,20',
       'Alternativa à proteção pesada: lajetas sobre plots',
     ],
     materials: [

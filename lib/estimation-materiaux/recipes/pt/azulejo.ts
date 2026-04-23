@@ -152,7 +152,7 @@ export const azulejoRecipes: Recipe[] = [
       },
       {
         id: 'cola-c2s1-pt', name: 'Cimento-cola C2S1 deformável (colagem dupla pente U9)',
-        category: 'colle', phase: 'principal', quantityPerBase: 6, unit: 'kg',
+        category: 'colle', phase: 'principal', quantityPerBase: 7, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.12, wasteReason: 'Resíduos + sobre-dosagem',
         normRef: 'NP EN 12004 (2017) — classe C2S1', manufacturerRef: 'Weber PT (weber.col flex S1) / Mapei Keraflex Maxi S1',
@@ -160,10 +160,10 @@ export const azulejoRecipes: Recipe[] = [
       },
       {
         id: 'betume-juntas-2mm-pt', name: 'Betume de juntas flexível (juntas 2 mm rectificado)',
-        category: 'joint', phase: 'accessoires', quantityPerBase: 0.18, unit: 'kg',
+        category: 'joint', phase: 'accessoires', quantityPerBase: 0.12, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Resíduos',
-        normRef: 'NP EN 13888 (2009)', manufacturerRef: 'Mapei — 0,18 kg/m² para 60×60 junta 2 mm',
+        normRef: 'NP EN 13888 (2009)', manufacturerRef: 'Mapei — 0,12 kg/m² para 60×60 junta 2 mm',
         packaging: { unit: 'sac', contentQty: 5, contentUnit: 'kg', label: 'saco 5 kg' },
       },
       {
