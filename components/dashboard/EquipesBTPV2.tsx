@@ -299,7 +299,9 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{type: string, id: string} | null>(null)
 
-  const [mForm, setMForm] = useState(EMPTY_MFORM)
+  const defaultChargesSalariales = Math.round(companyConfig.employee_charge_rate * 100)
+  const defaultChargesPatronales = Math.round(companyConfig.employer_charge_rate * 100)
+  const [mForm, setMForm] = useState({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales })
   const [eForm, setEForm] = useState({ nom: '', metier: '', chantierId: '', membreIds: [] as string[] })
 
   // Computed: real cost per member using payroll engine
@@ -374,7 +376,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
     setSaving(false)
     setShowMembreModal(false)
     setEditingMembre(null)
-    setMForm(EMPTY_MFORM)
+    setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales })
     setShowFinance(false)
   }
 
@@ -384,11 +386,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
       prenom: m.prenom || '', nom: m.nom || '',
       telephone: m.telephone || '', email: m.email || '',
       typeCompte: m.typeCompte || 'ouvrier', rolePerso: m.rolePerso || '', equipeId: m.equipeId || '',
-      coutHoraire: m.coutHoraire || 25, chargesPct: m.chargesPct || 45,
+      coutHoraire: m.coutHoraire || 25, chargesPct: m.chargesPct || defaultChargesPatronales,
       salaire_brut_mensuel: m.salaire_brut_mensuel ? String(m.salaire_brut_mensuel) : '',
       salaire_net_mensuel: m.salaire_net_mensuel ? String(m.salaire_net_mensuel) : '',
-      charges_salariales_pct: m.charges_salariales_pct ?? 22,
-      charges_patronales_pct: m.charges_patronales_pct ?? 45,
+      charges_salariales_pct: m.charges_salariales_pct ?? defaultChargesSalariales,
+      charges_patronales_pct: m.charges_patronales_pct ?? defaultChargesPatronales,
       type_contrat: (() => { const valid = getValidContrats(m.typeCompte || 'ouvrier'); return valid.includes(m.type_contrat) ? m.type_contrat : valid[0] })(),
       heures_hebdo: m.heures_hebdo || 35,
       panier_repas_jour: m.panier_repas_jour || 0,
@@ -454,7 +456,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && (
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales }); setShowFinance(false); setShowMembreModal(true) }}>
               + {isPt ? 'Membro' : 'Membre'}
             </button>
           )}
