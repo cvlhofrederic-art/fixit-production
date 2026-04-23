@@ -136,6 +136,16 @@ export const PT_STANDARDS = {
     title: 'Abastecimento de água — sistemas e componentes fora de edifícios',
     version: '2002',
   } satisfies PTStandard,
+  abastecimento_agua_predial: {
+    code: 'NP EN 806',
+    title: 'Especificações para instalações de água para consumo humano no interior de edifícios',
+    version: '2012',
+  } satisfies PTStandard,
+  tubagens_pvc_drenagem: {
+    code: 'NP EN 1451-1',
+    title: 'Sistemas de canalização em plástico para esgoto e drenagem — PP',
+    version: '2000',
+  } satisfies PTStandard,
   tubagens_cobre: {
     code: 'NP EN 1057',
     title: 'Tubos de cobre para canalizações de água e gás',
@@ -173,6 +183,21 @@ export const PT_STANDARDS = {
     title: 'Sistemas genéricos de cablagem',
     version: '2018',
   } satisfies PTStandard,
+  disjuntores: {
+    code: 'NP EN 60898-1',
+    title: 'Aparelhagem de proteção — disjuntores para proteção de sobreintensidades',
+    version: '2015',
+  } satisfies PTStandard,
+  diferenciais: {
+    code: 'NP EN 61008-1',
+    title: 'Interruptores diferenciais sem dispositivo de proteção contra sobreintensidades',
+    version: '2012',
+  } satisfies PTStandard,
+  cenelec_instalacoes: {
+    code: 'CENELEC HD 60364',
+    title: 'Instalações elétricas de baixa tensão — série harmonizada',
+    version: '2017',
+  } satisfies PTStandard,
 
   // ═══ CLIMATIZAÇÃO / AQUECIMENTO ═══
   instalacoes_gas: {
@@ -189,6 +214,16 @@ export const PT_STANDARDS = {
     code: 'NP 1037-1',
     title: 'Ventilação natural e mista em edifícios',
     version: '2002',
+  } satisfies PTStandard,
+  recs: {
+    code: 'DL 118/2013 (RECS)',
+    title: 'Regulamento de Desempenho Energético dos Edifícios de Comércio e Serviços',
+    version: '2013, alterado DL 28/2016',
+  } satisfies PTStandard,
+  fgas: {
+    code: 'Regulamento UE 517/2014 (F-Gas)',
+    title: 'Gases fluorados com efeito de estufa — certificação obrigatória técnicos',
+    version: '2014, revisão 2024',
   } satisfies PTStandard,
 
   // ═══ CAIXILHARIA / MENUISERIES ═══
@@ -237,6 +272,61 @@ export const PT_STANDARDS = {
     code: 'DL 96/2017',
     title: 'Regime jurídico da segurança contra incêndio em edifícios',
     version: '2017',
+  } satisfies PTStandard,
+
+  // ═══ SANEAMENTO / DRENAGEM ═══
+  drenagem_predial: {
+    code: 'NP EN 12056',
+    title: 'Sistemas de drenagem gravítica no interior de edifícios',
+    version: '2000',
+  } satisfies PTStandard,
+  caixas_visita: {
+    code: 'NP EN 1917',
+    title: 'Caixas de visita e câmaras de inspeção de betão não armado, armado e fibras de aço',
+    version: '2004',
+  } satisfies PTStandard,
+  rgsppdadar: {
+    code: 'RGSPPDADAR',
+    title: 'Regulamento Geral dos Sistemas Públicos e Prediais de Distribuição de Água e de Drenagem',
+    version: 'DR 23/95',
+  } satisfies PTStandard,
+
+  // ═══ JARDIM / ESPAÇOS EXTERIORES ═══
+  agregados_nao_ligados: {
+    code: 'NP EN 13242',
+    title: 'Agregados para materiais não ligados ou tratados com ligantes hidráulicos',
+    version: '2013',
+  } satisfies PTStandard,
+  blocos_betao_pavimento: {
+    code: 'NP EN 1338',
+    title: 'Blocos de betão para pavimentação',
+    version: '2004',
+  } satisfies PTStandard,
+
+  // ═══ PISCINAS ═══
+  piscinas_domesticas: {
+    code: 'NP EN 16582',
+    title: 'Piscinas domésticas — requisitos de segurança',
+    version: '2017',
+  } satisfies PTStandard,
+
+  // ═══ VEDAÇÕES / ESTRUTURAS METÁLICAS ═══
+  estruturas_aco: {
+    code: 'NP EN 1090',
+    title: 'Execução de estruturas de aço e de estruturas de alumínio',
+    version: '2012',
+  } satisfies PTStandard,
+  blocos_gesso: {
+    code: 'NP EN 12859',
+    title: 'Blocos de gesso — definições, requisitos e métodos de ensaio',
+    version: '2012',
+  } satisfies PTStandard,
+
+  // ═══ TERRAÇO / MADEIRA ═══
+  durabilidade_madeira: {
+    code: 'NP EN 335',
+    title: 'Durabilidade da madeira e de produtos derivados — classes de utilização',
+    version: '2013',
   } satisfies PTStandard,
 } as const
 
