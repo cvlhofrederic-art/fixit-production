@@ -141,13 +141,14 @@ function formatQty(q: number, unit: string): string {
   return fr(q, 2)
 }
 
-function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
+function buildDimsLabel(recipe: Recipe, geo: Geometry, isPt = false): string {
+  const thicknessWord = isPt ? 'espessura' : 'épaisseur'
   switch (recipe.geometryMode) {
     case 'volume': {
       if (geo.length && geo.width && geo.thickness !== undefined)
-        return `${fr(geo.length, 1)} × ${fr(geo.width, 1)} m · épaisseur ${fr(geo.thickness * 100, 0)} cm`
+        return `${fr(geo.length, 1)} × ${fr(geo.width, 1)} m · ${thicknessWord} ${fr(geo.thickness * 100, 0)} cm`
       if (geo.area && geo.thickness !== undefined)
-        return `${fr(geo.area, 1)} m² · épaisseur ${fr(geo.thickness * 100, 0)} cm`
+        return `${fr(geo.area, 1)} m² · ${thicknessWord} ${fr(geo.thickness * 100, 0)} cm`
       if (geo.volume !== undefined) return `${fr(geo.volume, 2)} m³`
       return ''
     }
@@ -159,7 +160,7 @@ function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
       const parts: string[] = []
       if (geo.length && geo.height) parts.push(`${fr(geo.length, 1)} × ${fr(geo.height, 1)} m`)
       else if (geo.area) parts.push(`${fr(geo.area, 1)} m²`)
-      if (geo.openings && geo.openings > 0) parts.push(`ouvertures ${fr(geo.openings, 1)} m²`)
+      if (geo.openings && geo.openings > 0) parts.push(`${isPt ? 'aberturas' : 'ouvertures'} ${fr(geo.openings, 1)} m²`)
       return parts.join(' · ')
     }
     case 'length':
@@ -169,7 +170,10 @@ function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
   }
 }
 
-function firstDTU(refs: string[]): string {
+function firstDTU(refs: string[], isPt = false): string {
+  if (isPt) {
+    return refs.find(r => r.startsWith('NP')) || refs.find(r => r.startsWith('LNEC')) || refs.find(r => r.startsWith('DTU')) || refs.find(r => r.startsWith('NF')) || refs[0] || '—'
+  }
   return refs.find(r => r.startsWith('DTU')) || refs.find(r => r.startsWith('NF')) || refs[0] || '—'
 }
 
@@ -348,7 +352,7 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
           <div className="param-title">{TRADE_ICON[recipe.trade]} {recipe.name}</div>
           {recipe.description && <div className="param-desc">{recipe.description}</div>}
         </div>
-        <button type="button" className="param-close" onClick={onCancel} aria-label="Fermer">×</button>
+        <button type="button" className="param-close" onClick={onCancel} aria-label={isPt ? 'Fechar' : 'Fermer'}>×</button>
       </div>
 
       <div className="param-label-field">
@@ -477,7 +481,7 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
    ═══════════════════════════════════════════════════════════ */
 function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
   const [open, setOpen] = useState(false)
-  const dtu = firstDTU(need.references)
+  const dtu = firstDTU(need.references, isPt)
   const packagingLabel = need.packagingRecommendation
     ? `${need.packagingRecommendation.unitsToOrder} ${need.packagingRecommendation.packagingLabel}`
     : null
@@ -490,7 +494,7 @@ function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
             {need.name}
             {need.optional && (
               <span className="opt-badge" title={isPt ? 'Opcional' : 'Optionnel'}>
-                {isPt ? 'OPTION' : 'OPTION'}
+                {isPt ? 'OPÇÃO' : 'OPTION'}
               </span>
             )}
           </div>
@@ -839,7 +843,7 @@ export default function EstimationMateriauxSection({
 
   const saveItem = useCallback((geo: Geometry, label?: string) => {
     if (!selectedRecipe) return
-    const dimsLabel = buildDimsLabel(selectedRecipe, geo)
+    const dimsLabel = buildDimsLabel(selectedRecipe, geo, isPt)
     if (editingItem) {
       setItems(prev => prev.map(it => it.uid === editingItem.uid
         ? { ...it, geometry: geo, label, dimsLabel }
@@ -859,7 +863,7 @@ export default function EstimationMateriauxSection({
     }
     setResult(null)
     closeParam()
-  }, [selectedRecipe, editingItem, closeParam])
+  }, [selectedRecipe, editingItem, closeParam, isPt])
 
   const removeItem = (uid: string) => {
     setItems(prev => prev.filter(i => i.uid !== uid))
@@ -937,7 +941,7 @@ export default function EstimationMateriauxSection({
           recipeTrade: recipe.trade,
           geometry: it.geometry,
           label: it.label,
-          dimsLabel: buildDimsLabel(recipe, it.geometry),
+          dimsLabel: buildDimsLabel(recipe, it.geometry, isPt),
         })
       }
       setItems(extractedItems)
@@ -974,7 +978,7 @@ export default function EstimationMateriauxSection({
         {/* Titre */}
         <div className="v5-pg-t">
           <h1>{isPt ? 'Estimativa de materiais' : 'Estimation matériaux'}</h1>
-          <p>{isPt ? 'Quantitativos detalhados com referências DTU' : 'Quantitatifs détaillés avec références DTU'}</p>
+          <p>{isPt ? 'Quantitativos detalhados com referências NP/LNEC' : 'Quantitatifs détaillés avec références DTU'}</p>
         </div>
 
         {/* Barre projet */}
@@ -1126,7 +1130,7 @@ export default function EstimationMateriauxSection({
               {isAdminOverride && (
                 <div className="ia-trade-selector">
                   <div className="ia-trade-label">
-                    🛠️ {isPt ? 'Âmbito — corpos de métier (admin)' : 'Périmètre — corps de métier (admin)'}
+                    🛠️ {isPt ? 'Âmbito — especialidades (admin)' : 'Périmètre — corps de métier (admin)'}
                     <span className="ia-trade-hint">
                       {selectedTrades.length === 0
                         ? (isPt ? 'Tudo o catálogo' : 'Tout le catalogue')
