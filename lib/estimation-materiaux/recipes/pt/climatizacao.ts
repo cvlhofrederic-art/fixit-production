@@ -56,7 +56,7 @@ export const climatizacaoRecipes: Recipe[] = [
       {
         id: 'tubagem-frigo-pt', name: 'Tubagem frigorífica cobre isolado (par pré-isolado)',
         category: 'plaque', phase: 'principal', quantityPerBase: 5, unit: 'ml', geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Cortes + raccords',
+        wasteFactor: 1.10, wasteReason: 'Cortes + uniões',
       },
       {
         id: 'cabo-ligacao-clim-pt', name: 'Cabo de ligação (4 condutores + terra) entre UI e UE',
@@ -125,7 +125,7 @@ export const climatizacaoRecipes: Recipe[] = [
       {
         id: 'tubagem-frigo-multi-pt', name: 'Tubagem frigorífica cobre isolado (total 3 circuitos)',
         category: 'plaque', phase: 'principal', quantityPerBase: 24, unit: 'ml', geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Cortes + raccords',
+        wasteFactor: 1.10, wasteReason: 'Cortes + uniões',
         notes: '~8 ml × 3 UI = 24 ml (ida + retorno).',
       },
       {

@@ -122,7 +122,7 @@ export const PT_STANDARDS = {
   reh: {
     code: 'DL 118/2013 (REH)',
     title: 'Regulamento de Desempenho Energético dos Edifícios de Habitação',
-    version: '2013, alterado DL 28/2016',
+    version: '2013, alterado DL 28/2016, Portaria 138-I/2021 (valores U)',
   } satisfies PTStandard,
   sce: {
     code: 'DL 101-D/2020',

@@ -86,7 +86,7 @@ export const pavimentosRecipes: Recipe[] = [
   {
     id: 'pavimento-vinilico-lvt-pt',
     name: 'Pavimento vinílico LVT em régua (colado ou click)',
-    description: 'Revêtement vinílico de luxe (LVT) em régua, colado ou encaixe click. Resistente à água.',
+    description: 'Revestimento vinílico de luxe (LVT) em régua, colado ou encaixe click. Resistente à água.',
     country: 'PT',
     trade: 'revetements_sols',
     baseUnit: 'm2',
@@ -126,7 +126,7 @@ export const pavimentosRecipes: Recipe[] = [
         id: 'regua-lvt-pt', name: 'Réguas LVT vinílicas (Tarkett / Wicanders / Revigrés)',
         category: 'plaque', phase: 'principal', quantityPerBase: 1.05, unit: 'm2',
         geometryMultiplier: 'none',
-        wasteFactor: 1.05, wasteReason: 'Cortes rives',
+        wasteFactor: 1.05, wasteReason: 'Cortes bordos',
         normRef: 'NP EN ISO 10582 (2014)', manufacturerRef: 'Tarkett / Wicanders / Revigrés',
         packaging: { unit: 'u', contentQty: 2.2, contentUnit: 'm2', label: 'caixa ~2,2 m²' },
       },

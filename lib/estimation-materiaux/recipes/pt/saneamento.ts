@@ -140,7 +140,7 @@ export const saneamentoRecipes: Recipe[] = [
         id: 'curvas-tes-pluvial-pt', name: 'Curvas e tês PVC ∅160 (acessórios)',
         category: 'accessoire', phase: 'accessoires', quantityPerBase: 0.15, unit: 'u',
         geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Rebuts',
+        wasteFactor: 1.10, wasteReason: 'Rejeições',
       },
     ],
   },
@@ -191,7 +191,7 @@ export const saneamentoRecipes: Recipe[] = [
         id: 'curvas-tes-esgoto-pt', name: 'Curvas e tês PVC ∅125',
         category: 'accessoire', phase: 'accessoires', quantityPerBase: 0.2, unit: 'u',
         geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Rebuts',
+        wasteFactor: 1.10, wasteReason: 'Rejeições',
       },
       {
         id: 'cola-pvc-esgoto-pt', name: 'Cola PVC (uniões coladas)',

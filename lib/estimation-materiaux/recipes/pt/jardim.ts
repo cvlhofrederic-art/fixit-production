@@ -127,7 +127,7 @@ export const jardimRecipes: Recipe[] = [
         id: 'acessorios-pe-pt', name: 'Acessórios PE (tês + curvas + uniões)',
         category: 'accessoire', phase: 'accessoires', quantityPerBase: 12, unit: 'u',
         geometryMultiplier: 'none',
-        wasteFactor: 1.10, wasteReason: 'Rebuts',
+        wasteFactor: 1.10, wasteReason: 'Rejeições',
       },
       {
         id: 'filtro-rega-pt', name: 'Filtro de entrada rede',
