@@ -506,7 +506,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                       <td>{fmt(parseFloat(f.chantier.budget) || 0)} &euro;</td>
                       <td>{fmt(f.coutTotal)} &euro;</td>
                       <td style={{ color: isOverBudget ? '#C62828' : '#2E7D32', fontWeight: isOverBudget ? 600 : 400 }}>
-                        {isOverBudget ? '+' : ''}{fmt(ecart)} &euro;{isOverBudget ? ' dépasst' : ''}
+                        {isOverBudget ? '+' : ''}{fmt(ecart)} &euro;{isOverBudget ? ` ${isPt ? 'excedido' : 'dépassé'}` : ''}
                       </td>
                       <td>—</td>
                       <td style={{ fontWeight: 600, color: f.margePercent >= 15 ? '#2E7D32' : f.margePercent >= 5 ? '#EF6C00' : '#C62828' }}>
@@ -599,7 +599,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                       <div className="text-lg font-bold">
                         {isPt ? 'Esta obra rendeu-te' : "Ce chantier t'a rapporté"} {formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}
                       </div>
-                      <div className="text-sm">Marge nette : {res.taux_marge_nette.toFixed(1)}%</div>
+                      <div className="text-sm">{isPt ? 'Margem líquida' : 'Marge nette'} : {res.taux_marge_nette.toFixed(1)}%</div>
 
                       {/* ── Level 2 — Détail des charges ── */}
                       <details className="mt-2">

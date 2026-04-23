@@ -258,12 +258,12 @@ function DocumentRow({
         <div style={{ display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' }}>
           {doc?.url && (
             <>
-              <button onClick={onView} className="v22-btn v22-btn-sm" title="Voir">👁️</button>
+              <button onClick={onView} className="v22-btn v22-btn-sm" title={isPt ? 'Ver' : 'Voir'}>👁️</button>
               <button
                 onClick={onRemove}
                 disabled={removing}
                 className="v22-btn v22-btn-sm"
-                title="Supprimer"
+                title={isPt ? 'Eliminar' : 'Supprimer'}
                 style={{ opacity: removing ? 0.5 : 1 }}
               >
                 {removing ? '⏳' : '🗑️'}
@@ -517,14 +517,14 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
     return (
       <div className="v5-fade">
         <div className="v5-pg-t">
-          <h1>Conformit&eacute; r&eacute;glementaire</h1>
-          <p>Documents entreprise</p>
+          <h1>{isPt ? 'Conformidade regulamentar' : 'Conformité réglementaire'}</h1>
+          <p>{isPt ? 'Documentos da empresa' : 'Documents entreprise'}</p>
         </div>
 
         {/* Score card with progress bar */}
         <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
-            <div className="v5-st" style={{ margin: 0 }}>Score de conformit&eacute;</div>
+            <div className="v5-st" style={{ margin: 0 }}>{isPt ? 'Pontuação de conformidade' : 'Score de conformité'}</div>
             <div className="v5-w-pct">{pct}%</div>
           </div>
           <div className="v5-w-prog">
@@ -540,7 +540,9 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
           </div>
           {obligatoryMissing > 0 && (
             <div style={{ marginTop: 8, fontSize: 11, color: '#C62828' }}>
-              {obligatoryMissing} obligatoire{obligatoryMissing > 1 ? 's' : ''} manquant{obligatoryMissing > 1 ? 's' : ''}
+              {isPt
+                ? `${obligatoryMissing} obrigatório${obligatoryMissing > 1 ? 's' : ''} em falta`
+                : `${obligatoryMissing} obligatoire${obligatoryMissing > 1 ? 's' : ''} manquant${obligatoryMissing > 1 ? 's' : ''}`}
             </div>
           )}
         </div>
@@ -549,7 +551,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
         {fallback && (
           <div className="v5-al warn" style={{ marginBottom: 12 }}>
             <span>&#x26A0;&#xFE0F;</span>
-            <span>Compl&eacute;tez votre profil pour voir les documents requis pour votre m&eacute;tier.</span>
+            <span>{isPt ? 'Complete o seu perfil para ver os documentos necessários para a sua profissão.' : 'Complétez votre profil pour voir les documents requis pour votre métier.'}</span>
           </div>
         )}
 
@@ -600,8 +602,8 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                 <div className="v5-w-doc-acts">
                   {doc?.url && (
                     <>
-                      <button onClick={() => window.open(doc.url, '_blank')} className="v5-btn v5-btn-sm" title="Voir">👁️</button>
-                      <button onClick={() => removeDoc(docDef.id)} disabled={!!removing[docDef.id]} className="v5-btn v5-btn-sm" title="Supprimer" style={{ opacity: removing[docDef.id] ? 0.5 : 1 }}>
+                      <button onClick={() => window.open(doc.url, '_blank')} className="v5-btn v5-btn-sm" title={isPt ? 'Ver' : 'Voir'}>👁️</button>
+                      <button onClick={() => removeDoc(docDef.id)} disabled={!!removing[docDef.id]} className="v5-btn v5-btn-sm" title={isPt ? 'Eliminar' : 'Supprimer'} style={{ opacity: removing[docDef.id] ? 0.5 : 1 }}>
                         {removing[docDef.id] ? '⏳' : '🗑️'}
                       </button>
                     </>
@@ -709,12 +711,12 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
       <div className="v22-page-header">
         <div>
           <div className="v22-page-title">
-            {isSociete ? '🏢 Conformité Entreprise' : `🗂️ ${t('proDash.wallet.title')}`}
+            {isSociete ? (isPt ? '🏢 Conformidade Empresa' : '🏢 Conformité Entreprise') : `🗂️ ${t('proDash.wallet.title')}`}
           </div>
           <div className="v22-page-sub">
             {metierLabel
-              ? `${metierLabel} — ${actionsRequired > 0 ? `${actionsRequired} action${actionsRequired > 1 ? 's' : ''} requise${actionsRequired > 1 ? 's' : ''}` : t('proDash.wallet.subtitle')}`
-              : actionsRequired > 0 ? `${actionsRequired} actions requises` : t('proDash.wallet.subtitle')
+              ? `${metierLabel} — ${actionsRequired > 0 ? `${actionsRequired} ${isPt ? (actionsRequired > 1 ? 'ações necessárias' : 'ação necessária') : `action${actionsRequired > 1 ? 's' : ''} requise${actionsRequired > 1 ? 's' : ''}`}` : t('proDash.wallet.subtitle')}`
+              : actionsRequired > 0 ? `${actionsRequired} ${isPt ? 'ações necessárias' : 'actions requises'}` : t('proDash.wallet.subtitle')
             }
             {isSociete && <span style={{ marginLeft: 8, fontSize: 11, color: tv.textMuted }}>· Kbis, RC Pro, Décennale + documents métier + Statuts + Attestation fiscale</span>}
           </div>
@@ -729,8 +731,9 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
         <div className="v22-alert v22-alert-amber" style={{ marginBottom: 12 }}>
           <span>⚠️</span>
           <span style={{ fontSize: 12 }}>
-            Complétez votre profil pour voir les documents requis pour votre métier.
-            Les 3 documents communs sont affichés par défaut.
+            {isPt
+              ? 'Complete o seu perfil para ver os documentos necessários para a sua profissão. Os 3 documentos comuns são apresentados por defeito.'
+              : 'Complétez votre profil pour voir les documents requis pour votre métier. Les 3 documents communs sont affichés par défaut.'}
           </span>
         </div>
       )}
@@ -741,9 +744,11 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 22, fontWeight: 700 }}>{pct}%</span>
             <span className="v22-mono" style={{ fontSize: 11, color: tv.textMuted }}>
-              {validCount}/{WALLET_DOCS.length} documents
+              {validCount}/{WALLET_DOCS.length} {isPt ? 'documentos' : 'documents'}
               {obligatoryMissing > 0 && (
-                <span style={{ color: '#DC2626', marginLeft: 8 }}>· {obligatoryMissing} obligatoire{obligatoryMissing > 1 ? 's' : ''} manquant{obligatoryMissing > 1 ? 's' : ''}</span>
+                <span style={{ color: '#DC2626', marginLeft: 8 }}>· {isPt
+                  ? `${obligatoryMissing} obrigatório${obligatoryMissing > 1 ? 's' : ''} em falta`
+                  : `${obligatoryMissing} obligatoire${obligatoryMissing > 1 ? 's' : ''} manquant${obligatoryMissing > 1 ? 's' : ''}`}</span>
               )}
             </span>
           </div>
@@ -762,12 +767,12 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
       {/* Liste documents */}
       <div className="v22-card" style={{ marginBottom: 16 }}>
         <div className="v22-card-head">
-          <span className="v22-card-title">Documents{metierLabel ? ` — ${metierLabel}` : ''}</span>
+          <span className="v22-card-title">{isPt ? 'Documentos' : 'Documents'}{metierLabel ? ` — ${metierLabel}` : ''}</span>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="v22-card-meta">{obligatoryDocs.length} requis</span>
+            <span className="v22-card-meta">{obligatoryDocs.length} {isPt ? 'obrigatórios' : 'requis'}</span>
             {WALLET_DOCS.filter(d => !d.obligatoire && d.recommande).length > 0 && (
               <span className="v22-card-meta" style={{ color: '#D97706' }}>
-                + {WALLET_DOCS.filter(d => !d.obligatoire && d.recommande).length} recommandés
+                + {WALLET_DOCS.filter(d => !d.obligatoire && d.recommande).length} {isPt ? 'recomendados' : 'recommandés'}
               </span>
             )}
           </div>
