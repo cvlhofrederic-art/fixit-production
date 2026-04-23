@@ -48,7 +48,7 @@ function detectPreferredLocale(request: NextRequest): string {
   return DEFAULT_LOCALE
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP nonce (replaces static unsafe-inline for script-src) ──
@@ -323,7 +323,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  runtime: 'edge',
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
