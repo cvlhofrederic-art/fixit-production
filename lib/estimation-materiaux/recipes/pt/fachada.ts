@@ -99,7 +99,7 @@ export const fachadaRecipes: Recipe[] = [
       'Reparação pontual de fissuras com mástique acrílico',
       'Primário fixador sobre suporte existente (consolidação)',
       '2 demãos de tinta acrílica elástica para exterior',
-      'Rendimento: ~0,20 L/m²/demão (tinta de qualidade)',
+      'Rendimento: ~0,10 L/m²/demão (tinta de qualidade)',
       'Tempo de secagem entre demãos: 4-6 horas (mín.)',
     ],
     materials: [
@@ -113,12 +113,12 @@ export const fachadaRecipes: Recipe[] = [
       },
       {
         id: 'tinta-acrilica-exterior-pt', name: 'Tinta acrílica elástica para fachadas (2 demãos)',
-        category: 'enduit', phase: 'principal', quantityPerBase: 0.40, unit: 'L',
+        category: 'enduit', phase: 'principal', quantityPerBase: 0.20, unit: 'L',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Perdas rolo + absorção suporte',
-        normRef: 'NP EN 1062-1 (2004)', manufacturerRef: 'Robbialac (Stucomat Plus) / CIN (CINelástico)',
+        normRef: 'NP EN 1062-1 (2004)', manufacturerRef: 'Robbialac (Robbialac Luxacryl Fachadas) / CIN (CINelástico)',
         packaging: { unit: 'u', contentQty: 15, contentUnit: 'L', label: 'lata 15 L' },
-        notes: '0,20 L/m²/demão × 2 demãos = 0,40 L/m².',
+        notes: '0,10 L/m²/demão × 2 demãos = 0,20 L/m².',
       },
       {
         id: 'mastique-acrilico-fissuras-pt', name: 'Mástique acrílico (reparação fissuras)',
@@ -318,14 +318,14 @@ export const fachadaRecipes: Recipe[] = [
       'Picagem do reboco existente degradado (manualmente ou com martelo)',
       'Limpeza e humidificação do suporte',
       'Reboco cimentício em 2 camadas: crespido (salpico) + massa grossa (12-15 mm)',
-      'Consumo ~18 kg/m² total',
+      'Consumo ~20 kg/m² total',
       'Pintura final NÃO incluída (a prever separadamente)',
       'Rede de reforço nos cantos de aberturas e juntas construtivas',
     ],
     materials: [
       {
         id: 'argamassa-reboco-rep-pt', name: 'Argamassa de reboco pré-doseada M5 (Weber PT / Secil)',
-        category: 'enduit', phase: 'principal', quantityPerBase: 18, unit: 'kg',
+        category: 'enduit', phase: 'principal', quantityPerBase: 20, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.15, wasteReason: 'Resíduos, projeção, reparação irregular',
         normRef: 'NP EN 998-1 (2017)', manufacturerRef: 'Weber PT (weber.rev) / Secil Argamassas',

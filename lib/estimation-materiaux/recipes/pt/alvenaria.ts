@@ -184,10 +184,10 @@ export const alvenariaRecipes: Recipe[] = [
     version: '2.0.0',
     dtuReferences: ptRefs('alvenaria', 'alvenaria_tijolo', 'argamassas', 'rgeu'),
     hypothesesACommuniquer: [
-      'Tijolo térmico 30×19×30 cm (Preceram ou Torreense)',
+      'Tijolo térmico 30×19×29 cm (Preceram ou Torreense)',
       'Argamassa tradicional M7,5 (cimento/cal/areia 1:1:6)',
       'Juntas horizontais 12 mm + verticais 10 mm',
-      '15 tijolos por m² (espessura 30 cm, formato 30×19)',
+      '16 tijolos por m² (espessura 30 cm, formato 30×19×29)',
       'Malha anti-fissuração em cantos de aberturas (RGEU)',
       'Cinta sísmica horizontal em BA cada 3 m se zona sísmica (RSA)',
       'Abertura = porta ≈ 2,0 m² / janela ≈ 1,5 m² (a especificar em "openings")',
@@ -195,11 +195,11 @@ export const alvenariaRecipes: Recipe[] = [
     materials: [
       {
         id: 'tijolo-termico-30-pt', name: 'Tijolo térmico 30 (Preceram / Torreense)',
-        category: 'brique', phase: 'principal', quantityPerBase: 15, unit: 'u',
+        category: 'brique', phase: 'principal', quantityPerBase: 16, unit: 'u',
         geometryMultiplier: 'none',
         wasteFactor: 1.08, wasteReason: 'Quebras na manipulação + cortes',
         normRef: 'NP EN 771-1+A1 (2015)', manufacturerRef: 'Preceram / Cerâmica Torreense',
-        packaging: { unit: 'panneau', contentQty: 96, contentUnit: 'u', label: 'palete 96 u' },
+        packaging: { unit: 'panneau', contentQty: 64, contentUnit: 'u', label: 'palete 64 u' },
       },
       {
         id: 'argamassa-assentamento-pt', name: 'Argamassa assentamento M7,5 (Weber PT / sacos)',
@@ -288,18 +288,18 @@ export const alvenariaRecipes: Recipe[] = [
     dtuReferences: ptRefs('alvenaria_tijolo', 'argamassas'),
     hypothesesACommuniquer: [
       'Tijolo 11 furos 30×20×11 cm (Torreense)',
-      '~17 tijolos por m² (espessura 11 cm)',
+      '~15 tijolos por m² (espessura 11 cm)',
       'Não portadora de carga',
       'Reboco fino em ambas as faces NÃO incluído (a prever separadamente)',
     ],
     materials: [
       {
         id: 'tijolo-11-furos-pt', name: 'Tijolo 11 furos 30×20×11 (Torreense)',
-        category: 'brique', phase: 'principal', quantityPerBase: 17, unit: 'u',
+        category: 'brique', phase: 'principal', quantityPerBase: 15, unit: 'u',
         geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Quebras, cortes',
         normRef: 'NP EN 771-1+A1 (2015)', manufacturerRef: 'Cerâmica Torreense',
-        packaging: { unit: 'panneau', contentQty: 150, contentUnit: 'u', label: 'palete 150 u' },
+        packaging: { unit: 'panneau', contentQty: 222, contentUnit: 'u', label: 'palete 222 u' },
       },
       {
         id: 'argamassa-assentamento-pt', name: 'Argamassa M5 (assentamento divisória)',
@@ -403,13 +403,13 @@ export const alvenariaRecipes: Recipe[] = [
     hypothesesACommuniquer: [
       '3 camadas: salpico (3 mm) + massa grossa (10 mm) + massa fina (2 mm)',
       'Argamassa tradicional ou pré-doseada (Weber PT weber.rev universal)',
-      'Consumo médio: 18 kg/m² total',
+      'Consumo médio: 20 kg/m² total',
       'Primário regularizador opcional para suporte novo',
     ],
     materials: [
       {
         id: 'argamassa-reboco-pt', name: 'Argamassa de reboco pré-doseada M5 (Weber PT)',
-        category: 'enduit', phase: 'principal', quantityPerBase: 18, unit: 'kg',
+        category: 'enduit', phase: 'principal', quantityPerBase: 20, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Resíduos, projeção',
         normRef: 'NP EN 998-1 (2017)', manufacturerRef: 'Weber PT (weber.rev)',

@@ -55,7 +55,7 @@ export const impermeabilizacaoRecipes: Recipe[] = [
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Sobreposições 10 cm',
         manufacturerRef: 'Imperalum',
-        packaging: { unit: 'rouleau', contentQty: 10, contentUnit: 'm2', label: 'rolo 10 m²' },
+        packaging: { unit: 'rouleau', contentQty: 13, contentUnit: 'm2', label: 'rolo 13 m²' },
       },
       {
         id: 'membrana-sbs-4mm-cob-pt', name: 'Membrana SBS 4 mm (1.ª camada)',
@@ -128,11 +128,11 @@ export const impermeabilizacaoRecipes: Recipe[] = [
       },
       {
         id: 'membrana-liquida-pu-pt', name: 'Membrana líquida poliuretânica bicomponente',
-        category: 'etancheite', phase: 'principal', quantityPerBase: 1.8, unit: 'kg',
+        category: 'etancheite', phase: 'principal', quantityPerBase: 2.52, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Balde + sobre-dosagem',
         manufacturerRef: 'Sika PT (Sikalastic 625) / Weber PT (weber.dry UV)',
-        packaging: { unit: 'u', contentQty: 25, contentUnit: 'kg', label: 'balde 25 kg' },
+        packaging: { unit: 'u', contentQty: 18.9, contentUnit: 'kg', label: 'balde 18,9 kg (15 L)' },
       },
       {
         id: 'banda-armada-juntas-pt', name: 'Banda armada fibra (juntas muro/pavimento)',
@@ -260,11 +260,11 @@ export const impermeabilizacaoRecipes: Recipe[] = [
       },
       {
         id: 'membrana-liquida-wc-pt', name: 'Membrana líquida bicomponente (sob cerâmico)',
-        category: 'etancheite', phase: 'principal', quantityPerBase: 1.5, unit: 'kg',
+        category: 'etancheite', phase: 'principal', quantityPerBase: 3, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Balde + sobre-dosagem',
-        manufacturerRef: 'Weber PT (weber.dry indoor) / Sika PT (Sika Sanisol)',
-        packaging: { unit: 'u', contentQty: 8, contentUnit: 'kg', label: 'balde 8 kg' },
+        manufacturerRef: 'Weber PT (weberdry 824) / Sika PT (Sika Sanisol)',
+        packaging: { unit: 'u', contentQty: 5, contentUnit: 'kg', label: 'saco 5 kg' },
       },
       {
         id: 'banda-armada-wc-pt', name: 'Banda de reforço armada (junções pavimento/parede)',

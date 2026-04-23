@@ -721,6 +721,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     name?: string
     siret?: string
     siren?: string
+    nif?: string
+    address?: string
     nafCode?: string
     nafLabel?: string
     legalForm?: string
