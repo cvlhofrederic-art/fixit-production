@@ -166,13 +166,13 @@ export default function DevisSection({
             <table>
               <thead>
                 <tr>
-                  <th>Réf</th>
-                  <th>Client</th>
-                  <th>Prestation</th>
-                  <th style={{ textAlign: 'right' }}>Montant HT</th>
-                  <th>Date</th>
-                  <th>Statut</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>{t('proDash.devis.ref')}</th>
+                  <th>{t('proDash.devis.client')}</th>
+                  <th>{t('proDash.devis.prestation')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('proDash.devis.montantHT')}</th>
+                  <th>{t('proDash.devis.date')}</th>
+                  <th>{t('proDash.devis.statut')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('proDash.devis.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -207,7 +207,7 @@ export default function DevisSection({
                             setConvertingDevis({ ...rest, id: Date.now().toString(), docType: 'devis', isDuplicate: true })
                             setShowDevisForm(true)
                           }}
-                            className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Duplicar orçamento' : 'Dupliquer le devis'}>
+                            className="v22-btn v22-btn-sm" title={t('proDash.devis.dupliquerDevis')}>
                             {'🔄'}
                           </button>
                           <button onClick={async () => {
@@ -227,10 +227,10 @@ export default function DevisSection({
                               })
                             } catch (err) {
                               console.error('[Devis] download failed', err)
-                              toast.error(locale === 'pt' ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                              toast.error(t('proDash.devis.erreurPDF'))
                             }
                           }}
-                            className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Descarregar PDF' : 'Télécharger le PDF'}>
+                            className="v22-btn v22-btn-sm" title={t('proDash.devis.telechargerPDF')}>
                             {'⬇️'}
                           </button>
                           <button onClick={() => convertDevisToFacture(doc)}
@@ -255,7 +255,7 @@ export default function DevisSection({
                           {doc.clientEmail && (
                             <button onClick={() => {
                               const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                              const body = encodeURIComponent(`${locale === 'pt' ? 'Olá' : 'Bonjour'} ${doc.clientName || ''},\n\n${locale === 'pt' ? `Segue em anexo o seu orçamento N.º${doc.docNumber} no valor de ${totalHT.toFixed(2)} € s/ IVA.` : `Veuillez trouver ci-joint votre devis N°${doc.docNumber} d'un montant de ${totalHT.toFixed(2)} € HT.`}\n\n${locale === 'pt' ? 'Com os melhores cumprimentos' : 'Cordialement'},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                              const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHT.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                               window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -340,25 +340,25 @@ function DevisSectionV5({
     .sort((a, b) => getDocSeq(a) - getDocSeq(b))
 
   const getV5Badge = (doc: DevisDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: isPt ? 'Enviado' : 'Envoyé' }
-    if (doc.status === 'signe') return { cls: 'v5-badge v5-badge-green', label: isPt ? 'Assinado ✓' : 'Signé ✓' }
-    return { cls: 'v5-badge v5-badge-yellow', label: isPt ? 'Rascunho' : 'Brouillon' }
+    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
+    if (doc.status === 'signe') return { cls: 'v5-badge v5-badge-green', label: t('proDash.devis.signe') }
+    return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.devis.brouillon') }
   }
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>{isPt ? 'Orçamentos' : 'Devis'}</h1><p>{isPt ? 'Gestão de orçamentos' : 'Gestion des devis entreprise'}</p></div>
+      <div className="v5-pg-t"><h1>{t('proDash.devis.title')}</h1><p>{t('proDash.devis.subtitle')}</p></div>
 
       {/* Search + Create */}
       <div className="v5-search">
         <input
           className="v5-search-in"
-          placeholder={isPt ? 'Pesquisar…' : 'Rechercher…'}
+          placeholder={t('proDash.devis.rechercher')}
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <button className="v5-btn v5-btn-p" onClick={() => setShowDevisForm(true)}>
-          {isPt ? '+ Criar orçamento' : '+ Créer un devis'}
+          + {t('proDash.devis.creerDevisV5')}
         </button>
       </div>
 
@@ -368,11 +368,11 @@ function DevisSectionV5({
           <thead>
             <tr>
               <th>N°</th>
-              <th>{isPt ? 'Data' : 'Date'}</th>
-              <th>{isPt ? 'Cliente' : 'Client'}</th>
-              <th>{isPt ? 'Objeto' : 'Objet'}</th>
-              <th style={{ textAlign: 'right' }}>{isPt ? 'Valor s/ IVA' : 'Montant HT'}</th>
-              <th>{isPt ? 'Estado' : 'Statut'}</th>
+              <th>{t('proDash.devis.date')}</th>
+              <th>{t('proDash.devis.client')}</th>
+              <th>{t('proDash.devis.objet')}</th>
+              <th style={{ textAlign: 'right' }}>{t('proDash.devis.montantHT')}</th>
+              <th>{t('proDash.devis.statut')}</th>
               <th style={{ width: 80 }}></th>
             </tr>
           </thead>
@@ -387,7 +387,7 @@ function DevisSectionV5({
                 <tr key={`v5-dev-${i}`}>
                   <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
                   <td>{dateStr}</td>
-                  <td>{doc.clientName || (isPt ? 'Não indicado' : 'Non renseigné')}</td>
+                  <td>{doc.clientName || t('proDash.devis.nonRenseigne')}</td>
                   <td>{doc.docTitle || '-'}</td>
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{totalHT.toLocaleString('fr-FR')} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
@@ -397,16 +397,16 @@ function DevisSectionV5({
                         className="v5-btn v5-btn-sm"
                         onClick={() => { setConvertingDevis(doc); setShowDevisForm(true) }}
                       >
-                        {isPt ? 'Abrir' : 'Ouvrir'}
+                        {t('proDash.devis.ouvrir')}
                       </button>
                       {doc.clientEmail && (
                         <button
                           className="v5-btn v5-btn-sm"
                           title={doc.clientEmail}
                           onClick={() => {
-                            const subject = encodeURIComponent(`Devis ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                            const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                             const totalHTMail = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
-                            const body = encodeURIComponent(`Bonjour ${doc.clientName || ''},\n\nVeuillez trouver ci-joint votre devis N°${doc.docNumber} d'un montant de ${totalHTMail.toFixed(2)} € HT.\n\nCordialement,\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                            const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHTMail.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                             window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                             const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -418,12 +418,12 @@ function DevisSectionV5({
                             setSavedDocuments([...uDocs, ...uDrafts])
                           }}
                         >
-                          {isPt ? 'Email' : 'Email'}
+                          Email
                         </button>
                       )}
                       <button
                         className="v5-btn v5-btn-sm"
-                        title={isPt ? 'Duplicar orçamento' : 'Dupliquer le devis'}
+                        title={t('proDash.devis.dupliquerDevis')}
                         onClick={() => {
                           // Strip les champs liés à l'identité/état du devis d'origine
                           // pour que le nouveau reçoive un numéro chrono frais via fetchDocNumber
@@ -432,11 +432,11 @@ function DevisSectionV5({
                           setShowDevisForm(true)
                         }}
                       >
-                        {isPt ? 'Duplicar' : 'Dupliquer'}
+                        {t('proDash.devis.dupliquer')}
                       </button>
                       <button
                         className="v5-btn v5-btn-sm"
-                        title={isPt ? 'Descarregar PDF' : 'Télécharger le PDF'}
+                        title={t('proDash.devis.telechargerPDF')}
                         onClick={async () => {
                           try {
                             await downloadSavedDevis(doc as Parameters<typeof downloadSavedDevis>[0], {
@@ -453,24 +453,24 @@ function DevisSectionV5({
                             })
                           } catch (err) {
                             console.error('[Devis] download failed', err)
-                            toast.error(isPt ? 'Erro ao gerar PDF' : 'Erreur génération PDF')
+                            toast.error(t('proDash.devis.erreurPDF'))
                           }
                         }}
                       >
-                        {isPt ? 'Descarregar' : 'Télécharger'}
+                        {t('proDash.devis.telecharger')}
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-p"
                         onClick={() => convertDevisToFacture(doc)}
                       >
-                        {isPt ? 'Faturar' : 'Facturer'}
+                        {t('proDash.devis.facturer')}
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-d"
-                        title={isPt ? 'Eliminar' : 'Supprimer'}
+                        title={t('proDash.devis.supprimer')}
                         onClick={() => {
                           const label = doc.docNumber || (doc.clientName || '')
-                          if (!confirm(isPt ? `Eliminar orçamento ${label}?` : `Supprimer le devis ${label} ?`)) return
+                          if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)) return
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const uDocs = allDocs.filter((d: DevisDocument) => !isSameDoc(d, doc))
@@ -479,7 +479,7 @@ function DevisSectionV5({
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                           setSavedDocuments([...uDocs, ...uDrafts])
                         }}
-                        aria-label={isPt ? 'Eliminar' : 'Supprimer'}
+                        aria-label={t('proDash.devis.supprimer')}
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                           <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
@@ -493,7 +493,7 @@ function DevisSectionV5({
             }) : (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
-                  {search ? (isPt ? 'Nenhum orçamento encontrado' : 'Aucun devis trouvé') : (isPt ? 'Nenhum orçamento. Crie o seu primeiro orçamento.' : 'Aucun devis. Créez votre premier devis.')}
+                  {search ? t('proDash.devis.aucunDevisTrouve') : t('proDash.devis.aucunDevisCreer')}
                 </td>
               </tr>
             )}

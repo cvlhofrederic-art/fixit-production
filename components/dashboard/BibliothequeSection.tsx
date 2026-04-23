@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -53,15 +54,13 @@ const INITIAL_SOCIETE: BiblioItem[] = [
   { id: 14, nom: 'Ciment Portland CEM II 25kg',            type: 'materiau', unite: 'sac',     rev: 6.5,  marge: 40,  corps: 'Gros œuvre' },
 ]
 
-const TYPE_LABELS: Record<string, string> = { ouvrage: 'Ouvrage', materiau: 'Matériau', mo: "Main-d'œuvre" }
 const UNITE_OPTIONS = ['forfait', 'm²', 'm³', 'ml', 'unité', 'heure', 'jour', 'lot', 'kg', 'sac', 't']
-const CORPS_OPTIONS = ['VRD / Gros œuvre', 'Gros œuvre', 'Second œuvre', 'Charpente / Couverture', 'Équipe', 'Sous-traitance', 'Matériel', 'Autre']
 
 function prixClient(rev: number, marge: number) {
   return rev * (1 + marge / 100)
 }
 
-function typeTag(type: string) {
+function typeTag(type: string, typeLabels: Record<string, string>) {
   const styles: Record<string, string> = {
     ouvrage: 'bg-amber-100 text-amber-800 border-amber-300',
     materiau: 'bg-gray-100 text-gray-700 border-gray-300',
@@ -69,21 +68,38 @@ function typeTag(type: string) {
   }
   return (
     <span className={`text-xs px-2 py-0.5 rounded border ${styles[type] || ''}`}>
-      {TYPE_LABELS[type]}
+      {typeLabels[type]}
     </span>
   )
 }
 
-const EMPTY_FORM = (isSociete: boolean): Omit<BiblioItem, 'id'> => ({
+const EMPTY_FORM = (isSociete: boolean, defaultCorps?: string): Omit<BiblioItem, 'id'> => ({
   nom: '', type: 'ouvrage', unite: 'forfait', rev: 0, marge: 50,
-  corps: isSociete ? 'Gros œuvre' : undefined,
+  corps: isSociete ? (defaultCorps || 'Gros œuvre') : undefined,
 })
 
 export default function BibliothequeSection({ artisan, orgRole = 'artisan', navigateTo }: BibliothequeSectionProps) {
+  const { t } = useTranslation()
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const storageKey = `fixit_bibliotheque_${artisan?.id || 'guest'}`
+
+  const TYPE_LABELS: Record<string, string> = {
+    ouvrage: t('proDash.bibliotheque.typeOuvrage'),
+    materiau: t('proDash.bibliotheque.typeMateriau'),
+    mo: t('proDash.bibliotheque.typeMo'),
+  }
+  const CORPS_OPTIONS = [
+    t('proDash.bibliotheque.corpsVrd'),
+    t('proDash.bibliotheque.corpsGrosOeuvre'),
+    t('proDash.bibliotheque.corpsSecondOeuvre'),
+    t('proDash.bibliotheque.corpsCharpente'),
+    t('proDash.bibliotheque.corpsEquipe'),
+    t('proDash.bibliotheque.corpsSousTraitance'),
+    t('proDash.bibliotheque.corpsMateriel'),
+    t('proDash.bibliotheque.corpsAutre'),
+  ]
 
   const [items, setItems] = useState<BiblioItem[]>([])
   const [search, setSearch] = useState('')
@@ -91,7 +107,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
   const [corpsFilter, setCorpsFilter] = useState('all')
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
-  const [form, setForm] = useState<Omit<BiblioItem, 'id'>>(EMPTY_FORM(isSociete))
+  const [form, setForm] = useState<Omit<BiblioItem, 'id'>>(EMPTY_FORM(isSociete, CORPS_OPTIONS[1]))
 
   // Charger depuis localStorage (ou items par défaut)
   useEffect(() => {
@@ -119,10 +135,10 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
   }
 
   const TABS = [
-    { key: 'all',      label: 'Tous' },
-    { key: 'ouvrage',  label: 'Ouvrages' },
-    { key: 'materiau', label: 'Matériaux' },
-    { key: 'mo',       label: "Main-d'œuvre" },
+    { key: 'all',      label: t('proDash.bibliotheque.tabTous') },
+    { key: 'ouvrage',  label: t('proDash.bibliotheque.tabOuvrages') },
+    { key: 'materiau', label: t('proDash.bibliotheque.tabMateriaux') },
+    { key: 'mo',       label: t('proDash.bibliotheque.tabMo') },
   ]
 
   const allCorps = useMemo(() => {
@@ -143,7 +159,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
   function openCreate() {
     setEditId(null)
-    setForm(EMPTY_FORM(isSociete))
+    setForm(EMPTY_FORM(isSociete, CORPS_OPTIONS[1]))
     setModal(true)
   }
 
@@ -181,19 +197,19 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
     return (
       <div className="v5-fade">
         <div className="v5-pg-t">
-          <h1>Biblioth&egrave;que d&apos;ouvrages</h1>
-          <p>Base de donn&eacute;es de prix unitaires &mdash; {items.length} poste{items.length > 1 ? 's' : ''}</p>
+          <h1>{t('proDash.bibliotheque.title')}</h1>
+          <p>{t('proDash.bibliotheque.subtitleBdd')} &mdash; {items.length} {t('proDash.bibliotheque.poste')}{items.length > 1 ? 's' : ''}</p>
         </div>
 
         {/* Search + new */}
         <div className="v5-search">
           <input
             className="v5-search-in"
-            placeholder="Rechercher..."
+            placeholder={t('proDash.bibliotheque.rechercher')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <button className="v5-btn v5-btn-p" onClick={openCreate}>+ Nouveau poste</button>
+          <button className="v5-btn v5-btn-p" onClick={openCreate}>+ {t('proDash.bibliotheque.nouveauPoste')}</button>
         </div>
 
         {/* Tabs type */}
@@ -218,7 +234,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                 onClick={() => setCorpsFilter(c)}
                 className={`v5-btn v5-btn-sm${corpsFilter === c ? ' v5-btn-p' : ''}`}
               >
-                {c === 'all' ? 'Tous les corps' : c}
+                {c === 'all' ? t('proDash.bibliotheque.tousLesCorps') : c}
               </button>
             ))}
           </div>
@@ -229,21 +245,21 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
           <table className="v5-dt">
             <thead>
               <tr>
-                <th>Ouvrage</th>
-                <th>Corps</th>
-                <th>Cat&eacute;gorie</th>
-                <th>Unit&eacute;</th>
-                <th style={{ textAlign: 'right' }}>Co&ucirc;t HT</th>
-                <th style={{ textAlign: 'right' }}>Marge %</th>
-                <th style={{ textAlign: 'right' }}>Prix vente HT</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th>{t('proDash.bibliotheque.colOuvrage')}</th>
+                <th>{t('proDash.bibliotheque.colCorps')}</th>
+                <th>{t('proDash.bibliotheque.colCategorie')}</th>
+                <th>{t('proDash.bibliotheque.colUnite')}</th>
+                <th style={{ textAlign: 'right' }}>{t('proDash.bibliotheque.colCoutHT')}</th>
+                <th style={{ textAlign: 'right' }}>{t('proDash.bibliotheque.colMarge')}</th>
+                <th style={{ textAlign: 'right' }}>{t('proDash.bibliotheque.colPrixVenteHT')}</th>
+                <th style={{ textAlign: 'right' }}>{t('proDash.bibliotheque.colActions')}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: '#999' }}>
-                    Aucun &eacute;l&eacute;ment trouv&eacute;.
+                    {t('proDash.bibliotheque.aucunElement')}
                   </td>
                 </tr>
               )}
@@ -265,8 +281,8 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11 }}>{item.marge}%</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>{fmt(prixClient(item.rev, item.marge))}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button onClick={() => openEdit(item)} className="v5-btn v5-btn-sm" style={{ marginRight: 4 }}>Editer</button>
-                    <button onClick={() => handleDelete(item.id)} className="v5-btn v5-btn-sm v5-btn-d">Suppr.</button>
+                    <button onClick={() => openEdit(item)} className="v5-btn v5-btn-sm" style={{ marginRight: 4 }}>{t('proDash.bibliotheque.editer')}</button>
+                    <button onClick={() => handleDelete(item.id)} className="v5-btn v5-btn-sm v5-btn-d">{t('proDash.bibliotheque.supprimer')}</button>
                   </td>
                 </tr>
               ))}
@@ -275,8 +291,8 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
         </div>
 
         <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
-          {filtered.length} &eacute;l&eacute;ment{filtered.length !== 1 ? 's' : ''} affich&eacute;{filtered.length !== 1 ? 's' : ''}
-          {filtered.length > 0 && ` — coût total : ${fmt(totalRevient)}`}
+          {filtered.length} {t('proDash.bibliotheque.elementsAffiches')}
+          {filtered.length > 0 && ` — ${t('proDash.bibliotheque.coutTotal')} : ${fmt(totalRevient)}`}
         </div>
 
         {/* Modal */}
@@ -284,30 +300,30 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
           <div className="v22-modal-overlay" onClick={() => setModal(false)}>
             <div className="v22-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
               <div className="v22-modal-head">
-                <h3 className="v22-modal-title">{editId ? 'Modifier le poste' : 'Nouveau poste'}</h3>
+                <h3 className="v22-modal-title">{editId ? t('proDash.bibliotheque.modifierPoste') : t('proDash.bibliotheque.nouveauPoste')}</h3>
               </div>
               <div className="v22-modal-body">
                 <div className="v22-form-group">
-                  <label className="v22-form-label">D&eacute;signation</label>
+                  <label className="v22-form-label">{t('proDash.bibliotheque.designation')}</label>
                   <input type="text" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} className="v22-form-input" />
                 </div>
                 <div className="v22-form-group">
-                  <label className="v22-form-label">Corps de m&eacute;tier</label>
+                  <label className="v22-form-label">{t('proDash.bibliotheque.corpsDeMetier')}</label>
                   <select value={form.corps || ''} onChange={e => setForm(f => ({ ...f, corps: e.target.value }))} className="v22-form-input">
                     {CORPS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="v22-form-group">
-                    <label className="v22-form-label">Type</label>
+                    <label className="v22-form-label">{t('proDash.bibliotheque.type')}</label>
                     <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as BiblioItem['type'] }))} className="v22-form-input">
-                      <option value="ouvrage">Ouvrage</option>
-                      <option value="materiau">Mat&eacute;riau</option>
-                      <option value="mo">Main-d&apos;&oelig;uvre</option>
+                      <option value="ouvrage">{TYPE_LABELS.ouvrage}</option>
+                      <option value="materiau">{TYPE_LABELS.materiau}</option>
+                      <option value="mo">{TYPE_LABELS.mo}</option>
                     </select>
                   </div>
                   <div className="v22-form-group">
-                    <label className="v22-form-label">Unit&eacute;</label>
+                    <label className="v22-form-label">{t('proDash.bibliotheque.unite')}</label>
                     <select value={form.unite} onChange={e => setForm(f => ({ ...f, unite: e.target.value }))} className="v22-form-input">
                       {UNITE_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
@@ -315,22 +331,22 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="v22-form-group">
-                    <label className="v22-form-label">Co&ucirc;t HT (&euro;)</label>
+                    <label className="v22-form-label">{t('proDash.bibliotheque.coutHTEuro')}</label>
                     <input type="number" step="0.01" min="0" value={form.rev || ''} onChange={e => setForm(f => ({ ...f, rev: parseFloat(e.target.value) || 0 }))} className="v22-form-input" />
                   </div>
                   <div className="v22-form-group">
-                    <label className="v22-form-label">Marge (%)</label>
+                    <label className="v22-form-label">{t('proDash.bibliotheque.margePct')}</label>
                     <input type="number" step="1" min="0" value={form.marge || ''} onChange={e => setForm(f => ({ ...f, marge: parseFloat(e.target.value) || 0 }))} className="v22-form-input" />
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#FAFAFA', borderRadius: 4, border: '1px solid #E8E8E8' }}>
-                  <span style={{ fontSize: 12, fontWeight: 500 }}>Prix de vente HT</span>
+                  <span style={{ fontSize: 12, fontWeight: 500 }}>{t('proDash.bibliotheque.prixVenteHT')}</span>
                   <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{fmt(prixClient(form.rev, form.marge))}</span>
                 </div>
               </div>
               <div className="v22-modal-foot">
-                <button onClick={() => setModal(false)} className="v22-btn">Annuler</button>
-                <button onClick={handleSave} className="v22-btn v22-btn-primary">{editId ? 'Enregistrer' : 'Créer'}</button>
+                <button onClick={() => setModal(false)} className="v22-btn">{t('proDash.bibliotheque.annuler')}</button>
+                <button onClick={handleSave} className="v22-btn v22-btn-primary">{editId ? t('proDash.bibliotheque.enregistrer') : t('proDash.bibliotheque.creer')}</button>
               </div>
             </div>
           </div>
@@ -348,18 +364,18 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: tv.text }}>
-            {isSociete ? "Bibliothèque d'entreprise" : 'Bibliothèque'}
+            {isSociete ? t('proDash.bibliotheque.titleEntreprise') : t('proDash.bibliotheque.titleSimple')}
           </h2>
           <p className="text-sm" style={{ color: tv.textSecondary }}>
             {isSociete
-              ? `${items.length} poste${items.length > 1 ? 's' : ''} — ouvrages, matériaux, MO, sous-traitants`
-              : 'Vos ouvrages, matériaux et main-d\'œuvre'}
+              ? `${items.length} ${t('proDash.bibliotheque.poste')}${items.length > 1 ? 's' : ''} — ${t('proDash.bibliotheque.subtitleSociete')}`
+              : t('proDash.bibliotheque.subtitleArtisan')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <input
             type="text"
-            placeholder="Rechercher..."
+            placeholder={t('proDash.bibliotheque.rechercher')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="px-3 py-1.5 text-sm rounded border outline-none focus:ring-1"
@@ -370,7 +386,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
             className="px-3 py-1.5 text-sm font-medium text-black rounded whitespace-nowrap"
             style={{ background: tv.primary, borderRadius: 4 }}
           >
-            {isSociete ? '+ Nouveau poste' : '+ Nouvel ouvrage'}
+            {isSociete ? `+ ${t('proDash.bibliotheque.nouveauPoste')}` : `+ ${t('proDash.bibliotheque.nouvelOuvrage')}`}
           </button>
         </div>
       </div>
@@ -408,7 +424,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                 fontWeight: corpsFilter === c ? 600 : 400,
               }}
             >
-              {c === 'all' ? 'Tous les corps' : c}
+              {c === 'all' ? t('proDash.bibliotheque.tousLesCorps') : c}
             </button>
           ))}
         </div>
@@ -419,25 +435,25 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left" style={{ background: tv.bg }}>
-              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Désignation</th>
-              {isSociete && <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Corps</th>}
-              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Catégorie</th>
-              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Unité</th>
+              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>{t('proDash.bibliotheque.designation')}</th>
+              {isSociete && <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>{t('proDash.bibliotheque.colCorps')}</th>}
+              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>{t('proDash.bibliotheque.colCategorie')}</th>
+              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>{t('proDash.bibliotheque.colUnite')}</th>
               <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>
-                {isSociete ? 'Coût HT' : 'Revient HT'}
+                {isSociete ? t('proDash.bibliotheque.colCoutHT') : t('proDash.bibliotheque.colRevientHT')}
               </th>
-              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>Marge %</th>
+              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>{t('proDash.bibliotheque.colMarge')}</th>
               <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>
-                {isSociete ? 'Prix vente HT' : 'Client HT'}
+                {isSociete ? t('proDash.bibliotheque.colPrixVenteHT') : t('proDash.bibliotheque.colClientHT')}
               </th>
-              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>Actions</th>
+              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>{t('proDash.bibliotheque.colActions')}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={isSociete ? 8 : 7} className="px-3 py-6 text-center text-sm" style={{ color: tv.textSecondary }}>
-                  Aucun élément trouvé.
+                  {t('proDash.bibliotheque.aucunElement')}
                 </td>
               </tr>
             )}
@@ -453,14 +469,14 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                     )}
                   </td>
                 )}
-                <td className="px-3 py-2">{typeTag(item.type)}</td>
+                <td className="px-3 py-2">{typeTag(item.type, TYPE_LABELS)}</td>
                 <td className="px-3 py-2" style={{ color: tv.textSecondary }}>{item.unite}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: tv.text }}>{fmt(item.rev)}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: tv.text }}>{item.marge}%</td>
                 <td className="px-3 py-2 text-right font-mono text-xs font-semibold" style={{ color: tv.text }}>{fmt(prixClient(item.rev, item.marge))}</td>
                 <td className="px-3 py-2 text-right">
-                  <button onClick={() => openEdit(item)} className="text-xs mr-2 hover:underline" style={{ color: tv.primary }}>Éditer</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-xs text-red-500 hover:underline">Suppr.</button>
+                  <button onClick={() => openEdit(item)} className="text-xs mr-2 hover:underline" style={{ color: tv.primary }}>{t('proDash.bibliotheque.editer')}</button>
+                  <button onClick={() => handleDelete(item.id)} className="text-xs text-red-500 hover:underline">{t('proDash.bibliotheque.supprimer')}</button>
                 </td>
               </tr>
             ))}
@@ -469,8 +485,8 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       </div>
 
       <p className="text-xs" style={{ color: tv.textSecondary }}>
-        {filtered.length} élément{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}
-        {filtered.length > 0 && ` — coût total : ${fmt(totalRevient)}`}
+        {filtered.length} {t('proDash.bibliotheque.elementsAffiches')}
+        {filtered.length > 0 && ` — ${t('proDash.bibliotheque.coutTotal')} : ${fmt(totalRevient)}`}
       </p>
 
       {/* Modal */}
@@ -479,12 +495,12 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
           <div className="v22-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div className="v22-modal-head">
               <h3 className="v22-modal-title">
-                {editId ? 'Modifier le poste' : isSociete ? 'Nouveau poste' : 'Nouvel ouvrage'}
+                {editId ? t('proDash.bibliotheque.modifierPoste') : isSociete ? t('proDash.bibliotheque.nouveauPoste') : t('proDash.bibliotheque.nouvelOuvrage')}
               </h3>
             </div>
             <div className="v22-modal-body">
               <div className="v22-form-group">
-                <label className="v22-form-label">Désignation</label>
+                <label className="v22-form-label">{t('proDash.bibliotheque.designation')}</label>
                 <input
                   type="text"
                   value={form.nom}
@@ -495,7 +511,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
               {isSociete && (
                 <div className="v22-form-group">
-                  <label className="v22-form-label">Corps de métier</label>
+                  <label className="v22-form-label">{t('proDash.bibliotheque.corpsDeMetier')}</label>
                   <select
                     value={form.corps || ''}
                     onChange={e => setForm(f => ({ ...f, corps: e.target.value }))}
@@ -508,19 +524,19 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div className="v22-form-group">
-                  <label className="v22-form-label">Type</label>
+                  <label className="v22-form-label">{t('proDash.bibliotheque.type')}</label>
                   <select
                     value={form.type}
                     onChange={e => setForm(f => ({ ...f, type: e.target.value as BiblioItem['type'] }))}
                     className="v22-form-input"
                   >
-                    <option value="ouvrage">Ouvrage</option>
-                    <option value="materiau">Matériau</option>
-                    <option value="mo">Main-d&apos;œuvre</option>
+                    <option value="ouvrage">{TYPE_LABELS.ouvrage}</option>
+                    <option value="materiau">{TYPE_LABELS.materiau}</option>
+                    <option value="mo">{TYPE_LABELS.mo}</option>
                   </select>
                 </div>
                 <div className="v22-form-group">
-                  <label className="v22-form-label">Unité</label>
+                  <label className="v22-form-label">{t('proDash.bibliotheque.unite')}</label>
                   <select
                     value={form.unite}
                     onChange={e => setForm(f => ({ ...f, unite: e.target.value }))}
@@ -534,7 +550,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div className="v22-form-group">
                   <label className="v22-form-label">
-                    {isSociete ? 'Coût HT (€)' : 'Prix de revient HT (€)'}
+                    {isSociete ? t('proDash.bibliotheque.coutHTEuro') : t('proDash.bibliotheque.prixRevientHTEuro')}
                   </label>
                   <input
                     type="number"
@@ -547,7 +563,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   />
                 </div>
                 <div className="v22-form-group">
-                  <label className="v22-form-label">Marge (%)</label>
+                  <label className="v22-form-label">{t('proDash.bibliotheque.margePct')}</label>
                   <input
                     type="number"
                     step="1"
@@ -561,14 +577,14 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#FAFAFA', borderRadius: 4, border: '1px solid #E8E8E8' }}>
-                <span style={{ fontSize: 12, fontWeight: 500 }}>{isSociete ? 'Prix de vente HT' : 'Prix client HT'}</span>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>{isSociete ? t('proDash.bibliotheque.prixVenteHT') : t('proDash.bibliotheque.prixClientHT')}</span>
                 <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{fmt(prixClient(form.rev, form.marge))}</span>
               </div>
             </div>
             <div className="v22-modal-foot">
-              <button onClick={() => setModal(false)} className="v22-btn">Annuler</button>
+              <button onClick={() => setModal(false)} className="v22-btn">{t('proDash.bibliotheque.annuler')}</button>
               <button onClick={handleSave} className="v22-btn v22-btn-primary">
-                {editId ? 'Enregistrer' : 'Créer'}
+                {editId ? t('proDash.bibliotheque.enregistrer') : t('proDash.bibliotheque.creer')}
               </button>
             </div>
           </div>

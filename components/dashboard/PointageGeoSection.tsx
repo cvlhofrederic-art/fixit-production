@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useLocale } from '@/lib/i18n/context'
+import { useLocale, useTranslation } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings, useGeoPointage } from '@/lib/hooks/use-btp-data'
 import { Artisan } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
@@ -49,6 +49,7 @@ interface NearestChantier extends Chantier {
 }
 
 export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; orgRole?: string }) {
+  const { t } = useTranslation()
   const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -197,7 +198,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
   if (loadingP) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
       <Loader2 size={24} className="animate-spin" style={{ display: 'inline-block', color: '#999' }} />
-      <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
+      <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{t('proDash.pointage.chargement')}</p>
     </div>
   )
 
@@ -205,15 +206,15 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
     <div>
       {/* Page header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        <h1>{isPt ? 'Pointagem equipas' : 'Pointage équipes'}</h1>
-        <p>{isPt ? 'Manual ou automático por GPS' : 'Suivi des heures'}</p>
+        <h1>{t('proDash.pointage.pageTitle')}</h1>
+        <p>{t('proDash.pointage.pageSubtitle')}</p>
       </div>
 
       {/* Tabs + manual pointer button */}
       <div style={{ display: 'flex', gap: 8, marginBottom: '.75rem', alignItems: 'center' }}>
         <div className={isV5 ? "v5-tabs" : "v22-tabs"} style={{ marginBottom: 0, borderBottom: 'none' }}>
           <button className={isV5 ? `v5-tab-b${tab === 'pointages' ? ' active' : ''}` : `v22-tab ${tab === 'pointages' ? 'active' : ''}`} onClick={() => setTab('pointages')}>
-            {isPt ? 'Pontagens' : 'Pointages'}
+            {t('proDash.pointage.pointages')}
           </button>
           <button className={isV5 ? `v5-tab-b${tab === 'geo' ? ' active' : ''}` : `v22-tab ${tab === 'geo' ? 'active' : ''}`} onClick={() => setTab('geo')}>
             GPS
@@ -221,7 +222,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
         </div>
         {tab === 'pointages' && (
           <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={() => setShowForm(true)}>
-            {isPt ? '⏱️ Pontar manualmente' : '⏱️ Pointer manuellement'}
+            {'⏱️'} {t('proDash.pointage.pointerManuellement')}
           </button>
         )}
       </div>
@@ -241,10 +242,10 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
               </div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>
-                  {geoStatus === 'idle' && (isPt ? 'GPS desativado' : 'GPS désactivé')}
-                  {geoStatus === 'watching' && (isPt ? 'A procurar obras próximas...' : 'Recherche de chantiers proches...')}
-                  {geoStatus === 'in_zone' && (isPt ? `Perto de: ${nearestChantier?.titre}` : `Proche de : ${nearestChantier?.titre}`)}
-                  {geoStatus === 'pointed' && (isPt ? 'Pontado!' : 'Pointé !')}
+                  {geoStatus === 'idle' && t('proDash.pointage.gpsDesactive')}
+                  {geoStatus === 'watching' && t('proDash.pointage.rechercheChantiers')}
+                  {geoStatus === 'in_zone' && `${t('proDash.pointage.procheDe')} ${nearestChantier?.titre}`}
+                  {geoStatus === 'pointed' && t('proDash.pointage.pointe')}
                 </div>
                 <div style={{ fontSize: 11, color: '#999' }}>
                   {nearestChantier && <>{nearestChantier.distance}m</>}
@@ -255,25 +256,23 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
 
             {!settings.geo_pointage_enabled && (
               <div className={isV5 ? "v5-al warn" : "v22-alert v22-alert-amber"} style={{ marginBottom: 12 }}>
-                ⚠️ {isPt
-                  ? 'A pointagem GPS está desativada. Ative nas Configurações BTP.'
-                  : 'Le pointage GPS est désactivé. Activez-le dans les Paramètres BTP.'}
+                {'⚠️'} {t('proDash.pointage.gpsDesactiveWarning')}
               </div>
             )}
 
             <div style={{ display: 'flex', gap: 8 }}>
               {!geo.watching ? (
                 <button className={isV5 ? "v5-btn v5-btn-s" : "v22-btn v22-btn-secondary"} onClick={() => { geo.start(); setGeoStatus('watching') }}>
-                  📡 {isPt ? 'Ativar GPS' : 'Activer GPS'}
+                  {'📡'} {t('proDash.pointage.activerGPS')}
                 </button>
               ) : (
                 <button className={isV5 ? "v5-btn v5-btn-d" : "v22-btn v22-btn-danger"} onClick={() => { geo.stop(); setGeoStatus('idle') }}>
-                  ⏹ {isPt ? 'Parar GPS' : 'Arrêter GPS'}
+                  {'⏹'} {t('proDash.pointage.arreterGPS')}
                 </button>
               )}
               {geoStatus === 'in_zone' && nearestChantier && (
                 <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={() => pointGeo(nearestChantier)}>
-                  ✅ {isPt ? `Pontar em ${nearestChantier.titre}` : `Pointer sur ${nearestChantier.titre}`}
+                  {'✅'} {t('proDash.pointage.pointerSur')} {nearestChantier.titre}
                 </button>
               )}
             </div>
@@ -281,12 +280,10 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
 
           {/* Chantiers with GPS */}
           <div className={isV5 ? "v5-card" : "v22-card"}>
-            <div className={isV5 ? "v5-st" : "v22-section-title"}>📍 {isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
+            <div className={isV5 ? "v5-st" : "v22-section-title"}>{'📍'} {t('proDash.pointage.chantiersGPS')}</div>
             {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').length === 0 ? (
               <p style={{ textAlign: 'center', padding: 16, fontSize: 12, color: '#999' }}>
-                {isPt
-                  ? 'Nenhuma obra com GPS. Adicione coordenadas GPS ao criar uma obra.'
-                  : 'Aucun chantier avec GPS. Ajoutez les coordonnées GPS en créant un chantier.'}
+                {t('proDash.pointage.aucunChantierGPS')}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -303,7 +300,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>{c.titre}</div>
                         <div style={{ fontSize: 10, color: '#999' }}>
-                          {c.adresse} — {isPt ? 'raio' : 'rayon'}: {c.geoRayonM || 100}m
+                          {c.adresse} — {t('proDash.pointage.rayon')}: {c.geoRayonM || 100}m
                         </div>
                       </div>
                       <div>
@@ -331,40 +328,40 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
           {showForm && (
             <div className={isV5 ? "v5-card" : "v22-card"} style={{ marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
-                <div className={isV5 ? "v5-st" : "v22-section-title"} style={{ marginBottom: 0 }}>{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
+                <div className={isV5 ? "v5-st" : "v22-section-title"} style={{ marginBottom: 0 }}>{t('proDash.pointage.nouveauPointage')}</div>
                 <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowForm(false)}>✕</button>
               </div>
               <div className={isV5 ? "v5-fr" : "v22-form-row"} style={{ marginBottom: '.75rem' }}>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Funcionário *' : 'Employé *'}</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{t('proDash.pointage.employe')}</label>
                   {membres.length > 0 ? (
                     <select className={isV5 ? "v5-fi" : "v22-input"} value={form.employe} onChange={e => {
                       const m = (membres as Membre[]).find(m => `${m.prenom} ${m.nom}` === e.target.value)
                       setForm({ ...form, employe: e.target.value, poste: m?.typeCompte || form.poste })
                     }}>
-                      <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
+                      <option value="">{t('proDash.pointage.selectionner')}</option>
                       {(membres as Membre[]).map(m => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
                     </select>
                   ) : (
                     <input className={isV5 ? "v5-fi" : "v22-input"} value={form.employe} onChange={e => setForm({ ...form, employe: e.target.value })}
-                      placeholder={isPt ? 'Nome do funcionário' : 'Nom de l\'employé'} />
+                      placeholder={t('proDash.pointage.nomEmploye')} />
                   )}
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Função' : 'Poste'}</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{t('proDash.pointage.poste')}</label>
                   <select className={isV5 ? "v5-fi" : "v22-input"} value={form.poste} onChange={e => setForm({ ...form, poste: e.target.value })}>
-                    <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
+                    <option value="">{t('proDash.pointage.selectionner')}</option>
                     {POSTES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Obra' : 'Chantier'}</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{t('proDash.pointage.chantier')}</label>
                   {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').length > 0 ? (
                     <select className={isV5 ? "v5-fi" : "v22-input"} value={form.chantier} onChange={e => {
                       const c = (chantiers as Chantier[]).find(c => c.titre === e.target.value)
                       setForm({ ...form, chantier: e.target.value, chantierId: c?.id || '' })
                     }}>
-                      <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
+                      <option value="">{t('proDash.pointage.selectionner')}</option>
                       {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').map(c => (
                         <option key={c.id} value={c.titre}>{c.titre}</option>
                       ))}
@@ -378,15 +375,15 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
                   <input type="date" className={isV5 ? "v5-fi" : "v22-input"} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Chegada' : 'Arrivée'}</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{t('proDash.pointage.arrivee')}</label>
                   <input type="time" className={isV5 ? "v5-fi" : "v22-input"} value={form.heureArrivee} onChange={e => setForm({ ...form, heureArrivee: e.target.value })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Saída' : 'Départ'}</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{t('proDash.pointage.depart')}</label>
                   <input type="time" className={isV5 ? "v5-fi" : "v22-input"} value={form.heureDepart} onChange={e => setForm({ ...form, heureDepart: e.target.value })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Pausa (min)' : 'Pause (min)'}</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{t('proDash.pointage.pauseMin')}</label>
                   <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={form.pauseMinutes} onChange={e => setForm({ ...form, pauseMinutes: Number(e.target.value) })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
@@ -395,14 +392,14 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
                 </div>
               </div>
               <div className={isV5 ? "v5-al info" : "v22-alert v22-alert-blue"} style={{ marginBottom: 12 }}>
-                ⏱️ {isPt ? 'Horas' : 'Heures'}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+                {'⏱️'} {t('proDash.pointage.heures')}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={addPointage} disabled={!form.employe}>
-                  ✅ {isPt ? 'Registar' : 'Enregistrer'}
+                  {'✅'} {t('proDash.pointage.enregistrer')}
                 </button>
                 <button className={isV5 ? "v5-btn" : "v22-btn"} onClick={() => setShowForm(false)}>
-                  {isPt ? 'Cancelar' : 'Annuler'}
+                  {t('proDash.pointage.annuler')}
                 </button>
               </div>
             </div>
@@ -412,25 +409,25 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.65rem' }}>
               <div className={isV5 ? "v5-st" : "v22-section-title"} style={{ marginBottom: 0 }}>
-                {isPt ? 'Pontagem do dia' : 'Pointage du jour'} — {filterDate ? new Date(filterDate + 'T00:00').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' }) : (isPt ? 'Todos' : 'Tous')}
+                {t('proDash.pointage.title')} — {filterDate ? new Date(filterDate + 'T00:00').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' }) : t('proDash.pointage.tous')}
               </div>
               <div className={isV5 ? "v5-search" : "v22-search"} style={{ marginBottom: 0 }}>
                 <input type="date" className={isV5 ? "v5-search-in" : "v22-search-in"} style={{ minWidth: 140, flex: 'none' }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
                 <select className={isV5 ? "v5-filter-sel" : "v22-filter-sel"} value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
-                  <option value="">{isPt ? 'Todos' : 'Tous'}</option>
+                  <option value="">{t('proDash.pointage.tous')}</option>
                   {employes.map(e => <option key={e}>{e}</option>)}
                 </select>
-                <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setFilterDate('')}>{isPt ? 'Ver tudo' : 'Voir tout'}</button>
+                <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setFilterDate('')}>{t('proDash.pointage.voirTout')}</button>
               </div>
             </div>
             <table className={isV5 ? "v5-dt" : "v22-table"}>
               <thead>
                 <tr>
-                  <th>{isPt ? 'Funcionário' : 'Employé'}</th>
-                  <th>{isPt ? 'Obra' : 'Chantier'}</th>
-                  <th>{isPt ? 'Chegada' : 'Arrivée'}</th>
-                  <th>{isPt ? 'Saída' : 'Départ'}</th>
-                  <th>{isPt ? 'Horas' : 'Heures'}</th>
+                  <th>{t('proDash.pointage.colEmploye')}</th>
+                  <th>{t('proDash.pointage.chantier')}</th>
+                  <th>{t('proDash.pointage.arrivee')}</th>
+                  <th>{t('proDash.pointage.depart')}</th>
+                  <th>{t('proDash.pointage.heures')}</th>
                   <th>GPS</th>
                   <th></th>
                 </tr>
@@ -438,7 +435,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
               <tbody>
                 {filtered.length === 0 ? (
                   <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: '#999' }}>
-                    {isPt ? 'Nenhuma pontagem' : 'Aucun pointage'}
+                    {t('proDash.pointage.aucunPointage')}
                   </td></tr>
                 ) : filtered.map(p => (
                   <tr key={p.id}>
@@ -461,20 +458,20 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
               </tbody>
             </table>
             <div style={{ marginTop: 8, fontSize: 11, color: '#999', textAlign: 'right' }}>
-              {filtered.length} {isPt ? 'pontagens' : 'pointages'} — <strong>{totalH.toFixed(1)}h</strong>
+              {filtered.length} {t('proDash.pointage.pointages')} — <strong>{totalH.toFixed(1)}h</strong>
             </div>
           </div>
 
           {/* Weekly summary table */}
           <div className={isV5 ? "v5-card" : "v22-card"}>
-            <div className={isV5 ? "v5-st" : "v22-section-title"}>{isPt ? 'Resumo horas semanais' : 'Résumé heures hebdomadaires'}</div>
+            <div className={isV5 ? "v5-st" : "v22-section-title"}>{t('proDash.pointage.resumeHebdo')}</div>
             {(() => {
               const { weekDays, summary } = getWeeklySummary()
               return (
                 <table className={isV5 ? "v5-dt" : "v22-table"}>
                   <thead>
                     <tr>
-                      <th>{isPt ? 'Funcionário' : 'Employé'}</th>
+                      <th>{t('proDash.pointage.colEmploye')}</th>
                       {weekDays.map(d => <th key={d}>{d}</th>)}
                       <th>Total</th>
                     </tr>
@@ -482,7 +479,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
                   <tbody>
                     {summary.length === 0 ? (
                       <tr><td colSpan={weekDays.length + 2} style={{ textAlign: 'center', padding: 16, color: '#999' }}>
-                        {isPt ? 'Sem dados' : 'Aucune donnée'}
+                        {t('proDash.pointage.aucuneDonnee')}
                       </td></tr>
                     ) : summary.map(row => (
                       <tr key={row.employe}>
