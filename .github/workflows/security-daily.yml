@@ -208,7 +208,7 @@ jobs:
 
       - name: Create issue if failures
         if: steps.report.outputs.has_failures == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
