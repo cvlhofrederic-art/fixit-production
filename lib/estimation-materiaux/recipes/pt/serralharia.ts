@@ -45,14 +45,14 @@ export const serralhariaRecipes: Recipe[] = [
     materials: [
       {
         id: 'tubo-quadrado-40-pt', name: 'Tubo quadrado 40×40×2 mm S235JR (montantes + corrimão)',
-        category: 'acier', phase: 'principal', quantityPerBase: 8, unit: 'kg',
+        category: 'acier', phase: 'principal', quantityPerBase: 11, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.10, wasteReason: 'Cortes, soldadura, pontas',
         normRef: 'NP EN 10025-2 (2019)', manufacturerRef: 'Ferpinta / Megasa',
       },
       {
         id: 'travessas-varetas-pt', name: 'Varetas / travessas verticais ∅12 (enchimento)',
-        category: 'acier', phase: 'principal', quantityPerBase: 3, unit: 'kg',
+        category: 'acier', phase: 'principal', quantityPerBase: 4, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.12, wasteReason: 'Cortes frequentes, pontas curtas',
         normRef: 'NP EN 10025-2 (2019)',
@@ -191,7 +191,7 @@ export const serralhariaRecipes: Recipe[] = [
     materials: [
       {
         id: 'longarina-upn-200-pt', name: 'Longarinas UPN 200 (2 u × 4,5 m)',
-        category: 'acier', phase: 'principal', quantityPerBase: 210, unit: 'kg',
+        category: 'acier', phase: 'principal', quantityPerBase: 228, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.08, wasteReason: 'Cortes, furação',
         normRef: 'NP EN 10025-2 (2019)', manufacturerRef: 'Aço Português / Megasa',
@@ -223,7 +223,7 @@ export const serralhariaRecipes: Recipe[] = [
       },
       {
         id: 'eléctrodos-soldadura-pt', name: 'Eléctrodos / fio MIG 0,8 mm (soldadura)',
-        category: 'accessoire', phase: 'accessoires', quantityPerBase: 2, unit: 'kg',
+        category: 'accessoire', phase: 'accessoires', quantityPerBase: 4, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.20, wasteReason: 'Pontas, projecções',
       },

@@ -100,7 +100,7 @@ export const terracoRecipes: Recipe[] = [
       'Lajetas betão 60×60×4 cm (Lusoceram / Pavestone PT)',
       '~2,78 lajetas por m² (formato 60×60)',
       'Plots reguláveis 40-120 mm (ajuste pendente)',
-      '~4 plots por m² (cruzamento de juntas)',
+      '~6 plots por m² (cruzamento de juntas)',
       'Laje subjacente impermeabilizada pressuposta (LNEC E 244)',
       'Junta aberta 3-5 mm (drenagem natural)',
       'Sem colagem — sistema desmontável e reparável',
@@ -117,10 +117,10 @@ export const terracoRecipes: Recipe[] = [
       },
       {
         id: 'plots-regulaveis-terraco-pt', name: 'Plots reguláveis 40-120 mm',
-        category: 'accessoire', phase: 'principal', quantityPerBase: 4, unit: 'u',
+        category: 'accessoire', phase: 'principal', quantityPerBase: 6, unit: 'u',
         geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Quebras',
-        notes: '~4 plots por m² (interseção de 4 lajetas)',
+        notes: '~6 plots por m²',
       },
       {
         id: 'cruzetas-plots-pt', name: 'Cruzetas espaçadoras (juntas)',

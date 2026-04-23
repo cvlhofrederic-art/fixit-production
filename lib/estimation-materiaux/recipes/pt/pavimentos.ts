@@ -241,7 +241,7 @@ export const pavimentosRecipes: Recipe[] = [
       'Argamassa autonivelante fluida (CT-C30-F5 conforme NP EN 13813)',
       'Junta perimetral em fita PE 5 mm (desolidarização)',
       'Tempo de secagem: 24-48 h para circulação, 28 dias para revestimento',
-      'Consumo: ~22 kg/m² por cm de espessura',
+      'Consumo: ~21 kg/m² por cm de espessura (Weber Floor Flow)',
     ],
     materials: [
       {
@@ -253,12 +253,12 @@ export const pavimentosRecipes: Recipe[] = [
       },
       {
         id: 'argamassa-autonivelante-pt', name: 'Argamassa autonivelante CT-C30-F5 (5 cm)',
-        category: 'liant', phase: 'principal', quantityPerBase: 110, unit: 'kg',
+        category: 'liant', phase: 'principal', quantityPerBase: 105, unit: 'kg',
         geometryMultiplier: 'none',
         wasteFactor: 1.05, wasteReason: 'Resíduos mistura, rebarba',
         normRef: 'NP EN 13813 (2003)', manufacturerRef: 'Weber PT (weber.niv pro) / Sika',
         packaging: { unit: 'sac', contentQty: 25, contentUnit: 'kg', label: 'saco 25 kg' },
-        notes: '~22 kg/m² × 5 cm = 110 kg/m²',
+        notes: '~21 kg/m² × 5 cm = 105 kg/m² (Weber Floor Flow)',
       },
       {
         id: 'fita-perimetral-pe-pt', name: 'Fita perimetral mousse PE 5 mm (desolidarização)',
