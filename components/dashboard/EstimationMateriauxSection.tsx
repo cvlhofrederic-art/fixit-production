@@ -69,6 +69,9 @@ const TRADE_ICON: Record<Trade, string> = {
   terrasse_ext: '🌳',
   jardin: '🌿',
   piscine: '🏊',
+  menuiserie: '🪚',
+  metallerie: '⚙️',
+  revetements_sols: '🟫',
 }
 
 const TRADE_LABEL_FR: Record<Trade, string> = {
