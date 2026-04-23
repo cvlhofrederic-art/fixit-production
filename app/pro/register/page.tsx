@@ -764,7 +764,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       body: fd,
     })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Échec de l\'upload')
+    if (!res.ok) throw new Error(data.error || t('register.uploadError'))
     return data.url
   }
 
@@ -826,7 +826,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           }
         } catch (uploadErr: unknown) {
           // Non-blocking: account created, docs failed
-          setError(`Compte créé mais erreur upload documents: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
+          setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
         }
       }
 
@@ -898,21 +898,33 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       <div className="text-6xl mb-4">🎉</div>
       <h2 className="text-2xl font-display font-black tracking-[-0.03em] mb-2">{t('register.accountCreated')}</h2>
       <p className="text-text-muted mb-2">{t('register.checkEmailConfirm')}</p>
-      <p className={`font-semibold mb-6 ${org.color === 'blue' ? 'text-blue-600' : org.color === 'purple' ? 'text-purple-600' : 'text-green-600'}`}>{t('register.trialIncluded')} ✅</p>
-      <LocaleLink href="/auth/login" className={`inline-block text-white px-8 py-3 rounded-xl font-bold transition ${org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{t('register.login')}</LocaleLink>
+      <p className="font-semibold mb-6 text-amber-600">{t('register.trialIncluded')} ✅</p>
+      <LocaleLink href="/auth/login" className="inline-block bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-bold transition">{t('register.login')}</LocaleLink>
     </div>
   )
 
-  const accent = org.color === 'blue' ? 'border-blue-400 bg-blue-50 text-blue-600' : org.color === 'purple' ? 'border-purple-400 bg-purple-50 text-purple-600' : 'border-green-400 bg-green-50 text-green-600'
-  const btnClass = org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-px' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700 text-white hover:-translate-y-px' : 'bg-green-600 hover:bg-green-700 text-white hover:-translate-y-px'
+  const accent = 'border-amber-400 bg-amber-50 text-amber-600'
+  const btnClass = 'bg-yellow hover:bg-yellow-light text-dark hover:-translate-y-px'
 
-  const secteurs = [t('register.sectorBtpGrosOeuvre'), t('register.sectorBtpElecPlomb'), t('register.sectorBtpPeinture'), t('register.sectorBtpMenuiserie'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'), t('register.sectorBtpMetallerie'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'), t('register.sectorBtpAutre')]
+  const secteurs = [
+    t('register.sectorBtpAlvenaria'), t('register.sectorBtpElec'), t('register.sectorBtpPlomb'),
+    t('register.sectorBtpPeinture'), t('register.sectorBtpRevetements'), t('register.sectorBtpMenuiserie'),
+    t('register.sectorBtpCharpente'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'),
+    t('register.sectorBtpMetallerie'), t('register.sectorBtpImpermeabilizacao'), t('register.sectorBtpIsolamento'),
+    t('register.sectorBtpPavimentos'), t('register.sectorBtpCaixilharia'), t('register.sectorBtpPortas'),
+    t('register.sectorBtpEstores'), t('register.sectorBtpVidreiro'), t('register.sectorBtpGas'),
+    t('register.sectorBtpEletrodomesticos'), t('register.sectorBtpLimpeza'), t('register.sectorBtpJardinagem'),
+    t('register.sectorBtpMudancas'), t('register.sectorBtpDesentupimentos'), t('register.sectorBtpFachadas'),
+    t('register.sectorBtpTerracos'), t('register.sectorBtpPiscinas'), t('register.sectorBtpPragas'),
+    t('register.sectorBtpBricolagem'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'),
+    t('register.sectorBtpAutre'),
+  ]
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl ${org.color === 'blue' ? 'bg-blue-100' : org.color === 'purple' ? 'bg-purple-100' : 'bg-green-100'}`}>{org.emoji}</div>
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-3xl bg-amber-100">{org.emoji}</div>
         <div>
           <h2 className="font-bold text-dark">{org.label}</h2>
           <p className="text-xs text-text-muted">{org.desc}</p>
@@ -923,9 +935,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       <div className="flex items-center gap-2">
         {[{n:1,label:t('register.proStepCompany')},{n:2,label:t('register.proStepContact')},{n:3,label:t('register.proStepSecurity')}].map((s,i) => (
           <div key={s.n} className="flex items-center gap-2">
-            {i > 0 && <div className={`w-8 h-0.5 ${step > s.n ? (org.color === 'blue' ? 'bg-blue-500' : org.color === 'purple' ? 'bg-purple-500' : 'bg-green-500') : 'bg-[#E0E0E0]'}`} />}
+            {i > 0 && <div className={`w-8 h-0.5 ${step > s.n ? 'bg-amber-400' : 'bg-[#E0E0E0]'}`} />}
             <div className="flex items-center gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= s.n ? (org.color === 'blue' ? 'bg-blue-600 text-white' : org.color === 'purple' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white') : 'bg-[#E0E0E0] text-text-muted'}`}>{s.n}</div>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= s.n ? 'bg-yellow text-dark' : 'bg-[#E0E0E0] text-text-muted'}`}>{s.n}</div>
               <span className={`text-xs hidden sm:block ${step >= s.n ? 'text-dark font-medium' : 'text-text-muted'}`}>{s.label}</span>
             </div>
           </div>
@@ -938,8 +950,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       {step === 1 && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-mid mb-1">SIRET <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Vérifie l'existence légale de votre société auprès du registre officiel des entreprises (INSEE/SIRENE)</p>
+            <label className="block text-sm font-semibold text-mid mb-1">{t('register.taxIdProLabel')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{t('register.taxIdProHelp')}</p>
             <div className="flex gap-2">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(e.target.value); setSiretStatus('idle') }} maxLength={17}
                 className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl font-mono text-sm focus:outline-none ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400' : 'border-[#E0E0E0] bg-warm-gray focus:border-purple-400 focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
@@ -952,14 +964,14 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
                 <p className="font-semibold text-green-800">✅ {company.name}</p>
                 <p className="text-xs text-green-600">{company.address}</p>
-                {company.nafLabel && <p className="text-xs text-green-600 mt-0.5">Activité : {company.nafLabel} ({company.nafCode})</p>}
-                {company.legalForm && <p className="text-xs text-green-600">Forme : {company.legalForm}</p>}
+                {company.nafLabel && <p className="text-xs text-green-600 mt-0.5">{t('register.activityLabel')} : {company.nafLabel} ({company.nafCode})</p>}
+                {company.legalForm && <p className="text-xs text-green-600">{t('register.formLabel')} : {company.legalForm}</p>}
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-mid mb-1">Structure juridique <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-semibold text-mid mb-1">{t('register.legalStructureLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{registrationCountry === 'PT' ? 'As contribuições variam conforme a forma jurídica' : 'Les charges et cotisations varient selon votre forme juridique'}</p>
             <select value={legalStructure} onChange={e => setLegalStructure(e.target.value)}
               className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none bg-white ${legalStructure ? 'border-green-400 bg-green-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-yellow focus:bg-white'}`}>
@@ -969,13 +981,13 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               ))}
             </select>
             {legalStructure && siretStatus === 'verified' && company?.legalForm && (
-              <p className="text-xs text-green-600 mt-1">✓ Pré-rempli depuis le SIRET ({company.legalForm})</p>
+              <p className="text-xs text-green-600 mt-1">✓ {t('register.legalStructurePreFilled')} ({company.legalForm})</p>
             )}
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Plusieurs choix possibles</p>
+            <p className="text-xs text-text-muted mb-2">{t('register.multipleChoiceHint')}</p>
             <div className="grid grid-cols-1 gap-2">
               {secteurs.map(s => {
                 const selected = form.secteurs.includes(s)
@@ -1005,8 +1017,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           <button type="button" onClick={() => {
-            if (siretStatus !== 'verified') { setError('Veuillez vérifier votre SIRET avant de continuer — nous devons confirmer l\'existence légale de votre société'); return }
-            if (!legalStructure) { setError('Veuillez sélectionner la structure juridique de votre société'); return }
+            if (siretStatus !== 'verified') { setError(t('register.verifyTaxIdBeforeContinue')); return }
+            if (!legalStructure) { setError(t('register.selectLegalStructure')); return }
             if (form.secteurs.length === 0) { setError(t('register.sectorRequired')); return }
             setError(''); setStep(2)
           }} className={`w-full py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
@@ -1046,16 +1058,16 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
           {/* Documents obligatoires */}
           <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg">
-            <p className="text-sm text-blue-800"><strong>📋 Documents requis</strong> — Pour valider votre compte et lutter contre la fraude.</p>
+            <p className="text-sm text-blue-800"><strong>📋 {t('register.docsRequiredPro')}</strong> — {t('register.docsRequiredProDesc')}</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-mid mb-1">KBIS ou extrait d'immatriculation <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Document officiel d'immatriculation de votre société (PDF ou image)</p>
+            <label className="block text-sm font-medium text-mid mb-1">{t('register.kbisLabelPro')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{t('register.kbisHelpPro')}</p>
             {!kbisFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-blue-400 transition bg-red-50/30">
+              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
                 <span className="text-2xl">🏢</span>
-                <span className="text-sm text-text-muted mt-1">Ajouter le KBIS</span>
+                <span className="text-sm text-text-muted mt-1">{t('register.addKbisPro')}</span>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
                   const f = e.target.files?.[0]
                   if (f) {
@@ -1074,12 +1086,12 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-mid mb-1">Carte d'identité du dirigeant <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Pièce d'identité valide du représentant légal (PDF ou image)</p>
+            <label className="block text-sm font-medium text-mid mb-1">{t('register.idLabelPro')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{t('register.idHelpPro')}</p>
             {!idFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-blue-400 transition bg-red-50/30">
+              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
                 <span className="text-2xl">🪪</span>
-                <span className="text-sm text-text-muted mt-1">Ajouter la pièce d'identité</span>
+                <span className="text-sm text-text-muted mt-1">{t('register.addIdPro')}</span>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
                   const f = e.target.files?.[0]
                   if (f) {
@@ -1101,8 +1113,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <button type="button" onClick={() => setStep(1)} className="flex-1 border-2 border-[#EFEFEF] text-text-muted py-3 rounded-xl font-semibold hover:bg-warm-gray transition">{t('register.back')}</button>
             <button type="button" onClick={() => {
               if (!form.prenom || !form.nom || !form.email) { setError(t('register.fillRequired')); return }
-              if (!kbisFile) { setError('Le KBIS est requis pour valider votre inscription'); return }
-              if (!idFile) { setError("La carte d'identité du dirigeant est requise"); return }
+              if (!kbisFile) { setError(t('register.kbisRequiredPro')); return }
+              if (!idFile) { setError(t('register.idRequiredPro')); return }
               setError(''); setStep(3)
             }} className={`flex-1 py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
           </div>
@@ -1122,14 +1134,14 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           {/* Récap */}
-          <div className={`rounded-xl p-4 text-sm space-y-1.5 border ${org.color === 'blue' ? 'bg-blue-50 border-blue-100' : org.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-green-50 border-green-100'}`}>
-            <p className={`font-semibold mb-2 ${org.color === 'blue' ? 'text-blue-800' : org.color === 'purple' ? 'text-purple-800' : 'text-green-800'}`}>{org.emoji} {t('register.recap')}</p>
+          <div className="rounded-xl p-4 text-sm space-y-1.5 border bg-amber-50 border-amber-100">
+            <p className="font-semibold mb-2 text-amber-800">{org.emoji} {t('register.recap')}</p>
             <p className="text-text-muted">🏢 {company?.name || form.companyName}</p>
             <p className="text-text-muted">👤 {form.prenom} {form.nom} — {form.email}</p>
             <p className="text-text-muted">📌 {form.secteurs.join(' · ')}</p>
             <p className="text-text-muted">⚖️ {getLegalStructureOptions(registrationCountry).find(o => o.key === legalStructure)?.label || legalStructure}</p>
-            <p className="text-text-muted">📄 KBIS {kbisFile ? '✅' : '—'} · Pièce d'identité {idFile ? '✅' : '—'}</p>
-            <p className={`font-semibold mt-2 ${org.color === 'blue' ? 'text-blue-700' : org.color === 'purple' ? 'text-purple-700' : 'text-green-700'}`}>✅ {t('register.trialDays')}</p>
+            <p className="text-text-muted">📄 {t('register.recapKbis')} {kbisFile ? '✅' : '—'} · {t('register.recapId')} {idFile ? '✅' : '—'}</p>
+            <p className="font-semibold mt-2 text-amber-700">✅ {t('register.trialDays')}</p>
           </div>
 
           <p className="text-xs text-text-muted">{t('register.cguAccept')} <LocaleLink href="/cgu" className="text-purple-600 hover:underline">{t('register.cgu')}</LocaleLink> {t('register.and')} <LocaleLink href="/confidentialite" className="text-purple-600 hover:underline">{t('register.privacyPolicy')}</LocaleLink>.</p>
