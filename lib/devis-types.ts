@@ -160,7 +160,9 @@ export interface DevisFactureData {
   bic: string
   // Lines
   lines: ProductLine[]
+  materialLines?: ProductLine[]
   fraisAnnexes: FraisAnnexeItem[]
+  ordreDeService?: string
   chantierId?: string
   // Étapes d'intervention (descriptif pour le client)
   etapes?: DevisEtape[]

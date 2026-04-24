@@ -126,6 +126,7 @@ export default function DevisFactureForm({
   const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
   const [interventionEspacesCommuns, setInterventionEspacesCommuns] = useState(initialData?.interventionEspacesCommuns || '')
   const [interventionExterieur, setInterventionExterieur] = useState(initialData?.interventionExterieur || '')
+  const [ordreDeService, setOrdreDeService] = useState(initialData?.ordreDeService || '')
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
   const [clientSiret, setClientSiret] = useState(initialData?.clientSiret || '')
   const [clientType, setClientType] = useState(initialData?.clientType || '')
@@ -200,6 +201,7 @@ export default function DevisFactureForm({
   const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
+  const [materialLines, setMaterialLines] = useState<ProductLine[]>(initialData?.materialLines || [])
   const [fraisAnnexes, setFraisAnnexes] = useState<FraisAnnexeItem[]>(initialData?.fraisAnnexes ?? [])
   const [chantierId, setChantierId] = useState<string>(initialData?.chantierId ?? '')
   const [editingDescLineId, setEditingDescLineId] = useState<number | null>(null)
@@ -644,6 +646,32 @@ export default function DevisFactureForm({
     setLines(prev => prev.filter(l => l.id !== id))
   }
 
+  // ─── Material Lines ───
+  const addMaterialLine = () => {
+    setMaterialLines(prev => [...prev, {
+      id: Date.now(),
+      description: '',
+      qty: 1,
+      unit: 'u',
+      priceHT: 0,
+      tvaRate: defaultTvaRate,
+      totalHT: 0,
+    }])
+  }
+
+  const updateMaterialLine = (id: number, field: keyof ProductLine, value: string | number) => {
+    setMaterialLines(prev => prev.map(line => {
+      if (line.id !== id) return line
+      const updated = { ...line, [field]: value }
+      updated.totalHT = updated.qty * updated.priceHT
+      return updated
+    }))
+  }
+
+  const removeMaterialLine = (id: number) => {
+    setMaterialLines(prev => prev.filter(l => l.id !== id))
+  }
+
   // ─── Frais annexes helpers ───
   const addFraisAnnexe = () => {
     const defaultTva = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
@@ -954,9 +982,11 @@ export default function DevisFactureForm({
   }, [])
 
   // ─── Calculations ───
-  const subtotalHT = lines.reduce((sum, l) => sum + l.totalHT, 0) + totalFraisAnnexesHT
+  const totalMaterialsHT = materialLines.reduce((sum, l) => sum + l.totalHT, 0)
+  const subtotalHT = lines.reduce((sum, l) => sum + l.totalHT, 0) + totalMaterialsHT + totalFraisAnnexesHT
   const totalTVA = tvaEnabled
     ? lines.reduce((sum, l) => sum + (l.totalHT * l.tvaRate / 100), 0)
+      + materialLines.reduce((sum, l) => sum + (l.totalHT * l.tvaRate / 100), 0)
       + fraisAnnexes.reduce((sum, item) => sum + (item.total_ht * item.tva_applicable / 100), 0)
     : 0
   const totalTTC = subtotalHT + totalTVA
@@ -1475,7 +1505,12 @@ export default function DevisFactureForm({
         interventionAddress, interventionBatiment, interventionEtage,
         interventionEspacesCommuns, interventionExterieur,
         paymentMode, paymentDue, paymentCondition, discount, penaltyRate: '', recoveryFee: '', iban, bic,
-        lines, subtotalHT, totalTTC,
+        lines, materialLines,
+        fraisLines: fraisAnnexes.filter(f => f.designation.trim()).map(f => ({
+          id: f.id, description: f.designation, qty: f.quantite, unit: f.unite,
+          priceHT: f.prix_unitaire_ht, tvaRate: f.tva_applicable, totalHT: f.total_ht,
+        })),
+        subtotalHT, totalTTC,
         acomptesEnabled, acomptes,
         notes: notes ?? null, sourceDevisRef: sourceDevisRef ?? null,
         signatureData, attachedRapport, selectedPhotos,
@@ -1729,6 +1764,7 @@ export default function DevisFactureForm({
     interventionEtage,
     interventionEspacesCommuns,
     interventionExterieur,
+    ordreDeService,
     clientPhone,
     clientSiret,
     clientType: (clientSiret.trim().length > 0 || isProClient) ? 'professionnel' : 'particulier',
@@ -1745,6 +1781,7 @@ export default function DevisFactureForm({
     iban,
     bic,
     lines,
+    materialLines,
     fraisAnnexes,
     chantierId: chantierId || undefined,
     etapes: lines.some(l => l.etapes?.length) ? lines.flatMap(l => l.etapes || []) : undefined,
@@ -2280,6 +2317,14 @@ export default function DevisFactureForm({
                     <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 6 }}>
                       Adresse du chantier si différente du siège social du client
                     </div>
+                    {isProClient && docType === 'facture' && (
+                      <div style={{ marginTop: 10 }}>
+                        <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>Ordre de service</label>
+                        <input type="text" value={ordreDeService} onChange={(e) => setOrdreDeService(e.target.value)}
+                          placeholder="N° ordre de service / bon de commande"
+                          className={normalFieldClass} />
+                      </div>
+                    )}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
@@ -2747,6 +2792,60 @@ export default function DevisFactureForm({
             </div>
 
             {/* Étapes moved inside prestation table, under description */}
+
+            {/* ─── Section: Matériaux ─── */}
+            <div className="v22-card">
+              <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="v22-card-title">{locale === 'pt' ? 'Materiais' : 'Matériaux'}</span>
+                <button
+                  onClick={addMaterialLine}
+                  className="v22-btn"
+                  style={{ border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)', fontSize: 12 }}
+                >
+                  + {locale === 'pt' ? 'Adicionar' : 'Ajouter'}
+                </button>
+              </div>
+              <div className="v22-card-body" style={{ padding: 0 }}>
+                {materialLines.length === 0 ? (
+                  <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--v22-text-muted)', textAlign: 'center' }}>
+                    {locale === 'pt' ? 'Nenhum material. Clique em "+ Adicionar".' : 'Aucun matériau. Cliquez sur "+ Ajouter" pour ajouter des fournitures.'}
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="v22-devis-table" style={{ minWidth: 540, tableLayout: 'fixed', width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '32%' }}>{locale === 'pt' ? 'Designação' : 'Désignation'}</th>
+                          <th style={{ width: '8%' }}>{locale === 'pt' ? 'Qtd' : 'Qté'}</th>
+                          <th style={{ width: '10%' }}>{locale === 'pt' ? 'Unidade' : 'Unité'}</th>
+                          <th style={{ width: '13%' }}>PU HT</th>
+                          {tvaEnabled && <th style={{ width: '8%' }}>{locale === 'pt' ? 'IVA %' : 'TVA %'}</th>}
+                          <th style={{ width: '13%' }}>Total HT</th>
+                          <th style={{ width: '5%' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materialLines.map((line) => (
+                          <tr key={line.id}>
+                            <td><input type="text" className="v22-input" placeholder={locale === 'pt' ? 'Ex: Cimento, areia...' : 'Ex : Ciment, sable...'} value={line.description} onChange={(e) => updateMaterialLine(line.id, 'description', e.target.value)} /></td>
+                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseFloat(e.target.value) || 0)} style={{ textAlign: 'center' }} /></td>
+                            <td><input type="text" className="v22-input" value={line.unit} onChange={(e) => updateMaterialLine(line.id, 'unit', e.target.value)} style={{ textAlign: 'center' }} /></td>
+                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseFloat(e.target.value) || 0)} style={{ textAlign: 'right' }} /></td>
+                            {tvaEnabled && (
+                              <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseFloat(e.target.value) || 0)} style={{ textAlign: 'center' }} /></td>
+                            )}
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{line.totalHT.toFixed(2)}</td>
+                            <td>
+                              <button onClick={() => removeMaterialLine(line.id)} className="v22-btn v22-btn-danger v22-btn-sm" style={{ width: '100%' }}>✕</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* ─── Section: Frais Annexes ─── */}
             <div className="v22-card">
