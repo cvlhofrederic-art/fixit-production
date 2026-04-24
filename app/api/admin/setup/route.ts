@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
         if (existing) {
           const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
             app_metadata: {
+              ...(existing.app_metadata || {}),
               role: 'super_admin',
             },
             user_metadata: {
@@ -90,12 +91,8 @@ export async function GET(request: NextRequest) {
             email: ADMIN_EMAIL,
             password: ADMIN_PASSWORD,
             email_confirm: true,
-            app_metadata: {
-              role: 'super_admin',
-            },
-            user_metadata: {
-              full_name: 'Super Admin Vitfix',
-            }
+            app_metadata: { role: 'super_admin' },
+            user_metadata: { full_name: 'Super Admin Vitfix' },
           })
           results.admin = {
             success: !error,

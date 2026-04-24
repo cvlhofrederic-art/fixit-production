@@ -17,7 +17,7 @@ export default function SyndicLoginPage() {
     const checkAuth = async () => {
       // Utiliser getUser() pour un check frais du token (évite les sessions stale)
       const { data: { user } } = await supabase.auth.getUser()
-      const role = user?.user_metadata?.role || ''
+      const role = user?.app_metadata?.role || ''
       if (isSyndicRole(role)) {
         window.location.href = '/syndic/dashboard'
       }
@@ -42,7 +42,7 @@ export default function SyndicLoginPage() {
         setLoading(false)
         return
       }
-      const role = data.user?.user_metadata?.role || ''
+      const role = data.user?.app_metadata?.role || ''
       if (!isSyndicRole(role)) {
         await logLoginAttempt(false, role, 'wrong_role')
         await supabase.auth.signOut()

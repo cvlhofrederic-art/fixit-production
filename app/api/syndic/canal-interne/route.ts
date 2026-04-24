@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { canalInterneSchema, validateBody } from '@/lib/validation'
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         cabinet_id: cabinetId,
         sender_id: user.id,
         // sender_role stores "nom|role" pour reconstruire l'identité
-        sender_role: `${body.auteur || user.user_metadata?.full_name || 'Équipe'}|${body.auteurRole || user.user_metadata?.role || ''}`,
+        sender_role: `${body.auteur || user.user_metadata?.full_name || 'Équipe'}|${body.auteurRole || getUserRole(user)}`,
         content: body.texte,
         message_type: 'canal_interne',
         artisan_user_id: null,

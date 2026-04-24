@@ -31,7 +31,7 @@ export default function LoginPage() {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
-        const role = session.user.user_metadata?.role
+        const role = session.user.app_metadata?.role
         if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
         else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
         else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
@@ -62,7 +62,7 @@ export default function LoginPage() {
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
-      const role = data.user?.user_metadata?.role
+      const role = data.user?.app_metadata?.role
       if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
       else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
       else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`

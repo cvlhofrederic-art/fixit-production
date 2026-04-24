@@ -315,9 +315,21 @@ export default function AdminDashboardPage() {
   const goToDashboard = async (role: string, url: string, id: string) => {
     setNavigating(id)
     setSubRoleModal(null)
-    await supabase.auth.updateUser({
-      data: { ...user.user_metadata, role, _admin_override: true, _original_role: 'super_admin' }
+    // Impersonation via endpoint server-side (gated par app_metadata.role)
+    const { data: { session } } = await supabase.auth.getSession()
+    const resp = await fetch('/api/admin/impersonate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({ role }),
     })
+    if (!resp.ok) {
+      setNavigating(null)
+      alert('Impersonation refusée')
+      return
+    }
     await supabase.auth.refreshSession()
     window.location.href = url
   }
