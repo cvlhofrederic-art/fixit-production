@@ -392,10 +392,35 @@ function DashboardPage() {
     const basePath = currentPath.includes('/artisan/dashboard') ? `/${locale}/artisan/dashboard` : `/${locale}/pro/dashboard`
     const url = page === 'home' ? basePath : `${basePath}?p=${page}`
     window.history.pushState({}, '', url)
-    // Update tab title with current section name
-    const sectionName = page === 'home' ? 'Accueil' : page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g, ' ')
+    // Update tab title with current section name (localized FR/PT)
+    const sectionKeyMap: Record<string, string> = {
+      home: 'proDash.modules.home',
+      calendar: 'proDash.modules.calendar',
+      planning: 'proDash.modules.planning',
+      motifs: 'proDash.modules.motifs',
+      horaires: 'proDash.modules.hours',
+      messages: 'proDash.modules.messaging',
+      comm_pro: 'proDash.modules.messaging',
+      clients: 'proDash.modules.clients',
+      devis: 'proDash.modules.quotes',
+      factures: 'proDash.modules.invoices',
+      rapports: 'proDash.modules.reports',
+      materiaux: 'proDash.modules.materials',
+      photos_chantier: 'proDash.modules.sitePhotos',
+      contrats: 'proDash.modules.contracts',
+      stats: 'proDash.modules.stats',
+      revenus: 'proDash.modules.revenue',
+      comptabilite: 'proDash.modules.accounting',
+      marches: 'proDash.modules.marches',
+      settings: 'proDash.myProfile',
+      modules: 'proDash.modules.modules',
+      help: 'proDash.modules.help',
+    }
+    const translationKey = sectionKeyMap[page]
+    const fallback = page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g, ' ')
+    const sectionName = translationKey ? t(translationKey, fallback) : fallback
     document.title = `Vitfix — ${sectionName}`
-  }, [setShowDevisForm, setShowFactureForm, locale])
+  }, [setShowDevisForm, setShowFactureForm, locale, t])
 
   // Keep ref in sync for notification callbacks
   navigateRef.current = navigateTo
