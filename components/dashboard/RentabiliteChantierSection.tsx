@@ -29,7 +29,7 @@ interface Chantier {
 }
 
 interface Pointage {
-  id: string; employe: string; poste: string; chantier: string
+  id: string; employe: string; poste: string; chantier: string; chantier_id?: string
   date: string; heureArrivee: string; heureDepart: string
   pauseMinutes: number; heuresTravaillees: number; notes: string
 }
@@ -42,11 +42,11 @@ interface Membre {
 interface Expense {
   id: string; label: string; amount: string | number
   category: string; date: string; notes: string
-  chantierId?: string; chantier?: string
+  chantier_id?: string; chantierId?: string; chantier?: string
 }
 
 interface Situation {
-  id: string; chantier: string; client: string; numero: number; date: string
+  id: string; chantier: string; chantier_id?: string; client: string; numero: number; date: string
   montantMarche: number
   travaux: { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }[]
   statut: string
@@ -211,16 +211,18 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         const { supabase } = await import('@/lib/supabase')
         const { data: sess } = await supabase.auth.getSession()
         const authH: Record<string, string> = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
-        const [chRes, mbRes, dpRes, ptRes] = await Promise.all([
+        const [chRes, mbRes, dpRes, ptRes, sitRes] = await Promise.all([
           fetch('/api/btp?table=chantiers', { headers: authH }),
           fetch('/api/btp?table=membres', { headers: authH }),
           fetch('/api/btp?table=depenses', { headers: authH }),
           fetch('/api/btp?table=pointages', { headers: authH }),
+          fetch('/api/btp?table=situations', { headers: authH }),
         ])
         const ch = chRes.ok ? await chRes.json() : null
         const mb = mbRes.ok ? await mbRes.json() : null
         const dp = dpRes.ok ? await dpRes.json() : null
         const pt = ptRes.ok ? await ptRes.json() : null
+        const sit = sitRes.ok ? await sitRes.json() : null
         if (ch?.chantiers?.length) setChantiers(ch.chantiers.map((c: Record<string, unknown>) => ({
           id: c.id, titre: c.titre || c.title || '', client: c.client || '',
           adresse: c.adresse || c.address || '', dateDebut: c.date_debut || c.dateDebut || '',
@@ -237,22 +239,35 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         else setMembres(load(`fixit_membres_${artisan.id}`))
         if (dp?.depenses?.length) setExpenses(dp.depenses.map((d: Record<string, unknown>) => ({
           id: d.id, label: d.label || '', amount: d.amount || 0, category: d.category || '',
-          date: d.date || '', notes: d.notes || '', chantierId: d.chantier_id || '',
+          date: d.date || '', notes: d.notes || '', chantier_id: d.chantier_id || '', chantierId: d.chantier_id || '',
         })))
         else setExpenses(load(`fixit_expenses_${artisan.id}`))
         if (pt?.pointages?.length) setPointages(pt.pointages.map((p: Record<string, unknown>) => ({
-          id: p.id, employe: p.employe || '', poste: p.poste || '', chantier: p.chantier || p.chantier_id || '',
+          id: p.id, employe: p.employe || '', poste: p.poste || '', chantier: p.chantier || '',
+          chantier_id: p.chantier_id || '',
           date: p.date || '', heureArrivee: p.heure_arrivee || '', heureDepart: p.heure_depart || '',
           pauseMinutes: p.pause_minutes || 0, heuresTravaillees: p.heures_travaillees || 0, notes: p.notes || '',
         })))
         else setPointages(load(`pointage_${artisan.id}`))
+        if (sit?.situations?.length) setSituations(sit.situations.map((s: Record<string, unknown>) => ({
+          id: s.id, chantier: s.chantier || '', chantier_id: s.chantier_id || '',
+          client: s.client || '', numero: s.numero || 0, date: s.date || '',
+          montantMarche: s.montant_marche || s.montantMarche || 0,
+          travaux: Array.isArray(s.travaux) ? s.travaux : (s.lignes ? (s.lignes as unknown[]).map((l: unknown) => {
+            const line = l as Record<string, unknown>
+            return { poste: line.poste || '', quantite: Number(line.quantite) || 0, unite: line.unite || '', prixUnit: Number(line.prix_unit || line.prixUnit) || 0, avancement: Number(line.avancement) || 0 }
+          }) : []),
+          statut: s.statut || '',
+        })))
+        else setSituations(load(`situations_${artisan.id}`))
       } catch {
         setChantiers(load(`fixit_chantiers_${artisan.id}`))
         setPointages(load(`pointage_${artisan.id}`))
         setMembres(load(`fixit_membres_${artisan.id}`))
         setExpenses(load(`fixit_expenses_${artisan.id}`))
+        setSituations(load(`situations_${artisan.id}`))
       }
-      setSituations(load(`situations_${artisan.id}`))
+      // TODO: fetch documents from Supabase `factures` table once BTP API supports it
       setDocuments(load(`fixit_documents_${artisan.id}`))
     }
     fetchData()
@@ -273,7 +288,10 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
       .filter(ch => ch.statut !== 'Annulé')
       .map(ch => {
         const titre = ch.titre.toLowerCase().trim()
-        const sitsCh = situations.filter(s => s.chantier.toLowerCase().trim() === titre)
+        const sitsCh = situations.filter(s =>
+          s.chantier_id === ch.id ||
+          s.chantier?.toLowerCase().trim() === titre
+        )
         const caFacture = sitsCh
           .filter(s => s.statut === 'validée' || s.statut === 'payée')
           .reduce((sum, s) => sum + s.travaux.reduce((t, p) => t + (p.quantite * p.prixUnit * p.avancement / 100), 0), 0)
@@ -285,7 +303,10 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         const caDevis = docsClient.reduce((sum, d) => sum + (d.totalHT || d.totalTTC || 0), 0)
         const caTotal = Math.max(caFacture, caDevis, parseFloat(ch.budget) || 0)
 
-        const pointCh = pointages.filter(p => p.chantier.toLowerCase().trim() === titre)
+        const pointCh = pointages.filter(p =>
+          p.chantier_id === ch.id ||
+          p.chantier?.toLowerCase().trim() === titre
+        )
         const heuresTotal = pointCh.reduce((sum, p) => sum + (p.heuresTravaillees || 0), 0)
         const membreMap = new Map(membres.map(m => [`${m.prenom} ${m.nom}`.toLowerCase(), m.typeCompte]))
         const coutMainOeuvre = pointCh.reduce((sum, p) => {
@@ -296,6 +317,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         const ouvriersUniques = new Set(pointCh.map(p => p.employe)).size
 
         const expCh = expenses.filter(e =>
+          e.chantier_id === ch.id ||
           e.chantierId === ch.id ||
           e.chantier?.toLowerCase().trim() === titre ||
           (e.notes && e.notes.toLowerCase().includes(titre))
