@@ -8,7 +8,7 @@ import { useBTPData } from '@/lib/hooks/use-btp-data'
 import { ChantierSelect } from './ChantierSelect'
 
 interface Retenue {
-  id: string; chantier: string; client: string; montantMarche: number; tauxRetenue: number
+  id: string; chantier: string; chantier_id?: string; client: string; montantMarche: number; tauxRetenue: number
   montantRetenu: number; dateFinTravaux: string; dateLiberation?: string
   statut: 'active' | 'mainlevée_demandée' | 'libérée'; caution: boolean
 }
