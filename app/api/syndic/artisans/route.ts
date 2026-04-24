@@ -212,13 +212,13 @@ export async function POST(request: NextRequest) {
   let accountCreated = false
 
   if (existingUser) {
-    // Compte existant — vérifier si c'est un artisan
-    const existingRole = existingUser.user_metadata?.role
+    // Compte existant — rôle lu depuis app_metadata (server-only)
+    const existingRole = existingUser.app_metadata?.role
     artisanUserId = existingUser.id
     isExistingAccount = true
 
     if (existingRole === 'artisan') {
-      // Artisan Vitfix existant — synchroniser avec le cabinet
+      // Artisan Vitfix existant — synchroniser avec le cabinet (user_metadata = champs non-privilégiés)
       await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
         user_metadata: {
           ...existingUser.user_metadata,
@@ -228,15 +228,15 @@ export async function POST(request: NextRequest) {
       })
     }
   } else if (action === 'create') {
-    // Créer un nouveau compte artisan
+    // Créer un nouveau compte artisan — rôle dans app_metadata
     const tempPassword = randomHex(16) + 'A1!'
     const { data: newAuth, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: tempPassword,
       email_confirm: true,
+      app_metadata: { role: 'artisan' },
       user_metadata: {
         full_name: `${prenom || ''} ${nom}`.trim(),
-        role: 'artisan',
         telephone,
         metier,
         syndic_cabinet_id: cabinetId,
@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
       metier: metier || 'Non spécifié',
       siret: siret || '',
       statut: 'actif',
-      vitfix_certifie: isExistingAccount && existingUser?.user_metadata?.role === 'artisan',
+      vitfix_certifie: isExistingAccount && existingUser?.app_metadata?.role === 'artisan',
       note: 0,
       nb_interventions: 0,
       rc_pro_valide: rcProValide,

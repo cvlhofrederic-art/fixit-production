@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { syndicMessageSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
     const isSyndic = isSyndicRole(user)
-    const isArtisan = user.user_metadata?.role === 'artisan'
+    const isArtisan = getUserRole(user) === 'artisan'
 
     if (!isSyndic && !isArtisan) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
     const isSyndic = isSyndicRole(user)
-    const isArtisan = user.user_metadata?.role === 'artisan'
+    const isArtisan = getUserRole(user) === 'artisan'
 
     if (!isSyndic && !isArtisan) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })

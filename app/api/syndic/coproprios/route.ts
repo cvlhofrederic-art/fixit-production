@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger, parsePagination } from '@/lib/logger'
 import { z } from 'zod'
@@ -226,7 +226,7 @@ export async function DELETE(request: NextRequest) {
     if (!user || !isSyndicRole(user)) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
-    const userRole = user.user_metadata?.role || ''
+    const userRole = getUserRole(user)
     if (userRole !== 'syndic' && userRole !== 'syndic_admin') {
       return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
     }

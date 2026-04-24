@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(bearerToken)
-    if (error || !user || user.user_metadata?.role !== 'syndic') {
+    if (error || !user || user.app_metadata?.role !== 'syndic') {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 

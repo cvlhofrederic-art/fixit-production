@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
-  if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+  if (!isSyndicRole(user) && user.app_metadata?.role !== 'super_admin') {
     return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
   }
   const ip = getClientIP(request)

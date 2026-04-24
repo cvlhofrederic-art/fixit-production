@@ -58,10 +58,14 @@ export function unauthorizedResponse() {
   })
 }
 
-// ── Récupère le rôle de l'utilisateur (app_metadata prioritaire, fallback user_metadata) ──
-// app_metadata ne peut être modifié que côté serveur (non forgeable côté client)
+// ── Récupère le rôle de l'utilisateur ────────────────────────────────────────
+// SÉCURITÉ : lit UNIQUEMENT app_metadata (server-only, non forgeable).
+// Le fallback vers user_metadata a été retiré car user_metadata est
+// client-writable via supabase.auth.updateUser() → vuln privilege escalation.
+// Les users existants ont été migrés via scripts/migrate-role-to-app-metadata.ts
+// Les nouveaux signups doivent appeler POST /api/auth/init-role après inscription.
 export function getUserRole(user: User): string {
-  return user?.app_metadata?.role || user?.user_metadata?.role || ''
+  return user?.app_metadata?.role || ''
 }
 
 // ── Vérifie qu'un utilisateur a un rôle syndic (ou super_admin) ───────────────

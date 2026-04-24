@@ -559,8 +559,8 @@ export default function SyndicDashboard() {
       await supabase.auth.refreshSession()
       // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies)
       const { data: { user: freshUser } } = await supabase.auth.getUser()
-      const userRole = freshUser?.user_metadata?.role || ''
-      const isAdminOverride = freshUser?.user_metadata?._admin_override === true
+      const userRole = freshUser?.app_metadata?.role || ''
+      const isAdminOverride = freshUser?.app_metadata?._admin_override === true
       const isSyndic = userRole === 'syndic' || userRole.startsWith('syndic_') || isAdminOverride
       if (!freshUser || !isSyndic) {
         window.location.href = '/syndic/login'
@@ -2259,7 +2259,7 @@ export default function SyndicDashboard() {
   const userName = user?.user_metadata?.full_name || (locale === 'pt' ? 'Gestor' : 'Gestionnaire')
   const initials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)
 
-  const userRole = user?.user_metadata?.role || 'syndic'
+  const userRole = user?.app_metadata?.role || 'syndic'
   const allowedPages = customAllowedPages || ROLE_PAGES[userRole] || ROLE_PAGES['syndic']
 
   const isModuleEnabled = (key: string): boolean => {
@@ -2478,23 +2478,8 @@ export default function SyndicDashboard() {
   return (
     <div id="syndic-dashboard" className="flex h-screen bg-[#F7F4EE] overflow-hidden">
 
-      {/* ── BOUTON RETOUR ADMIN ── */}
-      {isAdminOverride && (
-        <div className="fixed top-3 right-3 z-[9999]">
-          <button
-            onClick={async () => {
-              setAdminLoading(true)
-              await supabase.auth.updateUser({ data: { ...user?.user_metadata, role: 'super_admin', _admin_override: false } })
-              await supabase.auth.refreshSession()
-              window.location.href = '/admin/dashboard'
-            }}
-            disabled={adminLoading}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg transition disabled:opacity-60"
-          >
-            ⚡ {adminLoading ? '…' : t('syndicDash.sidebar.backAdmin')}
-          </button>
-        </div>
-      )}
+      {/* Bouton Retour Admin retiré : privilege escalation via user_metadata.
+          Le super_admin navigue directement sur /admin/dashboard. */}
 
       {/* ── SIDEBAR ── */}
       <Sidebar

@@ -279,7 +279,7 @@ function DashboardPage() {
   const loadDashboardData = async (user: User) => {
     if (!user) { router.push(`/${locale}/auth/login`); return }
 
-    const role = user.user_metadata?.role || 'artisan'
+    const role = user.app_metadata?.role || 'artisan'
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) {
       setOrgRole(role as OrgRole)
       try { sessionStorage.setItem('fixit_org_role', role) } catch { /* private browsing */ }
@@ -288,8 +288,8 @@ function DashboardPage() {
     // Store pro team role in localStorage for usePermissions hook
     if (role === 'pro_societe') {
       try {
-        const teamRole = user.user_metadata?.pro_team_role
-        const companyId = user.user_metadata?.company_id
+        const teamRole = user.app_metadata?.pro_team_role || user.user_metadata?.pro_team_role
+        const companyId = user.app_metadata?.company_id || user.user_metadata?.company_id
         if (teamRole) localStorage.setItem('fixit_pro_team_role', teamRole)
         else localStorage.removeItem('fixit_pro_team_role')
         if (companyId) localStorage.setItem('fixit_pro_company_id', companyId)
@@ -486,30 +486,9 @@ function DashboardPage() {
   return (
     <div id={isV5 ? 'artisan-dashboard-v5' : 'artisan-dashboard-v22'} className={isV5 ? 'v5-app' : 'h-screen flex flex-col overflow-hidden'}>
 
-      {/* ── BOUTON RETOUR ADMIN (mode override) ── */}
-      {showAdminBtn && (
-        <div className="fixed top-1 right-16 z-[9999]">
-          <button
-            onClick={async () => {
-              setAdminLoading(true)
-              try {
-                const { data: { user: u } } = await supabase.auth.getUser()
-                if (u?.user_metadata?._admin_override) {
-                  await supabase.auth.updateUser({ data: { ...u.user_metadata, role: 'super_admin', _admin_override: false } })
-                  await supabase.auth.refreshSession()
-                  window.location.href = `/${locale}/admin/dashboard`
-                }
-              } finally {
-                setAdminLoading(false)
-              }
-            }}
-            disabled={adminLoading}
-            className="v22-btn v22-btn-primary text-[10px] px-3 py-1"
-          >
-            ⚡ Retour Admin
-          </button>
-        </div>
-      )}
+      {/* ── BOUTON RETOUR ADMIN : retiré (vuln privilege escalation via user_metadata) ──
+          Le super_admin navigue directement sur /admin/dashboard. L'impersonation
+          doit passer par un endpoint server-side gated sur app_metadata. */}
 
       {/* ══════════ V5 SIDEBAR ═══════��══ */}
       {isV5 && orgRole === 'pro_societe' && (
