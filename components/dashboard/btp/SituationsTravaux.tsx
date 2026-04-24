@@ -5,6 +5,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { BarChart3 } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { ChantierSelect } from './ChantierSelect'
 
 interface Poste { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }
 interface Situation {
@@ -31,13 +32,13 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
     }
   }, [situations]) // eslint-disable-line react-hooks/exhaustive-deps
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ chantier: '', client: '', montantMarche: 0 })
+  const [form, setForm] = useState({ chantier_id: '', chantier: '', client: '', montantMarche: 0 })
   const [newPoste, setNewPoste] = useState<Poste>({ poste: '', quantite: 0, unite: 'u', prixUnit: 0, avancement: 0 })
 
   const createSit = async () => {
     const existing = situations.filter(s => s.chantier === form.chantier)
     const numero = existing.length > 0 ? Math.max(...existing.map(s => s.numero)) + 1 : 1
-    const created = await add({ ...form, numero, date: new Date().toISOString().split('T')[0], travaux: [], statut: 'brouillon' })
+    const created = await add({ ...form, chantier_id: form.chantier_id || undefined, numero, date: new Date().toISOString().split('T')[0], travaux: [], statut: 'brouillon' })
     if (created) { setSelected(created); setShowForm(false) }
   }
   const addPoste = async () => {
@@ -88,7 +89,12 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
           <div className={isV5 ? 'v5-fr' : undefined} style={{ marginBottom: '.75rem', ...(isV5 ? {} : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }) }}>
             <div className={isV5 ? 'v5-fg' : undefined}>
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.situations.chantier')}</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} />
+              <ChantierSelect
+                userId={userId}
+                orgRole={orgRole}
+                value={form.chantier_id}
+                onChange={(id, titre, client) => setForm({ ...form, chantier_id: id, chantier: titre, client })}
+              />
             </div>
             <div className={isV5 ? 'v5-fg' : undefined}>
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.situations.client')}</label>

@@ -5,6 +5,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { HardHat, FileText, BarChart3, Check, Minus, Search, FileEdit, Handshake, Loader, Brain, Lightbulb, CheckSquare } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { ChantierSelect } from './ChantierSelect'
 
 interface DCEResult {
   error?: string
@@ -41,15 +42,15 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   // ── State ──
   const [tab, setTab] = useState<'sous_traitants' | 'analyse_dce' | 'memoire' | 'checklist'>('sous_traitants')
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
+  const [form, setForm] = useState({ chantier_id: '', entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
   const [dceForm, setDceForm] = useState({ titre: '', country: 'FR' as 'FR' | 'PT', projectType: '', description: '', budget: '', deadline: '', lots: '' })
   const [dceLoading, setDceLoading] = useState(false)
   const [selectedAnalysis, setSelectedAnalysis] = useState<DCEAnalysis | null>(null)
 
   // ── Sous-traitants logic ──
   const addST = async () => {
-    await addDC4({ ...form, statut: 'en_attente', dc4Genere: false })
-    setShowForm(false); setForm({ entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
+    await addDC4({ ...form, chantier_id: form.chantier_id || undefined, statut: 'en_attente', dc4Genere: false })
+    setShowForm(false); setForm({ chantier_id: '', entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
   }
   const agreer = async (id: string) => { await updateDC4(id, { statut: 'agréé', dateAgrement: new Date().toISOString().split('T')[0] }) }
   const genererDC4 = (st: SousTraitant) => {
@@ -234,7 +235,6 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                   ['Email', 'email', 'email'],
                   [isFR ? 'Téléphone' : 'Telefone', 'telephone', 'tel'],
                   [isFR ? 'Adresse' : 'Morada', 'adresse', 'text'],
-                  [isFR ? 'Chantier' : 'Obra', 'chantier', 'text'],
                   ['Lot', 'lot', 'text'],
                 ].map(([label, key, type]) => (
                   <div key={key as string} className={isV5 ? 'v5-fg' : undefined}>
@@ -242,6 +242,15 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                     <input type={type as string} className={isV5 ? 'v5-fi' : 'v22-form-input'} value={(form as any)[key as string]} onChange={e => setForm({...form, [key as string]: e.target.value})} />
                   </div>
                 ))}
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Chantier' : 'Obra'}</label>
+                  <ChantierSelect
+                    userId={userId}
+                    orgRole={orgRole}
+                    value={form.chantier_id}
+                    onChange={(id, titre) => setForm({ ...form, chantier_id: id, chantier: titre })}
+                  />
+                </div>
                 <div className={isV5 ? 'v5-fg' : undefined}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Montant HT (€)' : 'Montante s/IVA (€)'}</label>
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} />
