@@ -3,19 +3,22 @@ import { vi } from 'vitest'
 export const mockArtisanUser = {
   id: '550e8400-e29b-41d4-a716-446655440000',
   email: 'artisan@test.com',
-  user_metadata: { role: 'artisan', full_name: 'Jean Artisan' },
+  app_metadata: { role: 'artisan' },
+  user_metadata: { full_name: 'Jean Artisan' },
 }
 
 export const mockClientUser = {
   id: '550e8400-e29b-41d4-a716-446655440002',
   email: 'client@test.com',
-  user_metadata: { role: 'client', full_name: 'Marie Client' },
+  app_metadata: { role: 'client' },
+  user_metadata: { full_name: 'Marie Client' },
 }
 
 export const mockSyndicUser = {
   id: '550e8400-e29b-41d4-a716-446655440001',
   email: 'syndic@test.com',
-  user_metadata: { role: 'syndic', full_name: 'Pierre Syndic' },
+  app_metadata: { role: 'syndic' },
+  user_metadata: { full_name: 'Pierre Syndic' },
 }
 
 export const mockNoUser = null

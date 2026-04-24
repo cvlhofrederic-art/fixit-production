@@ -362,6 +362,10 @@
     "metaleiro": {
       "title": "Metaleiro / Ferreiro",
       "slug": "metaleiro"
+    },
+    "ferronnier": {
+      "title": "Metaleiro / Ferreiro",
+      "slug": "metaleiro"
     }
   },
   "dashboard": {
@@ -929,6 +933,18 @@
       "visite_technique": {
         "label": "Visita Técnica",
         "desc": "Checklist terreno · Relatório PDF para o conselho"
+      },
+      "impayes": {
+        "label": "Dívidas",
+        "desc": "Acompanhamento e cobrança de dívidas"
+      },
+      "echeances": {
+        "label": "Prazos legais",
+        "desc": "Lembretes de prazos regulamentares"
+      },
+      "echéances": {
+        "label": "Prazos legais",
+        "desc": "Lembretes de prazos regulamentares"
       }
     },
     "roles": {
@@ -2378,7 +2394,8 @@
       "jeu": "Qui",
       "ven": "Sex",
       "sam": "Sáb",
-      "dim": "Dom"
+      "dim": "Dom",
+      "a": "a"
     },
     "messaging": {
       "subtitle": "Mensagens de clientes e Canal Pro"
@@ -3295,7 +3312,13 @@
         "soumis": "submetido",
         "gagne": "ganho",
         "perdu": "perdido"
-      }
+      },
+      "teams": "Equipas",
+      "sites": "Obras",
+      "guarantees": "Retenções de garantia",
+      "timeTracking": "Registo de ponto",
+      "subcontracting": "Subempreitada",
+      "tenders": "Concursos"
     },
     "conciergerie": {
       "proprietes": {
@@ -3566,7 +3589,13 @@
         "performancePlateforme": "Desempenho por plataforma",
         "aucuneDonnee": "Sem dados disponíveis",
         "ajoutezReservations": "Adicione reservas no Channel Manager para ver as suas estatísticas aqui"
-      }
+      },
+      "properties": "Propriedades",
+      "access": "Acessos e Chaves",
+      "pricing": "Tarifação",
+      "checkinout": "Check-in / Check-out",
+      "welcomeBook": "Livro de boas-vindas",
+      "cleaningSchedule": "Planeamento de limpeza"
     },
     "gestionnaire": {
       "immeubles": {
@@ -3694,7 +3723,8 @@
         "creerPremierContrat": "+ Criar um primeiro contrato",
         "telechargerPdf": "Transferir o PDF",
         "erreurPdf": "Erro ao gerar PDF"
-      }
+      },
+      "buildings": "Edifícios"
     },
     "common": {
       "ht": "s/ IVA",

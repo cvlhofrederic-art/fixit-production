@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       'LOGIN_SUCCESS',
       'auth.users',
       undefined,
-      { email: maskedEmail, role: data.user.user_metadata?.role || 'unknown' },
+      { email: maskedEmail, role: data.user.app_metadata?.role || 'unknown' },
     ).catch(() => {})
 
     return NextResponse.json({
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       user: {
         id: data.user.id,
         email: data.user.email,
-        role: data.user.user_metadata?.role,
+        role: data.user.app_metadata?.role,
       },
     })
   } catch (e) {

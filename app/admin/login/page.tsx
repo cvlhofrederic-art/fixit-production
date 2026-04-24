@@ -11,20 +11,10 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     const check = async () => {
-      await supabase.auth.refreshSession()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const meta = user.user_metadata
-      // Si le rôle a été changé par goToDashboard mais l'original est super_admin, restaurer
-      if (meta?._original_role === 'super_admin' && meta?.role !== 'super_admin') {
-        await supabase.auth.updateUser({
-          data: { ...meta, role: 'super_admin', _admin_override: false, _original_role: undefined }
-        })
-        await supabase.auth.refreshSession()
-        window.location.href = '/admin/dashboard'
-        return
-      }
-      if (meta?.role === 'super_admin') {
+      // SECURITE : seul app_metadata.role est fiable (non forgeable)
+      if (user.app_metadata?.role === 'super_admin') {
         window.location.href = '/admin/dashboard'
       }
     }
@@ -38,20 +28,13 @@ export default function AdminLoginPage() {
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
-      const meta = data.user?.user_metadata
-      const isSuperAdmin = meta?.role === 'super_admin' || meta?._original_role === 'super_admin'
-      if (!isSuperAdmin) {
+      // SECURITE : verification via app_metadata uniquement
+      const role = data.user?.app_metadata?.role
+      if (role !== 'super_admin') {
         await supabase.auth.signOut()
         setError('Ce compte n\'est pas un compte Super Admin.')
         setLoading(false)
         return
-      }
-      // Restaurer le rôle super_admin si nécessaire
-      if (meta?.role !== 'super_admin') {
-        await supabase.auth.updateUser({
-          data: { ...meta, role: 'super_admin', _admin_override: false, _original_role: undefined }
-        })
-        await supabase.auth.refreshSession()
       }
       window.location.href = '/admin/dashboard'
     } catch {
@@ -66,7 +49,7 @@ export default function AdminLoginPage() {
         <div className="text-center mb-8">
           <div className="text-3xl font-display font-extrabold mb-3"><span className="text-yellow">VIT</span><span className="text-white">FIX</span></div>
           <h1 className="text-2xl font-bold text-white">Super Admin</h1>
-          <p className="text-gray-500 text-sm mt-1">Accès Super Admin</p>
+          <p className="text-gray-500 text-sm mt-1">Panneau d'administration</p>
         </div>
         <form onSubmit={handleLogin} className="bg-gray-900 rounded-2xl p-6 border border-gray-800 space-y-4">
           {error && <div className="bg-red-900/40 border border-red-700 text-red-300 rounded-lg px-4 py-2 text-sm">{error}</div>}
@@ -96,7 +79,7 @@ export default function AdminLoginPage() {
             disabled={loading}
             className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-gray-900 font-bold py-2.5 rounded-lg transition text-sm"
           >
-            {loading ? 'Connexion…' : '🔐 Accéder au panneau Admin'}
+            {loading ? 'Connexion...' : 'Acceder au panneau Admin'}
           </button>
         </form>
       </div>

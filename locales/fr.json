@@ -362,6 +362,10 @@
     "ferronnier": {
       "title": "Métallier / Ferronnier",
       "slug": "metallerie"
+    },
+    "metaleiro": {
+      "title": "Métallier / Ferronnier",
+      "slug": "metallerie"
     }
   },
   "dashboard": {
@@ -937,6 +941,10 @@
       "visite_technique": {
         "label": "Visite Technique",
         "desc": "Checklist terrain · Rapport PDF pour le conseil syndical"
+      },
+      "échéances": {
+        "label": "Échéances légales",
+        "desc": "Rappels des échéances réglementaires"
       }
     },
     "roles": {
@@ -2937,7 +2945,8 @@
       "envoyerLeDossier": "Envoyer le dossier",
       "uploadAuMoinsUn": "Uploadez au moins un document pour pouvoir envoyer le dossier",
       "dossierConformiteSubject": "Dossier de conformité",
-      "dossierConformiteBody": "Veuillez trouver ci-dessous les documents de conformité de"
+      "dossierConformiteBody": "Veuillez trouver ci-dessous les documents de conformité de",
+      "autre": "Autre document"
     },
     "carnet": {
       "title": "Carnet de Visite",
@@ -4130,6 +4139,30 @@
       "signLegal": "Signature horodatée et archivée — Valeur légale",
       "saving": "Enregistrement...",
       "validateFinish": "Valider & Terminer"
+    },
+    "modules": {
+      "active": "actifs",
+      "ponctualite": "Score de ponctualité",
+      "ponctualiteDesc": "Affiche votre taux de réalisation au démarrage",
+      "revenus": "Dashboard revenus",
+      "revenusDesc": "Suivi mensuel du chiffre d'affaires et top services",
+      "devisRapide": "Devis rapide",
+      "devisRapideDesc": "Générez et envoyez un devis en 30 secondes",
+      "exportFec": "Export comptable (FEC)",
+      "exportFecDesc": "Export des écritures au format fiscal français",
+      "complianceWallet": "Wallet conformité",
+      "complianceWalletDesc": "Portefeuille de documents professionnels",
+      "proofOfWork": "Preuve de travail",
+      "proofOfWorkDesc": "Photos avant/après + signature client",
+      "gpsTracking": "Suivi GPS",
+      "gpsTrackingDesc": "Partagez votre position en temps réel",
+      "rapportPdf": "Rapport PDF de chantier",
+      "rapportPdfDesc": "Générez un rapport PDF justificatif",
+      "notifications": "Notifications syndic",
+      "notificationsDesc": "Recevez les notifications du syndic de copropriété"
+    },
+    "compliance": {
+      "other": "Autre document"
     }
   },
   "register": {

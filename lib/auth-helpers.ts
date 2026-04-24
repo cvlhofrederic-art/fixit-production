@@ -77,10 +77,23 @@ export function isSyndicRole(user: User): boolean {
   return role === 'syndic' || role.startsWith('syndic_') || role === 'super_admin'
 }
 
+// ── Liste des emails admin autorisés (defense-in-depth) ─────────────────────
+// Même si app_metadata.role === 'super_admin', l'email doit être dans la liste.
+// Cela empêche un admin Supabase compromis d'élever un compte arbitraire.
+const SUPER_ADMIN_EMAILS = [
+  process.env.ADMIN_EMAIL,
+  process.env.ADMIN_EMAIL_2,
+].filter(Boolean).map(e => (e as string).toLowerCase())
+
 // ── Vérifie si l'utilisateur est super_admin ─────────────────────────────────
-// SÉCURITÉ : seul app_metadata.role est consulté (non forgeable côté client)
+// SÉCURITÉ : double vérification app_metadata.role + email allowlist
 export function isSuperAdmin(user: User): boolean {
-  return getUserRole(user) === 'super_admin'
+  if (getUserRole(user) !== 'super_admin') return false
+  // Defense-in-depth : email doit être dans la liste autorisée
+  if (SUPER_ADMIN_EMAILS.length > 0 && user.email) {
+    return SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase())
+  }
+  return false
 }
 
 // ── Cache cabinet_id en mémoire (TTL 5min) pour éviter les requêtes DB répétées ──

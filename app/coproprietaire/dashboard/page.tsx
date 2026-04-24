@@ -1003,7 +1003,7 @@ export default function CoproprietaireDashboard() {
 
   const userName = `${profile.prenom} ${profile.nom}`
   const initials = `${profile.prenom[0]}${profile.nom[0]}`
-  const isAdminOverride = user?.user_metadata?._admin_override === true
+  const isAdminOverride = user?.app_metadata?.role === 'super_admin'
 
   // ── Actions ──
   const handleLogout = async () => {
