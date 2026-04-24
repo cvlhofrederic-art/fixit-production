@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicSendEmailSchema } from '@/lib/validation'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Seuls syndic, syndic_admin, syndic_gestionnaire peuvent envoyer des emails
-  const userRole = user.user_metadata?.role || ''
+  const userRole = getUserRole(user)
   if (!['syndic', 'syndic_admin', 'syndic_gestionnaire', 'syndic_secretaire'].includes(userRole)) {
     return NextResponse.json({ error: 'Droits insuffisants' }, { status: 403 })
   }

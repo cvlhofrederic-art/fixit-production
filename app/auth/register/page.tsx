@@ -204,6 +204,17 @@ export default function RegisterPage() {
 
       trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: 'client' })
 
+      // Init app_metadata.role='client' (server-only, non forgeable)
+      if (authData.session?.access_token) {
+        try {
+          await fetch('/api/auth/init-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+            body: JSON.stringify({ role: 'client' }),
+          })
+        } catch { /* non-bloquant */ }
+      }
+
       // Auto-login after registration if email confirmation is disabled
       if (authData.session) {
         window.location.href = '/client/dashboard'

@@ -96,11 +96,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
     }
 
-    // Créer le compte utilisateur Supabase
+    // Créer le compte utilisateur Supabase — rôle dans app_metadata (non forgeable)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: invite.email,
       password,
-      email_confirm: true, // Confirmer directement sans email
+      email_confirm: true,
       app_metadata: {
         role: invite.role,
         cabinet_id: invite.cabinet_id,
@@ -126,9 +126,11 @@ export async function POST(request: NextRequest) {
         }
 
         if (existingUser) {
-          // Mettre à jour les metadata
+          // Rôle et cabinet_id dans app_metadata (server-only)
+          const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
           await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
             app_metadata: {
+              ...(existingFull?.user?.app_metadata || {}),
               role: invite.role,
               cabinet_id: invite.cabinet_id,
             },

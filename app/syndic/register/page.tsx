@@ -56,12 +56,11 @@ export default function SyndicRegisterPage() {
     setLoading(true)
     setError('')
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
           data: {
-            role: 'syndic',
             full_name: `${form.prenom} ${form.nom}`,
             phone: form.telephone,
             type_structure: form.typeStructure,
@@ -75,6 +74,18 @@ export default function SyndicRegisterPage() {
         }
       })
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
+
+      // Init app_metadata.role='syndic' (server-only)
+      if (signUpData.session?.access_token) {
+        try {
+          await fetch('/api/auth/init-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${signUpData.session.access_token}` },
+            body: JSON.stringify({ role: 'syndic' }),
+          })
+        } catch { /* non-bloquant */ }
+      }
+
       setSuccess(true)
     } catch {
       setError('Une erreur est survenue.')

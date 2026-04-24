@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     // Count roles
     const roleCounts: Record<string, number> = {}
     for (const u of allUsers) {
-      const role = u.app_metadata?.role || u.user_metadata?.role || 'unknown'
+      const role = u.app_metadata?.role || 'unknown'
       roleCounts[role] = (roleCounts[role] || 0) + 1
     }
 
