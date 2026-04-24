@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicMissionReportSchema } from '@/lib/validation'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { sanitizeSvg } from '@/lib/sanitize'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
@@ -34,13 +35,16 @@ export async function POST(request: NextRequest) {
       description,
       photos_before,  // array base64 strings
       photos_after,   // array base64 strings
-      signature_svg,  // SVG string
+      signature_svg: rawSignatureSvg,  // SVG string (sanitised below)
       gps_lat,
       gps_lng,
       started_at,
       completed_at,
       booking_id,
     } = validation.data
+
+    // XSS : SVG rendu via dangerouslySetInnerHTML côté syndic — sanitisation obligatoire
+    const signature_svg = rawSignatureSvg ? sanitizeSvg(rawSignatureSvg) : undefined
 
     // ── Ownership check : l'appelant doit être l'artisan ou un membre du syndic ──
     const isOwnerArtisan = user.id === artisan_id

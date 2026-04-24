@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { devisSignSchema, validateBody } from '@/lib/validation'
+import { sanitizeSvg } from '@/lib/sanitize'
 import { logger } from '@/lib/logger'
 
 /**
@@ -24,7 +25,11 @@ export async function POST(request: NextRequest) {
     if (!devisValidation.success) {
       return NextResponse.json({ error: 'Donn\u00e9es invalides', details: devisValidation.error }, { status: 400 })
     }
-    const { booking_id, message_id, signer_name, signature_svg, signature_hash } = devisValidation.data
+    const { booking_id, message_id, signer_name, signature_hash } = devisValidation.data
+    // XSS : le SVG est rendu via dangerouslySetInnerHTML côté artisan — sanitiser impérativement
+    const signature_svg = devisValidation.data.signature_svg
+      ? sanitizeSvg(devisValidation.data.signature_svg)
+      : undefined
 
     // Vérifier que l'utilisateur est le client du booking
     const { data: booking } = await supabaseAdmin
