@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { callGroqWithRetry } from '@/lib/groq'
-import { getAuthUser, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
 import type { EmailClassification } from '../classify/route'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
@@ -179,11 +179,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
       }
       // Vérifier que l'utilisateur est bien le syndic ou membre de son cabinet
-      if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+      if (!isSyndicRole(user) && getUserRole(user) !== 'super_admin') {
         return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
       }
       const userCabinetId = await resolveCabinetId(user, supabaseAdmin)
-      if (userCabinetId !== syndic_id && user.user_metadata?.role !== 'super_admin') {
+      if (userCabinetId !== syndic_id && getUserRole(user) !== 'super_admin') {
         return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
       }
       syndicIds = [syndic_id]
@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
-  if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+  if (!isSyndicRole(user) && getUserRole(user) !== 'super_admin') {
     return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
   }
 
@@ -317,7 +317,7 @@ export async function GET(request: NextRequest) {
 
   // Vérifier que l'utilisateur a accès à ce syndic
   const userCabinetId = await resolveCabinetId(user, supabaseAdmin)
-  if (userCabinetId !== syndic_id && user.user_metadata?.role !== 'super_admin') {
+  if (userCabinetId !== syndic_id && getUserRole(user) !== 'super_admin') {
     return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
   }
 

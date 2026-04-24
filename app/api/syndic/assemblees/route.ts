@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     if (!user || !isSyndicRole(user)) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
-    const userRole = user.user_metadata?.role || ''
+    const userRole = getUserRole(user)
     if (!['syndic', 'syndic_admin', 'syndic_gestionnaire', 'syndic_secretaire', 'syndic_juriste'].includes(userRole)) {
       return NextResponse.json({ error: 'Droits insuffisants' }, { status: 403 })
     }
@@ -519,7 +519,7 @@ export async function DELETE(request: NextRequest) {
     if (!user || !isSyndicRole(user)) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
-    const userRole = user.user_metadata?.role || ''
+    const userRole = getUserRole(user)
     if (!['syndic', 'syndic_admin'].includes(userRole)) {
       return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
     }

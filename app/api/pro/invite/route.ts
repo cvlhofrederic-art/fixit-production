@@ -102,16 +102,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
     }
 
-    // Create Supabase auth user
+    // Create Supabase auth user — rôle dans app_metadata (server-only)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: invite.email,
       password,
       email_confirm: true,
-      user_metadata: {
-        full_name: invite.full_name,
+      app_metadata: {
         role: 'pro_societe',
         pro_team_role: invite.role,
         company_id: invite.company_id,
+      },
+      user_metadata: {
+        full_name: invite.full_name,
       },
     })
 
@@ -130,9 +132,10 @@ export async function POST(request: NextRequest) {
         }
 
         if (existingUser) {
+          const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
           await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            user_metadata: {
-              ...existingUser.user_metadata,
+            app_metadata: {
+              ...(existingFull?.user?.app_metadata || {}),
               role: 'pro_societe',
               pro_team_role: invite.role,
               company_id: invite.company_id,

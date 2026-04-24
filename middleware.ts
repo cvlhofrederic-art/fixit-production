@@ -197,8 +197,8 @@ export async function middleware(request: NextRequest) {
   const isSyndicRole = (role: string | undefined) =>
     role === 'syndic' || (typeof role === 'string' && role.startsWith('syndic_'))
 
-  // Priorité app_metadata (non forgeable) puis fallback user_metadata
-  const role = (user?.app_metadata?.role || user?.user_metadata?.role) as string | undefined
+  // SÉCURITÉ : uniquement app_metadata (server-only, non forgeable)
+  const role = user?.app_metadata?.role as string | undefined
 
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
   const localeRedirect = (path: string) => {

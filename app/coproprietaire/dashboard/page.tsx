@@ -1255,23 +1255,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
   return (
     <div id="copro-dashboard" className="flex h-screen bg-[#F7F4EE] overflow-hidden">
 
-      {/* ── BOUTON RETOUR ADMIN ── */}
-      {isAdminOverride && (
-        <div className="fixed top-3 right-3 z-[9999]">
-          <button
-            onClick={async () => {
-              setAdminLoading(true)
-              await supabase.auth.updateUser({ data: { ...user?.user_metadata, role: 'super_admin', _admin_override: false } })
-              await supabase.auth.refreshSession()
-              window.location.href = '/admin/dashboard'
-            }}
-            disabled={adminLoading}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-[#0D1B2E] font-bold text-xs px-4 py-2 rounded-full shadow-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {adminLoading ? '...' : t.retourAdmin}
-          </button>
-        </div>
-      )}
+      {/* Bouton Retour Admin retiré : privilege escalation via user_metadata. */}
 
       {/* ── MOBILE BACKDROP ── */}
       {sidebarOpen && (

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     // Filter by role
     if (roleFilter) {
       users = users.filter(u => {
-        const role = u.app_metadata?.role || u.user_metadata?.role || ''
+        const role = u.app_metadata?.role || ''
         return role === roleFilter || role.startsWith(`${roleFilter}_`)
       })
     }
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         id: u.id,
         email: u.email || '',
         full_name: u.user_metadata?.full_name || '',
-        role: u.app_metadata?.role || u.user_metadata?.role || 'unknown',
+        role: u.app_metadata?.role || 'unknown',
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at || null,
         subscription_plan: sub?.subscription_plan || 'starter',

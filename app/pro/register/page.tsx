@@ -347,6 +347,15 @@ function FormulaireArtisan() {
       const { data: authData, error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.password, options: { data: userMetadata } })
       if (authError) { setError(authError.message); setLoading(false); return }
       if (authData.user) {
+        // Init app_metadata.role (server-only) via endpoint dédié
+        try {
+          const token = (await supabase.auth.getSession()).data.session?.access_token ?? ''
+          await fetch('/api/auth/init-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ role: 'artisan' }),
+          })
+        } catch { /* non-bloquant */ }
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
@@ -844,6 +853,17 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         // Redirect to login page — the email is already registered
         window.location.href = `/${locale}/auth/login?email_exists=1`
         return
+      }
+
+      // Init app_metadata.role (server-only, non forgeable) via endpoint dédié
+      if (authData.session?.access_token) {
+        try {
+          await fetch('/api/auth/init-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+            body: JSON.stringify({ role: org.role }),
+          })
+        } catch { /* non-bloquant */ }
       }
 
       // Upload documents using the session token from signUp

@@ -56,7 +56,7 @@ export default function Header() {
     router.push(`/${locale}/`)
   }
 
-  const userRole = user?.user_metadata?.role
+  const userRole = user?.app_metadata?.role
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
   const userInitials = userName ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : '?'
   const dashboardUrl = userRole === 'artisan'
