@@ -20,7 +20,7 @@ interface DCEResult {
 }
 interface SousTraitant {
   id: string; entreprise: string; siret: string; responsable: string; email: string
-  telephone: string; adresse: string; chantier: string; lot: string
+  telephone: string; adresse: string; chantier: string; chantier_id?: string; lot: string
   montantMarche: number; tauxTVA: number; statut: 'en_attente' | 'agréé' | 'refusé'; dateAgrement?: string; dc4Genere: boolean
 }
 interface DCEAnalysis {

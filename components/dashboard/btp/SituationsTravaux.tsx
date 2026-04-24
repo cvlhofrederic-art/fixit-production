@@ -9,7 +9,7 @@ import { ChantierSelect } from './ChantierSelect'
 
 interface Poste { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }
 interface Situation {
-  id: string; chantier: string; client: string; numero: number; date: string
+  id: string; chantier: string; chantier_id?: string; client: string; numero: number; date: string
   montantMarche: number; travaux: Poste[]; statut: 'brouillon' | 'envoyée' | 'validée' | 'payée'
 }
 
