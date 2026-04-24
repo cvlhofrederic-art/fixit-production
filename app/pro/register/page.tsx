@@ -394,9 +394,13 @@ function FormulaireArtisan() {
           // ── Parrainage : lier le filleul au parrain (silencieux, non-bloquant) ──
           if (referralCode && profileData?.id && authData.user?.id) {
             try {
+              const accessToken = (await supabase.auth.getSession()).data.session?.access_token ?? ''
               const refRes = await fetch('/api/referral/signup', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessToken}`,
+                },
                 body: JSON.stringify({ code: referralCode, artisan_id: profileData.id, user_id: authData.user.id }),
               })
               const refData = await refRes.json()

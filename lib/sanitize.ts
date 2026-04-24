@@ -44,6 +44,89 @@ export function escapeHTML(str: string): string {
     .replace(/'/g, '&#039;')
 }
 
+// ── Sanitisation SVG (signatures manuscrites, etc.) ─────────────────────────
+// Pure-regex, compatible Cloudflare Workers (pas de jsdom/DOMPurify).
+// Allowlist stricte : uniquement les tags et attributs nécessaires au rendu
+// de SVG générés côté client (signatures, proof-of-work). Tout le reste est strippé.
+const ALLOWED_SVG_TAGS = new Set([
+  'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+  'text', 'tspan', 'title', 'desc', 'defs', 'clippath', 'lineargradient',
+  'radialgradient', 'stop', 'use',
+])
+
+const ALLOWED_SVG_ATTRS = new Set([
+  'xmlns', 'xmlns:xlink', 'viewbox', 'width', 'height', 'preserveaspectratio',
+  'd', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry',
+  'points', 'transform', 'fill', 'fill-opacity', 'fill-rule', 'stroke',
+  'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity',
+  'stroke-dasharray', 'stroke-dashoffset', 'stroke-miterlimit', 'opacity',
+  'vector-effect', 'clip-path', 'mask', 'style', 'id', 'class', 'offset',
+  'stop-color', 'stop-opacity', 'gradientunits', 'gradienttransform',
+  'font-family', 'font-size', 'text-anchor', 'dy', 'dx',
+])
+
+/**
+ * Sanitise un SVG utilisateur en gardant uniquement les tags/attributs
+ * de rendu. Supprime <script>, <foreignObject>, handlers onXxx et href javascript:.
+ * Rejette les inputs trop volumineux pour prévenir les attaques ReDoS.
+ */
+export function sanitizeSvg(raw: string): string {
+  if (!raw) return ''
+  if (raw.length > 50000) return ''
+
+  // Supprimer les déclarations / commentaires / CDATA qui peuvent masquer du code
+  let svg = raw
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
+    .replace(/<\?xml[\s\S]*?\?>/gi, '')
+
+  // Supprimer entièrement les tags dangereux (contenu inclus)
+  const forbiddenBlocks = ['script', 'foreignObject', 'iframe', 'object', 'embed', 'style', 'animate', 'animateTransform', 'animateMotion', 'set']
+  for (const tag of forbiddenBlocks) {
+    const re = new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'gi')
+    svg = svg.replace(re, '')
+    // Self-closing variant
+    const reSelf = new RegExp(`<${tag}\\b[^>]*/?>`, 'gi')
+    svg = svg.replace(reSelf, '')
+  }
+
+  // Parser chaque tag restant et filtrer tag + attributs
+  return svg.replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g, (match, rawTag, rawAttrs) => {
+    const tag = rawTag.toLowerCase()
+    if (!ALLOWED_SVG_TAGS.has(tag)) return ''
+    const closing = match.startsWith('</')
+    if (closing) return `</${tag}>`
+
+    // Filtrer les attributs : allowlist + interdire href/xlink:href non-safe et onXxx
+    const cleanAttrs: string[] = []
+    const attrRe = /([a-zA-Z:][a-zA-Z0-9:_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
+    let m: RegExpExecArray | null
+    while ((m = attrRe.exec(rawAttrs)) !== null) {
+      const name = m[1].toLowerCase()
+      const value = m[2] ?? m[3] ?? m[4] ?? ''
+      // Jamais de handlers d'événements
+      if (name.startsWith('on')) continue
+      // href/xlink:href : rejeter javascript:, data: (sauf image/png,jpeg,gif), vbscript:
+      if (name === 'href' || name === 'xlink:href') {
+        const v = value.trim().toLowerCase()
+        if (v.startsWith('javascript:') || v.startsWith('vbscript:') || v.startsWith('data:')) continue
+      }
+      // style : strip expression() et url(javascript:)
+      if (name === 'style') {
+        const v = value.toLowerCase()
+        if (v.includes('expression(') || v.includes('javascript:') || v.includes('behavior:')) continue
+      }
+      if (!ALLOWED_SVG_ATTRS.has(name)) continue
+      const safeValue = value.replace(/"/g, '&quot;')
+      cleanAttrs.push(`${name}="${safeValue}"`)
+    }
+
+    const selfClosing = rawAttrs.trim().endsWith('/')
+    return `<${tag}${cleanAttrs.length ? ' ' + cleanAttrs.join(' ') : ''}${selfClosing ? ' /' : ''}>`
+  })
+}
+
 /**
  * Sanitize user input for safe storage/display.
  * Strips all HTML tags and limits length.

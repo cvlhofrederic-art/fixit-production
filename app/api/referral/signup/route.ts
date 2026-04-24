@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getParrainByCode, checkAutoParrainage, computeRiskScore, generateReferralCode } from '@/lib/referral'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { getAuthUser } from '@/lib/auth-helpers'
 import { validateBody, referralSignupSchema } from '@/lib/validation'
 import { sendReferralWelcomeFilleul, sendReferralNotifParrain } from '@/lib/email-referral'
 
@@ -16,11 +17,29 @@ export async function POST(request: NextRequest) {
   const allowed = await checkRateLimit(`referral_signup_${ip}`, 5, 60_000)
   if (!allowed) return rateLimitResponse()
 
+  // Authentification : empêche qu'un tiers injecte n'importe quel artisan_id
+  // comme filleul d'un parrain choisi (fraude de commission / pollution du graphe).
+  const authUser = await getAuthUser(request)
+  if (!authUser) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+
   try {
     const body = await request.json()
     const v = validateBody(referralSignupSchema, body)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { code, artisan_id, user_id } = v.data
+
+    // Ownership : l'artisan cible doit appartenir à l'utilisateur authentifié
+    if (user_id !== authUser.id) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
+    const { data: targetArtisan } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('id, user_id')
+      .eq('id', artisan_id)
+      .maybeSingle()
+    if (!targetArtisan || targetArtisan.user_id !== authUser.id) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
 
     // 1. Vérifier le code
     const parrain = await getParrainByCode(code)
