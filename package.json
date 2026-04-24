@@ -59,7 +59,7 @@
     "jspdf-autotable": "^5.0.7",
     "langfuse": "^3.38.6",
     "lucide-react": "^0.563.0",
-    "next": "^16.2.2",
+    "next": "^16.2.4",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.59.1",

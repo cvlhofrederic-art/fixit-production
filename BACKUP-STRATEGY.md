@@ -1,6 +1,6 @@
 # Stratégie de Sauvegarde & Reprise d'Activité — Vitfix.io
 
-> Dernière mise à jour : 5 avril 2026
+> Dernière mise à jour : 24 avril 2026
 
 ---
 
@@ -13,7 +13,7 @@ Ce document couvre la sauvegarde et la restauration de tous les composants de Vi
 | Base de données PostgreSQL | Snapshots automatiques Supabase | Quotidienne | 7 jours (Pro) |
 | Code source | Repository GitHub + tags Release Please | Continue (chaque push) | Illimitée |
 | Fichiers Storage | Inclus dans les snapshots Supabase | Quotidienne | 7 jours |
-| Variables d'environnement | Vercel Dashboard + GitHub Secrets | Manuelle | Tant que le projet existe |
+| Variables d'environnement | Cloudflare Workers Secrets + GitHub Secrets | Manuelle | Tant que le projet existe |
 | Données Stripe | Conservées par Stripe | Continue | Selon plan Stripe |
 | Traces Sentry / Langfuse | Conservées par chaque service | Continue | 30-90 jours selon plan |
 
@@ -54,13 +54,13 @@ Stocker le fichier `.dump` dans un bucket S3 chiffré ou en local. Ces exports m
 Le code vit dans un repository GitHub privé. L'historique Git complet sert de sauvegarde du code.
 
 **Branches :**
-- `main` : branche de production, déployée automatiquement sur Vercel
+- `main` : branche de production, déployée automatiquement sur Cloudflare Workers
 - Branches de PR : créées pour chaque fonctionnalité ou correctif
 
 **Tags et releases :**
 Release Please (`release.yml`) crée automatiquement des tags versionnés et des GitHub Releases à chaque merge dans `main`. Le `CHANGELOG.md` est mis à jour en parallèle. Ces tags permettent de retrouver l'état exact du code à chaque version publiée.
 
-**Vercel conserve l'historique de tous les déploiements.** Chaque deploy est identifié par un hash de commit et peut être promu en production via le Dashboard (Deployments > "..." > Promote to Production).
+**Cloudflare conserve l'historique des déploiements.** Chaque deploy est identifié par un hash de commit et peut être rollback via le Dashboard Cloudflare (Workers & Pages > Deployments).
 
 ---
 
@@ -86,13 +86,13 @@ Les secrets sont répartis sur trois emplacements :
 
 | Emplacement | Contenu | Accès |
 |-------------|---------|-------|
-| Vercel Environment Variables | Toutes les variables de production (Supabase, Groq, Stripe, Sentry, Upstash, Google OAuth, DocuSeal, CRON_SECRET, ENCRYPTION_KEY) | Administrateurs Vercel |
+| Cloudflare Workers Secrets | Toutes les variables de production (Supabase, Groq, Stripe, Sentry, Upstash, Google OAuth, DocuSeal, CRON_SECRET, ENCRYPTION_KEY) | Administrateurs Cloudflare (`wrangler secret put`) |
 | GitHub Actions Secrets | Variables CI : SONAR_TOKEN, SENTRY_AUTH_TOKEN, LANGFUSE keys, GISKARD_API_KEY, clés Supabase publiques | Administrateurs du repo |
 | `.env.local` (local uniquement) | Copie locale pour le développement, jamais commité | Développeur |
 
 Le fichier `.env.example` à la racine du projet liste toutes les variables requises sans leurs valeurs. Il sert de référence pour reconstituer la configuration en cas de perte.
 
-Il n'existe pas de sauvegarde automatique des variables Vercel. Maintenir un export chiffré (1Password, Bitwarden, ou fichier GPG) des secrets de production, mis à jour à chaque rotation de clé.
+Il n'existe pas de sauvegarde automatique des secrets Cloudflare Workers. Maintenir un export chiffré (1Password, Bitwarden, ou fichier GPG) des secrets de production, mis à jour à chaque rotation de clé. Ne jamais stocker de fichiers .env avec des clés réelles sur disque local.
 
 ---
 
@@ -123,7 +123,7 @@ Aucune donnée persistante chez ces providers. Seules les clés API comptent (vo
 1. Accéder au Dashboard Supabase > Database > Backups
 2. Sélectionner le snapshot le plus récent avant l'incident (ou utiliser le PITR si activé)
 3. Cliquer "Restore" (Supabase crée une nouvelle instance)
-4. Si l'URL ou les clés de la nouvelle instance changent, mettre à jour `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` et `SUPABASE_SERVICE_ROLE_KEY` dans Vercel
+4. Si l'URL ou les clés de la nouvelle instance changent, mettre à jour via `wrangler secret put SUPABASE_SERVICE_ROLE_KEY` et les vars publiques dans `wrangler.toml`
 
 Alternative avec pg_dump :
 
@@ -137,22 +137,22 @@ pg_restore --dbname="postgresql://postgres:[PASSWORD]@db.[NEW_PROJECT].supabase.
 Si le code en production est corrompu ou si les variables d'environnement ont changé :
 
 ```bash
-# Option A : redeploy depuis Vercel Dashboard
-# Deployments > dernier deploy fonctionnel > Promote to Production
+# Option A : rollback depuis Cloudflare Dashboard
+# Workers & Pages > Deployments > dernier deploy fonctionnel > Rollback
 
 # Option B : forcer un redeploy via CLI
-vercel --prod --yes
+wrangler deploy
 ```
 
 ### Étape 3 : Vérifier la santé
 
 ```bash
 # Health check
-curl -s https://fixit-production.vercel.app/api/health | jq .
+curl -s https://vitfix.io/api/health | jq .
 
 # Pages principales
-curl -s -o /dev/null -w "%{http_code}" https://fixit-production.vercel.app/fr/
-curl -s -o /dev/null -w "%{http_code}" https://fixit-production.vercel.app/pt/
+curl -s -o /dev/null -w "%{http_code}" https://vitfix.io/fr/
+curl -s -o /dev/null -w "%{http_code}" https://vitfix.io/pt/
 ```
 
 Vérifier que le health check retourne `database: healthy` et `environment: healthy`.
@@ -160,7 +160,7 @@ Vérifier que le health check retourne `database: healthy` et `environment: heal
 ### Étape 4 : Resynchroniser les données externes
 
 - Vérifier que les webhooks Stripe arrivent (Stripe Dashboard > Webhooks > événements récents)
-- Vérifier que les cron jobs tournent (Vercel Dashboard > Crons)
+- Vérifier que les cron jobs tournent (Cloudflare Dashboard > Workers > Triggers)
 - Lancer manuellement les syncs de données si nécessaire (DECP, SITADEL, mairies, Base.gov PT)
 
 ---
@@ -173,7 +173,7 @@ Vérifier que le health check retourne `database: healthy` et `environment: heal
 2. Restaurer depuis le snapshot quotidien le plus récent (Dashboard > Backups > Restore)
 3. Si le PITR est activé, restaurer au moment précis avant la corruption
 4. Vérifier l'intégrité des données (comptes utilisateurs, devis, paiements)
-5. Mettre à jour les env vars Vercel si l'instance Supabase a changé, puis redéployer
+5. Mettre à jour les secrets Cloudflare Workers si l'instance Supabase a changé, puis redéployer (`wrangler deploy`)
 
 **Temps estimé :** 1 à 2 heures.
 
@@ -187,21 +187,21 @@ Si une migration ou une requête SQL a supprimé des données par erreur :
 
 **Temps estimé :** 30 minutes à 2 heures selon le volume.
 
-### Panne Vercel
+### Panne Cloudflare
 
-Vitfix tourne en mono-provider sur Vercel. Aucun failover automatique n'est configuré.
+Vitfix tourne sur Cloudflare Workers. Aucun failover automatique n'est configuré.
 
-1. Surveiller https://www.vercel-status.com
-2. Si la panne dure plus de 2 heures, envisager un déploiement temporaire (Cloudflare Pages, Netlify) en connectant le même repo GitHub
-3. Les données ne sont pas affectées (Supabase est indépendant de Vercel)
+1. Surveiller https://www.cloudflarestatus.com
+2. Si la panne dure plus de 2 heures, envisager un déploiement temporaire (Vercel, Netlify) en connectant le même repo GitHub
+3. Les données ne sont pas affectées (Supabase est indépendant de Cloudflare)
 
-**Temps estimé :** variable, dépend de Vercel.
+**Temps estimé :** variable, dépend de Cloudflare.
 
 ### Panne Supabase
 
 1. Surveiller https://status.supabase.com
 2. L'application affichera `database: unhealthy` sur `/api/health`
-3. Les pages statiques (SEO, blog) restent accessibles via le CDN Vercel
+3. Les pages statiques (SEO, blog) restent accessibles via le CDN Cloudflare
 4. Attendre la résolution ou contacter le support Supabase si la panne dépasse 15 minutes
 
 **Temps estimé :** variable, dépend de Supabase.
@@ -210,8 +210,8 @@ Vitfix tourne en mono-provider sur Vercel. Aucun failover automatique n'est conf
 
 1. Révoquer immédiatement les clés concernées sur chaque dashboard (Supabase, Stripe, Groq, Google Cloud, etc.)
 2. Régénérer de nouvelles clés
-3. Mettre à jour les env vars dans Vercel et GitHub Secrets
-4. Redéployer (`vercel --prod --yes`)
+3. Mettre à jour les secrets via `wrangler secret put` et GitHub Secrets
+4. Redéployer (`wrangler deploy`)
 5. Lancer un scan TruffleHog (`npm run scan:secrets`) pour vérifier qu'aucun secret n'est dans le code
 6. Vérifier les logs d'accès Supabase (Dashboard > Logs > Auth)
 7. Si des données personnelles sont concernées : notifier la CNIL sous 72h (RGPD Art. 33), notifier les utilisateurs (Art. 34)
@@ -246,7 +246,7 @@ Trimestrielle. Planifier un test au début de chaque trimestre.
 ### Procédure de test
 
 1. Restaurer le dernier snapshot Supabase sur un projet de test (Dashboard > Backups > Restore to new project)
-2. Créer un déploiement preview Vercel pointant vers cette instance de test
+2. Créer un déploiement preview Cloudflare pointant vers cette instance de test
 3. Vérifier les fonctionnalités critiques :
    - Connexion utilisateur (auth Supabase)
    - Création d'un devis via Fixy AI

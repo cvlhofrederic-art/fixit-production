@@ -361,13 +361,13 @@ Quand l'artisan demande une analyse "du X au Y" ou "sur le mois de Z" :
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting — 20 req/min
-    const ip = getClientIP(request)
-    if (!(await checkRateLimit(ip, 20, 60_000))) return rateLimitResponse()
-
-    // Auth
+    // Auth first, then rate limit per user (LLM coûteux)
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const ip = getClientIP(request)
+    if (!(await checkRateLimit(`comptable_ai_${user.id}`, 10, 60_000))) return rateLimitResponse()
+    if (!(await checkRateLimit(`comptable_ai_ip_${ip}`, 15, 60_000))) return rateLimitResponse()
 
     const rawBody = await request.json()
     const v = validateBody(comptableAiRequestSchema, rawBody)

@@ -5019,7 +5019,10 @@
       "subProcessorResend": "Resend (envoi d'emails transactionnels, États-Unis)",
       "subProcessorUpstash": "Upstash (limitation de débit et cache, États-Unis)",
       "subProcessorLangfuse": "Langfuse (suivi qualité IA, Allemagne)",
-      "subProcessorDocuseal": "Docuseal (signature électronique de documents, États-Unis)"
+      "subProcessorDocuseal": "Docuseal (signature électronique de documents, États-Unis)",
+      "subProcessorGroq": "Groq (infrastructure d'inférence IA pour les agents conversationnels, États-Unis)",
+      "subProcessorTavily": "Tavily (recherche web pour l'agent matériaux IA, États-Unis)",
+      "subProcessorOpenrouter": "OpenRouter (fournisseur LLM de secours pour les agents IA, États-Unis)"
     },
     "rights": {
       "title": "Vos droits",
