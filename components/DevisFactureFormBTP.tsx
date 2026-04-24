@@ -330,6 +330,7 @@ export default function DevisFactureFormBTP({
   const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
   const [interventionEspacesCommuns, setInterventionEspacesCommuns] = useState(initialData?.interventionEspacesCommuns || '')
   const [interventionExterieur, setInterventionExterieur] = useState(initialData?.interventionExterieur || '')
+  const [ordreDeService, setOrdreDeService] = useState(initialData?.ordreDeService || '')
 
   // Document
   const [docDate, setDocDate] = useState(initialData?.docDate || today)
@@ -345,6 +346,10 @@ export default function DevisFactureFormBTP({
   )
   // Lignes matériaux (section séparée)
   const [materialLines, setMaterialLines] = useState<ProductLine[]>(
+    [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+  )
+  // Lignes frais annexes (déplacements, etc.)
+  const [fraisLines, setFraisLines] = useState<ProductLine[]>(
     [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
 
@@ -504,7 +509,7 @@ export default function DevisFactureFormBTP({
   }, [])
 
   const totaux = useMemo(() => {
-    const allLines = [...lines, ...materialLines]
+    const allLines = [...lines, ...materialLines, ...fraisLines]
     const subTotalBrut = allLines.reduce((s, l) => s + (l.qty || 0) * (l.priceHT || 0), 0)
     const remise = 0 // pas de remise globale dans la maquette V1
     const totalHT = subTotalBrut - remise
@@ -525,7 +530,7 @@ export default function DevisFactureFormBTP({
     const totalTTC = totalHT + totalTva
 
     return { subTotalBrut, remise, totalHT, tvaEntries, totalTva, totalTTC }
-  }, [lines, materialLines, tvaEnabled])
+  }, [lines, materialLines, fraisLines, tvaEnabled])
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -536,11 +541,11 @@ export default function DevisFactureFormBTP({
       assurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
       mediateur: mediatorName.trim().length > 0 && mediatorUrl.trim().length > 0,
       client: clientName.trim().length > 0,
-      prestations: [...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
+      prestations: [...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
-  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines])
+  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines, fraisLines])
 
   /* ──────── Handlers tableau prestations ──────── */
 
@@ -589,6 +594,29 @@ export default function DevisFactureFormBTP({
 
   const updateMaterialLine = (id: number, patch: Partial<ProductLine>) => {
     setMaterialLines(materialLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
+  }
+
+  /* ──────── Handlers frais annexes ──────── */
+
+  const addFraisLine = () => {
+    const nextId = Math.max(0, ...fraisLines.map((l) => l.id)) + 1
+    setFraisLines([...fraisLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+  }
+
+  const removeFraisLine = (id: number) => {
+    if (fraisLines.length === 1) {
+      toast.error('Au moins une ligne est requise')
+      return
+    }
+    setFraisLines(prev => {
+      const idx = prev.findIndex((l) => l.id === id)
+      if (idx < 0) return prev
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
+
+  const updateFraisLine = (id: number, patch: Partial<ProductLine>) => {
+    setFraisLines(fraisLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
   }
 
   /* ──────── Import devis fournisseur (PDF → lignes matériaux) ──────── */
@@ -835,9 +863,11 @@ export default function DevisFactureFormBTP({
       interventionEtage,
       interventionEspacesCommuns,
       interventionExterieur,
+      ordreDeService,
       // Lignes
       lines,
       materialLines,
+      fraisLines,
       // Acomptes
       acomptesEnabled,
       acomptes,
@@ -857,7 +887,7 @@ export default function DevisFactureFormBTP({
     insuranceType, insuranceName, insuranceNumber, insuranceCoverage, mediatorName, mediatorUrl,
     clientName, clientEmail, clientPhone, clientSiret, clientAddress,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
-    lines, materialLines, acomptesEnabled, acomptes,
+    lines, materialLines, fraisLines, acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte,
     notes,
   ])
@@ -887,7 +917,7 @@ export default function DevisFactureFormBTP({
   const saveAndSend = () => {
     if (!artisan?.id) return
     if (!clientName.trim()) { toast.error('Renseignez le nom du client'); return }
-    if (![...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
+    if (![...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
       toast.error('Ajoutez au moins une prestation ou un matériau chiffré'); return
     }
     setSaving(true)
@@ -1081,7 +1111,8 @@ export default function DevisFactureFormBTP({
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
       const validLabor = lines.filter(l => (l.description || '').trim())
       const validMaterials = materialLines.filter(l => (l.description || '').trim())
-      const validLines = [...validLabor, ...validMaterials]
+      const validFrais = fraisLines.filter(l => (l.description || '').trim())
+      const validLines = [...validLabor, ...validMaterials, ...validFrais]
       const totalNet = validLines.reduce((s, l) => s + l.totalHT, 0)
       const currencyFormat = (n: number) => {
         const formatted = n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -1116,6 +1147,7 @@ export default function DevisFactureFormBTP({
         lines: validLines.length > 0 ? validLines : lines,
         laborLines: validLabor,
         materialLines: validMaterials,
+        fraisLines: validFrais,
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
         acomptesEnabled: acomptesEnabled || false,
@@ -1589,6 +1621,12 @@ export default function DevisFactureFormBTP({
               <div className="dv-fg"><label>Espaces communs</label><input type="text" placeholder="Ex : Hall, cage d'escalier" value={interventionEspacesCommuns} onChange={(e) => setInterventionEspacesCommuns(e.target.value)} /></div>
               <div className="dv-fg"><label>Extérieur</label><input type="text" placeholder="Ex : Parking, jardin" value={interventionExterieur} onChange={(e) => setInterventionExterieur(e.target.value)} /></div>
             </div>
+            {clientType === 'professionnel' && docType === 'facture' && (
+              <div className="dv-fg" style={{ marginTop: '.5rem' }}>
+                <label>Ordre de service</label>
+                <input type="text" placeholder="N° ordre de service / bon de commande" value={ordreDeService} onChange={(e) => setOrdreDeService(e.target.value)} />
+              </div>
+            )}
           </div>
 
           {/* 6. INFORMATIONS DOCUMENT */}
@@ -1862,6 +1900,80 @@ export default function DevisFactureFormBTP({
                 />
                 {supplierScanning ? '⏳ Analyse en cours…' : '📄 Importer devis fournisseur'}
               </label>
+            </div>
+          </div>
+
+          {/* 7c. FRAIS ANNEXES */}
+          <div className="dv-section">
+            <div className="dv-section-t">FRAIS ANNEXES</div>
+            <table className="dv-presta-table">
+              <colgroup>
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '4%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
+                  <th style={{ textAlign: 'center' }}>QTÉ</th>
+                  <th style={{ textAlign: 'center' }}>UNITÉ</th>
+                  <th style={{ textAlign: 'center' }}>PRIX HT</th>
+                  <th style={{ textAlign: 'center' }}>TVA %</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {fraisLines.map((l) => {
+                  const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  return (
+                    <tr key={l.id}>
+                      <td>
+                        <input type="text" placeholder="Ex : Frais de déplacement, location nacelle..." value={l.description || ''}
+                          onChange={(e) => updateFraisLine(l.id, { description: e.target.value })} />
+                      </td>
+                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateFraisLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
+                      <td>
+                        <select value={l.unit} onChange={(e) => updateFraisLine(l.id, { unit: e.target.value })}>
+                          {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                        </select>
+                      </td>
+                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td>
+                        <select value={l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                        </select>
+                      </td>
+                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
+                        onChange={(e) => {
+                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const q = l.qty || 1
+                          updateFraisLine(l.id, { priceHT: v / q })
+                        }}
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
+                        onChange={(e) => {
+                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const ht = v / (1 + (l.tvaRate || 0) / 100)
+                          const q = l.qty || 1
+                          updateFraisLine(l.id, { priceHT: ht / q })
+                        }}
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeFraisLine(l.id)}>✕</button></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
+              <button className="dv-add-line" type="button" onClick={addFraisLine}>+ Ajouter un frais</button>
             </div>
           </div>
 

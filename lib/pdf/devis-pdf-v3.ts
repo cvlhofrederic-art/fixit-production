@@ -115,6 +115,7 @@ export interface PdfV3Input {
   // (Main d'oeuvre / Matériaux) instead of a single "lines" block.
   laborLines?: ProductLine[]
   materialLines?: ProductLine[]
+  fraisLines?: ProductLine[]
   subtotalHT: number
   totalTTC: number
 
@@ -182,7 +183,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, laborLines, materialLines, subtotalHT, totalTTC,
+    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
     signatureData, attachedRapport, selectedPhotos,
@@ -654,16 +655,31 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Dual table mode: render Main d'oeuvre + Matériaux separately when both arrays are provided and non-empty
   const hasLabor = !!laborLines && laborLines.some(l => l.description.trim())
   const hasMaterials = !!materialLines && materialLines.some(l => l.description.trim())
-  const dualMode = hasLabor && hasMaterials
+  const hasFrais = !!fraisLines && fraisLines.some(l => l.description.trim())
+  const dualMode = hasLabor || hasMaterials || hasFrais
 
   if (dualMode) {
     const laborLabel = locale === 'pt' ? 'Mão de obra' : "Main d'œuvre"
     const materialLabel = locale === 'pt' ? 'Materiais' : 'Matériaux'
-    drawSectionLabel(laborLabel)
-    renderTable(buildTableBody(laborLines!), y)
-    y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
-    drawSectionLabel(materialLabel)
-    renderTable(buildTableBody(materialLines!), y)
+    const fraisLabel = locale === 'pt' ? 'Despesas acessórias' : 'Frais annexes'
+    if (hasLabor) {
+      drawSectionLabel(laborLabel)
+      renderTable(buildTableBody(laborLines!), y)
+      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
+    }
+    if (hasMaterials) {
+      drawSectionLabel(materialLabel)
+      renderTable(buildTableBody(materialLines!), y)
+      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
+    }
+    if (hasFrais) {
+      drawSectionLabel(fraisLabel)
+      renderTable(buildTableBody(fraisLines!), y)
+      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
+    }
+    if (!hasLabor && !hasMaterials && !hasFrais) {
+      renderTable(buildTableBody(lines), y)
+    }
   } else {
     renderTable(buildTableBody(lines), y)
   }
