@@ -40,15 +40,46 @@ export async function POST(request: NextRequest) {
       },
     )
 
-    // Vérifier le nombre d'échecs récents pour cette IP (lockout soft)
-    // Si > 5 échecs en 15 minutes, signaler
+    // Lockout progressif avec backoff exponentiel
+    // Palier 1 : 5 échecs en 1min → bloquer 1min
+    // Palier 2 : 8 échecs en 5min → bloquer 5min
+    // Palier 3 : 12 échecs en 15min → bloquer 15min
+    // Palier 4 : 20 échecs en 1h → bloquer 1h
     if (!success) {
-      const lockoutCheck = await checkRateLimit(`login_failed_${ip}`, 5, 15 * 60_000)
-      if (!lockoutCheck) {
+      const tier4 = await checkRateLimit(`login_block_1h_${ip}`, 20, 60 * 60_000)
+      if (!tier4) {
+        return NextResponse.json({
+          logged: true,
+          warning: 'account_locked',
+          message: 'Trop de tentatives. Réessayez dans 1 heure.',
+          retry_after: 3600,
+        }, { status: 429 })
+      }
+      const tier3 = await checkRateLimit(`login_block_15m_${ip}`, 12, 15 * 60_000)
+      if (!tier3) {
         return NextResponse.json({
           logged: true,
           warning: 'too_many_failures',
-          message: 'Trop de tentatives échouées. Veuillez patienter avant de réessayer.',
+          message: 'Trop de tentatives. Réessayez dans 15 minutes.',
+          retry_after: 900,
+        }, { status: 429 })
+      }
+      const tier2 = await checkRateLimit(`login_block_5m_${ip}`, 8, 5 * 60_000)
+      if (!tier2) {
+        return NextResponse.json({
+          logged: true,
+          warning: 'too_many_failures',
+          message: 'Trop de tentatives. Réessayez dans 5 minutes.',
+          retry_after: 300,
+        }, { status: 429 })
+      }
+      const tier1 = await checkRateLimit(`login_block_1m_${ip}`, 5, 60_000)
+      if (!tier1) {
+        return NextResponse.json({
+          logged: true,
+          warning: 'too_many_failures',
+          message: 'Trop de tentatives. Réessayez dans 1 minute.',
+          retry_after: 60,
         }, { status: 429 })
       }
     }

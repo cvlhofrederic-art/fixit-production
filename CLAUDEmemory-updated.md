@@ -45,9 +45,8 @@ Somos uma **plataforma digital de ligação no setor da construção** que conec
 |---|---|
 | Produção PT | https://vitfix.io/pt/ |
 | Produção FR | https://vitfix.io/fr/ |
-| Vercel (provisório) | https://fixit-production.vercel.app/ |
 
-> Em todo o conteúdo criado, usar sempre o URL definitivo **https://vitfix.io/pt/** nos links internos e chamadas para ação — nunca o URL do Vercel.
+> Em todo o conteúdo criado, usar sempre **https://vitfix.io/pt/** nos links internos e chamadas para ação.
 > **NOTA:** O domínio é `vitfix.io` — nunca `vitfix.pt`.
 
 ### Rotas Next.js implementadas — Portugal (App Router)
@@ -559,20 +558,16 @@ H2: Perguntas Frequentes sobre preços
 
 **IMPORTANTE:** Antes de criar qualquer conteúdo, verifica o que já existe online — não só na pasta local.
 
-### Site atual (Vercel provisório)
-URL base: https://fixit-production.vercel.app/
+### Site de produção
+URL base: https://vitfix.io/pt/
 
 ```
 Antes de cada sessão de criação de conteúdo, faz isto:
-1. Acede a https://fixit-production.vercel.app/ com o Claude in Chrome
+1. Acede a https://vitfix.io/pt/ com o Claude in Chrome
 2. Mapeia todas as páginas e artigos já publicados
 3. Regista em /reports/conteudo-existente.md com: URL, título, palavra-chave
 4. Nunca criar conteúdo que já exista online, mesmo que não esteja na pasta local
 ```
-
-### Quando o domínio definitivo estiver ativo
-Substituir por: https://vitfix.io/pt/
-Atualizar este ficheiro com a lista de URLs definitivos.
 
 ### Ficheiro de registo — atualizar manualmente
 Criar e manter o ficheiro `/reports/conteudo-existente.md` com:
@@ -685,7 +680,7 @@ Copia e cola estas instruções diretamente no Cowork:
 Lê o CLAUDE.md.
 
 PASSO 1 — Auditoria do site Vitfix.io
-Acede a https://fixit-production.vercel.app/ com o Claude in Chrome.
+Acede a https://vitfix.io/pt/ com o Claude in Chrome.
 Mapeia todas as páginas publicadas (URLs, títulos, conteúdo visível).
 Guarda a lista em /reports/conteudo-existente.md
 
@@ -798,7 +793,7 @@ Guarda em /keywords/competitor-content-gaps.md
 *Última atualização: 18 março 2026*
 *Mercado: Portugal 🇵🇹*
 *Plataforma: Vitfix.io — https://vitfix.io/pt/ (domínio: vitfix.io, NUNCA vitfix.pt)*
-*URL provisório: https://fixit-production.vercel.app/*
+*URL produção: https://vitfix.io/pt/*
 *Para o mercado francês, consultar CLAUDE-FR.md*
 *Rotas PT implementadas: /pt/servicos/, /pt/blog/, /pt/cidade/, /pt/urgencia/*
 *GEO: llms.txt + robots.ts com crawlers IA autorizados*

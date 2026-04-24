@@ -53,6 +53,9 @@ export default async function ConfidentialitePage() {
               <li>{t('privacy.protection.subProcessorUpstash')}</li>
               <li>{t('privacy.protection.subProcessorLangfuse')}</li>
               <li>{t('privacy.protection.subProcessorDocuseal')}</li>
+              <li>{t('privacy.protection.subProcessorGroq')}</li>
+              <li>{t('privacy.protection.subProcessorTavily')}</li>
+              <li>{t('privacy.protection.subProcessorOpenrouter')}</li>
             </ul>
           </section>
 

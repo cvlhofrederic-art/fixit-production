@@ -5022,7 +5022,10 @@
       "subProcessorResend": "Resend (envio de emails transacionais, Estados Unidos)",
       "subProcessorUpstash": "Upstash (limitação de pedidos e cache, Estados Unidos)",
       "subProcessorLangfuse": "Langfuse (monitorização de qualidade IA, Alemanha)",
-      "subProcessorDocuseal": "Docuseal (assinatura eletrónica de documentos, Estados Unidos)"
+      "subProcessorDocuseal": "Docuseal (assinatura eletrónica de documentos, Estados Unidos)",
+      "subProcessorGroq": "Groq (infraestrutura de inferência IA para os agentes conversacionais, Estados Unidos)",
+      "subProcessorTavily": "Tavily (pesquisa web para o agente de materiais IA, Estados Unidos)",
+      "subProcessorOpenrouter": "OpenRouter (fornecedor LLM de reserva para os agentes IA, Estados Unidos)"
     },
     "rights": {
       "title": "Os seus direitos",

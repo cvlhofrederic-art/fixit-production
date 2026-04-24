@@ -2,8 +2,9 @@
 
 ## Projet
 **Vitfix.io** — Plateforme mise en relation artisans/clients (B2C + B2B).
-Stack : Next.js 16.2.2, TypeScript, Tailwind CSS, Supabase, Vercel.
-Production : https://vitfix.io | Provisoire : https://fixit-production.vercel.app
+Stack : Next.js 16.2.2, TypeScript, Tailwind CSS, Supabase, Cloudflare Workers.
+Production : https://vitfix.io
+Secrets : `wrangler secret put <KEY>` (jamais de .env en clair sur disque)
 
 ## Marchés
 - **FR** (`fr`) : Marseille/PACA, 20 services x 19 villes — `lib/fr-seo-pages-data.ts`
