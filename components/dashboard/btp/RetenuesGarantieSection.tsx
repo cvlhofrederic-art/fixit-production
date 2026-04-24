@@ -5,6 +5,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { Lightbulb } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { ChantierSelect } from './ChantierSelect'
 
 interface Retenue {
   id: string; chantier: string; client: string; montantMarche: number; tauxRetenue: number
@@ -22,11 +23,11 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
 
   const { items: retenues, loading, add, update } = useBTPData<Retenue>({ table: 'retenues', artisanId: userId, userId })
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
+  const [form, setForm] = useState({ chantier_id: '', chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
 
   const addRetenue = async () => {
-    await add({ ...form, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
-    setShowForm(false); setForm({ chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
+    await add({ ...form, chantier_id: form.chantier_id || undefined, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
+    setShowForm(false); setForm({ chantier_id: '', chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
   }
   const changeStatut = async (id: string, statut: Retenue['statut']) => {
     await update(id, { statut, dateLiberation: statut === 'libérée' ? new Date().toISOString().split('T')[0] : undefined })
@@ -108,7 +109,12 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           <div className={isV5 ? 'v5-fr' : undefined} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             <div className={isV5 ? 'v5-fg' : undefined}>
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.retenues.chantier')}</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} />
+              <ChantierSelect
+                userId={userId}
+                orgRole={orgRole}
+                value={form.chantier_id}
+                onChange={(id, titre, client) => setForm({ ...form, chantier_id: id, chantier: titre, client })}
+              />
             </div>
             <div className={isV5 ? 'v5-fg' : undefined}>
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.retenues.client')}</label>

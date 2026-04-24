@@ -139,6 +139,7 @@ function mapToSupabase(table: ShortName, item: any): any {
       }
     case 'situations':
       return {
+        chantier_id: item.chantier_id || null,
         chantier: item.chantier || '',
         client: item.client || '',
         numero: item.numero || 1,
@@ -149,6 +150,7 @@ function mapToSupabase(table: ShortName, item: any): any {
       }
     case 'retenues':
       return {
+        chantier_id: item.chantier_id || null,
         chantier: item.chantier || '',
         client: item.client || '',
         montant_marche: item.montantMarche ?? item.montant_marche ?? 0,
@@ -161,6 +163,7 @@ function mapToSupabase(table: ShortName, item: any): any {
       }
     case 'dc4':
       return {
+        chantier_id: item.chantier_id || null,
         entreprise: item.entreprise || '',
         siret: item.siret || '',
         responsable: item.responsable || '',
@@ -282,6 +285,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
     case 'situations':
       return {
         ...item,
+        chantier_id: item.chantier_id || '',
         chantier: item.chantier,
         client: item.client || '',
         numero: item.numero,
@@ -293,6 +297,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
     case 'retenues':
       return {
         ...item,
+        chantier_id: item.chantier_id || '',
         chantier: item.chantier,
         client: item.client || '',
         montantMarche: item.montant_marche || 0,
@@ -306,6 +311,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
     case 'dc4':
       return {
         ...item,
+        chantier_id: item.chantier_id || '',
         entreprise: item.entreprise,
         siret: item.siret || '',
         responsable: item.responsable || '',
