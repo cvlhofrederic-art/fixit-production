@@ -2459,7 +2459,7 @@ export default function SyndicDashboard() {
   const totalBudget = immeubles.reduce((a, i) => a + i.budgetAnnuel, 0)
   const totalDepenses = immeubles.reduce((a, i) => a + i.depensesAnnee, 0)
 
-  const isAdminOverride = user?.user_metadata?._admin_override === true
+  const isAdminOverride = user?.app_metadata?.role === 'super_admin'
 
   // ── Page-level loading: wait for auth + initial data before rendering ──
   if (!user || !dataLoaded) {

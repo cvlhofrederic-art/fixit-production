@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
   const { email, nom, prenom, telephone, metier, siret, action } = validation.data
 
   // 1. Chercher si l'artisan a déjà un compte Vitfix (d'abord par profiles_artisan, puis paginé)
-  let existingUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null
+  let existingUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> } | null = null
 
   // Stratégie rapide : chercher par email dans profiles_artisan
   const { data: existingProfile } = await supabaseAdmin

@@ -298,13 +298,14 @@ function DashboardPage() {
     }
 
     const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
-    if (user.user_metadata?._admin_override) setShowAdminBtn(true)
+    if (user.app_metadata?.role === 'super_admin') setShowAdminBtn(true)
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
-    if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
+    const isSuperAdmin = user.app_metadata?.role === 'super_admin'
+    if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
-      seedDemoLocalStorage(user.id, !!user.user_metadata?._admin_override)
+      seedDemoLocalStorage(user.id, isSuperAdmin)
       // Charger les devis/factures du seed démo dans le state (bugfix : sans ça, UI affiche "Aucun devis")
       try {
         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${user.id}`) || '[]')
@@ -320,7 +321,7 @@ function DashboardPage() {
 
     // Super admin en mode impersonation : si le profil artisan DB n'a pas de legal_form,
     // forcer SARL pour le compte démo BTP (cohérent avec société multi-salariés)
-    if (user.user_metadata?._admin_override && !(artisanData as { legal_form?: string }).legal_form) {
+    if (user.app_metadata?.role === 'super_admin' && !(artisanData as { legal_form?: string }).legal_form) {
       (artisanData as { legal_form?: string }).legal_form = 'SARL'
     }
     setArtisan(artisanData)
@@ -331,7 +332,7 @@ function DashboardPage() {
     const aid = artisanData.id
 
     // Seed demo localStorage data for super admin demo account (no-op for other accounts)
-    seedDemoLocalStorage(aid, !!user.user_metadata?._admin_override)
+    seedDemoLocalStorage(aid, isSuperAdmin)
 
     // Load localStorage data first (instant) — unblocks UI immediately
     try { setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')) } catch { setAbsences([]) }

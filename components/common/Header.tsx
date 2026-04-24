@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher'
+import type { User } from '@supabase/supabase-js'
 
 const SIMULATEUR_LABEL: Record<string, string> = {
   fr: '🧮 Simulateur de devis',
@@ -18,20 +19,11 @@ const SIMULATEUR_HREF: Record<string, string> = {
   en: '/recherche',
 }
 
-interface UserProfile {
-  id: string
-  email?: string
-  user_metadata?: {
-    role?: string
-    full_name?: string
-  }
-}
-
 export default function Header() {
   const router = useRouter()
   const { t } = useTranslation()
   const locale = useLocale()
-  const [user, setUser] = useState<UserProfile | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 

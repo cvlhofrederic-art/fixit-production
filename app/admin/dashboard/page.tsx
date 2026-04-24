@@ -180,18 +180,9 @@ export default function AdminDashboardPage() {
       await supabase.auth.refreshSession()
       const { data: { user: u } } = await supabase.auth.getUser()
       if (!u) { window.location.href = '/admin/login'; return }
-      const meta = u.user_metadata
-      const isAdmin = meta?.role === 'super_admin' || meta?._original_role === 'super_admin'
-      if (!isAdmin) { window.location.href = '/admin/login'; return }
-      if (meta?.role !== 'super_admin') {
-        await supabase.auth.updateUser({
-          data: { ...meta, role: 'super_admin', _admin_override: false, _original_role: undefined }
-        })
-        const { data: { user: refreshed } } = await supabase.auth.getUser()
-        setUser(refreshed)
-      } else {
-        setUser(u)
-      }
+      // SECURITE : seul app_metadata.role est fiable (non forgeable)
+      if (u.app_metadata?.role !== 'super_admin') { window.location.href = '/admin/login'; return }
+      setUser(u)
       setLoading(false)
     }
     check()

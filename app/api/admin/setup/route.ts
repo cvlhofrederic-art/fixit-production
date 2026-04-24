@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Vérification admin via email (non forgeable, contrairement à user_metadata) ──
-  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL].filter(Boolean) as string[]
+  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL, process.env.ADMIN_EMAIL_2].filter(Boolean).map(e => (e as string).toLowerCase())
   if (!user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
     return NextResponse.json({ error: 'Accès réservé aux super_admin' }, { status: 403 })
   }
@@ -53,59 +53,59 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── ÉTAPE 2 : Créer le compte super_admin ────────────────────────────────────
+  // ── ÉTAPE 2 : Configurer les comptes super_admin (multi-admin) ───────────────
   if (step === 'admin' || step === 'all') {
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
+    const adminConfigs = [
+      { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD },
+      { email: process.env.ADMIN_EMAIL_2, password: process.env.ADMIN_PASSWORD_2 },
+    ].filter(c => c.email && c.password) as { email: string; password: string }[]
 
-    if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-      results.admin = { success: false, error: 'Variables ADMIN_EMAIL et ADMIN_PASSWORD requises dans les env vars' }
+    if (adminConfigs.length === 0) {
+      results.admin = { success: false, error: 'Variables ADMIN_EMAIL/ADMIN_PASSWORD requises' }
     } else {
+      const adminResults: Record<string, unknown>[] = []
       try {
         const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
         if (listError) throw listError
 
-        const existing = users.find(u => u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase())
+        for (const cfg of adminConfigs) {
+          const existing = users.find(u => u.email?.toLowerCase() === cfg.email.toLowerCase())
 
-        if (existing) {
-          const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
-            app_metadata: {
-              ...(existing.app_metadata || {}),
-              role: 'super_admin',
-            },
-            user_metadata: {
-              ...existing.user_metadata,
-              full_name: 'Super Admin Vitfix',
-            }
-          })
-          results.admin = {
-            success: !error,
-            action: 'updated',
-            user_id: existing.id,
-            email: existing.email,
-            role: data?.user?.app_metadata?.role,
-            error: error?.message,
-          }
-        } else {
-          const { data, error } = await supabaseAdmin.auth.admin.createUser({
-            email: ADMIN_EMAIL,
-            password: ADMIN_PASSWORD,
-            email_confirm: true,
-            app_metadata: { role: 'super_admin' },
-            user_metadata: { full_name: 'Super Admin Vitfix' },
-          })
-          results.admin = {
-            success: !error,
-            action: 'created',
-            user_id: data?.user?.id,
-            email: data?.user?.email,
-            role: data?.user?.app_metadata?.role,
-            error: error?.message,
+          if (existing) {
+            // Promouvoir en super_admin via app_metadata (non forgeable)
+            // Nettoyer user_metadata.role pour éviter toute confusion
+            const cleanedUserMeta = { ...(existing.user_metadata || {}) }
+            delete cleanedUserMeta.role
+            delete cleanedUserMeta._admin_override
+
+            const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+              app_metadata: { ...(existing.app_metadata || {}), role: 'super_admin' },
+              user_metadata: { ...cleanedUserMeta, full_name: cleanedUserMeta.full_name || 'Super Admin Vitfix' },
+            })
+            adminResults.push({
+              success: !error, action: 'updated', email: existing.email,
+              user_id: existing.id, role: data?.user?.app_metadata?.role,
+              error: error?.message,
+            })
+          } else {
+            const { data, error } = await supabaseAdmin.auth.admin.createUser({
+              email: cfg.email,
+              password: cfg.password,
+              email_confirm: true,
+              app_metadata: { role: 'super_admin' },
+              user_metadata: { full_name: 'Super Admin Vitfix' },
+            })
+            adminResults.push({
+              success: !error, action: 'created', email: cfg.email,
+              user_id: data?.user?.id, role: data?.user?.app_metadata?.role,
+              error: error?.message,
+            })
           }
         }
       } catch (e: unknown) {
-        results.admin = { success: false, error: e instanceof Error ? e.message : 'Internal error' }
+        adminResults.push({ success: false, error: e instanceof Error ? e.message : 'Internal error' })
       }
+      results.admin = { accounts: adminResults }
     }
   }
 
