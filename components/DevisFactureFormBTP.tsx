@@ -32,6 +32,7 @@ import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { syncDocumentToSupabase } from '@/lib/document-sync'
 import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -904,6 +905,7 @@ export default function DevisFactureFormBTP({
       const filtered = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
       filtered.push(payload)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
+      syncDocumentToSupabase(payload as Record<string, unknown>, artisan.id).catch(() => {})
       toast.success('Brouillon enregistré')
       onSave?.(payload as never)
     } catch (err) {
@@ -927,6 +929,7 @@ export default function DevisFactureFormBTP({
       const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
       filtered.push(payload)
       localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
+      syncDocumentToSupabase(payload as Record<string, unknown>, artisan.id).catch(() => {})
       // Retire des brouillons s'il y était
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
       const newDrafts = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)

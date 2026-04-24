@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import NextImage from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { syncDocumentToSupabase } from '@/lib/document-sync'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
@@ -1172,6 +1173,7 @@ export default function DevisFactureForm({
     if (existingIdx >= 0) drafts[existingIdx] = draftEntry
     else drafts.push(draftEntry)
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
+    if (artisan?.id) syncDocumentToSupabase(draftEntry as Record<string, unknown>, artisan.id).catch(() => {})
     setSavedMsg(`💾 ${t('devis.draftSaved')}`)
     setTimeout(() => setSavedMsg(''), 3000)
     onSave?.(draftEntry as DevisFactureData)
@@ -1188,6 +1190,7 @@ export default function DevisFactureForm({
     if (existingIdx >= 0) drafts[existingIdx] = draftEntry
     else drafts.push(draftEntry)
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
+    if (artisan?.id) syncDocumentToSupabase(draftEntry as Record<string, unknown>, artisan.id).catch(() => {})
     onConvertToFacture(draftEntry as DevisFactureData)
   }
 
@@ -1552,6 +1555,7 @@ export default function DevisFactureForm({
         docs.push(docEntry)
       }
       localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
+      if (artisan?.id) syncDocumentToSupabase(docEntry as Record<string, unknown>, artisan.id).catch(() => {})
       onSave?.(data)
 
       // Proposer envoi par email ou Vitfix si clientEmail ou booking lié
@@ -1598,6 +1602,7 @@ export default function DevisFactureForm({
       if (existingIdx >= 0) docs[existingIdx] = docEntry
       else docs.push(docEntry)
       localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
+      if (artisan?.id) syncDocumentToSupabase(docEntry as Record<string, unknown>, artisan.id).catch(() => {})
       // Retire le brouillon correspondant (mêmes id ou docNumber) pour éviter les doublons
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const cleanedDrafts = drafts.filter((d: Record<string, unknown>) => {
