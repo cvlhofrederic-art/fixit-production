@@ -341,52 +341,113 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
   let fiscalReferentiel = ''
 
   if (isEntreprise) {
-    // Entreprise BTP (SARL, SAS, EURL, SA) — régime réel, IS/IR réel
-    const tauxIS15 = 0.15 // IS réduit sur premiers 42 500 €
-    const tauxIS25 = 0.25 // IS normal au-delà
+    // Détection forme juridique précise pour adapter les taux
+    const lf = legalForm.toLowerCase()
+    const isSARL = lf.includes('sarl') || lf.includes('société à responsabilité')
+    const isSAS = lf.includes('sas') || lf.includes('société par actions')
+    const isSASU = lf.includes('sasu')
+    const isEURL = lf.includes('eurl')
+    const isEI = lf.includes('ei') && !lf.includes('eurl') && !lf.includes('eirl')
+    // PT forms
+    const isENI = lf.includes('eni') || lf.includes('empresário')
+    const isLda = lf.includes('lda') || lf.includes('quotas')
+    const isSA_PT = lf.includes('sa') && country === 'PT'
+
+    // Taux charges dirigeant selon forme juridique
+    let tauxChargesDirigeant = 0.45
+    let labelDirigeant = 'Gérant (TNS ~45%)'
+    if (isSAS || isSASU) {
+      tauxChargesDirigeant = 0.75
+      labelDirigeant = 'Président SAS (assimilé salarié ~75%)'
+    } else if (isSARL || isEURL) {
+      tauxChargesDirigeant = 0.45
+      labelDirigeant = 'Gérant majoritaire SARL/EURL (TNS ~45%)'
+    } else if (isEI) {
+      tauxChargesDirigeant = 0.45
+      labelDirigeant = 'Entrepreneur individuel (SSI ~45%)'
+    }
+    if (country === 'PT') {
+      if (isENI) {
+        tauxChargesDirigeant = 0.214
+        labelDirigeant = 'ENI (Seg. Social 21.4%)'
+      } else {
+        tauxChargesDirigeant = 0.2375
+        labelDirigeant = 'Gerente Lda (TSU 23.75%)'
+      }
+    }
+
+    const tauxChargesSalaries = country === 'PT' ? 0.2375 : 0.45
+    const tauxIS15 = country === 'PT' ? 0.17 : 0.15 // PT: IRC 17% PME / FR: IS 15%
+    const tauxIS25 = country === 'PT' ? 0.21 : 0.25 // PT: IRC 21% / FR: IS 25%
+    const seuilIS = country === 'PT' ? 25000 : 42500
+
     const resultatAvantIS = annualHT - totalExpenses
-    const is15 = Math.min(Math.max(resultatAvantIS, 0), 42500) * tauxIS15
-    const is25 = Math.max(resultatAvantIS - 42500, 0) * tauxIS25
+    const is15 = Math.min(Math.max(resultatAvantIS, 0), seuilIS) * tauxIS15
+    const is25 = Math.max(resultatAvantIS - seuilIS, 0) * tauxIS25
     const isTotal = is15 + is25
     const resultatNet = resultatAvantIS - isTotal
-    // Charges patronales estimées (si salariés) — info contextuelle
-    const chargesPatronales = ctx.masseSalariale ? ctx.masseSalariale * 0.45 : 0
-    const cfe = 500 // estimation CFE entreprise
+    const chargesPatronales = ctx.masseSalariale ? (ctx.masseSalariale as number) * tauxChargesSalaries : 0
+    const cfe = country === 'PT' ? 0 : 500
+
+    const formeLabel = legalForm || (country === 'PT' ? 'Sociedade (Lda)' : 'SARL')
+    const isLabel = country === 'PT' ? 'IRC' : 'IS'
 
     fiscalBlock = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 DONNÉES FINANCIÈRES — ENTREPRISE BTP (${currentYear})
+📊 DONNÉES FINANCIÈRES — ${formeLabel.toUpperCase()} (${currentYear})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Forme juridique           : ${formeLabel}
+Pays                      : ${country}
 CA TTC annuel             : ${fmt(annualCA)}
 CA HT annuel              : ${fmt(annualHT)}
 Charges d'exploitation    : ${fmt(totalExpenses)}
-Résultat avant IS         : ${fmt(resultatAvantIS)}
-IS estimé (15% + 25%)     : ${fmt(isTotal)}
-  dont IS 15% (≤42 500€)  : ${fmt(is15)}
-  dont IS 25% (>42 500€)  : ${fmt(is25)}
-Résultat net après IS     : ${fmt(resultatNet)}
-${chargesPatronales > 0 ? `Masse salariale brute     : ${fmt(ctx.masseSalariale)}\nCharges patronales (~45%) : ${fmt(chargesPatronales)}` : ''}
-CFE (estimation)          : ${fmt(cfe)}
-TVA : collectée sur toutes les factures (régime réel normal ou simplifié)`
+Résultat avant ${isLabel}         : ${fmt(resultatAvantIS)}
+${isLabel} estimé                  : ${fmt(isTotal)}
+  dont ${tauxIS15 * 100}% (≤${fmt(seuilIS)}€) : ${fmt(is15)}
+  dont ${tauxIS25 * 100}% (>${fmt(seuilIS)}€) : ${fmt(is25)}
+Résultat net après ${isLabel}     : ${fmt(resultatNet)}
+Dirigeant                 : ${labelDirigeant}
+${chargesPatronales > 0 ? `Masse salariale brute     : ${fmt(ctx.masseSalariale)}\nCharges patronales (${Math.round(tauxChargesSalaries * 100)}%) : ${fmt(chargesPatronales)}` : ''}
+${cfe > 0 ? `CFE (estimation)          : ${fmt(cfe)}` : ''}
+TVA : collectée sur toutes les factures`
 
-    fiscalReferentiel = `
+    fiscalReferentiel = country === 'PT' ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ RÉFÉRENTIEL FISCAL ENTREPRISE BTP 2026
+🏗️ REFERENCIAL FISCAL EMPRESA BTP 2026 (PT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**STATUT : Entreprise BTP (SARL/SAS/EURL/SA) — régime réel**
-ATTENTION : NE PAS appliquer les règles micro-entrepreneur (21,2% URSSAF, plafond 77 700€, IR libératoire). Ce professionnel est une ENTREPRISE.
+**ESTATUTO : ${formeLabel}**
+**IRC 2026 :** 17% sobre primeiros 25 000€ (PME), 21% acima
+**IVA :** Obrigatório, regime normal (mensal ou trimestral)
+  - IVA construção/renovação: 23% (taxa normal)
+  - IVA Açores: 16% / Madeira: 22%
+  - IVA recuperável em compras e encargos
+**Contribuições sociais gerente :**
+  - ENI: 21.4% rendimento relevante (Seg. Social)
+  - Gerente Lda/SA: 23.75% TSU (entidade empregadora)
+  - Trabalhador independente: 21.4% base
+**Contribuições sociais trabalhadores :** 23.75% TSU (entidade) + 11% (trabalhador)
+**Derrama municipal :** até 1.5% sobre lucro tributável`
+    : `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ RÉFÉRENTIEL FISCAL ${formeLabel.toUpperCase()} BTP 2026 (FR)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**STATUT : ${formeLabel} — régime réel**
+ATTENTION : NE PAS appliquer les règles micro-entrepreneur. Ce professionnel est une ENTREPRISE.
 
-**IS 2026 :** 15% sur les premiers 42 500 € de bénéfice, 25% au-delà (PME CA < 10M€)
-**TVA :** Obligatoire, régime réel normal (CA3 mensuelle) ou simplifié (CA12 annuelle + 2 acomptes)
-  - TVA rénovation logement >2 ans : 10% (art. 279-0 bis CGI)
-  - TVA éco-rénovation (isolation, PAC, fenêtres) : 5,5% (art. 278-0 bis CGI)
-  - TVA travaux neufs / local professionnel : 20%
-  - TVA récupérable sur achats et charges d'exploitation
-**Charges sociales dirigeant :**
-  - Gérant majoritaire SARL (TNS) : ~45% du revenu net (SSI/ex-RSI)
-  - Président SAS (assimilé salarié) : ~65-80% du salaire brut (charges patronales + salariales)
-  - Dividendes : flat tax 30% (12,8% IR + 17,2% prélèvements sociaux) ou barème progressif
+**IS 2026 :** 15% sur les premiers 42 500€ de bénéfice, 25% au-delà (PME CA < 10M€)
+**TVA :** Obligatoire, régime réel normal (CA3 mensuelle) ou simplifié (CA12 annuelle)
+  - TVA rénovation logement >2 ans : 10%
+  - TVA éco-rénovation : 5,5%
+  - TVA travaux neufs : 20%
+  - TVA récupérable sur achats et charges
+**Charges sociales dirigeant (${formeLabel}) :**
+${isSARL || isEURL ? '  - Gérant majoritaire SARL/EURL (TNS) : ~45% SSI sur revenu net' : ''}
+${isSAS || isSASU ? '  - Président SAS/SASU (assimilé salarié) : ~65-80% charges sur salaire brut' : ''}
+${isEI ? '  - Entrepreneur individuel : ~45% SSI sur bénéfice net' : ''}
+${!isSARL && !isEURL && !isSAS && !isSASU && !isEI ? '  - Gérant TNS : ~45% SSI / Président assimilé salarié : ~75%' : ''}
+  - Dividendes : flat tax 30% (12,8% IR + 17,2% PS) ou barème progressif
 **Charges sociales salariés :** ~45% charges patronales sur salaire brut
+**CFE :** ~500€/an (base minimale)
 **Amortissements :** Déductibles (véhicules, matériel, outillage) — linéaire ou dégressif
 **Provisions :** Provisions pour risques (litiges, garantie décennale), créances douteuses
 **Sous-traitance :** auto-liquidation TVA (art. 283-2 nonies CGI) — facture sans TVA du sous-traitant
@@ -644,20 +705,20 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.json()
     const v = validateBody(comptableAiRequestSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
-    const body = v.data
+    const body = v.data as Record<string, unknown>
 
     // Verify artisan ownership if artisan_id provided
-    if (body.financialContext?.artisan_id) {
+    if ((body.financialContext as Record<string, unknown>)?.artisan_id) {
       const { data: artisan } = await (await import('@/lib/supabase-server')).supabaseAdmin
         .from('profiles_artisan')
         .select('user_id')
-        .eq('id', body.financialContext.artisan_id)
+        .eq('id', (body.financialContext as Record<string, unknown>).artisan_id as string)
         .single()
       if (artisan && artisan.user_id !== user.id) {
         return NextResponse.json({ error: 'Accès non autorisé à ces données' }, { status: 403 })
       }
     }
-    const { message, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt, locale: bodyLocale } = body
+    const { message, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt, locale: bodyLocale } = body as { message?: string; conversationHistory?: unknown[]; messages?: unknown[]; systemPrompt?: string; locale?: string }
     const financialContext = body.financialContext as Record<string, unknown> | undefined
     const locale = (bodyLocale || financialContext?.locale) as string | undefined
 
@@ -666,7 +727,7 @@ export async function POST(request: NextRequest) {
       const systemPrompt = customSystemPrompt || buildSystemPrompt({})
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...directMessages.slice(-20).map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
+        ...(directMessages as Array<{ role: string; content: string }>).slice(-20).map(m => ({ role: m.role, content: m.content })),
       ]
 
       if (!GROQ_API_KEY) {
@@ -904,7 +965,7 @@ ${buildEnrichedSections(ctx)}`
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...(conversationHistory || []).slice(-10),
+      ...(conversationHistory as Array<{ role: string; content: string }> || []).slice(-10),
       { role: 'user', content: message },
     ]
 
