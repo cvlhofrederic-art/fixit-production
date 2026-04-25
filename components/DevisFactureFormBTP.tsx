@@ -34,6 +34,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { syncDocumentToSupabase } from '@/lib/document-sync'
 import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
+import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
    CONSTANTES
@@ -2475,23 +2476,12 @@ export default function DevisFactureFormBTP({
 
       {/* ============ MODAL : Rentabilité (placeholder) ============ */}
       {showRentaModal && (
-        <div className="dvbtp-modal-ov" onClick={() => setShowRentaModal(false)}>
-          <div className="dvbtp-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>📊 Rentabilité du devis</h3>
-            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
-              <p style={{ marginBottom: 8 }}>
-                <strong>Total TTC :</strong> {fmt(totaux.totalTTC)} ({fmt(totaux.totalHT)} HT)
-              </p>
-              <p style={{ marginBottom: 8 }}>
-                Le module complet (calcul coût salarié + marge + frais généraux) est disponible
-                dans le composant standard. Une version BTP enrichie sera branchée prochainement.
-              </p>
-            </div>
-            <div className="dvbtp-modal-foot">
-              <button className="dvbtp-modal-btn" type="button" onClick={() => setShowRentaModal(false)}>Fermer</button>
-            </div>
-          </div>
-        </div>
+        <RentabiliteDevisModal
+          items={lines.filter(l => l.priceHT > 0 && l.qty > 0)}
+          totalHT={totaux.totalHT}
+          totalTTC={totaux.totalTTC}
+          onClose={() => setShowRentaModal(false)}
+        />
       )}
 
     </div>
