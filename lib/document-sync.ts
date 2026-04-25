@@ -98,6 +98,45 @@ export async function syncDocumentToSupabase(
   }
 }
 
+// Fetch documents from Supabase factures + devis tables for the authenticated user.
+// Returns an array of document objects shaped to match the localStorage format.
+export async function fetchDocumentsFromSupabase(): Promise<Record<string, unknown>[]> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const [facRes, devRes] = await Promise.all([
+    supabase.from('factures').select('id,numero,client_name,status,chantier_id,created_at,total_ht_cents').eq('artisan_user_id', user.id).is('deleted_at', null),
+    supabase.from('devis').select('id,numero,client_name,status,chantier_id,created_at,total_ht_cents').eq('artisan_user_id', user.id),
+  ])
+
+  const docs: Record<string, unknown>[] = []
+  for (const f of (facRes.data || [])) {
+    docs.push({
+      docType: 'facture',
+      docNumber: f.numero,
+      clientName: f.client_name,
+      docDate: f.created_at ? (f.created_at as string).slice(0, 10) : '',
+      status: f.status,
+      chantierId: f.chantier_id,
+      totalHT: f.total_ht_cents != null ? (f.total_ht_cents as number) / 100 : 0,
+      _fromSupabase: true,
+    })
+  }
+  for (const d of (devRes.data || [])) {
+    docs.push({
+      docType: 'devis',
+      docNumber: d.numero,
+      clientName: d.client_name,
+      docDate: d.created_at ? (d.created_at as string).slice(0, 10) : '',
+      status: d.status,
+      chantierId: d.chantier_id,
+      totalHT: d.total_ht_cents != null ? (d.total_ht_cents as number) / 100 : 0,
+      _fromSupabase: true,
+    })
+  }
+  return docs
+}
+
 // One-time import of all localStorage documents for an artisan into Supabase.
 // Returns the count of documents processed.
 export async function importLocalStorageDocsToSupabase(artisanId: string): Promise<number> {
