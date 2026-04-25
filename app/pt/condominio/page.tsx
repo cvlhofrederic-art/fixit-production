@@ -153,7 +153,7 @@ export default function PtCondominioPage() {
                       <span className="text-4xl">{service.icon}</span>
                       <h3 className="font-display font-bold text-xl">{service.name}</h3>
                     </div>
-                    <p className="text-text-muted mb-4 leading-relaxed">{service.description}</p>
+                    <p className="text-text-muted mb-4 leading-relaxed">{(service.description || '').replace(/\s*\[(?:unit|scope|min|max):[^\]]*\]\s*/g, '').trim()}</p>
                     <div className="flex flex-wrap gap-2">
                       {service.condoSpecific.map(item => (
                         <span key={item} className="px-3 py-1 rounded-full bg-yellow/10 border border-yellow/25 text-xs font-semibold text-dark">
