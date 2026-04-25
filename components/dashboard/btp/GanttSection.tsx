@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { supabase } from '@/lib/supabase'
 
 interface ChantierItem {
   id: string; titre: string; client: string; dateDebut: string
@@ -63,7 +64,43 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const [sousTaches, setSousTaches] = useState<SousTache[]>(() => {
     try { return JSON.parse(localStorage.getItem(SUBTASKS_KEY) || '[]') } catch { return [] }
   })
-  const saveST = (d: SousTache[]) => { setSousTaches(d); localStorage.setItem(SUBTASKS_KEY, JSON.stringify(d)) }
+
+  // One-shot merge: once chantiers load from Supabase, pull their embedded sous_taches.
+  // Supabase wins per chantier; localStorage items for unknown chantiers are kept.
+  const sbMergedRef = useRef(false)
+  useEffect(() => {
+    if (sbMergedRef.current || chantiers.length === 0) return
+    const sbItems: SousTache[] = chantiers.flatMap(
+      c => ((c as unknown as { sousTaches?: SousTache[] }).sousTaches || [])
+    )
+    if (sbItems.length === 0) return
+    sbMergedRef.current = true
+    setSousTaches(prev => {
+      const sbChantierIds = new Set(sbItems.map(st => st.chantierId))
+      const lsOnly = prev.filter(st => !sbChantierIds.has(st.chantierId))
+      return [...sbItems, ...lsOnly]
+    })
+  }, [chantiers])
+
+  // Persist sous-taches: localStorage + direct Supabase partial update (fire-and-forget)
+  const saveST = (d: SousTache[]) => {
+    setSousTaches(d)
+    localStorage.setItem(SUBTASKS_KEY, JSON.stringify(d))
+    // Group by chantierId
+    const byChantier = new Map<string, SousTache[]>()
+    for (const st of d) byChantier.set(st.chantierId, [...(byChantier.get(st.chantierId) || []), st])
+    // Chantiers that previously had sous-taches but now have none → write empty array
+    for (const c of chantiers) {
+      if (!byChantier.has(c.id)) {
+        const hadSub = (c as unknown as { sousTaches?: SousTache[] }).sousTaches?.length
+        if (hadSub) byChantier.set(c.id, [])
+      }
+    }
+    // Direct Supabase update — bypasses mapToSupabase to avoid overwriting other fields
+    for (const [cid, sts] of byChantier) {
+      supabase.from('chantiers_btp').update({ sous_taches: sts, updated_at: new Date().toISOString() }).eq('id', cid).then(() => {})
+    }
+  }
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })
 

@@ -73,8 +73,8 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
 // Map localStorage fields → Supabase columns
 function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
-    case 'chantiers':
-      return {
+    case 'chantiers': {
+      const mapped: Record<string, unknown> = {
         titre: item.titre || '',
         client: item.client || null,
         adresse: item.adresse || null,
@@ -89,6 +89,11 @@ function mapToSupabase(table: ShortName, item: any): any {
         description: item.description || null,
         equipe: item.equipe || null,
       }
+      // sous_taches is a partial-update field — only include when explicitly provided
+      if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
+      else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      return mapped
+    }
     case 'membres':
       return {
         prenom: item.prenom || '',
@@ -221,6 +226,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
         geoRayonM: item.geo_rayon_m || 100,
         latitude: item.latitude,
         longitude: item.longitude,
+        sousTaches: Array.isArray(item.sous_taches) ? item.sous_taches : [],
       }
     case 'membres':
       return {
