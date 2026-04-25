@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { callGroqWithRetry } from '@/lib/groq'
 import { logger } from '@/lib/logger'
 import { validateBody, comptableAiRequestSchema } from '@/lib/validation'
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 export const maxDuration = 30
 
@@ -14,6 +15,275 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v)
+
+// ── Server-side enrichment: fetch BTP data directly from Supabase ──────────
+// Each fetch is wrapped in try/catch so a single failure doesn't break the agent.
+async function enrichCtxFromSupabase(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
+  ctx: Record<string, any>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<Record<string, any>> {
+  const enriched = { ...ctx }
+
+  // 30-day window for "current month" filtering
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30).toISOString().slice(0, 10)
+  const todayStr = now.toISOString().slice(0, 10)
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+
+  try {
+    const [
+      chargesFixesRes,
+      membresRes,
+      pointagesRes,
+      chantiersRes,
+      rentabiliteRes,
+      devisRes,
+      facturesRes,
+    ] = await Promise.all([
+      supabaseAdmin.from('charges_fixes').select('*').eq('owner_id', userId).order('categorie'),
+      supabaseAdmin.from('membres_btp').select('*').eq('owner_id', userId).order('nom'),
+      supabaseAdmin.from('pointages_btp').select('*').eq('owner_id', userId)
+        .gte('date', thirtyDaysAgo).lte('date', todayStr).order('date', { ascending: false }).limit(200),
+      supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', userId).order('created_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('v_rentabilite_chantier').select('*').eq('owner_id', userId).limit(100),
+      supabaseAdmin.from('devis').select('id,numero,client_name,status,total_ht_cents,items,frais_annexes,created_at,chantier_id').eq('artisan_user_id', userId).order('created_at', { ascending: false }).limit(50),
+      supabaseAdmin.from('factures').select('id,numero,client_name,status,total_ht_cents,items,frais_annexes,created_at,chantier_id').eq('artisan_user_id', userId).is('deleted_at', null).order('created_at', { ascending: false }).limit(50),
+    ])
+
+    enriched._chargesFixes = chargesFixesRes.data || []
+    enriched._membres = membresRes.data || []
+    enriched._pointages = pointagesRes.data || []
+    enriched._chantiers = chantiersRes.data || []
+    enriched._rentabilite = rentabiliteRes.data || []
+    enriched._devis = devisRes.data || []
+    enriched._factures = facturesRes.data || []
+    enriched._currentMonthStart = currentMonthStart
+    enriched._todayStr = todayStr
+  } catch (err) {
+    logger.error('[comptable-ai] Enrichment fetch error (non-fatal):', err)
+  }
+
+  return enriched
+}
+
+// ── Build enriched prompt sections from server-fetched BTP data ─────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildEnrichedSections(ctx: Record<string, any>): string {
+  const sections: string[] = []
+
+  // ── 1. Charges fixes ──────────────────────────────────────────────────────
+  const chargesFixes = (ctx._chargesFixes || []) as Array<{
+    label?: string; montant?: number; frequence?: string; categorie?: string
+  }>
+  if (chargesFixes.length > 0) {
+    const lines = chargesFixes.map(c => {
+      const montant = c.montant ?? 0
+      const freq = c.frequence || 'mensuel'
+      return `  ${c.categorie || '-'} | ${c.label || '-'} | ${fmt(montant)} | ${freq}`
+    })
+    const totalMensuel = chargesFixes.reduce((s, c) => {
+      const m = c.montant ?? 0
+      const f = (c.frequence || 'mensuel').toLowerCase()
+      if (f === 'annuel') return s + m / 12
+      if (f === 'trimestriel') return s + m / 3
+      return s + m // mensuel by default
+    }, 0)
+    sections.push(`
+═══ CHARGES FIXES MENSUELLES ═══
+Catégorie | Libellé | Montant | Fréquence
+${lines.join('\n')}
+Total mensuel estimé : ${fmt(totalMensuel)}
+Total annuel estimé : ${fmt(totalMensuel * 12)}`)
+  }
+
+  // ── 2. Membres détail ─────────────────────────────────────────────────────
+  const membres = (ctx._membres || []) as Array<{
+    prenom?: string; nom?: string; type_contrat?: string; cout_horaire?: number
+    charges_patronales_pct?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number
+    salaire_brut_mensuel?: number; type_compte?: string
+  }>
+  if (membres.length > 0) {
+    const lines = membres.map(m => {
+      const ch = m.cout_horaire ?? 0
+      const cp = m.charges_patronales_pct ?? 45
+      const panier = m.panier_repas_jour ?? 0
+      const trajet = m.indemnite_trajet_jour ?? 0
+      const coutReelH = ch * (1 + cp / 100)
+      const coutReelJ = coutReelH * 8 + panier + trajet
+      return `  ${m.prenom || ''} ${m.nom || ''} | ${m.type_contrat || m.type_compte || '-'} | ${fmt(ch)}/h | ${cp}% | ${fmt(panier)}/j | ${fmt(trajet)}/j | ${fmt(coutReelH)}/h | ${fmt(coutReelJ)}/j`
+    })
+    sections.push(`
+═══ ÉQUIPE — DÉTAIL PAR MEMBRE ═══
+Prénom Nom | Contrat | Coût horaire | Charges % | Panier/j | Trajet/j | Coût réel/h | Coût réel/j
+${lines.join('\n')}`)
+  }
+
+  // ── 3. Pointages (30 derniers jours) ──────────────────────────────────────
+  const pointages = (ctx._pointages || []) as Array<{
+    date?: string; employe_nom?: string; chantier_nom?: string; heures?: number
+    membre_id?: string; chantier_id?: string
+  }>
+  if (pointages.length > 0) {
+    // Build lookup maps for membre and chantier names
+    const membreMap = new Map<string, string>()
+    for (const m of (ctx._membres || []) as Array<{ id?: string; prenom?: string; nom?: string }>) {
+      if (m.id) membreMap.set(m.id, `${m.prenom || ''} ${m.nom || ''}`.trim())
+    }
+    const chantierMap = new Map<string, string>()
+    for (const c of (ctx._chantiers || []) as Array<{ id?: string; titre?: string }>) {
+      if (c.id) chantierMap.set(c.id, c.titre || '-')
+    }
+
+    const totalHeures = pointages.reduce((s, p) => s + (p.heures ?? 0), 0)
+    // Show max 30 lines to keep prompt manageable
+    const lines = pointages.slice(0, 30).map(p => {
+      const emp = p.employe_nom || (p.membre_id ? membreMap.get(p.membre_id) : null) || '-'
+      const chan = p.chantier_nom || (p.chantier_id ? chantierMap.get(p.chantier_id) : null) || '-'
+      return `  ${p.date || '-'} | ${emp} | ${chan} | ${p.heures ?? 0}h`
+    })
+
+    // Estimate MO cost using average member cost
+    const avgCoutH = membres.length > 0
+      ? membres.reduce((s, m) => s + (m.cout_horaire ?? 0) * (1 + (m.charges_patronales_pct ?? 45) / 100), 0) / membres.length
+      : 0
+    const coutMOMois = totalHeures * avgCoutH
+
+    sections.push(`
+═══ POINTAGES (30 derniers jours) ═══
+Date | Employé | Chantier | Heures
+${lines.join('\n')}${pointages.length > 30 ? `\n  ... et ${pointages.length - 30} autres lignes` : ''}
+Total heures période : ${totalHeures}h
+Coût MO estimé période : ${fmt(coutMOMois)}`)
+  }
+
+  // ── 4. Chantiers en cours ─────────────────────────────────────────────────
+  const chantiers = (ctx._chantiers || []) as Array<{
+    id?: string; titre?: string; client?: string; budget?: number; date_debut?: string
+    date_fin?: string; statut?: string; montant_facture?: number; reference?: string
+  }>
+  if (chantiers.length > 0) {
+    const lines = chantiers.slice(0, 20).map(c => {
+      const budget = c.budget ?? 0
+      const facture = c.montant_facture ?? 0
+      return `  ${c.reference || c.id?.slice(0, 6) || '-'} | ${c.titre || '-'} | ${c.client || '-'} | ${fmt(budget)} | ${fmt(facture)} | ${c.statut || '-'} | ${c.date_debut || '-'} → ${c.date_fin || '-'}`
+    })
+    sections.push(`
+═══ CHANTIERS ═══
+Réf | Titre | Client | Budget | Facturé | Statut | Période
+${lines.join('\n')}`)
+  }
+
+  // ── 5. Dépenses groupées par mois (mois courant mis en avant) ─────────────
+  interface ExpenseWithDate { date?: string; category?: string; label?: string; amount?: string | number }
+  const allExpenses = (ctx.allExpenses || []) as ExpenseWithDate[]
+  if (allExpenses.length > 0) {
+    const currentMonthStart = ctx._currentMonthStart as string || ''
+    const byMonth = new Map<string, { total: number; count: number }>()
+    let currentMonthTotal = 0
+    let currentMonthCount = 0
+
+    for (const e of allExpenses) {
+      const d = e.date || ''
+      const month = d.slice(0, 7) // YYYY-MM
+      const amt = parseFloat(String(e.amount ?? 0))
+      const entry = byMonth.get(month) || { total: 0, count: 0 }
+      entry.total += amt
+      entry.count++
+      byMonth.set(month, entry)
+
+      if (d >= currentMonthStart) {
+        currentMonthTotal += amt
+        currentMonthCount++
+      }
+    }
+
+    const monthLines = Array.from(byMonth.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 12)
+      .map(([month, { total, count }]) => `  ${month} | ${count} dépenses | ${fmt(total)}`)
+
+    sections.push(`
+═══ DÉPENSES PAR MOIS ═══
+Mois en cours (${currentMonthStart.slice(0, 7)}) : ${currentMonthCount} dépenses → ${fmt(currentMonthTotal)}
+${monthLines.join('\n')}`)
+  }
+
+  // ── 6. Rentabilité consolidée ─────────────────────────────────────────────
+  const rentabilite = (ctx._rentabilite || []) as Array<{
+    titre?: string; client?: string; budget?: number; ca_reel?: number
+    cout_main_oeuvre_total?: number; total_materiaux?: number; total_autres?: number
+    benefice_net?: number; marge_pct?: number
+  }>
+  if (rentabilite.length > 0) {
+    const lines = rentabilite.slice(0, 15).map(r => {
+      const marge = r.marge_pct ?? (r.ca_reel && r.ca_reel > 0 ? ((r.benefice_net ?? 0) / r.ca_reel * 100) : 0)
+      return `  ${r.titre || '-'} | ${r.client || '-'} | Budget: ${fmt(r.budget ?? 0)} | CA: ${fmt(r.ca_reel ?? 0)} | MO: ${fmt(r.cout_main_oeuvre_total ?? 0)} | Mat: ${fmt(r.total_materiaux ?? 0)} | Autres: ${fmt(r.total_autres ?? 0)} | Bénéfice: ${fmt(r.benefice_net ?? 0)} (${typeof marge === 'number' ? marge.toFixed(1) : '0'}%)`
+    })
+
+    const totCA = rentabilite.reduce((s, r) => s + (r.ca_reel ?? 0), 0)
+    const totMO = rentabilite.reduce((s, r) => s + (r.cout_main_oeuvre_total ?? 0), 0)
+    const totMat = rentabilite.reduce((s, r) => s + (r.total_materiaux ?? 0), 0)
+    const totAutres = rentabilite.reduce((s, r) => s + (r.total_autres ?? 0), 0)
+    const totBenefice = rentabilite.reduce((s, r) => s + (r.benefice_net ?? 0), 0)
+
+    // Charges fixes mensuelles (already computed above, re-compute for summary)
+    const cfMensuel = chargesFixes.reduce((s, c) => {
+      const m = c.montant ?? 0
+      const f = (c.frequence || 'mensuel').toLowerCase()
+      if (f === 'annuel') return s + m / 12
+      if (f === 'trimestriel') return s + m / 3
+      return s + m
+    }, 0)
+
+    sections.push(`
+═══ RENTABILITÉ CONSOLIDÉE (vue chantiers) ═══
+${lines.join('\n')}
+---
+CA total HT : ${fmt(totCA)}
+Coût MO total : ${fmt(totMO)}
+Matériaux total : ${fmt(totMat)}
+Autres frais : ${fmt(totAutres)}
+Charges fixes mensuelles : ${fmt(cfMensuel)}
+Bénéfice brut chantiers : ${fmt(totBenefice)}`)
+  }
+
+  // ── 7. Documents sauvegardés (devis + factures) ───────────────────────────
+  const devis = (ctx._devis || []) as Array<{
+    numero?: string; client_name?: string; status?: string; total_ht_cents?: number
+    created_at?: string; items?: unknown[]
+  }>
+  const factures = (ctx._factures || []) as Array<{
+    numero?: string; client_name?: string; status?: string; total_ht_cents?: number
+    created_at?: string; items?: unknown[]
+  }>
+  if (devis.length > 0 || factures.length > 0) {
+    const docLines: string[] = []
+    for (const d of devis.slice(0, 15)) {
+      const ht = (d.total_ht_cents ?? 0) / 100
+      const itemCount = Array.isArray(d.items) ? d.items.length : 0
+      docLines.push(`  DEVIS ${d.numero || '-'} | ${d.client_name || '-'} | ${fmt(ht)} HT | ${d.status || '-'} | ${(d.created_at || '').slice(0, 10)} | ${itemCount} lignes`)
+    }
+    for (const f of factures.slice(0, 15)) {
+      const ht = (f.total_ht_cents ?? 0) / 100
+      const itemCount = Array.isArray(f.items) ? f.items.length : 0
+      docLines.push(`  FACTURE ${f.numero || '-'} | ${f.client_name || '-'} | ${fmt(ht)} HT | ${f.status || '-'} | ${(f.created_at || '').slice(0, 10)} | ${itemCount} lignes`)
+    }
+
+    const totalDevisHT = devis.reduce((s, d) => s + (d.total_ht_cents ?? 0), 0) / 100
+    const totalFacturesHT = factures.reduce((s, f) => s + (f.total_ht_cents ?? 0), 0) / 100
+
+    sections.push(`
+═══ DOCUMENTS SAUVEGARDÉS (devis + factures) ═══
+${docLines.join('\n')}
+---
+Total devis HT : ${fmt(totalDevisHT)} (${devis.length} devis)
+Total factures HT : ${fmt(totalFacturesHT)} (${factures.length} factures)`)
+  }
+
+  return sections.join('\n')
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
 function buildSystemPrompt(ctx: Record<string, any>): string {
@@ -356,7 +626,9 @@ Quand l'artisan demande une analyse "du X au Y" ou "sur le mois de Z" :
 - Si données insuffisantes : explique précisément ce qu'il faut saisir
 - Conseils d'optimisation fiscale/sociale proactifs après chaque réponse
 - NE te présente PAS à chaque message (seulement au premier)
-- Adapte le niveau de détail : synthèse si question simple, analyse complète si question complexe`
+- Adapte le niveau de détail : synthèse si question simple, analyse complète si question complexe
+
+${buildEnrichedSections(ctx)}`
 }
 
 export async function POST(request: NextRequest) {
@@ -416,7 +688,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message requis' }, { status: 400 })
     }
 
-    const ctx = financialContext || {}
+    const rawCtx = financialContext || {}
+    const ctx = await enrichCtxFromSupabase(user.id, rawCtx)
     let systemPrompt = buildSystemPrompt(ctx)
 
     if (locale === 'pt') {
@@ -624,7 +897,9 @@ Quando o profissional pede análise "de X a Y" ou "do mês de Z":
 - Conselhos de otimização fiscal/social proativos após cada resposta
 - NÃO te apresentes em cada mensagem (apenas na primeira)
 - Adapta o nível de detalhe: síntese se questão simples, análise completa se questão complexa
-- NUNCA uses termos franceses: URSSAF, TVA, CA HT, micro-entrepreneur, liasse fiscale, PCG, FEC, IS français`
+- NUNCA uses termos franceses: URSSAF, TVA, CA HT, micro-entrepreneur, liasse fiscale, PCG, FEC, IS français
+
+${buildEnrichedSections(ctx)}`
     }
 
     const messages = [
