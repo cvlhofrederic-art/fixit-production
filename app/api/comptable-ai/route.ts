@@ -223,7 +223,7 @@ ${lines.join('\n')}`)
     const monthLines = Array.from(byMonth.entries())
       .sort((a, b) => b[0].localeCompare(a[0]))
       .slice(0, 12)
-      .map(([month, { total, count }]) => `  ${month} | ${count} dépenses | ${fmt(total)}`)
+      .map(([month, { total, count }]) => `  ${month} | ${count} ${ctxCountry === 'PT' ? 'despesas' : 'dépenses'} | ${fmt(total)}`)
 
     sections.push(ctxCountry === 'PT' ? `
 ═══ DESPESAS POR MÊS ═══
@@ -243,6 +243,9 @@ ${monthLines.join('\n')}`)
   if (rentabilite.length > 0) {
     const lines = rentabilite.slice(0, 15).map(r => {
       const marge = r.marge_pct ?? (r.ca_reel && r.ca_reel > 0 ? ((r.benefice_net ?? 0) / r.ca_reel * 100) : 0)
+      if (ctxCountry === 'PT') {
+        return `  ${r.titre || '-'} | ${r.client || '-'} | Orçamento: ${fmt(r.budget ?? 0)} | Faturação: ${fmt(r.ca_reel ?? 0)} | MO: ${fmt(r.cout_main_oeuvre_total ?? 0)} | Mat: ${fmt(r.total_materiaux ?? 0)} | Outros: ${fmt(r.total_autres ?? 0)} | Lucro: ${fmt(r.benefice_net ?? 0)} (${typeof marge === 'number' ? marge.toFixed(1) : '0'}%)`
+      }
       return `  ${r.titre || '-'} | ${r.client || '-'} | Budget: ${fmt(r.budget ?? 0)} | CA: ${fmt(r.ca_reel ?? 0)} | MO: ${fmt(r.cout_main_oeuvre_total ?? 0)} | Mat: ${fmt(r.total_materiaux ?? 0)} | Autres: ${fmt(r.total_autres ?? 0)} | Bénéfice: ${fmt(r.benefice_net ?? 0)} (${typeof marge === 'number' ? marge.toFixed(1) : '0'}%)`
     })
 
@@ -296,12 +299,16 @@ Bénéfice brut chantiers : ${fmt(totBenefice)}`)
     for (const d of devis.slice(0, 15)) {
       const ht = (d.total_ht_cents ?? 0) / 100
       const itemCount = Array.isArray(d.items) ? d.items.length : 0
-      docLines.push(`  DEVIS ${d.numero || '-'} | ${d.client_name || '-'} | ${fmt(ht)} HT | ${d.status || '-'} | ${(d.created_at || '').slice(0, 10)} | ${itemCount} lignes`)
+      docLines.push(ctxCountry === 'PT'
+        ? `  ORÇAMENTO ${d.numero || '-'} | ${d.client_name || '-'} | ${fmt(ht)} s/IVA | ${d.status || '-'} | ${(d.created_at || '').slice(0, 10)} | ${itemCount} linhas`
+        : `  DEVIS ${d.numero || '-'} | ${d.client_name || '-'} | ${fmt(ht)} HT | ${d.status || '-'} | ${(d.created_at || '').slice(0, 10)} | ${itemCount} lignes`)
     }
     for (const f of factures.slice(0, 15)) {
       const ht = (f.total_ht_cents ?? 0) / 100
       const itemCount = Array.isArray(f.items) ? f.items.length : 0
-      docLines.push(`  FACTURE ${f.numero || '-'} | ${f.client_name || '-'} | ${fmt(ht)} HT | ${f.status || '-'} | ${(f.created_at || '').slice(0, 10)} | ${itemCount} lignes`)
+      docLines.push(ctxCountry === 'PT'
+        ? `  FATURA ${f.numero || '-'} | ${f.client_name || '-'} | ${fmt(ht)} s/IVA | ${f.status || '-'} | ${(f.created_at || '').slice(0, 10)} | ${itemCount} linhas`
+        : `  FACTURE ${f.numero || '-'} | ${f.client_name || '-'} | ${fmt(ht)} HT | ${f.status || '-'} | ${(f.created_at || '').slice(0, 10)} | ${itemCount} lignes`)
     }
 
     const totalDevisHT = devis.reduce((s, d) => s + (d.total_ht_cents ?? 0), 0) / 100
@@ -326,7 +333,11 @@ Total factures HT : ${fmt(totalFacturesHT)} (${factures.length} factures)`)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
 function buildSystemPrompt(ctx: Record<string, any>): string {
   const currentYear = new Date().getFullYear()
-  const today = new Date().toLocaleDateString('fr-FR', {
+
+  // ── Détection pays (must be before booking serialization) ──
+  const country: 'FR' | 'PT' = (ctx.country === 'PT' || ctx.locale === 'pt') ? 'PT' : 'FR'
+
+  const today = new Date().toLocaleDateString(country === 'PT' ? 'pt-PT' : 'fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
 
@@ -363,8 +374,7 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
   const orgRole = ctx.orgRole || 'artisan'
   const isEntreprise = orgRole === 'pro_societe'
 
-  // ── Détection pays & forme juridique (lock FR ≠ PT) ──
-  const country: 'FR' | 'PT' = (ctx.country === 'PT' || ctx.locale === 'pt') ? 'PT' : 'FR'
+  // ── Forme juridique (lock FR ≠ PT) ──
   const legalForm = (ctx.legalForm as string) || ''
     // FR : micro-entrepreneur, EI, EIRL, EURL, SARL, SAS, SASU, SA, SCI
     // PT : ENI, Sociedade Unipessoal (Lda), Lda, SA
@@ -375,8 +385,10 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
   const masseSalarialeAuto = teamPayroll.reduce((sum, m) => sum + (m.salaireBrutMensuel || 0) * 12, 0)
   const masseSalarialeTotal = (ctx.masseSalariale as number | undefined) ?? masseSalarialeAuto
   const teamCostLines = teamPayroll
-    .map(m => `  ${m.prenom ?? ''} ${m.nom} (${m.typeContrat ?? 'N/A'}) | Brut mensuel : ${fmt(m.salaireBrutMensuel ?? 0)} | Coût horaire TTC : ${fmt(m.coutHoraireTTC ?? 0)}`)
-    .join('\n') || '  (Aucune donnée de paie synchronisée)'
+    .map(m => country === 'PT'
+      ? `  ${m.prenom ?? ''} ${m.nom} (${m.typeContrat ?? 'N/A'}) | Salário bruto mensal : ${fmt(m.salaireBrutMensuel ?? 0)} | Custo horário c/IVA : ${fmt(m.coutHoraireTTC ?? 0)}`
+      : `  ${m.prenom ?? ''} ${m.nom} (${m.typeContrat ?? 'N/A'}) | Brut mensuel : ${fmt(m.salaireBrutMensuel ?? 0)} | Coût horaire TTC : ${fmt(m.coutHoraireTTC ?? 0)}`)
+    .join('\n') || (country === 'PT' ? '  (Nenhum dado salarial sincronizado)' : '  (Aucune donnée de paie synchronisée)')
 
   // ── Calculs fiscaux adaptés au statut ──
   let fiscalBlock = ''
@@ -434,7 +446,23 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
     const formeLabel = legalForm || (country === 'PT' ? 'Sociedade (Lda)' : 'SARL')
     const isLabel = country === 'PT' ? 'IRC' : 'IS'
 
-    fiscalBlock = `
+    fiscalBlock = country === 'PT' ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 DADOS FINANCEIROS — ${formeLabel.toUpperCase()} (${currentYear})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Forma jurídica            : ${formeLabel}
+País                      : ${country}
+Faturação anual c/IVA     : ${fmt(annualCA)}
+Faturação anual s/IVA     : ${fmt(annualHT)}
+Encargos de exploração    : ${fmt(totalExpenses)}
+Resultado antes de ${isLabel}     : ${fmt(resultatAvantIS)}
+${isLabel} estimado                : ${fmt(isTotal)}
+  dos quais ${tauxIS15 * 100}% (≤${fmt(seuilIS)}) : ${fmt(is15)}
+  dos quais ${tauxIS25 * 100}% (>${fmt(seuilIS)}) : ${fmt(is25)}
+Resultado líquido         : ${fmt(resultatNet)}
+Gerente                   : ${labelDirigeant}
+${chargesPatronales > 0 ? `Massa salarial bruta      : ${fmt(ctx.masseSalariale)}\nContribuições patronais (${Math.round(tauxChargesSalaries * 100)}%) : ${fmt(chargesPatronales)}` : ''}
+IVA : liquidado em todas as faturas` : `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 DONNÉES FINANCIÈRES — ${formeLabel.toUpperCase()} (${currentYear})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -445,13 +473,13 @@ CA HT annuel              : ${fmt(annualHT)}
 Charges d'exploitation    : ${fmt(totalExpenses)}
 Résultat avant ${isLabel}         : ${fmt(resultatAvantIS)}
 ${isLabel} estimé                  : ${fmt(isTotal)}
-  dont ${tauxIS15 * 100}% (≤${fmt(seuilIS)}€) : ${fmt(is15)}
-  dont ${tauxIS25 * 100}% (>${fmt(seuilIS)}€) : ${fmt(is25)}
+  dont ${tauxIS15 * 100}% (≤${fmt(seuilIS)}) : ${fmt(is15)}
+  dont ${tauxIS25 * 100}% (>${fmt(seuilIS)}) : ${fmt(is25)}
 Résultat net après ${isLabel}     : ${fmt(resultatNet)}
 Dirigeant                 : ${labelDirigeant}
 ${chargesPatronales > 0 ? `Masse salariale brute     : ${fmt(ctx.masseSalariale)}\nCharges patronales (${Math.round(tauxChargesSalaries * 100)}%) : ${fmt(chargesPatronales)}` : ''}
 ${cfe > 0 ? `CFE (estimation)          : ${fmt(cfe)}` : ''}
-${country === 'PT' ? 'IVA : liquidado em todas as faturas' : 'TVA : collectée sur toutes les factures'}`
+TVA : collectée sur toutes les factures`
 
     fiscalReferentiel = country === 'PT' ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -513,7 +541,7 @@ ${!isSARL && !isEURL && !isSAS && !isSASU && !isEI ? '  - Gérant TNS : ~45% SSI
     const irsEstimado = baseIRS * 0.25 // retenção na fonte art.º 101.º CIRS
     const net = annualHT - segSocial - irsEstimado - totalExpenses
     const limiteRS = 200000
-    const limiteIVA = 13500
+    const limiteIVA = 14500
     const pctRS = annualHT > 0 ? ((annualHT / limiteRS) * 100).toFixed(1) : '0'
     const ivaStatus = annualHT > limiteIVA
       ? `⚠️ ACIMA do limite isenção IVA (${fmt(limiteIVA)}) — IVA OBRIGATÓRIO`
@@ -557,7 +585,7 @@ ${quarterLines}`
 **IRS Regime Simplificado — coeficiente serviços:** 0,75 (só 75% é tributado)
 **Retenção na fonte (cat. B, art.º 101.º CIRS):** 25%. Isenção se < 12 500 €/ano
 **Limite Regime Simplificado:** 200 000 € faturação anual
-**Isenção IVA art.53.º CIVA:** ≤ 13 500 € faturação anual
+**Isenção IVA art.53.º CIVA:** ≤ 14 500 € faturação anual
 **IVA construção/remodelação:** 23% (taxa normal)
 **IVA reabilitação urbana (>2 anos, habitação permanente):** 6%
 **IVA eficiência energética:** 6%
@@ -647,13 +675,13 @@ au Portugal.
 
 FORMES JURIDIQUES PORTUGAISES :
   • ENI (Empresário em Nome Individual) — équivalent micro-entreprise PT
-    └ Regime Simplificado : CA < 200 000 € → coef 0,35-0,75 pour base IRS
+    └ Regime Simplificado : CA < 200 000 € → coef 0,75 serviços / 0,35 vendas pour base IRS
     └ Contribuição Segurança Social : 21,4% base contributiva (21,4% TI 2026)
-    └ IVA : franquia pequenos retalhistas se CA < 15 000 € (2026)
+    └ IVA : isenção art.53.º CIVA se CA < 14 500 € (2025/2026)
   • Sociedade Unipessoal por Quotas (Lda) — équivalent EURL
     └ IRC 21% sur bénéfice + derrama municipal 0-1,5% selon commune
     └ Tributação autónoma (véhicules, frais représentation)
-    └ IVA régime normal 23% ou isenção si CA < 15 000 €
+    └ IVA régime normal 23% ou isenção si CA < 14 500 €
   • Sociedade por Quotas (Lda) — équivalent SARL
     └ IRC 21% + derrama + pagamento especial por conta (PEC)
   • Sociedade Anónima (SA) — équivalent SA FR
@@ -704,26 +732,26 @@ ${isEntreprise ? '\n⚠️ IMPORTANT : Ce professionnel est une ENTREPRISE (soci
 ${fiscalBlock}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👷 COÛTS D'ÉQUIPE (frais par ouvrier — source pointage/paie)
+👷 ${country === 'PT' ? 'CUSTOS DE EQUIPA (custos por trabalhador — fonte registo/salários)' : 'COÛTS D\'ÉQUIPE (frais par ouvrier — source pointage/paie)'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Masse salariale annuelle déclarée : ${fmt(masseSalarialeTotal)}
-Détail par membre :
+${country === 'PT' ? 'Massa salarial anual declarada' : 'Masse salariale annuelle déclarée'} : ${fmt(masseSalarialeTotal)}
+${country === 'PT' ? 'Detalhe por membro' : 'Détail par membre'} :
 ${teamCostLines}
 ${masseSalarialeTotal > 0 ? `
-Estimation charges patronales ${country === 'PT' ? '(23,75% TSU PT)' : '(~45% FR)'} : ${fmt(masseSalarialeTotal * (country === 'PT' ? 0.2375 : 0.45))}
-Coût total employeur (brut + charges) : ${fmt(masseSalarialeTotal * (country === 'PT' ? 1.2375 : 1.45))}` : ''}
+${country === 'PT' ? 'Estimativa contribuições patronais' : 'Estimation charges patronales'} ${country === 'PT' ? '(23,75% TSU PT)' : '(~45% FR)'} : ${fmt(masseSalarialeTotal * (country === 'PT' ? 0.2375 : 0.45))}
+${country === 'PT' ? 'Custo total empregador (bruto + contribuições)' : 'Coût total employeur (brut + charges)'} : ${fmt(masseSalarialeTotal * (country === 'PT' ? 1.2375 : 1.45))}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 TOUTES LES INTERVENTIONS TERMINÉES (brut, ligne par ligne)
+📋 ${country === 'PT' ? 'TODAS AS INTERVENÇÕES CONCLUÍDAS (bruto, linha a linha)' : 'TOUTES LES INTERVENTIONS TERMINÉES (brut, ligne par ligne)'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Format : Date | Service | Client | HT | TVA | TTC | Durée | Adresse
-${bookingLines || '  (Aucune intervention terminée enregistrée)'}
+${country === 'PT' ? 'Formato : Data | Serviço | Cliente | s/IVA | IVA | c/IVA | Duração | Morada' : 'Format : Date | Service | Client | HT | TVA | TTC | Durée | Adresse'}
+${bookingLines || (country === 'PT' ? '  (Nenhuma intervenção concluída registada)' : '  (Aucune intervention terminée enregistrée)')}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧾 TOUTES LES CHARGES (brut, ligne par ligne)
+🧾 ${country === 'PT' ? 'TODOS OS ENCARGOS (bruto, linha a linha)' : 'TOUTES LES CHARGES (brut, ligne par ligne)'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Format : Date | Catégorie | Libellé | Montant | Notes
-${expenseLines || '  (Aucune charge enregistrée)'}
+${country === 'PT' ? 'Formato : Data | Categoria | Descrição | Montante | Notas' : 'Format : Date | Catégorie | Libellé | Montant | Notes'}
+${expenseLines || (country === 'PT' ? '  (Nenhum encargo registado)' : '  (Aucune charge enregistrée)')}
 
 ${country !== 'PT' ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚙️ TES DOMAINES DE COMPÉTENCE (OBLIGATOIRES)
@@ -966,7 +994,7 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
   - Taxa normal **23%**, taxa intermédia **13%**, taxa reduzida **6%**.
   - Taxa 6% aplicável a: (a) reabilitação urbana de imóveis com **mais de 2 anos** afetos a **habitação própria permanente** do adquirente (lista I CIVA, verba 2.23); ou imóveis em ARIU/ARU; (b) fornecimento e instalação de equipamentos de eficiência energética (painéis solares, caldeiras biomassa, bombas calor — verba 2.26 lista I CIVA).
   - ⚠️ A taxa 6% NÃO se aplica a: habitações secundárias, remodelações comerciais, imóveis novos, construção nova, nem a simples pinturas/pequenas reparações em imóveis não qualificados.
-  - Isenção art.53.º CIVA: até **14 500 €** faturação anual (limiar 2025). Possível atualização para 15 000 € em 2026 (aguarda confirmação OE 2026).
+  - Isenção art.53.º CIVA: até **14 500 €** faturação anual (limiar 2025/2026, art. 53.º CIVA).
   - Declaração periódica trimestral (até 650k€) ou mensal (acima), via Portal e-Fatura/AT.
   - Prazos: 15 maio (T1), 15 agosto (T2), 15 novembro (T3), 15 fevereiro N+1 (T4).
   - **Autoliquidação IVA (art.º 2.º n.º 1 alínea j) CIVA):** nas subempreitadas de construção B2B (prestador → empreiteiro geral), o IVA é liquidado pelo adquirente (autoliquidação/reverse charge). O prestador emite fatura sem IVA com a menção "IVA autoliquidado pelo adquirente". Esta regra aplica-se a serviços de construção, instalação elétrica, canalização, carpintaria, pintura, etc., quando prestados a outro sujeito passivo com atividade de construção. O adquirente lança o IVA no campo 3 (entregue) e campo 13 (dedutível) da DP IVA.
@@ -984,7 +1012,7 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
   - Sobretaxa de solidariedade: 2,5% entre 80 000–250 000 € e 5% acima de 250 000 €.
   - Retenção na fonte: **25%** (regra geral cat. B, art.º 101.º CIRS). Isenção possível se rendimentos estimados < 12 500 €/ano (declaração escrita ao cliente/entidade pagadora).
   - Declaração Modelo 3 IRS: entre **1 abril e 30 junho** do ano seguinte.
-  - Regime Simplificado: coeficiente **0,35** sobre prestações de serviços (só 35% do rendimento é tributado). Limite: 200 000 €/ano.
+  - Regime Simplificado: coeficiente **0,75** sobre prestações de serviços (75% do rendimento é tributado). Coef. 0,35 aplica-se apenas a vendas de mercadorias. Limite: 200 000 €/ano.
   - Deduções específicas cat. B: mínimo 4 104 € ou despesas efetivas comprovadas (art.º 83.º CIRS).
   - **Mínimo de existência 2025:** 11 480 € — rendimento coletável abaixo deste valor está isento de IRS (art.º 70.º CIRS). Relevante para quem tem rendimentos baixos ou parte do ano como independente.
   - Pagamentos por conta (IRS): julho, setembro, dezembro — quando a retenção < 2/3 do imposto liquidado no ano anterior.
@@ -1018,12 +1046,12 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
 **IVA reabilitação urbana (imóveis >30 anos habitação própria permanente ou ARIU):** 6% (art.18.º n.º1 al. a) CIVA lista I)
 **IVA eficiência energética (caldeiras, isolamento, solar):** 6% (lista I CIVA)
 **IVA serviços gerais construção/remodelação:** 23%
-**Isenção IVA art.53.º CIVA:** ≤14 500 € faturação anual (2025); possível 15 000 € em 2026
+**Isenção IVA art.53.º CIVA:** ≤14 500 € faturação anual (2025/2026)
 **Autoliquidação IVA (art.º 2.º n.º 1 al. j) CIVA):** subempreitadas B2B construção → o adquirente (empreiteiro geral) liquida o IVA; o prestador emite fatura sem IVA com menção "IVA autoliquidado pelo adquirente"
 **Seg. Social trabalhador independente:** 21,4% × 70% rendimento serviços | pagamento mensal até dia 20
 **Isenção SS 1.º ano:** isenção total nos primeiros 12 meses de atividade (art.º 169.º CRCSPSS)
 **Dispensa SS por acumulação (art.º 157.º CRCSPSS):** independente + trabalhador por conta de outrem → dispensa se rendimentos independentes ≤ 4 × IAS (≈ 24 444 €/ano)
-**IRS Regime Simplificado — coeficiente serviços:** 0,35 (só 35% é tributado)
+**IRS Regime Simplificado — coeficiente serviços:** 0,75 (75% é tributado). Coef. 0,35 apenas para vendas de mercadorias
 **Retenção na fonte (cat. B, art.º 101.º CIRS):** 25% (regra geral). Isenção se rendimentos estimados < 12 500 €/ano.
 **IRS Jovem (art.º 2.º-B CIRS, OE 2025):** ≤ 35 anos, primeiros 10 anos atividade — isenção 100%/75%/50%/25% escalonada. Limite: 55 × IAS ≈ 28 009 €/ano.
 **Mínimo de existência 2025 (art.º 70.º CIRS):** 11 480 € — rendimentos abaixo isentos de IRS.
@@ -1100,7 +1128,9 @@ ${buildEnrichedSections(ctx)}`
 
   } catch (error: unknown) {
     logger.error('[comptable-ai] Error:', error)
-    return NextResponse.json({ error: 'Une erreur interne est survenue', fallback: true })
+    const acceptLang = request.headers.get('accept-language') || ''
+    const errMsg = acceptLang.startsWith('pt') ? 'Ocorreu um erro interno' : 'Une erreur interne est survenue'
+    return NextResponse.json({ error: errMsg, fallback: true })
   }
 }
 
@@ -1122,7 +1152,7 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
     }
 
     if (msgLower.includes('irs') || msgLower.includes('retenção') || msgLower.includes('retenç')) {
-      return `📊 **IRS — Trabalhadores Independentes (Portugal 2026)**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **25%**\nIRS estimado retido: **${fmt(irs)}**\n\n💡 **Isenção de retenção:** possível se rendimentos estimados < 12 500 €/ano (declaração escrita ao cliente/entidade pagadora).\n\n**Taxas IRS 2025 (escalões — Regime Simplificado, coef. 0,35):**\n- Até 8 059 €: 13%\n- 8 059 – 12 160 €: 16,5%\n- 12 160 – 17 233 €: 22%\n- 17 233 – 22 306 €: 25%\n- 22 306 – 28 400 €: 32%\n- 28 400 – 41 629 €: 35,5%\n- 41 629 – 66 045 €: 43,5%\n- Acima de 66 045 €: 48%\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado só 35% do rendimento de serviços é tributado (coeficiente 0,35).\n\n*⚠️ Consulte um TOC para confirmação.*`
+      return `📊 **IRS — Trabalhadores Independentes (Portugal 2026)**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **25%**\nIRS estimado retido: **${fmt(irs)}**\n\n💡 **Isenção de retenção:** possível se rendimentos estimados < 12 500 €/ano (declaração escrita ao cliente/entidade pagadora).\n\n**Taxas IRS 2025 (escalões — Regime Simplificado, coef. 0,75 serviços):**\n- Até 8 059 €: 13%\n- 8 059 – 12 160 €: 16,5%\n- 12 160 – 17 233 €: 22%\n- 17 233 – 22 306 €: 25%\n- 22 306 – 28 400 €: 32%\n- 28 400 – 41 629 €: 35,5%\n- 41 629 – 66 045 €: 43,5%\n- Acima de 66 045 €: 48%\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado, 75% do rendimento de serviços é tributado (coeficiente 0,75). O coef. 0,35 aplica-se apenas a vendas de mercadorias.\n\n*⚠️ Consulte um TOC para confirmação.*`
     }
 
     if (msgLower.includes('iva') || msgLower.includes('taxa')) {
@@ -1132,7 +1162,7 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
     }
 
     if (msgLower.includes('resultado') || msgLower.includes('net') || msgLower.includes('lucro') || msgLower.includes('bénéfice')) {
-      return `📊 **Resultado líquido estimado ${new Date().getFullYear()}**\n\nFaturação líquida (s/IVA): **${fmt(ht)}**\n− Despesas dedutíveis: **${fmt(totalExpenses)}**\n− Seg. Social (~21,4%): **${fmt(segSocial)}**\n− IRS retido (est. 15%): **${fmt(irs)}**\n\n**= Resultado líquido: ${fmt(net)}**\n\n💡 Margem líquida: ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Referência construção PT: 12-22%.\n\n*⚠️ Informação indicativa. Consulte um TOC/ROC.*`
+      return `📊 **Resultado líquido estimado ${new Date().getFullYear()}**\n\nFaturação líquida (s/IVA): **${fmt(ht)}**\n− Despesas dedutíveis: **${fmt(totalExpenses)}**\n− Seg. Social (~21,4%): **${fmt(segSocial)}**\n− IRS retido (est. 25%): **${fmt(irs)}**\n\n**= Resultado líquido: ${fmt(net)}**\n\n💡 Margem líquida: ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Referência construção PT: 12-22%.\n\n*⚠️ Informação indicativa. Consulte um TOC/ROC.*`
     }
 
     if (msgLower.includes('estatuto') || msgLower.includes('estrutura') || msgLower.includes('juridic')) {
