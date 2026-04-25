@@ -968,7 +968,7 @@ export default function ArtisanProfilePage() {
 
                     <div className="text-3xl mb-3">{getServiceEmoji(service.name)}</div>
                     <h3 className="font-bold text-dark mb-1">{service.name}</h3>
-                    <p className="text-sm text-text-muted mb-4 line-clamp-2">{service.description}</p>
+                    <p className="text-sm text-text-muted mb-4 line-clamp-2">{(service.description || '').replace(/\s*\[(?:unit|scope|min|max):[^\]]*\]\s*/g, '').trim()}</p>
 
                     {/* Smart price */}
                     <div className="pt-3 border-t border-gray-100">

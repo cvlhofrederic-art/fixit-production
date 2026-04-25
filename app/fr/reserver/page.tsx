@@ -385,7 +385,7 @@ function ReserverContent() {
               {service && (
                 <div className="mb-4 pb-4 border-b border-border">
                   <p className="font-semibold text-dark">{service.name}</p>
-                  <p className="text-sm text-text-muted">{service.description}</p>
+                  <p className="text-sm text-text-muted">{(service.description || '').replace(/\s*\[(?:unit|scope|min|max):[^\]]*\]\s*/g, '').trim()}</p>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-sm text-text-muted">
                       {Math.floor(service.duration_minutes / 60)}h
