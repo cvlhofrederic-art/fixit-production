@@ -72,6 +72,8 @@ async function enrichCtxFromSupabase(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildEnrichedSections(ctx: Record<string, any>): string {
   const sections: string[] = []
+  const ctxCountry: 'FR' | 'PT' = (ctx.country === 'PT' || ctx.locale === 'pt') ? 'PT' : 'FR'
+  const defaultChargesPct = ctxCountry === 'PT' ? 23.75 : 45
 
   // ── 1. Charges fixes ──────────────────────────────────────────────────────
   const chargesFixes = (ctx._chargesFixes || []) as Array<{
@@ -90,7 +92,12 @@ function buildEnrichedSections(ctx: Record<string, any>): string {
       if (f === 'trimestriel') return s + m / 3
       return s + m // mensuel by default
     }, 0)
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ ENCARGOS FIXOS MENSAIS ═══
+Categoria | Descrição | Montante | Frequência
+${lines.join('\n')}
+Total mensal estimado : ${fmt(totalMensuel)}
+Total anual estimado : ${fmt(totalMensuel * 12)}` : `
 ═══ CHARGES FIXES MENSUELLES ═══
 Catégorie | Libellé | Montant | Fréquence
 ${lines.join('\n')}
@@ -107,14 +114,20 @@ Total annuel estimé : ${fmt(totalMensuel * 12)}`)
   if (membres.length > 0) {
     const lines = membres.map(m => {
       const ch = m.cout_horaire ?? 0
-      const cp = m.charges_patronales_pct ?? 45
+      const cp = m.charges_patronales_pct ?? defaultChargesPct
       const panier = m.panier_repas_jour ?? 0
       const trajet = m.indemnite_trajet_jour ?? 0
       const coutReelH = ch * (1 + cp / 100)
       const coutReelJ = coutReelH * 8 + panier + trajet
+      if (ctxCountry === 'PT') {
+        return `  ${m.prenom || ''} ${m.nom || ''} | ${m.type_contrat || m.type_compte || '-'} | ${fmt(ch)}/h | ${cp}% | ${fmt(panier)}/j | ${fmt(trajet)}/j | Custo real/h: ${fmt(coutReelH)} | Custo real/j: ${fmt(coutReelJ)}`
+      }
       return `  ${m.prenom || ''} ${m.nom || ''} | ${m.type_contrat || m.type_compte || '-'} | ${fmt(ch)}/h | ${cp}% | ${fmt(panier)}/j | ${fmt(trajet)}/j | ${fmt(coutReelH)}/h | ${fmt(coutReelJ)}/j`
     })
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ EQUIPA — DETALHE POR MEMBRO ═══
+Nome | Contrato | Custo horário | Contribuições % | Refeição/j | Deslocação/j | Custo real/h | Custo real/j
+${lines.join('\n')}` : `
 ═══ ÉQUIPE — DÉTAIL PAR MEMBRE ═══
 Prénom Nom | Contrat | Coût horaire | Charges % | Panier/j | Trajet/j | Coût réel/h | Coût réel/j
 ${lines.join('\n')}`)
@@ -146,11 +159,16 @@ ${lines.join('\n')}`)
 
     // Estimate MO cost using average member cost
     const avgCoutH = membres.length > 0
-      ? membres.reduce((s, m) => s + (m.cout_horaire ?? 0) * (1 + (m.charges_patronales_pct ?? 45) / 100), 0) / membres.length
+      ? membres.reduce((s, m) => s + (m.cout_horaire ?? 0) * (1 + (m.charges_patronales_pct ?? defaultChargesPct) / 100), 0) / membres.length
       : 0
     const coutMOMois = totalHeures * avgCoutH
 
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ REGISTOS DE HORAS (últimos 30 dias) ═══
+Data | Trabalhador | Obra | Horas
+${lines.join('\n')}${pointages.length > 30 ? `\n  ... e ${pointages.length - 30} outras linhas` : ''}
+Total horas período : ${totalHeures}h
+Custo M.O. estimado período : ${fmt(coutMOMois)}` : `
 ═══ POINTAGES (30 derniers jours) ═══
 Date | Employé | Chantier | Heures
 ${lines.join('\n')}${pointages.length > 30 ? `\n  ... et ${pointages.length - 30} autres lignes` : ''}
@@ -169,7 +187,10 @@ Coût MO estimé période : ${fmt(coutMOMois)}`)
       const facture = c.montant_facture ?? 0
       return `  ${c.reference || c.id?.slice(0, 6) || '-'} | ${c.titre || '-'} | ${c.client || '-'} | ${fmt(budget)} | ${fmt(facture)} | ${c.statut || '-'} | ${c.date_debut || '-'} → ${c.date_fin || '-'}`
     })
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ OBRAS EM CURSO ═══
+Ref | Título | Cliente | Orçamento | Faturado | Estado | Período
+${lines.join('\n')}` : `
 ═══ CHANTIERS ═══
 Réf | Titre | Client | Budget | Facturé | Statut | Période
 ${lines.join('\n')}`)
@@ -204,7 +225,10 @@ ${lines.join('\n')}`)
       .slice(0, 12)
       .map(([month, { total, count }]) => `  ${month} | ${count} dépenses | ${fmt(total)}`)
 
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ DESPESAS POR MÊS ═══
+Mês corrente (${currentMonthStart.slice(0, 7)}) : ${currentMonthCount} despesas → ${fmt(currentMonthTotal)}
+${monthLines.join('\n')}` : `
 ═══ DÉPENSES PAR MOIS ═══
 Mois en cours (${currentMonthStart.slice(0, 7)}) : ${currentMonthCount} dépenses → ${fmt(currentMonthTotal)}
 ${monthLines.join('\n')}`)
@@ -237,7 +261,16 @@ ${monthLines.join('\n')}`)
       return s + m
     }, 0)
 
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ RENTABILIDADE CONSOLIDADA (vista obras) ═══
+${lines.join('\n')}
+---
+Faturação total s/IVA : ${fmt(totCA)}
+Custo M.O. total : ${fmt(totMO)}
+Materiais total : ${fmt(totMat)}
+Outros custos : ${fmt(totAutres)}
+Encargos fixos mensais : ${fmt(cfMensuel)}
+Lucro bruto obras : ${fmt(totBenefice)}` : `
 ═══ RENTABILITÉ CONSOLIDÉE (vue chantiers) ═══
 ${lines.join('\n')}
 ---
@@ -274,7 +307,12 @@ Bénéfice brut chantiers : ${fmt(totBenefice)}`)
     const totalDevisHT = devis.reduce((s, d) => s + (d.total_ht_cents ?? 0), 0) / 100
     const totalFacturesHT = factures.reduce((s, f) => s + (f.total_ht_cents ?? 0), 0) / 100
 
-    sections.push(`
+    sections.push(ctxCountry === 'PT' ? `
+═══ DOCUMENTOS GUARDADOS (orçamentos + faturas) ═══
+${docLines.join('\n')}
+---
+Total orçamentos s/IVA : ${fmt(totalDevisHT)} (${devis.length} orçamentos)
+Total faturas s/IVA : ${fmt(totalFacturesHT)} (${factures.length} faturas)` : `
 ═══ DOCUMENTS SAUVEGARDÉS (devis + factures) ═══
 ${docLines.join('\n')}
 ---
@@ -299,9 +337,13 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
     .map((b) => {
       const client = b.clientName || 'Client'
       const service = b.serviceName || 'Intervention'
-      const ht = b.price_ht ?? (b.price_ttc ? b.price_ttc / 1.2 : 0)
+      const tvaDivisor = country === 'PT' ? 1.23 : 1.2
+      const ht = b.price_ht ?? (b.price_ttc ? b.price_ttc / tvaDivisor : 0)
       const ttc = b.price_ttc ?? 0
       const tva = ttc - ht
+      if (country === 'PT') {
+        return `  ${b.booking_date} | ${service} | Cliente: ${client} | s/IVA: ${fmt(ht)} | IVA: ${fmt(tva)} | c/IVA: ${fmt(ttc)} | Duração: ${b.duration_minutes ?? '?'}min | Endereço: ${b.address ?? '-'}`
+      }
       return `  ${b.booking_date} | ${service} | Client: ${client} | HT: ${fmt(ht)} | TVA: ${fmt(tva)} | TTC: ${fmt(ttc)} | Durée: ${b.duration_minutes ?? '?'}min | Adresse: ${b.address ?? '-'}`
     })
     .join('\n')
@@ -379,7 +421,7 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
     const tauxChargesSalaries = country === 'PT' ? 0.2375 : 0.45
     const tauxIS15 = country === 'PT' ? 0.17 : 0.15 // PT: IRC 17% PME / FR: IS 15%
     const tauxIS25 = country === 'PT' ? 0.21 : 0.25 // PT: IRC 21% / FR: IS 25%
-    const seuilIS = country === 'PT' ? 25000 : 42500
+    const seuilIS = country === 'PT' ? 50000 : 42500
 
     const resultatAvantIS = annualHT - totalExpenses
     const is15 = Math.min(Math.max(resultatAvantIS, 0), seuilIS) * tauxIS15
@@ -409,14 +451,14 @@ Résultat net après ${isLabel}     : ${fmt(resultatNet)}
 Dirigeant                 : ${labelDirigeant}
 ${chargesPatronales > 0 ? `Masse salariale brute     : ${fmt(ctx.masseSalariale)}\nCharges patronales (${Math.round(tauxChargesSalaries * 100)}%) : ${fmt(chargesPatronales)}` : ''}
 ${cfe > 0 ? `CFE (estimation)          : ${fmt(cfe)}` : ''}
-TVA : collectée sur toutes les factures`
+${country === 'PT' ? 'IVA : liquidado em todas as faturas' : 'TVA : collectée sur toutes les factures'}`
 
     fiscalReferentiel = country === 'PT' ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🏗️ REFERENCIAL FISCAL EMPRESA BTP 2026 (PT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **ESTATUTO : ${formeLabel}**
-**IRC 2026 :** 17% sobre primeiros 25 000€ (PME), 21% acima
+**IRC 2026 :** 17% sobre primeiros 50 000€ (PME), 21% acima
 **IVA :** Obrigatório, regime normal (mensal ou trimestral)
   - IVA construção/renovação: 23% (taxa normal)
   - IVA Açores: 16% / Madeira: 22%
@@ -462,8 +504,70 @@ ${!isSARL && !isEURL && !isSAS && !isSASU && !isEI ? '  - Gérant TNS : ~45% SSI
 **Facturation électronique :** obligatoire réception sept. 2026, émission selon taille
 **Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+)`
 
+  } else if (country === 'PT') {
+    // Trabalhador independente PT (regime simplificado)
+    const rendRelevante = annualHT * 0.70
+    const segSocial = rendRelevante * 0.214
+    const coefSimplificado = 0.75
+    const baseIRS = annualHT * coefSimplificado
+    const irsEstimado = baseIRS * 0.25 // retenção na fonte art.º 101.º CIRS
+    const net = annualHT - segSocial - irsEstimado - totalExpenses
+    const limiteRS = 200000
+    const limiteIVA = 13500
+    const pctRS = annualHT > 0 ? ((annualHT / limiteRS) * 100).toFixed(1) : '0'
+    const ivaStatus = annualHT > limiteIVA
+      ? `⚠️ ACIMA do limite isenção IVA (${fmt(limiteIVA)}) — IVA OBRIGATÓRIO`
+      : `✅ Abaixo do limite isenção IVA art.53.º CIVA (${fmt(limiteIVA)}) — isento`
+
+    const quarterLines = (ctx.quarterData || [0, 0, 0, 0])
+      .map((ca: number, q: number) => {
+        const ssQ = ca * 0.70 * 0.214
+        const prazoSS = ['Janeiro', 'Abril', 'Julho', 'Outubro'][q]
+        return `  T${q + 1} : Faturação s/IVA ${fmt(ca)} → SS estimada ${fmt(ssQ)} | Declaração SS: ${prazoSS}`
+      })
+      .join('\n')
+
+    fiscalBlock = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 DADOS FINANCEIROS — TRABALHADOR INDEPENDENTE (${currentYear})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Faturação anual c/IVA        : ${fmt(annualCA)}
+Faturação anual s/IVA        : ${fmt(annualHT)}
+Despesas totais              : ${fmt(totalExpenses)}
+Rendimento relevante (70%)   : ${fmt(rendRelevante)}
+Seg. Social (21,4%)          : ${fmt(segSocial)}
+IRS retido na fonte (~25%)   : ${fmt(irsEstimado)}
+Resultado líquido estimado   : ${fmt(net)}
+Regime Simplificado          : ${pctRS}% / 200 000 €
+Coeficiente serviços         : ${coefSimplificado} (75% tributado)
+Isenção IVA (art.53.º)      : ${ivaStatus}
+${annualHT > 170000 ? '🚨 ALERTA: Próximo do limite Regime Simplificado (200 000 €) — antecipar contabilidade organizada!' : ''}
+
+Declarações trimestrais ${currentYear} :
+${quarterLines}`
+
+    fiscalReferentiel = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ REFERENCIAL TÉCNICO CONSTRUÇÃO PT 2026 (Independente)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Seg. Social trabalhador independente:** 21,4% sobre rendimento relevante (70% serviços)
+**Pagamento SS mensal:** até dia 20 do mês seguinte
+**Declaração trimestral SS:** janeiro, abril, julho, outubro (Portal Seg. Social Direta)
+**Isenção SS 1.º ano:** primeiros 12 meses de atividade (art.º 169.º CRCSPSS)
+**IRS Regime Simplificado — coeficiente serviços:** 0,75 (só 75% é tributado)
+**Retenção na fonte (cat. B, art.º 101.º CIRS):** 25%. Isenção se < 12 500 €/ano
+**Limite Regime Simplificado:** 200 000 € faturação anual
+**Isenção IVA art.53.º CIVA:** ≤ 13 500 € faturação anual
+**IVA construção/remodelação:** 23% (taxa normal)
+**IVA reabilitação urbana (>2 anos, habitação permanente):** 6%
+**IVA eficiência energética:** 6%
+**Autoliquidação IVA (art.º 2.º n.º 1 al. j) CIVA):** subempreitadas B2B
+**Declaração Mod. 3 IRS:** 1 abril – 30 junho do ano seguinte
+**ATCUD:** obrigatório em todas as faturas desde 2023
+**Prazo fatura legal:** 5 dias úteis após prestação de serviço (art.36.º CIVA)
+**SNC — contas construção:** 31 (materiais), 61 (CMVMC), 621 (sub-empreiteiros), 622 (assistência técnica), 624 (conservação), 625 (deslocações), 626 (comunicação), 721 (prestações de serviços)`
   } else {
-    // Micro-entrepreneur artisan (existant)
+    // Micro-entrepreneur artisan FR (existant)
     const tauxURSSAF = 0.212
     const tauxIR = 0.017
     const urssaf = annualHT * tauxURSSAF
@@ -621,7 +725,7 @@ ${bookingLines || '  (Aucune intervention terminée enregistrée)'}
 Format : Date | Catégorie | Libellé | Montant | Notes
 ${expenseLines || '  (Aucune charge enregistrée)'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${country !== 'PT' ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚙️ TES DOMAINES DE COMPÉTENCE (OBLIGATOIRES)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -660,7 +764,7 @@ ${expenseLines || '  (Aucune charge enregistrée)'}
 - Conformité mentions légales sur devis/factures (SIRET, RCS/RM, TVA, assurance décennale, délai paiement).
 - Checklists mensuelles, trimestrielles et annuelles.
 - Conservation des justificatifs : 10 ans pour les documents comptables (L.123-22 C.com).
-
+` : ''}
 ${fiscalReferentiel}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -681,7 +785,7 @@ Quand l'artisan demande une analyse "du X au Y" ou "sur le mois de Z" :
 - **Gras** pour tous les chiffres clés et montants
 - Anticipe les erreurs possibles et propose des solutions concrètes
 - Sois rigoureux, fiable, pédagogique et pratique comme un expert-comptable humain senior
-- Reste **à jour avec la législation française 2026**
+- Reste **à jour avec la ${country === 'PT' ? 'legislação portuguesa 2026' : 'législation française 2026'}**
 - Structure tes réponses avec des sections claires (emoji + titre)
 - Fournis TOUJOURS le calcul détaillé quand un montant est demandé
 - Si données insuffisantes : explique précisément ce qu'il faut saisir
