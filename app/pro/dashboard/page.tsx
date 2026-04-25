@@ -1302,7 +1302,7 @@ function DashboardPage() {
           {/* ────── PIPELINE KANBAN ────── */}
           {activePage === 'pipeline' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le pipeline">
-              <PipelineSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
+              <PipelineSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} savedDocuments={savedDocuments as any} />
             </SectionErrorBoundary>
           )}
 
