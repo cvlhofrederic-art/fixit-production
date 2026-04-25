@@ -10,6 +10,7 @@ interface PipelineSectionProps {
   artisan: Artisan
   orgRole?: OrgRole
   navigateTo: (page: string) => void
+  savedDocuments?: SavedDocument[]
 }
 
 interface PipelineItem {
@@ -45,7 +46,7 @@ function computeStage(doc: SavedDocument, isDraft: boolean): string {
   return 'draft'
 }
 
-export default function PipelineSection({ artisan, orgRole = 'artisan', navigateTo }: PipelineSectionProps) {
+export default function PipelineSection({ artisan, orgRole = 'artisan', navigateTo, savedDocuments: propDocs }: PipelineSectionProps) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const [items, setItems] = useState<PipelineItem[]>([])
@@ -56,8 +57,15 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
   useEffect(() => {
     if (!artisan?.id) return
     try {
-      const docs: SavedDocument[]   = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-      const drafts: SavedDocument[] = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
+      // Use prop data (merged Supabase+localStorage) if available, fallback to localStorage
+      const allDocs: SavedDocument[] = propDocs && propDocs.length > 0
+        ? propDocs
+        : [
+            ...JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]'),
+            ...JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]'),
+          ]
+      const docs: SavedDocument[] = allDocs.filter((d: SavedDocument) => d.status !== 'brouillon')
+      const drafts: SavedDocument[] = allDocs.filter((d: SavedDocument) => d.status === 'brouillon' || !(d as unknown as Record<string, unknown>).savedAt)
 
       // Devis documents (saved + drafts)
       const devisDocs = docs.filter((d: SavedDocument) => d.docType === 'devis' || !d.docType)
@@ -105,7 +113,7 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
     } finally {
       setLoading(false)
     }
-  }, [artisan?.id, isPt])
+  }, [artisan?.id, isPt, propDocs])
 
   function getStageItems(stageId: string) {
     return items.filter((i) => i.stage === stageId)
