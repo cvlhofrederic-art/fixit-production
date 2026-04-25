@@ -38,8 +38,8 @@ async function authHeaders(): Promise<Record<string, string>> {
 // Invalider le cache quand la session change (login/logout)
 supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
-type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes'
-type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes'
+type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes' | 'rapports_btp'
+type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes' | 'rapports'
 
 const TABLE_MAP: Record<ShortName, TableName> = {
   chantiers: 'chantiers_btp',
@@ -53,6 +53,7 @@ const TABLE_MAP: Record<ShortName, TableName> = {
   dce_analyses: 'dce_analyses_btp',
   dpgf: 'dpgf_btp',
   charges_fixes: 'charges_fixes',
+  rapports: 'rapports_btp',
 }
 
 // localStorage keys to check for import
@@ -68,6 +69,7 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
   dce_analyses: (id) => `dce_analyses_${id}`,
   dpgf: (id) => `dpgf_${id}`,
   charges_fixes: (id) => `charges_fixes_${id}`,
+  rapports: (id) => `fixit_rapports_${id}`,
 }
 
 // Map localStorage fields → Supabase columns
@@ -199,6 +201,19 @@ function mapToSupabase(table: ShortName, item: any): any {
         montant_estime: item.montantEstime ?? item.montant_estime ?? 0,
         statut: item.statut || 'en_cours',
         lots: JSON.stringify(item.lots || []),
+      }
+    case 'rapports':
+      return {
+        titre: item.rapportNumber || item.titre || '',
+        date: item.interventionDate || item.date || new Date().toISOString().split('T')[0],
+        chantier_id: item.chantier_id || null,
+        contenu: (() => {
+          // Store the full RapportIntervention payload as JSONB (minus fields promoted to columns)
+          const { id: _id, created_at: _ca, owner_id: _oid, chantier_id: _cid, titre: _t, date: _d, photos: _ph, status: _st, ...rest } = item
+          return rest
+        })(),
+        photos: item.linkedPhotoIds || item.photos || [],
+        status: item.status || item.statut || 'brouillon',
       }
     default:
       return item
@@ -352,6 +367,20 @@ function mapFromSupabase(table: ShortName, item: any): any {
         statut: item.statut,
         lots: safeJsonParse(item.lots, []),
       }
+    case 'rapports': {
+      // Reconstruct the full RapportIntervention shape from JSONB contenu + promoted columns
+      const contenu = safeJsonParse(item.contenu, {})
+      return {
+        ...contenu,
+        id: item.id,
+        created_at: item.created_at,
+        chantier_id: item.chantier_id || null,
+        rapportNumber: item.titre || contenu.rapportNumber || '',
+        interventionDate: item.date || contenu.interventionDate || '',
+        linkedPhotoIds: Array.isArray(item.photos) ? item.photos : safeJsonParse(item.photos, []),
+        status: item.status || contenu.status || 'brouillon',
+      }
+    }
     default:
       return item
   }

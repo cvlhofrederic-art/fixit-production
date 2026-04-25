@@ -110,13 +110,48 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   const [rapports, setRapports] = useState<RapportIntervention[]>([])
 
-  // Charger les rapports quand l'artisan est disponible
+  // Load rapports: Supabase (source of truth) merged with localStorage fallback
   useEffect(() => {
     if (!artisan?.id) return
+    const lsKey = `fixit_rapports_${artisan.id}`;
+    // Seed from localStorage immediately so the UI isn't blank
     try {
-      const stored = localStorage.getItem(`fixit_rapports_${artisan.id}`)
+      const stored = localStorage.getItem(lsKey)
       if (stored) setRapports(JSON.parse(stored))
     } catch { /* ignore */ }
+    // Then fetch from Supabase and merge (Supabase wins on id collision)
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/btp?table=rapports', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const json = await res.json()
+        const fromSupabase: RapportIntervention[] = (json.rapports || []).map((r: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          const contenu = typeof r.contenu === 'object' && r.contenu !== null ? r.contenu : {}
+          return {
+            ...contenu,
+            id: r.id,
+            rapportNumber: r.titre || contenu.rapportNumber || '',
+            interventionDate: r.date || contenu.interventionDate || '',
+            linkedPhotoIds: Array.isArray(r.photos) ? r.photos : [],
+            status: r.status || contenu.status || 'brouillon',
+          } as RapportIntervention
+        })
+        if (fromSupabase.length > 0) {
+          setRapports(prev => {
+            // Supabase rows override local rows with same id; local-only rows are kept
+            const sbIds = new Set(fromSupabase.map(r => r.id))
+            const localOnly = prev.filter(r => !sbIds.has(r.id))
+            const merged = [...fromSupabase, ...localOnly]
+            try { localStorage.setItem(lsKey, JSON.stringify(merged)) } catch { /* ignore */ }
+            return merged
+          })
+        }
+      } catch { /* network error — localStorage data already shown */ }
+    })()
   }, [artisan?.id])
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -306,6 +341,31 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const saveRapports = (updated: RapportIntervention[]) => {
     setRapports(updated)
     try { localStorage.setItem(storageKey, JSON.stringify(updated)) } catch (e) { console.warn('[storage] saveRapports', e) }
+    // Fire-and-forget Supabase sync for each rapport
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        for (const r of updated) {
+          const { id, rapportNumber, interventionDate, linkedPhotoIds, status, ...rest } = r
+          const isLocalId = !id || id.startsWith('rap_')
+          const row: Record<string, unknown> = {
+            titre: rapportNumber || '',
+            date: interventionDate || '',
+            contenu: rest,
+            photos: linkedPhotoIds || [],
+            status: status || 'brouillon',
+          }
+          if (isLocalId) {
+            // New rapport: insert without id so Supabase generates a UUID
+            supabase.from('rapports_btp').insert(row).then(() => {})
+          } else {
+            // Existing rapport with Supabase UUID: upsert
+            supabase.from('rapports_btp').upsert({ id, ...row }).then(() => {})
+          }
+        }
+      } catch { /* fire-and-forget — localStorage remains source of truth on failure */ }
+    })()
   }
 
   const nextNumber = () => {
@@ -476,6 +536,10 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const deleteRapport = (id: string) => {
     if (!confirm('Supprimer ce rapport ?')) return
     saveRapports(rapports.filter(r => r.id !== id))
+    // Fire-and-forget Supabase delete for UUID rows
+    if (id && !id.startsWith('rap_')) {
+      supabase.from('rapports_btp').delete().eq('id', id).then(() => {})
+    }
   }
 
   // ═══ PDF generation — delegated to lib/rapport-pdf.ts ═══

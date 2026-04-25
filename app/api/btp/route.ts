@@ -5,7 +5,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
-const BTP_VALID_TABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp', 'situations_btp', 'retenues_btp', 'dc4_btp', 'dce_analyses_btp', 'dpgf_btp', 'charges_fixes', 'ref_taux'] as const
+const BTP_VALID_TABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp', 'situations_btp', 'retenues_btp', 'dc4_btp', 'dce_analyses_btp', 'dpgf_btp', 'charges_fixes', 'ref_taux', 'rapports_btp'] as const
 
 const btpBodySchema = z.object({
   table: z.enum(BTP_VALID_TABLES),
@@ -87,6 +87,9 @@ export async function GET(request: NextRequest) {
       } else if (table === 'charges_fixes') {
         const { data } = await supabaseAdmin.from('charges_fixes').select('*').eq('owner_id', user.id).order('categorie', { ascending: true }).order('label', { ascending: true })
         result.charges_fixes = data || []
+      } else if (table === 'rapports') {
+        const { data } = await supabaseAdmin.from('rapports_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(500)
+        result.rapports = data || []
       } else {
         return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
       }

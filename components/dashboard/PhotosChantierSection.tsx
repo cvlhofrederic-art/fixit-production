@@ -31,17 +31,49 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load rapports from localStorage for linking
+  // Load rapports: localStorage immediately, then merge with Supabase (Supabase wins)
   const [rapports, setRapports] = useState<RapportItem[]>([])
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
+    const lsKey = `fixit_rapports_${artisan.id}`
+    // Seed from localStorage immediately
     try {
-      const r = JSON.parse(localStorage.getItem(`fixit_rapports_${artisan.id}`) || '[]')
+      const r = JSON.parse(localStorage.getItem(lsKey) || '[]')
       setRapports(r)
     } catch { setRapports([]) }
+    // Fetch from Supabase and merge
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/btp?table=rapports', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const json = await res.json()
+        const fromSupabase: RapportItem[] = (json.rapports || []).map((r: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          const contenu = typeof r.contenu === 'object' && r.contenu !== null ? r.contenu : {}
+          return {
+            id: r.id,
+            titre: r.titre || contenu.titre || '',
+            rapportNumber: r.titre || contenu.rapportNumber || '',
+            clientName: contenu.clientName || '',
+            interventionDate: r.date || contenu.interventionDate || '',
+            linkedPhotoIds: Array.isArray(r.photos) ? r.photos : [],
+          } as RapportItem
+        })
+        if (fromSupabase.length > 0) {
+          setRapports(prev => {
+            const sbIds = new Set(fromSupabase.map(r => r.id))
+            const localOnly = prev.filter(r => !sbIds.has(r.id))
+            return [...fromSupabase, ...localOnly]
+          })
+        }
+      } catch { /* network error — localStorage data already shown */ }
+    })()
   }, [artisan?.id])
 
-  // Link photo to rapport (in localStorage)
+  // Link photo to rapport — localStorage + fire-and-forget Supabase
   const linkPhotoToRapport = (photoId: string, rapportId: string | null) => {
     if (!artisan?.id) return
     try {
@@ -61,6 +93,16 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       localStorage.setItem(storageKey, JSON.stringify(updated))
       setRapports(updated)
       setAssigningRapport(null)
+      // Fire-and-forget Supabase update for the affected rapport
+      if (rapportId && !rapportId.startsWith('rap_')) {
+        const target = updated.find((r: RapportItem) => r.id === rapportId)
+        if (target) {
+          supabase.from('rapports_btp')
+            .update({ photos: target.linkedPhotoIds || [] })
+            .eq('id', rapportId)
+            .then(() => {})
+        }
+      }
     } catch (e) {
       console.error('Error linking photo to rapport:', e)
     }
