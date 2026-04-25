@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
@@ -21,7 +22,7 @@ export async function getAuthUser(request: NextRequest) {
 
     // Vérifier le cache (même token = même user pendant 30s)
     // F05: use SHA-256 hash to avoid cache key collision from token suffix alone
-    const cacheKey = require('crypto').createHash('sha256').update(token).digest('hex').slice(0, 32)
+    const cacheKey = createHash('sha256').update(token).digest('hex').slice(0, 32)
     const cached = _userCache.get(cacheKey)
     if (cached && Date.now() - cached.ts < AUTH_CACHE_TTL) {
       return cached.user
