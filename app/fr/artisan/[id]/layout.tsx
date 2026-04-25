@@ -10,10 +10,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   try {
     const supabase = await createServerSupabaseClient()
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     const { data } = await supabase
       .from('profiles_artisan')
       .select('company_name, bio, categories, company_city, rating_avg, rating_count, country, profile_photo_url, slug, org_role')
-      .eq('id', id)
+      .eq(isUUID ? 'id' : 'slug', id)
       .single()
     artisan = data
   } catch {
@@ -77,10 +78,11 @@ export default async function ArtisanLayout({
 
   try {
     const supabase = await createServerSupabaseClient()
+    const isUUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     const { data: artisan } = await supabase
       .from('profiles_artisan')
       .select('company_name, categories, company_city, rating_avg, rating_count, country, latitude, longitude, profile_photo_url, slug, phone, org_role')
-      .eq('id', id)
+      .eq(isUUID2 ? 'id' : 'slug', id)
       .single()
 
     if (artisan) {
