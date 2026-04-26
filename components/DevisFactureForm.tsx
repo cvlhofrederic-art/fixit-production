@@ -8,6 +8,7 @@ import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
+import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 import {
   type SignatureData,
   type ProductLine,
@@ -3491,185 +3492,14 @@ export default function DevisFactureForm({
               </div>
             </div>
 
-            {/* Modal Rentabilité */}
             {showRentaModal && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-                onClick={() => setShowRentaModal(false)}>
-                <div style={{ background: 'white', borderRadius: 12, maxWidth: 700, width: '100%', maxHeight: '90vh', overflow: 'auto', padding: 24 }}
-                  onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <h3 style={{ fontWeight: 700, fontSize: 18, margin: 0 }}>
-                      📊 {locale === 'pt' ? 'Análise de rentabilidade' : 'Analyse de rentabilité'}
-                    </h3>
-                    <button onClick={() => setShowRentaModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6B7280' }}>✕</button>
-                  </div>
-
-                  {rentaLoading ? (
-                    <div style={{ textAlign: 'center', padding: 40 }}>
-                      <div style={{ fontSize: 24 }}>⏳</div>
-                      <p style={{ color: '#6B7280', marginTop: 8 }}>{locale === 'pt' ? 'A carregar dados...' : 'Chargement...'}</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Paramètres */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
-                            👷 {locale === 'pt' ? 'Empregados' : 'Employés'}
-                          </label>
-                          <input type="number" min={1} max={rentaEmployees.length || 20} value={rentaNbEmployees}
-                            onChange={e => setRentaNbEmployees(Math.max(1, Number(e.target.value)))}
-                            className="v22-form-input" style={{ textAlign: 'center' }} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
-                            📅 {locale === 'pt' ? 'Dias no projeto' : 'Jours sur le projet'}
-                          </label>
-                          <input type="number" min={1} value={rentaNbDays}
-                            onChange={e => setRentaNbDays(Math.max(1, Number(e.target.value)))}
-                            className="v22-form-input" style={{ textAlign: 'center' }} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
-                            🎯 {locale === 'pt' ? 'Margem obj.' : 'Marge obj.'} (%)
-                          </label>
-                          <input type="number" min={0} max={90} value={rentaMarginPct}
-                            onChange={e => setRentaMarginPct(Number(e.target.value))}
-                            className="v22-form-input" style={{ textAlign: 'center' }} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
-                            🏗️ {locale === 'pt' ? 'Materiais' : 'Matériaux'} (%)
-                          </label>
-                          <input type="number" min={0} max={80} value={rentaMateriauxPct}
-                            onChange={e => setRentaMateriauxPct(Number(e.target.value))}
-                            className="v22-form-input" style={{ textAlign: 'center' }} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
-                            🏢 {locale === 'pt' ? 'Overhead' : 'Frais fixes'} (€)
-                          </label>
-                          <input type="number" min={0} value={rentaOverhead}
-                            onChange={e => setRentaOverhead(Number(e.target.value))}
-                            className="v22-form-input" style={{ textAlign: 'center' }} />
-                        </div>
-                      </div>
-
-                      {/* Tableau employés */}
-                      {rentaEmployees.length > 0 && (
-                        <div style={{ marginBottom: 16 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-                            {locale === 'pt' ? 'Detalhe por empregado' : 'Détail par employé'}
-                          </div>
-                          <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                              <thead>
-                                <tr style={{ borderBottom: '2px solid #E5E7EB' }}>
-                                  {[locale === 'pt' ? 'Nome' : 'Nom', locale === 'pt' ? 'Função' : 'Rôle',
-                                    locale === 'pt' ? 'Custo/dia' : 'Coût/jour', locale === 'pt' ? 'Dias' : 'Jours',
-                                    locale === 'pt' ? 'Custo total' : 'Coût total',
-                                    locale === 'pt' ? 'Contribuição' : 'Contribution'].map(h => (
-                                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: '#6B7280', fontWeight: 600, fontSize: 11 }}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rentaEmployees.slice(0, rentaNbEmployees).map((e, i) => {
-                                  const totalCost = Math.round(e.daily_cost * rentaNbDays)
-                                  const rentaEmp = rentaResult?.employees.find(re => re.id === e.id)
-                                  const contribution = rentaEmp?.contribution ?? 0
-                                  return (
-                                    <tr key={e.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                                      <td style={{ padding: '6px 8px' }}>
-                                        <input value={e.name} onChange={ev => {
-                                          const updated = [...rentaEmployees]; updated[i] = { ...updated[i], name: ev.target.value }; setRentaEmployees(updated)
-                                        }} style={{ border: 'none', background: 'transparent', fontWeight: 600, width: '100%', fontSize: 12 }} />
-                                      </td>
-                                      <td style={{ padding: '6px 8px' }}>
-                                        <input value={e.role} onChange={ev => {
-                                          const updated = [...rentaEmployees]; updated[i] = { ...updated[i], role: ev.target.value }; setRentaEmployees(updated)
-                                        }} style={{ border: 'none', background: 'transparent', fontSize: 12, width: '100%', color: '#6B7280' }} />
-                                      </td>
-                                      <td style={{ padding: '6px 8px', fontWeight: 600 }}>{e.daily_cost.toFixed(0)} €</td>
-                                      <td style={{ padding: '6px 8px' }}>{rentaNbDays}</td>
-                                      <td style={{ padding: '6px 8px', fontWeight: 700, color: '#EF4444' }}>{totalCost.toLocaleString('fr-FR')} €</td>
-                                      <td style={{ padding: '6px 8px', fontWeight: 600, color: contribution >= 0 ? '#22C55E' : '#EF4444' }}>
-                                        {contribution >= 0 ? '+' : ''}{contribution.toLocaleString('fr-FR')} €
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                          {rentaEmployees.length === 0 && (
-                            <div style={{ textAlign: 'center', padding: 20, color: '#6B7280', fontSize: 13 }}>
-                              {locale === 'pt'
-                                ? 'Nenhum empregado registado. Adicione na secção "Equipas".'
-                                : 'Aucun employé enregistré. Ajoutez-en dans "Équipes".'}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Résumé */}
-                      {rentaResult && (
-                        <div style={{
-                          background: rentaResult.status === 'profit' ? '#F0FDF4' : rentaResult.status === 'warning' ? '#FEF3C7' : '#FEF2F2',
-                          borderRadius: 10, padding: 16,
-                        }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                            <div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Custo M.O.' : 'Coût M.O.'}</div>
-                              <div style={{ fontSize: 16, fontWeight: 700, color: '#EF4444' }}>{rentaResult.total_mo.toLocaleString('fr-FR')} €</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Materiais est.' : 'Matériaux est.'}</div>
-                              <div style={{ fontSize: 16, fontWeight: 700, color: '#F59E0B' }}>{rentaResult.materiaux_estime.toLocaleString('fr-FR')} €</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Overhead' : 'Frais fixes'}</div>
-                              <div style={{ fontSize: 16, fontWeight: 700, color: '#6B7280' }}>{rentaResult.overhead.toLocaleString('fr-FR')} €</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Custo total' : 'Coût total'}</div>
-                              <div style={{ fontSize: 16, fontWeight: 700, color: '#0D1B2E' }}>{rentaResult.cout_total.toLocaleString('fr-FR')} €</div>
-                            </div>
-                          </div>
-                          <div style={{ borderTop: '2px solid rgba(0,0,0,0.1)', paddingTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Preço de venda' : 'Prix de vente'}</div>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: '#0D1B2E' }}>{rentaResult.prix_vente.toLocaleString('fr-FR')} €</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Lucro' : 'Bénéfice'}</div>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: rentaResult.benefice >= 0 ? '#22C55E' : '#EF4444' }}>
-                                {rentaResult.benefice >= 0 ? '+' : ''}{rentaResult.benefice.toLocaleString('fr-FR')} €
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ marginTop: 12, textAlign: 'center' }}>
-                            <span style={{
-                              display: 'inline-block', padding: '6px 16px', borderRadius: 20, fontSize: 14, fontWeight: 700,
-                              background: rentaResult.status === 'profit' ? '#22C55E' : rentaResult.status === 'warning' ? '#F59E0B' : '#EF4444',
-                              color: 'white',
-                            }}>
-                              {rentaResult.status === 'profit' ? '✅' : rentaResult.status === 'warning' ? '⚠️' : '🔴'}{' '}
-                              {locale === 'pt' ? 'Margem' : 'Marge'}: {rentaResult.marge_reelle}%
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Bouton fermer */}
-                      <button onClick={() => setShowRentaModal(false)}
-                        className="v22-btn" style={{ width: '100%', marginTop: 16, padding: '10px 14px' }}>
-                        {locale === 'pt' ? 'Fechar' : 'Fermer'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
+              <RentabiliteDevisModal
+                items={lines.filter(l => l.priceHT > 0 && l.qty > 0)}
+                totalHT={subtotalHT}
+                totalTTC={totalTTC}
+                mode="artisan"
+                onClose={() => setShowRentaModal(false)}
+              />
             )}
 
             {/* Signature électronique (devis only) */}
