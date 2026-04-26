@@ -53,16 +53,31 @@ interface Props {
   totalHT: number
   totalTTC: number
   corpsMetier?: string
+  /** 'btp' utilise membres_btp + charges_fixes, 'artisan' expose des overrides manuels */
+  mode?: 'btp' | 'artisan'
+  /** Valeurs par défaut pour les overrides (mode artisan) */
+  defaultCoutHoraire?: number
+  defaultChargesPatronalesPct?: number
+  defaultChargesFixesMensuelles?: number
   onClose: () => void
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`
 
-export default function RentabiliteDevisModal({ items, totalHT, totalTTC, corpsMetier, onClose }: Props) {
+export default function RentabiliteDevisModal({
+  items, totalHT, totalTTC, corpsMetier, onClose,
+  mode = 'btp',
+  defaultCoutHoraire,
+  defaultChargesPatronalesPct,
+  defaultChargesFixesMensuelles,
+}: Props) {
   const [nbPersonnes, setNbPersonnes] = useState<number>(2)
   const [joursChantier, setJoursChantier] = useState<number>(5)
   const [heuresParJour, setHeuresParJour] = useState<number>(8)
+  const [coutHoraire, setCoutHoraire] = useState<number | ''>(defaultCoutHoraire ?? '')
+  const [chargesPatronalesPct, setChargesPatronalesPct] = useState<number | ''>(defaultChargesPatronalesPct ?? '')
+  const [chargesFixesMensuelles, setChargesFixesMensuelles] = useState<number | ''>(defaultChargesFixesMensuelles ?? '')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<AnalyseResult | null>(null)
 
@@ -73,22 +88,26 @@ export default function RentabiliteDevisModal({ items, totalHT, totalTTC, corpsM
     }
     setLoading(true)
     try {
-      const res = await fetch('/api/btp/analyser-rentabilite-devis', {
+      const body: Record<string, unknown> = {
+        items: items.map(i => ({
+          description: i.description,
+          qty: i.qty,
+          unit: i.unit,
+          priceHT: i.priceHT,
+          totalHT: i.totalHT,
+        })),
+        nbPersonnes,
+        joursChantier,
+        heuresParJour,
+      }
+      if (corpsMetier) body.corpsMetier = corpsMetier
+      if (coutHoraire !== '' && Number(coutHoraire) > 0) body.coutHoraireOverride = Number(coutHoraire)
+      if (chargesPatronalesPct !== '' && Number(chargesPatronalesPct) >= 0) body.chargesPatronalesPctOverride = Number(chargesPatronalesPct)
+      if (chargesFixesMensuelles !== '' && Number(chargesFixesMensuelles) >= 0) body.chargesFixesMensuellesOverride = Number(chargesFixesMensuelles)
+      const res = await fetch('/api/devis/analyser-rentabilite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: items.map(i => ({
-            description: i.description,
-            qty: i.qty,
-            unit: i.unit,
-            priceHT: i.priceHT,
-            totalHT: i.totalHT,
-          })),
-          nbPersonnes,
-          joursChantier,
-          heuresParJour,
-          corpsMetier,
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
@@ -176,6 +195,26 @@ export default function RentabiliteDevisModal({ items, totalHT, totalTTC, corpsM
             {loading ? 'Analyse...' : 'Analyser'}
           </button>
         </div>
+
+        {mode === 'artisan' && (
+          <div className="rdv-form" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginTop: -8 }}>
+            <div>
+              <label>Coût horaire (€)</label>
+              <input type="number" min={0} max={500} step={1} placeholder="ex: 35" value={coutHoraire}
+                onChange={(e) => setCoutHoraire(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))} />
+            </div>
+            <div>
+              <label>Charges patronales (%)</label>
+              <input type="number" min={0} max={100} step={1} placeholder="ex: 22 (auto-ent.) ou 45 (CDI)" value={chargesPatronalesPct}
+                onChange={(e) => setChargesPatronalesPct(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))} />
+            </div>
+            <div>
+              <label>Charges fixes/mois (€)</label>
+              <input type="number" min={0} step={10} placeholder="ex: 800 (loyer+RC+leasing)" value={chargesFixesMensuelles}
+                onChange={(e) => setChargesFixesMensuelles(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))} />
+            </div>
+          </div>
+        )}
 
         {!result && !loading && (
           <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
