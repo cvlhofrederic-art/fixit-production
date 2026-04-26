@@ -28,7 +28,11 @@ const bodySchema = z.object({
   nbPersonnes: z.number().int().min(1).max(100),
   joursChantier: z.number().min(0.5).max(365),
   heuresParJour: z.number().min(1).max(14).default(8),
-  corpsMetier: z.string().optional(), // slug pour matching ciblé
+  corpsMetier: z.string().optional(),
+  // Overrides — utiles côté artisan (pas de membres_btp/charges_fixes en DB)
+  coutHoraireOverride: z.number().min(0).max(500).optional(),
+  chargesPatronalesPctOverride: z.number().min(0).max(100).optional(),
+  chargesFixesMensuellesOverride: z.number().min(0).max(100000).optional(),
 })
 
 // ── Tokenize pour matching fuzzy ────────────────────────────────────────────
@@ -81,7 +85,10 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
-  const { items, nbPersonnes, joursChantier, heuresParJour, corpsMetier } = parsed.data
+  const {
+    items, nbPersonnes, joursChantier, heuresParJour, corpsMetier,
+    coutHoraireOverride, chargesPatronalesPctOverride, chargesFixesMensuellesOverride,
+  } = parsed.data
 
   try {
     // ── 1. Cache ref_prix en mémoire (TTL 5 min) + 3 queries DB user en parallèle ─
@@ -96,20 +103,25 @@ export async function POST(request: NextRequest) {
     const membres = (membresRes.data || []) as { cout_horaire?: number; charges_patronales_pct?: number }[]
     const chargesFixes = (chargesRes.data || []) as { montant: number; frequence: string }[]
 
-    // ── 2. Coût horaire moyen + charges patronales ───────────────────────────
-    const coutHoraireMoyen = membres.length > 0
-      ? membres.reduce((s, m) => s + (m.cout_horaire || 25), 0) / membres.length
-      : (settings?.cout_horaire_moyen || 25)
-    const chargesPatronalesPct = settings?.charges_patronales_pct
-      || (membres.length > 0 ? membres.reduce((s, m) => s + (m.charges_patronales_pct || 45), 0) / membres.length : 45)
+    // ── 2. Coût horaire moyen + charges patronales (override > membres > settings > défaut) ─
+    const coutHoraireMoyen = coutHoraireOverride
+      ?? (membres.length > 0
+          ? membres.reduce((s, m) => s + (m.cout_horaire || 25), 0) / membres.length
+          : (settings?.cout_horaire_moyen || 25))
+    const chargesPatronalesPct = chargesPatronalesPctOverride
+      ?? (settings?.charges_patronales_pct
+          || (membres.length > 0
+              ? membres.reduce((s, m) => s + (m.charges_patronales_pct || 45), 0) / membres.length
+              : 45))
 
-    // ── 3. Charges fixes mensuelles (normalisées) ────────────────────────────
-    const chargesFixesMensuelles = chargesFixes.reduce((sum, c) => {
-      const m = c.frequence === 'annuel' ? c.montant / 12
-              : c.frequence === 'trimestriel' ? c.montant / 3
-              : c.montant
-      return sum + m
-    }, 0)
+    // ── 3. Charges fixes mensuelles (override > somme charges_fixes) ─────────
+    const chargesFixesMensuelles = chargesFixesMensuellesOverride
+      ?? chargesFixes.reduce((sum, c) => {
+            const m = c.frequence === 'annuel' ? c.montant / 12
+                    : c.frequence === 'trimestriel' ? c.montant / 3
+                    : c.montant
+            return sum + m
+          }, 0)
 
     // ── 4. Analyser chaque ligne ─────────────────────────────────────────────
     const lignesAnalysees: LigneAnalysee[] = items.map(item => {
