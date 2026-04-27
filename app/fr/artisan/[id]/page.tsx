@@ -41,12 +41,14 @@ import {
 import { AvisSection } from '@/components/artisan-profile/AvisSection'
 import { ServicesGrid } from '@/components/artisan-profile/ServicesGrid'
 import { BookingForm } from '@/components/artisan-profile/BookingForm'
+import { FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 
 type Step = 'profile' | 'motif' | 'calendar'
 
 // Formate la zone d'intervention affichée publiquement.
 // Priorité : intervention_zones (nouveau modèle régions / départements / villes)
 // → fallback ville + rayon (ancien modèle zone_radius_km).
+
 function formatInterventionZone(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   artisan: any,
@@ -61,11 +63,41 @@ function formatInterventionZone(
   const cities = Array.isArray(zones?.cities) ? zones!.cities : []
   const total = regions.length + departments.length + cities.length
   if (total > 0) {
-    // Format compact : jusqu'à 3 éléments, puis "+N autres"
+    // Hiérarchie : région prime sur département, département prime sur villes
+    // Si une région est sélectionnée, on retire ses départements et villes enfants
+    const coveredDeptCodes = new Set<string>()
+    for (const region of regions) {
+      for (const d of FR_DEPARTEMENTS) {
+        if (d.region === region) coveredDeptCodes.add(d.code)
+      }
+    }
+    const filteredDepts = departments.filter(dept => {
+      const code = (dept.match(/\b(\d{2,3})\b/) || [])[1]
+      return !code || !coveredDeptCodes.has(code)
+    })
+
+    // Si un département est sélectionné, on retire les villes de ce département
+    // (on compare le code postal des villes ou le préfixe du nom du département)
+    const deptCodes = new Set<string>([...coveredDeptCodes])
+    for (const dept of filteredDepts) {
+      const code = (dept.match(/\b(\d{2,3})\b/) || [])[1]
+      if (code) deptCodes.add(code)
+    }
+    // Les villes dans intervention_zones n'ont pas de code dept associé,
+    // donc on garde toutes les villes sauf si toutes les régions/depts couvrent tout
+    const filteredCities = regions.length > 0 || filteredDepts.length > 0
+      ? [] // Si on a au moins une région ou département, les villes sont redondantes
+      : cities
+
     const items: string[] = []
     for (const r of regions) items.push(r)
-    for (const d of departments) items.push(d)
-    for (const c of cities) items.push(c)
+    for (const d of filteredDepts) items.push(d)
+    for (const c of filteredCities) items.push(c)
+
+    if (items.length === 0) {
+      // Tout a été dédupliqué, afficher juste les régions
+      return regions.join(' · ')
+    }
     if (items.length <= 3) return items.join(' · ')
     const remaining = items.length - 3
     return `${items.slice(0, 3).join(' · ')} ${t(`+ ${remaining} autres`, `+ ${remaining} outros`)}`
@@ -617,15 +649,6 @@ export default function ArtisanProfilePage() {
                 )}
                 <div className="flex-1 text-white">
                   <h1 className="font-display text-3xl font-black mb-2 tracking-[-0.03em]">{artisan.company_name}</h1>
-                  {/* Online status badge */}
-                  {(() => {
-                    const lastSeen = artisan.last_seen_at ? new Date(artisan.last_seen_at) : null
-                    const now = new Date()
-                    const diffMin = lastSeen ? (now.getTime() - lastSeen.getTime()) / 60000 : Infinity
-                    if (diffMin < 15) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold mb-2 bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full"><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />{isPt ? 'Online' : 'En ligne'}</span>
-                    if (diffMin < 1440) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold mb-2 bg-white/10 text-white/70 px-2.5 py-1 rounded-full"><span className="w-2 h-2 bg-gray-400 rounded-full" />{isPt ? 'Ativo recentemente' : 'Actif récemment'}</span>
-                    return null
-                  })()}
                   <div className="flex flex-wrap items-center gap-4 mb-3">
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-white" />
