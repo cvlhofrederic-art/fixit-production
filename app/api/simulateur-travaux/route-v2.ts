@@ -235,6 +235,7 @@ function wrapStreamWithSubstitution(
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
+        let enqueued = false
         for (const line of lines) {
           const trimmed = line.trim()
           if (!trimmed.startsWith('data: ')) continue
@@ -250,12 +251,16 @@ function wrapStreamWithSubstitution(
             const substituted = validateAndSubstitute(delta, ctx, stats)
             if (substituted) {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: substituted })}\n\n`))
+              enqueued = true
             }
           } catch {
             // skip malformed JSON
           }
         }
-        return  // un seul pull par cycle
+        // Retourner seulement si des données ont été enfilées ; sinon continuer la
+        // boucle pour lire le prochain chunk. Évite un blocage si le chunk courant
+        // ne contient que des lignes ignorées (ex. "data: [DONE]").
+        if (enqueued) return
       }
     },
     cancel(reason) {
