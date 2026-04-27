@@ -129,7 +129,7 @@ export default async function ArtisanLayout({
   let jsonLdString: string | null = null
 
   try {
-    const artisan = await fetchArtisanProfile<ArtisanJsonLd>(
+    const { data: artisan } = await fetchArtisanProfileDebug<ArtisanJsonLd>(
       id,
       'company_name,categories,company_city,rating_avg,rating_count,country,latitude,longitude,profile_photo_url,slug,phone,org_role'
     )
