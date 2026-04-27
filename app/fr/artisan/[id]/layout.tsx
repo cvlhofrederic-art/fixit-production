@@ -1,14 +1,11 @@
 import type { Metadata } from 'next'
 import { getProfilePath } from '@/lib/utils'
 
-// Direct REST fetch — bypasses Supabase JS client which fails silently on Cloudflare Workers.
-// NEXT_PUBLIC_* values are inlined at build time by Next.js, so they're always available.
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// Returns { data, status, error } for debug purposes
-async function fetchArtisanProfileDebug<T>(id: string, fields: string): Promise<{ data: T | null; status: number; error: string }> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return { data: null, status: 0, error: `noenv:url=${SUPABASE_URL.slice(0,20)}` }
+async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | null> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const column = isUUID ? 'id' : 'slug'
   const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}&limit=1`
@@ -21,12 +18,9 @@ async function fetchArtisanProfileDebug<T>(id: string, fields: string): Promise<
     cache: 'no-store',
   })
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    return { data: null, status: res.status, error: body.slice(0, 100) }
-  }
+  if (!res.ok) return null
   const rows: T[] = await res.json()
-  return { data: rows[0] ?? null, status: res.status, error: rows.length === 0 ? 'empty_array' : '' }
+  return rows[0] ?? null
 }
 
 type ArtisanMeta = {
@@ -36,7 +30,7 @@ type ArtisanMeta = {
   company_city: string | null
   rating_avg: number | null
   rating_count: number
-  country: string | null
+  language: string | null
   profile_photo_url: string | null
   slug: string | null
   org_role: string | null
@@ -53,31 +47,21 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
 
   let artisan: ArtisanMeta | null = null
-  let debugInfo = ''
 
   try {
-    const hasUrl = !!SUPABASE_URL
-    const hasKey = !!SUPABASE_KEY
-    debugInfo = `url:${hasUrl}|key:${hasKey}|id:${id}`
-
-    if (hasUrl && hasKey) {
-      const result = await fetchArtisanProfileDebug<ArtisanMeta>(
-        id,
-        'company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role'
-      )
-      artisan = result.data
-      debugInfo += `|http:${result.status}|err:${result.error}|name:${artisan?.company_name || 'null'}|urlpfx:${SUPABASE_URL.slice(8,30)}`
-    }
-  } catch (err) {
-    debugInfo += `|err:${err instanceof Error ? err.message : String(err)}`
-    return { ...fallback, description: `DEBUG: ${debugInfo}` }
+    artisan = await fetchArtisanProfile<ArtisanMeta>(
+      id,
+      'company_name,bio,categories,company_city,rating_avg,rating_count,language,profile_photo_url,slug,org_role'
+    )
+  } catch {
+    return fallback
   }
 
   if (!artisan) {
-    return { title: 'Artisan non trouvé - Vitfix', description: `DEBUG: ${debugInfo}` }
+    return { title: 'Artisan non trouvé - Vitfix', description: 'Cet artisan n\'existe pas ou a été supprimé.' }
   }
 
-  const isPT = artisan.country === 'PT' || artisan.country === 'Portugal'
+  const isPT = artisan.language === 'pt'
   const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
   const categories = (artisan.categories || []).join(', ')
   const city = artisan.company_city || (isPT ? 'Portugal' : 'France')
@@ -129,13 +113,13 @@ export default async function ArtisanLayout({
   let jsonLdString: string | null = null
 
   try {
-    const { data: artisan } = await fetchArtisanProfileDebug<ArtisanJsonLd>(
+    const artisan = await fetchArtisanProfile<ArtisanJsonLd>(
       id,
-      'company_name,categories,company_city,rating_avg,rating_count,country,latitude,longitude,profile_photo_url,slug,phone,org_role'
+      'company_name,categories,company_city,rating_avg,rating_count,language,latitude,longitude,profile_photo_url,slug,phone,org_role'
     )
 
     if (artisan) {
-      const isPT = artisan.country === 'PT' || artisan.country === 'Portugal'
+      const isPT = artisan.language === 'pt'
       const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
       const categories = artisan.categories || []
       const city = artisan.company_city || ''
