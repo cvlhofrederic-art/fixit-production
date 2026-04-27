@@ -63,7 +63,7 @@ export function ServicesGrid({
           )}
         </div>
         <p className="text-gray-500 text-sm mb-4">
-          {t('Clique em', 'Clique em')} <strong>+</strong> {t('pour combiner plusieurs services dans une même intervention', 'para combinar vários serviços na mesma intervenção')}
+          {t('Cliquez sur', 'Clique em')} <strong>+</strong> {t('pour combiner plusieurs services dans une même intervention', 'para combinar vários serviços na mesma intervenção')}
         </p>
         {services.length === 0 ? (
           <p className="text-gray-600">{t('Aucun service disponible pour le moment.', 'Nenhum serviço disponível de momento.')}</p>
