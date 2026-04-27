@@ -81,6 +81,10 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     }
   }, [])
 
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
   const copyLink = () => {
     if (!stats?.referral_link) return
     navigator.clipboard.writeText(stats.referral_link)
