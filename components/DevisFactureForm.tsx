@@ -3497,7 +3497,6 @@ export default function DevisFactureForm({
                 items={lines.filter(l => l.priceHT > 0 && l.qty > 0)}
                 totalHT={subtotalHT}
                 totalTTC={totalTTC}
-                mode="artisan"
                 onClose={() => setShowRentaModal(false)}
               />
             )}
