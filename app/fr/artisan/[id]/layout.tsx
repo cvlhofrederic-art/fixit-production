@@ -1,21 +1,60 @@
 import type { Metadata } from 'next'
-import { supabaseAdmin } from '@/lib/supabase-server'
 import { getProfilePath } from '@/lib/utils'
+
+// Direct REST fetch — bypasses Supabase JS client which fails silently on Cloudflare Workers.
+// NEXT_PUBLIC_* values are inlined at build time by Next.js, so they're always available.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | null> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  const column = isUUID ? 'id' : 'slug'
+  const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}`
+
+  const res = await fetch(url, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Accept': 'application/vnd.pgrst.object+json',
+    },
+    cache: 'no-store',
+  })
+
+  if (!res.ok) return null
+  return res.json()
+}
+
+type ArtisanMeta = {
+  company_name: string | null
+  bio: string | null
+  categories: string[] | null
+  company_city: string | null
+  rating_avg: number | null
+  rating_count: number
+  country: string | null
+  profile_photo_url: string | null
+  slug: string | null
+  org_role: string | null
+}
+
+type ArtisanJsonLd = ArtisanMeta & {
+  latitude: number | null
+  longitude: number | null
+  phone: string | null
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
 
-  let artisan: { company_name: string | null; bio: string | null; categories: string[] | null; company_city: string | null; rating_avg: number | null; rating_count: number; country: string | null; profile_photo_url: string | null; slug: string | null; org_role: string | null } | null = null
+  let artisan: ArtisanMeta | null = null
 
   try {
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    const { data } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('company_name, bio, categories, company_city, rating_avg, rating_count, country, profile_photo_url, slug, org_role')
-      .eq(isUUID ? 'id' : 'slug', id)
-      .single()
-    artisan = data
+    artisan = await fetchArtisanProfile<ArtisanMeta>(
+      id,
+      'company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role'
+    )
   } catch {
     return fallback
   }
@@ -76,12 +115,10 @@ export default async function ArtisanLayout({
   let jsonLdString: string | null = null
 
   try {
-    const isUUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    const { data: artisan } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('company_name, categories, company_city, rating_avg, rating_count, country, latitude, longitude, profile_photo_url, slug, phone, org_role')
-      .eq(isUUID2 ? 'id' : 'slug', id)
-      .single()
+    const artisan = await fetchArtisanProfile<ArtisanJsonLd>(
+      id,
+      'company_name,categories,company_city,rating_avg,rating_count,country,latitude,longitude,profile_photo_url,slug,phone,org_role'
+    )
 
     if (artisan) {
       const isPT = artisan.country === 'PT' || artisan.country === 'Portugal'
