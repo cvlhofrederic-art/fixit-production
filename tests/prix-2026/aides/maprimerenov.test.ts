@@ -26,6 +26,21 @@ describe('MaPrimeRénov 2026', () => {
     it('IDF a des plafonds plus élevés', () => {
       expect(detectMprBareme({ foyerTaille: 4, revenusFiscaux: 35_000, region: 'idf' })).toBe('bleu')
     })
+
+    it('foyer 4 province à exactement le plafond bleu (35 285 €) → bleu', () => {
+      expect(detectMprBareme({ foyerTaille: 4, revenusFiscaux: 35_285, region: 'province' })).toBe('bleu')
+    })
+
+    it('foyer 4 province à plafond bleu + 1€ (35 286 €) → jaune', () => {
+      expect(detectMprBareme({ foyerTaille: 4, revenusFiscaux: 35_286, region: 'province' })).toBe('jaune')
+    })
+
+    it('foyer 7 pers province ajoute 2× perPersonneSup au foyer5plus', () => {
+      // bleu foyer5plus province = 40 388 ; perPersonneSup = 5 094
+      // plafond foyer 7 = 40 388 + 2×5 094 = 50 576
+      expect(detectMprBareme({ foyerTaille: 7, revenusFiscaux: 50_576, region: 'province' })).toBe('bleu')
+      expect(detectMprBareme({ foyerTaille: 7, revenusFiscaux: 50_577, region: 'province' })).toBe('jaune')
+    })
   })
 
   describe('getMprForfait — montant aide', () => {
