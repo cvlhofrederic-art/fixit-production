@@ -8,6 +8,34 @@ interface Message {
   content: string
 }
 
+export type EstimationData = {
+  totalMin: number
+  totalMax: number
+  totalNetMin?: number
+  totalNetMax?: number
+  spreadPercent: number
+  breakdown: Array<{
+    taskId: string
+    label: string
+    qty: number
+    unit: string
+    unitPriceMin: number
+    unitPriceMax: number
+    lineMin: number
+    lineMax: number
+  }>
+  aidesDeduites?: {
+    maPrimeRenov: number
+    cee: number
+    tvaEconomie: number
+    total: number
+  }
+  zoneDetected: string
+  mode: 'normal' | 'out-of-catalog'
+  artisanRate?: { min: number; max: number; unit: string }
+  sources?: Array<{ name: string; tier: number; url?: string }>
+}
+
 interface SimulateurChatProps {
   userId?: string
   onPublishBourse?: (data: { messages: Message[]; estimation: string }) => void
@@ -26,6 +54,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [conversationCount, setConversationCount] = useState(0)
+  const [estimationData, setEstimationData] = useState<EstimationData | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -67,6 +96,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
     setMessages(newMessages)
     setInput('')
     setIsStreaming(true)
+    setEstimationData(null)
 
     // Track conversation count for anonymous
     if (!userId && messages.length === 0) {
@@ -118,9 +148,28 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
             const json = JSON.parse(payload)
             if (json.text) {
               assistantText += json.text
+              // Extraire le bloc ESTIMATION_DATA s'il est complet
+              const startTag = '[ESTIMATION_DATA]'
+              const endTag = '[/ESTIMATION_DATA]'
+              const startIdx = assistantText.indexOf(startTag)
+              const endIdx = assistantText.indexOf(endTag)
+              let displayText = assistantText
+              if (startIdx >= 0 && endIdx > startIdx) {
+                const jsonPayload = assistantText.slice(startIdx + startTag.length, endIdx)
+                try {
+                  const parsed = JSON.parse(jsonPayload)
+                  setEstimationData(parsed as EstimationData)
+                } catch (parseErr) {
+                  console.warn('[SimulateurChat] ESTIMATION_DATA parse failed:', parseErr)
+                }
+                displayText = assistantText.slice(0, startIdx) + assistantText.slice(endIdx + endTag.length)
+              } else if (startIdx >= 0) {
+                // Bloc commencé mais pas terminé → on cache la portion en cours
+                displayText = assistantText.slice(0, startIdx)
+              }
               setMessages(prev => {
                 const updated = [...prev]
-                updated[updated.length - 1] = { role: 'assistant', content: assistantText }
+                updated[updated.length - 1] = { role: 'assistant', content: displayText }
                 return updated
               })
             }
