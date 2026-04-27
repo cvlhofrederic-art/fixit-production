@@ -34,6 +34,15 @@ export function lookupVariants(args: LookupArgs): VariantCandidate[] {
     candidates = candidates.filter(l => l.metier === args.metierHint)
   }
 
+  if (typeof args.surface === 'number' && args.surface > 0) {
+    const s = args.surface
+    candidates = candidates.filter(l => {
+      const min = l.conditions?.surfaceMin ?? 0
+      const max = l.conditions?.surfaceMax ?? Infinity
+      return s >= min && s <= max
+    })
+  }
+
   const scored = candidates
     .map(line => ({ line, score: scoreLine(line, desc, args.keywords) }))
     .filter(s => s.score > 0 || !!args.metierHint)

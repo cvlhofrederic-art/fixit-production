@@ -30,3 +30,47 @@ describe('lookupVariants — matching basique', () => {
     expect(r).toEqual([])
   })
 })
+
+describe('lookupVariants — filtre surface', () => {
+  it('exclut les lignes avec surfaceMin > surface fournie', () => {
+    const r = lookupVariants({
+      description: 'peinture',
+      metierHint: 'peinture',
+      surface: 10,
+    })
+    for (const v of r) {
+      const min = v.conditions?.surfaceMin ?? 0
+      expect(min).toBeLessThanOrEqual(10)
+    }
+  })
+
+  it('exclut les lignes avec surfaceMax < surface fournie', () => {
+    const r = lookupVariants({
+      description: 'peinture',
+      metierHint: 'peinture',
+      surface: 500,
+    })
+    for (const v of r) {
+      const max = v.conditions?.surfaceMax ?? Infinity
+      expect(max).toBeGreaterThanOrEqual(500)
+    }
+  })
+
+  it('garde les lignes sans contraintes surface', () => {
+    const r = lookupVariants({ description: 'peinture mur', surface: 25 })
+    expect(r.length).toBeGreaterThan(0)
+  })
+})
+
+describe('lookupVariants — scoring', () => {
+  it('priorise mur intérieur sur ravalement façade pour "peinture salon"', () => {
+    const r = lookupVariants({ description: 'peinture salon murs' })
+    expect(r[0]?.taskId).toBe('peinture-murs-interieur-2couches')
+  })
+
+  it('keywords externes augmentent le score', () => {
+    const baseline = lookupVariants({ description: 'travaux' })
+    const boosted = lookupVariants({ description: 'travaux', keywords: ['peinture mur'] })
+    expect(boosted.length).toBeGreaterThanOrEqual(baseline.length)
+  })
+})
