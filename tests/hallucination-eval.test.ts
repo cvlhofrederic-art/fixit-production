@@ -88,7 +88,7 @@ const PROMPTS_ADVERSARIAUX: string[] = [
 
 // ── Suite principale ───────────────────────────────────────────────────────────
 
-const skipIfNoApiKey: typeof it = process.env.GROQ_API_KEY ? it : it.skip
+const skipIfNoApiKey = process.env.GROQ_API_KEY ? it : it.skip
 
 describe('hallucination eval — 50 prompts adversariaux', () => {
   for (const [i, prompt] of PROMPTS_ADVERSARIAUX.entries()) {
