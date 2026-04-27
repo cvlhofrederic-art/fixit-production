@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { getProfilePath } from '@/lib/utils'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -33,13 +32,17 @@ type ArtisanMeta = {
   language: string | null
   profile_photo_url: string | null
   slug: string | null
-  org_role: string | null
 }
 
 type ArtisanJsonLd = ArtisanMeta & {
   latitude: number | null
   longitude: number | null
   phone: string | null
+}
+
+function getCanonicalPath(slug: string | null, id: string, isPT: boolean): string {
+  const identifier = slug || id
+  return isPT ? `/pt/profissional/${identifier}` : `/fr/artisan/${identifier}`
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -51,7 +54,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   try {
     artisan = await fetchArtisanProfile<ArtisanMeta>(
       id,
-      'company_name,bio,categories,company_city,rating_avg,rating_count,language,profile_photo_url,slug,org_role'
+      'company_name,bio,categories,company_city,rating_avg,rating_count,language,profile_photo_url,slug'
     )
   } catch {
     return fallback
@@ -81,8 +84,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? (artisan.bio?.substring(0, 160) || `${name}, ${categories} em ${city}.${ratingText} Reserve online no VITFIX.`)
     : (artisan.bio?.substring(0, 160) || `${name}, artisan ${categories} à ${city}.${ratingText} Réservez en ligne sur Vitfix.`)
 
-  const locale = isPT ? 'pt' : 'fr'
-  const canonicalPath = getProfilePath({ slug: artisan.slug, id, org_role: artisan.org_role }, locale)
+  const canonicalPath = getCanonicalPath(artisan.slug, id, isPT)
 
   return {
     title,
@@ -115,7 +117,7 @@ export default async function ArtisanLayout({
   try {
     const artisan = await fetchArtisanProfile<ArtisanJsonLd>(
       id,
-      'company_name,categories,company_city,rating_avg,rating_count,language,latitude,longitude,profile_photo_url,slug,phone,org_role'
+      'company_name,categories,company_city,rating_avg,rating_count,language,latitude,longitude,profile_photo_url,slug,phone'
     )
 
     if (artisan) {
@@ -123,8 +125,7 @@ export default async function ArtisanLayout({
       const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
       const categories = artisan.categories || []
       const city = artisan.company_city || ''
-      const jsonLdLocale = isPT ? 'pt' : 'fr'
-      const canonicalPath = getProfilePath({ slug: artisan.slug, id, org_role: artisan.org_role }, jsonLdLocale)
+      const canonicalPath = getCanonicalPath(artisan.slug, id, isPT)
 
       const jsonLd = {
         '@context': 'https://schema.org',
