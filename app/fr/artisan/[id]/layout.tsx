@@ -9,9 +9,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   let artisan: { company_name: string | null; bio: string | null; categories: string[] | null; company_city: string | null; rating_avg: number | null; rating_count: number; country: string | null; profile_photo_url: string | null; slug: string | null; org_role: string | null } | null = null
 
   try {
-    const supabase = supabaseAdmin
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
       .from('profiles_artisan')
       .select('company_name, bio, categories, company_city, rating_avg, rating_count, country, profile_photo_url, slug, org_role')
       .eq(isUUID ? 'id' : 'slug', id)
@@ -77,9 +76,8 @@ export default async function ArtisanLayout({
   let jsonLdString: string | null = null
 
   try {
-    const supabase = supabaseAdmin
     const isUUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    const { data: artisan } = await supabase
+    const { data: artisan } = await supabaseAdmin
       .from('profiles_artisan')
       .select('company_name, categories, company_city, rating_avg, rating_count, country, latitude, longitude, profile_photo_url, slug, phone, org_role')
       .eq(isUUID2 ? 'id' : 'slug', id)
