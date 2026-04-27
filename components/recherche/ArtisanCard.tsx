@@ -275,14 +275,20 @@ export function ArtisanCard({
           <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border pt-4 lg:pt-0 lg:pl-5">
             {isCatalogue ? (
               <div className="flex flex-col gap-3 h-full justify-center">
-                {/* Numéro flouté */}
-                <div
-                  className="flex items-center justify-center gap-2 bg-yellow rounded-xl text-dark font-mono py-3 px-4 text-sm font-semibold"
-                  style={{ filter: 'blur(4px)', userSelect: 'none', pointerEvents: 'none', letterSpacing: '0.05em' }}
-                  aria-hidden="true"
-                >
-                  {artisan.telephone_pro || (locale === 'pt' ? '+351 ••• ••• •••' : '06 •• •• •• ••')}
-                </div>
+                {/* Numéro de téléphone — cliquable */}
+                {artisan.telephone_pro ? (
+                  <a
+                    href={`tel:${artisan.telephone_pro.replace(/\s/g, '')}`}
+                    className="flex items-center justify-center gap-2 bg-yellow hover:bg-yellow-light rounded-xl text-dark font-mono py-3 px-4 text-sm font-semibold transition hover:-translate-y-px"
+                    style={{ letterSpacing: '0.05em' }}
+                  >
+                    📞 {artisan.telephone_pro}
+                  </a>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 bg-gray-100 rounded-xl text-gray-500 py-3 px-4 text-xs italic">
+                    {locale === 'pt' ? 'Telefone não disponível' : 'Téléphone non disponible'}
+                  </div>
+                )}
                 <a
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || (locale === 'pt' ? 'Porto' : 'Marseille')))}`}
                   target="_blank"

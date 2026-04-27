@@ -66,6 +66,12 @@ interface Props {
   totalHT: number
   totalTTC: number
   corpsMetier?: string
+  /** 'btp' utilise membres_btp + charges_fixes, 'artisan' expose des overrides manuels */
+  mode?: 'btp' | 'artisan'
+  /** Valeurs par défaut pour les overrides (mode artisan) */
+  defaultCoutHoraire?: number
+  defaultChargesPatronalesPct?: number
+  defaultChargesFixesMensuelles?: number
   onClose: () => void
 }
 
@@ -85,6 +91,9 @@ function detectChargesPatronales(statut: string | null | undefined): number {
 export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalTTC, corpsMetier, onClose }: Props) {
   const [joursChantier, setJoursChantier] = useState<number>(5)
   const [heuresParJour, setHeuresParJour] = useState<number>(8)
+  const [coutHoraire, setCoutHoraire] = useState<number | ''>(defaultCoutHoraire ?? '')
+  const [chargesPatronalesPct, setChargesPatronalesPct] = useState<number | ''>(defaultChargesPatronalesPct ?? '')
+  const [chargesFixesMensuelles, setChargesFixesMensuelles] = useState<number | ''>(defaultChargesFixesMensuelles ?? '')
   const [loading, setLoading] = useState(false)
   const [bootstrapping, setBootstrapping] = useState(true)
   const [result, setResult] = useState<AnalyseResult | null>(null)
