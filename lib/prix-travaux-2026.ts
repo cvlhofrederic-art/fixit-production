@@ -11,6 +11,7 @@ import { plomberieLines } from './prix-travaux-2026/data/plomberie'
 import { electriciteLines } from './prix-travaux-2026/data/electricite'
 import { carrelageLines } from './prix-travaux-2026/data/carrelage'
 import { plaquisteLines } from './prix-travaux-2026/data/plaquiste'
+import { maconnerieLines } from './prix-travaux-2026/data/maconnerie'
 
 export const PRIX_2026: PriceLine[] = [
   ...peintureLines,
@@ -18,4 +19,5 @@ export const PRIX_2026: PriceLine[] = [
   ...electriciteLines,
   ...carrelageLines,
   ...plaquisteLines,
+  ...maconnerieLines,
 ]
