@@ -88,13 +88,21 @@ crons = [
 # Implementation: Create a queue producer API route that enqueues the job,
 # and a queue consumer that processes it with up to 15 min execution time.
 
-# ── Environment Variables ────────────────────────────────────────────────────
-# Set via Cloudflare Dashboard > Pages > Settings > Environment Variables
-# or via: wrangler pages secret put <NAME>
+# ── Public Environment Variables (safe to inline — exposed in client JS) ─────
+# These MUST be in [vars] so server components can access them at runtime.
+# NEXT_PUBLIC_* are already visible in every browser via the client bundle.
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://irluhepekbqgquveaett.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlybHVoZXBla2JxZ3F1dmVhZXR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzODY3MDIsImV4cCI6MjA4NTk2MjcwMn0.UU8I0YKpiGpXnV-e37zY50E7n6Kg4iABFPffEuYetIM"
+NEXT_PUBLIC_APP_URL = "https://vitfix.io"
+
+# ── Secret Environment Variables ────────────────────────────────────────────
+# Set via Cloudflare Dashboard > Workers > Settings > Variables
+# or via: wrangler secret put <NAME>
 #
 # CRITICAL (required):
-#   NEXT_PUBLIC_SUPABASE_URL
-#   NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   NEXT_PUBLIC_SUPABASE_URL          (also in [vars] above)
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY     (also in [vars] above)
 #   SUPABASE_SERVICE_ROLE_KEY
 #   NEXT_PUBLIC_APP_URL
 #   GROQ_API_KEY
