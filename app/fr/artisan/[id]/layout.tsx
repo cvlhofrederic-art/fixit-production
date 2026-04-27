@@ -10,19 +10,19 @@ async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | n
   if (!SUPABASE_URL || !SUPABASE_KEY) return null
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const column = isUUID ? 'id' : 'slug'
-  const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}`
+  const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}&limit=1`
 
   const res = await fetch(url, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Accept': 'application/vnd.pgrst.object+json',
     },
     cache: 'no-store',
   })
 
   if (!res.ok) return null
-  return res.json()
+  const rows: T[] = await res.json()
+  return rows[0] ?? null
 }
 
 type ArtisanMeta = {
@@ -57,24 +57,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     debugInfo = `url:${hasUrl}|key:${hasKey}|id:${id}`
 
     if (hasUrl && hasKey) {
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-      const column = isUUID ? 'id' : 'slug'
-      const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent('company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role')}&${column}=eq.${encodeURIComponent(id)}`
-
-      const res = await fetch(url, {
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Accept': 'application/vnd.pgrst.object+json',
-        },
-        cache: 'no-store',
-      })
-
-      debugInfo += `|status:${res.status}`
-      if (res.ok) {
-        artisan = await res.json()
-        debugInfo += `|found:${!!artisan}`
-      }
+      artisan = await fetchArtisanProfile<ArtisanMeta>(
+        id,
+        'company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role'
+      )
+      debugInfo += `|found:${!!artisan}|name:${artisan?.company_name || 'null'}`
     }
   } catch (err) {
     debugInfo += `|err:${err instanceof Error ? err.message : String(err)}`
