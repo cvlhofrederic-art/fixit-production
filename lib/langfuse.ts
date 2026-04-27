@@ -96,3 +96,51 @@ export function traceAgent(params: TraceParams) {
     },
   };
 }
+
+// ── Simulateur V2 trace helper ───────────────────────────────────────────────
+
+export type SimulateurV2TracePayload = {
+  arm: 'v1' | 'v2'
+  userId?: string
+  sessionId?: string
+  toolCallsCount: number
+  toolCallsDetail?: Array<{ name: string; latencyMs: number; success: boolean }>
+  hallucinationsBlocked: number
+  unknownPlaceholders: number
+  mode?: 'normal' | 'out-of-catalog'
+  zoneDetected?: string
+  totalMin?: number
+  totalMax?: number
+  spreadPercent?: number
+  latencyMs: number
+  error?: string
+}
+
+export function traceSimulateurV2(payload: SimulateurV2TracePayload): void {
+  const lf = getLangfuse()
+  if (!lf) return
+  try {
+    lf.trace({
+      name: 'simulateur-travaux',
+      userId: payload.userId,
+      sessionId: payload.sessionId,
+      tags: [`arm:${payload.arm}`, payload.mode ? `mode:${payload.mode}` : 'mode:none'],
+      metadata: {
+        arm: payload.arm,
+        toolCallsCount: payload.toolCallsCount,
+        toolCallsDetail: payload.toolCallsDetail,
+        hallucinationsBlocked: payload.hallucinationsBlocked,
+        unknownPlaceholders: payload.unknownPlaceholders,
+        mode: payload.mode,
+        zoneDetected: payload.zoneDetected,
+        totalMin: payload.totalMin,
+        totalMax: payload.totalMax,
+        spreadPercent: payload.spreadPercent,
+        latencyMs: payload.latencyMs,
+        error: payload.error,
+      },
+    })
+  } catch (e) {
+    console.warn('[langfuse] traceSimulateurV2 failed:', e)
+  }
+}
