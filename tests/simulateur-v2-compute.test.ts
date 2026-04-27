@@ -133,3 +133,60 @@ describe('computeQuote — math base', () => {
     expect(r.breakdown[0].unitPriceMax).toBe(Math.round(32 * 1.05))
   })
 })
+
+describe('computeQuote — agrégation aides', () => {
+  it('aucune aide si aidesContext absent ou eligibles vides', () => {
+    const r = computeQuote({
+      items: [{ taskId: 'peinture-murs-interieur-2couches', qty: 10 }],
+      region: 'PACA',
+      gamme: 'standard',
+      etat: 'bon',
+    })
+    expect(r.aidesDeduites).toBeUndefined()
+    expect(r.totalNetMin).toBeUndefined()
+    expect(r.totalNetMax).toBeUndefined()
+  })
+
+  it('totalNet absent quand aucune ligne énergétique (peinture)', () => {
+    const r = computeQuote({
+      items: [{ taskId: 'peinture-murs-interieur-2couches', qty: 10 }],
+      region: 'PACA',
+      gamme: 'standard',
+      etat: 'bon',
+      aidesContext: { foyerTaille: 4, revenusFiscaux: 30000, typeLogement: 'principal', ageLogement: 30 },
+    })
+    expect(r.aidesDeduites).toBeUndefined()
+  })
+
+  it('aidesContext défaut sensible (foyerTaille=2, revenusFiscaux=999999 → bareme rose)', () => {
+    expect(() => computeQuote({
+      items: [{ taskId: 'peinture-murs-interieur-2couches', qty: 5 }],
+      region: 'PACA',
+      gamme: 'standard',
+      etat: 'bon',
+      aidesContext: {},
+    })).not.toThrow()
+  })
+
+  it('agrégation MPR/CEE active sur ligne chauffage PAC air-eau 8kW', () => {
+    // Foyer 2 personnes, revenus 20 000 € province → barème bleu → CEE 4500 €, eco-PTZ eligible
+    // Note : plafondTravaux sur les lignes chauffage représente un compteur d'unités (1 PAC par
+    // logement), non un montant en euros. L'assertion porte sur la CEE et l'eco-PTZ qui ne sont
+    // pas affectés par ce plafond. Les assertions MPR exactes viendront en Task 18 après correction
+    // de la sémantique plafondTravaux dans computeAides.
+    const r = computeQuote({
+      items: [{ taskId: 'chauffage-pac-air-eau-8kw-maison-jusqu-120m2', qty: 1 }],
+      region: 'PACA',
+      gamme: 'standard',
+      etat: 'bon',
+      aidesContext: { foyerTaille: 2, revenusFiscaux: 20_000, ageLogement: 25 },
+    })
+    expect(r.aidesDeduites).toBeDefined()
+    expect(r.aidesDeduites!.cee).toBe(4500)
+    expect(r.aidesDeduites!.ecoPTZ.eligible).toBe(true)
+    expect(r.aidesDeduites!.total).toBeGreaterThan(0)
+    expect(r.totalNetMin).toBeDefined()
+    expect(r.totalNetMax).toBeDefined()
+    expect(r.totalNetMax).toBeLessThan(r.totalMax)
+  })
+})

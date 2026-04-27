@@ -4,6 +4,7 @@ import { PRIX_2026 } from '@/lib/prix-travaux-2026'
 import { COEFFICIENTS_ZONE_2026, COEFFICIENTS_GAMME_2026, COEFFICIENTS_ETAT_2026 } from './coefficients'
 import { detectZoneFromPostalCode, detectZoneFromDepartement } from './region-detector'
 import { getArtisanRate, type ArtisanRate } from './artisan-rate'
+import { computeAides, type AidesContexte } from './aides'
 import type { Gamme, Etat, ZoneCode, Source, TvaRate, Unit, PriceLine } from './types'
 
 export type ComputeQuoteItem = { taskId: string; qty: number }
@@ -159,11 +160,67 @@ export function computeQuote(args: ComputeQuoteArgs): ComputeQuoteResult {
 
   const spreadPercent = totalMin > 0 ? (totalMax - totalMin) / totalMin : 0
 
+  // Agrégation aides : seulement sur lignes énergétiques (aidesEligibles présent)
+  const energyLines = args.items
+    .map(i => PRIX_2026.find(l => l.taskId === i.taskId))
+    .filter((l): l is PriceLine => !!l && !!l.aidesEligibles)
+
+  let aidesDeduites: ComputeQuoteAides | undefined
+  let aidesConditions: string[] | undefined
+  let totalNetMin: number | undefined
+  let totalNetMax: number | undefined
+
+  if (energyLines.length > 0) {
+    const ctx: AidesContexte = {
+      foyerTaille: args.aidesContext?.foyerTaille ?? 2,
+      revenusFiscaux: args.aidesContext?.revenusFiscaux ?? 999_999,
+      region: zone === 'IDF-PARIS' || zone === 'IDF-GRANDE-COURONNE' ? 'idf' : 'province',
+      logementAge: args.aidesContext?.ageLogement ?? 0,
+    }
+
+    let totalMpr = 0
+    let totalCee = 0
+    let totalTvaEco = 0
+    let ecoPTZBest: { eligible: boolean; montantMax?: number } = { eligible: false }
+    const conditions: string[] = []
+
+    for (const line of energyLines) {
+      const itemQty = args.items.find(i => i.taskId === line.taskId)?.qty ?? 1
+      const factor = zoneCoef * gammeCoef * etatCoef
+      const lineTtcMax = line.priceMax * factor * itemQty
+      const lineHt = lineTtcMax / (1 + line.tva / 100)
+      const aides = computeAides({ eligibles: line.aidesEligibles, prixHT: lineHt, contexte: ctx })
+      totalMpr += aides.maPrimeRenov
+      totalCee += aides.cee
+      totalTvaEco += aides.tvaEconomie
+      if (aides.ecoPTZ.eligible && (!ecoPTZBest.eligible || (aides.ecoPTZ.montantMax ?? 0) > (ecoPTZBest.montantMax ?? 0))) {
+        ecoPTZBest = aides.ecoPTZ
+      }
+      if (aides.conditions) conditions.push(...aides.conditions)
+    }
+
+    const totalAides = totalMpr + totalCee + totalTvaEco
+    aidesDeduites = {
+      maPrimeRenov: totalMpr,
+      cee: totalCee,
+      tvaEconomie: totalTvaEco,
+      ecoPTZ: ecoPTZBest,
+      total: totalAides,
+    }
+    if (conditions.length > 0) aidesConditions = Array.from(new Set(conditions))
+    totalNetMin = Math.max(0, totalMin - totalAides)
+    totalNetMax = Math.max(0, totalMax - totalAides)
+  }
+
   return {
     totalMin,
     totalMax,
+    totalNetMin,
+    totalNetMax,
     spreadPercent,
     breakdown,
+    aidesDeduites,
+    aidesConditions,
     zoneCoef,
     gammeCoef,
     etatCoef,
