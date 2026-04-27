@@ -304,6 +304,43 @@ describe('route — V2 edge cases', () => {
     expect(joined).toMatch(/CTA_BOURSE/)
   })
 
+  it('placeholder splitté entre 2 chunks → substitué correctement', async () => {
+    const { POST } = await import('@/app/api/simulateur-travaux/route')
+
+    mockCallGroqWithTools
+      .mockResolvedValueOnce({
+        message: {
+          role: 'assistant', content: null,
+          tool_calls: [{ id: 'c1', type: 'function', function: { name: 'computeQuote', arguments: JSON.stringify({ items: [{ taskId: 'peinture-murs-interieur-2couches', qty: 10 }], region: 'PACA', gamme: 'standard', etat: 'bon' }) } }],
+        },
+      })
+      .mockResolvedValueOnce({
+        message: { role: 'assistant', content: 'final' },
+      })
+
+    const fakeStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder()
+        // Splitté volontairement : {TOTAL_ puis MIN}
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ text: 'Total: {TOTAL_' })}\n\n`))
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ text: 'MIN} pour vous' })}\n\n`))
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ text: '\n[CTA_BOURSE_AUX_MARCHES]\n' })}\n\n`))
+        controller.enqueue(enc.encode('data: [DONE]\n\n'))
+        controller.close()
+      },
+    })
+    mockCallGroqStreaming.mockResolvedValue(fakeStream)
+
+    const req = makePOST({ messages: [{ role: 'user', content: 'peinture' }] })
+    const res = await POST(req)
+    const events = await readSSE(res)
+    const joined = events.join('\n')
+    // Aucun placeholder visible côté client
+    expect(joined).not.toMatch(/\{TOTAL_MIN\}|\{TOTAL_/)
+    // Le placeholder a bien été substitué (présence d'un nombre formaté)
+    expect(joined).toMatch(/\d+\s*[  ]?€\s*pour vous/)
+  })
+
   it('validation rejet (computeQuote taskId inconnu) → fallback CTA', async () => {
     const { POST } = await import('@/app/api/simulateur-travaux/route')
 

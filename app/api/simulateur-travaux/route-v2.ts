@@ -230,6 +230,7 @@ function wrapStreamWithSubstitution(
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
   let buffer = ''
+  let pendingPlaceholder = ''
   let closed = false
 
   return new ReadableStream<Uint8Array>({
@@ -238,6 +239,14 @@ function wrapStreamWithSubstitution(
       while (true) {
         const { done, value } = await reader.read()
         if (done) {
+          // Flush any remaining buffered placeholder partial
+          if (pendingPlaceholder) {
+            const flushed = validateAndSubstitute(pendingPlaceholder, ctx, stats)
+            if (flushed) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: flushed })}\n\n`))
+            }
+            pendingPlaceholder = ''
+          }
           // Append ESTIMATION_DATA + DONE
           const payload = JSON.stringify(ctx)
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: '\n\n[ESTIMATION_DATA]' + payload + '[/ESTIMATION_DATA]\n' })}\n\n`))
@@ -263,7 +272,22 @@ function wrapStreamWithSubstitution(
             const json = JSON.parse(payload)
             const delta = typeof json.text === 'string' ? json.text : ''
             if (!delta) continue
-            const substituted = validateAndSubstitute(delta, ctx, stats)
+            // Combine with any pending partial placeholder from previous chunk
+            const combined = pendingPlaceholder + delta
+            // Detect a trailing unclosed placeholder
+            const lastOpen = combined.lastIndexOf('{')
+            const lastClose = combined.lastIndexOf('}')
+            let toSubstitute: string
+            if (lastOpen > lastClose) {
+              // Hold the trailing partial in buffer for next chunk
+              toSubstitute = combined.slice(0, lastOpen)
+              pendingPlaceholder = combined.slice(lastOpen)
+            } else {
+              toSubstitute = combined
+              pendingPlaceholder = ''
+            }
+            if (!toSubstitute) continue
+            const substituted = validateAndSubstitute(toSubstitute, ctx, stats)
             if (substituted) {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: substituted })}\n\n`))
               enqueued = true
