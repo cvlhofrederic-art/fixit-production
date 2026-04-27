@@ -111,9 +111,11 @@ export async function handleV2(
         const r = result.result as ComputeQuoteResult
         const v = validateQuote(r)
         if (!v.ok) {
+          // Sanitize args before Sentry: drop PII (aidesContext contains revenusFiscaux, foyerTaille)
+          const safeArgs = sanitizeComputeArgsForLog(parsedArgs)
           Sentry.captureMessage('simulateur-v2: validateQuote failed', {
             level: 'error',
-            extra: { reasons: v.reasons, args: parsedArgs },
+            extra: { reasons: v.reasons, args: safeArgs },
             tags: { agent_type: 'simulateur-v2' },
           })
           conversation.push({
@@ -194,6 +196,19 @@ export async function handleV2(
     ...(opts.headers ?? {}),
   }
   return new Response(wrapped, { headers })
+}
+
+function sanitizeComputeArgsForLog(args: unknown): Record<string, unknown> {
+  if (typeof args !== 'object' || args === null) return {}
+  const a = args as Record<string, unknown>
+  const safe: Record<string, unknown> = {}
+  if (Array.isArray(a.items)) safe.items = a.items
+  if (typeof a.region === 'string') safe.region = a.region
+  if (typeof a.postalCode === 'string') safe.postalCode = a.postalCode
+  if (typeof a.gamme === 'string') safe.gamme = a.gamme
+  if (typeof a.etat === 'string') safe.etat = a.etat
+  // aidesContext volontairement omis — contient revenusFiscaux, foyerTaille (PII)
+  return safe
 }
 
 function extractZoneArgs(args: unknown): { region?: string; postalCode?: string } {
