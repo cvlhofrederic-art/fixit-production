@@ -17,7 +17,7 @@ describe('Agrégateur aides 2026', () => {
   })
 
   describe('computeAides — agrégation tous dispositifs', () => {
-    it('PAC air-eau, foyer 4 pers, revenus modestes (bleu)', () => {
+    it('PAC air-eau, foyer 4 pers, revenus modestes (bleu) — total déterministe 11 095 €', () => {
       const result = computeAides({
         eligibles: {
           maPrimeRenov: { forfaits: { bleu: 5000, jaune: 4000, violet: 3000, rose: 0 } },
@@ -26,7 +26,6 @@ describe('Agrégateur aides 2026', () => {
           ecoPTZ: true,
         },
         prixHT: 11000,
-        prixTTC20: 13200, // pour calcul économie TVA
         contexte: {
           foyerTaille: 4,
           revenusFiscaux: 28000,
@@ -35,17 +34,19 @@ describe('Agrégateur aides 2026', () => {
         },
       })
 
+      // mpr 5000 (bleu) + cee 4500 + tva économie round(11000*0.20 - 11000*0.055) = 1595
+      // total = 5000 + 4500 + 1595 = 11095
       expect(result.maPrimeRenov).toBe(5000)
       expect(result.cee).toBe(4500)
-      expect(result.tvaEconomie).toBeGreaterThan(0)
-      expect(result.total).toBeGreaterThan(9500)
+      expect(result.tvaEconomie).toBe(1595)
+      expect(result.total).toBe(11095)
+      expect(result.ecoPTZ).toEqual({ eligible: true, montantMax: 50000 })
     })
 
     it('returns 0 if no aides éligibles', () => {
       const result = computeAides({
         eligibles: undefined,
         prixHT: 10000,
-        prixTTC20: 12000,
         contexte: { foyerTaille: 1, revenusFiscaux: 50000, region: 'province', logementAge: 10 },
       })
       expect(result.total).toBe(0)

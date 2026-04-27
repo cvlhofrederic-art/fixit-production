@@ -30,7 +30,6 @@ export type AidesResult = {
 export type ComputeAidesArgs = {
   eligibles: AidesEligibles | undefined
   prixHT: number
-  prixTTC20: number
   contexte: AidesContexte
 }
 
