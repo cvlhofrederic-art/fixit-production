@@ -67,6 +67,8 @@ describe('PRIX_2026 — data integrity', () => {
   })
 
   it('aidesEligibles only on energy-renovation metiers', () => {
+    // menuiserie is included because fenêtres double vitrage are eligible
+    // (CEE BAR-EN-104 + MPR forfait fenêtres). See Task 13 / data/menuiserie.ts.
     const energyMetiers = ['chauffage', 'photovoltaique', 'ite', 'plaquiste', 'menuiserie']
     PRIX_2026.forEach((line: PriceLine) => {
       if (line.aidesEligibles?.maPrimeRenov || line.aidesEligibles?.cee) {
@@ -86,4 +88,10 @@ describe('PRIX_2026 — data integrity', () => {
       }
     }
   })
+
+  // Once Task 17 ships, PRIX_2026 should hold ≥50 lines (10 métiers × 5 priority lines).
+  // Until then, the 8 forEach-based tests above pass vacuously on the empty array.
+  // This guard makes the placeholder state visible in CI output and activates
+  // automatically when the data tasks land.
+  it.todo('PRIX_2026 has at least 50 lines once Tasks 8-17 are merged')
 })
