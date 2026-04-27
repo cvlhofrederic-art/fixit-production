@@ -49,18 +49,40 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
 
   let artisan: ArtisanMeta | null = null
+  let debugInfo = ''
 
   try {
-    artisan = await fetchArtisanProfile<ArtisanMeta>(
-      id,
-      'company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role'
-    )
-  } catch {
-    return fallback
+    const hasUrl = !!SUPABASE_URL
+    const hasKey = !!SUPABASE_KEY
+    debugInfo = `url:${hasUrl}|key:${hasKey}|id:${id}`
+
+    if (hasUrl && hasKey) {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      const column = isUUID ? 'id' : 'slug'
+      const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent('company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role')}&${column}=eq.${encodeURIComponent(id)}`
+
+      const res = await fetch(url, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Accept': 'application/vnd.pgrst.object+json',
+        },
+        cache: 'no-store',
+      })
+
+      debugInfo += `|status:${res.status}`
+      if (res.ok) {
+        artisan = await res.json()
+        debugInfo += `|found:${!!artisan}`
+      }
+    }
+  } catch (err) {
+    debugInfo += `|err:${err instanceof Error ? err.message : String(err)}`
+    return { ...fallback, description: `DEBUG: ${debugInfo}` }
   }
 
   if (!artisan) {
-    return { title: 'Artisan non trouvé - Vitfix', description: 'Cet artisan n\'existe pas ou a été supprimé.' }
+    return { title: 'Artisan non trouvé - Vitfix', description: `DEBUG: ${debugInfo}` }
   }
 
   const isPT = artisan.country === 'PT' || artisan.country === 'Portugal'
