@@ -6,8 +6,9 @@ import { getProfilePath } from '@/lib/utils'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | null> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null
+// Returns { data, status, error } for debug purposes
+async function fetchArtisanProfileDebug<T>(id: string, fields: string): Promise<{ data: T | null; status: number; error: string }> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return { data: null, status: 0, error: `noenv:url=${SUPABASE_URL.slice(0,20)}` }
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const column = isUUID ? 'id' : 'slug'
   const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}&limit=1`
@@ -20,9 +21,12 @@ async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | n
     cache: 'no-store',
   })
 
-  if (!res.ok) return null
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    return { data: null, status: res.status, error: body.slice(0, 100) }
+  }
   const rows: T[] = await res.json()
-  return rows[0] ?? null
+  return { data: rows[0] ?? null, status: res.status, error: rows.length === 0 ? 'empty_array' : '' }
 }
 
 type ArtisanMeta = {
@@ -57,11 +61,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     debugInfo = `url:${hasUrl}|key:${hasKey}|id:${id}`
 
     if (hasUrl && hasKey) {
-      artisan = await fetchArtisanProfile<ArtisanMeta>(
+      const result = await fetchArtisanProfileDebug<ArtisanMeta>(
         id,
         'company_name,bio,categories,company_city,rating_avg,rating_count,country,profile_photo_url,slug,org_role'
       )
-      debugInfo += `|found:${!!artisan}|name:${artisan?.company_name || 'null'}`
+      artisan = result.data
+      debugInfo += `|http:${result.status}|err:${result.error}|name:${artisan?.company_name || 'null'}|urlpfx:${SUPABASE_URL.slice(8,30)}`
     }
   } catch (err) {
     debugInfo += `|err:${err instanceof Error ? err.message : String(err)}`
