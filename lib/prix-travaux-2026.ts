@@ -10,10 +10,12 @@ import { peintureLines } from './prix-travaux-2026/data/peinture'
 import { plomberieLines } from './prix-travaux-2026/data/plomberie'
 import { electriciteLines } from './prix-travaux-2026/data/electricite'
 import { carrelageLines } from './prix-travaux-2026/data/carrelage'
+import { plaquisteLines } from './prix-travaux-2026/data/plaquiste'
 
 export const PRIX_2026: PriceLine[] = [
   ...peintureLines,
   ...plomberieLines,
   ...electriciteLines,
   ...carrelageLines,
+  ...plaquisteLines,
 ]
