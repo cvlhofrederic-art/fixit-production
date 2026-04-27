@@ -259,6 +259,7 @@ export function parseServiceTag(service: any): { unit: string; min: number; max:
 export function cleanServiceDesc(service: any): string {
   return (service.description || '')
     .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
+    .replace(/\s*\[(?:scope|min|max):[^\]]*\]\s*/g, '')
     .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
     .trim()
 }
