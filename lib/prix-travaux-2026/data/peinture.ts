@@ -61,7 +61,8 @@ export const peintureLines: PriceLine[] = [
       },
     ],
     lastVerified: '2026-04-27',
-    confidence: 'high',
+    confidence: 'medium',
+    notes: 'CAPEB PACA 2026 grid pending official Q1 publication — 48 €/h is internal estimate aligned with 2025 baseline + INSEE BT16 +2.8%. Refresh via prix-freshness workflow when grid lands.',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -125,7 +126,8 @@ export const peintureLines: PriceLine[] = [
       },
     ],
     lastVerified: '2026-04-27',
-    confidence: 'high',
+    confidence: 'medium',
+    notes: 'CAPEB PACA 2026 grid pending official Q1 publication — 48 €/h is internal estimate aligned with 2025 baseline + INSEE BT16 +2.8%. Refresh via prix-freshness workflow when grid lands.',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -189,7 +191,8 @@ export const peintureLines: PriceLine[] = [
       },
     ],
     lastVerified: '2026-04-27',
-    confidence: 'high',
+    confidence: 'medium',
+    notes: 'CAPEB PACA 2026 grid pending official Q1 publication — 48 €/h is internal estimate aligned with 2025 baseline + INSEE BT16 +2.8%. Refresh via prix-freshness workflow when grid lands.',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -254,7 +257,8 @@ export const peintureLines: PriceLine[] = [
       },
     ],
     lastVerified: '2026-04-27',
-    confidence: 'high',
+    confidence: 'medium',
+    notes: 'CAPEB PACA 2026 grid pending official Q1 publication — 48 €/h is internal estimate aligned with 2025 baseline + INSEE BT16 +2.8%. Refresh via prix-freshness workflow when grid lands.',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -319,6 +323,7 @@ export const peintureLines: PriceLine[] = [
       },
     ],
     lastVerified: '2026-04-27',
-    confidence: 'high',
+    confidence: 'medium',
+    notes: 'CAPEB PACA 2026 grid pending official Q1 publication — 48 €/h is internal estimate aligned with 2025 baseline + INSEE BT16 +2.8%. Refresh via prix-freshness workflow when grid lands.',
   },
 ]
