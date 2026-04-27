@@ -32,6 +32,8 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           },
           surface: { type: 'number', description: 'Surface en m² si pertinent' },
           keywords: { type: 'array', items: { type: 'string' } },
+          region: { type: 'string', description: 'Code département INSEE OU code zone (passe-le si tu le connais déjà, pour préparer le mode out-of-catalog)' },
+          postalCode: { type: 'string', description: 'Code postal client si connu' },
         },
         required: ['description'],
       },
@@ -81,6 +83,8 @@ const lookupArgsSchema = z.object({
   metierHint: z.enum(['plomberie', 'electricite', 'peinture', 'plaquiste', 'carrelage', 'maconnerie', 'couverture', 'menuiserie', 'chauffage', 'paysagisme']).optional(),
   surface: z.number().positive().optional(),
   keywords: z.array(z.string()).optional(),
+  region: z.string().optional(),
+  postalCode: z.string().optional(),
 })
 
 const computeArgsSchema = z.object({
