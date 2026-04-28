@@ -96,10 +96,11 @@ NEXT_PUBLIC_SUPABASE_URL = "https://irluhepekbqgquveaett.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlybHVoZXBla2JxZ3F1dmVhZXR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzODY3MDIsImV4cCI6MjA4NTk2MjcwMn0.UU8I0YKpiGpXnV-e37zY50E7n6Kg4iABFPffEuYetIM"
 NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 
-# ── Simulateur V2 feature flag (Phase 2 backend tool-calling) ───────────────
-# Rollout par défaut à 0 (V1 actif partout). Surcharger via `wrangler secret put`
-# pour bascule progressive : 10 → 25 → 50 → 100. Cf docs/simulateur-v2-runbook.md
-SIMULATEUR_V2_ROLLOUT = "0"
+# ── Simulateur V2 feature flag ──────────────────────────────────────────────
+# SIMULATEUR_V2_ROLLOUT est gere via `wrangler secret put` (pas en [vars]
+# car conflit binding name avec secrets). Defaut effectif = 0 (V1 actif)
+# si secret absent. Bascule progressive : 10 → 25 → 50 → 100.
+# Cf docs/simulateur-v2-runbook.md
 
 # ── Secret Environment Variables ────────────────────────────────────────────
 # Set via Cloudflare Dashboard > Workers > Settings > Variables
