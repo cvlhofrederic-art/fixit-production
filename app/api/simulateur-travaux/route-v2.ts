@@ -163,9 +163,14 @@ export async function handleV2(
   let groqStream: ReadableStream<Uint8Array>
   try {
     groqStream = await callGroqStreaming({
+      // Preserve tool_call_id and tool_calls — Groq exige ces champs sur les
+      // messages role='tool' et 'assistant' avec tool_calls. Le bug initial
+      // faisait un map() qui les stripait, causant 400 Bad Request systematique.
       messages: conversation.map(m => ({
         role: m.role,
         content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
       })),
       temperature: 0.3,
       max_tokens: 1200,
