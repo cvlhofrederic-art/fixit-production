@@ -25,13 +25,12 @@ test.describe('Artisan registration flow', () => {
     await expect(page.getByText("Quel type d'organisation")).toBeVisible({ timeout: 15000 })
   })
 
-  test('all 5 org type buttons are rendered', async ({ page }) => {
+  test('both org type buttons are rendered', async ({ page }) => {
+    // L'inscription pro propose 2 types d'organisation (réduit depuis 5) :
+    // Artisan/Auto-entrepreneur et Entreprise (SARL, SAS, SA).
     await gotoRegister(page)
     await expect(page.getByText('Artisan / Auto-entrepreneur')).toBeVisible()
-    await expect(page.getByText('🏛️')).toBeVisible()
-    await expect(page.getByText('🏢')).toBeVisible()
-    await expect(page.getByText('🗝️')).toBeVisible()
-    await expect(page.getByText('🏗️')).toBeVisible()
+    await expect(page.getByText('Entreprise (SARL, SAS, SA)')).toBeVisible()
   })
 
   test('clicking Artisan navigates to step 1 form', async ({ page }) => {
