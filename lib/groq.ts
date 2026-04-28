@@ -6,7 +6,11 @@ const GROQ_URL = GROQ_API_URL
 
 export interface GroqMessage {
   role: string
-  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> | null
+  // Optional: pass-through for tool-calling round-trips. Required when role='tool'.
+  tool_call_id?: string
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+  name?: string
 }
 
 export interface GroqCallOptions {
