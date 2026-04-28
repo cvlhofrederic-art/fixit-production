@@ -4,8 +4,9 @@
 // Nécessite : npm run dev en local OU déploiement test, + cookie override admin
 // pour forcer V2.
 //
-// Skip si SIMULATEUR_E2E_SKIP=true (cas CI sans GROQ_API_KEY) ou si le
-// serveur n'est pas joignable.
+// Skip par défaut si GROQ_API_KEY absent (CI standard) ou si
+// SIMULATEUR_E2E_SKIP=true. Pour exécuter en local : exporter GROQ_API_KEY
+// et lancer `npm run dev` puis `npx playwright test e2e/simulateur-v2.spec.ts`.
 //
 // URL : utilise la baseURL de playwright.config.ts + /simulateur
 // ou SIMULATEUR_E2E_URL pour un override complet.
@@ -17,10 +18,14 @@ const SIMULATEUR_URL =
   process.env.SIMULATEUR_E2E_URL ||
   `${process.env.BASE_URL || 'http://127.0.0.1:3000'}${SIMULATEUR_PATH}`
 
-const SHOULD_SKIP = process.env.SIMULATEUR_E2E_SKIP === 'true'
+const SHOULD_SKIP =
+  process.env.SIMULATEUR_E2E_SKIP === 'true' || !process.env.GROQ_API_KEY
 
 test.describe('Simulateur V2 — parcours réels (Groq live)', () => {
-  test.skip(SHOULD_SKIP, 'SIMULATEUR_E2E_SKIP=true (CI sans GROQ)')
+  test.skip(
+    SHOULD_SKIP,
+    'GROQ_API_KEY manquant ou SIMULATEUR_E2E_SKIP=true (CI standard)'
+  )
 
   test.beforeEach(async ({ page }) => {
     // Force V2 via cookie override admin
