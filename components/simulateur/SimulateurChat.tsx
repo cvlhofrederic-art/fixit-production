@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { supabase } from '@/lib/supabase'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -109,9 +110,16 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
     }
 
     try {
+      // Recupere le token Supabase pour authentifier l'appel API.
+      // getAuthUser() cote serveur exige Authorization: Bearer <token>.
+      const { data: { session } } = await supabase.auth.getSession()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`
+      }
       const res = await fetch('/api/simulateur-travaux', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           messages: newMessages,
           userId,
