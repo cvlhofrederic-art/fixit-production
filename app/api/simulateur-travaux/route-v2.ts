@@ -49,6 +49,8 @@ export async function handleV2(
         max_tokens: 800,
       })
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e)
+      console.error('[simulateur-v2] tool-call fetch failed:', errMsg, '| iter:', iterations)
       Sentry.captureException(e, { tags: { agent_type: 'simulateur-v2', stage: 'tool-call' } })
       traceSimulateurV2({
         arm: 'v2', userId: opts.userId, toolCallsCount,
@@ -65,6 +67,7 @@ export async function handleV2(
       if (!lastQuoteResult) {
         const synth = executeTool('computeQuote', { items: [], gamme: 'standard', etat: 'bon' })
         if (synth.error || !synth.result) {
+          console.error('[simulateur-v2] synthetic out-of-catalog failed:', synth.error)
           Sentry.captureMessage('simulateur-v2: synthetic out-of-catalog failed', { extra: { error: synth.error } })
           return fallbackResponse(opts.headers)
         }
@@ -137,6 +140,7 @@ export async function handleV2(
   }
 
   if (iterations >= MAX_TOOL_ITERATIONS && !lastQuoteResult) {
+    console.error('[simulateur-v2] tool_loop_exceeded after', iterations, 'iterations | toolCallsCount:', toolCallsCount)
     Sentry.captureMessage('simulateur-v2: tool_loop_exceeded', {
       level: 'error',
       tags: { agent_type: 'simulateur-v2' },
@@ -167,6 +171,8 @@ export async function handleV2(
       max_tokens: 1200,
     })
   } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e)
+    console.error('[simulateur-v2] final-stream failed:', errMsg)
     Sentry.captureException(e, { tags: { agent_type: 'simulateur-v2', stage: 'final-stream' } })
     return fallbackResponse(opts.headers)
   }
