@@ -82,8 +82,6 @@ export async function GET(request: NextRequest) {
           `https://recherche-entreprises.api.gouv.fr/search?q=${cleanSiret}&mtm_campaign=fixit`,
           {
             headers: { 'Accept': 'application/json' },
-            next: { revalidate: 3600 },
-            signal: AbortSignal.timeout(10000), // 10s timeout
           }
         )
         if (response.ok || response.status < 500) break
