@@ -47,7 +47,10 @@ function getPlafondForFoyer(
   bareme: 'bleu' | 'jaune' | 'violet',
   ctx: DetectionContext
 ): number {
-  const t = ctx.foyerTaille
+  // Garde défensive : foyerTaille < 1 n'a pas de sens (foyer = au moins 1 personne).
+  // On clamp plutôt que throw — la fonction est appelée en chaîne via detectMprBareme
+  // depuis computeQuote, throw casserait toute la simulation.
+  const t = Math.max(1, Math.floor(ctx.foyerTaille || 1))
   const region = ctx.region
   const plafonds = MPR_PLAFONDS_REVENUS_2026[bareme]
   if (t <= 1) return plafonds.foyer1[region]

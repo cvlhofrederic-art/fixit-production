@@ -127,6 +127,10 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
       })
 
       if (!res.ok) {
+        // 401 = session expirée → message dédié pour orienter l'utilisateur
+        if (res.status === 401) {
+          throw new Error('SESSION_EXPIRED')
+        }
         throw new Error(`HTTP ${res.status}`)
       }
 
@@ -188,9 +192,13 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
       }
     } catch (err) {
       console.error('[SimulateurChat] Error:', err)
+      const isSessionExpired = err instanceof Error && err.message === 'SESSION_EXPIRED'
+      const errMessage = isSessionExpired
+        ? 'Ta session a expiré. Reconnecte-toi pour continuer la simulation.'
+        : 'Désolé, une erreur est survenue. Réessayez dans quelques secondes.'
       setMessages(prev => [
         ...prev.filter(m => m.content !== ''),
-        { role: 'assistant', content: 'Désolé, une erreur est survenue. Réessayez dans quelques secondes.' },
+        { role: 'assistant', content: errMessage },
       ])
     } finally {
       setIsStreaming(false)

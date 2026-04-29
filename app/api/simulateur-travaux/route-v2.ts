@@ -18,7 +18,23 @@ const SYSTEM_PROMPT_FINAL_REMINDER = `\n\nMaintenant rédige ta réponse finale 
 
 type HandleV2Options = {
   userId?: string
+  userContext?: {
+    postalCode?: string
+    city?: string
+    fullName?: string
+  }
   headers?: Record<string, string>
+}
+
+function buildUserContextMessage(ctx: NonNullable<HandleV2Options['userContext']>): string | null {
+  const parts: string[] = []
+  if (ctx.postalCode) parts.push(`- Code postal : ${ctx.postalCode}`)
+  if (ctx.city) parts.push(`- Ville : ${ctx.city}`)
+  if (parts.length === 0) return null
+  return `CONTEXTE CLIENT (pré-rempli depuis son compte connecté) :
+${parts.join('\n')}
+
+Tu DOIS utiliser ces informations directement dans tes appels d'outils (paramètre postalCode pour lookupVariants/computeQuote). Ne redemande JAMAIS le code postal ou la ville au client — elles sont déjà connues. Concentre tes questions sur les éléments métier (surface, gamme, état du support, etc.).`
 }
 
 export async function handleV2(
@@ -30,8 +46,11 @@ export async function handleV2(
   const toolCallsDetail: Array<{ name: string; latencyMs: number; success: boolean }> = []
   let lastQuoteResult: ComputeQuoteResult | null = null
 
+  const userContextMsg = opts.userContext ? buildUserContextMessage(opts.userContext) : null
+
   const conversation: GroqMessageWithTools[] = [
     { role: 'system', content: SYSTEM_PROMPT_V2 },
+    ...(userContextMsg ? [{ role: 'system' as const, content: userContextMsg }] : []),
     ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   ]
 
@@ -63,9 +82,15 @@ export async function handleV2(
     const toolCalls = resp.message.tool_calls
     if (!toolCalls || toolCalls.length === 0) {
       // Pas d'appel d'outil → on passe à la phase de génération finale.
+      // Préserve la réponse texte du LLM dans la conversation pour que le
+      // final-stream ait le contexte (sinon Groq régénère sans la question
+      // posée et peut diverger).
+      if (resp.message.content) {
+        conversation.push({ role: 'assistant', content: resp.message.content })
+      }
       // Si aucun computeQuote n'a été appelé, on force out-of-catalog.
       if (!lastQuoteResult) {
-        const synth = executeTool('computeQuote', { items: [], gamme: 'standard', etat: 'bon' })
+        const synth = executeTool('computeQuote', { items: [], ...(opts.userContext?.postalCode ? { postalCode: opts.userContext.postalCode } : {}), gamme: 'standard', etat: 'bon' })
         if (synth.error || !synth.result) {
           console.error('[simulateur-v2] synthetic out-of-catalog failed:', synth.error)
           Sentry.captureMessage('simulateur-v2: synthetic out-of-catalog failed', { extra: { error: synth.error } })
@@ -104,7 +129,10 @@ export async function handleV2(
 
       // Court-circuit serveur : lookupVariants vide → force out-of-catalog
       if (call.function.name === 'lookupVariants' && !result.error && Array.isArray(result.result) && result.result.length === 0) {
-        const synth = executeTool('computeQuote', { items: [], ...extractZoneArgs(parsedArgs), gamme: 'standard', etat: 'bon' })
+        // Priorité : zone passée par le LLM > postalCode du compte client > défaut.
+        const zoneFromLLM = extractZoneArgs(parsedArgs)
+        const zoneFromContext = opts.userContext?.postalCode ? { postalCode: opts.userContext.postalCode } : {}
+        const synth = executeTool('computeQuote', { items: [], ...zoneFromContext, ...zoneFromLLM, gamme: 'standard', etat: 'bon' })
         if (!synth.error && synth.result) {
           lastQuoteResult = synth.result as ComputeQuoteResult
         }
@@ -140,17 +168,28 @@ export async function handleV2(
   }
 
   if (iterations >= MAX_TOOL_ITERATIONS && !lastQuoteResult) {
-    console.error('[simulateur-v2] tool_loop_exceeded after', iterations, 'iterations | toolCallsCount:', toolCallsCount)
-    Sentry.captureMessage('simulateur-v2: tool_loop_exceeded', {
-      level: 'error',
+    // Au lieu d'un fallback brut, on bascule en synthetic out-of-catalog
+    // pour donner au moins le taux horaire artisan via {ARTISAN_RATE_*}.
+    // Un fallback total est gardé en filet de sécurité si même synthetic foire.
+    console.warn('[simulateur-v2] tool_loop_exceeded → synthetic OOC | iterations:', iterations, 'toolCallsCount:', toolCallsCount)
+    Sentry.captureMessage('simulateur-v2: tool_loop_exceeded → synthetic OOC', {
+      level: 'warning',
       tags: { agent_type: 'simulateur-v2' },
+      extra: { iterations, toolCallsCount },
     })
-    traceSimulateurV2({
-      arm: 'v2', userId: opts.userId, toolCallsCount,
-      hallucinationsBlocked: 0, unknownPlaceholders: 0,
-      latencyMs: Date.now() - start, error: 'tool_loop_exceeded',
-    })
-    return fallbackResponse(opts.headers)
+    const synth = executeTool('computeQuote', { items: [], ...(opts.userContext?.postalCode ? { postalCode: opts.userContext.postalCode } : {}), gamme: 'standard', etat: 'bon' })
+    if (synth.error || !synth.result) {
+      console.error('[simulateur-v2] synthetic OOC after loop_exceeded failed:', synth.error)
+      traceSimulateurV2({
+        arm: 'v2', userId: opts.userId, toolCallsCount,
+        hallucinationsBlocked: 0, unknownPlaceholders: 0,
+        latencyMs: Date.now() - start, error: 'tool_loop_exceeded',
+      })
+      return fallbackResponse(opts.headers)
+    }
+    lastQuoteResult = synth.result as ComputeQuoteResult
+    toolCallsCount++
+    toolCallsDetail.push({ name: 'computeQuote(synthetic-after-loop)', latencyMs: 0, success: true })
   }
 
   // Phase 2 : streaming final avec placeholders
@@ -166,12 +205,20 @@ export async function handleV2(
       // Preserve tool_call_id and tool_calls — Groq exige ces champs sur les
       // messages role='tool' et 'assistant' avec tool_calls. Le bug initial
       // faisait un map() qui les stripait, causant 400 Bad Request systematique.
-      messages: conversation.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
-      })),
+      // Note: pour assistant + tool_calls, content peut etre null cote Groq —
+      // ne PAS le convertir en chaine '""' (JSON.stringify d'une string vide
+      // produit '""' littéral, ce qui n'est pas équivalent à null).
+      messages: conversation.map(m => {
+        const base: { role: string; content: string | null } = {
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : (m.content ?? null),
+        }
+        return {
+          ...base,
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+          ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+        }
+      }),
       temperature: 0.3,
       max_tokens: 1200,
     })
@@ -244,6 +291,13 @@ function wrapStreamWithSubstitution(
   let pendingPlaceholder = ''
   let closed = false
 
+  // Garde anti-boucle infinie : si le stream upstream émet uniquement des chunks
+  // ignorables (ex. data: [DONE] ou JSON malformé) sans jamais faire enqueued=true
+  // ni done=true, la boucle interne tournerait jusqu'au timeout Worker (30s).
+  // Limite défensive : 10 000 chunks lus sans output utile = abort.
+  let chunksWithoutOutput = 0
+  const MAX_CHUNKS_WITHOUT_OUTPUT = 10_000
+
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       if (closed) return
@@ -310,7 +364,22 @@ function wrapStreamWithSubstitution(
         // Retourner seulement si des données ont été enfilées ; sinon continuer la
         // boucle pour lire le prochain chunk. Évite un blocage si le chunk courant
         // ne contient que des lignes ignorées (ex. "data: [DONE]").
-        if (enqueued) return
+        if (enqueued) {
+          chunksWithoutOutput = 0
+          return
+        }
+        chunksWithoutOutput++
+        if (chunksWithoutOutput > MAX_CHUNKS_WITHOUT_OUTPUT) {
+          console.error('[simulateur-v2] stream loop guard: aborting after', chunksWithoutOutput, 'chunks without output')
+          // Force la fermeture propre avec ESTIMATION_DATA pour ne pas casser le client
+          const payload = JSON.stringify(ctx)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: '\n\n[ESTIMATION_DATA]' + payload + '[/ESTIMATION_DATA]\n' })}\n\n`))
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+          closed = true
+          try { onClose() } catch { /* ignore */ }
+          return
+        }
       }
     },
     cancel(reason) {
