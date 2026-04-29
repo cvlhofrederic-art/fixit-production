@@ -219,6 +219,8 @@ function FormulaireArtisan() {
   const [kbisPreview, setKbisPreview] = useState<string>('')
   const [idFile, setIdFile] = useState<File | null>(null)
   const [idPreview, setIdPreview] = useState<string>('')
+  const [idFileVerso, setIdFileVerso] = useState<File | null>(null)
+  const [idPreviewVerso, setIdPreviewVerso] = useState<string>('')
   const [siretInput, setSiretInput] = useState('')
   const [siretStatus, setSiretStatus] = useState<SiretStatus>('idle')
   const [siretError, setSiretError] = useState('')
@@ -296,7 +298,7 @@ function FormulaireArtisan() {
     if (siretStatus !== 'verified') { setError(t('register.verifyTaxId')); return false }
     if (selectedCategories.length === 0) { setError(t('register.selectOneTrade')); return false }
     if (!kbisFile) { setError(t('register.kbisRequired')); return false }
-    if (!idFile) { setError(t('register.idRequired')); return false }
+    if (!idFile || !idFileVerso) { setError(t('register.idRequired')); return false }
     if (!formData.password || formData.password.length < 12 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password) || !/[^A-Za-z0-9]/.test(formData.password)) { setError(t('register.passwordTooShort')); return false }
     if (formData.password !== formData.confirmPassword) { setError(t('register.passwordMismatch')); return false }
     return true
@@ -341,6 +343,7 @@ function FormulaireArtisan() {
           await Promise.all([
             kbisFile ? uploadDocument(kbisFile, 'kbis', profileData.id, 'kbis_url') : Promise.resolve(),
             idFile ? uploadDocument(idFile, 'identity', profileData.id, 'id_document_url') : Promise.resolve(),
+            idFileVerso ? uploadDocument(idFileVerso, 'identity-verso', profileData.id, 'id_document_verso_url') : Promise.resolve(),
             insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
           ])
 
@@ -559,18 +562,38 @@ function FormulaireArtisan() {
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.idLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{t('register.idHelp')}</p>
-            {!idFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
-                <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">{t('register.addId')}</span>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }; verifyIdDocument(f) } }} />
-              </label>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
-                {idPreview ? <Image src={idPreview} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded" unoptimized /> : <span className="text-2xl">📄</span>}
-                <span className="flex-1 text-sm font-semibold text-green-800 truncate">{idFile.name}</span>
-                <button type="button" onClick={() => { setIdFile(null); setIdPreview(''); setIdVerifyStatus('idle'); setIdVerifyDetails([]) }} className="text-text-muted hover:text-red-500">✕</button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Recto</p>
+                {!idFile ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter recto</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }; verifyIdDocument(f) } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreview ? <Image src={idPreview} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded" unoptimized /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFile.name}</span>
+                    <button type="button" onClick={() => { setIdFile(null); setIdPreview(''); setIdVerifyStatus('idle'); setIdVerifyDetails([]) }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
               </div>
-            )}
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Verso</p>
+                {!idFileVerso ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter verso</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFileVerso(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreviewVerso(ev.target?.result as string); r.readAsDataURL(f) } } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreviewVerso ? <Image src={idPreviewVerso} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded" unoptimized /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFileVerso.name}</span>
+                    <button type="button" onClick={() => { setIdFileVerso(null); setIdPreviewVerso('') }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
+              </div>
+            </div>
             {/* Résultat vérification OCR */}
             {idVerifyStatus === 'checking' && (
               <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
