@@ -189,7 +189,12 @@ export function computeQuote(args: ComputeQuoteArgs): ComputeQuoteResult {
       const factor = zoneCoef * gammeCoef * etatCoef
       const lineTtcMax = line.priceMax * factor * itemQty
       const lineHt = lineTtcMax / (1 + line.tva / 100)
-      const aides = computeAides({ eligibles: line.aidesEligibles, prixHT: lineHt, contexte: ctx })
+      // Propage itemQty au CEE pour multiplier le forfait par unité (ex: 2 chaudières
+      // = 2 × forfait CEE, pas 1 × forfait). Sans clone, computeCee défaut qty=1.
+      const eligiblesAvecQty = line.aidesEligibles?.cee
+        ? { ...line.aidesEligibles, cee: { ...line.aidesEligibles.cee, qty: itemQty } }
+        : line.aidesEligibles
+      const aides = computeAides({ eligibles: eligiblesAvecQty, prixHT: lineHt, contexte: ctx })
       totalMpr += aides.maPrimeRenov
       totalCee += aides.cee
       totalTvaEco += aides.tvaEconomie

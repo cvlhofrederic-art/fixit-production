@@ -269,6 +269,13 @@ function wrapStreamWithSubstitution(
   let pendingPlaceholder = ''
   let closed = false
 
+  // Garde anti-boucle infinie : si le stream upstream émet uniquement des chunks
+  // ignorables (ex. data: [DONE] ou JSON malformé) sans jamais faire enqueued=true
+  // ni done=true, la boucle interne tournerait jusqu'au timeout Worker (30s).
+  // Limite défensive : 10 000 chunks lus sans output utile = abort.
+  let chunksWithoutOutput = 0
+  const MAX_CHUNKS_WITHOUT_OUTPUT = 10_000
+
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       if (closed) return
@@ -335,7 +342,22 @@ function wrapStreamWithSubstitution(
         // Retourner seulement si des données ont été enfilées ; sinon continuer la
         // boucle pour lire le prochain chunk. Évite un blocage si le chunk courant
         // ne contient que des lignes ignorées (ex. "data: [DONE]").
-        if (enqueued) return
+        if (enqueued) {
+          chunksWithoutOutput = 0
+          return
+        }
+        chunksWithoutOutput++
+        if (chunksWithoutOutput > MAX_CHUNKS_WITHOUT_OUTPUT) {
+          console.error('[simulateur-v2] stream loop guard: aborting after', chunksWithoutOutput, 'chunks without output')
+          // Force la fermeture propre avec ESTIMATION_DATA pour ne pas casser le client
+          const payload = JSON.stringify(ctx)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: '\n\n[ESTIMATION_DATA]' + payload + '[/ESTIMATION_DATA]\n' })}\n\n`))
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+          closed = true
+          try { onClose() } catch { /* ignore */ }
+          return
+        }
       }
     },
     cancel(reason) {
