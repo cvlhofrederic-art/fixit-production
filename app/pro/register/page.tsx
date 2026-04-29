@@ -359,8 +359,10 @@ function FormulaireArtisan() {
         const artisanLanguage = artisanCountry === 'PT' ? 'pt' : 'fr'
         const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', phone: formData.telephone, email: formData.email, language: artisanLanguage }
         if (verifiedCompany) Object.assign(profileInsert, { legal_form: verifiedCompany.legalForm, siren: verifiedCompany.siren, naf_code: verifiedCompany.nafCode, naf_label: verifiedCompany.nafLabel, company_address: verifiedCompany.address, company_city: verifiedCompany.city, company_postal_code: verifiedCompany.postalCode })
-        const { data: profileData, error: profileError } = await supabase.from('profiles_artisan').insert(profileInsert).select('id').single()
-        if (profileError) { setError(profileError.message); setLoading(false); return }
+        const profileRes = await fetch('/api/auth/create-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileInsert) })
+        const profileResult = await profileRes.json()
+        if (!profileRes.ok) { setError(profileResult.error || 'Erreur création profil'); setLoading(false); return }
+        const profileData = { id: profileResult.id }
         if (profileData?.id) {
           await Promise.all([
             kbisFile ? uploadDocument(kbisFile, 'kbis', profileData.id, 'kbis_url') : Promise.resolve(),
@@ -921,23 +923,29 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       }
 
       // ── Créer profil artisan BTP pour le KYC ──
-      if (authData.user && authData.session) {
+      if (authData.user) {
         try {
           const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
           const btpCountry = localeCookie === 'pt' ? 'PT' : 'FR'
           const btpLanguage = btpCountry === 'PT' ? 'pt' : 'fr'
           const btpMarket = orgType === 'societe_btp' ? 'fr_btp' : 'fr_artisan'
-          const { data: btpProfile } = await supabase.from('profiles_artisan').insert({
-            user_id: authData.user.id,
-            email: form.email,
-            phone: form.telephone,
-            company_name: company?.name || form.companyName || '',
-            siret: siretInput.replace(/\s/g, ''),
-            language: btpLanguage,
-            kyc_status: 'pending',
-            kyc_market: btpMarket,
-            verified: false,
-          }).select('id').single()
+          const profileRes = await fetch('/api/auth/create-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: authData.user.id,
+              email: form.email,
+              phone: form.telephone,
+              company_name: company?.name || form.companyName || '',
+              siret: siretInput.replace(/\s/g, ''),
+              language: btpLanguage,
+              kyc_status: 'pending',
+              kyc_market: btpMarket,
+              verified: false,
+            }),
+          })
+          const profileResult = await profileRes.json()
+          const btpProfile = profileRes.ok ? { id: profileResult.id } : null
 
           if (btpProfile?.id) {
             // Mettre à jour les URLs de documents si uploadées
