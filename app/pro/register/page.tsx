@@ -960,7 +960,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             // ── KYC anti-fraude en background ──
             fetch('/api/kyc-orchestrate', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session?.access_token ?? ''}` },
               body: JSON.stringify({ artisan_id: btpProfile.id }),
             }).catch(() => { /* KYC non-bloquant */ })
           }
