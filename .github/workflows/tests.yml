@@ -206,7 +206,16 @@ jobs:
             }
 
             await browser.close();
-            server.kill();
+            // server.kill() ne tue que `npx` (immediate child) — le `next-server`
+            // grandchild survive et garde le port 3000 + event loop alive,
+            // causant un timeout 15min du job. SIGKILL + try/catch sur les
+            // orphelins (best effort), puis process.exit explicite à la fin
+            // pour forcer la sortie quoi qu'il arrive.
+            try { server.kill('SIGKILL'); } catch { /* déjà mort */ }
+            try {
+              // Tente de tuer aussi tout process écoutant sur :3000
+              require('child_process').execSync('fuser -k 3000/tcp 2>/dev/null || true', { stdio: 'ignore' });
+            } catch { /* fuser indispo, OK */ }
 
             // Écrire le rapport
             const fs = require('fs');
@@ -219,9 +228,12 @@ jobs:
             }
 
             if (hasBlocker) {
-              console.error('\nViolations WCAG critiques ou sérieuses détectées.');
-              process.exit(1);
+              console.error('\nViolations WCAG critiques détectées (sérieuses non bloquantes).');
             }
+            // Force l'exit même si Node garde des handles ouverts (orphelin
+            // next-server, axe internals, etc.). hasBlocker=false → exit 0
+            // (sérieuses loggées mais non bloquantes per design EAA 2025).
+            process.exit(hasBlocker ? 1 : 0);
           })();
           SCRIPT
 

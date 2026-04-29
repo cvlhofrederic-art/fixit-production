@@ -84,13 +84,13 @@ const lookupArgsSchema = z.object({
   surface: z.number().positive().optional(),
   keywords: z.array(z.string()).optional(),
   region: z.string().optional(),
-  postalCode: z.string().optional(),
+  postalCode: z.string().regex(/^\d{5}$/, 'Code postal doit être 5 chiffres').optional(),
 })
 
 const computeArgsSchema = z.object({
   items: z.array(z.object({ taskId: z.string(), qty: z.number().positive() })),
   region: z.string().optional(),
-  postalCode: z.string().optional(),
+  postalCode: z.string().regex(/^\d{5}$/, 'Code postal doit être 5 chiffres').optional(),
   gamme: z.enum(['economique', 'standard', 'premium']),
   etat: z.enum(['bon', 'use', 'tres-degrade']),
   aidesContext: z.object({

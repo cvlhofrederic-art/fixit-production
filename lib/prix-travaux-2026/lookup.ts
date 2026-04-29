@@ -19,8 +19,15 @@ export type VariantCandidate = {
   metier: Metier
 }
 
+// Normalise une chaîne pour matching insensible aux accents (peinturé → peinture).
+// NFD décompose les caractères accentués (é → e + ́), puis on supprime les diacritiques
+// (range U+0300-U+036F = combining diacritical marks).
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 export function lookupVariants(args: LookupArgs): VariantCandidate[] {
-  const desc = (args.description || '').trim().toLowerCase()
+  const desc = normalizeForMatch((args.description || '').trim())
   if (!desc && !args.metierHint) return []
 
   const hintedMetiers = new Set<string>([
@@ -61,9 +68,10 @@ export function lookupVariants(args: LookupArgs): VariantCandidate[] {
 
 function scoreLine(line: PriceLine, desc: string, extraKw?: string[]): number {
   let score = 0
-  const haystackLabel = line.label.toLowerCase()
-  const haystackDesc = (line.description ?? '').toLowerCase()
-  const lineKw = line.conditions?.keywords?.map(k => k.toLowerCase()) ?? []
+  // desc est déjà normalisé par lookupVariants ; normaliser aussi label/description/keywords.
+  const haystackLabel = normalizeForMatch(line.label)
+  const haystackDesc = normalizeForMatch(line.description ?? '')
+  const lineKw = line.conditions?.keywords?.map(normalizeForMatch) ?? []
 
   // Mots-clés explicites de la ligne (pondération 3)
   for (const k of lineKw) {

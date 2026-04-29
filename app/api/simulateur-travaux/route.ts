@@ -29,6 +29,16 @@ export async function POST(req: NextRequest) {
     const userId = (user as { id?: string }).id
     const arm = resolveExperimentArm(req, userId)
 
+    // Extrait le contexte profil du client connecté pour éviter au LLM de
+    // redemander code postal / ville déjà saisis dans son compte. Source :
+    // user.user_metadata mis à jour via ClientProfileSection.
+    const userMeta = (user as { user_metadata?: Record<string, unknown> }).user_metadata ?? {}
+    const userContext = {
+      postalCode: typeof userMeta.postal_code === 'string' && userMeta.postal_code.trim() ? userMeta.postal_code.trim() : undefined,
+      city: typeof userMeta.city === 'string' && userMeta.city.trim() ? userMeta.city.trim() : undefined,
+      fullName: typeof userMeta.full_name === 'string' && userMeta.full_name.trim() ? userMeta.full_name.trim() : undefined,
+    }
+
     const baseHeaders: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -39,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = arm.arm === 'v2'
-      ? await handleV2(messages, { userId, headers: baseHeaders })
+      ? await handleV2(messages, { userId, userContext, headers: baseHeaders })
       : await handleV1(messages)
 
     if (arm.setBucketCookie && !response.headers.get('Set-Cookie')) {
