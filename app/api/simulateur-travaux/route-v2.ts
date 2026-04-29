@@ -18,7 +18,23 @@ const SYSTEM_PROMPT_FINAL_REMINDER = `\n\nMaintenant rédige ta réponse finale 
 
 type HandleV2Options = {
   userId?: string
+  userContext?: {
+    postalCode?: string
+    city?: string
+    fullName?: string
+  }
   headers?: Record<string, string>
+}
+
+function buildUserContextMessage(ctx: NonNullable<HandleV2Options['userContext']>): string | null {
+  const parts: string[] = []
+  if (ctx.postalCode) parts.push(`- Code postal : ${ctx.postalCode}`)
+  if (ctx.city) parts.push(`- Ville : ${ctx.city}`)
+  if (parts.length === 0) return null
+  return `CONTEXTE CLIENT (pré-rempli depuis son compte connecté) :
+${parts.join('\n')}
+
+Tu DOIS utiliser ces informations directement dans tes appels d'outils (paramètre postalCode pour lookupVariants/computeQuote). Ne redemande JAMAIS le code postal ou la ville au client — elles sont déjà connues. Concentre tes questions sur les éléments métier (surface, gamme, état du support, etc.).`
 }
 
 export async function handleV2(
@@ -30,8 +46,11 @@ export async function handleV2(
   const toolCallsDetail: Array<{ name: string; latencyMs: number; success: boolean }> = []
   let lastQuoteResult: ComputeQuoteResult | null = null
 
+  const userContextMsg = opts.userContext ? buildUserContextMessage(opts.userContext) : null
+
   const conversation: GroqMessageWithTools[] = [
     { role: 'system', content: SYSTEM_PROMPT_V2 },
+    ...(userContextMsg ? [{ role: 'system' as const, content: userContextMsg }] : []),
     ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   ]
 
@@ -71,7 +90,7 @@ export async function handleV2(
       }
       // Si aucun computeQuote n'a été appelé, on force out-of-catalog.
       if (!lastQuoteResult) {
-        const synth = executeTool('computeQuote', { items: [], gamme: 'standard', etat: 'bon' })
+        const synth = executeTool('computeQuote', { items: [], ...(opts.userContext?.postalCode ? { postalCode: opts.userContext.postalCode } : {}), gamme: 'standard', etat: 'bon' })
         if (synth.error || !synth.result) {
           console.error('[simulateur-v2] synthetic out-of-catalog failed:', synth.error)
           Sentry.captureMessage('simulateur-v2: synthetic out-of-catalog failed', { extra: { error: synth.error } })
@@ -110,7 +129,10 @@ export async function handleV2(
 
       // Court-circuit serveur : lookupVariants vide → force out-of-catalog
       if (call.function.name === 'lookupVariants' && !result.error && Array.isArray(result.result) && result.result.length === 0) {
-        const synth = executeTool('computeQuote', { items: [], ...extractZoneArgs(parsedArgs), gamme: 'standard', etat: 'bon' })
+        // Priorité : zone passée par le LLM > postalCode du compte client > défaut.
+        const zoneFromLLM = extractZoneArgs(parsedArgs)
+        const zoneFromContext = opts.userContext?.postalCode ? { postalCode: opts.userContext.postalCode } : {}
+        const synth = executeTool('computeQuote', { items: [], ...zoneFromContext, ...zoneFromLLM, gamme: 'standard', etat: 'bon' })
         if (!synth.error && synth.result) {
           lastQuoteResult = synth.result as ComputeQuoteResult
         }
@@ -155,7 +177,7 @@ export async function handleV2(
       tags: { agent_type: 'simulateur-v2' },
       extra: { iterations, toolCallsCount },
     })
-    const synth = executeTool('computeQuote', { items: [], gamme: 'standard', etat: 'bon' })
+    const synth = executeTool('computeQuote', { items: [], ...(opts.userContext?.postalCode ? { postalCode: opts.userContext.postalCode } : {}), gamme: 'standard', etat: 'bon' })
     if (synth.error || !synth.result) {
       console.error('[simulateur-v2] synthetic OOC after loop_exceeded failed:', synth.error)
       traceSimulateurV2({
