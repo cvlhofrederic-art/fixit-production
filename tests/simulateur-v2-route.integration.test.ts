@@ -91,6 +91,12 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
+  // Cleanup env vars set in beforeEach — sinon fuite vers hallucination-eval
+  // (isolate: false + forks pool) qui croit que Groq est dispo et tente
+  // d'appeler l'API réelle avec une clé fake.
+  delete process.env.GROQ_API_KEY
+  delete process.env.SIMULATEUR_V2_FORCE_V1
+  delete process.env.SIMULATEUR_V2_ROLLOUT
 })
 
 // ── Task 16 : V1 path (rollout=0) ─────────────────────────────────────────────
