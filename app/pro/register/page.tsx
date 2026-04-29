@@ -790,6 +790,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const [kbisPreview, setKbisPreview] = useState('')
   const [idFile, setIdFile] = useState<File | null>(null)
   const [idPreview, setIdPreview] = useState('')
+  const [idFileVerso, setIdFileVerso] = useState<File | null>(null)
+  const [idPreviewVerso, setIdPreviewVerso] = useState('')
   const [legalStructure, setLegalStructure] = useState('')
 
   const isPt = locale === 'pt'
@@ -1227,25 +1229,38 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.idLabelPro')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{t('register.idHelpPro')}</p>
-            {!idFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
-                <span className="text-2xl">🪪</span>
-                <span className="text-sm text-text-muted mt-1">{t('register.addIdPro')}</span>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                  const f = e.target.files?.[0]
-                  if (f) {
-                    setIdFile(f)
-                    if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }
-                  }
-                }} />
-              </label>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
-                {idPreview ? <img src={idPreview} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
-                <span className="flex-1 text-sm font-semibold text-green-800 truncate">{idFile.name}</span>
-                <button type="button" onClick={() => { setIdFile(null); setIdPreview('') }} className="text-text-muted hover:text-red-500">✕</button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Recto</p>
+                {!idFile ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter recto</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) } } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreview ? <img src={idPreview} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFile.name}</span>
+                    <button type="button" onClick={() => { setIdFile(null); setIdPreview('') }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
               </div>
-            )}
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Verso</p>
+                {!idFileVerso ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter verso</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFileVerso(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreviewVerso(ev.target?.result as string); r.readAsDataURL(f) } } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreviewVerso ? <img src={idPreviewVerso} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFileVerso.name}</span>
+                    <button type="button" onClick={() => { setIdFileVerso(null); setIdPreviewVerso('') }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -1253,7 +1268,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <button type="button" onClick={() => {
               if (!form.prenom || !form.nom || !form.email) { setError(t('register.fillRequired')); return }
               if (!kbisFile) { setError(t('register.kbisRequiredPro')); return }
-              if (!idFile) { setError(t('register.idRequiredPro')); return }
+              if (!idFile || !idFileVerso) { setError(t('register.idRequiredPro')); return }
               setError(''); setStep(3)
             }} className={`flex-1 py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
           </div>
