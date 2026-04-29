@@ -92,10 +92,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (!response || !response.ok) {
+      const body = response ? await response.text().catch(() => '') : 'no response'
+      logger.error(`[verify-siret] API error: status=${response?.status} body=${body}`)
       return NextResponse.json({
         verified: false,
-        error: 'Service de vérification temporairement indisponible. Réessayez dans quelques instants.',
-        step: 'api_error'
+        error: `Service de vérification temporairement indisponible. Réessayez dans quelques instants.`,
+        step: 'api_error',
+        debug: { status: response?.status, body: body.substring(0, 200) }
       })
     }
 
