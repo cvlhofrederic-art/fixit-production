@@ -343,6 +343,8 @@ function FormulaireArtisan() {
       }
       const { data: authData, error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.password, options: { data: userMetadata } })
       if (authError) { setError(authError.message); setLoading(false); return }
+      // Supabase returns a fake user with empty identities if email already exists (security feature)
+      if (authData.user?.identities?.length === 0) { setError('Un compte existe déjà avec cet email. Connectez-vous ou utilisez un autre email.'); setLoading(false); return }
       if (authData.user) {
         // Init app_metadata.role (server-only) via endpoint dédié
         try {
