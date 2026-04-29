@@ -266,6 +266,7 @@ function FormulaireArtisan() {
     if (clean.length !== taxIdLength) { setSiretError(isPt ? '9 dígitos necessários' : '14 chiffres nécessaires'); setSiretStatus('error'); return }
     setSiretStatus('checking'); setSiretError(''); setSiretWarning('')
     try {
+      // Try internal API first
       const endpoint = isPt ? `/api/verify-nif?nif=${clean}` : `/api/verify-siret?siret=${clean}`
       const res = await fetch(endpoint)
       const data = await res.json()
@@ -274,7 +275,28 @@ function FormulaireArtisan() {
         setFormData(prev => ({ ...prev, companyName: data.company.name || prev.companyName, siret: clean }))
         const allowed = getAllowedMetiers(data.company.nafCode)
         if (allowed) setSelectedCategories(prev => prev.filter(c => allowed.includes(c)))
-      } else { setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid')) }
+        return
+      }
+      // If internal API failed with api_error, fallback to direct gouv API call from browser
+      if (!isPt && data.step === 'api_error') {
+        const gouvRes = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${clean}`)
+        if (gouvRes.ok) {
+          const gouvData = await gouvRes.json()
+          if (gouvData.results?.length > 0) {
+            const e = gouvData.results[0]
+            if (e.etat_administratif === 'C') {
+              setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return
+            }
+            const company = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: e.siege ? [e.siege.adresse, `${e.siege.code_postal} ${e.siege.libelle_commune}`].filter(Boolean).join(', ') : '', city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
+            setSiretStatus('verified'); setVerifiedCompany(company)
+            setFormData(prev => ({ ...prev, companyName: company.name || prev.companyName, siret: clean }))
+            const allowed = getAllowedMetiers(company.nafCode)
+            if (allowed) setSelectedCategories(prev => prev.filter(c => allowed.includes(c)))
+            return
+          }
+        }
+      }
+      setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid'))
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
@@ -787,8 +809,24 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           const mapped = mapLegalFormToKey(data.company.legalForm, registrationCountry)
           if (mapped) setLegalStructure(mapped)
         }
+        return
       }
-      else { setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid')) }
+      // Fallback: call gouv API directly from browser if internal API fails
+      if (!isPt && data.step === 'api_error') {
+        const gouvRes = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${clean}`)
+        if (gouvRes.ok) {
+          const gouvData = await gouvRes.json()
+          if (gouvData.results?.length > 0) {
+            const e = gouvData.results[0]
+            if (e.etat_administratif === 'C') { setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return }
+            const comp = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: e.siege ? [e.siege.adresse, `${e.siege.code_postal} ${e.siege.libelle_commune}`].filter(Boolean).join(', ') : '', city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
+            setSiretStatus('verified'); setCompany(comp); setForm(f => ({ ...f, companyName: comp.name || f.companyName }))
+            if (comp.legalForm) { const mapped = mapLegalFormToKey(comp.legalForm, registrationCountry); if (mapped) setLegalStructure(mapped) }
+            return
+          }
+        }
+      }
+      setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid'))
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
