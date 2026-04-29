@@ -63,6 +63,12 @@ export async function handleV2(
     const toolCalls = resp.message.tool_calls
     if (!toolCalls || toolCalls.length === 0) {
       // Pas d'appel d'outil → on passe à la phase de génération finale.
+      // Préserve la réponse texte du LLM dans la conversation pour que le
+      // final-stream ait le contexte (sinon Groq régénère sans la question
+      // posée et peut diverger).
+      if (resp.message.content) {
+        conversation.push({ role: 'assistant', content: resp.message.content })
+      }
       // Si aucun computeQuote n'a été appelé, on force out-of-catalog.
       if (!lastQuoteResult) {
         const synth = executeTool('computeQuote', { items: [], gamme: 'standard', etat: 'bon' })
@@ -140,17 +146,28 @@ export async function handleV2(
   }
 
   if (iterations >= MAX_TOOL_ITERATIONS && !lastQuoteResult) {
-    console.error('[simulateur-v2] tool_loop_exceeded after', iterations, 'iterations | toolCallsCount:', toolCallsCount)
-    Sentry.captureMessage('simulateur-v2: tool_loop_exceeded', {
-      level: 'error',
+    // Au lieu d'un fallback brut, on bascule en synthetic out-of-catalog
+    // pour donner au moins le taux horaire artisan via {ARTISAN_RATE_*}.
+    // Un fallback total est gardé en filet de sécurité si même synthetic foire.
+    console.warn('[simulateur-v2] tool_loop_exceeded → synthetic OOC | iterations:', iterations, 'toolCallsCount:', toolCallsCount)
+    Sentry.captureMessage('simulateur-v2: tool_loop_exceeded → synthetic OOC', {
+      level: 'warning',
       tags: { agent_type: 'simulateur-v2' },
+      extra: { iterations, toolCallsCount },
     })
-    traceSimulateurV2({
-      arm: 'v2', userId: opts.userId, toolCallsCount,
-      hallucinationsBlocked: 0, unknownPlaceholders: 0,
-      latencyMs: Date.now() - start, error: 'tool_loop_exceeded',
-    })
-    return fallbackResponse(opts.headers)
+    const synth = executeTool('computeQuote', { items: [], gamme: 'standard', etat: 'bon' })
+    if (synth.error || !synth.result) {
+      console.error('[simulateur-v2] synthetic OOC after loop_exceeded failed:', synth.error)
+      traceSimulateurV2({
+        arm: 'v2', userId: opts.userId, toolCallsCount,
+        hallucinationsBlocked: 0, unknownPlaceholders: 0,
+        latencyMs: Date.now() - start, error: 'tool_loop_exceeded',
+      })
+      return fallbackResponse(opts.headers)
+    }
+    lastQuoteResult = synth.result as ComputeQuoteResult
+    toolCallsCount++
+    toolCallsDetail.push({ name: 'computeQuote(synthetic-after-loop)', latencyMs: 0, success: true })
   }
 
   // Phase 2 : streaming final avec placeholders
@@ -166,12 +183,20 @@ export async function handleV2(
       // Preserve tool_call_id and tool_calls — Groq exige ces champs sur les
       // messages role='tool' et 'assistant' avec tool_calls. Le bug initial
       // faisait un map() qui les stripait, causant 400 Bad Request systematique.
-      messages: conversation.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
-      })),
+      // Note: pour assistant + tool_calls, content peut etre null cote Groq —
+      // ne PAS le convertir en chaine '""' (JSON.stringify d'une string vide
+      // produit '""' littéral, ce qui n'est pas équivalent à null).
+      messages: conversation.map(m => {
+        const base: { role: string; content: string | null } = {
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : (m.content ?? null),
+        }
+        return {
+          ...base,
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+          ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+        }
+      }),
       temperature: 0.3,
       max_tokens: 1200,
     })
