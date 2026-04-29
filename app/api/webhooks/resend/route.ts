@@ -226,8 +226,9 @@ export async function POST(request: NextRequest) {
 
     case 'email.sent':
     case 'email.delivered':
-      // Pas d'alerting Sentry — juste un log debug pour traçabilité dataflow.
-      log.debug('Email event', { type: event.type, emailId: event.data.email_id })
+      // Pas d'alerting Sentry — juste un log info pour traçabilité dataflow.
+      // (logger.withTenant n'expose pas debug, on utilise info verbose).
+      log.info('Email event', { type: event.type, emailId: event.data.email_id })
       break
 
     case 'email.opened':
