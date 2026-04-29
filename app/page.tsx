@@ -46,6 +46,23 @@ export default function HomePage() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
+  // Redirige vers /auth/confirmed si on landing avec un access_token Supabase
+  // dans le hash (= retour de confirmation email). Pattern UX pro pour ne pas
+  // laisser l'user sur la landing sans feedback visible (Linear/Stripe pattern).
+  // On préserve le hash pour que la page /auth/confirmed puisse récupérer la
+  // session via supabase.auth.getSession() après auto-detection du SDK.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash
+    if (!hash) return
+    const hasAccessToken = hash.includes('access_token=')
+    const isAuthFlow = /[?&#]type=(signup|recovery|invite|magiclink|email_change)/.test(hash)
+    if (hasAccessToken && isAuthFlow) {
+      // Garde le hash pour que le SDK consomme la session sur la nouvelle page
+      router.replace(`/auth/confirmed${hash}`)
+    }
+  }, [router])
+
   const searchPath = locale === 'pt' ? '/pesquisar' : '/recherche'
   const registerPath = '/pro/register'
   const tariffsPath = '/pro/tarifs'
