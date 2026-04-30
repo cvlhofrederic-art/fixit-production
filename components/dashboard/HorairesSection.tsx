@@ -93,7 +93,6 @@ function HorairesArtisan({
     prestPanelTitle: isPt ? 'Prestações disponíveis neste dia' : 'Prestations disponibles ce jour',
     prestHint: isPt ? 'Nenhuma prestação selecionada = todas estão disponíveis' : 'Aucune prestation cochée = toutes sont disponibles',
     perWeek: isPt ? '/ semana' : '/ semaine',
-    autoSaved: isPt ? 'Guardado automaticamente' : 'Sauvegardé automatiquement',
     saving: isPt ? 'A guardar…' : 'Sauvegarde…',
     saveBtn: isPt ? 'Guardar' : 'Sauvegarder',
     saveDone: isPt ? 'Guardado' : 'Sauvegardé',
@@ -367,12 +366,6 @@ function HorairesArtisan({
             <span><strong>{stats.activeDays}</strong> {L.daysActive}</span>
             <span className="h2-sep" />
             <span><strong>{stats.total}</strong> {L.perWeek}</span>
-            <span className="h2-sep" />
-            {savingAvail ? (
-              <span style={{ color: '#FFA000' }}>⏱️ {L.saving}</span>
-            ) : (
-              <span className="h2-saved">✓ {L.autoSaved}</span>
-            )}
           </div>
           <div className="h2-foot-r">
             <button
