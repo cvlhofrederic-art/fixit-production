@@ -14,8 +14,8 @@ interface HorairesSectionProps {
   autoAccept: boolean
   savingAvail: boolean
   toggleAutoAccept: () => void
-  toggleDayAvailability: (dayOfWeek: number) => void
-  updateAvailabilityTime: (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => void
+  toggleDayAvailability: (dayOfWeek: number, slotType?: 'rdv' | 'visite') => void
+  updateAvailabilityTime: (dayOfWeek: number, field: 'start_time' | 'end_time', value: string, slotType?: 'rdv' | 'visite') => void
   toggleDayService: (dayOfWeek: number, serviceId: string) => void
   saveAllDayServices?: () => Promise<boolean | void>
   DAY_NAMES: string[]
