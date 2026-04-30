@@ -7,8 +7,10 @@ import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import {
+  CATEGORIES,
   getCategoryLabel,
 } from './views/shared'
+import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 import { isSmallBusinessStatus } from '@/lib/devis-utils'
 
 const BrowseTabView = dynamic(() => import('./views/BrowseTabView'), { ssr: false })
@@ -177,8 +179,16 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       params.set('pays', artisanPays)
       params.set('status', 'open')
       // Filtre privés/publics côté serveur — sinon les scrappés (scan_*) restent visibles.
-      // Pour les AE/EI : forcé à 'prives' par le useEffect plus bas (filterMarcheType state).
-      if (filterMarcheType !== 'tous') params.set('marche_type', filterMarcheType)
+      //
+      // Cas particulier artisan + "Tous" : on envoie 'prives' au lieu de rien
+      // pour exclure les marchés publics scrapés que l'artisan ne doit jamais voir
+      // (la rule d'isolation artisan/BTP s'applique aussi quand le filtre est "tous").
+      if (filterMarcheType === 'tous') {
+        if (isArtisan) params.set('marche_type', 'prives')
+        // BTP Pro "Tous" → vraiment tout (publics + privés)
+      } else {
+        params.set('marche_type', filterMarcheType)
+      }
       const res = await fetch(`/api/marches?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marches')
       const data = await res.json()
@@ -191,7 +201,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, artisanPays, filterMarcheType])
+  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan])
 
   // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
   const artisanCoreMetiers = React.useMemo(() => {
@@ -206,6 +216,24 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     if (filterCategory) return [filterCategory]
     return artisanCoreMetiers
   }, [filterCategory, artisanCoreMetiers])
+
+  // Compteur "vraiment affichable" — applique le même filtre métier que BrowseTabView
+  // pour éviter le décalage trompeur "100 disponibles / 0 affichés".
+  const visibleMarchesCount = React.useMemo(() => {
+    if (!artisanCoreMetiers || artisanCoreMetiers.length === 0) return marches.length
+    const allowed = new Set<string>()
+    const metierKeys = resolveMetierKeys(artisanCoreMetiers)
+    for (const key of metierKeys) {
+      const m = METIER_CPV_MAP[key]
+      if (m) m.categoryIds.forEach(c => allowed.add(c))
+    }
+    for (const input of artisanCoreMetiers) {
+      const lower = input.toLowerCase().trim()
+      if (CATEGORIES.some(c => c.id === lower)) allowed.add(lower)
+    }
+    if (allowed.size === 0) return marches.length
+    return marches.filter(m => !m.category || allowed.has(m.category)).length
+  }, [marches, artisanCoreMetiers])
 
   // Scanner marches publics
   const handleScanMarches = useCallback(async () => {
@@ -623,7 +651,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         <div>
           <div className="v22-page-title">Bourse aux Marchés</div>
           <div className="v22-page-sub">
-            {stats.openCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
+            {visibleMarchesCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
           </div>
         </div>
         {(filterCategory || filterDepartments.length > 0) && (
@@ -640,7 +668,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       <div className="v22-stats">
         <div className="v22-stat v22-stat-yellow">
           <div className="v22-stat-label">{isPt ? 'Novas' : 'Nouvelles'}</div>
-          <div className="v22-stat-val">{stats.openCount}</div>
+          <div className="v22-stat-val">{visibleMarchesCount}</div>
         </div>
         <div className="v22-stat">
           <div className="v22-stat-label">{isPt ? 'Candidaturas' : 'Candidatures'}</div>
