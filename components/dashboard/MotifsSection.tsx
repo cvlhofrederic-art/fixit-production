@@ -391,56 +391,59 @@ export default function MotifsSection({
                   <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
                 </div>
 
-                {/* Validation auto */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    <button
-                      onClick={() => setMotifForm({...motifForm, validation_auto: false})}
-                      className={isV5 ? 'v5-btn' : 'v22-btn'}
-                      style={{
-                        textAlign: 'left', padding: '8px 10px',
-                        borderColor: !motifForm.validation_auto ? tv.primary : undefined,
-                        background: !motifForm.validation_auto ? tv.primaryLight : undefined,
-                      }}>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
-                      <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
-                    </button>
-                    <button
-                      onClick={() => setMotifForm({...motifForm, validation_auto: true})}
-                      className={isV5 ? 'v5-btn' : 'v22-btn'}
-                      style={{
-                        textAlign: 'left', padding: '8px 10px',
-                        borderColor: motifForm.validation_auto ? tv.primary : undefined,
-                        background: motifForm.validation_auto ? tv.primaryLight : undefined,
-                      }}>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
-                      <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
-                    </button>
-                  </div>
-                </div>
+                {/* Validation auto + Délai minimum — uniquement pour Main d'œuvre (réservable client) */}
+                {motifForm.scope === 'mo' && (
+                  <>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <button
+                          onClick={() => setMotifForm({...motifForm, validation_auto: false})}
+                          className={isV5 ? 'v5-btn' : 'v22-btn'}
+                          style={{
+                            textAlign: 'left', padding: '8px 10px',
+                            borderColor: !motifForm.validation_auto ? tv.primary : undefined,
+                            background: !motifForm.validation_auto ? tv.primaryLight : undefined,
+                          }}>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
+                          <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
+                        </button>
+                        <button
+                          onClick={() => setMotifForm({...motifForm, validation_auto: true})}
+                          className={isV5 ? 'v5-btn' : 'v22-btn'}
+                          style={{
+                            textAlign: 'left', padding: '8px 10px',
+                            borderColor: motifForm.validation_auto ? tv.primary : undefined,
+                            background: motifForm.validation_auto ? tv.primaryLight : undefined,
+                          }}>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
+                          <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
+                        </button>
+                      </div>
+                    </div>
 
-                {/* Délai minimum */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                    {[0, 2, 4, 8, 12, 24, 48, 72].map((h) => (
-                      <button key={h}
-                        onClick={() => setMotifForm({...motifForm, delai_minimum_heures: h})}
-                        className={isV5 ? 'v5-btn' : 'v22-btn'}
-                        style={{
-                          textAlign: 'center', padding: '8px 6px',
-                          borderColor: motifForm.delai_minimum_heures === h ? tv.primary : undefined,
-                          background: motifForm.delai_minimum_heures === h ? tv.primaryLight : undefined,
-                        }}>
-                        <div style={{ fontWeight: 600, fontSize: 12 }}>
-                          {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
-                </div>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                        {[0, 2, 4, 8, 12, 24, 48, 72].map((h) => (
+                          <button key={h}
+                            onClick={() => setMotifForm({...motifForm, delai_minimum_heures: h})}
+                            className={isV5 ? 'v5-btn' : 'v22-btn'}
+                            style={{
+                              textAlign: 'center', padding: '8px 6px',
+                              borderColor: motifForm.delai_minimum_heures === h ? tv.primary : undefined,
+                              background: motifForm.delai_minimum_heures === h ? tv.primaryLight : undefined,
+                            }}>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>
+                              {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
+                    </div>
+                  </>
+                )}
 
                 {/* Étapes moved above, under Description */}
               </div>
