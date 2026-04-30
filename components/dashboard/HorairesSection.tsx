@@ -51,22 +51,36 @@ export default function HorairesSection({
   return (
     <div className="v5-fade">
       <style>{`
-        /* Layout-only — pas de couleurs custom : on réutilise les primitives v5 (.v5-tgl, .v5-chip) du design system */
-        .h-day-block + .h-day-block { margin-top: 8px; }
-        .h-row { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border: 1px solid #E8E8E8; border-radius: 6px; background: #fff; }
+        /* Layout calqué sur la grammaire BTP standard (PointageEquipesSection, EquipesBTPV2) :
+           card padding=0 + header en haut séparé par border + body en lignes table-like.
+           On réutilise les primitives v5 (.v5-tgl, .v5-chip, .v5-st), pas de couleur custom. */
+        .h-card { padding: 0 !important; }
+        .h-card-h { padding: .75rem 1.25rem; border-bottom: 1px solid #E8E8E8; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+        /* Ligne jour (style table-row, pas de card-dans-card) */
+        .h-row { display: flex; align-items: center; gap: 16px; padding: .85rem 1.25rem; border-bottom: 1px solid #F0F0EE; }
         .h-row.is-off { background: #FAFAFA; }
-        .h-day { width: 88px; font-weight: 600; font-size: 13px; color: #1a1a1a; }
+        .h-day { width: 92px; font-weight: 600; font-size: 13px; color: #1a1a1a; }
         .h-row.is-off .h-day { color: #999; }
         .h-times { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
-        .h-times input[type=time] { font-size: 12px; padding: 5px 8px; border: 1px solid #E0E0E0; border-radius: 4px; background: #fff; color: #1a1a1a; width: 100px; }
+        .h-times input[type=time] { font-size: 12px; padding: 5px 8px; border: 1px solid #E0E0E0; border-radius: 4px; background: #fff; color: #1a1a1a; width: 100px; font-family: inherit; }
         .h-times input[type=time]:disabled { opacity: .4; cursor: not-allowed; }
-        .h-times input[type=time]:focus { outline: none; border-color: #FFC107; }
+        .h-times input[type=time]:focus { outline: none; border-color: #FFC107; box-shadow: 0 0 0 2px #FFF8E1; }
         .h-closed { font-size: 12px; color: #BBB; font-style: italic; }
-        .h-svc-panel { margin: 6px 0 10px 100px; padding: 8px 12px; }
+
+        /* Section services en sous-bloc — fond #FAFAFA séparé par border bas */
+        .h-svc-panel { padding: .65rem 1.25rem .85rem 4.85rem; background: #FAFAFA; border-bottom: 1px solid #F0F0EE; }
         .h-svc-lbl { font-size: 10px; font-weight: 700; color: #999; letter-spacing: .3px; text-transform: uppercase; margin-bottom: 6px; }
         .h-svc-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         .h-svc-chips label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
         .h-svc-chips input[type=checkbox] { width: 13px; height: 13px; accent-color: #FFC107; cursor: pointer; }
+
+        /* Footer "sauvegarde" calqué sur PointageEquipesSection (info card jaune light) */
+        .h-saving { padding: .65rem 1.25rem; background: #FEF5E4; border-top: 1px solid #E8E8E8; font-size: 12px; color: #B8860B; font-weight: 500; }
+
+        /* Dernier élément de la liste : pas de border-bottom (closing edge) */
+        .h-card-body > div:last-child > .h-row,
+        .h-card-body > div:last-child > .h-svc-panel { border-bottom: none; }
       `}</style>
 
       {/* Page header */}
@@ -86,12 +100,12 @@ export default function HorairesSection({
         </span>
       </div>
 
-      {/* Mode validation */}
-      <div className="v5-card" style={{ marginBottom: 16, padding: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+      {/* Card "Acceptation des demandes" — header BTP-style (border-bottom, padding aligné) */}
+      <div className="v5-card h-card" style={{ marginBottom: 16 }}>
+        <div className="h-card-h">
           <div>
-            <div className="v5-st">{isPt ? 'Aceitação dos pedidos' : 'Acceptation des demandes'}</div>
-            <div className="v22-card-meta">
+            <div className="v5-st" style={{ marginBottom: 2 }}>{isPt ? 'Aceitação dos pedidos' : 'Acceptation des demandes'}</div>
+            <div style={{ fontSize: 12, color: 'var(--v5-text-secondary)' }}>
               {autoAccept
                 ? (isPt ? '✅ Aceitação automática dos pedidos de orçamento' : '✅ Acceptation automatique des demandes de devis')
                 : (isPt ? '⏳ Validação manual pelo responsável' : '⏳ Validation manuelle par le responsable')}
@@ -100,19 +114,24 @@ export default function HorairesSection({
           <button
             onClick={toggleAutoAccept}
             className={autoAccept ? 'v5-btn v5-btn-p' : 'v5-btn'}
-            style={{ cursor: 'pointer' }}
           >
             {autoAccept ? `🟢 ${t('proDash.horaires.automatique')}` : `🟡 ${t('proDash.horaires.manuel')}`}
           </button>
         </div>
       </div>
 
-      {/* Plages d'ouverture */}
-      <div className="v5-card">
-        <div className="v22-card-head">
-          <span className="v5-st">⏱️ {isPt ? 'Horários de intervenção' : 'Plages d\u2019intervention'}</span>
+      {/* Card "Plages d'intervention" — header BTP-style + lignes table-rows */}
+      <div className="v5-card h-card">
+        <div className="h-card-h">
+          <span className="v5-st" style={{ marginBottom: 0 }}>⏱️ {isPt ? 'Horários de intervenção' : 'Plages d\u2019intervention'}</span>
+          <span style={{ fontSize: 11, color: 'var(--v5-text-secondary)' }}>
+            {[1, 2, 3, 4, 5, 6, 0].filter(d => {
+              const r = availability.find(a => a.day_of_week === d)
+              return r ? r.is_available : (d >= 1 && d <= 5)
+            }).length} {isPt ? 'dias ativos' : 'jours actifs'}
+          </span>
         </div>
-        <div style={{ padding: 14 }}>
+        <div className="h-card-body">
           {[1, 2, 3, 4, 5, 6, 0].map((day) => {
             const availRaw = availability.find((a) => a.day_of_week === day)
             const defaults = getDayDefaults(day)
@@ -123,7 +142,7 @@ export default function HorairesSection({
             const activeServices = services.filter(s => s.active)
 
             return (
-              <div key={day} className="h-day-block">
+              <div key={day}>
                 <div className={`h-row${isActive ? '' : ' is-off'}`}>
                   <span className="h-day">{DAY_NAMES[day]}</span>
                   <div className="h-times">
@@ -133,7 +152,7 @@ export default function HorairesSection({
                       value={startTime}
                       onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value)}
                     />
-                    <span className="v22-card-meta">{t('proDash.common.a')}</span>
+                    <span style={{ fontSize: 12, color: 'var(--v5-text-secondary)' }}>{t('proDash.common.a')}</span>
                     <input
                       type="time"
                       disabled={!isActive}
@@ -142,7 +161,7 @@ export default function HorairesSection({
                     />
                     {!isActive && <span className="h-closed" style={{ marginLeft: 8 }}>{isPt ? 'Fechado' : 'Fermé'}</span>}
                     {isActive && activeServices.length > 0 && (
-                      <span className="v22-card-meta" style={{ marginLeft: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--v5-text-secondary)', marginLeft: 8 }}>
                         {dayServiceIds.length > 0 ? `${dayServiceIds.length} ${t('proDash.horaires.motifsLabel')}` : t('proDash.horaires.tousMotifs')}
                       </span>
                     )}
@@ -158,7 +177,7 @@ export default function HorairesSection({
                 </div>
                 {isActive && activeServices.length > 0 && (
                   <div className="h-svc-panel">
-                    <div className="h-svc-lbl">{isPt ? 'Serviços disponíveis neste dia' : 'Lots disponibles ce jour'}</div>
+                    <div className="h-svc-lbl">{isPt ? 'Serviços disponíveis' : 'Lots disponibles'}</div>
                     <div className="h-svc-chips">
                       {activeServices.map((service) => {
                         const isAssigned = dayServiceIds.includes(service.id)
@@ -184,8 +203,8 @@ export default function HorairesSection({
           })}
         </div>
         {savingAvail && (
-          <div style={{ padding: '0 14px 14px' }}>
-            <p style={{ fontSize: 12, color: '#F57C00', fontWeight: 500 }}>{t('proDash.horaires.sauvegarde')}</p>
+          <div className="h-saving">
+            ⏱️ {t('proDash.horaires.sauvegarde')}
           </div>
         )}
       </div>
