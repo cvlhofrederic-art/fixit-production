@@ -1290,7 +1290,7 @@ export default function ArtisanProfilePage() {
           {/* Page header */}
           <div className="text-center mb-8">
             <h1 className="font-display text-3xl md:text-4xl font-black text-dark mb-2 tracking-[-0.03em]">
-              {'📅'} Choisissez votre cr&eacute;neau
+              Choisissez votre cr&eacute;neau
             </h1>
             <p className="text-text-muted text-lg">
               S&eacute;lectionnez une date et un horaire disponible
