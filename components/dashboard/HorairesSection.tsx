@@ -22,10 +22,26 @@ interface HorairesSectionProps {
   orgRole?: OrgRole
 }
 
-// Mon-Fri actif par défaut tant qu'aucune donnée serveur n'existe
-function getDayDefaults(day: number) {
+type SlotType = 'rdv' | 'visite'
+
+// Défauts par slot_type tant qu'aucune donnée BDD n'existe (rare : seed les crée)
+//   • rdv    → Mon-Fri actifs 08:00-17:30 (créneaux directs sans visite préalable)
+//   • visite → tout off au départ 14:00-17:30 (artisan active à la demande)
+function getSlotDefaults(slotType: SlotType, day: number) {
+  if (slotType === 'visite') {
+    return { is_available: false, start_time: '14:00', end_time: '17:30' }
+  }
   const isWeekday = day >= 1 && day <= 5
   return { is_available: isWeekday, start_time: '08:00', end_time: '17:30' }
+}
+
+function findSlot(availability: any[], day: number, slotType: SlotType) {
+  return availability.find(a => a.day_of_week === day && (a.slot_type || 'rdv') === slotType)
+}
+
+// Backward-compat for HorairesBtp (single slot, RDV uniquement)
+function getDayDefaults(day: number) {
+  return getSlotDefaults('rdv', day)
 }
 
 function formatHoursMinutes(totalMinutes: number): string {
@@ -55,13 +71,9 @@ export default function HorairesSection(props: HorairesSectionProps) {
 function HorairesArtisan({
   services,
   availability,
-  dayServices,
-  autoAccept,
   savingAvail,
-  toggleAutoAccept,
   toggleDayAvailability,
   updateAvailabilityTime,
-  toggleDayService,
   saveAllDayServices,
   DAY_NAMES,
 }: HorairesSectionProps) {
@@ -75,23 +87,19 @@ function HorairesArtisan({
       : 'Définissez les plages d’intervention de votre entreprise — affichées sur votre profil et dans les appels d’offres.',
     tipLabel: isPt ? 'Dica' : 'Conseil',
     tipBody: isPt
-      ? 'Estes horários aparecem no seu perfil de empresa e são tidos em conta nos concursos. Ative os dias em que as suas equipas intervêm.'
-      : 'Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d’offres. Activez les jours où vos équipes interviennent.',
-    acceptLabel: isPt ? 'Aceitação dos pedidos' : 'Acceptation des demandes',
-    acceptManual: isPt ? 'Validação manual pelo responsável' : 'Validation manuelle par le responsable',
-    acceptAuto: isPt ? 'Aceitação automática dos pedidos de orçamento' : 'Acceptation automatique des demandes de devis',
-    optManual: isPt ? '● Manual' : '● Manuel',
-    optAuto: isPt ? '⚡ Automático' : '⚡ Automatique',
+      ? 'Duas plages por dia : RDV directo (motivos auto) e Visita & orçamento (motivos manuais, com inspecção no local). O modo de cada motivo é configurado em Prestações.'
+      : 'Deux plages par jour : RDV directe (motifs auto) et Visite & devis (motifs manuels, avec inspection sur place). Le mode de chaque motif se configure dans Prestations.',
     sectionTitle: isPt ? 'Horários de intervenção' : 'Plages d’intervention',
-    daysActive: isPt ? 'dias ativos' : 'jours actifs',
+    daysActive: isPt ? 'plages ativas' : 'plages actives',
+    slotRdv: isPt ? 'RDV directo' : 'RDV directe',
+    slotRdvHint: isPt ? 'Motivos com aceitação automática' : 'Motifs en acceptation auto',
+    slotVisite: isPt ? 'Visita & orçamento' : 'Visite & devis',
+    slotVisiteHint: isPt ? 'Motivos com validação manual (inspecção no local)' : 'Motifs en validation manuelle (inspection sur place)',
     closedLabel: isPt ? 'Fechado' : 'Fermé',
-    activate: isPt ? 'Ativar este dia' : 'Activer ce jour',
-    deactivate: isPt ? 'Desativar este dia' : 'Désactiver ce jour',
-    prestationsAll: isPt ? 'Todas as prestações' : 'Toutes les prestations',
-    prestationSingular: isPt ? 'prestação selecionada' : 'prestation sélectionnée',
-    prestationPlural: isPt ? 'prestações selecionadas' : 'prestations sélectionnées',
-    prestPanelTitle: isPt ? 'Prestações disponíveis neste dia' : 'Prestations disponibles ce jour',
-    prestHint: isPt ? 'Nenhuma prestação selecionada = todas estão disponíveis' : 'Aucune prestation cochée = toutes sont disponibles',
+    activate: isPt ? 'Ativar esta plage' : 'Activer cette plage',
+    deactivate: isPt ? 'Desativar esta plage' : 'Désactiver cette plage',
+    motifsCount: isPt ? 'motivos' : 'motifs',
+    motifsNone: isPt ? 'Nenhum motivo ativo neste modo' : 'Aucun motif dans ce mode',
     perWeek: isPt ? '/ semana' : '/ semaine',
     saving: isPt ? 'A guardar…' : 'Sauvegarde…',
     saveBtn: isPt ? 'Guardar' : 'Sauvegarder',
@@ -99,31 +107,36 @@ function HorairesArtisan({
   }
 
   const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const
+  const SLOT_ORDER: readonly SlotType[] = ['rdv', 'visite'] as const
 
-  const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
-  const togglePanel = (day: number) => {
-    setExpandedDays(prev => {
-      const next = new Set(prev)
-      if (next.has(day)) next.delete(day)
-      else next.add(day)
-      return next
-    })
-  }
+  // Compteur de motifs par mode (auto / manuel) — affiché en read-only sur chaque plage.
+  // validation_auto !== false → mode auto (RDV directe). false → manuel (Visite & devis).
+  const motifCounts = useMemo(() => {
+    const activeServices = services.filter(s => s.active !== false)
+    let auto = 0, manuel = 0
+    for (const s of activeServices) {
+      if (s.validation_auto === false) manuel += 1
+      else auto += 1
+    }
+    return { rdv: auto, visite: manuel }
+  }, [services])
 
   const stats = useMemo(() => {
-    let activeDays = 0
+    let activePlages = 0
     let totalMinutes = 0
     for (const d of DAY_ORDER) {
-      const r = availability.find(a => a.day_of_week === d)
-      const def = getDayDefaults(d)
-      const isActive = r ? r.is_available : def.is_available
-      if (!isActive) continue
-      activeDays += 1
-      const s = r?.start_time?.substring(0, 5) || def.start_time
-      const e = r?.end_time?.substring(0, 5) || def.end_time
-      totalMinutes += diffMinutes(s, e)
+      for (const slotType of SLOT_ORDER) {
+        const r = findSlot(availability, d, slotType)
+        const def = getSlotDefaults(slotType, d)
+        const isActive = r ? r.is_available : def.is_available
+        if (!isActive) continue
+        activePlages += 1
+        const s = r?.start_time?.substring(0, 5) || def.start_time
+        const e = r?.end_time?.substring(0, 5) || def.end_time
+        totalMinutes += diffMinutes(s, e)
+      }
     }
-    return { activeDays, total: formatHoursMinutes(totalMinutes) }
+    return { activeDays: activePlages, total: formatHoursMinutes(totalMinutes) }
   }, [availability])
 
   const [justSaved, setJustSaved] = useState(false)
@@ -136,11 +149,6 @@ function HorairesArtisan({
     }
   }
 
-  const handleAcceptChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const desired = e.target.value === 'auto'
-    if (desired !== autoAccept) toggleAutoAccept()
-  }
-
   return (
     <div className="v5-fade">
       <style>{`
@@ -149,14 +157,6 @@ function HorairesArtisan({
         .h2-tip { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: #F8F9FA; border: 1px solid #ECECEC; border-radius: 6px; margin-bottom: 1rem; font-size: 11px; color: #666; line-height: 1.5; }
         .h2-tip-icon { flex-shrink: 0; font-size: 13px; margin-top: 1px; }
         .h2-tip strong { color: #1a1a1a; font-weight: 600; }
-        .h2-accept { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: linear-gradient(to right, #FFF8E1 0%, #FFFDF5 100%); border: 1px solid #F5C741; border-radius: 6px; margin-bottom: 1rem; gap: 12px; flex-wrap: wrap; }
-        .h2-accept-l { display: flex; align-items: center; gap: 12px; }
-        .h2-accept-icon { width: 36px; height: 36px; border-radius: 8px; background: #fff; border: 1px solid #F5C741; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-        .h2-accept-text { display: flex; flex-direction: column; gap: 2px; }
-        .h2-accept-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #8B6F00; letter-spacing: .4px; }
-        .h2-accept-value { font-size: 13px; color: #1a1a1a; font-weight: 500; }
-        .h2-accept-select { background: #fff; border: 1px solid #F5C741; border-radius: 4px; padding: 6px 12px; font-size: 12px; color: #1a1a1a; font-weight: 600; cursor: pointer; font-family: inherit; outline: none; }
-        .h2-accept-select:hover { border-color: #FFA000; }
         .h2-sec { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: .75rem; border-bottom: 1px solid #F0F0F0; gap: 12px; flex-wrap: wrap; }
         .h2-sec-l { display: flex; align-items: center; gap: .5rem; }
         .h2-sec-t { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: .4px; }
@@ -164,61 +164,58 @@ function HorairesArtisan({
         .h2-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; letter-spacing: .2px; background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
         .h2-badge-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: #2E7D32; }
         .h2-days { display: flex; flex-direction: column; gap: 8px; }
-        .h2-day { background: #fff; border: 1px solid #EAEAEA; border-radius: 6px; transition: all .15s; overflow: hidden; }
+        .h2-day { background: #fff; border: 1px solid #EAEAEA; border-radius: 8px; transition: all .15s; overflow: hidden; }
         .h2-day:hover { border-color: #D5D5D5; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
         .h2-day.active { border-left: 3px solid #FFC107; }
-        .h2-day.inactive { background: #FAFAFA; opacity: .7; }
+        .h2-day.inactive { background: #FAFAFA; opacity: .85; }
         .h2-day.inactive:hover { opacity: 1; }
-        .h2-day-main { display: grid; grid-template-columns: 130px 1fr auto auto; align-items: center; gap: 16px; padding: 12px 16px; }
-        .h2-day-name { display: flex; align-items: center; gap: 8px; }
+        .h2-day-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px 6px; border-bottom: 1px dashed #F0F0F0; }
         .h2-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .h2-dot.on { background: #FFC107; box-shadow: 0 0 0 3px rgba(255, 193, 7, .18); }
         .h2-dot.off { background: #D0D0D0; }
-        .h2-day-label { font-size: 13px; font-weight: 600; color: #1a1a1a; }
-        .h2-day.inactive .h2-day-label { color: #999; font-weight: 500; }
+        .h2-day-label { font-size: 14px; font-weight: 700; color: #1a1a1a; letter-spacing: -.01em; }
+        .h2-day.inactive .h2-day-label { color: #999; font-weight: 600; }
+        .h2-slot { display: grid; grid-template-columns: 220px 1fr auto auto; align-items: center; gap: 14px; padding: 10px 16px; border-top: 1px solid #F4F4F4; }
+        .h2-slot:first-of-type { border-top: none; }
+        .h2-slot-rdv { background: linear-gradient(to right, rgba(255, 248, 225, .35), transparent 60%); }
+        .h2-slot-visite { background: linear-gradient(to right, rgba(232, 245, 233, .25), transparent 60%); }
+        .h2-slot-meta { display: flex; align-items: center; gap: 10px; }
+        .h2-slot-icon { width: 28px; height: 28px; border-radius: 6px; background: #FFF; border: 1px solid #ECECEC; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+        .h2-slot-rdv.active .h2-slot-icon { background: #FFF8E1; border-color: #F5C741; }
+        .h2-slot-visite.active .h2-slot-icon { background: #E8F5E9; border-color: #A5D6A7; }
+        .h2-slot-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+        .h2-slot-label { font-size: 12px; font-weight: 600; color: #1a1a1a; line-height: 1.2; }
+        .h2-slot-hint { font-size: 10px; color: #999; line-height: 1.2; }
         .h2-times { display: flex; align-items: center; gap: 8px; }
         .h2-time { width: 78px; height: 30px; border: 1px solid #E0E0E0; border-radius: 4px; padding: 0 8px; font-size: 12px; font-family: inherit; color: #1a1a1a; background: #fff; outline: none; transition: border-color .15s; }
         .h2-time:hover { border-color: #C5C5C5; }
         .h2-time:focus { border-color: #FFC107; box-shadow: 0 0 0 2px rgba(255, 193, 7, .18); }
         .h2-time:disabled { background: #F5F5F5; color: #BBB; cursor: not-allowed; }
         .h2-time-arrow { color: #BBB; font-size: 11px; }
-        .h2-prest-chip { font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: #F8F8F8; border: 1px solid #ECECEC; border-radius: 14px; white-space: nowrap; cursor: pointer; transition: all .15s; user-select: none; font-family: inherit; }
-        .h2-prest-chip:hover { background: #FFF8E1; border-color: #F5C741; color: #8B6F00; }
-        .h2-prest-chip .h2-chev { font-size: 9px; color: #BBB; margin-left: 2px; }
-        .h2-prest-chip.has-filter { background: #FFF8E1; border-color: #F5C741; color: #8B6F00; font-weight: 600; }
-        .h2-prest-chip.disabled { opacity: .4; pointer-events: none; }
+        .h2-motif-chip { font-size: 11px; color: #666; padding: 4px 10px; background: #F8F8F8; border: 1px solid #ECECEC; border-radius: 14px; white-space: nowrap; user-select: none; font-family: inherit; font-weight: 500; }
+        .h2-slot-rdv.active .h2-motif-chip { background: #FFF8E1; border-color: #F5C741; color: #8B6F00; }
+        .h2-slot-visite.active .h2-motif-chip { background: #E8F5E9; border-color: #A5D6A7; color: #2E7D32; }
+        .h2-motif-chip.empty { color: #BBB; font-style: italic; }
         .h2-tgl { position: relative; width: 36px; height: 20px; display: inline-block; flex-shrink: 0; cursor: pointer; }
         .h2-tgl input { opacity: 0; width: 0; height: 0; position: absolute; }
         .h2-tgl .sl { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #E0E0E0; border-radius: 10px; cursor: pointer; transition: .3s; }
         .h2-tgl .sl::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; bottom: 2px; background: #fff; border-radius: 50%; transition: .3s; box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
         .h2-tgl input:checked + .sl { background: #FFC107; }
         .h2-tgl input:checked + .sl::before { transform: translateX(16px); }
-        .h2-panel { padding: 12px 16px 14px; background: #FCFCFC; border-top: 1px dashed #ECECEC; }
-        .h2-panel-t { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; letter-spacing: .3px; margin-bottom: 8px; }
-        .h2-list { display: flex; flex-wrap: wrap; gap: 6px; }
-        .h2-item { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #fff; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 11px; color: #555; cursor: pointer; transition: all .15s; user-select: none; }
-        .h2-item:hover { border-color: #FFC107; color: #1a1a1a; }
-        .h2-item input { width: 12px; height: 12px; accent-color: #FFA000; cursor: pointer; }
-        .h2-item.checked { background: #FFF8E1; border-color: #F5C741; color: #1a1a1a; font-weight: 500; }
-        .h2-hint { font-size: 10px; color: #AAA; font-style: italic; margin-top: 6px; }
         .h2-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #F0F0F0; gap: 12px; flex-wrap: wrap; }
         .h2-foot-l { display: flex; align-items: center; gap: 14px; font-size: 11px; color: #888; flex-wrap: wrap; }
         .h2-foot-l strong { color: #1a1a1a; font-weight: 600; }
         .h2-foot-l .h2-sep { width: 3px; height: 3px; border-radius: 50%; background: #D5D5D5; }
         .h2-foot-r { display: flex; gap: 6px; flex-wrap: wrap; }
-        .h2-saved { display: inline-flex; align-items: center; gap: 4px; color: #2E7D32; font-weight: 500; }
         .h2-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 4px; border: 1px solid #E0E0E0; font-size: 11px; font-weight: 500; cursor: pointer; transition: all .2s; background: #fff; color: #555; font-family: inherit; }
         .h2-btn:hover { border-color: #CCC; background: #FAFAFA; }
-        .h2-btn-sm { padding: 3px 8px; font-size: 10px; }
-        .h2-btn-ghost { background: transparent; border: 1px dashed #DADADA; color: #888; }
-        .h2-btn-ghost:hover { border-color: #FFC107; color: #FFA000; background: #FFF8E1; }
         .h2-btn-save { background: #FFC107; border: 1px solid #FFC107; color: #1a1a1a; font-weight: 600; padding: 7px 16px; font-size: 11px; box-shadow: 0 1px 3px rgba(255, 193, 7, .25); }
         .h2-btn-save:hover { background: #FFB300; border-color: #FFB300; box-shadow: 0 2px 6px rgba(255, 193, 7, .35); }
         .h2-btn-save:disabled { background: #FFE082; border-color: #FFE082; color: #888; cursor: not-allowed; box-shadow: none; }
         .h2-btn-save.is-done { background: #2E7D32; border-color: #2E7D32; color: #fff; box-shadow: 0 1px 3px rgba(46, 125, 50, .25); }
         @media (max-width: 768px) {
-          .h2-day-main { grid-template-columns: 1fr; gap: 10px; }
-          .h2-prest-chip { width: 100%; justify-content: center; }
+          .h2-slot { grid-template-columns: 1fr; gap: 10px; }
+          .h2-motif-chip { justify-self: start; }
         }
       `}</style>
 
@@ -231,24 +228,6 @@ function HorairesArtisan({
         <div className="h2-tip">
           <span className="h2-tip-icon">💡</span>
           <div><strong>{L.tipLabel}</strong> — {L.tipBody}</div>
-        </div>
-
-        <div className="h2-accept">
-          <div className="h2-accept-l">
-            <div className="h2-accept-icon">{autoAccept ? '⚡' : '⏳'}</div>
-            <div className="h2-accept-text">
-              <span className="h2-accept-label">{L.acceptLabel}</span>
-              <span className="h2-accept-value">{autoAccept ? L.acceptAuto : L.acceptManual}</span>
-            </div>
-          </div>
-          <select
-            className="h2-accept-select"
-            value={autoAccept ? 'auto' : 'manual'}
-            onChange={handleAcceptChange}
-          >
-            <option value="manual">{L.optManual}</option>
-            <option value="auto">{L.optAuto}</option>
-          </select>
         </div>
 
         <div className="h2-sec">
@@ -264,98 +243,72 @@ function HorairesArtisan({
 
         <div className="h2-days">
           {DAY_ORDER.map((day) => {
-            const availRaw = availability.find((a) => a.day_of_week === day)
-            const defaults = getDayDefaults(day)
-            const isActive = availRaw ? availRaw.is_available : defaults.is_available
-            const startTime = availRaw?.start_time?.substring(0, 5) || defaults.start_time
-            const endTime = availRaw?.end_time?.substring(0, 5) || defaults.end_time
-            const dayServiceIds = dayServices[String(day)] || []
-            const activeServices = services.filter(s => s.active)
-            const hasFilter = dayServiceIds.length > 0
-            const isOpen = expandedDays.has(day)
-            const canExpand = isActive && activeServices.length > 0
+            const dayHasAnyActive = SLOT_ORDER.some(st => {
+              const r = findSlot(availability, day, st)
+              const def = getSlotDefaults(st, day)
+              return r ? r.is_available : def.is_available
+            })
 
             return (
-              <div key={day} className={`h2-day ${isActive ? 'active' : 'inactive'}`}>
-                <div className="h2-day-main">
-                  <div className="h2-day-name">
-                    <span className={`h2-dot ${isActive ? 'on' : 'off'}`} />
-                    <span className="h2-day-label">{DAY_NAMES[day]}</span>
-                  </div>
-
-                  <div className="h2-times">
-                    <input
-                      type="time"
-                      className="h2-time"
-                      value={startTime}
-                      disabled={!isActive}
-                      onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value)}
-                    />
-                    <span className="h2-time-arrow">→</span>
-                    <input
-                      type="time"
-                      className="h2-time"
-                      value={endTime}
-                      disabled={!isActive}
-                      onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value)}
-                    />
-                  </div>
-
-                  {canExpand ? (
-                    <button
-                      type="button"
-                      className={`h2-prest-chip${hasFilter ? ' has-filter' : ''}`}
-                      onClick={() => togglePanel(day)}
-                    >
-                      {hasFilter ? (
-                        <>
-                          <span>★</span>
-                          {dayServiceIds.length}{' '}
-                          {dayServiceIds.length > 1 ? L.prestationPlural : L.prestationSingular}
-                        </>
-                      ) : (
-                        <>
-                          <span style={{ color: '#2E7D32' }}>✓</span>
-                          {L.prestationsAll}
-                        </>
-                      )}
-                      <span className="h2-chev">{isOpen ? '▲' : '▼'}</span>
-                    </button>
-                  ) : (
-                    <span className="h2-prest-chip disabled">{L.closedLabel}</span>
-                  )}
-
-                  <label className="h2-tgl" title={isActive ? L.deactivate : L.activate}>
-                    <input
-                      type="checkbox"
-                      checked={isActive}
-                      onChange={() => toggleDayAvailability(day)}
-                    />
-                    <span className="sl" />
-                  </label>
+              <div key={day} className={`h2-day ${dayHasAnyActive ? 'active' : 'inactive'}`}>
+                <div className="h2-day-head">
+                  <span className={`h2-dot ${dayHasAnyActive ? 'on' : 'off'}`} />
+                  <span className="h2-day-label">{DAY_NAMES[day]}</span>
                 </div>
 
-                {canExpand && isOpen && (
-                  <div className="h2-panel">
-                    <div className="h2-panel-t">{L.prestPanelTitle}</div>
-                    <div className="h2-list">
-                      {activeServices.map((service) => {
-                        const isAssigned = dayServiceIds.includes(service.id)
-                        return (
-                          <label key={service.id} className={`h2-item${isAssigned ? ' checked' : ''}`}>
-                            <input
-                              type="checkbox"
-                              checked={isAssigned}
-                              onChange={() => toggleDayService(day, service.id)}
-                            />
-                            <span>{service.name}</span>
-                          </label>
-                        )
-                      })}
+                {SLOT_ORDER.map((slotType) => {
+                  const r = findSlot(availability, day, slotType)
+                  const defaults = getSlotDefaults(slotType, day)
+                  const isActive = r ? r.is_available : defaults.is_available
+                  const startTime = r?.start_time?.substring(0, 5) || defaults.start_time
+                  const endTime = r?.end_time?.substring(0, 5) || defaults.end_time
+                  const motifs = motifCounts[slotType]
+                  const slotLabel = slotType === 'rdv' ? L.slotRdv : L.slotVisite
+                  const slotHint = slotType === 'rdv' ? L.slotRdvHint : L.slotVisiteHint
+
+                  return (
+                    <div key={slotType} className={`h2-slot h2-slot-${slotType}${isActive ? ' active' : ''}`}>
+                      <div className="h2-slot-meta">
+                        <span className="h2-slot-icon">{slotType === 'rdv' ? '⚡' : '🔍'}</span>
+                        <div className="h2-slot-text">
+                          <span className="h2-slot-label">{slotLabel}</span>
+                          <span className="h2-slot-hint">{slotHint}</span>
+                        </div>
+                      </div>
+
+                      <div className="h2-times">
+                        <input
+                          type="time"
+                          className="h2-time"
+                          value={startTime}
+                          disabled={!isActive}
+                          onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value, slotType)}
+                        />
+                        <span className="h2-time-arrow">→</span>
+                        <input
+                          type="time"
+                          className="h2-time"
+                          value={endTime}
+                          disabled={!isActive}
+                          onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value, slotType)}
+                        />
+                      </div>
+
+                      <span className={`h2-motif-chip${motifs === 0 ? ' empty' : ''}`} title={motifs === 0 ? L.motifsNone : ''}>
+                        {motifs > 0 ? `${motifs} ${L.motifsCount}` : L.motifsNone}
+                      </span>
+
+                      <label className="h2-tgl" title={isActive ? L.deactivate : L.activate}>
+                        <input
+                          type="checkbox"
+                          checked={isActive}
+                          onChange={() => toggleDayAvailability(day, slotType)}
+                        />
+                        <span className="sl" />
+                      </label>
                     </div>
-                    <div className="h2-hint">{L.prestHint}</div>
-                  </div>
-                )}
+                  )
+                })}
               </div>
             )
           })}
@@ -483,14 +436,15 @@ function HorairesBtp({
           <span className="v5-st" style={{ marginBottom: 0 }}>⏱️ {isPt ? 'Horários de intervenção' : 'Plages d’intervention'}</span>
           <span className="h-badge">
             ✓ {[1, 2, 3, 4, 5, 6, 0].filter(d => {
-              const r = availability.find(a => a.day_of_week === d)
+              // BTP n'utilise qu'une plage : on filtre slot_type='rdv' (back-compat avec rows pré-migration où slot_type est null/undefined)
+              const r = availability.find(a => a.day_of_week === d && (a.slot_type || 'rdv') === 'rdv')
               return r ? r.is_available : (d >= 1 && d <= 5)
             }).length} {isPt ? 'dias ativos' : 'jours actifs'}
           </span>
         </div>
         <div className="h-card-body">
           {[1, 2, 3, 4, 5, 6, 0].map((day) => {
-            const availRaw = availability.find((a) => a.day_of_week === day)
+            const availRaw = availability.find((a) => a.day_of_week === day && (a.slot_type || 'rdv') === 'rdv')
             const defaults = getDayDefaults(day)
             const isActive = availRaw ? availRaw.is_available : defaults.is_available
             const startTime = (availRaw?.start_time?.substring(0, 5)) || defaults.start_time

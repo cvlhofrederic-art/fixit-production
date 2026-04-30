@@ -1082,7 +1082,8 @@ export default function MobileDashboard() {
     setServices(sData || [])
 
     try {
-      const r = await fetch(`/api/availability?artisan_id=${artisanData.id}`)
+      // Mobile ne pilote que la plage RDV directe (pas Visite & devis qui se gère sur dashboard).
+      const r = await fetch(`/api/availability?artisan_id=${artisanData.id}&slot_type=rdv`)
       const j = await r.json()
       setAvailability(j.data || [])
     } catch { setAvailability([]) }
@@ -1555,12 +1556,15 @@ export default function MobileDashboard() {
 
   const toggleDayAvailability = async (day: number) => {
     if (!artisan) return
+    const token = (await supabase.auth.getSession()).data.session?.access_token
+    if (!token) return
     await fetch('/api/availability', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ artisan_id: artisan.id, day_of_week: day })
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ artisan_id: artisan.id, day_of_week: day, slot_type: 'rdv' })
     })
-    const r = await fetch(`/api/availability?artisan_id=${artisan.id}`)
+    // Refetch sans cache + filtre slot_type=rdv (mobile ne pilote que la plage RDV directe)
+    const r = await fetch(`/api/availability?artisan_id=${artisan.id}&slot_type=rdv`, { cache: 'no-store' })
     const { data } = await r.json()
     setAvailability(data || [])
   }

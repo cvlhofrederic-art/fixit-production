@@ -39,12 +39,14 @@ export const TOOLS: Record<string, ToolDef> = {
   // ───────────── DISPONIBILITÉS ─────────────
 
   list_availability: {
-    description: 'Afficher les disponibilités actuelles (jours, horaires)',
+    description: 'Afficher les disponibilités actuelles (jours, horaires) — plage RDV directe',
     params: '(aucun)',
     requiresConfirmation: false,
     execute: async (_p, artisanId) => {
+      // Fixy AI ne pilote que la plage RDV directe (motifs auto). La plage Visite & devis
+      // se gère depuis le dashboard manuellement (peu d'usage AI dessus pour l'instant).
       const { data } = await supabaseAdmin
-        .from('availability').select('id, artisan_id, day_of_week, is_available, start_time, end_time').eq('artisan_id', artisanId).order('day_of_week')
+        .from('availability').select('id, artisan_id, day_of_week, is_available, start_time, end_time, slot_type').eq('artisan_id', artisanId).or('slot_type.eq.rdv,slot_type.is.null').order('day_of_week')
       if (!data || data.length === 0) return { success: true, detail: 'Aucune disponibilité configurée.', data: [] }
       const lines = data.map(a =>
         `${DAY_NAMES[a.day_of_week]}: ${a.is_available ? `${a.start_time?.substring(0, 5)}-${a.end_time?.substring(0, 5)}` : 'FERMÉ'}`
@@ -54,7 +56,7 @@ export const TOOLS: Record<string, ToolDef> = {
   },
 
   set_day_availability: {
-    description: 'Activer ou désactiver un jour (ou tous les jours). day_of_week: 0=Dimanche..6=Samedi ou "all"',
+    description: 'Activer ou désactiver un jour (ou tous les jours) sur la plage RDV directe. day_of_week: 0=Dimanche..6=Samedi ou "all"',
     params: '{ day_of_week: number|"all", is_available: boolean }',
     requiresConfirmation: false,
     execute: async (p, artisanId) => {
@@ -62,15 +64,29 @@ export const TOOLS: Record<string, ToolDef> = {
       const isAvail = Boolean(p.is_available)
       const validDays = days.filter(d => d >= 0 && d <= 6)
 
-      // Batch upsert instead of N+1 queries
-      const rows = validDays.map(day => ({
-        artisan_id: artisanId,
-        day_of_week: day,
-        is_available: isAvail,
-        start_time: '08:00',
-        end_time: '17:00',
-      }))
-      await supabaseAdmin.from('availability').upsert(rows, { onConflict: 'artisan_id,day_of_week' })
+      // Pas d'unique constraint sur (artisan, day, slot) → faire find+update/insert pour chaque jour
+      // sur la plage 'rdv' uniquement (la plage 'visite' n'est pas pilotée par l'AI).
+      for (const day of validDays) {
+        const { data: existing } = await supabaseAdmin
+          .from('availability')
+          .select('id')
+          .eq('artisan_id', artisanId)
+          .eq('day_of_week', day)
+          .or('slot_type.eq.rdv,slot_type.is.null')
+          .maybeSingle()
+        if (existing) {
+          await supabaseAdmin.from('availability').update({ is_available: isAvail }).eq('id', existing.id)
+        } else {
+          await supabaseAdmin.from('availability').insert({
+            artisan_id: artisanId,
+            day_of_week: day,
+            slot_type: 'rdv',
+            is_available: isAvail,
+            start_time: '08:00',
+            end_time: '17:00',
+          })
+        }
+      }
 
       const names = validDays.map(d => DAY_NAMES[d])
       return {

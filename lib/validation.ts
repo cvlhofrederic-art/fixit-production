@@ -54,6 +54,8 @@ export const availabilitySchema = z.object({
 export const availabilityToggleSchema = z.object({
   artisan_id: z.string().uuid(),
   day_of_week: z.number().int().min(0).max(6),
+  // slot_type optionnel pour back-compat (clients n'envoyant rien → 'rdv')
+  slot_type: z.enum(['rdv', 'visite']).optional(),
   // Optionnels : permettent un POST idempotent (état explicite plutôt que toggle)
   is_available: z.boolean().optional(),
   start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Heure de début invalide (HH:MM)').optional(),
