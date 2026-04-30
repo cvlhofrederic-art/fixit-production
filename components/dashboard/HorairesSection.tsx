@@ -36,7 +36,25 @@ export default function HorairesSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const isPt = locale === 'pt'
-  void orgRole
+  // Vocabulaire métier : "Prestations" côté artisan, "Lots" côté BTP Pro
+  const isArtisan = orgRole === 'artisan'
+  const labels = {
+    sectionTitle: isArtisan
+      ? (isPt ? 'Prestações disponíveis' : 'Prestations disponibles')
+      : (isPt ? 'Lotes disponíveis' : 'Lots disponibles'),
+    allItems: isArtisan
+      ? (isPt ? 'Todas as prestações' : 'Toutes les prestations')
+      : (isPt ? 'Todos os lotes' : 'Tous les lots'),
+    itemSingular: isArtisan
+      ? (isPt ? 'prestação' : 'prestation')
+      : (isPt ? 'lote' : 'lot'),
+    itemPlural: isArtisan
+      ? (isPt ? 'prestações' : 'prestations')
+      : (isPt ? 'lotes' : 'lots'),
+    noneSelected: isArtisan
+      ? (isPt ? 'Nenhuma prestação selecionada = todas disponíveis' : 'Aucune prestation cochée = toutes disponibles')
+      : (isPt ? 'Nenhum lote selecionado = todos disponíveis' : 'Aucun lot coché = tous disponibles'),
+  }
 
   // Mon-Fri défaut actif 08:00-17:30 (affichage tant qu'aucune donnée serveur)
   const getDayDefaults = (day: number) => {
@@ -51,34 +69,48 @@ export default function HorairesSection({
   return (
     <div className="v5-fade">
       <style>{`
-        /* Layout calqué sur la grammaire BTP standard (PointageEquipesSection, EquipesBTPV2) :
-           card padding=0 + header en haut séparé par border + body en lignes table-like.
-           On réutilise les primitives v5 (.v5-tgl, .v5-chip, .v5-st), pas de couleur custom. */
-        .h-card { padding: 0 !important; }
-        .h-card-h { padding: .75rem 1.25rem; border-bottom: 1px solid #E8E8E8; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        /* Layout calqué sur la grammaire BTP standard (PointageEquipesSection, EquipesBTPV2)
+           + accents de couleur jaune brand pour rythmer la lecture. */
+        .h-card { padding: 0 !important; overflow: hidden; }
+        .h-card-h { padding: .75rem 1.25rem; border-bottom: 1px solid #E8E8E8; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: linear-gradient(to bottom, #FFFEF7 0%, #fff 100%); }
 
-        /* Ligne jour (style table-row, pas de card-dans-card) */
-        .h-row { display: flex; align-items: center; gap: 16px; padding: .85rem 1.25rem; border-bottom: 1px solid #F0F0EE; }
+        /* Badge "X jours actifs" coloré jaune brand (au lieu d'un texte gris) */
+        .h-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: #FFF8E1; color: #B8860B; border: 1px solid #FFE082; }
+
+        /* Ligne jour (style table-row + dot indicator coloré + hover subtil) */
+        .h-row { display: flex; align-items: center; gap: 16px; padding: .85rem 1.25rem; border-bottom: 1px solid #F0F0EE; transition: background .12s; }
+        .h-row:hover:not(.is-off) { background: #FFFDF6; }
         .h-row.is-off { background: #FAFAFA; }
-        .h-day { width: 92px; font-weight: 600; font-size: 13px; color: #1a1a1a; }
+        .h-day { display: inline-flex; align-items: center; gap: 8px; width: 100px; font-weight: 600; font-size: 13px; color: #1a1a1a; }
+        .h-day::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #FFC107; box-shadow: 0 0 0 2px #FFF8E1; flex-shrink: 0; }
         .h-row.is-off .h-day { color: #999; }
+        .h-row.is-off .h-day::before { background: #D1D5DB; box-shadow: 0 0 0 2px #F3F4F6; }
         .h-times { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
         .h-times input[type=time] { font-size: 12px; padding: 5px 8px; border: 1px solid #E0E0E0; border-radius: 4px; background: #fff; color: #1a1a1a; width: 100px; font-family: inherit; }
         .h-times input[type=time]:disabled { opacity: .4; cursor: not-allowed; }
         .h-times input[type=time]:focus { outline: none; border-color: #FFC107; box-shadow: 0 0 0 2px #FFF8E1; }
         .h-closed { font-size: 12px; color: #BBB; font-style: italic; }
 
-        /* Section services en sous-bloc — fond #FAFAFA séparé par border bas */
-        .h-svc-panel { padding: .65rem 1.25rem .85rem 4.85rem; background: #FAFAFA; border-bottom: 1px solid #F0F0EE; }
-        .h-svc-lbl { font-size: 10px; font-weight: 700; color: #999; letter-spacing: .3px; text-transform: uppercase; margin-bottom: 6px; }
+        /* Pill compteur "X prestations" coloré quand affecté */
+        .h-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: #F5F5F5; color: #666; }
+        .h-pill.is-set { background: #FFF8E1; color: #B8860B; }
+
+        /* Sous-bloc services : fond doux + border accent jaune côté gauche pour ancrer visuellement */
+        .h-svc-panel { padding: .65rem 1.25rem .85rem 5rem; background: #FAFAFA; border-bottom: 1px solid #F0F0EE; border-left: 3px solid #FFC107; }
+        .h-svc-lbl { font-size: 10px; font-weight: 700; color: #B8860B; letter-spacing: .3px; text-transform: uppercase; margin-bottom: 6px; }
         .h-svc-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         .h-svc-chips label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
         .h-svc-chips input[type=checkbox] { width: 13px; height: 13px; accent-color: #FFC107; cursor: pointer; }
 
-        /* Footer "sauvegarde" calqué sur PointageEquipesSection (info card jaune light) */
+        /* Footer "sauvegarde" calqué sur PointageEquipesSection (info card jaune light animée) */
         .h-saving { padding: .65rem 1.25rem; background: #FEF5E4; border-top: 1px solid #E8E8E8; font-size: 12px; color: #B8860B; font-weight: 500; }
+        .h-saving::before { content: '⏱️'; margin-right: 6px; }
 
-        /* Dernier élément de la liste : pas de border-bottom (closing edge) */
+        /* Card "Acceptation des demandes" : touche jaune subtile en mode auto */
+        .h-acc-auto { background: linear-gradient(to right, #FFF8E1 0%, #fff 60%); border-left: 3px solid #4CAF50; }
+        .h-acc-manuel { border-left: 3px solid #FFC107; }
+
+        /* Dernier élément : pas de border-bottom (closing edge) */
         .h-card-body > div:last-child > .h-row,
         .h-card-body > div:last-child > .h-svc-panel { border-bottom: none; }
       `}</style>
@@ -100,8 +132,8 @@ export default function HorairesSection({
         </span>
       </div>
 
-      {/* Card "Acceptation des demandes" — header BTP-style (border-bottom, padding aligné) */}
-      <div className="v5-card h-card" style={{ marginBottom: 16 }}>
+      {/* Card "Acceptation des demandes" — accent vert (auto) ou jaune (manuel) */}
+      <div className={`v5-card h-card ${autoAccept ? 'h-acc-auto' : 'h-acc-manuel'}`} style={{ marginBottom: 16 }}>
         <div className="h-card-h">
           <div>
             <div className="v5-st" style={{ marginBottom: 2 }}>{isPt ? 'Aceitação dos pedidos' : 'Acceptation des demandes'}</div>
@@ -124,8 +156,8 @@ export default function HorairesSection({
       <div className="v5-card h-card">
         <div className="h-card-h">
           <span className="v5-st" style={{ marginBottom: 0 }}>⏱️ {isPt ? 'Horários de intervenção' : 'Plages d\u2019intervention'}</span>
-          <span style={{ fontSize: 11, color: 'var(--v5-text-secondary)' }}>
-            {[1, 2, 3, 4, 5, 6, 0].filter(d => {
+          <span className="h-badge">
+            ✓ {[1, 2, 3, 4, 5, 6, 0].filter(d => {
               const r = availability.find(a => a.day_of_week === d)
               return r ? r.is_available : (d >= 1 && d <= 5)
             }).length} {isPt ? 'dias ativos' : 'jours actifs'}
@@ -161,8 +193,10 @@ export default function HorairesSection({
                     />
                     {!isActive && <span className="h-closed" style={{ marginLeft: 8 }}>{isPt ? 'Fechado' : 'Fermé'}</span>}
                     {isActive && activeServices.length > 0 && (
-                      <span style={{ fontSize: 11, color: 'var(--v5-text-secondary)', marginLeft: 8 }}>
-                        {dayServiceIds.length > 0 ? `${dayServiceIds.length} ${t('proDash.horaires.motifsLabel')}` : t('proDash.horaires.tousMotifs')}
+                      <span className={`h-pill${dayServiceIds.length > 0 ? ' is-set' : ''}`} style={{ marginLeft: 8 }}>
+                        {dayServiceIds.length > 0
+                          ? `${dayServiceIds.length} ${dayServiceIds.length > 1 ? labels.itemPlural : labels.itemSingular}`
+                          : labels.allItems}
                       </span>
                     )}
                   </div>
@@ -177,7 +211,7 @@ export default function HorairesSection({
                 </div>
                 {isActive && activeServices.length > 0 && (
                   <div className="h-svc-panel">
-                    <div className="h-svc-lbl">{isPt ? 'Serviços disponíveis' : 'Lots disponibles'}</div>
+                    <div className="h-svc-lbl">{labels.sectionTitle}</div>
                     <div className="h-svc-chips">
                       {activeServices.map((service) => {
                         const isAssigned = dayServiceIds.includes(service.id)
@@ -194,7 +228,7 @@ export default function HorairesSection({
                       })}
                     </div>
                     {dayServiceIds.length === 0 && (
-                      <p style={{ fontSize: 11, color: '#999', marginTop: 6, fontStyle: 'italic' }}>{t('proDash.horaires.aucunMotif')}</p>
+                      <p style={{ fontSize: 11, color: '#999', marginTop: 6, fontStyle: 'italic' }}>{labels.noneSelected}</p>
                     )}
                   </div>
                 )}
@@ -204,7 +238,7 @@ export default function HorairesSection({
         </div>
         {savingAvail && (
           <div className="h-saving">
-            ⏱️ {t('proDash.horaires.sauvegarde')}
+            {t('proDash.horaires.sauvegarde')}
           </div>
         )}
       </div>
