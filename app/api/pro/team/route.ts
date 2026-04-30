@@ -22,6 +22,37 @@ export async function GET(request: NextRequest) {
 
   const companyId = await resolveCompanyId(user, supabaseAdmin)
 
+  // Self-healing : si le gérant n'apparaît pas comme membre (cas des sociétés
+  // inscrites avant l'auto-init au signup), on l'ajoute idempotamment ici.
+  // Évite que l'écran "Comptes utilisateurs" affiche "0/20" pour le gérant lui-même.
+  if (isProGerant(user) && user.email && companyId === user.id) {
+    const { data: gerantRow } = await supabaseAdmin
+      .from('pro_team_members')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('email', user.email.toLowerCase().trim())
+      .maybeSingle()
+    if (!gerantRow) {
+      const meta = (user.user_metadata || {}) as Record<string, unknown>
+      const fullName = (meta.full_name as string)
+        || [meta.prenom, meta.nom].filter(Boolean).join(' ')
+        || (user.email.split('@')[0] || 'Gérant')
+      await supabaseAdmin.from('pro_team_members').insert({
+        company_id: companyId,
+        user_id: user.id,
+        email: user.email.toLowerCase().trim(),
+        full_name: fullName,
+        phone: (meta.phone as string) || '',
+        role: 'GERANT',
+        assigned_chantiers: [],
+        invite_token: null,
+        invite_sent_at: null,
+        accepted_at: new Date().toISOString(),
+        is_active: true,
+      })
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from('pro_team_members')
     .select('id, email, full_name, phone, role, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at')
