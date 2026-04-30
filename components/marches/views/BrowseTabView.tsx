@@ -47,6 +47,8 @@ interface BrowseTabViewProps {
   filterRegion: string
   filterDepartments: string[]
   filterMarcheType: 'tous' | 'publics' | 'prives'
+  /** Masquer les marchés publics (auto-entrepreneurs en franchise — pas éligibles en pratique) */
+  hidePublicMarches?: boolean
   prefsSaved: boolean
   artisanMetiers?: string[]
   onFilterCategoryChange: (v: string) => void
@@ -62,7 +64,7 @@ interface BrowseTabViewProps {
 export default function BrowseTabView({
   isPt, locale, marches, loading, scanning, scanResults, scanMeta, scanError,
   showScanResults, alerts, prefsLoaded, marchesOptIn,
-  filterCategory, filterRegion, filterDepartments, filterMarcheType, prefsSaved,
+  filterCategory, filterRegion, filterDepartments, filterMarcheType, hidePublicMarches = false, prefsSaved,
   onFilterCategoryChange, onFilterRegionChange, onFilterDepartmentsChange, onFilterMarcheTypeChange,
   onScanMarches, onSaveGeoPrefs, onSelectMarche, onGoToSettings, artisanMetiers = [],
 }: BrowseTabViewProps) {
@@ -178,18 +180,20 @@ export default function BrowseTabView({
               </select>
             </div>
 
-            <div>
-              <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
-              <select
-                value={filterMarcheType}
-                onChange={e => onFilterMarcheTypeChange(e.target.value as 'tous' | 'publics' | 'prives')}
-                className="v22-form-input"
-              >
-                <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
-                <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
-                <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
-              </select>
-            </div>
+            {!hidePublicMarches && (
+              <div>
+                <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
+                <select
+                  value={filterMarcheType}
+                  onChange={e => onFilterMarcheTypeChange(e.target.value as 'tous' | 'publics' | 'prives')}
+                  className="v22-form-input"
+                >
+                  <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
+                  <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
+                  <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
+                </select>
+              </div>
+            )}
 
             {/* Région filter (FR only) */}
             {!isPt && (
@@ -328,26 +332,28 @@ export default function BrowseTabView({
               </span>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', marginLeft: 'auto' }}>
-              <button
-                onClick={onScanMarches}
-                disabled={scanning}
-                style={{
-                  padding: '8px 20px', borderRadius: 8, border: 'none',
-                  background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
-                  cursor: scanning ? 'not-allowed' : 'pointer',
-                  fontWeight: 600, fontSize: 13,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
-                {scanning ? (
-                  <>
-                    <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    {isPt ? 'A analisar...' : 'Scan en cours...'}
-                  </>
-                ) : (
-                  <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
-                )}
-              </button>
+              {!hidePublicMarches && (
+                <button
+                  onClick={onScanMarches}
+                  disabled={scanning}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
+                    cursor: scanning ? 'not-allowed' : 'pointer',
+                    fontWeight: 600, fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  {scanning ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      {isPt ? 'A analisar...' : 'Scan en cours...'}
+                    </>
+                  ) : (
+                    <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
+                  )}
+                </button>
+              )}
               {!isPt && (
                 <button
                   type="button"
