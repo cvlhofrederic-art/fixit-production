@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ data })
-  response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  // Cache court côté navigateur uniquement (stale-while-revalidate pour fluidité).
+  // Pas de cache CDN partagé : c'est de la donnée utilisateur qui change sur action.
+  response.headers.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30')
   return response
 }
 
