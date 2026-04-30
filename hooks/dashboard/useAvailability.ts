@@ -109,6 +109,15 @@ export function useAvailability(
             method: 'POST',
             body: JSON.stringify({ artisan_id: artisan.id, dayServices: newDayServices }),
           })
+          // Ne pas absorber silencieusement les erreurs HTTP : les remonter pour observabilité
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+            console.error('DayService save failed:', res.status, errorData)
+            // Rollback du state local — la BDD ne reflète pas notre changement
+            setDayServices(dayServices)
+            localStorage.setItem(`fixit_availability_services_${artisan.id}`, JSON.stringify(dayServices))
+            return
+          }
           const result = await res.json()
           if (result.bio) setArtisan({ ...artisan, bio: result.bio })
         }
