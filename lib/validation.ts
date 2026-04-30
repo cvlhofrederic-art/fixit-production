@@ -405,6 +405,8 @@ export const createMarcheSchema = z.object({
   require_rge: z.boolean().default(false),
   require_qualibat: z.boolean().default(false),
   preferred_work_mode: z.enum(MARCHES_WORK_MODES).optional(),
+  // Pays (FR/PT) — déduit du code postal si absent (cf. inferPaysFromPostal)
+  pays: z.enum(['FR', 'PT']).optional(),
   // Dynamic fields based on publisher_type
   publisher_company: z.string().max(200).optional(),
   publisher_siret: z.string().max(20).optional(),
@@ -921,6 +923,8 @@ export const createSousTraitanceOffreSchema = z.object({
   // Urgence & photos
   urgency: z.enum(['normal', 'urgent', 'emergency']).default('normal'),
   photos: z.array(z.string().url()).max(10).default([]),
+  // Pays (FR/PT) — déduit du code postal si absent
+  pays: z.enum(['FR', 'PT']).optional(),
 })
 
 // ── BTP Sous-traitance — candidature artisan ─────────────────────────────────
