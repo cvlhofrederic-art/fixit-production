@@ -10,7 +10,7 @@ import { parseServiceScope, type ServiceScope } from '@/lib/service-utils'
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 type MotifForm = {
-  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number; scope: ServiceScope
+  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number; scope: ServiceScope; cost_ht: number | ''; margin_pct: number | ''
 }
 
 interface MotifsSectionProps {
@@ -394,6 +394,50 @@ export default function MotifsSection({
                   </div>
                   <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
                 </div>
+
+                {/* Coût + Marge → Prix de vente HT (matériaux uniquement, comptabilité) */}
+                {motifForm.scope === 'mat' && (() => {
+                  const cost = motifForm.cost_ht === '' ? 0 : Number(motifForm.cost_ht)
+                  const margin = motifForm.margin_pct === '' ? 0 : Number(motifForm.margin_pct)
+                  const sellPrice = cost * (1 + margin / 100)
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div className={isV5 ? 'v5-fg' : ''}>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Coût HT (€)</label>
+                          <input
+                            type="number"
+                            value={motifForm.cost_ht}
+                            onChange={(e) => setMotifForm({ ...motifForm, cost_ht: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                            step="0.01" min="0" placeholder="0.00"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                          />
+                        </div>
+                        <div className={isV5 ? 'v5-fg' : ''}>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Marge (%)</label>
+                          <input
+                            type="number"
+                            value={motifForm.margin_pct}
+                            onChange={(e) => setMotifForm({ ...motifForm, margin_pct: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                            step="1" min="0" placeholder="50"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                          />
+                        </div>
+                      </div>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: '#f3f4f6', border: '1px solid #e5e7eb',
+                        borderRadius: 6,
+                      }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Prix de vente HT</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                          {sellPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Validation auto + Délai minimum — uniquement pour Main d'œuvre (réservable client) */}
                 {motifForm.scope === 'mo' && (
