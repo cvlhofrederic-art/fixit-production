@@ -297,18 +297,39 @@ export default function DetailModalView({
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 {isPt ? 'Interessado?' : 'Intéressé ?'}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
-                {isPt
-                  ? 'Envie a sua candidatura com o seu preço e prazo estimado.'
-                  : 'Envoyez votre candidature avec votre prix et délai estimé.'}
-              </div>
-              <button
-                onClick={() => onShowBidFormChange(true)}
-                className="v22-btn v22-btn-primary"
-                style={{ width: '100%' }}
-              >
-                {isPt ? 'Candidatar-me' : 'Postuler'} 🚀
-              </button>
+              {selectedMarche.url_source ? (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
+                    {isPt
+                      ? 'Este concurso é publicado num site externo. A candidatura faz-se diretamente no site da fonte.'
+                      : 'Cet appel d\'offres est publié sur un site externe. La candidature se fait directement sur le site source.'}
+                  </div>
+                  <a
+                    href={selectedMarche.url_source}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="v22-btn v22-btn-primary"
+                    style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none' }}
+                  >
+                    {isPt ? 'Candidatar no site da fonte' : 'Postuler sur le site source'} ↗
+                  </a>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
+                    {isPt
+                      ? 'Envie a sua candidatura com o seu preço e prazo estimado.'
+                      : 'Envoyez votre candidature avec votre prix et délai estimé.'}
+                  </div>
+                  <button
+                    onClick={() => onShowBidFormChange(true)}
+                    className="v22-btn v22-btn-primary"
+                    style={{ width: '100%' }}
+                  >
+                    {isPt ? 'Candidatar-me' : 'Postuler'} 🚀
+                  </button>
+                </>
+              )}
             </div>
           ) : bidSuccess ? (
             <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14, marginTop: 14, textAlign: 'center', padding: '24px 0' }}>
