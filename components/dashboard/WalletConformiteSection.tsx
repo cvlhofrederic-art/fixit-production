@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
+import { resolveCategoriesWithNafFallback } from '@/lib/naf-to-categories'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -339,7 +340,12 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
 
   // Docs dynamiques selon le/les métier(s) de l'artisan — tri intelligent par corps de métier
   // artisan.categories est un tableau de slugs ex: ['espaces-verts', 'nettoyage']
-  const { docs: baseDocs, metierLabel, fallback } = getWalletDocuments((artisan as unknown as { categories?: string | string[] })?.categories ?? artisan?.category)
+  // Si vide mais NAF disponible (cas des sociétés inscrites avant l'auto-pré-sélection NAF),
+  // on dérive les catégories depuis le code NAF pour faire apparaître les bons docs (ex. décennale).
+  const rawCategories = (artisan as unknown as { categories?: string | string[] })?.categories ?? artisan?.category
+  const nafCode = (artisan as unknown as { naf_code?: string })?.naf_code
+  const resolvedCategories = resolveCategoriesWithNafFallback(rawCategories, nafCode)
+  const { docs: baseDocs, metierLabel, fallback } = getWalletDocuments(resolvedCategories.length > 0 ? resolvedCategories : undefined)
 
   // Pour pro_societe : ajouter les docs société extra non déjà présents (Statuts + Attestation fiscale)
   const WALLET_DOCS = isSociete

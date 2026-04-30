@@ -8,6 +8,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { useSearchParams } from 'next/navigation'
 import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculator'
+import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -274,7 +275,14 @@ function FormulaireArtisan() {
         setSiretStatus('verified'); setVerifiedCompany(data.company); setSiretWarning(data.warning || '')
         setFormData(prev => ({ ...prev, companyName: data.company.name || prev.companyName, siret: clean }))
         const allowed = getAllowedMetiers(data.company.nafCode)
-        if (allowed) setSelectedCategories(prev => prev.filter(c => allowed.includes(c)))
+        // Auto-pré-sélection des métiers déduits du NAF (si user n'en a pas déjà cochés)
+        const defaults = getDefaultCategoriesFromNaf(data.company.nafCode)
+        setSelectedCategories(prev => {
+          const filtered = allowed ? prev.filter(c => allowed.includes(c)) : prev
+          if (filtered.length > 0 || defaults.length === 0) return filtered
+          // Pré-remplit avec les défauts NAF, en respectant les `allowed` si fournis
+          return allowed ? defaults.filter(c => allowed.includes(c)) : defaults
+        })
         return
       }
       // If internal API failed with api_error, fallback to direct gouv API call from browser
@@ -291,7 +299,12 @@ function FormulaireArtisan() {
             setSiretStatus('verified'); setVerifiedCompany(company)
             setFormData(prev => ({ ...prev, companyName: company.name || prev.companyName, siret: clean }))
             const allowed = getAllowedMetiers(company.nafCode)
-            if (allowed) setSelectedCategories(prev => prev.filter(c => allowed.includes(c)))
+            const defaults = getDefaultCategoriesFromNaf(company.nafCode)
+            setSelectedCategories(prev => {
+              const filtered = allowed ? prev.filter(c => allowed.includes(c)) : prev
+              if (filtered.length > 0 || defaults.length === 0) return filtered
+              return allowed ? defaults.filter(c => allowed.includes(c)) : defaults
+            })
             return
           }
         }
@@ -982,6 +995,29 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             }),
           })
         } catch { /* non-bloquant */ }
+
+        // ── Auto-création du gérant comme membre de l'équipe (pro_team_members) ──
+        // Le gérant qui crée le compte société doit être lui-même un membre actif
+        // (avec role=GERANT) pour que l'écran "Comptes utilisateurs" reflète
+        // correctement l'organisation. Sans ça, le compteur affiche "0/20"
+        // jusqu'à ce qu'il s'invite manuellement.
+        if (authData.user) {
+          try {
+            await fetch('/api/pro/team/auto-init-gerant', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(authData.session?.access_token ? { 'Authorization': `Bearer ${authData.session.access_token}` } : {}),
+              },
+              body: JSON.stringify({
+                user_id: authData.user.id,
+                email: form.email,
+                full_name: `${form.prenom} ${form.nom}`,
+                phone: form.telephone,
+              }),
+            })
+          } catch { /* non-bloquant */ }
+        }
       }
 
       trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: orgType })
