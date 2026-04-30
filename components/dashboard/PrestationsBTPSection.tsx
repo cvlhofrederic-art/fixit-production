@@ -651,13 +651,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       )}
 
       {/* PANEL : FRAIS DIVERS — coûts transverses au chantier (déplacement, déchèterie, location matériel, etc.)
-          INTERNE UNIQUEMENT : jamais injecté dans les devis client (DevisFactureFormBTP filtre type==='prest')
-          ni synchronisé dans la table `services` publique (upsertPrestationToSupabase gardé par type==='prest'). */}
+          Hors catalogue public : la sync vers la table `services` (consultée par le client sur la fiche publique)
+          est gardée par type==='prest', donc 'frais' reste invisible côté parcours client. Mais ces frais sont
+          intégrables dans un devis via la section "Frais annexes" du DevisFactureFormBTP. */}
       {cat === 'frais' && (
         <div className="prest-panel">
           <div className="v5-alert" style={{ marginBottom: 10, fontSize: 12, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6 }}>
             <span style={{ fontSize: 14 }}>🔒</span>
-            <span>{isPt ? 'Uso interno apenas — nunca visível para o cliente nem incluído nos orçamentos.' : 'Usage interne uniquement — jamais visible par le client ni inclus dans les devis.'}</span>
+            <span>{isPt ? 'Catálogo interno — não aparece no perfil público que o cliente consulta. Pode ser incluído nos orçamentos como despesa anexa.' : 'Catalogue interne — n\'apparaît pas sur la fiche publique consultée par le client. Peut être inclus dans les devis comme frais annexe.'}</span>
           </div>
           <div className="v5-card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="prest-tbl">
