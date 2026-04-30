@@ -12,6 +12,7 @@ import {
 } from './views/shared'
 import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 import { isSmallBusinessStatus } from '@/lib/devis-utils'
+import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 
 const BrowseTabView = dynamic(() => import('./views/BrowseTabView'), { ssr: false })
 const MyBidsTabView = dynamic(() => import('./views/MyBidsTabView'), { ssr: false })
@@ -175,8 +176,15 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
     if (artisan?.categories?.length) return [...artisan.categories]
     if (artisan?.specialite) return [artisan.specialite]
+    // Fallback NAF runtime : sociétés inscrites avant le commit 1f90923 (auto-fill NAF)
+    // n'ont pas categories renseignées → on les dérive depuis profiles_artisan.naf_code.
+    const nafCode = (artisan as unknown as { naf_code?: string })?.naf_code
+    if (nafCode) {
+      const derived = getDefaultCategoriesFromNaf(nafCode)
+      if (derived.length > 0) return derived
+    }
     return []
-  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite, (artisan as unknown as { naf_code?: string })?.naf_code])
 
   // Signature stable pour les hooks dépendants : évite la cascade de re-fetch quand
   // setMarchesPrefs reçoit un nouvel objet (même contenu, nouvelle référence d'array).
