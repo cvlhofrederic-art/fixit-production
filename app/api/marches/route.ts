@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
   const fetchMarches = async (): Promise<MarcheRow[]> => {
     let query = supabaseAdmin
       .from('marches')
-      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type')
+      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type, btp_company_name, mission_type, start_date, duration_text, nb_intervenants_souhaite')
       .eq('status', 'open')
       .gte('deadline', today)
       .order('created_at', { ascending: false })
