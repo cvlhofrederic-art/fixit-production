@@ -31,6 +31,54 @@ export const getSelectValue = (line: ProductLine): string => {
   return 'autre'
 }
 
+/**
+ * Normalise un nom (personne ou entreprise) ALL CAPS en Title Case lisible.
+ * Cas typique : data SIRENE qui renvoie "FREDERIC NEIVA CARVALHO" → "Frédéric Neiva Carvalho".
+ * (Les accents ne peuvent pas être restaurés à partir d'une chaîne sans accents : voir
+ *  `restoreCommonAccents` ci-dessous pour les substitutions sûres FR/PT.)
+ *
+ * Préserve les acronymes courts (≤ 3 caractères : "JCB", "JF", "SAS", "EURL"…).
+ * Conserve la casse si la chaîne n'est PAS toute en majuscules (déjà bien formatée).
+ */
+export function titleCaseName(name: string): string {
+  if (!name) return name
+  // Si déjà mixte (pas tout en majuscules) → on ne touche pas
+  if (name !== name.toUpperCase()) return name
+  const lowerWords = new Set(['de', 'da', 'do', 'du', 'des', 'le', 'la', 'les', 'l', 'el', 'en', 'et', 'au', 'aux', 'sur', 'von', 'van'])
+  const keepUpper = new Set(['SARL', 'EURL', 'SAS', 'SASU', 'SA', 'SCI', 'SCM', 'EI', 'AE', 'EI/AE', 'LDA', 'SA.', 'BTP', 'TP', 'JC', 'JCB', 'JF', 'JM', 'JP', 'JL'])
+  return name.split(/(\s+|-|,\s*)/g).map((part, idx) => {
+    const t = part.trim()
+    if (!t || /^[\s,-]+$/.test(part)) return part
+    // Acronymes courts (≤3 lettres) ou listés → garder UPPER
+    if (keepUpper.has(t) || (t.length <= 2 && /^[A-Z]+$/.test(t))) return t
+    const lo = t.toLowerCase()
+    if (idx > 0 && lowerWords.has(lo)) return lo
+    return restoreCommonAccents(lo.charAt(0).toUpperCase() + lo.slice(1))
+  }).join('')
+}
+
+/**
+ * Restaure quelques accents FR/PT courants pour les prénoms et villes.
+ * Ne couvre pas tous les cas — c'est un best-effort sur les noms les plus fréquents.
+ * Préfère extension à la liste plutôt que dictionnaire complet (perf + simplicité).
+ */
+function restoreCommonAccents(s: string): string {
+  const map: Record<string, string> = {
+    'Frederic': 'Frédéric', 'Frederique': 'Frédérique', 'Stephane': 'Stéphane', 'Stephanie': 'Stéphanie',
+    'Helene': 'Hélène', 'Andre': 'André', 'Andrea': 'Andrea', 'Cedric': 'Cédric', 'Jerome': 'Jérôme',
+    'Jeremie': 'Jérémie', 'Jeremy': 'Jérémy', 'Mathieu': 'Mathieu', 'Matheo': 'Mathéo',
+    'Theo': 'Théo', 'Theodore': 'Théodore', 'Therese': 'Thérèse', 'Sebastien': 'Sébastien',
+    'Bartelemy': 'Barthélémy', 'Genevieve': 'Geneviève', 'Eleonore': 'Éléonore', 'Edouard': 'Édouard',
+    'Eric': 'Éric', 'Elise': 'Élise', 'Elodie': 'Élodie', 'Emile': 'Émile', 'Emilie': 'Émilie',
+    'Emmanuelle': 'Emmanuelle', 'Etienne': 'Étienne',
+    // Villes FR courantes
+    'Marseille': 'Marseille', 'Lyon': 'Lyon', 'Bedoule': 'Bédoule',
+    // PT courants
+    'Joao': 'João', 'Antonio': 'António', 'Joaquim': 'Joaquim', 'Sao': 'São',
+  }
+  return map[s] || s
+}
+
 /** Normalise une adresse ALL CAPS (API BAN) en Title Case */
 export function titleCaseAddress(addr: string): string {
   if (!addr) return addr
