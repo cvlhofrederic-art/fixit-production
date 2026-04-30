@@ -26,10 +26,16 @@ export function useAvailability(
     if (!artisan) return
     setSavingAvail(true)
     try {
+      // Calcul de l'état courant (BDD ou défaut Mon-Fri actif) → on envoie l'inverse
+      const existing = availability.find(a => a.day_of_week === dayOfWeek)
+      const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
+      const currentlyActive = existing ? existing.is_available : isWeekday
+      const desired = !currentlyActive
+
       const res = await fetch('/api/availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artisan_id: artisan.id, day_of_week: dayOfWeek }),
+        body: JSON.stringify({ artisan_id: artisan.id, day_of_week: dayOfWeek, is_available: desired }),
       })
       const result = await res.json()
       if (result.error) {
@@ -44,7 +50,7 @@ export function useAvailability(
       console.error('Network error:', e)
     }
     setSavingAvail(false)
-  }, [artisan])
+  }, [artisan, availability])
 
   const updateAvailabilityTime = useCallback(async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
     if (!artisan) return
@@ -59,6 +65,29 @@ export function useAvailability(
         })
       } catch (e) {
         console.error('Time update error:', e)
+      }
+    } else {
+      // Pas de ligne en BDD : la créer via POST avec l'heure modifiée + is_available basé sur défaut
+      const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
+      const body = {
+        artisan_id: artisan.id,
+        day_of_week: dayOfWeek,
+        is_available: isWeekday,
+        start_time: field === 'start_time' ? value : '08:00',
+        end_time: field === 'end_time' ? value : '17:00',
+      }
+      try {
+        const res = await fetch('/api/availability', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const result = await res.json()
+        if (result.data) {
+          setAvailability(prev => [...prev.filter(a => a.day_of_week !== dayOfWeek), result.data])
+        }
+      } catch (e) {
+        console.error('Time create error:', e)
       }
     }
   }, [artisan, availability])
