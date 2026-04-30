@@ -291,40 +291,42 @@ export default function MotifsSection({
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
 
-                {/* Étapes — sous la description, même style que dans le devis */}
-                <div style={{
-                  marginTop: 8, padding: '6px 10px',
-                  background: '#f3f4f6', border: '1px solid #e5e7eb',
-                  borderRadius: 6,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>ÉTAPES</span>
-                    {editingMotif?.id ? null : (
-                      <button onClick={() => setLocalEtapes(prev => [...prev, ''])}
-                        style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>+ Ajouter</button>
+                {/* Étapes — uniquement pour Main d'œuvre (matériaux et frais ne sont pas des process à étapes) */}
+                {motifForm.scope === 'mo' && (
+                  <div style={{
+                    marginTop: 8, padding: '6px 10px',
+                    background: '#f3f4f6', border: '1px solid #e5e7eb',
+                    borderRadius: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>ÉTAPES</span>
+                      {editingMotif?.id ? null : (
+                        <button onClick={() => setLocalEtapes(prev => [...prev, ''])}
+                          style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>+ Ajouter</button>
+                      )}
+                    </div>
+                    {editingMotif?.id ? (
+                      <ServiceEtapesEditor serviceId={editingMotif.id} />
+                    ) : (
+                      <>
+                        {localEtapes.length === 0 && (
+                          <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Aucune étape. Cliquez + Ajouter.</div>
+                        )}
+                        {localEtapes.map((et, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
+                            <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
+                            <input type="text" value={et} placeholder="Ex: Diagnostic visuel"
+                              onChange={(e) => setLocalEtapes(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                              style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
+                            />
+                            <button onClick={() => setLocalEtapes(prev => prev.filter((_, j) => j !== i))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}>✕</button>
+                          </div>
+                        ))}
+                      </>
                     )}
                   </div>
-                  {editingMotif?.id ? (
-                    <ServiceEtapesEditor serviceId={editingMotif.id} />
-                  ) : (
-                    <>
-                      {localEtapes.length === 0 && (
-                        <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Aucune étape. Cliquez + Ajouter.</div>
-                      )}
-                      {localEtapes.map((et, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
-                          <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
-                          <input type="text" value={et} placeholder="Ex: Diagnostic visuel"
-                            onChange={(e) => setLocalEtapes(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                            style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
-                          />
-                          <button onClick={() => setLocalEtapes(prev => prev.filter((_, j) => j !== i))}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}>✕</button>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
+                )}
 
                 {/* Pricing unit */}
                 <div className={isV5 ? 'v5-fg' : ''}>
@@ -336,7 +338,9 @@ export default function MotifsSection({
                       { value: 'm2', label: `📐 ${t('proDash.motifs.m2')}`, desc: t('proDash.motifs.m2Desc') },
                       { value: 'ml', label: `📏 ${t('proDash.motifs.ml')}`, desc: t('proDash.motifs.mlDesc') },
                       { value: 'm3', label: `🧊 ${t('proDash.motifs.m3')}`, desc: t('proDash.motifs.m3Desc') },
-                      { value: 'heure', label: `🕐 ${t('proDash.motifs.heure')}`, desc: t('proDash.motifs.heureDesc') },
+                      ...(motifForm.scope === 'mat' ? [] : [
+                        { value: 'heure', label: `🕐 ${t('proDash.motifs.heure')}`, desc: t('proDash.motifs.heureDesc') },
+                      ]),
                       { value: 'kg', label: `⚖️ ${t('proDash.motifs.kg')}`, desc: t('proDash.motifs.kgDesc') },
                       { value: 'tonne', label: `♻️ ${t('proDash.motifs.tonne')}`, desc: t('proDash.motifs.tonneDesc') },
                       { value: 'lot', label: `📦 ${t('proDash.motifs.lot')}`, desc: t('proDash.motifs.lotDesc') },
