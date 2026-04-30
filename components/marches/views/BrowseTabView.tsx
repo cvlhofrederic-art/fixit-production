@@ -113,6 +113,24 @@ export default function BrowseTabView({
 
   return (
     <div>
+      {/* Bandeau info auto-entrepreneur — sources d'opportunités disponibles */}
+      {hidePublicMarches && (
+        <div className="v22-alert" style={{ marginBottom: 10, fontSize: 12, background: '#fffbeb', border: '1px solid #fde68a', color: '#78350f', display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderRadius: 8 }}>
+          <span style={{ fontSize: 14, flexShrink: 0 }}>💡</span>
+          <span>
+            {isPt ? (
+              <>
+                <strong>Oportunidades disponíveis para o seu estatuto :</strong> subcontratação por grandes empresas de obras 🏗️ + concursos privados publicados por clientes 🏠. Os concursos públicos (BOAMP/TED) exigem capacidade financeira superior e não estão acessíveis em regime de isenção.
+              </>
+            ) : (
+              <>
+                <strong>Opportunités accessibles avec votre statut :</strong> sous-traitance BTP 🏗️ par les grandes entreprises + appels d&apos;offres privés 🏠 publiés par les clients. Les marchés publics (BOAMP/TED) demandent une capacité financière supérieure et restent réservés aux sociétés.
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Alerts banner */}
       {(alerts.expiringCount > 0 || alerts.unreadMessages > 0) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
@@ -552,12 +570,21 @@ export default function BrowseTabView({
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
                 >
                   {/* Type label (mono) */}
-                  <div style={{ flexShrink: 0, width: 90 }}>
+                  <div style={{ flexShrink: 0, width: 90, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <span className="v22-tag v22-tag-yellow">
                       {getCategoryEmoji(m.category)} {isPt
                         ? (CATEGORIES.find(c => c.id === m.category)?.label || m.category)
                         : (CATEGORIES.find(c => c.id === m.category)?.labelFr || m.category)}
                     </span>
+                    {m.source_type === 'btp_sous_traitance' ? (
+                      <span className="v22-tag" style={{ background: '#EEF2FF', color: '#4338CA', fontSize: 10 }} title={isPt ? 'Subcontratação publicada por uma empresa BTP' : 'Sous-traitance publiée par une société BTP'}>
+                        🏗️ {isPt ? 'Subcontrat.' : 'Sous-trait.'}
+                      </span>
+                    ) : (
+                      <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }} title={isPt ? 'Concurso publicado por um cliente' : 'Appel d’offres publié par un client'}>
+                        🏠 {isPt ? 'Cliente' : 'Client'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Title + location */}
