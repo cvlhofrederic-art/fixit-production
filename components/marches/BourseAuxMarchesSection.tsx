@@ -9,6 +9,7 @@ import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import {
   getCategoryLabel,
 } from './views/shared'
+import { isSmallBusinessStatus } from '@/lib/devis-utils'
 
 const BrowseTabView = dynamic(() => import('./views/BrowseTabView'), { ssr: false })
 const MyBidsTabView = dynamic(() => import('./views/MyBidsTabView'), { ssr: false })
@@ -71,6 +72,31 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [filterMarcheType, setFilterMarcheType] = useState<'tous' | 'publics' | 'prives'>('tous')
   const [prefsSaved, setPrefsSaved] = useState(false)
   const artisanPays = isPt ? 'PT' : 'FR'
+
+  // ─── Détection auto-entrepreneur (franchise 293 B / Art. 53 CIVA) ───
+  // Les AE/EI ne peuvent en pratique pas remporter de marchés publics
+  // (capacité financière, garanties bancaires, plafonds CA). On masque cette option.
+  const [isFranchise, setIsFranchise] = useState<boolean>(false)
+  useEffect(() => {
+    if (orgRole !== 'artisan') return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/btp?table=settings', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        const statut: string | undefined = data?.settings?.statut_juridique || data?.settings?.company_type
+        if (cancelled || !statut) return
+        const franchise = isSmallBusinessStatus(statut, locale as 'fr' | 'pt')
+        setIsFranchise(franchise)
+        // Si AE/EI et filtre actuel "tous" ou "publics" → forcer "privés"
+        if (franchise) {
+          setFilterMarcheType(prev => (prev === 'prives' ? prev : 'prives'))
+        }
+      } catch { /* keep default false */ }
+    })()
+    return () => { cancelled = true }
+  }, [orgRole, locale])
 
   // Restore region/dept prefs from localStorage on mount
   useEffect(() => {
@@ -664,6 +690,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           filterRegion={filterRegion}
           filterDepartments={filterDepartments}
           filterMarcheType={filterMarcheType}
+          hidePublicMarches={isFranchise}
           prefsSaved={prefsSaved}
           onFilterCategoryChange={setFilterCategory}
           onFilterRegionChange={setFilterRegion}
