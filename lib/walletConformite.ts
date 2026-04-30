@@ -62,6 +62,25 @@ const DOC_ICONS: Record<string, string> = {
   qualitoit: '🏠',
   qualipv: '☀️',
   qualibat_rge: '🌿',
+  // ─── Diagnostic immobilier ───
+  cofrac_dpe: '🔍',
+  cofrac_amiante: '⚠️',
+  cofrac_plomb: '🧪',
+  cofrac_gaz: '🔥',
+  cofrac_elec: '⚡',
+  cofrac_termites: '🐜',
+  cofrac_erp: '📊',
+  carte_diagnostiqueur: '🪪',
+  // ─── Plaquiste ───
+  qualibat_platrerie: '🏅',
+  // ─── Piscine ───
+  qualipiscine: '🏊',
+  rge_qualipv: '☀️',
+  // ─── Ramonage ───
+  carte_ramoneur: '🪪',
+  qualifumisterie: '🔥',
+  // ─── Store / banne ───
+  qualibat_menuiserie_ext: '🏅',
 }
 
 const icon = (id: string) => DOC_ICONS[id] || '📄'
@@ -316,6 +335,87 @@ export const WALLET_PAR_METIER: Record<string, MetierConfig> = {
       { id: 'qualibat', nom: 'Qualification Qualibat', description: 'Certification qualité ferronnier / métallier', obligatoire: false, recommande: true, validite: '1 an', icon: icon('qualibat'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com/nos-qualifications-certifications', note: 'Demande en ligne sur qualibat.com' } },
     ],
   },
+
+  // ─── DIAGNOSTIC IMMOBILIER ─────────────────────────────────────────────────
+  diagnostic: {
+    label: 'Diagnostic immobilier',
+    documents: [
+      ...DOCUMENTS_COMMUNS,
+      { id: 'cofrac_dpe', nom: 'Certification DPE (Cofrac)', description: 'OBLIGATOIRE pour réaliser des diagnostics de performance énergétique', obligatoire: true, validite: '7 ans', icon: icon('cofrac_dpe'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cofrac.fr/fr/organismes/recherche.php', note: 'Délivrée par un organisme certificateur accrédité Cofrac (Bureau Veritas, Socotec, Apave...)' } },
+      { id: 'cofrac_amiante', nom: 'Certification Amiante (Cofrac)', description: 'OBLIGATOIRE — diagnostic amiante avant vente / travaux / démolition (bâtiments avant 1997)', obligatoire: true, validite: '5 ans', icon: icon('cofrac_amiante'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cofrac.fr/fr/organismes/recherche.php', note: 'Mention "avec mention" requise pour amiante avant travaux / démolition' } },
+      { id: 'cofrac_plomb', nom: 'Certification Plomb / CREP (Cofrac)', description: 'OBLIGATOIRE pour Constat de Risque d\'Exposition au Plomb (bâtiments avant 1949)', obligatoire: true, validite: '5 ans', icon: icon('cofrac_plomb'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cofrac.fr/fr/organismes/recherche.php', note: 'Délivrée par organisme accrédité Cofrac' } },
+      { id: 'cofrac_gaz', nom: 'Certification État de l\'installation gaz (Cofrac)', description: 'OBLIGATOIRE pour diag installations gaz de plus de 15 ans', obligatoire: true, validite: '5 ans', icon: icon('cofrac_gaz'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cofrac.fr/fr/organismes/recherche.php', note: 'Délivrée par organisme accrédité Cofrac' } },
+      { id: 'cofrac_elec', nom: 'Certification État de l\'installation électrique (Cofrac)', description: 'OBLIGATOIRE pour diag installations élec de plus de 15 ans', obligatoire: true, validite: '5 ans', icon: icon('cofrac_elec'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cofrac.fr/fr/organismes/recherche.php', note: 'Délivrée par organisme accrédité Cofrac' } },
+      { id: 'cofrac_termites', nom: 'Certification Termites (Cofrac)', description: 'OBLIGATOIRE en zones à risque (préfectures publient les arrêtés)', obligatoire: true, condition: 'Si zone arrêtée préfectoral termites', validite: '5 ans', icon: icon('cofrac_termites'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cofrac.fr/fr/organismes/recherche.php', note: 'Délivrée par organisme accrédité Cofrac' } },
+      { id: 'cofrac_erp', nom: 'État des Risques et Pollutions (ERP)', description: 'Document préfectoral obligatoire pour vente / location', obligatoire: false, recommande: true, validite: '6 mois', icon: icon('cofrac_erp'), obtenir: { label: 'Obtenir ce document', lien: 'https://errial.georisques.gouv.fr', note: 'Généré sur le portail GéoRisques' } },
+      { id: 'rc_pro', nom: 'RC Pro Diagnostiqueur', description: 'Assurance responsabilité civile professionnelle spécifique diagnostiqueur (montant minimum 300 K€ par sinistre)', obligatoire: true, validite: '1 an', icon: icon('rc_pro'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.april-courtage.fr', note: 'Comparer chez APRIL, Allianz, MMA — minimum légal 300 K€' } },
+      { id: 'carte_diagnostiqueur', nom: 'Carte professionnelle diagnostiqueur', description: 'Justifie de l\'enregistrement de l\'activité auprès de la chambre de commerce', obligatoire: true, validite: 'Permanent', icon: icon('carte_diagnostiqueur'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cci.fr', note: 'Demande à la CCI lors de l\'inscription au RCS' } },
+    ],
+  },
+
+  // ─── PLAQUISTE ─────────────────────────────────────────────────────────────
+  plaquiste: {
+    label: 'Plaquiste / Plâtrerie',
+    documents: [
+      ...DOCUMENTS_COMMUNS,
+      { id: 'decennale', nom: 'Assurance Décennale', description: 'Obligatoire — travaux de cloisonnement, plafonds suspendus, doublages isolants', obligatoire: true, validite: '1 an', icon: icon('decennale'), obtenir: { label: 'Obtenir ce document', lien: 'https://reassurez-moi.fr/guide/pro/garantie-decennale', note: 'Délivrée par votre assureur' } },
+      { id: 'qualibat_platrerie', nom: 'Qualibat Plâtrerie / Cloisons sèches', description: 'Référence qualité métier — exigée par maîtres d\'ouvrage et marchés publics', obligatoire: false, recommande: true, validite: '1 an', icon: icon('qualibat_platrerie'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com/nos-qualifications-certifications', note: 'Sections 4131 (plâtrerie traditionnelle), 4132 (cloisons sèches), 4231 (plafonds suspendus)' } },
+      { id: 'rge', nom: 'Certification RGE', description: "Obligatoire si pose d'isolation intérieure (ITI) — permet aux clients d'obtenir MaPrimeRénov'", obligatoire: false, recommande: true, condition: 'Si isolation intérieure', validite: '4 ans', icon: icon('rge'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com/comment-devenir-qualibat-RGE', note: 'Qualibat RGE Section 7141' } },
+      { id: 'amiante_ss4', nom: 'Certification amiante SS4', description: 'Obligatoire pour intervention sur cloisons / plafonds bâtiments avant 1997', obligatoire: true, condition: 'Si intervention sur bâtiment avant 1997', validite: '5 ans', icon: icon('amiante_ss4'), obtenir: { label: 'Obtenir ce document', lien: 'https://entreprendre.service-public.gouv.fr/vosdroits/F32355', note: "Formation auprès d'un organisme certifié COFRAC" } },
+      { id: 'carte_btp', nom: 'Carte Pro BTP', description: 'Obligatoire pour tout salarié du BTP sur chantier', obligatoire: true, condition: 'Si salariés sur chantier', validite: 'Durée du contrat', icon: icon('carte_btp'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cartebtp.fr', note: 'Demande employeur sur cartebtp.fr' } },
+    ],
+  },
+
+  // ─── PISCINE ───────────────────────────────────────────────────────────────
+  piscine: {
+    label: 'Piscine',
+    documents: [
+      ...DOCUMENTS_COMMUNS,
+      { id: 'decennale', nom: 'Assurance Décennale', description: 'OBLIGATOIRE pour piscine enterrée / semi-enterrée — couvre étanchéité et structure', obligatoire: true, validite: '1 an', icon: icon('decennale'), obtenir: { label: 'Obtenir ce document', lien: 'https://reassurez-moi.fr/guide/pro/garantie-decennale', note: 'Mention spécifique "Piscine" obligatoire dans le contrat' } },
+      { id: 'qualipiscine', nom: 'Qualification Propiscines / Qualipiscine', description: 'Référence professionnelle FPP — gage de respect de la norme NF P90-309 et de l\'éthique métier', obligatoire: false, recommande: true, validite: '1 an', icon: icon('qualipiscine'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.propiscines.fr', note: 'Délivrée par la Fédération des Professionnels de la Piscine (FPP)' } },
+      { id: 'habilitation_elec', nom: 'Habilitation électrique BR / B1V', description: 'Obligatoire pour câblage pompe, éclairage subaquatique, motorisation volet', obligatoire: true, validite: '3 ans', icon: icon('habilitation_elec'), obtenir: { label: 'Obtenir ce document', lien: 'https://habilitations-electrique.fr', note: 'Formation NF C18-510, niveau BR (intervention BT) ou B1V (travaux sous tension)' } },
+      { id: 'fluides_frigorigenes', nom: 'Attestation fluides frigorigènes', description: 'Obligatoire pour installation / maintenance PAC piscine', obligatoire: true, condition: 'Si installation PAC piscine', validite: '5 ans', icon: icon('fluides_frigorigenes'), obtenir: { label: 'Obtenir ce document', lien: 'https://entreprendre.service-public.gouv.fr/vosdroits/F39033', note: 'Catégorie I minimum' } },
+      { id: 'rge_qualipv', nom: 'Certification RGE QualiPV', description: "Obligatoire pour pose de chauffage solaire piscine avec aide MaPrimeRénov'", obligatoire: false, recommande: true, condition: 'Si chauffage solaire piscine', validite: '4 ans', icon: icon('rge_qualipv'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualit-enr.org/qualipv/', note: "Délivrée par Qualit'EnR" } },
+      { id: 'carte_btp', nom: 'Carte Pro BTP', description: 'Obligatoire pour tout salarié BTP sur chantier piscine', obligatoire: true, condition: 'Si salariés sur chantier', validite: 'Durée du contrat', icon: icon('carte_btp'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cartebtp.fr', note: 'Demande employeur sur cartebtp.fr' } },
+    ],
+  },
+
+  // ─── RAMONAGE ──────────────────────────────────────────────────────────────
+  ramonage: {
+    label: 'Ramonage',
+    documents: [
+      ...DOCUMENTS_COMMUNS,
+      { id: 'decennale', nom: 'Assurance Décennale', description: 'Recommandée — couvre les dommages liés à un ramonage défectueux ou à une intervention sur conduit', obligatoire: false, recommande: true, validite: '1 an', icon: icon('decennale'), obtenir: { label: 'Obtenir ce document', lien: 'https://reassurez-moi.fr/guide/pro/garantie-decennale', note: 'Délivrée par votre assureur' } },
+      { id: 'carte_ramoneur', nom: 'Qualification professionnelle Ramoneur', description: 'OBLIGATOIRE — CAP / brevet professionnel ou 3 ans d\'expérience attestée (loi du 5 juillet 1996)', obligatoire: true, validite: 'Permanent', icon: icon('carte_ramoneur'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cma-france.fr', note: 'CAP Monteur en Installations Sanitaires + spécialisation, ou justificatif 3 ans d\'expérience' } },
+      { id: 'qualifumisterie', nom: 'Qualibat Fumisterie', description: 'Certification pose / réfection de conduits de fumée — exigée par les compagnies d\'assurance', obligatoire: false, recommande: true, validite: '1 an', icon: icon('qualifumisterie'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com/nos-qualifications-certifications', note: 'Section 8141 Qualibat' } },
+      { id: 'qualigaz', nom: 'Certification QualiGaz', description: 'Obligatoire pour ramonage / contrôle de conduits gaz', obligatoire: true, condition: 'Si conduits gaz', validite: '5 ans', icon: icon('qualigaz'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualigaz.com', note: 'Délivrée par Qualigaz après formation agréée' } },
+      { id: 'carte_btp', nom: 'Carte Pro BTP', description: 'Obligatoire pour tout salarié BTP sur chantier', obligatoire: true, condition: 'Si salariés sur chantier', validite: 'Durée du contrat', icon: icon('carte_btp'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cartebtp.fr', note: 'Demande employeur sur cartebtp.fr' } },
+    ],
+  },
+
+  // ─── STORE-BANNE ───────────────────────────────────────────────────────────
+  store_banne: {
+    label: 'Store / banne',
+    documents: [
+      ...DOCUMENTS_COMMUNS,
+      { id: 'decennale', nom: 'Assurance Décennale', description: 'Obligatoire — fixation extérieure structurelle (engage la décennale du bâti porteur)', obligatoire: true, validite: '1 an', icon: icon('decennale'), obtenir: { label: 'Obtenir ce document', lien: 'https://reassurez-moi.fr/guide/pro/garantie-decennale', note: 'Délivrée par votre assureur' } },
+      { id: 'qualibat_menuiserie_ext', nom: 'Qualibat Menuiserie extérieure', description: 'Référence qualité — pose stores bannes, pergolas, volets motorisés', obligatoire: false, recommande: true, validite: '1 an', icon: icon('qualibat_menuiserie_ext'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com/nos-qualifications-certifications', note: 'Section 3531 (menuiserie extérieure aluminium / PVC)' } },
+      { id: 'habilitation_elec', nom: 'Habilitation électrique BR', description: 'Obligatoire pour raccordement moteur / domotique store motorisé', obligatoire: true, condition: 'Si motorisation', validite: '3 ans', icon: icon('habilitation_elec'), obtenir: { label: 'Obtenir ce document', lien: 'https://habilitations-electrique.fr', note: 'Formation NF C18-510 niveau BR' } },
+      { id: 'carte_btp', nom: 'Carte Pro BTP', description: 'Obligatoire pour tout salarié BTP sur chantier', obligatoire: true, condition: 'Si salariés sur chantier', validite: 'Durée du contrat', icon: icon('carte_btp'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cartebtp.fr', note: 'Demande employeur sur cartebtp.fr' } },
+    ],
+  },
+
+  // ─── DEBOUCHAGE ────────────────────────────────────────────────────────────
+  debouchage: {
+    label: 'Débouchage / Assainissement',
+    documents: [
+      ...DOCUMENTS_COMMUNS,
+      { id: 'decennale', nom: 'Assurance Décennale', description: 'Obligatoire si pose ou modification de canalisation (assainissement structurel)', obligatoire: true, condition: 'Si pose / modification canalisation', validite: '1 an', icon: icon('decennale'), obtenir: { label: 'Obtenir ce document', lien: 'https://reassurez-moi.fr/guide/pro/garantie-decennale', note: 'Délivrée par votre assureur' } },
+      { id: 'qualibat', nom: 'Qualibat Plomberie / Assainissement', description: 'Référence qualité — sections 5111 / 5112 / 5141 selon spécialisation', obligatoire: false, recommande: true, validite: '1 an', icon: icon('qualibat'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com/nos-qualifications-certifications', note: 'Sections 5111 (plomberie sanitaire), 5112 (plomberie chauffage), 5141 (assainissement)' } },
+      { id: 'quali_eau', nom: "Quali'Eau", description: "Maîtrise sanitaire des réseaux d'eau potable — gage de confiance pour intervention curative", obligatoire: false, recommande: true, validite: '5 ans', icon: icon('quali_eau'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.qualibat.com', note: 'Délivrée par Qualibat' } },
+      { id: 'carte_btp', nom: 'Carte Pro BTP', description: 'Obligatoire pour tout salarié BTP sur chantier', obligatoire: true, condition: 'Si salariés sur chantier', validite: 'Durée du contrat', icon: icon('carte_btp'), obtenir: { label: 'Obtenir ce document', lien: 'https://www.cartebtp.fr', note: 'Demande employeur sur cartebtp.fr' } },
+    ],
+  },
 }
 
 // ── Mapping slug d'inscription → clé wallet ──────────────────
@@ -336,7 +436,18 @@ export function categoryToWalletKey(category: string | undefined | null): string
   // 2. Regex sur label français normalisé (accents supprimés)
   const c = category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
+  // Ordre important : les regex spécifiques (debouchage, ramonage, etc.) DOIVENT être
+  // testées AVANT les regex génériques (plomb, chauf...) pour éviter qu'un slug spécifique
+  // ne soit absorbé par un fallback plus large.
   const MAP: [RegExp, string][] = [
+    // ── Spécifiques d'abord (configs dédiées récentes) ──
+    [/diagnost/, 'diagnostic'],
+    [/plaquist|platrer|cloison.sech/, 'plaquiste'],
+    [/piscin|pool/, 'piscine'],
+    [/ramon|chimney/, 'ramonage'],
+    [/store.*banne|banne.*solaire|pergola/, 'store_banne'],
+    [/debouch|assainiss|curage|wc.bouch|canalisation.bouch/, 'debouchage'],
+    // ── Génériques ensuite ──
     [/plomb/, 'plomberie'],
     [/elec|electr/, 'electricite'],
     [/serr|lock/, 'serrurerie'],
@@ -355,7 +466,8 @@ export function categoryToWalletKey(category: string | undefined | null): string
     [/demenag|transport/, 'demenagement'],
     [/vitrer|vitr|vitrail|glassier/, 'vitrerie'],
     [/petit.trav|handyman|multi.serv/, 'petits_travaux'],
-    [/ferronn|metalier|soudure|grille/, 'ferronnerie'],
+    // 'metaller' pour matcher 'metallerie' (double L) + autres variantes — était bug avant
+    [/ferronn|metaller|metalier|soudure|grille/, 'ferronnerie'],
   ]
 
   for (const [re, key] of MAP) {
