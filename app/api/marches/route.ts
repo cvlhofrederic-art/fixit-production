@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
   const concelho = url.searchParams.get('concelho')    // PT: 'Vila Nova de Gaia'
   const departement = url.searchParams.get('departement') // FR: '13'
   const source = url.searchParams.get('source')        // 'decp' | 'base-gov-pt' | etc.
+  const marcheType = url.searchParams.get('marche_type')   // 'tous' | 'publics' | 'prives'
 
   // ── Publisher mode: return all marches published by a user ─────────────────
   if (publisherUserId) {
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
 
   // Only cache the non-personalized listing (artisanUserId triggers dynamic distance enrichment)
   const isPersonalized = !!artisanUserId
-  const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}`
+  const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}:${marcheType || ''}`
 
   const fetchMarches = async (): Promise<MarcheRow[]> => {
     let query = supabaseAdmin
@@ -164,6 +165,19 @@ export async function GET(request: NextRequest) {
     if (concelho) query = query.ilike('concelho', `%${concelho}%`)
     if (departement) query = query.eq('departement', departement)
     if (source) query = query.eq('source', source)
+
+    // ── Filtre privés / publics — déterminé par source_type + source ─────────
+    // Marchés publics : scrappés (source_type LIKE 'scan_%') ou attribués via
+    //   plateformes (source non-NULL : 'boamp', 'mairie-*', 'achatpublic.com', etc.)
+    // Marchés privés : clients humains (source_type NULL, source NULL) ou
+    //   sous-traitance BTP (source_type = 'btp_sous_traitance')
+    if (marcheType === 'prives') {
+      query = query
+        .or('source_type.is.null,source_type.eq.btp_sous_traitance')
+        .is('source', null)
+    } else if (marcheType === 'publics') {
+      query = query.or('source_type.like.scan_%,source.not.is.null')
+    }
 
     if (artisanUserId) {
       query = query.contains('matched_artisans', [artisanUserId])

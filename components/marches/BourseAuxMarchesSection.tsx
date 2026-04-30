@@ -167,6 +167,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterCategory) params.set('category', filterCategory)
       params.set('pays', artisanPays)
       params.set('status', 'open')
+      // Filtre privés/publics côté serveur — sinon les scrappés (scan_*) restent visibles.
+      // Pour les AE/EI : forcé à 'prives' par le useEffect plus bas (filterMarcheType state).
+      if (filterMarcheType !== 'tous') params.set('marche_type', filterMarcheType)
       const res = await fetch(`/api/marches?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marches')
       const data = await res.json()
@@ -179,7 +182,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, artisanPays])
+  }, [isPro, filterCategory, artisanPays, filterMarcheType])
 
   // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
   const artisanCoreMetiers = React.useMemo(() => {
