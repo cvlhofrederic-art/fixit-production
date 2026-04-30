@@ -17,6 +17,7 @@ interface HorairesSectionProps {
   toggleDayAvailability: (dayOfWeek: number) => void
   updateAvailabilityTime: (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => void
   toggleDayService: (dayOfWeek: number, serviceId: string) => void
+  saveAllDayServices?: () => Promise<boolean | void>
   DAY_NAMES: string[]
   orgRole?: OrgRole
 }
@@ -61,6 +62,7 @@ function HorairesArtisan({
   toggleDayAvailability,
   updateAvailabilityTime,
   toggleDayService,
+  saveAllDayServices,
   DAY_NAMES,
 }: HorairesSectionProps) {
   const locale = useLocale()
@@ -93,10 +95,8 @@ function HorairesArtisan({
     perWeek: isPt ? '/ semana' : '/ semaine',
     autoSaved: isPt ? 'Guardado automaticamente' : 'Sauvegardé automatiquement',
     saving: isPt ? 'A guardar…' : 'Sauvegarde…',
-    applyToAll: isPt ? 'Aplicar a todos' : 'Appliquer à tous',
-    applyConfirm: isPt
-      ? 'Aplicar os horários do primeiro dia ativo a todos os dias ativos ?'
-      : 'Appliquer les horaires du premier jour actif à tous les jours actifs ?',
+    saveBtn: isPt ? 'Guardar' : 'Sauvegarder',
+    saveDone: isPt ? 'Guardado' : 'Sauvegardé',
   }
 
   const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const
@@ -127,28 +127,13 @@ function HorairesArtisan({
     return { activeDays, total: formatHoursMinutes(totalMinutes) }
   }, [availability])
 
-  const applyToAll = () => {
-    const ordered = [1, 2, 3, 4, 5, 6, 0]
-    let refStart = '08:00'
-    let refEnd = '17:30'
-    for (const d of ordered) {
-      const r = availability.find(a => a.day_of_week === d)
-      const def = getDayDefaults(d)
-      const isActive = r ? r.is_available : def.is_available
-      if (isActive) {
-        refStart = r?.start_time?.substring(0, 5) || def.start_time
-        refEnd = r?.end_time?.substring(0, 5) || def.end_time
-        break
-      }
-    }
-    if (typeof window !== 'undefined' && !window.confirm(L.applyConfirm)) return
-    for (const d of ordered) {
-      const r = availability.find(a => a.day_of_week === d)
-      const def = getDayDefaults(d)
-      const isActive = r ? r.is_available : def.is_available
-      if (!isActive) continue
-      updateAvailabilityTime(d, 'start_time', refStart)
-      updateAvailabilityTime(d, 'end_time', refEnd)
+  const [justSaved, setJustSaved] = useState(false)
+  const handleSave = async () => {
+    if (!saveAllDayServices) return
+    const ok = await saveAllDayServices()
+    if (ok !== false) {
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 1800)
     }
   }
 
@@ -228,6 +213,10 @@ function HorairesArtisan({
         .h2-btn-sm { padding: 3px 8px; font-size: 10px; }
         .h2-btn-ghost { background: transparent; border: 1px dashed #DADADA; color: #888; }
         .h2-btn-ghost:hover { border-color: #FFC107; color: #FFA000; background: #FFF8E1; }
+        .h2-btn-save { background: #FFC107; border: 1px solid #FFC107; color: #1a1a1a; font-weight: 600; padding: 7px 16px; font-size: 11px; box-shadow: 0 1px 3px rgba(255, 193, 7, .25); }
+        .h2-btn-save:hover { background: #FFB300; border-color: #FFB300; box-shadow: 0 2px 6px rgba(255, 193, 7, .35); }
+        .h2-btn-save:disabled { background: #FFE082; border-color: #FFE082; color: #888; cursor: not-allowed; box-shadow: none; }
+        .h2-btn-save.is-done { background: #2E7D32; border-color: #2E7D32; color: #fff; box-shadow: 0 1px 3px rgba(46, 125, 50, .25); }
         @media (max-width: 768px) {
           .h2-day-main { grid-template-columns: 1fr; gap: 10px; }
           .h2-prest-chip { width: 100%; justify-content: center; }
@@ -388,12 +377,12 @@ function HorairesArtisan({
           <div className="h2-foot-r">
             <button
               type="button"
-              className="h2-btn h2-btn-sm h2-btn-ghost"
-              onClick={applyToAll}
-              disabled={savingAvail}
-              title={L.applyToAll}
+              className={`h2-btn h2-btn-save${justSaved ? ' is-done' : ''}`}
+              onClick={handleSave}
+              disabled={savingAvail || !saveAllDayServices}
+              title={L.saveBtn}
             >
-              ⎘ {L.applyToAll}
+              {justSaved ? `✓ ${L.saveDone}` : (savingAvail ? `⏱️ ${L.saving}` : L.saveBtn)}
             </button>
           </div>
         </div>

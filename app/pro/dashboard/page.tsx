@@ -835,6 +835,7 @@ function DashboardPage() {
               dayServices={dayServices} autoAccept={autoAccept} savingAvail={savingAvail}
               toggleAutoAccept={toggleAutoAccept} toggleDayAvailability={toggleDayAvailability}
               updateAvailabilityTime={updateAvailabilityTime} toggleDayService={toggleDayService}
+              saveAllDayServices={availHook.saveAllDayServices}
               DAY_NAMES={DAY_NAMES} orgRole={orgRole}
             />
             </SectionErrorBoundary>

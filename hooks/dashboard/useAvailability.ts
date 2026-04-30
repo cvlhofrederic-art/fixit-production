@@ -48,7 +48,8 @@ export function useAvailability(
         setSavingAvail(false)
         return
       }
-      const res2 = await fetch(`/api/availability?artisan_id=${artisan.id}`)
+      // Bypass browser cache (API renvoie max-age=10) — sinon refetch sert l'état pré-toggle
+      const res2 = await fetch(`/api/availability?artisan_id=${artisan.id}`, { cache: 'no-store' })
       const { data } = await res2.json()
       setAvailability(data || [])
     } catch (e) {
@@ -135,6 +136,38 @@ export function useAvailability(
     }
   }, [artisan, dayServices, setArtisan])
 
+  // Force-save de l'état dayServices courant (utilisé par bouton "Sauvegarder")
+  const saveAllDayServices = useCallback(async () => {
+    if (!artisan) return false
+    setSavingAvail(true)
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) {
+        console.error('SaveAll: no auth token')
+        setSavingAvail(false)
+        return false
+      }
+      const res = await authFetch('/api/availability-services', token, {
+        method: 'POST',
+        body: JSON.stringify({ artisan_id: artisan.id, dayServices }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        console.error('SaveAll error:', res.status, err)
+        setSavingAvail(false)
+        return false
+      }
+      const result = await res.json().catch(() => ({}))
+      if (result.bio) setArtisan({ ...artisan, bio: result.bio })
+    } catch (e) {
+      console.error('SaveAll error:', e)
+      setSavingAvail(false)
+      return false
+    }
+    setSavingAvail(false)
+    return true
+  }, [artisan, dayServices, setArtisan])
+
   const loadCalendarData = useCallback(async (aid: string) => {
     if (calendarDataLoadedRef.current) return
     calendarDataLoadedRef.current = true
@@ -162,7 +195,7 @@ export function useAvailability(
             }),
           }).catch(() => null)
         ))
-        const reFetch = await fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] }))
+        const reFetch = await fetch(`/api/availability?artisan_id=${aid}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ data: [] }))
         availData = reFetch.data || []
       }
     }
@@ -203,7 +236,7 @@ export function useAvailability(
     autoAccept, setAutoAccept,
     savingAvail,
     toggleAutoAccept, toggleDayAvailability,
-    updateAvailabilityTime, toggleDayService,
+    updateAvailabilityTime, toggleDayService, saveAllDayServices,
     loadCalendarData, getCalendarHours,
   }
 }
