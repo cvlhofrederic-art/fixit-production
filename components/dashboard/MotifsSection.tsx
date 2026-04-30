@@ -447,22 +447,58 @@ export default function MotifsSection({
                   </div>
                 )}
 
-                {/* Coût + Marge → Prix de vente HT (+ TTC si TVA applicable) — matériaux uniquement */}
+                {/* Coût + Marge → Prix de vente — matériaux uniquement.
+                    Logique TVA :
+                    - Si franchise (tvaApplicable=false, défaut AE/EI/ENI) → un seul "Prix de vente TTC"
+                      (le HT = le TTC du fait de l'absence de TVA, mais l'utilisateur lit son prix
+                       final client en TTC). Mention légale 293 B du CGI / Art. 53.º CIVA.
+                    - Si non-franchise (tvaApplicable=true) → "Prix de vente HT" + "Prix de vente TTC (TVA 20%)".
+                    L'utilisateur peut override via le toggle (cas AE qui dépasse le seuil 37 500 €). */}
                 {motifForm.scope === 'mat' && (() => {
                   const cost = motifForm.cost_ht === '' ? 0 : Number(motifForm.cost_ht)
                   const margin = motifForm.margin_pct === '' ? 0 : Number(motifForm.margin_pct)
                   const sellPriceHt = cost * (1 + margin / 100)
-                  // TVA standard sur matériaux : 20 % FR / 23 % PT (taxa normal)
-                  // Si artisan en franchise (AE/EI/ENI) → mention 293 B du CGI / Art. 53.º CIVA
                   const tvaRate = isPt ? 0.23 : 0.20
                   const sellPriceTtc = sellPriceHt * (1 + tvaRate)
                   const tvaPctLabel = isPt ? '23 %' : '20 %'
                   const localeFmt = isPt ? 'pt-PT' : 'fr-FR'
+                  // En franchise : le coût est neutre (pas de HT/TTC distinction), le prix de vente
+                  // affiché est le TTC client (pas de TVA ajoutée). En non-franchise : HT + TTC.
+                  const costLabel = tvaApplicable
+                    ? (isPt ? 'Custo s/ IVA (€)' : 'Coût HT (€)')
+                    : (isPt ? 'Custo (€)' : 'Coût (€)')
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {/* Toggle TVA applicable — override pour AE qui dépasse le seuil */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 12px', background: tvaApplicable ? '#FEF3C7' : '#FFF8E1',
+                        border: `1px solid ${tvaApplicable ? '#FCD34D' : '#FFE082'}`,
+                        borderRadius: 6,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>
+                            {isPt ? 'IVA aplicável' : 'TVA applicable'}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                            {tvaApplicable
+                              ? (isPt ? `Adicionar IVA (${tvaPctLabel}) ao preço de venda` : `Ajouter la TVA (${tvaPctLabel}) au prix de vente`)
+                              : (isPt ? 'Isento — Art. 53.º do CIVA (regime especial)' : 'Franchise en base — art. 293 B du CGI')}
+                          </div>
+                        </div>
+                        <label className="v5-tgl" style={{ flexShrink: 0 }} title={isPt ? 'Ativar/desativar IVA' : 'Activer/désactiver la TVA'}>
+                          <input
+                            type="checkbox"
+                            checked={tvaApplicable}
+                            onChange={() => setTvaApplicable(v => !v)}
+                          />
+                          <span className="sl" />
+                        </label>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div className={isV5 ? 'v5-fg' : ''}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Custo s/ IVA (€)' : 'Coût HT (€)'}</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{costLabel}</label>
                           <input
                             type="number"
                             value={motifForm.cost_ht}
@@ -482,33 +518,44 @@ export default function MotifsSection({
                           />
                         </div>
                       </div>
+
                       <div style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 14px',
                         background: '#f3f4f6', border: '1px solid #e5e7eb',
                         borderRadius: 6,
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{isPt ? 'Preço de venda s/ IVA' : 'Prix de vente HT'}</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
-                            {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                          </span>
-                        </div>
                         {tvaApplicable ? (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>
-                              {isPt ? `Preço de venda c/ IVA (${tvaPctLabel})` : `Prix de vente TTC (TVA ${tvaPctLabel})`}
-                            </span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                              {sellPriceTtc.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                            </span>
-                          </div>
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>{isPt ? 'Preço de venda s/ IVA' : 'Prix de vente HT'}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                                {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+                                {isPt ? `Preço de venda c/ IVA (${tvaPctLabel})` : `Prix de vente TTC (TVA ${tvaPctLabel})`}
+                              </span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                                {sellPriceTtc.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                          </>
                         ) : (
-                          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#6b7280', lineHeight: 1.4 }}>
-                            {isPt
-                              ? 'IVA não aplicável — Art. 53.º do CIVA (regime especial de isenção)'
-                              : 'TVA non applicable — art. 293 B du CGI (franchise en base)'}
-                          </div>
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{isPt ? 'Preço de venda' : 'Prix de vente TTC'}</span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                                {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, fontStyle: 'italic', color: '#6b7280', lineHeight: 1.4 }}>
+                              {isPt
+                                ? 'IVA não aplicável — Art. 53.º do CIVA (regime especial de isenção)'
+                                : 'TVA non applicable — art. 293 B du CGI (franchise en base)'}
+                            </div>
+                          </>
                         )}
                       </div>
                     </div>
