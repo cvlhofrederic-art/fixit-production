@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const v = validateBody(availabilityToggleSchema, body)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
-    const { artisan_id, day_of_week } = v.data
+    const { artisan_id, day_of_week, is_available, start_time, end_time } = v.data
 
     // SÉCURITÉ : vérifier que l'utilisateur est propriétaire de cet artisan
     const { data: artisanProfile } = await supabaseAdmin
@@ -68,30 +68,35 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (existing) {
-      // Toggle is_available
-      const newVal = !existing.is_available
+      // Si is_available fourni → idempotent (état explicite). Sinon → toggle (rétrocompat).
+      const updates: Record<string, unknown> = {
+        is_available: typeof is_available === 'boolean' ? is_available : !existing.is_available,
+      }
+      if (start_time) updates.start_time = start_time
+      if (end_time) updates.end_time = end_time
+
       const { data, error } = await supabaseAdmin
         .from('availability')
-        .update({ is_available: newVal })
+        .update(updates)
         .eq('id', existing.id)
         .select()
         .single()
 
       if (error) {
-        logger.error('Error toggling availability:', error)
-        return NextResponse.json({ error: 'Failed to toggle availability' }, { status: 500 })
+        logger.error('Error updating availability:', error)
+        return NextResponse.json({ error: 'Failed to update availability' }, { status: 500 })
       }
-      return NextResponse.json({ data, action: 'toggled' })
+      return NextResponse.json({ data, action: typeof is_available === 'boolean' ? 'set' : 'toggled' })
     } else {
-      // Insert new row
+      // Insert new row — utiliser is_available fourni si présent, sinon true par défaut
       const { data, error } = await supabaseAdmin
         .from('availability')
         .insert({
           artisan_id,
           day_of_week,
-          start_time: '08:00',
-          end_time: '17:00',
-          is_available: true,
+          start_time: start_time || '08:00',
+          end_time: end_time || '17:00',
+          is_available: typeof is_available === 'boolean' ? is_available : true,
         })
         .select()
         .single()

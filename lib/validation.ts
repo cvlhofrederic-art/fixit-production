@@ -54,6 +54,10 @@ export const availabilitySchema = z.object({
 export const availabilityToggleSchema = z.object({
   artisan_id: z.string().uuid(),
   day_of_week: z.number().int().min(0).max(6),
+  // Optionnels : permettent un POST idempotent (état explicite plutôt que toggle)
+  is_available: z.boolean().optional(),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Heure de début invalide (HH:MM)').optional(),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Heure de fin invalide (HH:MM)').optional(),
 })
 
 export const availabilityUpdateSchema = z.object({
