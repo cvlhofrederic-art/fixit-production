@@ -7,6 +7,21 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { haversineDistance } from '@/lib/geo'
 // crypto.randomUUID() is available globally (Web Crypto API)
 
+/**
+ * Déduit le pays (FR/PT) depuis le format du code postal.
+ * - FR : 5 chiffres (ex: 13000, 75001)
+ * - PT : 4 chiffres optionnellement suivis d'un tiret + 3 chiffres (ex: 4000-001, 4000001, 1000)
+ * - Fallback : 'FR' (marché historique principal)
+ */
+function inferPaysFromPostal(postal: string | null | undefined, fallback: 'FR' | 'PT' = 'FR'): 'FR' | 'PT' {
+  if (!postal) return fallback
+  const t = postal.trim().replace(/\s+/g, '')
+  if (/^\d{4}-?\d{3}$/.test(t)) return 'PT'
+  if (/^\d{4}$/.test(t)) return 'PT' // PT 4-chiffres seuls (ancien format)
+  if (/^\d{5}$/.test(t)) return 'FR'
+  return fallback
+}
+
 interface MarcheRow {
   id: string
   title: string
@@ -131,7 +146,7 @@ export async function GET(request: NextRequest) {
   const fetchMarches = async (): Promise<MarcheRow[]> => {
     let query = supabaseAdmin
       .from('marches')
-      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue')
+      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type, btp_company_name, mission_type, start_date, duration_text, nb_intervenants_souhaite')
       .eq('status', 'open')
       .gte('deadline', today)
       .order('created_at', { ascending: false })
@@ -267,6 +282,8 @@ export async function POST(request: NextRequest) {
       require_rge: v.require_rge,
       require_qualibat: v.require_qualibat,
       preferred_work_mode: v.preferred_work_mode || null,
+      // Pays — explicite ou déduit du code postal pour que les artisans FR/PT voient le marché
+      pays: v.pays || inferPaysFromPostal(v.location_postal),
       // V2.1 dynamic fields
       ...dynamicFields,
     })
