@@ -32,9 +32,14 @@ export function useAvailability(
       const currentlyActive = existing ? existing.is_available : isWeekday
       const desired = !currentlyActive
 
-      const res = await fetch('/api/availability', {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) {
+        console.error('Toggle: no auth token')
+        setSavingAvail(false)
+        return
+      }
+      const res = await authFetch('/api/availability', token, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artisan_id: artisan.id, day_of_week: dayOfWeek, is_available: desired }),
       })
       const result = await res.json()
@@ -54,13 +59,17 @@ export function useAvailability(
 
   const updateAvailabilityTime = useCallback(async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
     if (!artisan) return
+    const token = (await supabase.auth.getSession()).data.session?.access_token
+    if (!token) {
+      console.error('UpdateTime: no auth token')
+      return
+    }
     const existing = availability.find((a) => a.day_of_week === dayOfWeek)
     if (existing) {
       setAvailability(prev => prev.map(a => a.id === existing.id ? { ...a, [field]: value } : a))
       try {
-        await fetch('/api/availability', {
+        await authFetch('/api/availability', token, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ availability_id: existing.id, field, value }),
         })
       } catch (e) {
@@ -77,9 +86,8 @@ export function useAvailability(
         end_time: field === 'end_time' ? value : '17:00',
       }
       try {
-        const res = await fetch('/api/availability', {
+        const res = await authFetch('/api/availability', token, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
         const result = await res.json()
@@ -135,7 +143,31 @@ export function useAvailability(
       fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
       fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
-    setAvailability(availRes.data || [])
+    let availData = availRes.data || []
+
+    // Seed BDD si vide : aligne ce que l'UI affiche par défaut (Mon-Fri actifs 08:00-17:30)
+    // avec ce que lit le parcours client. Sinon le toggle 1er clic inverse au lieu d'activer.
+    if (availData.length === 0) {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (token) {
+        await Promise.all([0, 1, 2, 3, 4, 5, 6].map(dow =>
+          authFetch('/api/availability', token, {
+            method: 'POST',
+            body: JSON.stringify({
+              artisan_id: aid,
+              day_of_week: dow,
+              is_available: dow >= 1 && dow <= 5,
+              start_time: '08:00',
+              end_time: '17:30',
+            }),
+          }).catch(() => null)
+        ))
+        const reFetch = await fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] }))
+        availData = reFetch.data || []
+      }
+    }
+
+    setAvailability(availData)
     const apiAbsences = absRes.data || []
     if (dsRes.data) setDayServices(dsRes.data)
     return apiAbsences // Return absences so caller can update absences hook
