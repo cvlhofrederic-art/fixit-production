@@ -277,9 +277,19 @@ export default function MotifsSection({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* Name */}
                 <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.nomMotif')} *</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
+                    {motifForm.scope === 'mat'
+                      ? (isPt ? 'Nome do material' : 'Nom du matériau')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? 'Nome da despesa' : 'Nom du frais')
+                        : t('proDash.motifs.nomMotif')} *
+                  </label>
                   <input type="text" value={motifForm.name} onChange={(e) => setMotifForm({...motifForm, name: e.target.value})}
-                    placeholder={L.namePlaceholder}
+                    placeholder={motifForm.scope === 'mat'
+                      ? (isPt ? 'Ex: Azulejo 60x60, Tinta acrílica, Saco de cimento…' : 'Ex: Carrelage 60x60, Peinture acrylique, Sac de ciment…')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? 'Ex: Deslocação, Estacionamento, Consumíveis…' : 'Ex: Déplacement, Stationnement, Consommables…')
+                        : L.namePlaceholder}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
 
@@ -287,7 +297,11 @@ export default function MotifsSection({
                 <div className={isV5 ? 'v5-fg' : ''}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.description')}</label>
                   <textarea value={motifForm.description} onChange={(e) => setMotifForm({...motifForm, description: e.target.value})}
-                    rows={2} placeholder={t('proDash.motifs.descriptionPlaceholder')}
+                    rows={2} placeholder={motifForm.scope === 'mat'
+                      ? (isPt ? 'Descrição detalhada do material…' : 'Description détaillée du matériau…')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? 'Descrição detalhada da despesa…' : 'Description détaillée du frais…')
+                        : t('proDash.motifs.descriptionPlaceholder')}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
 
@@ -365,46 +379,53 @@ export default function MotifsSection({
                   </div>
                 </div>
 
-                {/* Price range */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
-                    {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
-                  </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMinimum')}</label>
-                      <input
-                        type="number"
-                        value={motifForm.price_min}
-                        onChange={(e) => setMotifForm({...motifForm, price_min: e.target.value === '' ? '' : parseFloat(e.target.value)})}
-                        step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                      />
+                {/* Price range — masquée pour les matériaux (utilisent Coût + Marge) */}
+                {motifForm.scope !== 'mat' && (
+                  <div className={isV5 ? 'v5-fg' : ''}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
+                      {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className={isV5 ? 'v5-fg' : ''}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMinimum')}</label>
+                        <input
+                          type="number"
+                          value={motifForm.price_min}
+                          onChange={(e) => setMotifForm({...motifForm, price_min: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                          step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
+                          className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                        />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : ''}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMaximum')}</label>
+                        <input
+                          type="number"
+                          value={motifForm.price_max}
+                          onChange={(e) => setMotifForm({...motifForm, price_max: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                          step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
+                          className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                        />
+                      </div>
                     </div>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMaximum')}</label>
-                      <input
-                        type="number"
-                        value={motifForm.price_max}
-                        onChange={(e) => setMotifForm({...motifForm, price_max: e.target.value === '' ? '' : parseFloat(e.target.value)})}
-                        step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                      />
-                    </div>
+                    <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
                   </div>
-                  <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
-                </div>
+                )}
 
-                {/* Coût + Marge → Prix de vente HT (matériaux uniquement, comptabilité) */}
+                {/* Coût + Marge → Prix de vente HT + TTC (matériaux uniquement, comptabilité) */}
                 {motifForm.scope === 'mat' && (() => {
                   const cost = motifForm.cost_ht === '' ? 0 : Number(motifForm.cost_ht)
                   const margin = motifForm.margin_pct === '' ? 0 : Number(motifForm.margin_pct)
-                  const sellPrice = cost * (1 + margin / 100)
+                  const sellPriceHt = cost * (1 + margin / 100)
+                  // TVA standard sur matériaux : 20 % FR / 23 % PT (taxa normal)
+                  const tvaRate = isPt ? 0.23 : 0.20
+                  const sellPriceTtc = sellPriceHt * (1 + tvaRate)
+                  const tvaPctLabel = isPt ? '23 %' : '20 %'
+                  const localeFmt = isPt ? 'pt-PT' : 'fr-FR'
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div className={isV5 ? 'v5-fg' : ''}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Coût HT (€)</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Custo s/ IVA (€)' : 'Coût HT (€)'}</label>
                           <input
                             type="number"
                             value={motifForm.cost_ht}
@@ -414,7 +435,7 @@ export default function MotifsSection({
                           />
                         </div>
                         <div className={isV5 ? 'v5-fg' : ''}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Marge (%)</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Margem (%)' : 'Marge (%)'}</label>
                           <input
                             type="number"
                             value={motifForm.margin_pct}
@@ -425,15 +446,25 @@ export default function MotifsSection({
                         </div>
                       </div>
                       <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 14px',
                         background: '#f3f4f6', border: '1px solid #e5e7eb',
                         borderRadius: 6,
                       }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Prix de vente HT</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
-                          {sellPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{isPt ? 'Preço de venda s/ IVA' : 'Prix de vente HT'}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                            {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>
+                            {isPt ? `Preço de venda c/ IVA (${tvaPctLabel})` : `Prix de vente TTC (TVA ${tvaPctLabel})`}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                            {sellPriceTtc.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )
@@ -521,7 +552,15 @@ export default function MotifsSection({
               }} disabled={!motifForm.name || savingMotif || savingWithEtapes}
                 className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
                 style={{ opacity: (!motifForm.name || savingMotif || savingWithEtapes) ? 0.4 : 1, cursor: (!motifForm.name || savingMotif || savingWithEtapes) ? 'not-allowed' : 'pointer' }}>
-                {(savingMotif || savingWithEtapes) ? t('proDash.motifs.sauvegarde') : editingMotif ? `💾 ${t('proDash.motifs.modifier')}` : t('proDash.motifs.creerLeMotif')}
+                {(savingMotif || savingWithEtapes)
+                  ? t('proDash.motifs.sauvegarde')
+                  : editingMotif
+                    ? `💾 ${t('proDash.motifs.modifier')}`
+                    : motifForm.scope === 'mat'
+                      ? (isPt ? '+ Criar o material' : '+ Créer le matériau')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? '+ Criar a despesa' : '+ Créer le frais')
+                        : t('proDash.motifs.creerLeMotif')}
               </button>
             </div>
           </div>
