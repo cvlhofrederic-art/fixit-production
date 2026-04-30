@@ -538,11 +538,14 @@ function RechercheContent() {
       if (registeredList.length > 0) {
         const ids = registeredList.map((a) => a.id)
 
+        // Recherche montre uniquement les créneaux RDV directs (pas les plages Visite & devis,
+        // qui supposent un échange préalable avec l'artisan).
         const { data: availData } = await supabase
           .from('availability')
           .select('*')
           .in('artisan_id', ids)
           .eq('is_available', true)
+          .or('slot_type.eq.rdv,slot_type.is.null')
           .order('day_of_week')
 
         setAllAvailability(availData || [])

@@ -325,8 +325,19 @@ export default function ArtisanProfilePage() {
     return dayConfig.includes(serviceId)
   }
 
+  // Détermine la plage à utiliser pour un service :
+  //   • validation_auto !== false → 'rdv' (réservation directe)
+  //   • validation_auto === false → 'visite' (inspection sur place avant devis)
+  // Sans service sélectionné, default 'rdv' (créneaux directs sont la norme).
+  const slotTypeForService = (service: any): 'rdv' | 'visite' => {
+    if (!service) return 'rdv'
+    return service.validation_auto === false ? 'visite' : 'rdv'
+  }
+
+  const matchesSlot = (a: any, slotType: 'rdv' | 'visite') => (a.slot_type || 'rdv') === slotType
+
   const isDateAvailableForService = (date: Date, serviceId: string | null): boolean => {
-    if (!isDateAvailable(date)) return false
+    if (!isDateAvailable(date, serviceId)) return false
     if (!serviceId) return true
     return isServiceAvailableOnDay(serviceId, date.getDay())
   }
@@ -341,7 +352,8 @@ export default function ArtisanProfilePage() {
 
   const getTimeSlotsForDate = (date: Date) => {
     const dayOfWeek = date.getDay()
-    const avail = availability.find((a) => a.day_of_week === dayOfWeek && a.is_available)
+    const slotType = slotTypeForService(selectedService)
+    const avail = availability.find((a) => a.day_of_week === dayOfWeek && a.is_available && matchesSlot(a, slotType))
     if (!avail) return []
 
     const startParts = avail.start_time.substring(0, 5).split(':')
@@ -374,12 +386,14 @@ export default function ArtisanProfilePage() {
     return slots
   }
 
-  const isDateAvailable = (date: Date) => {
+  const isDateAvailable = (date: Date, serviceId?: string | null) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (date < today) return false
     const dayOfWeek = date.getDay()
-    return availability.some((a) => a.day_of_week === dayOfWeek && a.is_available)
+    const service = serviceId ? services.find(s => s.id === serviceId) : selectedService
+    const slotType = slotTypeForService(service)
+    return availability.some((a) => a.day_of_week === dayOfWeek && a.is_available && matchesSlot(a, slotType))
   }
 
   const isToday = (date: Date) => {
@@ -387,15 +401,18 @@ export default function ArtisanProfilePage() {
     return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
   }
 
-  // Active days of the week (display order Mon→Sun)
+  // Active days of the week (display order Mon→Sun) — filtre par slot_type du service sélectionné.
+  // Sans service choisi, on regarde 'rdv' par défaut (parcours direct).
   const activeDayIndices = useMemo(() => {
     const displayOrder = [1, 2, 3, 4, 5, 6, 0] // Mon=1 ... Sun=0
     if (!availability || availability.length === 0) return displayOrder // fallback: all 7 days
+    const slotType = slotTypeForService(selectedService)
     const active = displayOrder.filter(dow =>
-      availability.some(a => a.day_of_week === dow && a.is_available)
+      availability.some(a => a.day_of_week === dow && a.is_available && (a.slot_type || 'rdv') === slotType)
     )
     return active.length > 0 ? active : displayOrder // fallback if none active
-  }, [availability])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availability, selectedService])
 
   const dayHeaders = useMemo(() => {
     const labels: Record<number, string> = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 0: 'Dim' }
@@ -1023,7 +1040,9 @@ export default function ArtisanProfilePage() {
                         <div className="flex flex-wrap gap-1">
                           {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((dayName, i) => {
                             const dayNum = i === 6 ? 0 : i + 1
-                            const avail = availability.find(a => a.day_of_week === dayNum && a.is_available)
+                            // Filtrer la dispo par la plage qui correspond au mode du service
+                            const slotTypeForCard = service.validation_auto === false ? 'visite' : 'rdv'
+                            const avail = availability.find(a => a.day_of_week === dayNum && a.is_available && (a.slot_type || 'rdv') === slotTypeForCard)
                             const serviceOk = isServiceAvailableOnDay(service.id, dayNum)
                             return (
                               <span key={dayNum} className={`text-[10px] px-1.5 py-0.5 rounded ${avail && serviceOk ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -1296,6 +1315,16 @@ export default function ArtisanProfilePage() {
               S&eacute;lectionnez une date et un horaire disponible
             </p>
           </div>
+
+          {/* Bandeau visite & devis si motif en validation manuelle */}
+          {selectedService?.validation_auto === false && (
+            <div className="max-w-3xl mx-auto mb-6 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <span className="text-xl flex-shrink-0">🔍</span>
+              <div className="text-sm text-amber-900">
+                <strong>Visite &amp; devis</strong> — Ce motif n&eacute;cessite une inspection sur place. L&rsquo;artisan vous confirmera le RDV apr&egrave;s avoir valid&eacute; votre demande, puis vous remettra un devis avant l&rsquo;intervention.
+              </div>
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Left column: Calendar + Time slots (2/3) */}

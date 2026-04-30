@@ -17,11 +17,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'artisan_id is required' }, { status: 400 })
   }
 
-  const { data, error } = await supabaseAdmin
+  // slot_type optionnel : si fourni, filtre. Sinon retourne les 2 plages.
+  const slotType = searchParams.get('slot_type')
+  let query = supabaseAdmin
     .from('availability')
-    .select('id, artisan_id, day_of_week, start_time, end_time, is_available')
+    .select('id, artisan_id, day_of_week, start_time, end_time, is_available, slot_type')
     .eq('artisan_id', artisanId)
-    .order('day_of_week')
+  if (slotType === 'rdv' || slotType === 'visite') {
+    query = query.eq('slot_type', slotType)
+  }
+  const { data, error } = await query.order('day_of_week')
 
   if (error) {
     logger.error('Error fetching availability:', error)
@@ -50,6 +55,8 @@ export async function POST(request: NextRequest) {
     const v = validateBody(availabilityToggleSchema, body)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { artisan_id, day_of_week, is_available, start_time, end_time } = v.data
+    // slot_type par défaut 'rdv' (back-compat clients qui n'envoient rien)
+    const slot_type = v.data.slot_type || 'rdv'
 
     // SÉCURITÉ : vérifier que l'utilisateur est propriétaire de cet artisan
     const { data: artisanProfile } = await supabaseAdmin
@@ -61,13 +68,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
     }
 
-    // Check if row exists
+    // Check if row exists pour ce (artisan, day_of_week, slot_type)
     const { data: existing } = await supabaseAdmin
       .from('availability')
-      .select('id, artisan_id, day_of_week, is_available, start_time, end_time')
+      .select('id, artisan_id, day_of_week, is_available, start_time, end_time, slot_type')
       .eq('artisan_id', artisan_id)
       .eq('day_of_week', day_of_week)
-      .single()
+      .eq('slot_type', slot_type)
+      .maybeSingle()
 
     if (existing) {
       // Si is_available fourni → idempotent (état explicite). Sinon → toggle (rétrocompat).
@@ -96,6 +104,7 @@ export async function POST(request: NextRequest) {
         .insert({
           artisan_id,
           day_of_week,
+          slot_type,
           start_time: start_time || '08:00',
           end_time: end_time || '17:00',
           is_available: typeof is_available === 'boolean' ? is_available : true,
