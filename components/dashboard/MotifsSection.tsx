@@ -268,8 +268,20 @@ export default function MotifsSection({
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
               <span className={isV5 ? 'v5-modal-t' : ''} style={{ fontWeight: 600, fontSize: 14 }}>
                 {editingMotif
-                  ? `✏️ ${isArtisan && motifForm.scope === 'mat' ? (isPt ? 'Modificar o material' : 'Modifier le matériau') : L.modalEdit}`
-                  : (isArtisan && motifForm.scope === 'mat' ? (isPt ? '🧱 Novo material' : '🧱 Nouveau matériau') : L.modalNew)}
+                  ? `✏️ ${
+                      isArtisan && motifForm.scope === 'mat'
+                        ? (isPt ? 'Modificar o material' : 'Modifier le matériau')
+                        : isArtisan && motifForm.scope === 'frais'
+                          ? (isPt ? 'Modificar a despesa' : 'Modifier le frais')
+                          : L.modalEdit
+                    }`
+                  : (
+                      isArtisan && motifForm.scope === 'mat'
+                        ? (isPt ? '🧱 Novo material' : '🧱 Nouveau matériau')
+                        : isArtisan && motifForm.scope === 'frais'
+                          ? (isPt ? '💰 Nova despesa' : '💰 Nouveau frais')
+                          : L.modalNew
+                    )}
               </span>
               <button onClick={() => setShowMotifModal(false)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>✕</button>
             </div>
