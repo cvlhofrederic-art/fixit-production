@@ -31,7 +31,7 @@ interface PrestationsBTPSectionProps {
   navigateTo?: (page: string) => void
 }
 
-type PrestType = 'prest' | 'mat'
+type PrestType = 'prest' | 'mat' | 'frais'
 
 type PriceRange = { min: number; max: number } // min === max ⇒ prix fixe
 
@@ -554,6 +554,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
           <div className="prest-cat-bar">
             <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ {isPt ? 'Prestações' : 'Prestations'}</button>
             <button className={`prest-cat-btn${cat === 'mat' ? ' active' : ''}`} onClick={() => setCat('mat')}>🧱 {isPt ? 'Materiais' : 'Matériaux'}</button>
+            <button className={`prest-cat-btn${cat === 'frais' ? ' active' : ''}`} onClick={() => setCat('frais')}>💰 {isPt ? 'Despesas diversas' : 'Frais divers'}</button>
           </div>
           <button className="v5-btn v5-btn-p" onClick={openCreate}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
         </div>
@@ -649,18 +650,65 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         </div>
       )}
 
+      {/* PANEL : FRAIS DIVERS — coûts transverses au chantier (déplacement, déchèterie, location matériel, etc.)
+          INTERNE UNIQUEMENT : jamais injecté dans les devis client (DevisFactureFormBTP filtre type==='prest')
+          ni synchronisé dans la table `services` publique (upsertPrestationToSupabase gardé par type==='prest'). */}
+      {cat === 'frais' && (
+        <div className="prest-panel">
+          <div className="v5-alert" style={{ marginBottom: 10, fontSize: 12, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6 }}>
+            <span style={{ fontSize: 14 }}>🔒</span>
+            <span>{isPt ? 'Uso interno apenas — nunca visível para o cliente nem incluído nos orçamentos.' : 'Usage interne uniquement — jamais visible par le client ni inclus dans les devis.'}</span>
+          </div>
+          <div className="v5-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table className="prest-tbl">
+              <thead>
+                <tr>
+                  <th>{isPt ? 'Designação' : 'Désignation'}</th>
+                  <th>{isPt ? 'Unidade' : 'Unité'}</th>
+                  <th>{isPt ? 'Preço s/ IVA' : 'Prix HT'}</th>
+                  <th>{isPt ? 'Preço c/ IVA' : 'Prix TTC'}</th>
+                  <th style={{ textAlign: 'right' }}>{isPt ? 'Ações' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.length === 0 && (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhuma despesa registada.' : 'Aucun frais divers enregistré.'}</td></tr>
+                )}
+                {visible.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.name}</td>
+                    <td><span className="prest-unit">{p.unit}</span></td>
+                    <td className="prix">{renderRange(p.price)}{unitSuffix(p.unit)}</td>
+                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price)}{unitSuffix(p.unit)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
+                      <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
+          </div>
+        </div>
+      )}
+
       {/* ──────── MODAL ──────── */}
       {modal && (
         <div className="prest-modal-ov" onClick={() => setModal(false)}>
           <div className="prest-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{editing
-              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : 'prestação'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : 'la prestation'}`)
-              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : 'Nova prestação'}` : `Nouvelle ${form.type === 'mat' ? 'référence matériau' : 'prestation'}`)
+              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : form.type === 'frais' ? 'despesa' : 'prestação'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : form.type === 'frais' ? 'le frais divers' : 'la prestation'}`)
+              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : form.type === 'frais' ? 'Nova despesa' : 'Nova prestação'}` : `Nouveau ${form.type === 'mat' ? 'matériau (référence)' : form.type === 'frais' ? 'frais divers' : 'prestation'}`)
             }</h3>
 
             <div className="prest-fg">
               <label>{isPt ? 'Designação *' : 'Désignation *'}</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.type === 'mat' ? (isPt ? 'Ex: Telhas cerâmicas' : 'Ex: Tuiles mécaniques terre cuite') : (isPt ? 'Ex: Laje de betão' : 'Ex: Dalle béton')} />
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={
+                form.type === 'mat' ? (isPt ? 'Ex: Telhas cerâmicas' : 'Ex: Tuiles mécaniques terre cuite')
+                : form.type === 'frais' ? (isPt ? 'Ex: Deslocação, Aluguer de andaime, Limpeza' : 'Ex: Déplacement, Location échafaudage, Évacuation déchèterie')
+                : (isPt ? 'Ex: Laje de betão' : 'Ex: Dalle béton')
+              } />
             </div>
 
             {form.type === 'prest' && (
@@ -688,14 +736,17 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 }}>
                   <option value="prest">{isPt ? 'Prestação (cliente)' : 'Prestation (client)'}</option>
                   <option value="mat">{isPt ? 'Material (interno)' : 'Matériau (interne)'}</option>
+                  <option value="frais">{isPt ? 'Despesa diversa (interno)' : 'Frais divers (interne)'}</option>
                 </select>
               </div>
-              <div className="prest-fg">
-                <label>{isPt ? 'Especialidade / Lote' : 'Corps d\'état / Lot'}</label>
-                <select value={form.lot} onChange={(e) => setForm({ ...form, lot: e.target.value })}>
-                  {availableLots.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
-                </select>
-              </div>
+              {form.type !== 'frais' && (
+                <div className="prest-fg">
+                  <label>{isPt ? 'Especialidade / Lote' : 'Corps d\'état / Lot'}</label>
+                  <select value={form.lot} onChange={(e) => setForm({ ...form, lot: e.target.value })}>
+                    {availableLots.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="prest-row-2">
