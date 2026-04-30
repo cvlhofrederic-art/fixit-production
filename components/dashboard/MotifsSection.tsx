@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 import { useThemeVars } from './useThemeVars'
 import type { Service } from '@/lib/types'
 import { parseServiceScope, type ServiceScope } from '@/lib/service-utils'
+import { isSmallBusinessStatus } from '@/lib/devis-utils'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -48,6 +49,29 @@ export default function MotifsSection({
   const isBtpSociete = orgRole === 'pro_societe'
   const isV5 = isBtpSociete || isArtisan
   const tv = useThemeVars(isV5)
+
+  // ─── Statut TVA artisan : détection franchise en base (art. 293 B du CGI / Art. 53.º CIVA) ───
+  // Par défaut on assume franchise (statut artisan le plus courant : AE/EI),
+  // donc pas de TVA tant que le fetch settings n'a pas répondu.
+  const [tvaApplicable, setTvaApplicable] = useState<boolean>(false)
+  useEffect(() => {
+    if (!isArtisan) { setTvaApplicable(true); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/btp?table=settings', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        const statut: string | undefined = data?.settings?.statut_juridique || data?.settings?.company_type
+        if (cancelled) return
+        if (statut) {
+          // AE/EI (FR) ou ENI (PT) → franchise par défaut
+          setTvaApplicable(!isSmallBusinessStatus(statut, locale))
+        }
+      } catch { /* on garde le défaut false (franchise) */ }
+    })()
+    return () => { cancelled = true }
+  }, [isArtisan, locale])
 
   // Libellés côté artisan : "Prestations" (FR) / "Prestações" (PT)
   const L = {
@@ -423,12 +447,13 @@ export default function MotifsSection({
                   </div>
                 )}
 
-                {/* Coût + Marge → Prix de vente HT + TTC (matériaux uniquement, comptabilité) */}
+                {/* Coût + Marge → Prix de vente HT (+ TTC si TVA applicable) — matériaux uniquement */}
                 {motifForm.scope === 'mat' && (() => {
                   const cost = motifForm.cost_ht === '' ? 0 : Number(motifForm.cost_ht)
                   const margin = motifForm.margin_pct === '' ? 0 : Number(motifForm.margin_pct)
                   const sellPriceHt = cost * (1 + margin / 100)
                   // TVA standard sur matériaux : 20 % FR / 23 % PT (taxa normal)
+                  // Si artisan en franchise (AE/EI/ENI) → mention 293 B du CGI / Art. 53.º CIVA
                   const tvaRate = isPt ? 0.23 : 0.20
                   const sellPriceTtc = sellPriceHt * (1 + tvaRate)
                   const tvaPctLabel = isPt ? '23 %' : '20 %'
@@ -469,14 +494,22 @@ export default function MotifsSection({
                             {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>
-                            {isPt ? `Preço de venda c/ IVA (${tvaPctLabel})` : `Prix de vente TTC (TVA ${tvaPctLabel})`}
-                          </span>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                            {sellPriceTtc.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                          </span>
-                        </div>
+                        {tvaApplicable ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>
+                              {isPt ? `Preço de venda c/ IVA (${tvaPctLabel})` : `Prix de vente TTC (TVA ${tvaPctLabel})`}
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                              {sellPriceTtc.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#6b7280', lineHeight: 1.4 }}>
+                            {isPt
+                              ? 'IVA não aplicável — Art. 53.º do CIVA (regime especial de isenção)'
+                              : 'TVA non applicable — art. 293 B du CGI (franchise en base)'}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
