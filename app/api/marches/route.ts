@@ -95,7 +95,12 @@ export async function GET(request: NextRequest) {
   const concelho = url.searchParams.get('concelho')    // PT: 'Vila Nova de Gaia'
   const departement = url.searchParams.get('departement') // FR: '13'
   const source = url.searchParams.get('source')        // 'decp' | 'base-gov-pt' | etc.
-  const marcheType = url.searchParams.get('marche_type')   // 'tous' | 'publics' | 'prives'
+  // marche_type :
+  //   • 'publics' / 'prives'           → utilisé par BTP Pro (sépare scraped vs hors-scrap)
+  //   • 'sous_traitance'               → utilisé par Artisan ("Pro") — uniquement source_type='btp_sous_traitance'
+  //   • 'client_direct'                → utilisé par Artisan ("Particulier") — clients humains directs (no source_type, no source)
+  //   • 'tous' / null                  → pas de filtre
+  const marcheType = url.searchParams.get('marche_type')
 
   // ── Publisher mode: return all marches published by a user ─────────────────
   if (publisherUserId) {
@@ -166,17 +171,27 @@ export async function GET(request: NextRequest) {
     if (departement) query = query.eq('departement', departement)
     if (source) query = query.eq('source', source)
 
-    // ── Filtre privés / publics — déterminé par source_type + source ─────────
-    // Marchés publics : scrappés (source_type LIKE 'scan_%') ou attribués via
-    //   plateformes (source non-NULL : 'boamp', 'mairie-*', 'achatpublic.com', etc.)
-    // Marchés privés : clients humains (source_type NULL, source NULL) ou
-    //   sous-traitance BTP (source_type = 'btp_sous_traitance')
+    // ── Filtre marche_type — sources :
+    //   • scraped publics : source_type LIKE 'scan_%' OU source non-NULL (boamp, mairie-*, achatpublic, …)
+    //   • sous-traitance BTP : source_type='btp_sous_traitance' (publié par un pro_societe pour ses sous-traitants)
+    //   • client direct : source_type NULL ET source NULL (appel d'offres particulier publié sur Vitfix)
+    //
+    // Les 5 valeurs supportées :
+    //   - 'publics'        (BTP Pro)  → scraped publics
+    //   - 'prives'         (BTP Pro)  → sous-traitance + client direct (rétro-compat)
+    //   - 'sous_traitance' (Artisan)  → sous-traitance B2B uniquement
+    //   - 'client_direct'  (Artisan)  → client particulier direct uniquement
+    //   - 'tous' / null               → aucun filtre
     if (marcheType === 'prives') {
       query = query
         .or('source_type.is.null,source_type.eq.btp_sous_traitance')
         .is('source', null)
     } else if (marcheType === 'publics') {
       query = query.or('source_type.like.scan_%,source.not.is.null')
+    } else if (marcheType === 'sous_traitance') {
+      query = query.eq('source_type', 'btp_sous_traitance').is('source', null)
+    } else if (marcheType === 'client_direct') {
+      query = query.is('source_type', null).is('source', null)
     }
 
     if (artisanUserId) {
