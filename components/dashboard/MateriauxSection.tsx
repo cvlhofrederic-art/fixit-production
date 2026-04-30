@@ -403,10 +403,30 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
       {isV5 ? (
         <>
           <div className="v5-pg-t">
-            <h1>Mat&eacute;riaux &amp; Appro</h1>
-            <p>Stock, commandes, comparatif fournisseurs</p>
+            {orgRole === 'artisan' ? (
+              <>
+                <h1>{locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}</h1>
+                <p>
+                  {locale === 'pt'
+                    ? 'Compare os preços dos materiais nas lojas em redor e encontre a melhor tarifa para o seu estaleiro.'
+                    : 'Comparez les prix des matériaux dans les magasins autour de vous et trouvez le meilleur tarif pour votre chantier.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <h1>Mat&eacute;riaux &amp; Appro</h1>
+                <p>Stock, commandes, comparatif fournisseurs</p>
+              </>
+            )}
           </div>
-          <div className="v5-search">
+          <div
+            className="v5-search"
+            style={
+              orgRole === 'artisan'
+                ? { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }
+                : undefined
+            }
+          >
             {userCity && (
               <span className="v5-badge v5-badge-green" style={{ fontSize: 11, padding: '3px 8px' }}>
                 📍 {userCity}
@@ -416,7 +436,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               onClick={handleGeolocation}
               disabled={geoLoading}
               className={`v5-btn${userCity ? '' : ' v5-btn-p'}`}
-              style={{ marginLeft: 'auto' }}
+              style={orgRole === 'artisan' ? undefined : { marginLeft: 'auto' }}
             >
               {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
             </button>
