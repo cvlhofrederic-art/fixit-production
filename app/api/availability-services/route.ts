@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ data: dayServices })
-  response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200')
+  // ⚠️ Pas de cache CDN partagé — c'est de la donnée utilisateur qui change sur action.
+  // Avant : s-maxage=3600 (1h) → après save, le GET au refresh retournait la version cachée.
+  // private = chaque user a son propre cache navigateur. no-cache = revalidate à chaque requête.
+  response.headers.set('Cache-Control', 'private, no-cache')
   return response
 }
 
