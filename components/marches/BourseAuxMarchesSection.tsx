@@ -178,6 +178,12 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     return []
   }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
 
+  // Signature stable pour les hooks dépendants : évite la cascade de re-fetch quand
+  // setMarchesPrefs reçoit un nouvel objet (même contenu, nouvelle référence d'array).
+  // Sans ça, fetchMarches se régénère à chaque render → useEffect retrigger → fetch boucle
+  // → rate limit 429 sur /api/marches.
+  const artisanMetiersKey = artisanCoreMetiers.join(',')
+
   // Fetch marches
   const fetchMarches = useCallback(async () => {
     if (!isPro) return
@@ -198,12 +204,10 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       } else {
         params.set('marche_type', filterMarcheType)
       }
-      // Filtre intelligent par métier : un électricien ne voit que les marchés d'électricité,
-      // un électricien-plombier voit les deux. Le serveur résout via METIER_CPV_MAP.
-      // On passe les métiers même si filterCategory est posé (le serveur priorise category dans ce cas).
-      // ⚠️ STRICTEMENT artisan : un BTP Pro (pro_societe) doit voir TOUS les marchés de son secteur
-      // (publics + privés), pas un sous-ensemble lié à ses NAF auto-remplis. Cf rules/artisan-vs-btp.md.
-      if (isArtisan && artisanCoreMetiers.length > 0) {
+      // Filtre intelligent par métier : artisan ET société BTP ne voient que les marchés
+      // correspondant à leurs corps de métier déclarés (auto-remplis depuis NAF pour BTP).
+      // Le serveur résout via METIER_CPV_MAP.
+      if (artisanCoreMetiers.length > 0) {
         params.set('metiers', artisanCoreMetiers.join(','))
       }
       const res = await fetch(`/api/marches?${params.toString()}`)
@@ -218,7 +222,8 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan, artisanCoreMetiers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- artisanMetiersKey is the stable signature
+  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan, artisanMetiersKey])
 
   // Resolved metiers for auto-scan (respecte le filtre si posé)
   const resolvedMetiers = React.useMemo(() => {
@@ -228,9 +233,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
 
   // Compteur "vraiment affichable" — applique le même filtre métier que BrowseTabView
   // pour éviter le décalage trompeur "100 disponibles / 0 affichés".
-  // BTP Pro (pro_societe) : pas de filtre métier → on compte tous les marchés.
   const visibleMarchesCount = React.useMemo(() => {
-    if (!isArtisan) return marches.length
     if (!artisanCoreMetiers || artisanCoreMetiers.length === 0) return marches.length
     const allowed = new Set<string>()
     const metierKeys = resolveMetierKeys(artisanCoreMetiers)
@@ -244,7 +247,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     }
     if (allowed.size === 0) return marches.length
     return marches.filter(m => !m.category || allowed.has(m.category)).length
-  }, [marches, artisanCoreMetiers, isArtisan])
+  }, [marches, artisanCoreMetiers])
 
   // Scanner marches publics
   const handleScanMarches = useCallback(async () => {
@@ -752,7 +755,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           onSaveGeoPrefs={saveGeoPrefs}
           onSelectMarche={setSelectedMarche}
           onGoToSettings={() => setActiveTab('settings')}
-          artisanMetiers={isArtisan ? artisanCoreMetiers : []}
+          artisanMetiers={artisanCoreMetiers}
         />
       )}
 
