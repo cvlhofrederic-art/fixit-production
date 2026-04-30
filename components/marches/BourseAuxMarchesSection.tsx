@@ -65,20 +65,25 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [prefsLoaded, setPrefsLoaded] = useState(false)
 
   // Filters
+  const isArtisan = orgRole === 'artisan'
   const [filterCategory, setFilterCategory] = useState('')
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)
   const [filterRegion, setFilterRegion] = useState('paca')
   const [filterDepartments, setFilterDepartments] = useState<string[]>([])
-  const [filterMarcheType, setFilterMarcheType] = useState<'tous' | 'publics' | 'prives'>('tous')
+  // Type union large pour supporter les valeurs des deux dropdowns (artisan vs BTP Pro).
+  // Cf. components/marches/views/BrowseTabView.tsx → MarcheTypeFilter
+  type MarcheTypeFilter = 'tous' | 'publics' | 'prives' | 'sous_traitance' | 'client_direct'
+  const [filterMarcheType, setFilterMarcheType] = useState<MarcheTypeFilter>('tous')
   const [prefsSaved, setPrefsSaved] = useState(false)
   const artisanPays = isPt ? 'PT' : 'FR'
 
   // ─── Détection auto-entrepreneur (franchise 293 B / Art. 53 CIVA) ───
-  // Les AE/EI ne peuvent en pratique pas remporter de marchés publics
-  // (capacité financière, garanties bancaires, plafonds CA). On masque cette option.
+  // Conservé pour afficher le bandeau d'info AE expliquant le modèle d'opportunités.
+  // Le contrôle des dropdowns/scan est désormais gouverné par `isArtisan` (toute artisan,
+  // pas seulement AE, voit le dropdown Pro/Particulier et n'a pas de scan public).
   const [isFranchise, setIsFranchise] = useState<boolean>(false)
   useEffect(() => {
-    if (orgRole !== 'artisan') return
+    if (!isArtisan) return
     let cancelled = false
     ;(async () => {
       try {
@@ -89,14 +94,18 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         if (cancelled || !statut) return
         const franchise = isSmallBusinessStatus(statut, locale as 'fr' | 'pt')
         setIsFranchise(franchise)
-        // Si AE/EI et filtre actuel "tous" ou "publics" → forcer "privés"
-        if (franchise) {
-          setFilterMarcheType(prev => (prev === 'prives' ? prev : 'prives'))
-        }
       } catch { /* keep default false */ }
     })()
     return () => { cancelled = true }
-  }, [orgRole, locale])
+  }, [isArtisan, locale])
+
+  // Migration soft : si user est artisan et qu'une vieille préférence pointe vers
+  // 'publics' ou 'prives' (issu du dropdown BTP), reset à 'tous'.
+  useEffect(() => {
+    if (isArtisan && (filterMarcheType === 'publics' || filterMarcheType === 'prives')) {
+      setFilterMarcheType('tous')
+    }
+  }, [isArtisan, filterMarcheType])
 
   // Restore region/dept prefs from localStorage on mount
   useEffect(() => {
@@ -694,6 +703,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           filterDepartments={filterDepartments}
           filterMarcheType={filterMarcheType}
           hidePublicMarches={isFranchise}
+          isArtisan={isArtisan}
           prefsSaved={prefsSaved}
           onFilterCategoryChange={setFilterCategory}
           onFilterRegionChange={setFilterRegion}

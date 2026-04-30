@@ -8,6 +8,12 @@ import {
 } from './shared'
 import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 
+// Union complète des valeurs marche_type :
+//   - 'publics' / 'prives'        → BTP Pro
+//   - 'sous_traitance' / 'client_direct' → Artisan
+//   - 'tous'                       → no-op
+export type MarcheTypeFilter = 'tous' | 'publics' | 'prives' | 'sous_traitance' | 'client_direct'
+
 function urgencyTag(urgency: string, isPt: boolean) {
   switch (urgency) {
     case 'emergency':
@@ -46,15 +52,20 @@ interface BrowseTabViewProps {
   filterCategory: string
   filterRegion: string
   filterDepartments: string[]
-  filterMarcheType: 'tous' | 'publics' | 'prives'
-  /** Masquer les marchés publics (auto-entrepreneurs en franchise — pas éligibles en pratique) */
+  filterMarcheType: MarcheTypeFilter
+  /** Masquer les marchés publics (auto-entrepreneurs en franchise — pas éligibles en pratique).
+   *  Aujourd'hui : utilisé uniquement pour afficher le bandeau d'info AE.
+   *  Le contrôle d'affichage du dropdown public/privé est gouverné par `isArtisan`. */
   hidePublicMarches?: boolean
+  /** True quand le user est un artisan individuel (pas pro_societe BTP).
+   *  Affiche le dropdown Pro/Particulier (sous-traitance / client direct) au lieu de Publics/Privés. */
+  isArtisan?: boolean
   prefsSaved: boolean
   artisanMetiers?: string[]
   onFilterCategoryChange: (v: string) => void
   onFilterRegionChange: (v: string) => void
   onFilterDepartmentsChange: (v: string[]) => void
-  onFilterMarcheTypeChange: (v: 'tous' | 'publics' | 'prives') => void
+  onFilterMarcheTypeChange: (v: MarcheTypeFilter) => void
   onScanMarches: () => void
   onSaveGeoPrefs: () => void
   onSelectMarche: (m: any) => void
@@ -64,7 +75,7 @@ interface BrowseTabViewProps {
 export default function BrowseTabView({
   isPt, locale, marches, loading, scanning, scanResults, scanMeta, scanError,
   showScanResults, alerts, prefsLoaded, marchesOptIn,
-  filterCategory, filterRegion, filterDepartments, filterMarcheType, hidePublicMarches = false, prefsSaved,
+  filterCategory, filterRegion, filterDepartments, filterMarcheType, hidePublicMarches = false, isArtisan = false, prefsSaved,
   onFilterCategoryChange, onFilterRegionChange, onFilterDepartmentsChange, onFilterMarcheTypeChange,
   onScanMarches, onSaveGeoPrefs, onSelectMarche, onGoToSettings, artisanMetiers = [],
 }: BrowseTabViewProps) {
@@ -198,20 +209,30 @@ export default function BrowseTabView({
               </select>
             </div>
 
-            {!hidePublicMarches && (
-              <div>
-                <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
-                <select
-                  value={filterMarcheType}
-                  onChange={e => onFilterMarcheTypeChange(e.target.value as 'tous' | 'publics' | 'prives')}
-                  className="v22-form-input"
-                >
-                  <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
-                  <option value="publics">{isPt ? 'Pro' : 'Pro'}</option>
-                  <option value="prives">{isPt ? 'Particular' : 'Particulier'}</option>
-                </select>
-              </div>
-            )}
+            {/* Dropdown distinct par rôle :
+                - Artisan : Tous / Pro (sous-traitance B2B) / Particulier (client direct)
+                - BTP Pro : Tous / Publics (scrapped) / Privés (sous-traitance + client direct) */}
+            <div>
+              <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
+              <select
+                value={filterMarcheType}
+                onChange={e => onFilterMarcheTypeChange(e.target.value as MarcheTypeFilter)}
+                className="v22-form-input"
+              >
+                <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
+                {isArtisan ? (
+                  <>
+                    <option value="sous_traitance">{isPt ? 'Pro' : 'Pro'}</option>
+                    <option value="client_direct">{isPt ? 'Particular' : 'Particulier'}</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
+                    <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
+                  </>
+                )}
+              </select>
+            </div>
 
             {/* Région filter (FR only) */}
             {!isPt && (
@@ -350,7 +371,8 @@ export default function BrowseTabView({
               </span>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', marginLeft: 'auto' }}>
-              {!hidePublicMarches && (
+              {/* Scan public uniquement pour BTP Pro — les artisans n'accèdent pas aux publics */}
+              {!isArtisan && (
                 <button
                   onClick={onScanMarches}
                   disabled={scanning}
@@ -393,13 +415,13 @@ export default function BrowseTabView({
       </div>
 
       {/* Scan Results Panel — hidden when filter = privés */}
-      {filterMarcheType !== 'prives' && scanError && (
+      {!isArtisan && filterMarcheType !== 'prives' && scanError && (
         <div style={{ padding: '10px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12 }}>
           ⚠️ {scanError}
         </div>
       )}
 
-      {filterMarcheType !== 'prives' && scanResults.length > 0 && (
+      {!isArtisan && filterMarcheType !== 'prives' && scanResults.length > 0 && (
         <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
           <div className="v22-card-head" style={{ background: '#fffbeb' }}>
             <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
