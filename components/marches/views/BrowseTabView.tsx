@@ -207,8 +207,8 @@ export default function BrowseTabView({
                   className="v22-form-input"
                 >
                   <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
-                  <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
-                  <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
+                  <option value="publics">{isPt ? 'Pro' : 'Pro'}</option>
+                  <option value="prives">{isPt ? 'Particular' : 'Particulier'}</option>
                 </select>
               </div>
             )}
@@ -368,7 +368,7 @@ export default function BrowseTabView({
                       {isPt ? 'A analisar...' : 'Scan en cours...'}
                     </>
                   ) : (
-                    <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
+                    <>📡 {isPt ? 'Scan mercados' : 'Scan marchés'}</>
                   )}
                 </button>
               )}
