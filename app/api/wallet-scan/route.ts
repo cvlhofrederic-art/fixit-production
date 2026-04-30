@@ -278,12 +278,20 @@ function extractSiren(text: string): string | undefined {
 
 // ── Extraction nom du titulaire ──────────────────────────────────────────────
 function extractHolderName(text: string): string | undefined {
-  // "M. NOM PRENOM" ou "Mme NOM PRENOM" ou "Société NOM"
+  // Ordre de priorité : forme juridique (entreprises) > particuliers > labels avec ':'
   const patterns = [
+    // 1. Forme juridique + nom (couvre la majorité des attestations entreprise)
+    //    Ex : "SAS SUD TRAVAUX", "SARL DUPONT", "EURL X"
+    /\b((?:SAS|SARL|SA|EURL|SCI|SCM|SCS|SNC|SASU|SCOP|SELARL|EI|EIRL|GIE|GAEC|EARL)\s+[A-ZÀ-Ÿ][A-ZÀ-Ÿ0-9\s'&.-]{1,60})/,
+    // 2. M./Mme/Mr. NOM (particuliers — pas de /i pour éviter "Mr" minuscule en milieu de phrase)
     /(?:M\.|Mme|Mr\.?|Mrs\.?)\s+([A-ZÀ-Ÿ][A-ZÀ-Ÿa-zà-ÿ\s'-]{2,40})/,
-    /(?:assuré|titulaire|souscripteur)\s*:?\s*([A-ZÀ-Ÿ][A-ZÀ-Ÿa-zà-ÿ\s'-]{2,40})/i,
+    // 3. "atteste que :" + forme juridique (variante AXA et autres assureurs)
+    /atteste\s+que\s*:?\s*((?:SAS|SARL|SA|EURL|SCI|SCM|SCS|SNC|SASU|SCOP|SELARL|EI)\s+[A-ZÀ-Ÿ][A-ZÀ-Ÿ0-9\s'&.-]{1,60})/i,
+    // 4. "atteste que M./Mme/Mr." NOM
     /atteste\s+que\s+(?:M\.|Mme|Mr\.?)\s+([A-ZÀ-Ÿ][A-ZÀ-Ÿa-zà-ÿ\s'-]{2,40})/i,
-    /(?:dénomination|raison\s+sociale)\s*:?\s*([A-ZÀ-Ÿ][A-ZÀ-Ÿa-zà-ÿ\s&'-]{2,60})/i,
+    // 5. Labels suivis de ':' OBLIGATOIRE (pas '?:?') pour éviter "Est titulaire du contrat..."
+    //    qui capturerait à tort "du contrat d" avec un ':' optionnel + flag /i
+    /(?:Assuré|Titulaire|Souscripteur|Dénomination|Raison\s+sociale)\s*:\s*([A-ZÀ-Ÿ][A-ZÀ-Ÿa-zà-ÿ\s'&.-]{2,60})/,
   ]
   for (const p of patterns) {
     const m = text.match(p)
