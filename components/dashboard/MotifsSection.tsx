@@ -326,28 +326,6 @@ export default function MotifsSection({
                   )}
                 </div>
 
-                {/* Duration */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
-                    {t('proDash.motifs.dureeEstimee')} <span style={{ fontWeight: 400 }}>({t('proDash.motifs.dureeOptional')})</span>
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input
-                      type="number"
-                      value={motifForm.duration_minutes}
-                      onChange={(e) => setMotifForm({...motifForm, duration_minutes: e.target.value === '' ? '' : parseInt(e.target.value)})}
-                      min={5} step={5}
-                      placeholder="Ex: 60"
-                      className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 100 }}
-                    />
-                    {motifForm.duration_minutes !== '' && Number(motifForm.duration_minutes) > 0 && (
-                      <span className="v22-ref">
-                        = {Math.floor(Number(motifForm.duration_minutes) / 60)}h{Number(motifForm.duration_minutes) % 60 > 0 ? String(Number(motifForm.duration_minutes) % 60).padStart(2, '0') : '00'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
                 {/* Pricing unit */}
                 <div className={isV5 ? 'v5-fg' : ''}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.uniteTarification')} *</label>
