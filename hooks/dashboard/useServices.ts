@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { parseServiceRange, parseServiceScope, type ServiceScope } from '@/lib/service-utils'
+import { parseServiceCost, parseServiceRange, parseServiceScope, type ServiceScope } from '@/lib/service-utils'
 import type { Service } from '@/lib/types'
 
 interface MotifForm {
@@ -16,12 +16,15 @@ interface MotifForm {
   validation_auto: boolean
   delai_minimum_heures: number
   scope: ServiceScope // 'mo' = main d'œuvre (public) / 'mat' = matériau (interne)
+  cost_ht: number | '' // matériaux : coût d'achat HT
+  margin_pct: number | '' // matériaux : marge en %
 }
 
 const EMPTY_MOTIF_FORM: MotifForm = {
   name: '', description: '', duration_minutes: '', price_min: '', price_max: '',
   pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0,
   scope: 'mo',
+  cost_ht: '', margin_pct: 50,
 }
 
 export function useServices(artisanId: string | undefined, t: (key: string) => string) {
@@ -43,7 +46,9 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
       .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
       .replace(/\s*\[scope:(mo|mat|frais)\]\s*/g, '')
+      .replace(/\s*\[cost:[\d.]+\|margin:[\d.]+\]\s*/g, '')
       .trim()
+    const costInfo = parseServiceCost(service)
     setEditingMotif(service)
     setMotifForm({
       name: service.name || '',
@@ -55,6 +60,8 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       validation_auto: service.validation_auto || false,
       delai_minimum_heures: service.delai_minimum_heures || 0,
       scope: parseServiceScope(service),
+      cost_ht: costInfo?.cost ?? '',
+      margin_pct: costInfo?.margin ?? 50,
     })
     setShowMotifModal(true)
   }, [])
@@ -77,7 +84,10 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       const scope: ServiceScope = motifForm.scope === 'mat' ? 'mat' : motifForm.scope === 'frais' ? 'frais' : 'mo'
       const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
       const scopeTag = `[scope:${scope}]`
-      const description = `${motifForm.description || ''} ${rangeTag} ${scopeTag}`.trim()
+      const costTag = scope === 'mat' && motifForm.cost_ht !== '' && motifForm.cost_ht !== null
+        ? ` [cost:${Number(motifForm.cost_ht)}|margin:${Number(motifForm.margin_pct === '' ? 0 : motifForm.margin_pct)}]`
+        : ''
+      const description = `${motifForm.description || ''} ${rangeTag} ${scopeTag}${costTag}`.trim()
 
       // Les matériaux (scope='mat') sont persistés en DB mais `active=false` pour qu'ils
       // ne soient JAMAIS exposés via la policy services_public_read (active=true). L'artisan
