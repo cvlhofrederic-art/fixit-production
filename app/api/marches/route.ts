@@ -5,6 +5,7 @@ import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { haversineDistance } from '@/lib/geo'
+import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 // crypto.randomUUID() is available globally (Web Crypto API)
 
 /**
@@ -95,6 +96,11 @@ export async function GET(request: NextRequest) {
   const concelho = url.searchParams.get('concelho')    // PT: 'Vila Nova de Gaia'
   const departement = url.searchParams.get('departement') // FR: '13'
   const source = url.searchParams.get('source')        // 'decp' | 'base-gov-pt' | etc.
+  // metiers : liste de corps de métier de l'artisan (clés comme 'electricien,plombier' ou
+  // categoryIds comme 'electricite,plomberie' ou labels). Server résout vers les categoryIds
+  // autorisés via METIER_CPV_MAP et applique un .in('category', […]) — un électricien ne voit
+  // QUE les marchés d'électricité, un électricien-plombier voit les deux. Si vide, pas de filtre.
+  const metiersParam = url.searchParams.get('metiers')
   // marche_type :
   //   • 'publics' / 'prives'           → utilisé par BTP Pro (sépare scraped vs hors-scrap)
   //   • 'sous_traitance'               → utilisé par Artisan ("Pro") — uniquement source_type='btp_sous_traitance'
@@ -145,9 +151,31 @@ export async function GET(request: NextRequest) {
 
   const today = new Date().toISOString().split('T')[0]
 
+  // Résolution des métiers de l'artisan vers les categoryIds autorisés (filtre intelligent).
+  // Ex : metiers=electricien,plombier → categoryIds = ['electricite', 'plomberie']
+  // → l'API ne retourne QUE les marchés dont category est dans cette liste.
+  const allowedCategoryIds: string[] | null = (() => {
+    if (!metiersParam) return null
+    const inputs = metiersParam.split(',').map(s => s.trim()).filter(Boolean)
+    if (inputs.length === 0) return null
+    const allowed = new Set<string>()
+    const metierKeys = resolveMetierKeys(inputs)
+    for (const key of metierKeys) {
+      const m = METIER_CPV_MAP[key]
+      if (m) m.categoryIds.forEach(c => allowed.add(c.toLowerCase()))
+    }
+    // Accepter aussi des categoryIds passés directement
+    for (const input of inputs) {
+      const lower = input.toLowerCase()
+      // On accepte n'importe quelle string non vide ; le filtre sera juste no-op si rien ne matche
+      allowed.add(lower)
+    }
+    return allowed.size > 0 ? Array.from(allowed) : null
+  })()
+
   // Only cache the non-personalized listing (artisanUserId triggers dynamic distance enrichment)
   const isPersonalized = !!artisanUserId
-  const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}:${marcheType || ''}`
+  const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}:${marcheType || ''}:${(allowedCategoryIds || []).sort().join(',')}`
 
   const fetchMarches = async (): Promise<MarcheRow[]> => {
     let query = supabaseAdmin
@@ -158,7 +186,14 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .range(from, to)
 
-    if (category) query = query.eq('category', category)
+    // Filtre intelligent par métier : si l'artisan a déclaré 1+ métiers, on ne lui montre QUE
+    // les marchés correspondant à son scope (un électricien ne voit pas les marchés de plomberie).
+    // `category` (filtre dropdown UI) est plus restrictif, il prime quand fourni.
+    if (category) {
+      query = query.eq('category', category)
+    } else if (allowedCategoryIds && allowedCategoryIds.length > 0) {
+      query = query.in('category', allowedCategoryIds)
+    }
     if (city) query = query.ilike('location_city', `%${city}%`)
     if (budgetMin) query = query.gte('budget_min', parseInt(budgetMin))
     if (budgetMax) query = query.lte('budget_max', parseInt(budgetMax))

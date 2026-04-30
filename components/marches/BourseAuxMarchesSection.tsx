@@ -169,6 +169,15 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [scanError, setScanError] = useState('')
   const [showScanResults, setShowScanResults] = useState(true)
 
+  // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
+  // ⚠️ Doit être déclaré AVANT fetchMarches pour éviter un TDZ dans le dep array de useCallback.
+  const artisanCoreMetiers = React.useMemo(() => {
+    if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
+    if (artisan?.categories?.length) return [...artisan.categories]
+    if (artisan?.specialite) return [artisan.specialite]
+    return []
+  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+
   // Fetch marches
   const fetchMarches = useCallback(async () => {
     if (!isPro) return
@@ -189,6 +198,12 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       } else {
         params.set('marche_type', filterMarcheType)
       }
+      // Filtre intelligent par métier : un électricien ne voit que les marchés d'électricité,
+      // un électricien-plombier voit les deux. Le serveur résout via METIER_CPV_MAP.
+      // On passe les métiers même si filterCategory est posé (le serveur priorise category dans ce cas).
+      if (artisanCoreMetiers.length > 0) {
+        params.set('metiers', artisanCoreMetiers.join(','))
+      }
       const res = await fetch(`/api/marches?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marches')
       const data = await res.json()
@@ -201,15 +216,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan])
-
-  // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
-  const artisanCoreMetiers = React.useMemo(() => {
-    if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
-    if (artisan?.categories?.length) return [...artisan.categories]
-    if (artisan?.specialite) return [artisan.specialite]
-    return []
-  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan, artisanCoreMetiers])
 
   // Resolved metiers for auto-scan (respecte le filtre si posé)
   const resolvedMetiers = React.useMemo(() => {
