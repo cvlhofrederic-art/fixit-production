@@ -33,7 +33,7 @@ const ALL_TRADES_LIST: Trade[] = [
 ]
 
 const RENOVATION_TRADES: Trade[] = [
-  'maconnerie', 'placo', 'peinture', 'electricite', 'facade',
+  'maconnerie', 'placo', 'peinture', 'electricite', 'plomberie', 'facade',
   'couverture', 'charpente', 'zinguerie',
 ]
 
