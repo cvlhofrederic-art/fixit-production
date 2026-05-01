@@ -713,6 +713,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   if (sections.length > 1) {
     for (const s of sections) {
+      // Évite le titre orphelin : si la place restante ne tient pas le label
+      // + l'en-tête de tableau + au moins une ligne, on saute de page avant.
+      // ~40 mm couvre label (5) + head (10) + 1 row (~12) + paddings + buffer.
+      checkPageBreak(40)
       drawSectionLabel(s.name)
       renderTable(buildTableBody(s.rows), y)
       y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
@@ -745,15 +749,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   y += stH
 
-  // Détail TVA par taux — toutes les sources de lignes (lines + materialLines + fraisLines + customTables)
+  // Détail TVA par taux — itère sur les lignes RÉELLEMENT rendues (sections),
+  // sans dédoubler avec `lines` qui est l'union envoyée par les nouveaux callers.
   if (tvaEnabled) {
     const tvaByRate: Record<number, { base: number; amount: number }> = {}
-    const allTvaLines: ProductLine[] = [
-      ...lines,
-      ...(materialLinesEnabled !== false && materialLines ? materialLines : []),
-      ...(fraisLinesEnabled !== false && fraisLines ? fraisLines : []),
-      ...(customTables ? customTables.flatMap(ct => ct.lines || []) : []),
-    ]
+    const allTvaLines: ProductLine[] = sections.length > 0
+      ? sections.flatMap(s => s.rows)
+      : lines
     allTvaLines.filter(l => l.description.trim()).forEach(l => {
       if (!tvaByRate[l.tvaRate]) tvaByRate[l.tvaRate] = { base: 0, amount: 0 }
       tvaByRate[l.tvaRate].base += l.totalHT
