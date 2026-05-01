@@ -272,6 +272,14 @@ export const artisanSettingsPostSchema = z.object({
   ape_code: z.string().max(20).optional(),
   share_capital: z.string().max(50).optional(),
   tva_intra: z.string().max(50).optional(),
+  // BTP — Assurance & Médiateur (saisis une fois, repris sur tous les devis)
+  insurance_name: z.string().max(200).optional(),
+  insurance_number: z.string().max(100).optional(),
+  insurance_coverage: z.string().max(200).optional(),
+  insurance_type: z.string().max(50).optional(),
+  insurance_expiry: z.string().max(20).optional(),
+  mediator_name: z.string().max(200).optional(),
+  mediator_url: z.string().max(500).optional(),
 })
 
 // ── Syndic Mission creation schema ───────────────────────────────────────────

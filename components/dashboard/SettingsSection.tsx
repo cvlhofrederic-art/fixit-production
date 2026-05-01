@@ -19,8 +19,10 @@ interface SettingsSectionProps {
     company_name: string; email: string; phone: string; bio: string;
     auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number;
     rcs_number: string; ape_code: string; share_capital: string; tva_intra: string;
+    insurance_name: string; insurance_number: string; insurance_coverage: string; insurance_type: string; insurance_expiry: string;
+    mediator_name: string; mediator_url: string;
   }
-  setSettingsForm: (v: { company_name: string; email: string; phone: string; bio: string; auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number; rcs_number: string; ape_code: string; share_capital: string; tva_intra: string }) => void
+  setSettingsForm: (v: { company_name: string; email: string; phone: string; bio: string; auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number; rcs_number: string; ape_code: string; share_capital: string; tva_intra: string; insurance_name: string; insurance_number: string; insurance_coverage: string; insurance_type: string; insurance_expiry: string; mediator_name: string; mediator_url: string }) => void
   savingSettings: boolean
   saveSettings: () => void
   autoAccept: boolean
@@ -1160,6 +1162,47 @@ export default function SettingsSection({
                         <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>N° TVA intracommunautaire</label>
                         <input type="text" value={settingsForm.tva_intra} onChange={(e) => setSettingsForm({...settingsForm, tva_intra: e.target.value})}
                           placeholder="FR00 123456789" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+
+                      {/* BTP — Assurance & Médiation (saisis une fois, repris sur tous les devis et factures) */}
+                      <div style={{ gridColumn: '1 / -1', marginTop: 4, paddingTop: 12, borderTop: '1px solid #F0F0F0' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.4px', marginBottom: 4 }}>Assurance & Médiation</div>
+                        <div style={{ fontSize: 11, color: '#999' }}>Mention obligatoire BTP : RC Pro / Décennale (Loi Pinel 2014) + médiateur de la consommation.</div>
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Type d'assurance</label>
+                        <select value={settingsForm.insurance_type} onChange={(e) => setSettingsForm({...settingsForm, insurance_type: e.target.value})}
+                          className={isV5 ? 'v5-fi' : 'v22-form-input'}>
+                          <option value="">-- Choisir --</option>
+                          <option value="rc_pro">RC Professionnelle</option>
+                          <option value="decennale">Garantie Décennale</option>
+                          <option value="both">RC Pro + Décennale</option>
+                        </select>
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom de l'assureur</label>
+                        <input type="text" value={settingsForm.insurance_name} onChange={(e) => setSettingsForm({...settingsForm, insurance_name: e.target.value})}
+                          placeholder="Ex : MAAF Assurances" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>N° de contrat</label>
+                        <input type="text" value={settingsForm.insurance_number} onChange={(e) => setSettingsForm({...settingsForm, insurance_number: e.target.value})}
+                          placeholder="Ex : RC-2024-123456" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Couverture géographique</label>
+                        <input type="text" value={settingsForm.insurance_coverage} onChange={(e) => setSettingsForm({...settingsForm, insurance_coverage: e.target.value})}
+                          placeholder="France métropolitaine" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom du médiateur conso</label>
+                        <input type="text" value={settingsForm.mediator_name} onChange={(e) => setSettingsForm({...settingsForm, mediator_name: e.target.value})}
+                          placeholder="Ex : Médiation de la consommation — CNPM" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Site web du médiateur</label>
+                        <input type="text" value={settingsForm.mediator_url} onChange={(e) => setSettingsForm({...settingsForm, mediator_url: e.target.value})}
+                          placeholder="https://www.cnpm-mediation.fr" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                     </>
                   )}
