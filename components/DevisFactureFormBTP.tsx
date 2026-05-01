@@ -2263,6 +2263,41 @@ export default function DevisFactureFormBTP({
                         <td>
                           <input type="text" placeholder="Désignation…" value={l.description || ''}
                             onChange={(e) => updateCustomLine(tbl.id, l.id, { description: e.target.value })} />
+                          {/* Description libre (lineDetail) — affichée dès qu'une désignation existe, comme dans la table Services par défaut */}
+                          {(l.description || '').trim() && (
+                            <input type="text" placeholder="Description de la prestation…" value={l.lineDetail || ''}
+                              onChange={(e) => updateCustomLine(tbl.id, l.id, { lineDetail: e.target.value })}
+                              style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
+                          )}
+                          {/* Étapes optionnelles (mêmes capacités que la table Services par défaut) */}
+                          {(l.description || '').trim() && (
+                            <div style={{ marginTop: 8, fontSize: 12 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Étapes</div>
+                              {(l.etapes || []).map((et, ei) => (
+                                <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 7, marginBottom: 6 }}>
+                                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
+                                    <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{ei + 1}.</span>
+                                    <input type="text" value={et.designation}
+                                      placeholder="Ex : Pose des rails et montants"
+                                      style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit' }}
+                                      onChange={(e) => {
+                                        const newEtapes = [...(l.etapes || [])]
+                                        newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
+                                        updateCustomLine(tbl.id, l.id, { etapes: newEtapes })
+                                      }} />
+                                  </div>
+                                  <button type="button" aria-label="Supprimer étape"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#c00', padding: '0 4px' }}
+                                    onClick={() => updateCustomLine(tbl.id, l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
+                                </div>
+                              ))}
+                              <button type="button"
+                                style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
+                                onClick={() => updateCustomLine(tbl.id, l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                                + étape
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
                         <td>
