@@ -97,7 +97,12 @@ export async function POST(request: NextRequest) {
     for (const [key, value] of Object.entries(fields)) {
       if (value === undefined) continue
       if (existingCols.has(key)) {
-        updatePayload[key] = value
+        // Normalise les chaînes vides en null avant l'update.
+        // Postgres rejette '' pour les colonnes typées (DATE, INTEGER, NUMERIC…)
+        // ce qui faisait remonter une erreur générique « Erreur lors de la
+        // sauvegarde » au client. Pour les colonnes TEXT, null ↔ '' est
+        // sémantiquement équivalent côté lecture.
+        updatePayload[key] = value === '' ? null : value
       } else {
         skippedFields.push(key)
       }
