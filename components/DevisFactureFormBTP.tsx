@@ -420,8 +420,8 @@ export default function DevisFactureFormBTP({
   const [fraisLinesEnabled, setFraisLinesEnabled] = useState<boolean>(
     typeof _initialTables?.fraisLinesEnabled === 'boolean' ? (_initialTables.fraisLinesEnabled as boolean) : true
   )
-  const [customTables, setCustomTables] = useState<{ id: string; name: string; lines: ProductLine[] }[]>(
-    Array.isArray(_initialTables?.customTables) ? (_initialTables.customTables as { id: string; name: string; lines: ProductLine[] }[]) : []
+  const [customTables, setCustomTables] = useState<{ id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]>(
+    Array.isArray(_initialTables?.customTables) ? (_initialTables.customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) : []
   )
   const [showAddTableMenu, setShowAddTableMenu] = useState(false)
 
@@ -1254,8 +1254,13 @@ export default function DevisFactureFormBTP({
       const validLabor = lines.filter(l => (l.description || '').trim())
       const validMaterials = materialLines.filter(l => (l.description || '').trim())
       const validFrais = fraisLines.filter(l => (l.description || '').trim())
-      const validLines = [...validLabor, ...validMaterials, ...validFrais]
-      const totalNet = validLines.reduce((s, l) => s + l.totalHT, 0)
+      const validCustom = customTables.flatMap(t => (t.lines || []).filter(l => (l.description || '').trim()))
+      const validLines = [...validLabor, ...validMaterials, ...validFrais, ...validCustom]
+      const totalNet = validLines.reduce((s, l) => s + (l.totalHT || (l.qty || 0) * (l.priceHT || 0)), 0)
+      const totalTTCcalc = validLines.reduce((s, l) => {
+        const ht = l.totalHT || (l.qty || 0) * (l.priceHT || 0)
+        return s + ht * (1 + (l.tvaRate || 0) / 100)
+      }, 0)
       const currencyFormat = (n: number) => {
         const formatted = n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         // Replace narrow no-break space (\u202F) and no-break space (\u00A0)
@@ -1302,7 +1307,7 @@ export default function DevisFactureFormBTP({
           lines: (t.lines || []).filter(l => (l.description || '').trim().length > 0),
         })).filter(t => t.lines.length > 0),
         subtotalHT: totalNet,
-        totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
+        totalTTC: tvaEnabled ? totalTTCcalc : totalNet,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
@@ -2308,21 +2313,28 @@ export default function DevisFactureFormBTP({
                     style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
                   >↩ Réactiver « {fraisLinesName} »</button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const name = prompt('Nom de la nouvelle table (ex: Gros œuvre, Second œuvre, Sous-traitance…)')
-                    if (name && name.trim()) {
-                      setCustomTables(prev => [...prev, {
-                        id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-                        name: name.trim().toUpperCase(),
-                        lines: [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }],
-                      }])
-                    }
-                    setShowAddTableMenu(false)
-                  }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', borderTop: (!materialLinesEnabled || !fraisLinesEnabled) ? '1px solid #F0F0F0' : 'none' }}
-                >✚ Nouvelle table custom</button>
+                {(['labor', 'material', 'frais'] as const).map((cat, idx) => {
+                  const catLabel = cat === 'labor' ? "Main d'œuvre" : cat === 'material' ? 'Matériaux' : 'Frais'
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        const name = prompt(`Nom de la nouvelle table « ${catLabel} » (ex : Électricité, Plomberie, Peinture…)`)
+                        if (name && name.trim()) {
+                          setCustomTables(prev => [...prev, {
+                            id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                            name: name.trim().toUpperCase(),
+                            category: cat,
+                            lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                          }])
+                        }
+                        setShowAddTableMenu(false)
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', borderTop: idx === 0 && (!materialLinesEnabled || !fraisLinesEnabled) ? '1px solid #F0F0F0' : 'none' }}
+                    >✚ Nouvelle table « {catLabel} »</button>
+                  )
+                })}
               </div>
             )}
           </div>
