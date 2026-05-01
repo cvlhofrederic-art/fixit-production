@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       company_name, bio, phone, email,
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
       intervention_zones, language,
+      rcs_number, ape_code, share_capital, tva_intra,
     } = settingsValidation.data
 
     // Déterminer quelles colonnes existent en base
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest) {
       company_name, bio, phone, email, slug,
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
       intervention_zones, language,
+      rcs_number, ape_code, share_capital, tva_intra,
     }
 
     for (const [key, value] of Object.entries(fields)) {
