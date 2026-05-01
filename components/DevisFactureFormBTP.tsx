@@ -1622,14 +1622,13 @@ export default function DevisFactureFormBTP({
                   ))}
                 </div>
               </div>
-              {clientType === 'particulier' ? (
-                <div className="dv-fg"><label>Prénom <span className="req">*</span></label><input type="text" placeholder="Marie" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} /></div>
-              ) : (
+              {clientType === 'professionnel' && (
                 <div className="dv-fg"><label>Raison sociale <span className="req">*</span></label><input type="text" placeholder="Ex : SCI Le Mail, Syndic Foncia" value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
               )}
             </div>
             {clientType === 'particulier' && (
               <div className="dv-row">
+                <div className="dv-fg"><label>Prénom <span className="req">*</span></label><input type="text" placeholder="Marie" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} /></div>
                 <div className="dv-fg"><label>Nom <span className="req">*</span></label><input type="text" placeholder="Dubois" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} /></div>
               </div>
             )}
