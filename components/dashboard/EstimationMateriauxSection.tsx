@@ -11,10 +11,55 @@ import type {
   MaterialNeed,
 } from '@/lib/estimation-materiaux'
 import { getRecipesByCountry, searchRecipes } from '@/lib/estimation-materiaux'
+import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 import './estimation-materiaux.css'
 
 type Trade = Recipe['trade']
 type Mode = 'form' | 'ia'
+
+// Mapping artisan.categories → Trade(s). Les catégories TCE / fourre-tout
+// (rénovation générale, petits travaux, divers) ouvrent l'accès à tous les
+// corps d'état — typique pour SUD TRAVAUX (NAF 41.20 = construction bâtiment).
+const ALL_TRADES_LIST: Trade[] = [
+  'maconnerie', 'placo', 'peinture', 'carrelage', 'charpente', 'couverture',
+  'zinguerie', 'etancheite', 'isolation', 'facade', 'menuiserie_ext',
+  'menuiserie_int', 'revetement_sol', 'revetement_mural', 'plomberie',
+  'chauffage', 'ventilation', 'climatisation', 'electricite', 'electricite_cfa',
+  'vrd', 'assainissement', 'cloture', 'terrasse_ext', 'jardin', 'piscine',
+  'menuiserie', 'metallerie', 'revetements_sols',
+]
+
+const CATEGORY_TO_TRADES: Record<string, Trade[]> = {
+  maconnerie: ['maconnerie', 'vrd'],
+  electricite: ['electricite', 'electricite_cfa'],
+  plomberie: ['plomberie', 'assainissement'],
+  chauffage: ['chauffage', 'ventilation'],
+  climatisation: ['climatisation', 'ventilation'],
+  peinture: ['peinture', 'revetement_mural', 'facade'],
+  menuiserie: ['menuiserie', 'menuiserie_int', 'menuiserie_ext'],
+  metallerie: ['metallerie', 'cloture'],
+  serrurerie: ['metallerie', 'cloture'],
+  carrelage: ['carrelage', 'revetement_sol', 'revetements_sols'],
+  plaquiste: ['placo', 'isolation'],
+  toiture: ['couverture', 'charpente', 'zinguerie', 'etancheite'],
+  'espaces-verts': ['jardin', 'terrasse_ext'],
+  isolation: ['isolation', 'facade'],
+}
+
+function categoriesToTrades(cats: string[] | null | undefined): Trade[] {
+  if (!cats || cats.length === 0) return []
+  const set = new Set<Trade>()
+  for (const c of cats) {
+    const lc = c.toLowerCase().trim()
+    if (lc === 'renovation' || lc === 'rénovation' || lc === 'petits-travaux' || lc === 'divers' || lc === 'tce') {
+      ALL_TRADES_LIST.forEach(t => set.add(t))
+      continue
+    }
+    const trades = CATEGORY_TO_TRADES[lc]
+    if (trades) trades.forEach(t => set.add(t))
+  }
+  return Array.from(set)
+}
 
 interface ProjectItem {
   uid: string
@@ -27,7 +72,7 @@ interface ProjectItem {
 }
 
 interface Props {
-  artisan?: { id?: string } | null
+  artisan?: { id?: string; categories?: string[] | null; specialite?: string | null; naf_code?: string | null } | null
   /**
    * Si true, affiche le sélecteur de corps de métier dans le mode IA.
    * Réservé au super-admin — les entreprises standards sont calibrées sur
@@ -819,11 +864,36 @@ export default function EstimationMateriauxSection({
   // - Super-admin : sélection libre parmi les 26 trades (default = tous)
   // - Autres : restreint à `allowedTrades` passé en props (company-calibrated)
   const [selectedTrades, setSelectedTrades] = useState<Trade[]>([])
-  const effectiveTrades = useMemo<Trade[] | undefined>(() => {
-    if (isAdminOverride) return selectedTrades.length > 0 ? selectedTrades : undefined
+
+  // Trades dérivés du profil artisan (categories explicites OU fallback NAF).
+  // Pour SUD TRAVAUX (rénovation TCE) : tous les corps d'état accessibles.
+  // Pour un plombier pur : ['plomberie', 'assainissement'] uniquement.
+  const derivedAllowedTrades = useMemo<Trade[] | undefined>(() => {
+    let cats: string[] = []
+    if (artisan?.categories && Array.isArray(artisan.categories) && artisan.categories.length > 0) cats = artisan.categories
+    else if (artisan?.specialite) cats = [artisan.specialite]
+    else if (artisan?.naf_code) cats = getDefaultCategoriesFromNaf(artisan.naf_code)
+    if (cats.length === 0) return undefined
+    const trades = categoriesToTrades(cats)
+    return trades.length > 0 ? trades : undefined
+  }, [artisan?.categories, artisan?.specialite, artisan?.naf_code])
+
+  // Trades sur lesquels le user peut cliquer dans le sélecteur (chips).
+  // Admin : tous. Non-admin : restreint à allowedTrades || derivedAllowedTrades || tous.
+  const availableTrades = useMemo<Trade[]>(() => {
+    if (isAdminOverride) return ALL_TRADES_LIST
     if (allowedTrades && allowedTrades.length > 0) return allowedTrades
+    if (derivedAllowedTrades && derivedAllowedTrades.length > 0) return derivedAllowedTrades
+    return ALL_TRADES_LIST
+  }, [isAdminOverride, allowedTrades, derivedAllowedTrades])
+
+  const effectiveTrades = useMemo<Trade[] | undefined>(() => {
+    if (selectedTrades.length > 0) return selectedTrades
+    if (isAdminOverride) return undefined
+    if (allowedTrades && allowedTrades.length > 0) return allowedTrades
+    if (derivedAllowedTrades && derivedAllowedTrades.length > 0) return derivedAllowedTrades
     return undefined
-  }, [isAdminOverride, selectedTrades, allowedTrades])
+  }, [isAdminOverride, selectedTrades, allowedTrades, derivedAllowedTrades])
 
   // Feedback bouton copier
   const [copied, setCopied] = useState(false)
@@ -831,8 +901,13 @@ export default function EstimationMateriauxSection({
   const searchResults = useMemo(() => {
     const q = query.trim()
     if (!q) return []
-    return searchRecipes(q, country).slice(0, 8)
-  }, [query, country])
+    let results = searchRecipes(q, country)
+    if (effectiveTrades && effectiveTrades.length > 0) {
+      const allowed = new Set(effectiveTrades)
+      results = results.filter(r => allowed.has(r.trade))
+    }
+    return results.slice(0, 8)
+  }, [query, country, effectiveTrades])
 
   const selectedRecipe = useMemo(
     () => (selectedRecipeId ? countryRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
@@ -981,6 +1056,49 @@ export default function EstimationMateriauxSection({
     alert(isPt ? 'Em breve — redirecionamento para Materiais & Aprovisionamento' : 'Bientôt — redirection vers Matériaux & Appro')
   }
 
+  // Sélecteur de corps de métier — partagé entre les modes Formulaire et IA.
+  // Calibré sur availableTrades (admin → tous, sinon → categories/NAF de l'artisan).
+  // Pour SUD TRAVAUX (rénovation TCE) : 29 chips. Pour un plombier : 2 chips.
+  const tradeSelector = availableTrades.length > 0 ? (
+    <div className="ia-trade-selector">
+      <div className="ia-trade-label">
+        🛠️ {isPt ? 'Filtrar por especialidade' : 'Filtrer par corps d\'état'}
+        <span className="ia-trade-hint">
+          {selectedTrades.length === 0
+            ? (isPt ? `Tudo (${availableTrades.length})` : `Tous (${availableTrades.length})`)
+            : `${selectedTrades.length} / ${availableTrades.length}`}
+        </span>
+      </div>
+      <div className="ia-trade-chips">
+        {availableTrades.map(t => {
+          const active = selectedTrades.includes(t)
+          const label = isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]
+          return (
+            <button
+              key={t}
+              type="button"
+              className={`ia-trade-chip ${active ? 'active' : ''}`}
+              onClick={() => setSelectedTrades(prev =>
+                prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+              )}
+            >
+              {TRADE_ICON[t]} {label}
+            </button>
+          )
+        })}
+        {selectedTrades.length > 0 && (
+          <button
+            type="button"
+            className="ia-trade-chip ia-trade-clear"
+            onClick={() => setSelectedTrades([])}
+          >
+            ✕ {isPt ? 'Limpar' : 'Tout effacer'}
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null
+
   return (
     <div className="v5-fade">
       <div className="estim-wrap">
@@ -1019,6 +1137,8 @@ export default function EstimationMateriauxSection({
           <>
             <div className="v5-card">
               <div className="v5-st">{isPt ? 'Obras da empreitada' : 'Ouvrages du chantier'}</div>
+
+              {tradeSelector}
 
               {/* Recherche */}
               <div className="search-wrap">
@@ -1135,54 +1255,7 @@ export default function EstimationMateriauxSection({
             <div className="v5-card">
               <div className="v5-st">{isPt ? 'Descreva a sua obra' : 'Décrivez votre chantier'}</div>
 
-              {/* Sélecteur de corps de métier — super-admin uniquement */}
-              {isAdminOverride && (
-                <div className="ia-trade-selector">
-                  <div className="ia-trade-label">
-                    🛠️ {isPt ? 'Âmbito — especialidades (admin)' : 'Périmètre — corps de métier (admin)'}
-                    <span className="ia-trade-hint">
-                      {selectedTrades.length === 0
-                        ? (isPt ? 'Tudo o catálogo' : 'Tout le catalogue')
-                        : `${selectedTrades.length} / 26`}
-                    </span>
-                  </div>
-                  <div className="ia-trade-chips">
-                    {(Object.keys(TRADE_LABEL_FR) as Trade[]).map(t => {
-                      const active = selectedTrades.includes(t)
-                      const label = isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          className={`ia-trade-chip ${active ? 'active' : ''}`}
-                          onClick={() => setSelectedTrades(prev =>
-                            prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                          )}
-                        >
-                          {TRADE_ICON[t]} {label}
-                        </button>
-                      )
-                    })}
-                    {selectedTrades.length > 0 && (
-                      <button
-                        type="button"
-                        className="ia-trade-chip ia-trade-clear"
-                        onClick={() => setSelectedTrades([])}
-                      >
-                        ✕ {isPt ? 'Limpar' : 'Tout effacer'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Indicateur périmètre entreprise (non-admin) */}
-              {!isAdminOverride && allowedTrades && allowedTrades.length > 0 && (
-                <div className="ia-trade-locked">
-                  🔒 {isPt ? 'IA calibrada para' : 'IA calibrée pour'} :{' '}
-                  {allowedTrades.map(t => isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]).join(' · ')}
-                </div>
-              )}
+              {tradeSelector}
 
               <div className="ia-zone">
                 <textarea
