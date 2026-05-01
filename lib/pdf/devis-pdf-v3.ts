@@ -712,14 +712,41 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   if (sections.length > 1) {
+    // Estime la hauteur d'une ligne en fonction de son contenu (titre + détail + étapes)
+    const estimateRowH = (r: ProductLine): number => {
+      const baseH = 18 // ligne de base avec padding
+      const detailLines = r.lineDetail ? Math.max(1, Math.ceil((r.lineDetail.length || 0) / 32)) : 0
+      const detailH = detailLines * 4 + (detailLines > 0 ? 4 : 0)
+      const validEtapes = (r.etapes || []).filter(e => e.designation?.trim())
+      // Chaque étape = numéro + texte (souvent wrappé sur 2-3 lignes en colonne ~58mm)
+      const etapesH = validEtapes.reduce((s, e) => {
+        const lines = Math.max(1, Math.ceil((e.designation.length || 0) / 28))
+        return s + lines * 4 + 4 // texte + spacer
+      }, 0)
+      return baseH + detailH + etapesH + 6 // buffer
+    }
+    const labelH = 6
+    const headH = 12
+    const sectionGap = ptToMm(10)
+    const usablePageH = pageH - 18 // marge basse / pied de page
+
     for (const s of sections) {
-      // Évite le titre orphelin : si la place restante ne tient pas le label
-      // + l'en-tête de tableau + au moins une ligne, on saute de page avant.
-      // ~40 mm couvre label (5) + head (10) + 1 row (~12) + paddings + buffer.
-      checkPageBreak(40)
+      const rowsH = s.rows.reduce((acc, r) => acc + estimateRowH(r), 0)
+      const sectionH = labelH + headH + rowsH + 4
+
+      // Si la section ne tient pas dans la place restante ET qu'elle peut tenir
+      // sur une page entière, on saute à la page suivante AVANT de dessiner le label.
+      // Sinon on accepte que la section dépasse (autoTable paginera ses propres lignes).
+      const remaining = usablePageH - y
+      const canFitWholeOnNewPage = sectionH <= usablePageH - 18
+      if (sectionH > remaining && canFitWholeOnNewPage) {
+        pdf.addPage()
+        y = 18
+      }
+
       drawSectionLabel(s.name)
       renderTable(buildTableBody(s.rows), y)
-      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
+      y = (pdf as any).lastAutoTable.finalY + sectionGap
     }
   } else if (sections.length === 1) {
     // Une seule section : rendu sans label de section (comportement historique)
