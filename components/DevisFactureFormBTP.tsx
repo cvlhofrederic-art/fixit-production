@@ -274,38 +274,45 @@ export default function DevisFactureFormBTP({
     }
     return 'rc_pro'
   })
+  // BTP — Assurance & Médiateur : priorité initialData → artisan (DB) → localStorage → default.
+  // Profil = source de vérité ; localStorage reste un dernier filet de secours pour les anciens devis.
+  const _artA = artisan as unknown as Record<string, string | undefined>
   const [insuranceName, setInsuranceName] = useState(() => {
     if (initialData?.insuranceName) return initialData.insuranceName
+    if (_artA?.insurance_name) return _artA.insurance_name
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const last = [...docs, ...drafts].find((d: { insuranceName?: string }) => d.insuranceName)
       if (last?.insuranceName) return last.insuranceName
     } catch { /* ignore */ }
-    return (artisan as unknown as { insurance_name?: string })?.insurance_name || ''
+    return ''
   })
   const [insuranceNumber, setInsuranceNumber] = useState(() => {
     if (initialData?.insuranceNumber) return initialData.insuranceNumber
+    if (_artA?.insurance_number) return _artA.insurance_number
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const last = [...docs, ...drafts].find((d: { insuranceNumber?: string }) => d.insuranceNumber)
       if (last?.insuranceNumber) return last.insuranceNumber
     } catch { /* ignore */ }
-    return (artisan as unknown as { insurance_number?: string })?.insurance_number || ''
+    return ''
   })
   const [insuranceCoverage, setInsuranceCoverage] = useState(() => {
     if (initialData?.insuranceCoverage) return initialData.insuranceCoverage
+    if (_artA?.insurance_coverage) return _artA.insurance_coverage
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const last = [...docs, ...drafts].find((d: { insuranceCoverage?: string }) => d.insuranceCoverage)
       if (last?.insuranceCoverage) return last.insuranceCoverage
     } catch { /* ignore */ }
-    return (artisan as unknown as { insurance_coverage?: string })?.insurance_coverage || 'France métropolitaine'
+    return 'France métropolitaine'
   })
   const [mediatorName, setMediatorName] = useState(() => {
     if (initialData?.mediatorName) return initialData.mediatorName
+    if (_artA?.mediator_name) return _artA.mediator_name
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -316,6 +323,7 @@ export default function DevisFactureFormBTP({
   })
   const [mediatorUrl, setMediatorUrl] = useState(() => {
     if (initialData?.mediatorUrl) return initialData.mediatorUrl
+    if (_artA?.mediator_url) return _artA.mediator_url
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')

@@ -17,6 +17,9 @@ const SETTINGS_FIELDS = [
   'intervention_zones', 'language',
   // BTP — champs légaux issus du Kbis (saisie manuelle pour l'instant)
   'rcs_number', 'ape_code', 'share_capital', 'tva_intra',
+  // BTP — Assurance & Médiateur (saisis une fois, repris sur tous les devis)
+  'insurance_name', 'insurance_number', 'insurance_coverage', 'insurance_type', 'insurance_expiry',
+  'mediator_name', 'mediator_url',
 ]
 
 async function getExistingColumns(supabaseAdmin: typeof import('@/lib/supabase-server')['supabaseAdmin']): Promise<Set<string>> {
@@ -71,6 +74,8 @@ export async function POST(request: NextRequest) {
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
       intervention_zones, language,
       rcs_number, ape_code, share_capital, tva_intra,
+      insurance_name, insurance_number, insurance_coverage, insurance_type, insurance_expiry,
+      mediator_name, mediator_url,
     } = settingsValidation.data
 
     // Déterminer quelles colonnes existent en base
@@ -92,6 +97,8 @@ export async function POST(request: NextRequest) {
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
       intervention_zones, language,
       rcs_number, ape_code, share_capital, tva_intra,
+      insurance_name, insurance_number, insurance_coverage, insurance_type, insurance_expiry,
+      mediator_name, mediator_url,
     }
 
     for (const [key, value] of Object.entries(fields)) {

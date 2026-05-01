@@ -17,12 +17,22 @@ interface SettingsForm {
   ape_code: string
   share_capital: string
   tva_intra: string
+  // BTP — Assurance & Médiateur
+  insurance_name: string
+  insurance_number: string
+  insurance_coverage: string
+  insurance_type: string
+  insurance_expiry: string
+  mediator_name: string
+  mediator_url: string
 }
 
 const DEFAULT_SETTINGS: SettingsForm = {
   company_name: '', email: '', phone: '', bio: '',
   auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30,
   rcs_number: '', ape_code: '', share_capital: '', tva_intra: '',
+  insurance_name: '', insurance_number: '', insurance_coverage: '', insurance_type: '', insurance_expiry: '',
+  mediator_name: '', mediator_url: '',
 }
 
 export function useSettings(
@@ -61,6 +71,13 @@ export function useSettings(
           ape_code: settingsForm.ape_code,
           share_capital: settingsForm.share_capital,
           tva_intra: settingsForm.tva_intra,
+          insurance_name: settingsForm.insurance_name,
+          insurance_number: settingsForm.insurance_number,
+          insurance_coverage: settingsForm.insurance_coverage,
+          insurance_type: settingsForm.insurance_type,
+          insurance_expiry: settingsForm.insurance_expiry,
+          mediator_name: settingsForm.mediator_name,
+          mediator_url: settingsForm.mediator_url,
         }),
       })
       const json = await res.json()
@@ -79,6 +96,13 @@ export function useSettings(
         ape_code: settingsForm.ape_code,
         share_capital: settingsForm.share_capital,
         tva_intra: settingsForm.tva_intra,
+        insurance_name: settingsForm.insurance_name,
+        insurance_number: settingsForm.insurance_number,
+        insurance_coverage: settingsForm.insurance_coverage,
+        insurance_type: settingsForm.insurance_type,
+        insurance_expiry: settingsForm.insurance_expiry,
+        mediator_name: settingsForm.mediator_name,
+        mediator_url: settingsForm.mediator_url,
         ...(json.slug ? { slug: json.slug } : {}),
       })
       // Re-save dayServices marker after bio update
@@ -154,6 +178,13 @@ export function useSettings(
       ape_code: artisanData.ape_code || '',
       share_capital: artisanData.share_capital || '',
       tva_intra: artisanData.tva_intra || '',
+      insurance_name: artisanData.insurance_name || '',
+      insurance_number: artisanData.insurance_number || '',
+      insurance_coverage: artisanData.insurance_coverage || '',
+      insurance_type: artisanData.insurance_type || '',
+      insurance_expiry: artisanData.insurance_expiry || '',
+      mediator_name: artisanData.mediator_name || '',
+      mediator_url: artisanData.mediator_url || '',
     })
   }, [])
 
