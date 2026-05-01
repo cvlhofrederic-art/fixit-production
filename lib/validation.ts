@@ -267,6 +267,11 @@ export const artisanSettingsPostSchema = z.object({
     cities: z.array(z.string().max(120)).max(500).optional(),
   }).optional(),
   language: z.enum(['fr', 'pt', 'en']).optional(),
+  // BTP — champs légaux issus du Kbis (saisie manuelle pour l'instant)
+  rcs_number: z.string().max(100).optional(),
+  ape_code: z.string().max(20).optional(),
+  share_capital: z.string().max(50).optional(),
+  tva_intra: z.string().max(50).optional(),
 })
 
 // ── Syndic Mission creation schema ───────────────────────────────────────────
