@@ -116,6 +116,13 @@ export interface PdfV3Input {
   laborLines?: ProductLine[]
   materialLines?: ProductLine[]
   fraisLines?: ProductLine[]
+  // BTP — noms personnalisés des 3 sections + masquage doux + tables custom additionnelles
+  linesName?: string
+  materialLinesName?: string
+  fraisLinesName?: string
+  materialLinesEnabled?: boolean
+  fraisLinesEnabled?: boolean
+  customTables?: { id: string; name: string; lines: ProductLine[] }[]
   subtotalHT: number
   totalTTC: number
 
@@ -184,6 +191,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
     lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC,
+    linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
     signatureData, attachedRapport, selectedPhotos,
@@ -655,35 +663,43 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     y += ptToMm(14)
   }
 
-  // Dual table mode: render Main d'oeuvre + Matériaux separately when both arrays are provided and non-empty
-  const hasLabor = !!laborLines && laborLines.some(l => l.description.trim())
-  const hasMaterials = !!materialLines && materialLines.some(l => l.description.trim())
-  const hasFrais = !!fraisLines && fraisLines.some(l => l.description.trim())
-  const dualMode = hasLabor || hasMaterials || hasFrais
+  // Dynamic-section mode : noms personnalisés (linesName/materialLinesName/fraisLinesName), masquage doux
+  // (materialLinesEnabled/fraisLinesEnabled) et tables custom additionnelles (customTables).
+  const defaultLaborLabel = locale === 'pt' ? 'Mão de obra' : "Main d'œuvre"
+  const defaultMaterialLabel = locale === 'pt' ? 'Materiais' : 'Matériaux'
+  const defaultFraisLabel = locale === 'pt' ? 'Despesas acessórias' : 'Frais annexes'
 
-  if (dualMode) {
-    const laborLabel = locale === 'pt' ? 'Mão de obra' : "Main d'œuvre"
-    const materialLabel = locale === 'pt' ? 'Materiais' : 'Matériaux'
-    const fraisLabel = locale === 'pt' ? 'Despesas acessórias' : 'Frais annexes'
-    if (hasLabor) {
-      drawSectionLabel(laborLabel)
-      renderTable(buildTableBody(laborLines!), y)
+  type RenderedSection = { name: string; rows: ProductLine[] }
+  const sections: RenderedSection[] = []
+
+  if (laborLines && laborLines.some(l => l.description.trim())) {
+    sections.push({ name: linesName || defaultLaborLabel, rows: laborLines })
+  }
+  if (materialLinesEnabled !== false && materialLines && materialLines.some(l => l.description.trim())) {
+    sections.push({ name: materialLinesName || defaultMaterialLabel, rows: materialLines })
+  }
+  if (fraisLinesEnabled !== false && fraisLines && fraisLines.some(l => l.description.trim())) {
+    sections.push({ name: fraisLinesName || defaultFraisLabel, rows: fraisLines })
+  }
+  if (customTables && customTables.length > 0) {
+    for (const ct of customTables) {
+      if (ct.lines && ct.lines.some(l => l.description.trim())) {
+        sections.push({ name: ct.name || 'Section', rows: ct.lines })
+      }
+    }
+  }
+
+  if (sections.length > 1) {
+    for (const s of sections) {
+      drawSectionLabel(s.name)
+      renderTable(buildTableBody(s.rows), y)
       y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
     }
-    if (hasMaterials) {
-      drawSectionLabel(materialLabel)
-      renderTable(buildTableBody(materialLines!), y)
-      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
-    }
-    if (hasFrais) {
-      drawSectionLabel(fraisLabel)
-      renderTable(buildTableBody(fraisLines!), y)
-      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
-    }
-    if (!hasLabor && !hasMaterials && !hasFrais) {
-      renderTable(buildTableBody(lines), y)
-    }
+  } else if (sections.length === 1) {
+    // Une seule section : rendu sans label de section (comportement historique)
+    renderTable(buildTableBody(sections[0].rows), y)
   } else {
+    // Aucune des sections enrichies n'a de contenu → fallback sur le tableau "lines" classique
     renderTable(buildTableBody(lines), y)
   }
 
