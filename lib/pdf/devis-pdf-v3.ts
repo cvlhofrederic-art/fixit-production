@@ -246,7 +246,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     return false
   }
 
-  // ═══ 1. LOGO (coin haut-gauche) ═══
+  // ═══ 1. LOGO (coin haut-droit, bord droit aligné avec la fin de la ligne orange) ═══
   let logoUrl = await fetchFreshLogo()
   if (logoUrl) {
     try {
@@ -270,7 +270,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         const logoMaxW = 23, logoMaxH = 23
         let lw = logoMaxW, lh = logoMaxH
         if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
-        pdf.addImage(logoData, 'PNG', 5.3, 2.8, lw, lh)
+        // Aligné à droite : bord droit du logo = pageW - mR (même axe que la ligne orange et les blocs)
+        const logoX = pageW - mR - lw
+        const logoY = 2.8
+        pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh)
       }
     } catch {
       // pas de logo = on saute
