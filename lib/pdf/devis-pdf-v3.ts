@@ -306,24 +306,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // ═══ 2. TITRE DOCUMENT (centré, contraint pour ne pas chevaucher le logo) ═══
   y = 25  // ~71pt du haut
   const displayDocNumber = ptFiscalData?.docNumber || docNumber
-  // Le logo occupe ~25mm à droite. On contraint le titre à la zone centrale disponible.
-  const titleMaxW = pageW - 2 * 30 // 30mm de marge de chaque côté pour éviter logo + symétrie
+  // Le logo occupe ~23mm à droite (logoMaxW), placé à pageW - mR - lw.
+  // Pour un titre centré sur pageW/2 sans chevauchement, on contraint la
+  // largeur max à 2 × (pageW/2 - logoLeft) où logoLeft = pageW - mR - 23.
+  // Soit titleMaxW = pageW - 2 × (mR + 23 + 5_buffer).
+  const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
+  const titleMaxW = pageW - 2 * (mR + logoZoneW)
   pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   const rawTitle = docTitle || (docType === 'devis'
     ? (locale === 'pt' ? 'Orçamento' : 'Devis')
     : (locale === 'pt' ? 'Fatura' : 'Facture'))
   const safeTitle = sanitizeForHelvetica(rawTitle)
-  const titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
-  // Si le titre fait > 1 ligne, réduire la taille de police
-  if (titleLines.length > 1) {
-    pdf.setFontSize(13)
-    const retried = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
-    pdf.text(retried, pageW / 2, y, { align: 'center' })
-    y += 5 * retried.length + 2
-  } else {
-    pdf.text(titleLines, pageW / 2, y, { align: 'center' })
-    y += 7
+  // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
+  // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
+  let titleSize = 16
+  let titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
+  while (titleLines.length > 1 && titleSize > 10) {
+    titleSize -= 1
+    pdf.setFontSize(titleSize)
+    titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
   }
+  pdf.text(titleLines, pageW / 2, y, { align: 'center' })
+  // Hauteur ligne ~ size * 0.35mm + interligne
+  y += titleLines.length * (titleSize * 0.4) + 2
 
   // Numéro document
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
@@ -712,14 +717,41 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   if (sections.length > 1) {
+    // Estime la hauteur d'une ligne en fonction de son contenu (titre + détail + étapes)
+    const estimateRowH = (r: ProductLine): number => {
+      const baseH = 18 // ligne de base avec padding
+      const detailLines = r.lineDetail ? Math.max(1, Math.ceil((r.lineDetail.length || 0) / 32)) : 0
+      const detailH = detailLines * 4 + (detailLines > 0 ? 4 : 0)
+      const validEtapes = (r.etapes || []).filter(e => e.designation?.trim())
+      // Chaque étape = numéro + texte (souvent wrappé sur 2-3 lignes en colonne ~58mm)
+      const etapesH = validEtapes.reduce((s, e) => {
+        const lines = Math.max(1, Math.ceil((e.designation.length || 0) / 28))
+        return s + lines * 4 + 4 // texte + spacer
+      }, 0)
+      return baseH + detailH + etapesH + 6 // buffer
+    }
+    const labelH = 6
+    const headH = 12
+    const sectionGap = ptToMm(10)
+    const usablePageH = pageH - 18 // marge basse / pied de page
+
     for (const s of sections) {
-      // Évite le titre orphelin : si la place restante ne tient pas le label
-      // + l'en-tête de tableau + au moins une ligne, on saute de page avant.
-      // ~40 mm couvre label (5) + head (10) + 1 row (~12) + paddings + buffer.
-      checkPageBreak(40)
+      const rowsH = s.rows.reduce((acc, r) => acc + estimateRowH(r), 0)
+      const sectionH = labelH + headH + rowsH + 4
+
+      // Si la section ne tient pas dans la place restante ET qu'elle peut tenir
+      // sur une page entière, on saute à la page suivante AVANT de dessiner le label.
+      // Sinon on accepte que la section dépasse (autoTable paginera ses propres lignes).
+      const remaining = usablePageH - y
+      const canFitWholeOnNewPage = sectionH <= usablePageH - 18
+      if (sectionH > remaining && canFitWholeOnNewPage) {
+        pdf.addPage()
+        y = 18
+      }
+
       drawSectionLabel(s.name)
       renderTable(buildTableBody(s.rows), y)
-      y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
+      y = (pdf as any).lastAutoTable.finalY + sectionGap
     }
   } else if (sections.length === 1) {
     // Une seule section : rendu sans label de section (comportement historique)
