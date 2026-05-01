@@ -2776,6 +2776,8 @@
       "professionnelType": "Professionnel",
       "raisonSociale": "Raison sociale",
       "nomComplet": "Nom complet",
+      "prenom": "Prénom",
+      "nom": "Nom",
       "telephone": "Téléphone",
       "email": "Email",
       "siret": "SIRET",

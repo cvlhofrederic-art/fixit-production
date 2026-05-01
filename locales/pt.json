@@ -2776,6 +2776,8 @@
       "professionnelType": "Profissional",
       "raisonSociale": "Denominação social",
       "nomComplet": "Nome completo",
+      "prenom": "Nome próprio",
+      "nom": "Apelido",
       "telephone": "Telefone",
       "email": "Email",
       "siret": "NIF / NIPC",
