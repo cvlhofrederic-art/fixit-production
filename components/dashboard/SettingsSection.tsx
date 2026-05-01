@@ -17,9 +17,10 @@ interface SettingsSectionProps {
   orgRole?: string
   settingsForm: {
     company_name: string; email: string; phone: string; bio: string;
-    auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number
+    auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number;
+    rcs_number: string; ape_code: string; share_capital: string; tva_intra: string;
   }
-  setSettingsForm: (v: { company_name: string; email: string; phone: string; bio: string; auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number }) => void
+  setSettingsForm: (v: { company_name: string; email: string; phone: string; bio: string; auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number; rcs_number: string; ape_code: string; share_capital: string; tva_intra: string }) => void
   savingSettings: boolean
   saveSettings: () => void
   autoAccept: boolean
@@ -1112,6 +1113,36 @@ export default function SettingsSection({
                       rows={3} placeholder={t('proDash.settings.descriptionPlaceholder')}
                       className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                   </div>
+
+                  {/* BTP — Informations légales (RCS/RM, APE/NAF, Capital social, TVA intra) */}
+                  {orgRole === 'pro_societe' && (
+                    <>
+                      <div style={{ gridColumn: '1 / -1', marginTop: 4, paddingTop: 12, borderTop: '1px solid #F0F0F0' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.4px', marginBottom: 4 }}>Informations légales (Kbis)</div>
+                        <div style={{ fontSize: 11, color: '#999' }}>Saisies une seule fois ici, reprises automatiquement sur tous vos devis et factures.</div>
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>RCS / RM</label>
+                        <input type="text" value={settingsForm.rcs_number} onChange={(e) => setSettingsForm({...settingsForm, rcs_number: e.target.value})}
+                          placeholder="RM Marseille 953951589" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Code APE / NAF</label>
+                        <input type="text" value={settingsForm.ape_code} onChange={(e) => setSettingsForm({...settingsForm, ape_code: e.target.value})}
+                          placeholder="4339Z" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Capital social (€)</label>
+                        <input type="text" value={settingsForm.share_capital} onChange={(e) => setSettingsForm({...settingsForm, share_capital: e.target.value})}
+                          placeholder="10 000" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>N° TVA intracommunautaire</label>
+                        <input type="text" value={settingsForm.tva_intra} onChange={(e) => setSettingsForm({...settingsForm, tva_intra: e.target.value})}
+                          placeholder="FR00 123456789" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Bouton Enregistrer le profil en bas de la carte */}

@@ -12,11 +12,17 @@ interface SettingsForm {
   auto_reply_message: string
   auto_block_duration_minutes: number
   zone_radius_km: number
+  // BTP — champs légaux (issus du Kbis, saisie manuelle pour l'instant)
+  rcs_number: string
+  ape_code: string
+  share_capital: string
+  tva_intra: string
 }
 
 const DEFAULT_SETTINGS: SettingsForm = {
   company_name: '', email: '', phone: '', bio: '',
   auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30,
+  rcs_number: '', ape_code: '', share_capital: '', tva_intra: '',
 }
 
 export function useSettings(
@@ -51,6 +57,10 @@ export function useSettings(
           auto_reply_message: settingsForm.auto_reply_message,
           auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
           zone_radius_km: settingsForm.zone_radius_km,
+          rcs_number: settingsForm.rcs_number,
+          ape_code: settingsForm.ape_code,
+          share_capital: settingsForm.share_capital,
+          tva_intra: settingsForm.tva_intra,
         }),
       })
       const json = await res.json()
@@ -65,6 +75,10 @@ export function useSettings(
         auto_reply_message: settingsForm.auto_reply_message,
         auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
         zone_radius_km: settingsForm.zone_radius_km,
+        rcs_number: settingsForm.rcs_number,
+        ape_code: settingsForm.ape_code,
+        share_capital: settingsForm.share_capital,
+        tva_intra: settingsForm.tva_intra,
         ...(json.slug ? { slug: json.slug } : {}),
       })
       // Re-save dayServices marker after bio update
@@ -136,6 +150,10 @@ export function useSettings(
       auto_reply_message: artisanData.auto_reply_message || '',
       auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
       zone_radius_km: artisanData.zone_radius_km || 30,
+      rcs_number: artisanData.rcs_number || '',
+      ape_code: artisanData.ape_code || '',
+      share_capital: artisanData.share_capital || '',
+      tva_intra: artisanData.tva_intra || '',
     })
   }, [])
 

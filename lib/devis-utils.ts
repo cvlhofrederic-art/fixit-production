@@ -90,14 +90,33 @@ export function titleCaseAddress(addr: string): string {
     'RUE': 'Rue', 'IMPASSE': 'Impasse', 'ALLEE': 'Allée', 'CHEMIN': 'Chemin',
     'PLACE': 'Place', 'ROUTE': 'Route', 'COURS': 'Cours', 'CEDEX': 'Cedex',
   }
+  // Capitalise un mot simple (ex: "EGLISE" → "Eglise"). Préserve l'accent si présent.
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+  // Capitalise un mot composé avec tirets (ex: "AIX-EN-PROVENCE" → "Aix-en-Provence")
+  // Les particules courantes (en, sur, le, la, ...) restent en minuscules à l'intérieur.
+  const capitalizeHyphenated = (s: string) => s.split('-').map((seg, i) => {
+    if (!seg) return seg
+    const lo = seg.toLowerCase()
+    if (i > 0 && lowerWords.has(lo)) return lo
+    return capitalize(seg)
+  }).join('-')
   return addr.split(/(\s+|,\s*)/g).map((part, idx) => {
     const t = part.trim()
     if (!t || /^[\s,]+$/.test(part)) return part
     if (/^\d{5}$/.test(t)) return t
     if (abbrMap[t]) return abbrMap[t]
+    // Particule avec apostrophe : L'…, D' (typographique ' ou droite '). La particule
+    // en minuscule, le mot qui suit capitalisé. Ex: "L'ÉGLISE" → "l'Église", "D'AIX" → "d'Aix".
+    const apoMatch = t.match(/^([LD])(['’])(.+)$/i)
+    if (apoMatch) {
+      const [, particle, , rest] = apoMatch
+      return `${particle.toLowerCase()}’${capitalizeHyphenated(rest)}`
+    }
     const lo = t.toLowerCase()
     if (idx > 0 && lowerWords.has(lo)) return lo
-    return lo.charAt(0).toUpperCase() + lo.slice(1)
+    // Mots composés avec tirets (Aix-en-Provence, Saint-Étienne)
+    if (t.includes('-')) return capitalizeHyphenated(t)
+    return capitalize(t)
   }).join('')
 }
 
