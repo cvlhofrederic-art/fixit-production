@@ -829,7 +829,7 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
    SECTION PRINCIPALE
    ═══════════════════════════════════════════════════════════ */
 export default function EstimationMateriauxSection({
-  artisan: _artisan,
+  artisan,
   isAdminOverride = false,
   allowedTrades,
 }: Props) {
