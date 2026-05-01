@@ -15,6 +15,8 @@ const SETTINGS_FIELDS = [
   'company_name', 'bio', 'phone', 'email', 'slug',
   'auto_reply_message', 'auto_block_duration_minutes', 'zone_radius_km',
   'intervention_zones', 'language',
+  // BTP — champs légaux issus du Kbis (saisie manuelle pour l'instant)
+  'rcs_number', 'ape_code', 'share_capital', 'tva_intra',
 ]
 
 async function getExistingColumns(supabaseAdmin: typeof import('@/lib/supabase-server')['supabaseAdmin']): Promise<Set<string>> {

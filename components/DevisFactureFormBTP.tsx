@@ -27,7 +27,7 @@ import {
   type DevisFactureFormProps,
   type ServiceBasic,
 } from '@/lib/devis-types'
-import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { mapLegalFormToCode, titleCaseAddress } from '@/lib/devis-utils'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -204,9 +204,16 @@ export default function DevisFactureFormBTP({
   })
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
-  const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
+  // L'adresse arrive parfois en MAJ depuis le Kbis (KINNOVA GROUP 115 RUE …).
+  // titleCaseAddress no-op si déjà en casse mixte → safe pour les saisies utilisateur.
+  const [companyAddress, setCompanyAddress] = useState(
+    titleCaseAddress(initialData?.companyAddress || (artisan as { company_address?: string })?.company_address || artisan?.address || '')
+  )
+  // BTP — champs légaux : priorité initialData → DB (artisan) → localStorage → ''
+  // Saisis une fois dans Mon profil, persistés en DB, repris ici sans re-saisie.
   const [companyRCS, setCompanyRCS] = useState(() => {
     if (initialData?.companyRCS) return initialData.companyRCS
+    if ((artisan as { rcs_number?: string })?.rcs_number) return (artisan as { rcs_number?: string }).rcs_number!
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -219,6 +226,7 @@ export default function DevisFactureFormBTP({
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
   const [tvaNumber, setTvaNumber] = useState(() => {
     if (initialData?.tvaNumber) return initialData.tvaNumber
+    if ((artisan as { tva_intra?: string })?.tva_intra) return (artisan as { tva_intra?: string }).tva_intra!
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -229,6 +237,7 @@ export default function DevisFactureFormBTP({
   })
   const [companyAPE, setCompanyAPE] = useState(() => {
     if ((initialData as { companyAPE?: string })?.companyAPE) return (initialData as { companyAPE?: string }).companyAPE!
+    if ((artisan as { ape_code?: string })?.ape_code) return (artisan as { ape_code?: string }).ape_code!
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -239,6 +248,7 @@ export default function DevisFactureFormBTP({
   })
   const [companyCapital, setCompanyCapital] = useState(() => {
     if (initialData?.companyCapital) return initialData.companyCapital
+    if ((artisan as { share_capital?: string })?.share_capital) return (artisan as { share_capital?: string }).share_capital!
     // Cherche le capital dans les derniers documents créés
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
