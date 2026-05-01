@@ -95,18 +95,27 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
 
   useEffect(() => {
     if (!artisanId) return
-    fetch('/api/artisan-payment-info')
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then(data => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token
+        if (!token) { setLoading(false); return }
+        const res = await fetch('/api/artisan-payment-info', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (cancelled) return
         if (data.paiement_modes) setModes(data.paiement_modes)
         setMentionDevis(data.paiement_mention_devis ?? true)
         setMentionFacture(data.paiement_mention_facture ?? true)
-      })
-      .catch((e) => console.warn('Payment info load failed:', e))
-      .finally(() => setLoading(false))
+      } catch (e) {
+        console.warn('Payment info load failed:', e)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
   }, [artisanId])
 
   const updateMode = (idx: number, patch: Partial<PaymentMode>) => {
@@ -119,12 +128,23 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
   const handleSave = async () => {
     setSaving(true)
     try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) {
+        toast.error(isPt ? 'Sessão expirada' : 'Session expirée')
+        setSaving(false); return
+      }
       const res = await fetch('/api/artisan-payment-info', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ paiement_modes: modes, paiement_mention_devis: mentionDevis, paiement_mention_facture: mentionFacture }),
       })
-      if (res.ok) setSaved(true)
+      if (res.ok) {
+        setSaved(true)
+        toast.success(isPt ? 'Informações de pagamento guardadas' : 'Informations de paiement enregistrées')
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        toast.error(`${isPt ? 'Erro' : 'Erreur'}: ${errBody.error || res.statusText}`)
+      }
     } catch (e) {
       console.error('Payment info save failed:', e)
       toast.error(isPt ? 'Erro ao guardar as informações de pagamento' : 'Erreur lors de la sauvegarde des informations de paiement')
