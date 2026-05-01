@@ -399,6 +399,24 @@ export default function DevisFactureFormBTP({
     [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
 
+  // Tables BTP : noms personnalisables, désactivation douce et tables custom additionnelles.
+  // L'artisan peut renommer un titre, masquer Matériaux/Frais (la 1ère reste obligatoire),
+  // ou créer ses propres sections (corps d'état, sous-traitants, etc.).
+  const _initialTables = initialData as Record<string, unknown> | undefined
+  const [linesName, setLinesName] = useState<string>((_initialTables?.linesName as string) || "Main d'œuvre")
+  const [materialLinesName, setMaterialLinesName] = useState<string>((_initialTables?.materialLinesName as string) || 'Matériaux')
+  const [fraisLinesName, setFraisLinesName] = useState<string>((_initialTables?.fraisLinesName as string) || 'Frais annexes')
+  const [materialLinesEnabled, setMaterialLinesEnabled] = useState<boolean>(
+    typeof _initialTables?.materialLinesEnabled === 'boolean' ? (_initialTables.materialLinesEnabled as boolean) : true
+  )
+  const [fraisLinesEnabled, setFraisLinesEnabled] = useState<boolean>(
+    typeof _initialTables?.fraisLinesEnabled === 'boolean' ? (_initialTables.fraisLinesEnabled as boolean) : true
+  )
+  const [customTables, setCustomTables] = useState<{ id: string; name: string; lines: ProductLine[] }[]>(
+    Array.isArray(_initialTables?.customTables) ? (_initialTables.customTables as { id: string; name: string; lines: ProductLine[] }[]) : []
+  )
+  const [showAddTableMenu, setShowAddTableMenu] = useState(false)
+
   // Dropdown prestation ouvert (lineId ou null)
   const [openPrestaDrop, setOpenPrestaDrop] = useState<number | null>(null)
   useEffect(() => {
@@ -555,7 +573,12 @@ export default function DevisFactureFormBTP({
   }, [])
 
   const totaux = useMemo(() => {
-    const allLines = [...lines, ...materialLines, ...fraisLines]
+    const allLines = [
+      ...lines,
+      ...(materialLinesEnabled ? materialLines : []),
+      ...(fraisLinesEnabled ? fraisLines : []),
+      ...customTables.flatMap(t => t.lines || []),
+    ]
     const subTotalBrut = allLines.reduce((s, l) => s + (l.qty || 0) * (l.priceHT || 0), 0)
     const remise = 0 // pas de remise globale dans la maquette V1
     const totalHT = subTotalBrut - remise
@@ -576,7 +599,7 @@ export default function DevisFactureFormBTP({
     const totalTTC = totalHT + totalTva
 
     return { subTotalBrut, remise, totalHT, tvaEntries, totalTva, totalTTC }
-  }, [lines, materialLines, fraisLines, tvaEnabled])
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, tvaEnabled])
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -587,7 +610,12 @@ export default function DevisFactureFormBTP({
       assurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
       mediateur: mediatorName.trim().length > 0 && mediatorUrl.trim().length > 0,
       client: clientName.trim().length > 0,
-      prestations: [...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
+      prestations: [
+        ...lines,
+        ...(materialLinesEnabled ? materialLines : []),
+        ...(fraisLinesEnabled ? fraisLines : []),
+        ...customTables.flatMap(t => t.lines || []),
+      ].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
@@ -663,6 +691,35 @@ export default function DevisFactureFormBTP({
 
   const updateFraisLine = (id: number, patch: Partial<ProductLine>) => {
     setFraisLines(fraisLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
+  }
+
+  /* ──────── Helpers tables custom (corps d'état, sous-traitance, etc.) ──────── */
+
+  const updateCustomTableName = (tableId: string, name: string) => {
+    setCustomTables(prev => prev.map(t => t.id === tableId ? { ...t, name } : t))
+  }
+
+  const removeCustomTable = (tableId: string) => {
+    setCustomTables(prev => prev.filter(t => t.id !== tableId))
+  }
+
+  const addCustomLine = (tableId: string) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      const nextId = (t.lines?.reduce((m, l) => Math.max(m, l.id), 0) || 0) + 1
+      return { ...t, lines: [...(t.lines || []), { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }] }
+    }))
+  }
+
+  const removeCustomLine = (tableId: string, lineId: number) => {
+    setCustomTables(prev => prev.map(t => t.id === tableId ? { ...t, lines: (t.lines || []).filter(l => l.id !== lineId) } : t))
+  }
+
+  const updateCustomLine = (tableId: string, lineId: number, patch: Partial<ProductLine>) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      return { ...t, lines: (t.lines || []).map(l => l.id === lineId ? recalcLine({ ...l, ...patch }) : l) }
+    }))
   }
 
   /* ──────── Import devis fournisseur (PDF → lignes matériaux) ──────── */
@@ -933,6 +990,13 @@ export default function DevisFactureFormBTP({
       lines,
       materialLines,
       fraisLines,
+      // BTP — tables personnalisables (noms, masquage doux, tables custom additionnelles)
+      linesName,
+      materialLinesName,
+      fraisLinesName,
+      materialLinesEnabled,
+      fraisLinesEnabled,
+      customTables,
       // Acomptes
       acomptesEnabled,
       acomptes,
@@ -953,7 +1017,9 @@ export default function DevisFactureFormBTP({
     clientName, clientEmail, clientPhone, clientSiret, clientAddress, clientType,
     clientFirstName, clientLastName, clientStreet, clientFloor, clientApartmentNumber, clientPostalCode, clientCity, clientCountry,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur, ordreDeService,
-    lines, materialLines, fraisLines, acomptesEnabled, acomptes,
+    lines, materialLines, fraisLines,
+    linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
+    acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte,
     notes,
   ])
@@ -1216,6 +1282,17 @@ export default function DevisFactureFormBTP({
         laborLines: validLabor,
         materialLines: validMaterials,
         fraisLines: validFrais,
+        // BTP — noms personnalisés et tables custom
+        linesName,
+        materialLinesName,
+        fraisLinesName,
+        materialLinesEnabled,
+        fraisLinesEnabled,
+        customTables: customTables.map(t => ({
+          id: t.id,
+          name: t.name,
+          lines: (t.lines || []).filter(l => (l.description || '').trim().length > 0),
+        })).filter(t => t.lines.length > 0),
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
         acomptesEnabled: acomptesEnabled || false,
@@ -1755,9 +1832,19 @@ export default function DevisFactureFormBTP({
             </div>
           </div>
 
-          {/* 7. MAIN D'ŒUVRE */}
+          {/* 7. MAIN D'ŒUVRE — table principale, nom éditable, non supprimable */}
           <div className="dv-section">
-            <div className="dv-section-t">MAIN D&apos;ŒUVRE</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem' }}>
+              <input
+                type="text"
+                value={linesName}
+                onChange={(e) => setLinesName(e.target.value.toUpperCase())}
+                title="Cliquez pour renommer cette section"
+                style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+              />
+            </div>
             <table className="dv-presta-table">
               <colgroup>
                 <col style={{ width: '28%' }} />
@@ -1888,9 +1975,26 @@ export default function DevisFactureFormBTP({
             </div>
           </div>
 
-          {/* 7b. MATÉRIAUX */}
+          {/* 7b. MATÉRIAUX — supprimable (masquage doux) */}
+          {materialLinesEnabled && (
           <div className="dv-section">
-            <div className="dv-section-t">MATÉRIAUX</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem', gap: 8 }}>
+              <input
+                type="text"
+                value={materialLinesName}
+                onChange={(e) => setMaterialLinesName(e.target.value.toUpperCase())}
+                title="Cliquez pour renommer cette section"
+                style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+              />
+              <button
+                type="button"
+                onClick={() => setMaterialLinesEnabled(false)}
+                title="Masquer cette section (réactivable depuis + Ajouter une table)"
+                style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#888', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }}
+              >🗑 Supprimer</button>
+            </div>
             <table className="dv-presta-table">
               <colgroup>
                 <col style={{ width: '28%' }} />
@@ -2000,10 +2104,28 @@ export default function DevisFactureFormBTP({
               </label>
             </div>
           </div>
+          )}
 
-          {/* 7c. FRAIS ANNEXES */}
+          {/* 7c. FRAIS ANNEXES — supprimable (masquage doux) */}
+          {fraisLinesEnabled && (
           <div className="dv-section">
-            <div className="dv-section-t">FRAIS ANNEXES</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem', gap: 8 }}>
+              <input
+                type="text"
+                value={fraisLinesName}
+                onChange={(e) => setFraisLinesName(e.target.value.toUpperCase())}
+                title="Cliquez pour renommer cette section"
+                style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+              />
+              <button
+                type="button"
+                onClick={() => setFraisLinesEnabled(false)}
+                title="Masquer cette section (réactivable depuis + Ajouter une table)"
+                style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#888', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }}
+              >🗑 Supprimer</button>
+            </div>
             <table className="dv-presta-table">
               <colgroup>
                 <col style={{ width: '28%' }} />
@@ -2073,6 +2195,128 @@ export default function DevisFactureFormBTP({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
               <button className="dv-add-line" type="button" onClick={addFraisLine}>+ Ajouter un frais</button>
             </div>
+          </div>
+          )}
+
+          {/* 7d. TABLES CUSTOM (corps d'état, sous-traitants, etc.) */}
+          {customTables.map((tbl) => (
+            <div key={tbl.id} className="dv-section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem', gap: 8 }}>
+                <input
+                  type="text"
+                  value={tbl.name}
+                  onChange={(e) => updateCustomTableName(tbl.id, e.target.value.toUpperCase())}
+                  title="Cliquez pour renommer cette section"
+                  style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeCustomTable(tbl.id)}
+                  title="Supprimer définitivement cette table"
+                  style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#888', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }}
+                >🗑 Supprimer</button>
+              </div>
+              <table className="dv-presta-table">
+                <colgroup>
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '6%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Désignation</th>
+                    <th>Qté</th>
+                    <th>Unité</th>
+                    <th>Prix U. HT</th>
+                    <th>TVA %</th>
+                    <th>Total HT</th>
+                    <th>Total TTC</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(tbl.lines || []).map((l) => {
+                    const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                    const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                    return (
+                      <tr key={l.id}>
+                        <td>
+                          <input type="text" placeholder="Désignation…" value={l.description || ''}
+                            onChange={(e) => updateCustomLine(tbl.id, l.id, { description: e.target.value })} />
+                        </td>
+                        <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
+                        <td>
+                          <select value={l.unit} onChange={(e) => updateCustomLine(tbl.id, l.id, { unit: e.target.value })}>
+                            {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                          </select>
+                        </td>
+                        <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                        <td>
+                          <select value={l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                            {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          </select>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{lineHT ? lineHT.toFixed(2) : '0,00'} €</td>
+                        <td style={{ textAlign: 'right' }}>{lineTTC ? lineTTC.toFixed(2) : '0,00'} €</td>
+                        <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeCustomLine(tbl.id, l.id)}>✕</button></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
+                <button className="dv-add-line" type="button" onClick={() => addCustomLine(tbl.id)}>+ Ajouter une ligne</button>
+              </div>
+            </div>
+          ))}
+
+          {/* 7e. BOUTON + AJOUTER UNE TABLE (avec menu pour réactiver les sections masquées ou créer une nouvelle) */}
+          <div className="dv-section" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setShowAddTableMenu(v => !v)}
+              style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, color: '#1a1a1a', background: '#fff', border: '1px dashed #E0E0E0', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+            >+ Ajouter une table</button>
+            {showAddTableMenu && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', minWidth: 240, zIndex: 100 }}>
+                {!materialLinesEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => { setMaterialLinesEnabled(true); setShowAddTableMenu(false) }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >↩ Réactiver « {materialLinesName} »</button>
+                )}
+                {!fraisLinesEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => { setFraisLinesEnabled(true); setShowAddTableMenu(false) }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >↩ Réactiver « {fraisLinesName} »</button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = prompt('Nom de la nouvelle table (ex: Gros œuvre, Second œuvre, Sous-traitance…)')
+                    if (name && name.trim()) {
+                      setCustomTables(prev => [...prev, {
+                        id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                        name: name.trim().toUpperCase(),
+                        lines: [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }],
+                      }])
+                    }
+                    setShowAddTableMenu(false)
+                  }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', borderTop: (!materialLinesEnabled || !fraisLinesEnabled) ? '1px solid #F0F0F0' : 'none' }}
+                >✚ Nouvelle table custom</button>
+              </div>
+            )}
           </div>
 
           {/* 8. ACOMPTES & PAIEMENT ÉCHELONNÉ */}
