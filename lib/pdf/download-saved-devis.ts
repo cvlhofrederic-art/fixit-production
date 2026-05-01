@@ -226,12 +226,15 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
   const laborLines = (doc.laborLines as ProductLine[]) || []
+  const fraisLines = ((doc as Record<string, unknown>).fraisLines as ProductLine[]) || []
+  const customTables = ((doc as Record<string, unknown>).customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) || []
+  const customLines = customTables.flatMap(t => t.lines || [])
 
   const sum = (arr: ProductLine[]) => arr.reduce((s, l) => s + (l.totalHT || 0), 0)
-  const subtotalHT = sum([...lines, ...materialLines, ...laborLines])
+  const subtotalHT = sum([...lines, ...materialLines, ...laborLines, ...fraisLines, ...customLines])
   const tvaEnabled = doc.tvaEnabled !== false
   const totalTTC = tvaEnabled
-    ? lines.concat(materialLines, laborLines).reduce((s, l) => s + (l.totalHT || 0) * (1 + (l.tvaRate || 0) / 100), 0)
+    ? [...lines, ...materialLines, ...laborLines, ...fraisLines, ...customLines].reduce((s, l) => s + (l.totalHT || 0) * (1 + (l.tvaRate || 0) / 100), 0)
     : subtotalHT
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
@@ -296,6 +299,13 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     lines: lines.length > 0 ? lines : [...laborLines, ...materialLines],
     laborLines: laborLines.length > 0 ? laborLines : undefined,
     materialLines: materialLines.length > 0 ? materialLines : undefined,
+    fraisLines: fraisLines.length > 0 ? fraisLines : undefined,
+    linesName: ((doc as Record<string, unknown>).linesName as string) || undefined,
+    materialLinesName: ((doc as Record<string, unknown>).materialLinesName as string) || undefined,
+    fraisLinesName: ((doc as Record<string, unknown>).fraisLinesName as string) || undefined,
+    materialLinesEnabled: ((doc as Record<string, unknown>).materialLinesEnabled as boolean) ?? undefined,
+    fraisLinesEnabled: ((doc as Record<string, unknown>).fraisLinesEnabled as boolean) ?? undefined,
+    customTables: customTables.length > 0 ? customTables : undefined,
     subtotalHT,
     totalTTC,
     acomptesEnabled: doc.acomptesEnabled || false,

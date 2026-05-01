@@ -122,7 +122,7 @@ export interface PdfV3Input {
   fraisLinesName?: string
   materialLinesEnabled?: boolean
   fraisLinesEnabled?: boolean
-  customTables?: { id: string; name: string; lines: ProductLine[] }[]
+  customTables?: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
   subtotalHT: number
   totalTTC: number
 
@@ -156,6 +156,21 @@ export interface PdfV3Input {
 }
 
 // ─── Helpers ──────────────────────────────────────
+
+/**
+ * Remplace les caractères Unicode non supportés par helvetica (ISO-8859-1).
+ * Empêche le rendu fantôme (ex. ᵉ rendu "l", ≤ rendu "d", ≥ rendu "e").
+ */
+function sanitizeForHelvetica(s: string): string {
+  if (!s) return s
+  return s
+    .replace(/[ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ]/g, ch => ({ ᵃ:'a',ᵇ:'b',ᶜ:'c',ᵈ:'d',ᵉ:'e',ᶠ:'f',ᵍ:'g',ʰ:'h',ⁱ:'i',ʲ:'j',ᵏ:'k',ˡ:'l',ᵐ:'m',ⁿ:'n',ᵒ:'o',ᵖ:'p',ʳ:'r',ˢ:'s',ᵗ:'t',ᵘ:'u',ᵛ:'v',ʷ:'w',ˣ:'x',ʸ:'y',ᶻ:'z' } as Record<string,string>)[ch] || ch)
+    .replace(/≤/g, '<=').replace(/≥/g, '>=')
+    .replace(/≠/g, '!=').replace(/≈/g, '~=')
+    .replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->')
+    .replace(/[☑☒]/g, '[x]').replace(/☐/g, '[ ]')
+    .replace(/[​-‍﻿]/g, '') // zero-width spaces
+}
 
 /**
  * Découpe une adresse française en rue + code postal/ville.
@@ -288,19 +303,25 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // ═══ 2. TITRE DOCUMENT (centré) ═══
+  // ═══ 2. TITRE DOCUMENT (centré, contraint pour ne pas chevaucher le logo) ═══
   y = 25  // ~71pt du haut
   const displayDocNumber = ptFiscalData?.docNumber || docNumber
-  if (docTitle) {
-    pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text(docTitle, pageW / 2, y, { align: 'center' })
-    y += 7
+  // Le logo occupe ~25mm à droite. On contraint le titre à la zone centrale disponible.
+  const titleMaxW = pageW - 2 * 30 // 30mm de marge de chaque côté pour éviter logo + symétrie
+  pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+  const rawTitle = docTitle || (docType === 'devis'
+    ? (locale === 'pt' ? 'Orçamento' : 'Devis')
+    : (locale === 'pt' ? 'Fatura' : 'Facture'))
+  const safeTitle = sanitizeForHelvetica(rawTitle)
+  const titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
+  // Si le titre fait > 1 ligne, réduire la taille de police
+  if (titleLines.length > 1) {
+    pdf.setFontSize(13)
+    const retried = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
+    pdf.text(retried, pageW / 2, y, { align: 'center' })
+    y += 5 * retried.length + 2
   } else {
-    const genericTitle = docType === 'devis'
-      ? (locale === 'pt' ? 'Orçamento' : 'Devis')
-      : (locale === 'pt' ? 'Fatura' : 'Facture')
-    pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text(genericTitle, pageW / 2, y, { align: 'center' })
+    pdf.text(titleLines, pageW / 2, y, { align: 'center' })
     y += 7
   }
 
@@ -523,7 +544,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const buildTableBody = (srcLines: ProductLine[]) => {
     const body = srcLines.filter(l => l.description.trim()).map(l => {
       const unitStr = formatUnitForPdf(l.unit, l.customUnit)
-      const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
+      const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
       const parts = cleanDesc.split('\n')
       const title = parts[0]
       let detail = parts.slice(1).join('\n').trim()
@@ -544,7 +565,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       }
 
       // Build: title, then lineDetail (description), then étapes
-      const lineDetail = (l.lineDetail || '').trim()
+      const lineDetail = sanitizeForHelvetica((l.lineDetail || '').trim())
       let displayDesc = title
       if (detail) displayDesc += `\n${detail}`
       if (lineDetail) displayDesc += `\n \n${lineDetail}`
@@ -619,6 +640,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       margin: { left: mL, right: mR },
       showHead: 'firstPage',
       theme: 'plain',
+      rowPageBreak: 'avoid',
       headStyles: {
         fillColor: [13, 13, 13],
         textColor: [255, 255, 255],
@@ -723,10 +745,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   y += stH
 
-  // Détail TVA par taux
+  // Détail TVA par taux — toutes les sources de lignes (lines + materialLines + fraisLines + customTables)
   if (tvaEnabled) {
     const tvaByRate: Record<number, { base: number; amount: number }> = {}
-    lines.filter(l => l.description.trim()).forEach(l => {
+    const allTvaLines: ProductLine[] = [
+      ...lines,
+      ...(materialLinesEnabled !== false && materialLines ? materialLines : []),
+      ...(fraisLinesEnabled !== false && fraisLines ? fraisLines : []),
+      ...(customTables ? customTables.flatMap(ct => ct.lines || []) : []),
+    ]
+    allTvaLines.filter(l => l.description.trim()).forEach(l => {
       if (!tvaByRate[l.tvaRate]) tvaByRate[l.tvaRate] = { base: 0, amount: 0 }
       tvaByRate[l.tvaRate].base += l.totalHT
       tvaByRate[l.tvaRate].amount += l.totalHT * l.tvaRate / 100
