@@ -661,8 +661,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         textColor: [13, 13, 13],
         lineWidth: 0,
         minCellHeight: ptToMm(32),
+        // Fond gris uniforme pour toutes les lignes (pas d'alternance blanc/gris
+        // qui rendait incohérentes les sections multi-lignes comme CUISINE).
+        fillColor: [245, 245, 243],
       },
-      alternateRowStyles: { fillColor: [245, 245, 243] },
       columnStyles: colStyles as any,
       tableLineColor: [224, 224, 220],
       tableLineWidth: 0,
@@ -676,18 +678,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
           data.cell.styles.fontStyle = 'bold'
         }
       },
-      willDrawCell: (data: any) => {
-        if (data.section === 'body' && data.row.index % 2 === 0) {
-          data.cell.styles.fillColor = [255, 255, 255]
-        }
-      },
     })
   }
 
   const drawSectionLabel = (label: string) => {
+    // Léger espace au-dessus du label pour respirer après la section précédente
+    y += ptToMm(2)
     pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     pdf.text(label, mL, y + ptToMm(10))
-    y += ptToMm(14)
+    // Espace entre le label et le head du tableau (1.5 mm de plus qu'avant)
+    y += ptToMm(17)
   }
 
   // Dynamic-section mode : noms personnalisés (linesName/materialLinesName/fraisLinesName), masquage doux
