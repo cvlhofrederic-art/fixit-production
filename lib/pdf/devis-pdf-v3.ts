@@ -306,24 +306,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // ═══ 2. TITRE DOCUMENT (centré, contraint pour ne pas chevaucher le logo) ═══
   y = 25  // ~71pt du haut
   const displayDocNumber = ptFiscalData?.docNumber || docNumber
-  // Le logo occupe ~25mm à droite. On contraint le titre à la zone centrale disponible.
-  const titleMaxW = pageW - 2 * 30 // 30mm de marge de chaque côté pour éviter logo + symétrie
+  // Le logo occupe ~23mm à droite (logoMaxW), placé à pageW - mR - lw.
+  // Pour un titre centré sur pageW/2 sans chevauchement, on contraint la
+  // largeur max à 2 × (pageW/2 - logoLeft) où logoLeft = pageW - mR - 23.
+  // Soit titleMaxW = pageW - 2 × (mR + 23 + 5_buffer).
+  const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
+  const titleMaxW = pageW - 2 * (mR + logoZoneW)
   pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   const rawTitle = docTitle || (docType === 'devis'
     ? (locale === 'pt' ? 'Orçamento' : 'Devis')
     : (locale === 'pt' ? 'Fatura' : 'Facture'))
   const safeTitle = sanitizeForHelvetica(rawTitle)
-  const titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
-  // Si le titre fait > 1 ligne, réduire la taille de police
-  if (titleLines.length > 1) {
-    pdf.setFontSize(13)
-    const retried = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
-    pdf.text(retried, pageW / 2, y, { align: 'center' })
-    y += 5 * retried.length + 2
-  } else {
-    pdf.text(titleLines, pageW / 2, y, { align: 'center' })
-    y += 7
+  // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
+  // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
+  let titleSize = 16
+  let titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
+  while (titleLines.length > 1 && titleSize > 10) {
+    titleSize -= 1
+    pdf.setFontSize(titleSize)
+    titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
   }
+  pdf.text(titleLines, pageW / 2, y, { align: 'center' })
+  // Hauteur ligne ~ size * 0.35mm + interligne
+  y += titleLines.length * (titleSize * 0.4) + 2
 
   // Numéro document
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
