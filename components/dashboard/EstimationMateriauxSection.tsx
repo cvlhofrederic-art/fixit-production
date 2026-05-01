@@ -17,9 +17,12 @@ import './estimation-materiaux.css'
 type Trade = Recipe['trade']
 type Mode = 'form' | 'ia'
 
-// Mapping artisan.categories → Trade(s). Les catégories TCE / fourre-tout
-// (rénovation générale, petits travaux, divers) ouvrent l'accès à tous les
-// corps d'état — typique pour SUD TRAVAUX (NAF 41.20 = construction bâtiment).
+// Mapping artisan.categories → Trade(s).
+// "Rénovation complète" couvre les corps d'état standard d'une réno bâtiment :
+// maçonnerie, placo, peinture, électricité, façade, et toiture (couverture +
+// charpente + zinguerie). Pas de plomberie/chauffage/menuiserie/carrelage/
+// isolation par défaut — l'artisan déclare ces métiers explicitement s'il les
+// fait. Idem petits-travaux/divers : périmètre identique à rénovation.
 const ALL_TRADES_LIST: Trade[] = [
   'maconnerie', 'placo', 'peinture', 'carrelage', 'charpente', 'couverture',
   'zinguerie', 'etancheite', 'isolation', 'facade', 'menuiserie_ext',
@@ -27,6 +30,11 @@ const ALL_TRADES_LIST: Trade[] = [
   'chauffage', 'ventilation', 'climatisation', 'electricite', 'electricite_cfa',
   'vrd', 'assainissement', 'cloture', 'terrasse_ext', 'jardin', 'piscine',
   'menuiserie', 'metallerie', 'revetements_sols',
+]
+
+const RENOVATION_TRADES: Trade[] = [
+  'maconnerie', 'placo', 'peinture', 'electricite', 'facade',
+  'couverture', 'charpente', 'zinguerie',
 ]
 
 const CATEGORY_TO_TRADES: Record<string, Trade[]> = {
@@ -52,7 +60,7 @@ function categoriesToTrades(cats: string[] | null | undefined): Trade[] {
   for (const c of cats) {
     const lc = c.toLowerCase().trim()
     if (lc === 'renovation' || lc === 'rénovation' || lc === 'petits-travaux' || lc === 'divers' || lc === 'tce') {
-      ALL_TRADES_LIST.forEach(t => set.add(t))
+      RENOVATION_TRADES.forEach(t => set.add(t))
       continue
     }
     const trades = CATEGORY_TO_TRADES[lc]
