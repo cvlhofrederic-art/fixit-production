@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
+import { titleCaseAddress } from '@/lib/devis-utils'
 import Link from 'next/link'
 import {
   Star,
@@ -785,22 +786,29 @@ export default function ArtisanProfilePage() {
                         </div>
                       )}
 
-                      {/* Adresse */}
-                      {(artisan.company_address || artisan.company_city) && (
-                        <div className="flex items-start gap-3">
-                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <MapPin className="w-4.5 h-4.5 text-yellow" />
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Adresse', 'Morada')}</div>
-                            <div className="font-semibold text-gray-900 text-sm">
-                              {artisan.company_address && <span>{artisan.company_address}<br /></span>}
-                              {artisan.company_postal_code && <span>{artisan.company_postal_code} </span>}
-                              {artisan.company_city}
+                      {/* Adresse — éviter la duplication CP/ville si déjà inclus dans company_address */}
+                      {(artisan.company_address || artisan.company_city) && (() => {
+                        const rawAddr = (artisan.company_address || '').trim()
+                        const normalizedAddr = rawAddr && rawAddr === rawAddr.toUpperCase() ? titleCaseAddress(rawAddr) : rawAddr
+                        const hasPostalInAddr = /\b\d{5}\b/.test(normalizedAddr)
+                        const cityLine = hasPostalInAddr
+                          ? ''
+                          : [artisan.company_postal_code, artisan.company_city].filter(Boolean).join(' ')
+                        return (
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                              <MapPin className="w-4.5 h-4.5 text-yellow" />
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Adresse', 'Morada')}</div>
+                              <div className="font-semibold text-gray-900 text-sm">
+                                {normalizedAddr && <span>{normalizedAddr}{cityLine ? <br /> : null}</span>}
+                                {cityLine && <span>{cityLine}</span>}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )
+                      })()}
 
                       {/* Téléphone */}
                       {artisan.phone && (
