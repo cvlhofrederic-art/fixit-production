@@ -327,6 +327,40 @@ export default function DevisFactureFormBTP({
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
   const [clientSiret, setClientSiret] = useState(initialData?.clientSiret || '')
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '')
+  // BTP — identité et adresse client détaillées (pré-remplies depuis la base clients)
+  const [clientFirstName, setClientFirstName] = useState((initialData as Record<string, unknown>)?.clientFirstName as string || '')
+  const [clientLastName, setClientLastName] = useState((initialData as Record<string, unknown>)?.clientLastName as string || '')
+  const [clientStreet, setClientStreet] = useState((initialData as Record<string, unknown>)?.clientStreet as string || '')
+  const [clientFloor, setClientFloor] = useState((initialData as Record<string, unknown>)?.clientFloor as string || '')
+  const [clientApartmentNumber, setClientApartmentNumber] = useState((initialData as Record<string, unknown>)?.clientApartmentNumber as string || '')
+  const [clientPostalCode, setClientPostalCode] = useState((initialData as Record<string, unknown>)?.clientPostalCode as string || '')
+  const [clientCity, setClientCity] = useState((initialData as Record<string, unknown>)?.clientCity as string || '')
+  const [clientCountry, setClientCountry] = useState((initialData as Record<string, unknown>)?.clientCountry as string || 'France')
+
+  // BTP — composer clientName à partir de prénom+nom (B2C uniquement)
+  // Le PDF V3 utilise clientName ; les champs détaillés sont aussi persistés à part pour la base clients
+  useEffect(() => {
+    if (clientType !== 'particulier') return
+    const composed = `${clientFirstName} ${clientLastName}`.trim()
+    if (composed) setClientName(composed)
+  }, [clientFirstName, clientLastName, clientType])
+
+  // BTP — composer clientAddress à partir des champs adresse détaillés (rue, étage, app, CP, ville, pays)
+  useEffect(() => {
+    const parts: string[] = []
+    if (clientStreet.trim()) parts.push(clientStreet.trim())
+    const fa = [
+      clientFloor.trim() ? `Étage ${clientFloor.trim()}` : '',
+      clientApartmentNumber.trim() ? `Apt ${clientApartmentNumber.trim()}` : '',
+    ].filter(Boolean).join(' ')
+    if (fa) parts.push(fa)
+    const cityLine = [clientPostalCode.trim(), clientCity.trim()].filter(Boolean).join(' ')
+    if (cityLine) parts.push(cityLine)
+    if (clientCountry.trim() && clientCountry.trim() !== 'France') parts.push(clientCountry.trim())
+    const composed = parts.join(', ')
+    if (composed) setClientAddress(composed)
+  }, [clientStreet, clientFloor, clientApartmentNumber, clientPostalCode, clientCity, clientCountry])
+
   const [interventionAddress, setInterventionAddress] = useState(initialData?.interventionAddress || '')
   const [interventionBatiment, setInterventionBatiment] = useState(initialData?.interventionBatiment || '')
   const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
@@ -775,6 +809,16 @@ export default function DevisFactureFormBTP({
     setClientPhone(c.phone || '')
     setClientSiret(c.siret || '')
     setClientAddress(c.mainAddress || c.address || '')
+    // BTP — pré-remplir les champs détaillés s'ils existent (clients créés avec le nouveau format)
+    const cAny = c as Record<string, unknown>
+    setClientFirstName((cAny.firstName as string) || '')
+    setClientLastName((cAny.lastName as string) || '')
+    setClientStreet((cAny.street as string) || '')
+    setClientFloor((cAny.floor as string) || '')
+    setClientApartmentNumber((cAny.apartmentNumber as string) || '')
+    setClientPostalCode((cAny.postalCode as string) || '')
+    setClientCity((cAny.city as string) || '')
+    setClientCountry((cAny.country as string) || 'France')
     // Charger la liste des lieux d'intervention enregistrés pour ce client
     setSelectedClientInterventionAddresses(c.interventionAddresses || [])
     // Réinitialiser les champs lieu d'intervention (l'artisan choisira dans le dropdown)
@@ -860,6 +904,15 @@ export default function DevisFactureFormBTP({
       clientPhone,
       clientSiret,
       clientAddress,
+      // BTP — champs identité et adresse détaillés (persistés pour l'édition et la base clients)
+      clientFirstName,
+      clientLastName,
+      clientStreet,
+      clientFloor,
+      clientApartmentNumber,
+      clientPostalCode,
+      clientCity,
+      clientCountry,
       interventionAddress,
       interventionBatiment,
       interventionEtage,
@@ -887,8 +940,9 @@ export default function DevisFactureFormBTP({
     statutJuridique, companyName, companySiret, companyAddress, companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber, companyAPE,
     insuranceType, insuranceName, insuranceNumber, insuranceCoverage, mediatorName, mediatorUrl,
-    clientName, clientEmail, clientPhone, clientSiret, clientAddress,
-    interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
+    clientName, clientEmail, clientPhone, clientSiret, clientAddress, clientType,
+    clientFirstName, clientLastName, clientStreet, clientFloor, clientApartmentNumber, clientPostalCode, clientCity, clientCountry,
+    interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur, ordreDeService,
     lines, materialLines, fraisLines, acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte,
     notes,
@@ -1558,8 +1612,17 @@ export default function DevisFactureFormBTP({
                   ))}
                 </div>
               </div>
-              <div className="dv-fg"><label>Nom / Raison sociale <span className="req">*</span></label><input type="text" placeholder={clientType === 'particulier' ? 'Ex : Marie Dubois' : 'Ex : SCI Le Mail, Syndic Foncia'} value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
+              {clientType === 'particulier' ? (
+                <div className="dv-fg"><label>Prénom <span className="req">*</span></label><input type="text" placeholder="Marie" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} /></div>
+              ) : (
+                <div className="dv-fg"><label>Raison sociale <span className="req">*</span></label><input type="text" placeholder="Ex : SCI Le Mail, Syndic Foncia" value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
+              )}
             </div>
+            {clientType === 'particulier' && (
+              <div className="dv-row">
+                <div className="dv-fg"><label>Nom <span className="req">*</span></label><input type="text" placeholder="Dubois" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} /></div>
+              </div>
+            )}
             <div className="dv-row">
               <div className="dv-fg"><label>Email</label><input type="email" placeholder="contact@email.fr" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
               <div className="dv-fg"><label>Téléphone</label><input type="text" placeholder="06 …" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} /></div>
@@ -1569,8 +1632,30 @@ export default function DevisFactureFormBTP({
               <div className="dv-fg"><label>SIRET</label><input type="text" placeholder="123 456 789 00012" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)} /></div>
             </div>
             )}
+            {/* Adresse client — champs détaillés (BTP). Compose clientAddress automatiquement pour le PDF V3 */}
             <div className="dv-row col1">
-              <div className="dv-fg"><label>Adresse complète (siège / domicile) <span className="req">*</span></label><input type="text" placeholder="12 rue de la Paix, 75002 Paris" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} /></div>
+              <div className="dv-fg"><label>Numéro et rue <span className="req">*</span></label><input type="text" placeholder="14 rue Colbert" value={clientStreet} onChange={(e) => setClientStreet(e.target.value)} /></div>
+            </div>
+            <div className="dv-row">
+              <div className="dv-fg"><label>Étage</label><input type="text" placeholder="3" value={clientFloor} onChange={(e) => setClientFloor(e.target.value)} /></div>
+              <div className="dv-fg"><label>N° appartement</label><input type="text" placeholder="12" value={clientApartmentNumber} onChange={(e) => setClientApartmentNumber(e.target.value)} /></div>
+            </div>
+            <div className="dv-row">
+              <div className="dv-fg"><label>Code postal <span className="req">*</span></label><input type="text" placeholder="13001" value={clientPostalCode} onChange={(e) => setClientPostalCode(e.target.value)} /></div>
+              <div className="dv-fg"><label>Ville <span className="req">*</span></label><input type="text" placeholder="Marseille" value={clientCity} onChange={(e) => setClientCity(e.target.value)} /></div>
+            </div>
+            <div className="dv-row col1">
+              <div className="dv-fg">
+                <label>Pays</label>
+                <select value={clientCountry} onChange={(e) => setClientCountry(e.target.value)}>
+                  <option value="France">France</option>
+                  <option value="Portugal">Portugal</option>
+                  <option value="Belgique">Belgique</option>
+                  <option value="Suisse">Suisse</option>
+                  <option value="Luxembourg">Luxembourg</option>
+                  <option value="Autre">Autre</option>
+                </select>
+              </div>
             </div>
             <div className="dv-row col1">
               <div className="dv-fg">
