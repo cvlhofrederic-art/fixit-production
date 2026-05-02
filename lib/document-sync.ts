@@ -129,22 +129,22 @@ export async function fetchDocumentsFromSupabase(): Promise<Record<string, unkno
   const SELECT_FIELDS_FULL = 'id,numero,client_name,status,chantier_id,created_at,total_ht_cents,raw_data'
   const SELECT_FIELDS_LEGACY = 'id,numero,client_name,status,chantier_id,created_at,total_ht_cents'
 
-  const fetchTable = async (table: 'factures' | 'devis') => {
-    let q = supabase.from(table).select(SELECT_FIELDS_FULL).eq('artisan_user_id', user.id)
+  const fetchTable = async (table: 'factures' | 'devis'): Promise<Array<Record<string, unknown>>> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const baseQuery = supabase.from(table) as any
+    let q = baseQuery.select(SELECT_FIELDS_FULL).eq('artisan_user_id', user.id)
     if (table === 'factures') q = q.is('deleted_at', null)
-    let { data, error } = await q
-    if (error && /column .*raw_data.* does not exist/i.test(error.message || '')) {
-      let q2 = supabase.from(table).select(SELECT_FIELDS_LEGACY).eq('artisan_user_id', user.id)
+    let result = await q
+    if (result.error && /column .*raw_data.* does not exist/i.test(result.error.message || '')) {
+      let q2 = baseQuery.select(SELECT_FIELDS_LEGACY).eq('artisan_user_id', user.id)
       if (table === 'factures') q2 = q2.is('deleted_at', null)
-      const retry = await q2
-      data = retry.data
-      error = retry.error
+      result = await q2
     }
-    if (error) {
-      console.error(`[document-sync] Failed to fetch ${table}:`, error.message)
+    if (result.error) {
+      console.error(`[document-sync] Failed to fetch ${table}:`, result.error.message)
       return []
     }
-    return data || []
+    return (result.data as Array<Record<string, unknown>>) || []
   }
 
   const [facData, devData] = await Promise.all([fetchTable('factures'), fetchTable('devis')])
