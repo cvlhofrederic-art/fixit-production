@@ -1,106 +1,78 @@
+import * as Sentry from '@sentry/nextjs'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { computeDocumentTotalHtCents } from '@/lib/devis-totals'
 
-// Map localStorage document status to Supabase-valid status values
-function mapStatus(doc: Record<string, unknown>, table: 'factures' | 'devis'): string {
-  const raw = (doc.status as string) || ''
-  if (table === 'devis') {
-    // Valid: draft | sent | signed | expired | cancelled
-    if (raw === 'brouillon') return 'draft'
-    if (raw === 'envoye') return 'sent'
-    if (raw === 'signe') return 'signed'
-    if (raw === 'expire') return 'expired'
-    if (raw === 'annule') return 'cancelled'
-    return 'draft'
-  } else {
-    // Valid: pending | paid | overdue | cancelled | refunded
-    if (raw === 'brouillon') return 'pending'
-    if (raw === 'envoye') return 'pending'
-    if (raw === 'paye') return 'paid'
-    if (raw === 'en_retard') return 'overdue'
-    if (raw === 'annule') return 'cancelled'
-    if (raw === 'rembourse') return 'refunded'
-    return 'pending'
-  }
-}
-
-// Calcul du total HT en centimes — delegue au helper unifie qui gere
-// TOUTES les sources de lignes (lines + materialLines + fraisLines +
-// fraisAnnexes + customTables BTP). Sans inclure customTables, un devis
-// BTP avec corps d'etat aurait un total_ht_cents partiel en DB,
-// faussant les statistiques, le pipeline, les revenus.
-function calcTotalHtCents(doc: Record<string, unknown>): number {
-  return computeDocumentTotalHtCents(doc)
-}
-
-// Sync a saved document (devis or facture) to Supabase.
-// Fire-and-forget: callers should .catch(() => {}) to stay non-blocking.
+// Sync a saved document (devis or facture) to Supabase via server-side API.
+// Pattern Pro SaaS 2026 : POST vers /api/devis/sync (Cloudflare Worker)
+// avec Authorization Bearer, validation Zod côté serveur, supabaseAdmin
+// pour bypass RLS de manière contrôlée, idempotency naturelle via
+// (numero, artisan_user_id).
+//
+// Avant : direct upsert depuis le browser anon client → user?.id null
+//   silencieusement → 0 inserts EVER en prod (cf. plan d'audit).
+//
+// Après : tout passe par /api/devis/sync, erreurs surfacées via Sentry
+//   côté caller (DevisFactureForm.tsx remplace .catch(() => {})).
 export async function syncDocumentToSupabase(
   doc: Record<string, unknown>,
   artisanId: string,
 ): Promise<void> {
-  const table: 'factures' | 'devis' = doc.docType === 'facture' ? 'factures' : 'devis'
+  const docType: 'devis' | 'facture' = doc.docType === 'facture' ? 'facture' : 'devis'
   const numero = (doc.docNumber as string) || ''
   if (!numero) return
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const userId = user?.id
-  if (!userId) return
-
-  const totalHtCents = calcTotalHtCents(doc)
-
-  // Build items JSONB from all line arrays so the row is useful without raw_data
-  const items = [
-    ...((doc.lines as unknown[]) || []),
-    ...((doc.materialLines as unknown[]) || []),
-    ...((doc.fraisLines as unknown[]) || []),
-    ...((doc.fraisAnnexes as unknown[]) || []),
-  ]
-
-  // frais_annexes: prefer dedicated field, fall back to fraisLines (BTP form)
-  const fraisAnnexes =
-    (doc.fraisAnnexes as unknown[])?.length
-      ? doc.fraisAnnexes
-      : (doc.fraisLines as unknown[]) || []
-
-  const payload = {
-    artisan_user_id: userId,
-    artisan_id: artisanId,
-    numero,
-    client_name: (doc.clientName as string) || '',
-    client_email: (doc.clientEmail as string) || null,
-    total_ht_cents: totalHtCents,
-    // total_tax_cents / total_ttc_cents: best-effort from fraisAnnexes TVA
-    total_tax_cents: 0,
-    total_ttc_cents: totalHtCents,
-    chantier_id: (doc.chantierId as string) || null,
-    frais_annexes: fraisAnnexes,
-    items,
-    status: mapStatus(doc, table),
-    // Payload complet pour restauration cross-device. La colonne raw_data
-    // est ajoutee par la migration 074 ; elle ne casse rien si elle n'existe
-    // pas encore en base (Postgres rejettera juste l'insert avec une
-    // colonne inconnue, qu'on attrape ci-dessous pour ne pas bloquer).
-    raw_data: doc,
+  // Recupere le token de session pour l'auth Bearer côté endpoint.
+  // Si pas de session : on ne peut rien sync, on remonte une erreur
+  // au caller (qui la log via Sentry au lieu de .catch silencieux).
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) {
+    throw new Error('No active session — cannot sync document')
   }
 
-  const tryUpsert = async (p: Record<string, unknown>) =>
-    supabase.from(table).upsert(p, { onConflict: 'numero,artisan_user_id' })
+  const res = await fetch('/api/devis/sync', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ docType, artisanId, doc }),
+  })
 
-  let { error } = await tryUpsert(payload)
-
-  // Fallback : si la colonne raw_data n'existe pas encore (migration 074
-  // pas appliquee), on retente sans pour ne pas bloquer la sync sommaire.
-  if (error && /column .*raw_data.* does not exist/i.test(error.message || '')) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { raw_data: _omit, ...legacy } = payload
-    const retry = await tryUpsert(legacy)
-    error = retry.error
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`devis-sync HTTP ${res.status}: ${body.slice(0, 200)}`)
   }
+}
 
-  if (error) {
-    console.error(`[document-sync] Failed to sync ${table} ${numero}:`, error.message)
-  }
+// Wrapper safe : remplace le pattern `.catch(() => {})` aux call sites
+// (DevisFactureForm.tsx + DevisFactureFormBTP.tsx). Sentry capture + toast
+// discret au lieu d'avaler silencieusement les erreurs.
+//
+// La sync reste fire-and-forget (Promise<void>) — le caller n'attend pas.
+// Anti-spam toast : 1 seul toast par 30s pour ne pas noyer l'UX si toutes
+// les sync echouent (auth perdue, reseau down).
+let _lastSyncErrorToastAt = 0
+const SYNC_TOAST_THROTTLE_MS = 30_000
+
+export function syncDocumentSafe(doc: Record<string, unknown>, artisanId: string): void {
+  syncDocumentToSupabase(doc, artisanId).catch((err: unknown) => {
+    const numero = (doc.docNumber as string) || '(sans numero)'
+    const docType = (doc.docType as string) || 'devis'
+
+    Sentry.captureException(err, {
+      tags: { feature: 'devis-sync', stage: 'client-fetch', doc_type: docType },
+      extra: { numero, artisan_id: artisanId },
+    })
+
+    const now = Date.now()
+    if (now - _lastSyncErrorToastAt > SYNC_TOAST_THROTTLE_MS) {
+      _lastSyncErrorToastAt = now
+      toast.error('Sync DB échouée — devis sauvé localement', {
+        description: 'Réessai au prochain login. Vos données sont en sécurité.',
+      })
+    }
+  })
 }
 
 // Fetch documents from Supabase factures + devis tables for the authenticated user.
