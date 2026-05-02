@@ -31,6 +31,26 @@ interface DevisDocument {
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
+// Calcule le total HT d'un devis BTP en sommant TOUTES les sources de lignes :
+// lines (main d'œuvre par défaut) + materialLines + fraisLines + customTables
+// (corps d'état). Sans ce helper, l'affichage liste ne montrait que le total
+// de `lines` — ridiculement faible pour un devis BTP enrichi.
+const computeDevisTotalHT = (doc: DevisDocument): number => {
+  const sum = (arr: DevisLine[] | undefined) =>
+    (arr || []).reduce((s, l) => s + (l.totalHT || 0), 0)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customTables = (doc as any).customTables as { lines?: DevisLine[] }[] | undefined
+  const customLines = (customTables || []).flatMap(t => t.lines || [])
+  return (
+    sum(doc.lines)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    + sum((doc as any).materialLines)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    + sum((doc as any).fraisLines)
+    + sum(customLines)
+  )
+}
+
 // Identifie un document unique
 // 1) id (Date.now() par save) — nouveaux docs
 // 2) savedAt (ISO timestamp unique par save) — anciens docs sans id
@@ -177,7 +197,7 @@ export default function DevisSection({
               </thead>
               <tbody>
                 {[...devisDocs].sort((a: DevisDocument, b: DevisDocument) => getDocSeq(a) - getDocSeq(b)).map((doc: DevisDocument, i: number) => {
-                  const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+                  const totalHT = computeDevisTotalHT(doc)
                   return (
                     <tr key={`saved-dev-${i}`}>
                       <td><span className="v22-ref">{doc.docNumber}</span></td>
@@ -378,7 +398,7 @@ function DevisSectionV5({
           </thead>
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
-              const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+              const totalHT = computeDevisTotalHT(doc)
               const badge = getV5Badge(doc)
               const dateStr = doc.docDate
                 ? new Date(doc.docDate).toLocaleDateString(dateLocale)
@@ -405,7 +425,7 @@ function DevisSectionV5({
                           title={doc.clientEmail}
                           onClick={() => {
                             const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                            const totalHTMail = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+                            const totalHTMail = computeDevisTotalHT(doc)
                             const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHTMail.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                             window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                             const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
