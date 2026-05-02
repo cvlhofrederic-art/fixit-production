@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { computeDocumentTotalHtCents } from '@/lib/devis-totals'
 
 // Map localStorage document status to Supabase-valid status values
 function mapStatus(doc: Record<string, unknown>, table: 'factures' | 'devis'): string {
@@ -23,24 +24,13 @@ function mapStatus(doc: Record<string, unknown>, table: 'factures' | 'devis'): s
   }
 }
 
-// Calculate total HT in cents from a document payload.
-// Both DevisFactureForm (fraisAnnexes) and DevisFactureFormBTP (fraisLines) are handled.
+// Calcul du total HT en centimes — delegue au helper unifie qui gere
+// TOUTES les sources de lignes (lines + materialLines + fraisLines +
+// fraisAnnexes + customTables BTP). Sans inclure customTables, un devis
+// BTP avec corps d'etat aurait un total_ht_cents partiel en DB,
+// faussant les statistiques, le pipeline, les revenus.
 function calcTotalHtCents(doc: Record<string, unknown>): number {
-  const lines = (doc.lines as Array<{ totalHT?: number }>) || []
-  const materialLines = (doc.materialLines as Array<{ totalHT?: number }>) || []
-
-  // DevisFactureForm uses fraisAnnexes with total_ht
-  const fraisAnnexes = (doc.fraisAnnexes as Array<{ total_ht?: number }>) || []
-  // DevisFactureFormBTP uses fraisLines with totalHT
-  const fraisLines = (doc.fraisLines as Array<{ totalHT?: number }>) || []
-
-  const total =
-    lines.reduce((s, l) => s + (l.totalHT || 0), 0) +
-    materialLines.reduce((s, l) => s + (l.totalHT || 0), 0) +
-    fraisAnnexes.reduce((s, f) => s + (f.total_ht || 0), 0) +
-    fraisLines.reduce((s, f) => s + (f.totalHT || 0), 0)
-
-  return Math.round(total * 100)
+  return computeDocumentTotalHtCents(doc)
 }
 
 // Sync a saved document (devis or facture) to Supabase.
