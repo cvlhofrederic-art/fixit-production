@@ -1034,3 +1034,23 @@ export const emailAgentPollGetSchema = z.object({
 
 /** UUID v4 format validator for URL parameters */
 export const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i
+
+// ── Devis/Facture sync POST schema (server-side endpoint) ─────────────────────
+// Payload : { docType, artisanId, doc } où `doc` est l'objet localStorage complet.
+// passthrough() preserve les champs additionnels (raw_data restauration cross-device).
+export const devisSyncSchema = z.object({
+  docType: z.enum(['devis', 'facture']),
+  artisanId: z.string().uuid('artisanId doit être un UUID valide'),
+  doc: z.object({
+    docNumber: z.string().min(1, 'docNumber requis').max(100),
+    docType: z.enum(['devis', 'facture']).optional(),
+    clientName: z.string().max(500).optional(),
+    clientEmail: z.string().email('email invalide').nullable().optional(),
+    chantierId: z.string().uuid('chantierId doit être un UUID valide').nullable().optional(),
+    status: z.string().max(50).optional(),
+    lines: z.array(z.unknown()).optional(),
+    materialLines: z.array(z.unknown()).optional(),
+    fraisLines: z.array(z.unknown()).optional(),
+    fraisAnnexes: z.array(z.unknown()).optional(),
+  }).passthrough(),
+})
