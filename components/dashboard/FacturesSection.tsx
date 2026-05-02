@@ -8,6 +8,7 @@ import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
+import { computeDocumentTotalHT } from '@/lib/devis-totals'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 
 // A persisted document extends DevisFactureData with storage metadata
@@ -130,7 +131,7 @@ export default function FacturesSection({
           <div className="v22-stat">
             <div className="v22-stat-label">{t('proDash.factures.caHTTotal')}</div>
             <div className="v22-stat-val">
-              {factureDocs.reduce((s, d) => s + (d.lines?.reduce((t: number, l) => t + (l.totalHT || 0), 0) || 0), 0).toFixed(2)} €
+              {factureDocs.reduce((s, d) => s + computeDocumentTotalHT(d), 0).toFixed(2)} €
             </div>
           </div>
           <div className="v22-stat">
@@ -162,7 +163,7 @@ export default function FacturesSection({
               </thead>
               <tbody>
                 {factureDocs.sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime()).map((doc, i) => {
-                  const totalHT = doc.lines?.reduce((s: number, l) => s + (l.totalHT || 0), 0) || 0
+                  const totalHT = computeDocumentTotalHT(doc)
                   const isOverdue = !!(doc.paymentDue && new Date(doc.paymentDue) < new Date())
                   const status = getStatusTag(doc, isOverdue)
                   return (
@@ -345,7 +346,7 @@ function FacturesSectionV5({
           </thead>
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
-              const totalHT = doc.lines?.reduce((s: number, l) => s + (l.totalHT || 0), 0) || 0
+              const totalHT = computeDocumentTotalHT(doc)
               // Respecte la franchise TVA (art. 293 B) : si tvaEnabled === false,
               // le total TTC = HT (pas de TVA). Sinon, calcul par ligne selon tvaRate.
               const tvaEnabled = (doc as { tvaEnabled?: boolean }).tvaEnabled !== false
