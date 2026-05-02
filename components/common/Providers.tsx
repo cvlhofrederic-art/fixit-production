@@ -5,6 +5,7 @@ import type { Locale } from '@/lib/i18n/config'
 import { useEffect, type ReactNode } from 'react'
 import { Toaster } from 'sonner'
 import { hydrateStorageFromServer, installStorageSync, pushAllLocalToServer } from '@/lib/storage-sync'
+import { importLocalStorageDocsToSupabase } from '@/lib/document-sync'
 import { createClient } from '@supabase/supabase-js'
 
 interface ProvidersProps {
@@ -55,6 +56,28 @@ function useStorageSync() {
 
         // 3. Installe le miroir (idempotent — pas de double install).
         installStorageSync()
+
+        // 4. Backfill devis/factures legacy : avant le fix sync server-side,
+        //    chaque .catch(() => {}) avalait l'erreur silencieusement → 0
+        //    inserts EVER en DB. Au premier login post-fix, on importe les
+        //    documents accumules en localStorage vers Supabase via le nouvel
+        //    endpoint /api/devis/sync. Idempotent : flag par artisan_id.
+        try {
+          const userId = data.session.user?.id
+          if (userId) {
+            const flagKey = `fixit_devis_synced_v1_${userId}`
+            if (!localStorage.getItem(flagKey)) {
+              // L'artisanId est stocke en localStorage par le dashboard apres
+              // resolution du profil. Si pas encore present, on retentera au
+              // prochain bootstrap (pas de flag pose).
+              const artisanId = localStorage.getItem(`fixit_artisan_id_${userId}`) || userId
+              const count = await importLocalStorageDocsToSupabase(artisanId)
+              if (count >= 0) {
+                localStorage.setItem(flagKey, new Date().toISOString())
+              }
+            }
+          }
+        } catch { /* tolerant : retry au prochain bootstrap */ }
       } catch { /* tolerant : le localStorage reste fonctionnel */ }
     }
 
