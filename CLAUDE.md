@@ -2,7 +2,9 @@
 
 ## Projet
 **Vitfix.io** — Plateforme mise en relation artisans/clients (B2C + B2B).
-Stack : Next.js 16.2.2, TypeScript, Tailwind CSS, Supabase, Cloudflare Workers.
+Stack : Next.js 16.2.4, React 19.2.3, TypeScript 5, Tailwind 4, Zod 4, Supabase (SSR + Realtime), Cloudflare Workers (`@opennextjs/cloudflare`).
+Mobile : Capacitor 8.1 (`com.fixit.artisan`).
+Observabilite : Sentry 10, Langfuse 3.
 Production : https://vitfix.io
 Secrets : `wrangler secret put <KEY>` (jamais de .env en clair sur disque)
 
