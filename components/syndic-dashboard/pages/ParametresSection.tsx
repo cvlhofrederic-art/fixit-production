@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js'
 import type { SignatureData } from '../types'
 import { ROLE_COLORS, getRoleLabel } from '../types'
 import { TOAST_SHORT } from '@/lib/constants'
+import { supabase } from '@/lib/supabase'
 import GmailConnectButton from '@/components/syndic-dashboard/communication/GmailConnectButton'
 
 interface ParametresSectionProps {
@@ -70,24 +71,59 @@ export default function ParametresSection({
     setTimeout(() => setParamSaved(false), TOAST_SHORT)
   }
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 200 * 1024) {
-      toast.error(locale === 'pt' ? 'O logo deve ter menos de 200KB' : 'Le logo doit faire moins de 200KB')
-      return
-    }
     if (!file.type.startsWith('image/')) {
-      toast.error(locale === 'pt' ? 'Apenas imagens (PNG, JPG)' : 'Images uniquement (PNG, JPG)')
+      toast.error(locale === 'pt' ? 'Apenas imagens (PNG, JPG, WebP)' : 'Images uniquement (PNG, JPG, WebP)')
       return
     }
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const b64 = ev.target?.result as string
-      setCabinetLogo(b64)
-      if (user) localStorage.setItem(`fixit_syndic_logo_${user.id}`, b64)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(locale === 'pt' ? 'O logo deve ter menos de 2 MB' : 'Le logo doit faire moins de 2 Mo')
+      return
     }
-    reader.readAsDataURL(file)
+    if (!user) {
+      toast.error(locale === 'pt' ? 'Sessao expirada' : 'Session expirée')
+      return
+    }
+    setUploadingLogo(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        toast.error(locale === 'pt' ? 'Nao autenticado' : 'Non authentifié')
+        return
+      }
+      // Upload vers Supabase Storage (bucket profile-photos, public).
+      // field=logo_url declenche isPublicField cote API => URL permanente.
+      // Pas d'artisan_id => l'API skip l'update profiles_artisan (correct
+      // pour syndic qui n'a pas de row la-bas).
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('bucket', 'profile-photos')
+      fd.append('folder', `syndic-logos/${user.id}`)
+      fd.append('field', 'logo_url')
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+        body: fd,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        toast.error(data.error || (locale === 'pt' ? 'Erro ao carregar' : 'Erreur de chargement'))
+        return
+      }
+      // On stocke l'URL publique (~80 octets) au lieu du base64 (jusqu'a 2 MB).
+      // Plus rapide a charger, moins de bloat localStorage/DB.
+      setCabinetLogo(data.url)
+      localStorage.setItem(`fixit_syndic_logo_${user.id}`, data.url)
+      toast.success(locale === 'pt' ? 'Logo carregado' : 'Logo chargé')
+    } catch (err) {
+      console.error('[ParametresSection] handleLogoUpload', err)
+      toast.error(locale === 'pt' ? 'Erro de rede' : 'Erreur réseau')
+    } finally {
+      setUploadingLogo(false)
+    }
   }
 
   return (
@@ -182,9 +218,11 @@ export default function ParametresSection({
                   <button onClick={() => { setCabinetLogo(null); if (user) localStorage.removeItem(`fixit_syndic_logo_${user.id}`) }} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">×</button>
                 </div>
               )}
-              <label className="cursor-pointer bg-gray-50 hover:bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-600 transition">
-                📷 {cabinetLogo ? (locale === 'pt' ? 'Alterar logo' : 'Changer le logo') : (locale === 'pt' ? 'Carregar logo (PNG/JPG, max 200KB)' : 'Charger un logo (PNG/JPG, max 200KB)')}
-                <input type="file" accept="image/png,image/jpeg" onChange={handleLogoUpload} className="hidden" />
+              <label className={`bg-gray-50 hover:bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-600 transition ${uploadingLogo ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}>
+                {uploadingLogo
+                  ? `⏳ ${locale === 'pt' ? 'A carregar…' : 'Chargement…'}`
+                  : `📷 ${cabinetLogo ? (locale === 'pt' ? 'Alterar logo' : 'Changer le logo') : (locale === 'pt' ? 'Carregar logo (PNG/JPG/WebP, max 2 MB)' : 'Charger un logo (PNG/JPG/WebP, max 2 Mo)')}`}
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoUpload} disabled={uploadingLogo} className="hidden" />
               </label>
             </div>
             {!cabinetLogo && (
