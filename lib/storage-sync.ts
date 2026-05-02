@@ -59,13 +59,11 @@ function shouldSync(key: string): boolean {
   return true
 }
 
-async function flushNow(): Promise<void> {
+async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   if (pendingWrites.size === 0 && pendingDeletes.size === 0) return
   const token = await getToken()
   if (!token) return
 
-  // Convertit les writes : on tente de parser chaque value en JSON ; si echec
-  // (ex: chaine non-JSON), on stocke la chaine telle quelle.
   const writeKeys = Array.from(pendingWrites.keys())
   const writes = writeKeys.map(k => {
     const raw = pendingWrites.get(k)!
@@ -75,13 +73,18 @@ async function flushNow(): Promise<void> {
   }).filter(e => {
     try { return JSON.stringify(e.value).length <= MAX_VALUE_BYTES } catch { return false }
   })
-  // On vide les pending IMMEDIATEMENT pour eviter de re-emettre les memes
-  // entrees si une ecriture survient pendant l'await.
+  // On vide IMMEDIATEMENT pour ne pas re-emettre les memes entrees si une
+  // ecriture survient pendant l'await (perte d'idempotence sinon).
   for (const k of writeKeys) pendingWrites.delete(k)
 
-  // Batch de POST par tranches de FLUSH_BATCH_SIZE
+  // keepalive: true survit au unload. Necessaire pour beforeunload + tablette
+  // qui ferme la session avant la fin de la requete. Limite navigateur ~64 KB
+  // par requete keepalive — au-dela on retire keepalive (le user verra ses
+  // donnees au prochain login via hydrate).
   for (let i = 0; i < writes.length; i += FLUSH_BATCH_SIZE) {
     const slice = writes.slice(i, i + FLUSH_BATCH_SIZE)
+    const body = JSON.stringify({ entries: slice })
+    const useKeepalive = opts.keepalive && body.length < 60_000
     try {
       await fetch('/api/user-storage', {
         method: 'POST',
@@ -89,15 +92,19 @@ async function flushNow(): Promise<void> {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ entries: slice }),
+        body,
+        keepalive: useKeepalive,
       })
     } catch {
-      // erreur reseau : les writes seront re-emis a la prochaine modif
-      // (le localStorage reste la source operationnelle pour l'utilisateur)
+      // erreur reseau : tolerance — le localStorage reste la source operationnelle.
+      // On re-met les writes en pending pour retry au prochain flush.
+      for (const e of slice) {
+        const raw = typeof e.value === 'string' ? e.value : JSON.stringify(e.value)
+        pendingWrites.set(e.key, raw)
+      }
     }
   }
 
-  // Deletes
   if (pendingDeletes.size > 0) {
     const deleteKeys = Array.from(pendingDeletes)
     pendingDeletes.clear()
@@ -109,9 +116,11 @@ async function flushNow(): Promise<void> {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ keys: deleteKeys }),
+        keepalive: opts.keepalive,
       })
     } catch {
-      // idem : tolerant a l'echec reseau
+      // En cas d'echec on remet les keys en pending pour retry
+      for (const k of deleteKeys) pendingDeletes.add(k)
     }
   }
 }
@@ -189,15 +198,19 @@ export function installStorageSync(): void {
     }
   }
 
-  // Flush a la fermeture de l'onglet pour ne pas perdre les pending
+  // Flush a la fermeture de l'onglet pour ne pas perdre les pending writes.
+  // Utilisation de fetch keepalive: true qui survit au unload (vs un POST
+  // classique annule par le navigateur).
   window.addEventListener('beforeunload', () => {
     if (pendingWrites.size > 0 || pendingDeletes.size > 0) {
-      // Best-effort: navigator.sendBeacon avec FormData ne supporte pas Bearer ;
-      // on tente un POST classique (peut etre annule par le navigateur mais
-      // sur un beforeunload les majeurs reussissent).
-      try {
-        flushNow()
-      } catch { /* ignore */ }
+      try { void flushNow({ keepalive: true }) } catch { /* ignore */ }
+    }
+  })
+  // Idem pour visibilitychange (mobile : l'onglet est mis en arriere-plan,
+  // pas forcement de beforeunload).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && (pendingWrites.size > 0 || pendingDeletes.size > 0)) {
+      try { void flushNow({ keepalive: true }) } catch { /* ignore */ }
     }
   })
 }
