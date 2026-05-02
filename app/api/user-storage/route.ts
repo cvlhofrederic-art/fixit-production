@@ -18,11 +18,14 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
-// On limite la taille de chaque valeur a 200 KB pour eviter le bloat.
-// Au-dela : l'usage relationnel est attendu (cf devis.raw_data, chantiers_btp…).
-const MAX_VALUE_BYTES = 200_000
-// Limite du nombre de cles par requete pour eviter le DoS.
-const MAX_ENTRIES_PER_REQUEST = 100
+// 5 MB par valeur pour absorber les cas legacy ou des fichiers sont
+// stockes en base64 directement dans le localStorage (logo cabinet syndic,
+// signature scannée, justificatifs Wallet : KBis, RC Pro, décennale).
+// Migration vers Supabase Storage prevue (phase 2) ; en attendant,
+// on accepte ces payloads pour ne perdre aucune donnee.
+const MAX_VALUE_BYTES = 5_000_000
+// Batch reduit a 10 entrees pour limiter le request body a ~50 MB max.
+const MAX_ENTRIES_PER_REQUEST = 10
 
 const upsertSchema = z.object({
   entries: z.array(z.object({
