@@ -23,9 +23,16 @@ const supabase = createClient(
 )
 
 const FIXIT_PREFIX = 'fixit_'
-const MAX_VALUE_BYTES = 200_000
+// 5 MB max par cle pour absorber les cas legacy ou des fichiers sont
+// stockes en base64 directement dans le localStorage : logo cabinet
+// syndic, signature scannée, justificatifs Wallet (KBis, RC Pro, décennale).
+// Une migration vers Supabase Storage (phase 2) est prevue pour ces cas
+// afin de stocker l'URL au lieu du base64 ; en attendant, ce seuil
+// genereux garantit qu'aucune donnee n'est silencieusement perdue.
+const MAX_VALUE_BYTES = 5_000_000
 const DEBOUNCE_MS = 500
-const FLUSH_BATCH_SIZE = 50
+// Batch de 10 pour rester sous la limite serveur (50 MB request max).
+const FLUSH_BATCH_SIZE = 10
 
 const pendingWrites = new Map<string, string>()
 const pendingDeletes = new Set<string>()
@@ -44,9 +51,11 @@ async function getToken(): Promise<string | null> {
 function shouldSync(key: string): boolean {
   if (!key.startsWith(FIXIT_PREFIX)) return false
   // On exclut quelques flags transitoires qui ne portent aucune valeur metier
-  // et seraient juste du bruit DB.
+  // et seraient juste du bruit DB (et causeraient des cycles entre devices
+  // si le flag de migration etait synchronise).
   if (key.startsWith('fixit_clean_v')) return false
   if (key === 'fixit_btp_local_migrated_v1') return false
+  if (key === 'fixit_user_storage_migrated_v1') return false
   return true
 }
 
