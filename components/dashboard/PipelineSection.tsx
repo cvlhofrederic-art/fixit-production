@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Artisan, SavedDocument } from '@/lib/types'
 import { useLocale } from '@/lib/i18n/context'
+import { computeDocumentTotalHT } from '@/lib/devis-totals'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -78,21 +79,21 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
         ...devisDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: computeDocumentTotalHT(d),
           stage:   computeStage(d, false),
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
         ...draftDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || (isPt ? 'Rascunho' : 'Brouillon'),
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: computeDocumentTotalHT(d),
           stage:   'draft',
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
         ...factureDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: computeDocumentTotalHT(d),
           stage:   'invoiced',
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
