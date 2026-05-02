@@ -717,11 +717,31 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   if (sections.length > 1) {
+    // Estime la hauteur de la PREMIÈRE ligne d'une section (motif + détail + étapes).
+    // Suffit pour décider si label+head+1re ligne tient dans la place restante.
+    // autoTable + rowPageBreak:'avoid' gèrent ensuite la pagination des lignes suivantes.
+    const estimateFirstRowH = (r: ProductLine): number => {
+      const baseH = 12 // ~minCellHeight body (32pt ≈ 11.3mm) + petit buffer
+      const detailLines = r.lineDetail ? Math.max(1, Math.ceil((r.lineDetail.length || 0) / 32)) : 0
+      const detailH = detailLines * 4 + (detailLines > 0 ? 4 : 0)
+      const validEtapes = (r.etapes || []).filter(e => e.designation?.trim())
+      const etapesH = validEtapes.reduce((s, e) => {
+        const lines = Math.max(1, Math.ceil((e.designation.length || 0) / 28))
+        return s + lines * 4 + 4
+      }, 0)
+      return baseH + detailH + etapesH + 4
+    }
+    const labelH = 6
+    const headH = 12
+
     for (const s of sections) {
-      // Évite le titre orphelin : si la place restante ne tient pas le label
-      // + l'en-tête de tableau + au moins une ligne, on saute de page avant.
-      // ~40 mm couvre label (5) + head (10) + 1 row (~12) + paddings + buffer.
-      checkPageBreak(40)
+      // Saute de page si label + head + 1re ligne ne tient pas dans la place restante.
+      // Évite à la fois l'orphelin (header sans body row) ET le sur-saut (qui laissait
+      // un tiers de page vide à chaque section). Les lignes suivantes sont paginées
+      // naturellement par autoTable, rowPageBreak:'avoid' protège chaque ligne d'une coupe.
+      const firstRowH = s.rows.length > 0 ? estimateFirstRowH(s.rows[0]) : 12
+      const minNeeded = labelH + headH + firstRowH + 4
+      checkPageBreak(minNeeded)
       drawSectionLabel(s.name)
       renderTable(buildTableBody(s.rows), y)
       y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
