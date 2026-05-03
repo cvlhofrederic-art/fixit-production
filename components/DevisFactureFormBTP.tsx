@@ -424,6 +424,11 @@ export default function DevisFactureFormBTP({
     Array.isArray(_initialTables?.customTables) ? (_initialTables.customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) : []
   )
   const [showAddTableMenu, setShowAddTableMenu] = useState(false)
+  // Modal "Nouvelle table custom" — remplace l'ancien window.prompt() natif
+  // (bloquant, non stylable, non automatable). Pattern SaaS pro 2026 : modal React.
+  const [newTableModal, setNewTableModal] = useState<{ open: boolean; cat: 'labor' | 'material' | 'frais'; catLabel: string; name: string }>({
+    open: false, cat: 'labor', catLabel: "Main d'œuvre", name: '',
+  })
 
   // Dropdown prestation ouvert (lineId ou null)
   const [openPrestaDrop, setOpenPrestaDrop] = useState<number | null>(null)
@@ -2378,15 +2383,10 @@ export default function DevisFactureFormBTP({
                       key={cat}
                       type="button"
                       onClick={() => {
-                        const name = prompt(`Nom de la nouvelle table « ${catLabel} » (ex : Électricité, Plomberie, Peinture…)`)
-                        if (name && name.trim()) {
-                          setCustomTables(prev => [...prev, {
-                            id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-                            name: name.trim().toUpperCase(),
-                            category: cat,
-                            lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
-                          }])
-                        }
+                        // Pattern SaaS pro 2026 : ouvrir un modal React custom au lieu de window.prompt()
+                        // (l'ancien prompt natif bloquait le thread JS, n'était pas stylable, et était
+                        // impossible à automatiser via Playwright/MCP).
+                        setNewTableModal({ open: true, cat, catLabel, name: '' })
                         setShowAddTableMenu(false)
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', borderTop: idx === 0 && (!materialLinesEnabled || !fraisLinesEnabled) ? '1px solid #F0F0F0' : 'none' }}
@@ -2885,6 +2885,66 @@ export default function DevisFactureFormBTP({
             </div>
             <div className="dvbtp-modal-foot">
               <button className="dvbtp-modal-btn" type="button" onClick={() => setShowClientPicker(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ MODAL : Nouvelle table custom ============ */}
+      {/* Remplace l'ancien window.prompt() bloquant. Pattern SaaS pro 2026. */}
+      {newTableModal.open && (
+        <div className="dvbtp-modal-ov" onClick={() => setNewTableModal(m => ({ ...m, open: false }))}>
+          <div className="dvbtp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 6, fontSize: 16, color: '#1a1a1a' }}>
+              Nouvelle table « {newTableModal.catLabel} »
+            </h3>
+            <p style={{ fontSize: 12, color: '#666', marginTop: 0, marginBottom: 14 }}>
+              Donnez un nom à votre nouvelle section (ex : Électricité, Plomberie, Peinture…).
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={newTableModal.name}
+              maxLength={60}
+              onChange={(e) => setNewTableModal(m => ({ ...m, name: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTableModal.name.trim()) {
+                  const cat = newTableModal.cat
+                  setCustomTables(prev => [...prev, {
+                    id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    name: newTableModal.name.trim().toUpperCase(),
+                    category: cat,
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                  }])
+                  setNewTableModal(m => ({ ...m, open: false, name: '' }))
+                } else if (e.key === 'Escape') {
+                  setNewTableModal(m => ({ ...m, open: false }))
+                }
+              }}
+              placeholder="Ex : Électricité"
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setNewTableModal(m => ({ ...m, open: false }))}
+                style={{ padding: '8px 16px', border: '1px solid #E0E0E0', borderRadius: 6, background: '#fff', color: '#555', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+              >Annuler</button>
+              <button
+                type="button"
+                disabled={!newTableModal.name.trim()}
+                onClick={() => {
+                  const cat = newTableModal.cat
+                  setCustomTables(prev => [...prev, {
+                    id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    name: newTableModal.name.trim().toUpperCase(),
+                    category: cat,
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                  }])
+                  setNewTableModal(m => ({ ...m, open: false, name: '' }))
+                }}
+                style={{ padding: '8px 16px', border: 'none', borderRadius: 6, background: newTableModal.name.trim() ? '#FFC107' : '#F0F0F0', color: newTableModal.name.trim() ? '#1a1a1a' : '#999', fontSize: 13, fontWeight: 600, cursor: newTableModal.name.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+              >Créer la table</button>
             </div>
           </div>
         </div>
