@@ -1233,9 +1233,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const legalW = ptFiscalData ? contentW - 32 : contentW
   const legalWrapped = pdf.splitTextToSize(fullLegal, legalW)
   const legalHeight = legalWrapped.length * ptToMm(10)
-  checkPageBreak(legalHeight + 4)
-  pdf.text(legalWrapped, mL, y)
-  y += legalHeight
+  // Pratique pro : les mentions légales sont collées au PIED de page (juste au
+  // dessus du footer "Page X/Y" + ref devis), pas flottantes après l'échéancier.
+  // Convention SaaS B2B (Stripe Invoicing, QuickBooks) + lecture client : le bloc
+  // légal sert de "fin de document" naturelle. Si pas la place sur la page
+  // courante, on crée une page suivante et on positionne tout en bas dessus.
+  const legalBottomMargin = 6 // 6mm = au-dessus du footer "Page X/Y" (3.2mm)
+  const legalTargetY = pageH - legalBottomMargin - legalHeight
+  if (y > legalTargetY - 2) {
+    pdf.addPage()
+  }
+  pdf.text(legalWrapped, mL, pageH - legalBottomMargin - legalHeight)
+  y = pageH - legalBottomMargin
 
   // ═══ PAGE 2 — RÉTRACTATION ═══
   // Page rétractation — FR uniquement, particuliers seulement (art. L. 221-18 C. conso.)
