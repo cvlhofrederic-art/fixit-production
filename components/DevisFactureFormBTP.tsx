@@ -1891,6 +1891,7 @@ export default function DevisFactureFormBTP({
                         {/* Titre motif */}
                         <div style={{ position: 'relative' }}>
                           <input type="text" placeholder="Saisissez ou sélectionnez une prestation…" value={l.description || ''}
+                            maxLength={200}
                             onChange={(e) => updateLine(l.id, { description: e.target.value })}
                             style={{ paddingRight: 28 }} />
                           <button type="button" tabIndex={-1}
@@ -1916,6 +1917,7 @@ export default function DevisFactureFormBTP({
                         {/* Description libre */}
                         {(l.description || '').trim() && (
                           <input type="text" placeholder="Description de la prestation…" value={l.lineDetail || ''}
+                            maxLength={500}
                             onChange={(e) => updateLine(l.id, { lineDetail: e.target.value })}
                             style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
                         )}
@@ -1929,6 +1931,7 @@ export default function DevisFactureFormBTP({
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
                                   <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{ei + 1}.</span>
                                   <input type="text" value={et.designation}
+                                    maxLength={200}
                                     placeholder="Ex : Diagnostic visuel"
                                     style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit' }}
                                     onChange={(e) => {
@@ -1942,11 +1945,17 @@ export default function DevisFactureFormBTP({
                                   onClick={() => updateLine(l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
                               </div>
                             ))}
-                            <button type="button"
-                              style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
-                              onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
-                              + étape
-                            </button>
+                            {(l.etapes?.length || 0) < 15 ? (
+                              <button type="button"
+                                style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
+                                onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                                + étape
+                              </button>
+                            ) : (
+                              <div style={{ fontSize: 11, color: '#999', marginTop: 2, fontStyle: 'italic' }}>
+                                Maximum 15 étapes par prestation
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -2040,6 +2049,7 @@ export default function DevisFactureFormBTP({
                       <td>
                         <div style={{ position: 'relative' }}>
                           <input type="text" placeholder="Saisissez ou sélectionnez un matériau…" value={l.description || ''}
+                            maxLength={200}
                             onChange={(e) => updateMaterialLine(l.id, { description: e.target.value })}
                             style={{ paddingRight: 28 }} />
                           <button type="button" tabIndex={-1}
@@ -2170,6 +2180,7 @@ export default function DevisFactureFormBTP({
                     <tr key={l.id}>
                       <td>
                         <input type="text" placeholder="Ex : Frais de déplacement, location nacelle..." value={l.description || ''}
+                          maxLength={200}
                           onChange={(e) => updateFraisLine(l.id, { description: e.target.value })} />
                       </td>
                       <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateFraisLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
@@ -2262,10 +2273,12 @@ export default function DevisFactureFormBTP({
                       <tr key={l.id}>
                         <td>
                           <input type="text" placeholder="Désignation…" value={l.description || ''}
+                            maxLength={200}
                             onChange={(e) => updateCustomLine(tbl.id, l.id, { description: e.target.value })} />
                           {/* Description libre (lineDetail) — affichée dès qu'une désignation existe, comme dans la table Services par défaut */}
                           {(l.description || '').trim() && (
                             <input type="text" placeholder="Description de la prestation…" value={l.lineDetail || ''}
+                              maxLength={500}
                               onChange={(e) => updateCustomLine(tbl.id, l.id, { lineDetail: e.target.value })}
                               style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
                           )}
@@ -2278,6 +2291,7 @@ export default function DevisFactureFormBTP({
                                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
                                     <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{ei + 1}.</span>
                                     <input type="text" value={et.designation}
+                                      maxLength={200}
                                       placeholder="Ex : Pose des rails et montants"
                                       style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit' }}
                                       onChange={(e) => {
@@ -2291,11 +2305,17 @@ export default function DevisFactureFormBTP({
                                     onClick={() => updateCustomLine(tbl.id, l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
                                 </div>
                               ))}
-                              <button type="button"
-                                style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
-                                onClick={() => updateCustomLine(tbl.id, l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
-                                + étape
-                              </button>
+                              {(l.etapes?.length || 0) < 15 ? (
+                                <button type="button"
+                                  style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
+                                  onClick={() => updateCustomLine(tbl.id, l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                                  + étape
+                                </button>
+                              ) : (
+                                <div style={{ fontSize: 11, color: '#999', marginTop: 2, fontStyle: 'italic' }}>
+                                  Maximum 15 étapes par prestation
+                                </div>
+                              )}
                             </div>
                           )}
                         </td>
