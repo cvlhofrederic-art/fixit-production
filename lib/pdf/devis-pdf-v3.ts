@@ -183,6 +183,9 @@ function sanitizeForHelvetica(s: string | null | undefined): string {
     .replace(/[☑☒]/g, '[x]').replace(/☐/g, '[ ]')
     .replace(/[​-‍﻿]/g, '') // zero-width spaces
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, '') // emojis
+    // Strip control chars (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F) — peuvent corrompre
+    // la structure PDF interne (parenthèses non balancées dans strings PDF).
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
 }
 
 /**
@@ -227,6 +230,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     insuranceNumber: _s(input.insuranceNumber),
     insuranceCoverage: _s(input.insuranceCoverage),
     mediatorName: _s(input.mediatorName),
+    mediatorUrl: _s(input.mediatorUrl),
     // Destinataire (client) + lieu d'intervention
     clientName: _s(input.clientName),
     clientAddress: _s(input.clientAddress),
@@ -238,10 +242,38 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEtage: _s(input.interventionEtage),
     interventionEspacesCommuns: _s(input.interventionEspacesCommuns),
     interventionExterieur: _s(input.interventionExterieur),
-    // Paiement (champs libres)
+    // Paiement + délais (champs libres)
+    paymentMode: _s(input.paymentMode),
+    paymentDue: _s(input.paymentDue),
     paymentCondition: _s(input.paymentCondition),
+    discount: _s(input.discount),
+    penaltyRate: _s(input.penaltyRate),
+    recoveryFee: _s(input.recoveryFee),
+    executionDelay: _s(input.executionDelay),
     iban: _s(input.iban),
     bic: _s(input.bic),
+    // Identifiants doc + référence source (peuvent contenir caractères exotiques)
+    docNumber: _s(input.docNumber),
+    sourceDevisRef: input.sourceDevisRef ? _s(input.sourceDevisRef) : null,
+    // Sections custom BTP — noms saisis librement par l'utilisateur (peuvent
+    // contenir emojis ou superscripts qui rendraient en cubes côté helvetica).
+    linesName: input.linesName ? _s(input.linesName) : undefined,
+    materialLinesName: input.materialLinesName ? _s(input.materialLinesName) : undefined,
+    fraisLinesName: input.fraisLinesName ? _s(input.fraisLinesName) : undefined,
+    customTables: input.customTables?.map(ct => ({ ...ct, name: _s(ct.name) })),
+    // Rapport joint (motif + adresse chantier saisis dans rapport d'intervention)
+    attachedRapport: input.attachedRapport ? {
+      ...input.attachedRapport,
+      rapportNumber: _s(input.attachedRapport.rapportNumber),
+      motif: input.attachedRapport.motif ? _s(input.attachedRapport.motif) : undefined,
+      siteAddress: input.attachedRapport.siteAddress ? _s(input.attachedRapport.siteAddress) : undefined,
+    } : null,
+    // Signature (signataire libre, timestamp string)
+    signatureData: input.signatureData ? {
+      ...input.signatureData,
+      signataire: _s(input.signatureData.signataire),
+      timestamp: _s(input.signatureData.timestamp),
+    } : null,
     // Notes libres
     notes: _s(input.notes),
   }
