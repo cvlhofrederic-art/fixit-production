@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
 
@@ -117,13 +118,15 @@ export function useSettings(
           }
         } catch {}
       }
+      // Toast Sonner (UX pro) au lieu de window.alert() natif (look 90s, bloquant,
+      // non automatable). Pattern SaaS pro 2026 (Stripe, Vercel, Linear).
       if (json.partial && json.warning) {
-        alert(`\u26a0\ufe0f ${t('proDash.alerts.partialSave')}: ${json.warning}`)
+        toast.warning(`${t('proDash.alerts.partialSave')}: ${json.warning}`)
       } else {
-        alert(t('proDash.alerts.profileUpdated'))
+        toast.success(t('proDash.alerts.profileUpdated'))
       }
     } catch {
-      alert(t('proDash.alerts.networkError'))
+      toast.error(t('proDash.alerts.networkError'))
     } finally {
       setSavingSettings(false)
     }
