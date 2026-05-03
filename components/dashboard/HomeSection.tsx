@@ -20,6 +20,10 @@ interface HomeSectionProps {
   setShowNewRdv: (v: boolean) => void
   setShowDevisForm: (v: boolean) => void
   setShowFactureForm: (v: boolean) => void
+  /** Callback unifié : ouvre le form devis vide (sans pré-remplissage par un ancien devis). */
+  openDevisForm: (doc?: unknown) => void
+  /** Callback unifié : ouvre le form facture vide (sans pré-remplissage par un ancien doc). */
+  openFactureForm: (doc?: unknown) => void
   setActivePage: (page: string) => void
   setSidebarOpen: (v: boolean) => void
   openNewMotif: () => void
@@ -132,6 +136,8 @@ export default function HomeSection({
   setShowNewRdv,
   setShowDevisForm,
   setShowFactureForm,
+  openDevisForm,
+  openFactureForm,
   setActivePage,
   setSidebarOpen,
   openNewMotif,
@@ -403,7 +409,7 @@ export default function HomeSection({
               </button>
             )}
             <button className="v5-btn v5-btn-sm" onClick={() => navigateTo('stats')}>{locale === 'pt' ? 'Exportar' : 'Exporter'}</button>
-            <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
+            <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
           </div>
         </div>
 
@@ -664,14 +670,14 @@ export default function HomeSection({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {orgRole === 'artisan' ? (<>
             <button className="v5-act-btn primary" onClick={() => { setShowNewRdv(true); navigateTo('calendar') }}><span style={{ fontSize: 18 }}>📅</span><span>{t('proDash.home.nouvelRdv')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>🧾</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => openFactureForm(), 50) }}><span style={{ fontSize: 18 }}>🧾</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
             <button className="v5-act-btn" onClick={() => { openNewMotif(); navigateTo('motifs') }}><span style={{ fontSize: 18 }}>🔧</span><span>{t('proDash.home.nouveauMotif')}</span></button>
           </>) : (<>
             <button className="v5-act-btn primary" onClick={() => navigateTo('equipes')}><span style={{ fontSize: 18 }}>👷</span><span>{t('proDash.home.nouvelleEquipe')}</span></button>
             <button className="v5-act-btn" onClick={() => navigateTo('chantiers')}><span style={{ fontSize: 18 }}>🏗️</span><span>{t('proDash.home.nouveauChantier')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => openFactureForm(), 50) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
           </>)}
         </div>
       </div>
@@ -693,7 +699,7 @@ export default function HomeSection({
           <button className="v22-btn v22-btn-sm" onClick={() => navigateTo('stats')}>
             {locale === 'pt' ? 'Exportar' : 'Exporter'}
           </button>
-          <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}>
+          <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}>
             + {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}
           </button>
         </div>
@@ -964,14 +970,14 @@ export default function HomeSection({
         {orgRole === 'pro_conciergerie' && <>
           <QuickAction icon="🏠" label={t('proDash.home.nouvellePropriete')} onClick={() => navigateTo('proprietes')} textColor={tv.text} />
           <QuickAction icon="📅" label={t('proDash.home.planifierVisite')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} textColor={tv.text} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} textColor={tv.text} />
+          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }} textColor={tv.text} />
           <QuickAction icon="🔑" label={t('proDash.home.gererAcces')} onClick={() => navigateTo('acces')} textColor={tv.text} />
         </>}
         {orgRole === 'pro_gestionnaire' && <>
           <QuickAction icon="📋" label={t('proDash.home.ordreDeMission')} onClick={() => navigateTo('missions')} textColor={tv.text} />
           <QuickAction icon="🏢" label={t('proDash.home.gererImmeuble')} onClick={() => navigateTo('immeubles')} textColor={tv.text} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} textColor={tv.text} />
-          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }} textColor={tv.text} />
+          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }} textColor={tv.text} />
+          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => openFactureForm(), 50) }} textColor={tv.text} />
         </>}
         </div>
       </div>
