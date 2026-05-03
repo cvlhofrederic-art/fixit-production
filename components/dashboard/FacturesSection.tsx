@@ -37,12 +37,14 @@ interface FacturesSectionProps {
   setShowFactureForm: (v: boolean) => void
   convertingDevis: PersistedDocument | null
   setConvertingDevis: (v: PersistedDocument | null) => void
+  /** Callback unifié : openFactureForm() = nouvelle, openFactureForm(doc) = édition. */
+  openFactureForm: (doc?: PersistedDocument | null) => void
   orgRole?: OrgRole
 }
 
 export default function FacturesSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
-  showFactureForm, setShowFactureForm, convertingDevis, setConvertingDevis,
+  showFactureForm, setShowFactureForm, convertingDevis, setConvertingDevis, openFactureForm,
   orgRole,
 }: FacturesSectionProps) {
   const { t } = useTranslation()
@@ -95,6 +97,7 @@ export default function FacturesSection({
       factureDocs={factureDocs}
       setShowFactureForm={setShowFactureForm}
       setConvertingDevis={setConvertingDevis}
+      openFactureForm={openFactureForm}
       artisan={artisan}
       setSavedDocuments={setSavedDocuments}
       dateLocale={dateLocale}
@@ -116,7 +119,7 @@ export default function FacturesSection({
           <div className="v22-page-title">{t('proDash.factures.title')}</div>
           <div className="v22-page-sub">{t('proDash.factures.subtitle')}</div>
         </div>
-        <button className="v22-btn v22-btn-primary" onClick={() => setShowFactureForm(true)}>
+        <button className="v22-btn v22-btn-primary" onClick={() => openFactureForm()}>
           + {t('proDash.factures.nouvelleFacture')}
         </button>
       </div>
@@ -257,7 +260,7 @@ export default function FacturesSection({
             <div style={{ fontSize: 40, marginBottom: 12 }}>{'🧾'}</div>
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: tv.text }}>{t('proDash.factures.aucuneFacture')}</div>
             <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 20 }}>{t('proDash.factures.creerPremiereFacture')}</div>
-            <button className="v22-btn v22-btn-primary" onClick={() => setShowFactureForm(true)}>
+            <button className="v22-btn v22-btn-primary" onClick={() => openFactureForm()}>
               {t('proDash.factures.creerFacture')}
             </button>
           </div>
@@ -271,12 +274,13 @@ export default function FacturesSection({
    V5 sub-component — Factures for pro_societe
    ═══════════════════════════════════════════════════════ */
 function FacturesSectionV5({
-  factureDocs, setShowFactureForm, setConvertingDevis,
+  factureDocs, setShowFactureForm, setConvertingDevis, openFactureForm,
   artisan, setSavedDocuments, dateLocale, locale, t, tv, orgRole,
 }: {
   factureDocs: PersistedDocument[]
   setShowFactureForm: (v: boolean) => void
   setConvertingDevis: (v: PersistedDocument | null) => void
+  openFactureForm: (doc?: PersistedDocument | null) => void
   artisan: Artisan
   setSavedDocuments: (docs: PersistedDocument[]) => void
   dateLocale: string
@@ -326,7 +330,7 @@ function FacturesSectionV5({
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button className="v5-btn v5-btn-p" onClick={() => setShowFactureForm(true)}>
+        <button className="v5-btn v5-btn-p" onClick={() => openFactureForm()}>
           {t('proDash.factures.nouvelle')}
         </button>
       </div>
