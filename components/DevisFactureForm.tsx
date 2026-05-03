@@ -2755,8 +2755,9 @@ export default function DevisFactureForm({
                               value={line.priceHT === 0 ? '' : line.priceHT}
                               onChange={(e) => updateLine(line.id, 'priceHT', parseDecimalInput(e.target.value))}
                               onFocus={(e) => e.target.select()}
-                              step="0.01"
+                              step="0.0001"
                               className="v22-form-input"
+                              title="Prix unitaire HT — jusqu'à 4 décimales (norme étude de prix)"
                             />
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
@@ -2872,7 +2873,7 @@ export default function DevisFactureForm({
                             <td><input type="text" className="v22-input" placeholder={locale === 'pt' ? 'Ex: Cimento, areia...' : 'Ex : Ciment, sable...'} value={line.description} onChange={(e) => updateMaterialLine(line.id, 'description', e.target.value)} /></td>
                             <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
                             <td><input type="text" className="v22-input" value={line.unit} onChange={(e) => updateMaterialLine(line.id, 'unit', e.target.value)} style={{ textAlign: 'center' }} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput(e.target.value))} style={{ textAlign: 'right' }} /></td>
+                            <td><input type="number" className="v22-input" min={0} step="0.0001" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput(e.target.value))} style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
                             {tvaEnabled && (
                               <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
                             )}
