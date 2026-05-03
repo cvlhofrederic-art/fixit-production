@@ -391,6 +391,10 @@ export default function DevisFactureFormBTP({
   const [docValidity, setDocValidity] = useState<number>(initialData?.docValidity || 30)
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<string>(initialData?.executionDelayType || 'ouvres')
+  // Date de prestation = jour effectif des travaux (différente de la date d'émission
+  // qui est la date de rédaction du devis). Optionnelle : si vide, le PDF affiche
+  // "À convenir" (même logique que executionDelay vide).
+  const [prestationDate, setPrestationDate] = useState<string>(initialData?.prestationDate || '')
 
   // Lignes prestations
   const [lines, setLines] = useState<ProductLine[]>(
@@ -975,6 +979,7 @@ export default function DevisFactureFormBTP({
       docValidity,
       executionDelayDays,
       executionDelayType,
+      prestationDate,
       // Entreprise
       companyStatus: statutJuridique,
       companyName,
@@ -1041,7 +1046,7 @@ export default function DevisFactureFormBTP({
       notes,
     }
   }, [
-    initialData, docNumber, docType, docTitle, docDate, docValidity, executionDelayDays, executionDelayType,
+    initialData, docNumber, docType, docTitle, docDate, docValidity, executionDelayDays, executionDelayType, prestationDate,
     statutJuridique, companyName, companySiret, companyAddress, companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber, companyAPE,
     insuranceType, insuranceName, insuranceNumber, insuranceCoverage, mediatorName, mediatorUrl,
@@ -1300,7 +1305,10 @@ export default function DevisFactureFormBTP({
         localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
         t,
         docType, docNumber, docTitle: docTitle || `Devis ${docNumber}`, docDate, docValidity,
-        prestationDate: docDate,
+        // Date de prestation : utilise la valeur saisie par l'utilisateur, ou
+        // chaîne vide si non renseignée → le PDF affichera "À convenir" (cf.
+        // logique dans devis-pdf-v3.ts ligne 577 et 581).
+        prestationDate: prestationDate || '',
         executionDelay: delayStr,
         companyStatus: statusCode,
         companyName, companySiret, companyAddress, companyRCS: companyRCS || '', companyCapital: companyCapital || '',
@@ -1858,6 +1866,10 @@ export default function DevisFactureFormBTP({
                   <option value="mois">mois</option>
                 </select>
               </div>
+            </div>
+            <div className="dv-fg" style={{ marginBottom: '.85rem' }}>
+              <label>Date de prestation <span style={{ color: '#999', fontWeight: 'normal', fontSize: '11px' }}>(optionnel — si vide : « À convenir » sur le PDF)</span></label>
+              <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)} />
             </div>
             <div className="dv-info-strip">
               <div className="ico">⚖️</div>
