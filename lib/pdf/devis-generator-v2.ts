@@ -618,6 +618,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   const totalNet = input.lignes.reduce((sum, l) => sum + l.total, 0)
   const stH = ptToMm(27)
+  const totH = ptToMm(27)
+  // checkPageBreak avant le bloc totaux : sinon TOTAL NET clippé en bas de page
+  // sur devis multi-sections (bug visible côté V3 BTP, même pattern ici).
+  // V2 artisan = sous-total simple (pas de TVA breakdown détaillée), donc :
+  // stH (sous-total) + 4 (gap) + totH (TOTAL NET) + 4 (marge) = ~28mm
+  const totalsBlockHV2 = stH + 4 + totH + 4
+  checkPageBreak(totalsBlockHV2)
 
   // FIX #6: 'FD' = fond gris + bordure (pas juste fond)
   pdf.setFillColor(COLOR.BG_GRAY); pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
@@ -636,7 +643,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // ═══════════════════════════════════════════════════════════
 
   y += 4  // même gap que sous TOTAL NET → BON POUR ACCORD
-  const totH = ptToMm(27)
+  // totH déjà déclaré plus haut (estimation totalsBlockHV2)
   pdf.setFillColor(COLOR.BG_GRAY)
   pdf.rect(DEST_X0, y, DEST_W, totH, 'F')
   pdf.setFontSize(12); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)

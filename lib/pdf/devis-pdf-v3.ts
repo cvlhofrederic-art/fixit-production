@@ -899,7 +899,28 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y = (pdf as any).lastAutoTable.finalY
 
   // ═══ 7. SOUS-TOTAL + TVA ═══
+  // Pre-calcul du nombre de taux TVA distincts pour estimer la hauteur du bloc
+  // totaux et éviter qu'il déborde sur les mentions légales / le footer (bug
+  // visible : TOTAL TTC clippé en bas de page sur devis multi-sections).
+  const tvaRatesPreview = tvaEnabled
+    ? new Set(
+        (sections.length > 0 ? sections.flatMap(s => s.rows) : lines)
+          .filter(l => l.description.trim() && l.tvaRate > 0)
+          .map(l => l.tvaRate),
+      )
+    : new Set<number>()
   const stH = ptToMm(27)
+  const totH = ptToMm(27)
+  const totalsBlockH =
+    stH +                                // Sous-total HT
+    tvaRatesPreview.size * 6 +           // 1 ligne par taux TVA (>0%)
+    (discount ? 6 : 0) +                 // Remise (si présente)
+    4 +                                  // Gap entre sous-total et TOTAL
+    totH +                               // Bloc TOTAL TTC / TOTAL NET
+    6                                    // Marge basse après TOTAL
+  // checkPageBreak avant le bloc totaux : si pas la place sur la page courante,
+  // on saute à la page suivante (sinon collision avec footer + mentions légales).
+  checkPageBreak(totalsBlockH)
   pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
   pdf.rect(mL, y, contentW, stH, 'FD')
 
@@ -957,7 +978,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const totalVal = tvaEnabled ? totalTTC : subtotalHT
   const totBoxX = boxX_dest
   const totBoxW = destBoxW
-  const totH = ptToMm(27)
+  // totH déjà déclaré plus haut (estimation totalsBlockH)
 
   pdf.setFillColor(COLOR_BG_GRAY)
   pdf.rect(totBoxX, y, totBoxW, totH, 'F')
