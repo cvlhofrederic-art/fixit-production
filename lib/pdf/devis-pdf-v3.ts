@@ -1277,14 +1277,35 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
   }
 
-  // TVA taux réduit (remplace CERFA supprimé fév. 2025, loi de finances 2025, art. 41)
+  // TVA taux réduit (remplace CERFA supprimé fév. 2025 par mention simplifiée
+  // sur devis + facture, loi de finances 2025 art. 41). Mention conforme aux
+  // 3 critères BOI-TVA-LIQ-30-20-90 + engagement signature client.
+  // Itère sur les sections rendues (sections.flatMap) pour BTP multi-sections,
+  // pas sur `lines` legacy qui peut être incomplet.
   if (tvaEnabled && locale !== 'pt') {
-    const usedRates = new Set(lines.filter(l => l.description.trim()).map(l => l.tvaRate))
+    const allRenderedLines = (input.laborLines && input.laborLines.length > 0)
+      || (input.materialLines && input.materialLines.length > 0)
+      || (input.fraisLines && input.fraisLines.length > 0)
+      || (input.customTables && input.customTables.length > 0)
+      ? [
+          ...(input.laborLines || []),
+          ...(input.materialLines || []),
+          ...(input.fraisLines || []),
+          ...((input.customTables || []).flatMap(ct => ct.lines || [])),
+        ]
+      : lines
+    const usedRates = new Set(allRenderedLines.filter(l => l.description.trim()).map(l => l.tvaRate))
     if (usedRates.has(5.5)) {
-      legal1 += ' Travaux de rénovation énergétique sur logement > 2 ans, taux réduit 5,5 % (art. 278-0 bis A CGI, loi de finances 2025 art. 41).'
+      legal1 += ' Travaux de rénovation énergétique sur un local affecté à l\'habitation, achevé depuis plus de 2 ans, ne concourant ni à la production d\'un immeuble neuf au sens du II de l\'article 257 du CGI, ni à une augmentation de la surface de plancher de plus de 10 %. Taux réduit 5,5 % (art. 278-0 bis A CGI). Le client certifie l\'exactitude de ces déclarations en signant le présent document (loi de finances 2025, art. 41).'
     }
     if (usedRates.has(10)) {
-      legal1 += ' Travaux d\'amélioration/entretien sur logement > 2 ans, taux réduit 10 % (art. 279-0 bis CGI, loi de finances 2025 art. 41).'
+      legal1 += ' Travaux d\'amélioration, de transformation, d\'aménagement ou d\'entretien sur un local affecté à l\'habitation, achevé depuis plus de 2 ans, ne concourant ni à la production d\'un immeuble neuf au sens du II de l\'article 257 du CGI, ni à une augmentation de la surface de plancher de plus de 10 %. Taux réduit 10 % (art. 279-0 bis CGI). Le client certifie l\'exactitude de ces déclarations en signant le présent document (loi de finances 2025, art. 41).'
+    }
+    // Cohabitation 20 % + (10 % ou 5,5 %) : mention art. 30-00 A annexe IV CGI
+    // pour expliquer pourquoi la fourniture spécifique reste au taux normal
+    // (électroménager, mobilier, etc.).
+    if (usedRates.has(20) && (usedRates.has(10) || usedRates.has(5.5))) {
+      legal1 += ' Fournitures d\'équipements ménagers, mobilier ou matériels exclus du taux réduit (art. 30-00 A annexe IV CGI), facturés au taux normal de 20 %.'
     }
   }
 
@@ -1302,19 +1323,28 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // 4. Devis / Orçamento
+  // 4. Devis / Orçamento — base légale adaptée selon contexte
   let legal2 = ''
   if (docType === 'devis') {
     legal2 = locale === 'pt'
       ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
-      : 'Devis gratuit, conformément à l\'arrêté du 24 janvier 2017 relatif à l\'information du consommateur sur les prestations de dépannage, de réparation et d\'entretien dans le secteur du bâtiment.'
+      // Information précontractuelle générale (art. L.111-1 C. conso.) + arrêté
+      // 24/01/2017 si dépannage/réparation/entretien. La mention couvre les
+      // deux cas usage (rénovation programmée + dépannage).
+      : 'Devis gratuit (art. L.111-1 C. conso.). Pour les prestations de dépannage, réparation et entretien : arrêté du 24 janvier 2017.'
   } else {
-    // Facture
-    const dueDateStr = paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---'
+    // Facture — date d'échéance précise OBLIGATOIRE B2B (art. L.441-9 4° C. com.)
+    // Calcul date absolue depuis docDate + paymentDelay (jours).
+    const paymentDelayDays = parseInt(paymentDue || '30', 10) || 30
+    const computedDue = new Date(docDate)
+    if (!isNaN(computedDue.getTime())) computedDue.setDate(computedDue.getDate() + paymentDelayDays)
+    const dueDateStr = !isNaN(computedDue.getTime())
+      ? computedDue.toLocaleDateString(dateLocaleStr)
+      : (paymentDue || '---')
     if (locale === 'pt') {
-      legal2 = `Condições de pagamento : ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
+      legal2 = `Condições de pagamento : vencimento ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
     } else {
-      legal2 = `Conditions de paiement : échéance ${dueDateStr}. Règlement : ${paymentMode || '---'}.`
+      legal2 = `Conditions de paiement : date d'échéance ${dueDateStr} (art. L.441-9 C. com.). Règlement : ${paymentMode || '---'}.`
     }
   }
 
@@ -1323,6 +1353,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (isPro) {
       // B2B : art. L. 441-10 C. com. + indemnité forfaitaire 40 € (art. D. 441-5 C. com.)
       legal2 += ` Pénalités de retard : ${penaltyRate || '3 fois le taux d\'intérêt légal en vigueur'} (art. L. 441-10 C. com.). Indemnité forfaitaire de recouvrement : 40 € (art. D. 441-5 C. com.).`
+      // Escompte facture B2B obligatoire (art. L.441-9 al. 4 C. com.) — mention
+      // même négative ("aucun escompte") est obligatoire sur la facture.
+      if (docType === 'facture') {
+        legal2 += ' Aucun escompte accordé pour paiement anticipé (art. L.441-9 al. 4 C. com.).'
+      }
     } else {
       // B2C : pénalités contractuelles, pas d'indemnité forfaitaire obligatoire
       legal2 += ` Pénalités de retard : ${penaltyRate || '3 fois le taux d\'intérêt légal en vigueur'}.`
@@ -1344,13 +1379,20 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // 8. Médiation de la consommation (particuliers uniquement, art. L. 612-1 C. conso.)
-  // Ne s'affiche que si le médiateur est explicitement renseigné
+  // Ne s'affiche que si le médiateur est explicitement renseigné — choix de
+  // l'artisan (non bloquant à la génération).
   if (isParticulier && mediatorName) {
     if (locale === 'pt') {
       legal3 += ` Resolução alternativa de litígios (Lei n.º 144/2015) : ${mediatorName}${mediatorUrl ? `, ${mediatorUrl}` : ''}.`
     } else {
       legal3 += ` Médiation de la consommation (art. L. 612-1 C. conso.) : ${mediatorName}${mediatorUrl ? `, ${mediatorUrl}` : ''}.`
     }
+  }
+
+  // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement, BTP > 500 €
+  // HT ou particulier — décret 2020-1817, art. L.541-21-2-1 C. env.).
+  if (locale !== 'pt' && (subtotalHT > 500 || isParticulier)) {
+    legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
   }
 
   const legal4 = locale === 'pt'
