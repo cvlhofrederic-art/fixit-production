@@ -681,7 +681,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setFontSize(10)
     const dims = pdf.getTextDimensions(text, { maxWidth: descColW })
     // padding cellule (top 2.5 + bot 2.5) + petit buffer pour interligne
-    const minBody = ptToMm(32) // minCellHeight body
+    const minBody = ptToMm(22) // minCellHeight body (synchronisé avec bodyStyles)
     return Math.max(minBody, dims.h + 5)
   }
 
@@ -729,13 +729,24 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     headColStyles[4] = { halign: 'right' }
   }
 
-  const renderTable = (body: any[][], startY: number) => {
+  const renderTable = (body: any[][], startY: number, sectionName?: string) => {
+    // Track la page de départ pour détecter les pages débordées (overflow).
+    // Sur ces pages, autoTable redessine le head (showHead: 'everyPage') et nous
+    // ajoutons le titre de section "(suite)" via didDrawPage pour éviter qu'une
+    // ligne body apparaisse orpheline (sans titre ni head) en haut de page.
+    const startPageNum = (pdf as any).internal.getNumberOfPages()
+    const suiteSuffix = locale === 'pt' ? ' (continuação)' : ' (suite)'
     autoTable(pdf, {
       head: tableHead,
       body,
       startY,
-      margin: { left: mL, right: mR },
-      showHead: 'firstPage',
+      // top: 22mm réservés sur les pages overflow pour le titre "(suite)" + petit
+      // espace. N'affecte PAS la 1re page de la table (où startY est utilisé).
+      margin: { left: mL, right: mR, top: 22 },
+      // 'everyPage' au lieu de 'firstPage' : si la table déborde sur une page
+      // suivante, le head est répété (Désignation / Qté / Unité / Prix / TVA /
+      // Total). Évite l'orphelin ligne body sans contexte de colonnes.
+      showHead: 'everyPage',
       theme: 'plain',
       rowPageBreak: 'avoid',
       headStyles: {
@@ -745,14 +756,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         fontSize: 8,
         cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
         halign: 'left',
-        minCellHeight: ptToMm(29),
+        // Réduit de 29pt → 16pt pour densifier le tableau sans creuser de blanc
+        // entre le head et la 1re ligne. Suffit pour fontSize 8 + paddings 3+3.
+        minCellHeight: ptToMm(16),
       },
       bodyStyles: {
         fontSize: 10,
         cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
         textColor: [13, 13, 13],
         lineWidth: 0,
-        minCellHeight: ptToMm(32),
+        // Réduit de 32pt → 22pt : minimum pour 1 ligne fontSize 10 + paddings.
+        // Plus dense visuellement, gagne ~3mm par ligne single-line.
+        minCellHeight: ptToMm(22),
         // Fond gris uniforme pour toutes les lignes (pas d'alternance blanc/gris
         // qui rendait incohérentes les sections multi-lignes comme CUISINE).
         fillColor: [245, 245, 243],
@@ -760,7 +775,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       columnStyles: colStyles as any,
       tableLineColor: [224, 224, 220],
       tableLineWidth: 0,
-      didDrawPage: () => {},
+      didDrawPage: () => {
+        // Si on est sur une page créée par autoTable (overflow), redrawer le
+        // titre de section "(suite)" pour éviter l'orphelin visuel.
+        const currentPage = (pdf as any).internal.getNumberOfPages()
+        if (sectionName && currentPage > startPageNum) {
+          pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+          pdf.text(`${sectionName}${suiteSuffix}`, mL, 18)
+        }
+      },
       didParseCell: (data: any) => {
         if (data.section === 'head' && headColStyles[data.column.index]) {
           data.cell.styles.halign = headColStyles[data.column.index].halign
@@ -816,11 +839,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const labelH = 6
     const headH = 12
     for (const s of sections) {
-      const firstRowH = s.rows.length > 0 ? measureRowHeight(s.rows[0]) : ptToMm(32)
+      const firstRowH = s.rows.length > 0 ? measureRowHeight(s.rows[0]) : ptToMm(22)
       const minNeeded = labelH + headH + firstRowH + 2 // +2mm marge sécurité
       checkPageBreak(minNeeded)
       drawSectionLabel(s.name)
-      renderTable(buildTableBody(s.rows), y)
+      // Passe le sectionName pour que renderTable puisse redessiner le titre
+      // "(suite)" sur les pages débordées via didDrawPage.
+      renderTable(buildTableBody(s.rows), y, s.name)
       y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
     }
   } else if (sections.length === 1) {
@@ -1382,11 +1407,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // ─── Page numbers ───
+  // ─── Page numbers + référence devis (pied de page) ───
+  // Le n° de devis est répété sur chaque page (à gauche) en complément du
+  // "Page X/Y" (à droite). Pratique standard SaaS pro 2026 + utile pour
+  // contrôles fiscaux : chaque page reste identifiable même imprimée séparément.
   const totalPgs = (pdf as any).internal.getNumberOfPages()
+  const footerDocRef = ptFiscalData?.docNumber || docNumber
   for (let p = 1; p <= totalPgs; p++) {
     pdf.setPage(p)
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+    pdf.text(footerDocRef, mL, pageH - 3.2)
     pdf.text(`Page ${p}/${totalPgs}`, xRight - 2, pageH - 3.2, { align: 'right' })
   }
 
