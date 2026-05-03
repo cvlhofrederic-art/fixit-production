@@ -268,7 +268,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (process.env.NODE_ENV !== 'production') {
     console.log('[PDF V2] Logo URL:', input.artisan.logo_url ? input.artisan.logo_url.substring(0, 80) + '...' : 'null/empty')
   }
-  if (input.artisan.logo_url) {
+  // Validation URL logo : allowlist domaines de confiance (anti-SSRF/XSS).
+  const ALLOWED_LOGO_DOMAINS = ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+  const isLogoUrlAllowed = (url: string): boolean => {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
+      return ALLOWED_LOGO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
+    } catch {
+      return false
+    }
+  }
+  if (input.artisan.logo_url && isLogoUrlAllowed(input.artisan.logo_url)) {
     try {
       const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image()

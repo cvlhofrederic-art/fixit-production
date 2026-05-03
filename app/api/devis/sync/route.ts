@@ -64,6 +64,28 @@ export async function POST(request: NextRequest) {
   const { docType, artisanId, doc } = v.data
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
 
+  // 3bis. Vérification ownership artisanId — empêche un utilisateur
+  // authentifié d'écrire sous l'identité d'un autre artisan partageant
+  // son user.id (cas équipe BTP). Audit 03/05/2026 CRITIQUE sécurité.
+  try {
+    const { data: ownedProfiles, error: ownErr } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('id')
+      .eq('user_id', user.id)
+    if (ownErr) {
+      logger.error('[devis-sync] ownership check failed', ownErr.message)
+      return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+    }
+    const ownsArtisan = (ownedProfiles || []).some((p: { id: string }) => p.id === artisanId)
+    if (!ownsArtisan) {
+      logger.warn(`[devis-sync] forbidden artisanId=${artisanId} user=${user.id}`)
+      return NextResponse.json({ error: 'Forbidden — artisanId does not belong to authenticated user' }, { status: 403 })
+    }
+  } catch (e) {
+    logger.error('[devis-sync] ownership check exception', e)
+    return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+  }
+
   // 4. Build DB payload
   const totalHtCents = computeDocumentTotalHtCents(doc as Record<string, unknown>)
 
