@@ -207,24 +207,39 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const _s = sanitizeForHelvetica
   const sanitizedInput: PdfV3Input = {
     ...input,
+    // Identité doc
     docTitle: _s(input.docTitle),
+    // Émetteur (entreprise) — tous les champs textuels libres ou semi-libres
     companyName: _s(input.companyName),
     companyAddress: _s(input.companyAddress),
-    companyRCS: _s(input.companyRCS),
+    companyPhone: _s(input.companyPhone),
     companyEmail: _s(input.companyEmail),
+    companySiret: _s(input.companySiret),
+    companyRCS: _s(input.companyRCS),
+    companyAPE: _s(input.companyAPE),
+    companyCapital: _s(input.companyCapital),
     tvaNumber: _s(input.tvaNumber),
+    // Assurance / médiateur (insuranceType est un enum strict, pas user-typable)
     insuranceName: _s(input.insuranceName),
+    insuranceNumber: _s(input.insuranceNumber),
     insuranceCoverage: _s(input.insuranceCoverage),
     mediatorName: _s(input.mediatorName),
+    // Destinataire (client) + lieu d'intervention
     clientName: _s(input.clientName),
     clientAddress: _s(input.clientAddress),
+    clientPhone: _s(input.clientPhone),
     clientEmail: _s(input.clientEmail),
+    clientSiret: _s(input.clientSiret),
     interventionAddress: _s(input.interventionAddress),
     interventionBatiment: _s(input.interventionBatiment),
     interventionEtage: _s(input.interventionEtage),
     interventionEspacesCommuns: _s(input.interventionEspacesCommuns),
     interventionExterieur: _s(input.interventionExterieur),
+    // Paiement (champs libres)
     paymentCondition: _s(input.paymentCondition),
+    iban: _s(input.iban),
+    bic: _s(input.bic),
+    // Notes libres
     notes: _s(input.notes),
   }
   const {
