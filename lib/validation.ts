@@ -279,7 +279,22 @@ export const artisanSettingsPostSchema = z.object({
   insurance_type: z.string().max(50).optional(),
   insurance_expiry: z.string().max(20).optional(),
   mediator_name: z.string().max(200).optional(),
-  mediator_url: z.string().max(500).optional(),
+  // mediator_url : URL valide (http/https) ; vide accepté. Évite XSS / data
+  // leak via SVG malveillant ou URL forgée. Allowlist large (médiateurs FR
+  // officiels + sites associatifs) — restriction stricte par regex éviterait
+  // les médiateurs légitimes encore non recensés.
+  mediator_url: z.string().max(500).optional().refine(
+    (v) => {
+      if (!v || v.trim() === '') return true
+      try {
+        const u = new URL(v)
+        return u.protocol === 'https:' || u.protocol === 'http:'
+      } catch {
+        return false
+      }
+    },
+    { message: 'URL médiateur invalide (http:// ou https:// requis)' },
+  ),
 })
 
 // ── Syndic Mission creation schema ───────────────────────────────────────────

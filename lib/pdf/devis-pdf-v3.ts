@@ -360,7 +360,25 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 1. LOGO (coin haut-droit, bord droit aligné avec la fin de la ligne orange) ═══
+  // Validation URL logo : allowlist domaines de confiance pour éviter SSRF/XSS
+  // (un logo SVG malveillant chargé depuis un domaine externe pourrait leak
+  // des données via <image href>, ou un PNG de 50 Mo crasherait le worker).
+  const ALLOWED_LOGO_DOMAINS = ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+  const isLogoUrlAllowed = (url: string): boolean => {
+    try {
+      const parsed = new URL(url)
+      // Refuse les schémas autres que http(s)
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
+      return ALLOWED_LOGO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
+    } catch {
+      return false
+    }
+  }
   let logoUrl = await fetchFreshLogo()
+  if (logoUrl && !isLogoUrlAllowed(logoUrl)) {
+    if (process.env.NODE_ENV !== 'production') console.warn('[PDF V3] Logo URL rejected (not in allowlist)')
+    logoUrl = null
+  }
   if (logoUrl) {
     try {
       const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
