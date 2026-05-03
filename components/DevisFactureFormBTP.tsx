@@ -149,21 +149,32 @@ const TYPES_ASSURANCE = [
 const fmt = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
-const generateDocNumber = (artisanId?: string): string => {
+/**
+ * Génère un numéro de document local-only (DERNIER recours).
+ *
+ * Préfixe DEV-/FACT-/AV- selon docType. Compatible avec la séquence serveur
+ * `next_doc_number` RPC (cf. supabase/migrations/022_doc_sequences.sql).
+ *
+ * Conformité art. 242 nonies A I 2° CGI : numérotation continue, sans
+ * rupture, par séquence chronologique unique. Cette fonction est un
+ * fallback temporaire — la source de vérité reste la RPC serveur.
+ */
+const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' | 'facture' | 'avoir'): string => {
   const year = new Date().getFullYear()
+  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : 'AV'
   try {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]')
     const all = [...docs, ...drafts]
-    const nums = all
-      .map((d: { docNumber?: string }) => d.docNumber || '')
-      .filter((n: string) => n.startsWith(`DEV-${year}-`))
-      .map((n: string) => parseInt(n.split('-')[2] || '0', 10))
-      .filter((n: number) => !isNaN(n))
-    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
-    return `DEV-${year}-${String(next).padStart(3, '0')}`
+    const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
+    const maxSeq = all
+      .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
+      .filter(Boolean)
+      .map(Number)
+      .reduce((a: number, b: number) => Math.max(a, b), 0)
+    return `${prefix}-${year}-${String(maxSeq + 1).padStart(3, '0')}`
   } catch {
-    return `DEV-${year}-001`
+    return `${prefix}-${year}-001`
   }
 }
 
@@ -188,7 +199,12 @@ export default function DevisFactureFormBTP({
   const [docType, setDocType] = useState<'devis' | 'facture'>(
     (initialData?.docType as 'devis' | 'facture') || initialDocType
   )
-  const [docNumber] = useState<string>(initialData?.docNumber || generateDocNumber(artisan?.id))
+  // Numéro de document : initialement vide ou hérité de initialData. La séquence
+  // continue (RPC `next_doc_number`) est appelée à la première sauvegarde via
+  // `fetchDocNumber()`. Évite : doublons localStorage entre devices, trous dans
+  // la séquence (art. 242 nonies A I 2° CGI), préfixes mélangés DEV/FACT.
+  const [docNumber, setDocNumber] = useState<string>(initialData?.docNumber || '')
+  const docNumberRef = React.useRef<string>(initialData?.docNumber || '')
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
@@ -597,6 +613,74 @@ export default function DevisFactureFormBTP({
     const totalHT = mulMoney(line.qty || 0, line.priceHT || 0)
     return { ...line, totalHT }
   }, [])
+
+  /**
+   * Récupère le prochain numéro de document via la séquence atomique serveur
+   * (art. 242 nonies A I 2° CGI : numérotation continue, sans rupture).
+   *
+   * 3 niveaux de fallback (mirror DevisFactureForm artisan) :
+   * 1. API HTTP /api/doc-number (avec rate limit + auth Bearer)
+   * 2. RPC Supabase `next_doc_number` (SECURITY DEFINER)
+   * 3. Compteur localStorage (DERNIER recours, peut diverger entre devices)
+   *
+   * Préfixes selon docType : DEV-/FACT-/AV-. La séquence est PAR docType,
+   * pas partagée — devis et factures ont leur compteur indépendant.
+   */
+  const fetchDocNumber = useCallback(async (): Promise<string> => {
+    if (docNumberRef.current) return docNumberRef.current
+    const year = new Date().getFullYear()
+
+    // 1) API HTTP avec Bearer token
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
+      const res = await fetch('/api/doc-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ docType, year }),
+      })
+      if (res.ok) {
+        const { number } = await res.json()
+        docNumberRef.current = number
+        setDocNumber(number)
+        return number
+      }
+    } catch { /* fallthrough */ }
+
+    // 2) RPC Supabase direct
+    try {
+      if (artisan?.id) {
+        const { data, error } = await supabase.rpc('next_doc_number', {
+          p_artisan_user_id: artisan.id,
+          p_doc_type: docType,
+          p_year: year,
+        })
+        if (!error && data) {
+          const number = String(data)
+          docNumberRef.current = number
+          setDocNumber(number)
+          return number
+        }
+      }
+    } catch { /* fallthrough */ }
+
+    // 3) Fallback localStorage (compatible préfixes DEV/FACT/AV)
+    const fallback = localFallbackDocNumber(artisan?.id, docType)
+    docNumberRef.current = fallback
+    setDocNumber(fallback)
+    return fallback
+  }, [artisan?.id, docType])
+
+  // Auto-fetch du numéro à l'init si pas déjà fourni par initialData. Évite
+  // que le formulaire affiche un numéro vide avant la première sauvegarde.
+  useEffect(() => {
+    if (!docNumber && artisan?.id) {
+      void fetchDocNumber()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artisan?.id, docType])
 
   const totaux = useMemo(() => {
     const allLines = [
