@@ -1921,11 +1921,13 @@ export default function DevisFactureFormBTP({
                             onChange={(e) => updateLine(l.id, { lineDetail: e.target.value })}
                             style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
                         )}
-                        {/* Étapes */}
-                        {l.etapes && l.etapes.length > 0 && (
+                        {/* Étapes — bloc toujours visible dès qu'une description existe (motif custom
+                            ou prédéfini). Label "Étapes" + bouton "+ étape" affichés en permanence, comme
+                            sur les custom tables, pour permettre d'ajouter la 1re étape sur un motif custom. */}
+                        {(l.description || '').trim() && (
                           <div style={{ marginTop: 8, fontSize: 12 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Étapes</div>
-                            {l.etapes.map((et, ei) => (
+                            {(l.etapes || []).map((et, ei) => (
                               <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 7, marginBottom: 6 }}>
                                 {/* Rectangle blanc : numéro + désignation (largeur totale, cohérent avec le motif du haut) */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
@@ -2282,7 +2284,8 @@ export default function DevisFactureFormBTP({
                               onChange={(e) => updateCustomLine(tbl.id, l.id, { lineDetail: e.target.value })}
                               style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
                           )}
-                          {/* Étapes optionnelles (mêmes capacités que la table Services par défaut) */}
+                          {/* Étapes optionnelles — bloc toujours visible dès qu'une description existe.
+                              Cohérent avec le pattern de la table Services. */}
                           {(l.description || '').trim() && (
                             <div style={{ marginTop: 8, fontSize: 12 }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Étapes</div>
