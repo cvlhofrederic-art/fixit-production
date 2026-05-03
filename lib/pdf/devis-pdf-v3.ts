@@ -1657,10 +1657,69 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     : docNumber
   const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
 
+  // ═══ Factur-X (PDF/A-3 + XML CII embarqué) — facture B2B FR uniquement ═══
+  // Réforme e-facturation française : septembre 2026 réception obligatoire,
+  // 2027 émission obligatoire pour toutes entreprises FR. Format = Factur-X
+  // 1.0.07 (PDF/A-3 + XML CII EN 16931 BASIC profile).
+  //
+  // Feature flag NEXT_PUBLIC_FEATURE_FACTURX permet rollback rapide en prod
+  // si bug, sans redéploiement (toggle env var Cloudflare Workers).
+  //
+  // Conditions d'activation strictes :
+  //  - docType === 'facture' (pas un devis)
+  //  - locale === 'fr' (réforme française uniquement)
+  //  - tvaEnabled (XML CII exige TVA structurée)
+  //  - clientType === 'professionnel' (B2B)
+  const facturXEnabled = (
+    typeof process !== 'undefined' &&
+    process.env?.NEXT_PUBLIC_FEATURE_FACTURX === 'true'
+  )
+  const shouldEmbedFacturX = facturXEnabled
+    && docType === 'facture'
+    && locale === 'fr'
+    && tvaEnabled
+    && clientType === 'professionnel'
+
+  let outputBytes: Uint8Array | null = null
+  if (shouldEmbedFacturX) {
+    try {
+      const [{ embedFacturX }, { generateFacturXML }] = await Promise.all([
+        import('@/lib/facturx'),
+        import('@/lib/facturx-mapper'),
+      ])
+      const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
+      const pdfBytes = new Uint8Array(pdfArrayBuffer)
+      // Build minimal DevisFactureData mapping pour le XML CII
+      const facturXData = {
+        docNumber, docTitle, docDate, paymentDue, docType, locale,
+        companyName, companySiret, companyAddress, tvaNumber,
+        clientName, clientSiret, clientAddress,
+        lines: lines.filter(l => l.description.trim()),
+        subtotalHT, totalTTC, tvaEnabled, paymentMode,
+      }
+      // generateFacturXML attend un type DevisFactureData complet ; on cast
+      // via unknown car le mapper n'utilise pas tous les champs (dépendances
+      // strictement nominales sur lines, totalHT, totalTTC, tvaEnabled, etc.).
+      // Si un champ requis manque, l'embedding échoue dans le try/catch et
+      // on retombe sur le PDF jsPDF non-Factur-X (pas de blocage utilisateur).
+      const xml = generateFacturXML(facturXData as unknown as Parameters<typeof generateFacturXML>[0])
+      outputBytes = await embedFacturX(pdfBytes, xml)
+    } catch (e) {
+      // Fallback : si l'embedding échoue, on conserve le PDF jsPDF normal.
+      // L'erreur ne doit pas bloquer la facturation.
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[PDF V3] Factur-X embedding failed, falling back to plain PDF:', e)
+      }
+      outputBytes = null
+    }
+  }
+
   if (input.action === 'preview') {
     // Use a named blob so the browser's PDF viewer shows the real filename
     // (not a UUID) when the user downloads from preview
-    const blob = pdf.output('blob')
+    const blob = outputBytes
+      ? new Blob([new Uint8Array(outputBytes)], { type: 'application/pdf' })
+      : pdf.output('blob')
     const namedFile = new File([blob], filename, { type: 'application/pdf' })
     const url = URL.createObjectURL(namedFile)
     window.open(url, '_blank')
@@ -1669,6 +1728,17 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // pour ne pas saturer la heap sur des dizaines de previews successives.
     // L'utilisateur peut toujours télécharger depuis l'onglet ouvert.
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } else if (outputBytes) {
+    // Téléchargement direct du PDF/A-3 Factur-X
+    const blob = new Blob([new Uint8Array(outputBytes)], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5_000)
   } else {
     pdf.save(filename)
   }
