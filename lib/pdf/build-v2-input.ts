@@ -1,10 +1,16 @@
 /**
  * Shared input builder for V2 PDF generator.
  * Eliminates duplication between handleTestPdfV2 and handlePreviewPdf in DevisFactureForm.
+ *
+ * V2 = artisan / auto-entrepreneur / micro-entrepreneur / EI uniquement
+ *      (par design — les SAS/SARL/SCI passent par BTP V3).
+ *
+ * Calculs : centralisés via lib/money.ts (BOFiP §50, ROUND_HALF_UP).
  */
 
 import type { DevisGeneratorInput } from './devis-generator-v2'
-import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, FraisAnnexeItem } from '@/lib/devis-types'
+import { sumMoney, computeAcomptesAmounts } from '@/lib/money'
 
 export interface BuildV2InputParams {
   // Artisan
@@ -48,6 +54,14 @@ export interface BuildV2InputParams {
 
   // Lines
   lines: ProductLine[]
+  // Matériaux + frais annexes : OBLIGATOIRE pour le calcul des acomptes
+  // (sinon acompte 30% sur 1500 € HT = 300 € au lieu de 450 €).
+  materialLines?: ProductLine[]
+  fraisAnnexes?: FraisAnnexeItem[]
+  // Ventilation TVA pré-calculée par le form (single source of truth) — V2
+  // l'utilisera pour afficher le détail TVA multi-taux quand auto-entrepreneur
+  // bascule en TVA après dépassement du seuil 293 B.
+  tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
 
   // Acomptes
   acomptesEnabled: boolean
@@ -74,11 +88,28 @@ export function buildV2Input(
     clientName, clientSiret, clientAddress, clientPhone, clientEmail,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
-    lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
+    lines, materialLines, fraisAnnexes, tvaBreakdown,
+    acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     isHorsEtablissement,
   } = params
 
-  const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
+  // Total HT global incluant labor + materials + frais annexes — utilisé
+  // pour calculer les acomptes correctement. La V2 d'origine excluait
+  // matériaux/frais, ce qui sous-calculait les acomptes (cf. audit MOY-9).
+  const validLabor = lines.filter(l => l.description.trim())
+  const validMaterials = (materialLines || []).filter(l => l.description.trim())
+  const validFrais = (fraisAnnexes || []).filter(f => (f.designation || '').trim())
+  const totalNet = sumMoney([
+    ...validLabor.map(l => l.totalHT || 0),
+    ...validMaterials.map(l => l.totalHT || 0),
+    ...validFrais.map(f => f.total_ht || 0),
+  ])
+  // Acomptes répartis avec le dernier qui rattrape le résidu d'arrondi
+  // (convention comptable Henrri/EBP/Sage). Évite que la somme des acomptes
+  // diffère du TOTAL TTC à 1-2 cents près.
+  const acomptesAmounts = acomptesEnabled
+    ? computeAcomptesAmounts(totalNet, acomptes)
+    : []
 
   return {
     artisan: {
@@ -132,9 +163,10 @@ export function buildV2Input(
         designation: e.designation,
       })),
     })),
-    acomptes: acomptesEnabled ? acomptes.map(ac => ({
+    acomptes: acomptesEnabled ? acomptes.map((ac, i) => ({
       label: ac.label,
-      montant: totalNet * ac.pourcentage / 100,
+      // Le dernier acompte absorbe le résidu d'arrondi (cf. acomptesAmounts).
+      montant: acomptesAmounts[i] ?? 0,
       declencheur: ac.declencheur,
       statut: 'en attente' as const,
     })) : undefined,
@@ -142,5 +174,6 @@ export function buildV2Input(
     mediateur: mediatorName || undefined,
     mediateur_url: mediatorUrl || undefined,
     isHorsEtablissement,
+    tvaBreakdown: tvaBreakdown && tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
   }
 }

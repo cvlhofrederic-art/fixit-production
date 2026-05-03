@@ -1259,7 +1259,15 @@ export default function DevisFactureForm({
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
-      lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
+      lines,
+      // Matériaux + frais annexes : passés au builder pour totalNet correct
+      // (sinon acomptes sous-calculés). Voir audit MOY-9.
+      materialLines,
+      fraisAnnexes,
+      // Ventilation TVA pré-calculée (single source of truth) — V2 affichera
+      // le détail multi-taux quand auto-entrepreneur en TVA.
+      tvaBreakdown: tvaEnabled ? tvaBreakdown : undefined,
+      acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
       isHorsEtablissement,
     })
   }
@@ -1276,10 +1284,11 @@ export default function DevisFactureForm({
     // Bloquer si acomptes activés mais total != 100%
     if (acomptesEnabled && acomptes.length > 0) {
       const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
-      if (totalPct !== 100) {
+      // Tolérance flottante 0.01 — sinon 33,33×3 = 99.99 IEEE bloque.
+      if (Math.abs(totalPct - 100) > 0.01) {
         toast.error(locale === 'pt'
-          ? `O total dos adiantamentos deve ser 100% (atualmente ${totalPct}%).`
-          : `Le total des acomptes doit être égal à 100% (actuellement ${totalPct}%).`)
+          ? `O total dos adiantamentos deve ser 100% (atualmente ${Math.round(totalPct)}%).`
+          : `Le total des acomptes doit être égal à 100% (actuellement ${Math.round(totalPct)}%).`)
         return
       }
     }

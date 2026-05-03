@@ -3,7 +3,14 @@
  * Matches spec: SPEC_PDF_VITFIX_PRO.md + devis_lepore_logo_arbre.pdf reference
  * Standalone generator — does NOT replace components/DevisFactureForm.tsx
  * Rollback: delete lib/pdf/ directory
+ *
+ * V2 = artisan / auto-entrepreneur / micro-entrepreneur / EI uniquement.
+ *      Les SAS/SARL/SCI passent par BTP V3 (devis-pdf-v3.ts).
+ *
+ * Calculs centralisés via lib/money.ts (BOFiP §50, ROUND_HALF_UP).
  */
+
+import { sumMoney, round2 } from '@/lib/money'
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -58,6 +65,10 @@ export interface DevisGeneratorInput {
   dechets_chantier?: string // FIX FINAL #6: mention optionnelle déchets
   isHorsEtablissement?: boolean // Rétractation B2C hors établissement uniquement
   locale?: 'fr' | 'pt'
+  // Ventilation TVA multi-taux passée par le form (auto-entrepreneur en TVA
+  // après dépassement du seuil 293 B peut avoir 5,5/10/20%). Si vide ou
+  // non fourni, V2 ignore (mode legacy single-rate).
+  tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
 }
 
 export interface LigneDevis {
@@ -613,17 +624,24 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // SOUS-TOTAL + TVA — FIX #6 (bordure FD)
+  // SOUS-TOTAL + TVA — FIX #6 (bordure FD) + multi-taux
   // ═══════════════════════════════════════════════════════════
 
-  const totalNet = input.lignes.reduce((sum, l) => sum + l.total, 0)
+  // Total HT via centimes entiers (sumMoney) — zéro drift IEEE 754.
+  const totalNet = sumMoney(input.lignes.map(l => l.total))
+  // Détection : auto-entrepreneur en TVA (a passé le seuil 293 B) → afficher
+  // ventilation TVA multi-taux. Sinon mode legacy single-rate (mention 293 B).
+  const tvaBreakdown = input.tvaBreakdown && input.tvaBreakdown.length > 0
+    ? input.tvaBreakdown
+    : []
+  const hasTvaBreakdown = tvaBreakdown.length > 0
+  const totalTVA = hasTvaBreakdown ? sumMoney(tvaBreakdown.map(t => t.amount)) : 0
+  const totalTTC = round2(totalNet + totalTVA)
+
   const stH = ptToMm(27)
   const totH = ptToMm(27)
-  // checkPageBreak avant le bloc totaux : sinon TOTAL NET clippé en bas de page
-  // sur devis multi-sections (bug visible côté V3 BTP, même pattern ici).
-  // V2 artisan = sous-total simple (pas de TVA breakdown détaillée), donc :
-  // stH (sous-total) + 4 (gap) + totH (TOTAL NET) + 4 (marge) = ~28mm
-  const totalsBlockHV2 = stH + 4 + totH + 4
+  const tvaRowH = 6
+  const totalsBlockHV2 = stH + tvaBreakdown.length * tvaRowH + 4 + totH + 4
   checkPageBreak(totalsBlockHV2)
 
   // FIX #6: 'FD' = fond gris + bordure (pas juste fond)
@@ -633,10 +651,24 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFontSize(7.5); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text(input.artisan.tva_mention, 21.16, y + stH / 2 + 1)
   pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text('Sous-total', 148.15, y + stH / 2 + 1)
+  pdf.text(hasTvaBreakdown ? 'Sous-total HT' : 'Sous-total', 148.15, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text(formatPrice(totalNet), 188.71, y + stH / 2 + 1, { align: 'right' })
   y += stH
+
+  // Détail TVA par taux (auto-entrepreneur en TVA après seuil 293 B)
+  if (hasTvaBreakdown) {
+    tvaBreakdown.forEach(({ rate, base, amount }) => {
+      if (rate === 0) return
+      pdf.setFillColor(COLOR.WHITE)
+      pdf.rect(ML + contentW / 2, y, contentW / 2, tvaRowH, 'F')
+      pdf.setFontSize(8); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+      pdf.text(`TVA ${rate}% sur ${formatPrice(base).replace(' €', ' €')}`, 148.15, y + 4)
+      pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
+      pdf.text(formatPrice(amount), 188.71, y + 4, { align: 'right' })
+      y += tvaRowH
+    })
+  }
 
   // ═══════════════════════════════════════════════════════════
   // 9. BLOC TOTAL NET (moitié droite)
@@ -647,8 +679,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFillColor(COLOR.BG_GRAY)
   pdf.rect(DEST_X0, y, DEST_W, totH, 'F')
   pdf.setFontSize(12); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(input.devis.docType === 'facture' ? 'TOTAL À RÉGLER' : 'TOTAL NET', DEST_X0 + boxPadX, y + totH / 2 + 1.5)
-  pdf.text(formatPrice(totalNet), DEST_X0 + DEST_W - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
+  // Si TVA active (auto-entrepreneur en TVA), afficher TOTAL TTC ; sinon TOTAL NET
+  const finalLabel = input.devis.docType === 'facture'
+    ? 'TOTAL À RÉGLER'
+    : (hasTvaBreakdown ? 'TOTAL TTC' : 'TOTAL NET')
+  const finalAmount = hasTvaBreakdown ? totalTTC : totalNet
+  pdf.text(finalLabel, DEST_X0 + boxPadX, y + totH / 2 + 1.5)
+  pdf.text(formatPrice(finalAmount), DEST_X0 + DEST_W - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
   y += totH + 4
 
   // ═══════════════════════════════════════════════════════════
