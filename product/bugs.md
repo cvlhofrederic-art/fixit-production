@@ -19,6 +19,29 @@
 
 ## Bugs ativos
 
+### 🟠 Violations WCAG 2.1 AA — conformidade EAA 2025
+**Descrição:** Axe-core (workflow `tests.yml`) reporta 2 tipos de violações *serious* em 8 páginas públicas após PR #87 (rapport idêntico em PRs anteriores → dette pré-existante, não introduzida pela PR PDF).
+
+**Violations détectées:**
+1. **`color-contrast` (serious)** — ~430 elementos no total. Ratio texto/fundo abaixo de WCAG AA (4.5:1 normal, 3:1 grande). Páginas afetadas: `/`, `/fr/`, `/pt/`, `/fr/services/`, `/pt/servicos/`, `/contact/`, `/auth/login/`, `/pro/register/`. Pior caso: `/pro/register/` com 325 elementos.
+2. **`link-in-text-block` (serious)** — 6 elementos. Links em parágrafos distinguidos *apenas pela cor* (sem `text-decoration: underline`). Páginas afetadas: `/`, `/fr/`, `/pt/`.
+
+**Impacto:**
+- Acessibilidade: utilizadores com deficiência visual / daltonismo não conseguem ler ou identificar links
+- Legal: **European Accessibility Act (EAA)** em vigor desde 28 jun 2025, aplica-se a Vitfix.io (B2C/B2B). Sanção potencial: multa administrativa + obrigação de remediação. Enforcement em França ainda baixo, mas risco real.
+
+**Solução proposta:**
+- Auditar pares de cores no `tailwind.config.ts` / tokens CSS, escurecer `text-text-muted` e variantes (~10 pares problemáticos)
+- Adicionar `underline` aos links em blocos de texto (componentes `<p><a>...</a></p>`)
+- Re-rodar Axe-core após fix para verificar zero serious
+
+**Estimativa:** 1-2h de trabalho focado. Mudanças visuais subtis (textos um pouco mais escuros).
+
+**Origem do report:** GitHub Actions email PR #87 (3 mai 2026), workflow `tests.yml` Axe-core (`wcag2a + wcag2aa + wcag21aa`).
+**Descoberto:** 3 mai 2026 | **Resolvido:** ⏳ pendente
+
+---
+
 ### ✅ URL da homepage PT inconsistente
 **Descrição:** 6 páginas tinham canonical URLs sem trailing slash (`/pt`, `/fr`, `/simulateur`, etc.) enquanto `trailingSlash: true` estava ativo no next.config.ts — criando mismatch entre URL servido e canonical declarado.
 **Impacto:** Conteúdo duplicado potencial para o Google
