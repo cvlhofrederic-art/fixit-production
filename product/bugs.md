@@ -19,6 +19,37 @@
 
 ## Bugs ativos
 
+### 🟡 Dialogues natifs `window.prompt()` / `window.confirm()` à remplacer
+**Descrição:** Anti-pattern UX 2026 + bloquant pour automation/tests/MCP. Les dialogues natifs JS gèlent le thread, sont non stylables, non accessibles et impossibles à interagir via Playwright/MCP.
+
+**Inventaire** (audit 3 mai 2026) :
+
+`prompt()` natif — **3 occurrences restantes** (1 corrigée dans PR du 3/5) :
+- `components/pro-mobile/pages/MobileDocumentsSection.tsx:557` — sélection chantier (UX critique mobile)
+- `components/syndic-dashboard/financial/FacturationPageWithTransferts.tsx:195` — raison de refus
+- `components/syndic-dashboard/legal/SeguroCondominioSection.tsx:490` — valeur indemnité
+
+`confirm()` natif — **~20 occurrences** dans :
+- `DevisFactureForm.tsx:1842` (convert devis)
+- `DevisSection.tsx:297, 497` (suppression devis)
+- `FacturesSection.tsx:239, 433` (suppression facture)
+- `ClientsSection.tsx:288` (suppression client)
+- `EquipesBTPV2.tsx:234, 257` (suppression membre/équipe)
+- `CompteUtilisateursSection.tsx:191`
+- `CalendarSection.tsx:706`
+- `RapportsSection.tsx:537`
+- `PhotosChantierSection.tsx:149`
+- 8 autres dans `syndic-dashboard/`
+
+**Solution proposée:** Créer un composant `<Dialog>` réutilisable (avec `prompt`/`confirm` modes) à mettre dans `components/ui/Dialog.tsx`, puis remplacer chaque appel natif. Pattern existe déjà partiellement dans `DevisFactureFormBTP.tsx` (classe CSS `dvbtp-modal-ov`).
+
+**Estimativa:** 3-4h pour tout migrer (1h composant + 30min/fichier).
+
+**Origem:** Découvert lors du test MCP du formulaire BTP — `prompt()` ligne 2386 de DevisFactureFormBTP.tsx bloquait l'automation.
+**Descoberto:** 3 mai 2026 | **Resolvido:** ⏳ partiel (1/24)
+
+---
+
 ### 🟠 Violations WCAG 2.1 AA — conformidade EAA 2025
 **Descrição:** Axe-core (workflow `tests.yml`) reporta 2 tipos de violações *serious* em 8 páginas públicas após PR #87 (rapport idêntico em PRs anteriores → dette pré-existante, não introduzida pela PR PDF).
 
