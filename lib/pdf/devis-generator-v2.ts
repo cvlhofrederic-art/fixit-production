@@ -498,7 +498,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   // Franchise en base (art. 293 B CGI) → pas de TVA → colonnes "PRIX U." / "TOTAL"
   // TVA applicable → colonnes "PRIX U. TTC" / "TOTAL TTC"
+  // Détection : tva_mention "non applicable" ET pas de tvaBreakdown reçu
+  // (un auto-entrepreneur en TVA après seuil 293 B fournit un breakdown).
   const isFranchise293B = /non applicable/i.test(input.artisan.tva_mention || '')
+    && (!input.tvaBreakdown || input.tvaBreakdown.length === 0)
   const drawTableHeader = () => {
     pdf.setFillColor(COLOR.BLACK)
     pdf.rect(ML, y, contentW, headerH, 'F')
@@ -859,9 +862,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // Rétractation et délai 7 jours : applicables UNIQUEMENT B2C hors établissement
   // et seulement pour un devis (pas sur une facture émise après prestation)
   const showRetractation = !isFacture && input.isHorsEtablissement !== false && !input.client.siret
+  // isFranchise293B d\u00E9j\u00E0 d\u00E9clar\u00E9 ligne 501 (coh\u00E9rence avec en-t\u00EAte tableau).
   const legalParagraph = [
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',
-    'TVA non applicable, article 293 B du CGI.',
+    isFranchise293B ? 'TVA non applicable, article 293 B du CGI.' : null,
     insuranceLine,
     isFacture ? null : 'Devis gratuit.',
     showRetractation ? 'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).' : null,
