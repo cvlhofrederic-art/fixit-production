@@ -1384,7 +1384,9 @@ export default function DevisFactureFormBTP({
         })).filter(t => t.lines.length > 0),
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalTTCcalc : totalNet,
-        // tvaBreakdown ajouté dans Chunk 5 (extension PdfV3Input).
+        // Ventilation TVA pré-calculée — le PDF V3 ne recalcule plus, élimine
+        // le drift form ↔ PDF observé sur 50+ lignes.
+        tvaBreakdown: tvaEnabled ? totaux.tvaBreakdown : undefined,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
