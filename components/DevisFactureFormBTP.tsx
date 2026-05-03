@@ -30,6 +30,14 @@ import {
 import { mapLegalFormToCode, titleCaseAddress } from '@/lib/devis-utils'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
+import {
+  mulMoney,
+  sumMoney,
+  round2,
+  parseDecimalInput,
+  computeAcomptesAmounts,
+  assertInvoiceInvariant,
+} from '@/lib/money'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -583,9 +591,10 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Calculs ──────── */
 
-  // Recalcule totalHT à chaque modif d'une ligne
+  // Recalcule totalHT à chaque modif d'une ligne — `mulMoney` arrondit à 2
+  // décimales et garantit l'absence de drift IEEE 754 (cf. lib/money.ts).
   const recalcLine = useCallback((line: ProductLine): ProductLine => {
-    const totalHT = (line.qty || 0) * (line.priceHT || 0)
+    const totalHT = mulMoney(line.qty || 0, line.priceHT || 0)
     return { ...line, totalHT }
   }, [])
 
@@ -596,26 +605,51 @@ export default function DevisFactureFormBTP({
       ...(fraisLinesEnabled ? fraisLines : []),
       ...customTables.flatMap(t => t.lines || []),
     ]
-    const subTotalBrut = allLines.reduce((s, l) => s + (l.qty || 0) * (l.priceHT || 0), 0)
+    // Sous-total via centimes entiers (sumMoney) — arrondi par ligne d'abord
+    // (norme BOFiP BOI-TVA-DECLA-30-20-20 §50), puis somme exacte.
+    const subTotalBrut = sumMoney(
+      allLines.map(l => mulMoney(l.qty || 0, l.priceHT || 0)),
+    )
     const remise = 0 // pas de remise globale dans la maquette V1
-    const totalHT = subTotalBrut - remise
+    const totalHT = round2(subTotalBrut - remise)
 
-    // Ventilation TVA par taux
-    const tvaMap = new Map<number, number>()
-    if (!tvaEnabled) {
-      // entreprise sans TVA → toute la ventilation à 0 / non applicable
-    } else {
+    // Ventilation TVA par taux — arrondi par taux après agrégation des bases,
+    // pour garantir l'invariant subtotalHT + Σ TVA = TTC à 0,01 € près.
+    type TvaEntry = { rate: number; base: number; amount: number }
+    const tvaMap = new Map<number, { base: number; amount: number }>()
+    if (tvaEnabled) {
       allLines.forEach((l) => {
-        const ht = (l.qty || 0) * (l.priceHT || 0)
+        const ht = mulMoney(l.qty || 0, l.priceHT || 0)
         const taux = l.tvaRate || 0
-        tvaMap.set(taux, (tvaMap.get(taux) || 0) + ht * (taux / 100))
+        const cur = tvaMap.get(taux) || { base: 0, amount: 0 }
+        // Base = somme HT par taux (arrondi à chaque ajout pour éviter drift)
+        cur.base = round2(cur.base + ht)
+        tvaMap.set(taux, cur)
+      })
+      // Calcul du montant TVA = round(base × taux/100) UNE FOIS par taux,
+      // pas par ligne. Évite que sum(round(ht × tx)) ≠ round(sum(ht) × tx).
+      tvaMap.forEach((v, taux) => {
+        v.amount = mulMoney(v.base, taux / 100)
       })
     }
-    const tvaEntries = Array.from(tvaMap.entries()).sort((a, b) => b[0] - a[0])
-    const totalTva = tvaEntries.reduce((s, [, v]) => s + v, 0)
-    const totalTTC = totalHT + totalTva
+    const tvaBreakdown: TvaEntry[] = Array.from(tvaMap.entries())
+      .map(([rate, { base, amount }]) => ({ rate, base, amount }))
+      .sort((a, b) => b.rate - a.rate)
+    // tvaEntries conservé pour rétro-compat affichage existant (label/montant).
+    const tvaEntries = tvaBreakdown.map(b => [b.rate, b.amount] as [number, number])
+    const totalTva = sumMoney(tvaBreakdown.map(b => b.amount))
+    const totalTTC = round2(totalHT + totalTva)
 
-    return { subTotalBrut, remise, totalHT, tvaEntries, totalTva, totalTTC }
+    // Invariant en dev — log warning si drift > 0,01 €.
+    if (process.env.NODE_ENV === 'development' && tvaEnabled) {
+      const inv = assertInvoiceInvariant(totalHT, totalTva, totalTTC)
+      if (!inv.ok) {
+        // eslint-disable-next-line no-console
+        console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
+      }
+    }
+
+    return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC }
   }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, tvaEnabled])
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
@@ -1294,11 +1328,12 @@ export default function DevisFactureFormBTP({
         : []
       const validCustom = customTables.flatMap(t => (t.lines || []).filter(l => (l.description || '').trim()))
       const validLines = [...validLabor, ...validMaterials, ...validFrais, ...validCustom]
-      const totalNet = validLines.reduce((s, l) => s + (l.totalHT || (l.qty || 0) * (l.priceHT || 0)), 0)
-      const totalTTCcalc = validLines.reduce((s, l) => {
-        const ht = l.totalHT || (l.qty || 0) * (l.priceHT || 0)
-        return s + ht * (1 + (l.tvaRate || 0) / 100)
-      }, 0)
+      // Source unique de vérité : `totaux` useMemo (ligne 592+) calcule
+      // déjà subtotalHT, ventilation TVA et TTC avec les helpers money.ts
+      // (arrondi BOFiP, sans drift IEEE 754). Plus de recalcul ad-hoc ici
+      // qui divergerait du form display ou du PDF (cf. audit 03/05/2026).
+      const totalNet = totaux.totalHT
+      const totalTTCcalc = totaux.totalTTC
       const currencyFormat = (n: number) => {
         const formatted = n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         // Replace narrow no-break space (\u202F) and no-break space (\u00A0)
@@ -1349,6 +1384,7 @@ export default function DevisFactureFormBTP({
         })).filter(t => t.lines.length > 0),
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalTTCcalc : totalNet,
+        // tvaBreakdown ajouté dans Chunk 5 (extension PdfV3Input).
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
@@ -2006,13 +2042,13 @@ export default function DevisFactureFormBTP({
                           </div>
                         )}
                       </td>
-                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
+                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateLine(l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2020,14 +2056,14 @@ export default function DevisFactureFormBTP({
                       </td>
                       <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const v = parseDecimalInput(e.target.value)
                           const q = l.qty || 1
                           updateLine(l.id, { priceHT: v / q })
                         }}
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const v = parseDecimalInput(e.target.value)
                           const ht = v / (1 + (l.tvaRate || 0) / 100)
                           const q = l.qty || 1
                           updateLine(l.id, { priceHT: ht / q })
@@ -2122,13 +2158,13 @@ export default function DevisFactureFormBTP({
                           )}
                         </div>
                       </td>
-                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateMaterialLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
+                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateMaterialLine(l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateMaterialLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2136,14 +2172,14 @@ export default function DevisFactureFormBTP({
                       </td>
                       <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const v = parseDecimalInput(e.target.value)
                           const q = l.qty || 1
                           updateMaterialLine(l.id, { priceHT: v / q })
                         }}
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const v = parseDecimalInput(e.target.value)
                           const ht = v / (1 + (l.tvaRate || 0) / 100)
                           const q = l.qty || 1
                           updateMaterialLine(l.id, { priceHT: ht / q })
@@ -2230,13 +2266,13 @@ export default function DevisFactureFormBTP({
                           maxLength={200}
                           onChange={(e) => updateFraisLine(l.id, { description: e.target.value })} />
                       </td>
-                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateFraisLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
+                      <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateFraisLine(l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateFraisLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2244,14 +2280,14 @@ export default function DevisFactureFormBTP({
                       </td>
                       <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const v = parseDecimalInput(e.target.value)
                           const q = l.qty || 1
                           updateFraisLine(l.id, { priceHT: v / q })
                         }}
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
                         onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                          const v = parseDecimalInput(e.target.value)
                           const ht = v / (1 + (l.tvaRate || 0) / 100)
                           const q = l.qty || 1
                           updateFraisLine(l.id, { priceHT: ht / q })
@@ -2367,13 +2403,13 @@ export default function DevisFactureFormBTP({
                             </div>
                           )}
                         </td>
-                        <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value.replace(',', '.')) || 0 })} /></td>
+                        <td><input type="number" inputMode="decimal" min={0} step="0.01" placeholder="0" value={l.qty || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
                         <td>
                           <select value={l.unit} onChange={(e) => updateCustomLine(tbl.id, l.id, { unit: e.target.value })}>
                             {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                           </select>
                         </td>
-                        <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                        <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: parseDecimalInput(e.target.value) })} /></td>
                         <td>
                           <select value={l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2453,7 +2489,7 @@ export default function DevisFactureFormBTP({
                         {DECLENCHEURS_ACOMPTE.map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
                       <div className="dv-acompte-input-pct">
-                        <input type="number" min={0} max={100} value={a.pourcentage} onChange={(e) => updateAcompte(a.id, { pourcentage: parseFloat(e.target.value) || 0 })} />
+                        <input type="number" min={0} max={100} value={a.pourcentage} onChange={(e) => updateAcompte(a.id, { pourcentage: parseDecimalInput(e.target.value, 100) })} />
                         <span>%</span>
                       </div>
                       <span className="dv-acompte-eq">= {fmt(eq)}</span>
@@ -2465,10 +2501,10 @@ export default function DevisFactureFormBTP({
                   <button className="devis-top-btn" type="button" style={{ fontSize: 11 }} onClick={addAcompte}>+ Ajouter un acompte</button>
                   <button className="devis-top-btn" type="button" style={{ fontSize: 11 }} onClick={saveEcheancierAsDefault}>Enregistrer comme défaut</button>
                 </div>
-                <div className={`dv-echelon-warning ${totalAcomptePct === 100 ? 'green' : 'orange'}`}>
-                  Total échelonné : {totalAcomptePct.toFixed(0)}% {totalAcomptePct === 100 ? '✓' : '⚠️'}
+                <div className={`dv-echelon-warning ${Math.abs(totalAcomptePct - 100) < 0.01 ? 'green' : 'orange'}`}>
+                  Total échelonné : {totalAcomptePct.toFixed(0)}% {Math.abs(totalAcomptePct - 100) < 0.01 ? '✓' : '⚠️'}
                   <span className="sub">
-                    {totalAcomptePct === 100
+                    {Math.abs(totalAcomptePct - 100) < 0.01
                       ? 'Le règlement est intégralement réparti.'
                       : `Les ${(100 - totalAcomptePct).toFixed(0)}% restants seront réglés séparément.`
                     }
