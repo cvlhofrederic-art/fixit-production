@@ -192,6 +192,26 @@ function DashboardPage() {
     handleEmptyCellClick, handleBookingClick, transformBookingToDevis, convertDevisToFacture,
   } = bkHook
 
+  /**
+   * Callbacks unifiés pour ouvrir les formulaires devis/facture.
+   * Garantit que le state `convertingDevis` est toujours dans l'état attendu :
+   * - openDevisForm()       → formulaire vide (nouveau devis)
+   * - openDevisForm(doc)    → formulaire pré-rempli (édition / duplication)
+   *
+   * Évite le bug où un ancien devis édité fuit dans un "+ Nouveau devis" parce
+   * que le bouton appelait setShowDevisForm(true) sans reset de convertingDevis.
+   * Pattern pro SaaS : single source of truth pour l'ouverture des forms.
+   */
+  const openDevisForm = useCallback((doc: typeof convertingDevis | null = null) => {
+    setConvertingDevis(doc)
+    setShowDevisForm(true)
+  }, [setConvertingDevis, setShowDevisForm])
+
+  const openFactureForm = useCallback((doc: typeof convertingDevis | null = null) => {
+    setConvertingDevis(doc)
+    setShowFactureForm(true)
+  }, [setConvertingDevis, setShowFactureForm])
+
   const calHook = useCalendar(bookings, availability, dateFmtLocale, t)
   const { calendarView, setCalendarView, selectedDay, setSelectedDay, getBookingsForDate, getWorkingWeekDates, getCalendarTitle, navigateCalendar, getMonthDays } = calHook
 
@@ -793,6 +813,7 @@ function DashboardPage() {
               totalRevenue={totalRevenue} firstName={firstName}
               navigateTo={navigateTo} setShowNewRdv={setShowNewRdv}
               setShowDevisForm={setShowDevisForm} setShowFactureForm={setShowFactureForm}
+              openDevisForm={openDevisForm} openFactureForm={openFactureForm}
               setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
             />
@@ -939,6 +960,7 @@ function DashboardPage() {
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
+              openDevisForm={openDevisForm as any}
               convertDevisToFacture={handleConvertDevisToFacture as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
               orgRole={orgRole}
@@ -955,6 +977,7 @@ function DashboardPage() {
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showFactureForm={showFactureForm} setShowFactureForm={setShowFactureForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
+              openFactureForm={openFactureForm as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
               orgRole={orgRole}
             />
