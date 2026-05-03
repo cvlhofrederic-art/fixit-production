@@ -115,11 +115,15 @@ const DECLENCHEURS_ACOMPTE = [
   '60 jours',
 ] as const
 
+// Plafond espèces : variable selon statut client (B2C 1 000 €, B2B 3 000 €,
+// touriste non résident fiscal FR 15 000 €). Mention générique pour ne pas
+// induire en erreur — l'artisan reste responsable du respect du plafond.
+// Ref : art. L.112-6 C. monétaire et financier + décret 2015-741.
 const MODES_PAIEMENT = [
   'Virement bancaire',
   'Chèque',
   'Carte bancaire',
-  'Espèces (≤ 1000 €)',
+  'Espèces (selon plafond légal applicable)',
   'Prélèvement SEPA',
 ] as const
 
@@ -359,6 +363,14 @@ export default function DevisFactureFormBTP({
 
   // TVA
   const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
+  // Autoliquidation BTP sous-traitance (art. 283, 2 nonies CGI) : quand le
+  // pro BTP est SOUS-TRAITANT d'une autre entreprise principale, il NE
+  // collecte PAS la TVA — le donneur d'ordre l'autoliquide. Mention obligatoire
+  // sur le devis/facture. Quand actif, force tva à 0% sur toutes les lignes
+  // et ajoute la mention au PDF.
+  const [autoliquidationBTP, setAutoliquidationBTP] = useState<boolean>(
+    Boolean((initialData as { autoliquidationBTP?: boolean })?.autoliquidationBTP),
+  )
 
   // Client
   const [clientType, setClientType] = useState<'particulier' | 'professionnel'>(
@@ -1160,6 +1172,8 @@ export default function DevisFactureFormBTP({
       penaltyRate,
       recoveryFee,
       escompte,
+      // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI)
+      autoliquidationBTP,
       // Notes
       notes,
     }
@@ -1174,7 +1188,7 @@ export default function DevisFactureFormBTP({
     lines, materialLines, fraisLines,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
-    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte,
+    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP,
     notes,
   ])
 
@@ -1397,6 +1411,13 @@ export default function DevisFactureFormBTP({
     try {
       const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
+      // Auto-détection clientType : si un SIRET 14 chiffres a été saisi, le
+      // client est forcément pro (sinon les mentions B2C/B2B sont inversées,
+      // notamment la rétractation 14 jours qui ne s'applique PAS aux pros).
+      // Cf. audit 03/05/2026 ÉLEVÉ EL-8.
+      const cleanSiret = (clientSiret || '').replace(/\s/g, '')
+      const detectedClientType: 'particulier' | 'professionnel' =
+        cleanSiret.length === 14 ? 'professionnel' : clientType
       const validLabor = lines.filter(l => (l.description || '').trim())
       // Si la section Matériaux/Frais est désactivée par l'utilisateur (toggle),
       // ses lignes ne doivent PAS compter dans les totaux — sinon mismatch entre
@@ -1444,8 +1465,8 @@ export default function DevisFactureFormBTP({
         companyPhone, companyEmail,
         tvaEnabled, tvaNumber: tvaNumber || '', companyAPE: companyAPE || '',
         insuranceName: insuranceName || '', insuranceNumber: insuranceNumber || '', insuranceCoverage: insuranceCoverage || '', insuranceType,
-        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: clientType === 'particulier',
-        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType,
+        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: detectedClientType === 'particulier',
+        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType: detectedClientType,
         interventionAddress: interventionAddress || '', interventionBatiment: interventionBatiment || '', interventionEtage: interventionEtage || '',
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
@@ -1471,6 +1492,8 @@ export default function DevisFactureFormBTP({
         // Ventilation TVA pré-calculée — le PDF V3 ne recalcule plus, élimine
         // le drift form ↔ PDF observé sur 50+ lignes.
         tvaBreakdown: tvaEnabled ? totaux.tvaBreakdown : undefined,
+        // Autoliquidation BTP sous-traitance — mention obligatoire au PDF
+        autoliquidationBTP,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,

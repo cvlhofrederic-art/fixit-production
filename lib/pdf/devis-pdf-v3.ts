@@ -128,6 +128,10 @@ export interface PdfV3Input {
   // Ventilation TVA pré-calculée par le form (single source of truth) — élimine
   // le drift form ↔ PDF. Fallback sur recompute si non fourni (legacy).
   tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
+  // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI) : quand le
+  // pro est sous-traitant, il NE collecte PAS la TVA — le donneur d'ordre
+  // l'autoliquide. Mention obligatoire sur le devis/facture.
+  autoliquidationBTP?: boolean
 
   // Acomptes
   acomptesEnabled: boolean
@@ -291,7 +295,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput,
+    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -1275,6 +1279,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
   } else if (tvaNumber) {
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
+  }
+
+  // 2bis. Autoliquidation BTP sous-traitance (art. 283, 2 nonies CGI) — quand
+  // le pro BTP est sous-traitant, le donneur d'ordre autoliquide la TVA.
+  // La mention est OBLIGATOIRE pour que la facture soit conforme (sinon
+  // requalification + amende 50% des droits).
+  if (autoliquidationBTP && locale !== 'pt') {
+    legal1 += ' Autoliquidation par le preneur — TVA due par le donneur d\'ordre (art. 283, 2 nonies CGI).'
   }
 
   // TVA taux réduit (remplace CERFA supprimé fév. 2025 par mention simplifiée
