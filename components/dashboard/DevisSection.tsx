@@ -80,13 +80,15 @@ interface DevisSectionProps {
   setShowDevisForm: (v: boolean) => void
   convertingDevis: DevisDocument | null
   setConvertingDevis: (v: DevisDocument | null) => void
+  /** Callback unifié : openDevisForm() = nouveau, openDevisForm(doc) = édition. */
+  openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
   orgRole?: OrgRole
 }
 
 export default function DevisSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
-  showDevisForm, setShowDevisForm, convertingDevis, setConvertingDevis,
+  showDevisForm, setShowDevisForm, convertingDevis, setConvertingDevis, openDevisForm,
   convertDevisToFacture, orgRole,
 }: DevisSectionProps) {
   const { t } = useTranslation()
@@ -131,6 +133,7 @@ export default function DevisSection({
       devisDocs={devisDocs}
       setShowDevisForm={setShowDevisForm}
       setConvertingDevis={setConvertingDevis}
+      openDevisForm={openDevisForm}
       convertDevisToFacture={convertDevisToFacture}
       artisan={artisan}
       setSavedDocuments={setSavedDocuments}
@@ -152,7 +155,7 @@ export default function DevisSection({
           <div className="v22-page-title">{'📄'} {t('proDash.devis.title')}</div>
           <div className="v22-page-sub">{t('proDash.devis.subtitle')}</div>
         </div>
-        <button onClick={() => { setConvertingDevis(null); setShowDevisForm(true) }} className="v22-btn v22-btn-primary">
+        <button onClick={() => openDevisForm()} className="v22-btn v22-btn-primary">
           + {t('proDash.devis.nouveauDevis')}
         </button>
       </div>
@@ -316,7 +319,7 @@ export default function DevisSection({
             <div style={{ fontSize: 40, marginBottom: 12 }}>{'📄'}</div>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: tv.text }}>{t('proDash.devis.aucunDevis')}</div>
             <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 16 }}>{t('proDash.devis.creerPremierDevis')}</div>
-            <button onClick={() => { setConvertingDevis(null); setShowDevisForm(true) }} className="v22-btn v22-btn-primary">
+            <button onClick={() => openDevisForm()} className="v22-btn v22-btn-primary">
               {t('proDash.devis.creerDevis')}
             </button>
           </div>
@@ -330,12 +333,13 @@ export default function DevisSection({
    V5 sub-component — Devis for pro_societe
    ═══════════════════════════════════════════════════════ */
 function DevisSectionV5({
-  devisDocs, setShowDevisForm, setConvertingDevis, convertDevisToFacture,
+  devisDocs, setShowDevisForm, setConvertingDevis, openDevisForm, convertDevisToFacture,
   artisan, setSavedDocuments, dateLocale, locale, t, orgRole,
 }: {
   devisDocs: DevisDocument[]
   setShowDevisForm: (v: boolean) => void
   setConvertingDevis: (v: DevisDocument | null) => void
+  openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
   artisan: Artisan | null
   setSavedDocuments: (docs: DevisDocument[]) => void
@@ -377,7 +381,7 @@ function DevisSectionV5({
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button className="v5-btn v5-btn-p" onClick={() => { setConvertingDevis(null); setShowDevisForm(true) }}>
+        <button className="v5-btn v5-btn-p" onClick={() => openDevisForm()}>
           + {t('proDash.devis.creerDevisV5')}
         </button>
       </div>
