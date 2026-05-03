@@ -125,6 +125,9 @@ export interface PdfV3Input {
   customTables?: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
   subtotalHT: number
   totalTTC: number
+  // Ventilation TVA pré-calculée par le form (single source of truth) — élimine
+  // le drift form ↔ PDF. Fallback sur recompute si non fourni (legacy).
+  tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
 
   // Acomptes
   acomptesEnabled: boolean
@@ -256,7 +259,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC,
+    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -937,20 +940,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   y += stH
 
-  // Détail TVA par taux — itère sur les lignes RÉELLEMENT rendues (sections),
-  // sans dédoubler avec `lines` qui est l'union envoyée par les nouveaux callers.
+  // Détail TVA par taux — single source of truth : on utilise tvaBreakdown
+  // calculé par le form (avec arrondi BOFiP par taux après agrégation des
+  // bases). Élimine le drift form ↔ PDF observé sur 50+ lignes.
+  // Fallback : si pas de tvaBreakdown fourni (legacy callers), on recalcule
+  // avec la même logique d'arrondi par taux.
   if (tvaEnabled) {
-    const tvaByRate: Record<number, { base: number; amount: number }> = {}
-    const allTvaLines: ProductLine[] = sections.length > 0
-      ? sections.flatMap(s => s.rows)
-      : lines
-    allTvaLines.filter(l => l.description.trim()).forEach(l => {
-      if (!tvaByRate[l.tvaRate]) tvaByRate[l.tvaRate] = { base: 0, amount: 0 }
-      tvaByRate[l.tvaRate].base += l.totalHT
-      tvaByRate[l.tvaRate].amount += l.totalHT * l.tvaRate / 100
-    })
-    Object.entries(tvaByRate).forEach(([rate, { base, amount }]) => {
-      if (Number(rate) === 0) return
+    let breakdown: Array<{ rate: number; base: number; amount: number }> = []
+    if (tvaBreakdownInput && tvaBreakdownInput.length > 0) {
+      breakdown = tvaBreakdownInput
+    } else {
+      const tvaByRate = new Map<number, { base: number; amount: number }>()
+      const allTvaLines: ProductLine[] = sections.length > 0
+        ? sections.flatMap(s => s.rows)
+        : lines
+      allTvaLines.filter(l => l.description.trim()).forEach(l => {
+        const cur = tvaByRate.get(l.tvaRate) || { base: 0, amount: 0 }
+        // Base = somme HT par taux, arrondi à chaque ajout (anti-drift IEEE)
+        cur.base = Math.round((cur.base + (l.totalHT || 0)) * 100) / 100
+        tvaByRate.set(l.tvaRate, cur)
+      })
+      // Calcul amount = base × taux / 100 UNE FOIS par taux (pas par ligne)
+      tvaByRate.forEach((v, rate) => {
+        v.amount = Math.round(v.base * rate) / 100
+      })
+      breakdown = Array.from(tvaByRate.entries())
+        .map(([rate, { base, amount }]) => ({ rate, base, amount }))
+        .sort((a, b) => b.rate - a.rate)
+    }
+    breakdown.forEach(({ rate, base, amount }) => {
+      if (rate === 0) return
       pdf.setFillColor(COLOR_WHITE)
       pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
@@ -961,8 +980,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     })
   }
 
-  // Remise
+  // Remise — extrait le montant numérique pour le déduire du TOTAL.
+  // Format accepté : "100", "100€", "100 €", "100,50 €", "100.50".
+  // Si parse échoue (chaîne libre type "Remise commerciale"), on n'applique
+  // pas de déduction (juste l'affichage informatif — comportement legacy).
+  let discountAmount = 0
   if (discount) {
+    const parsed = parseFloat(String(discount).replace(',', '.').replace(/[^\d.-]/g, ''))
+    if (Number.isFinite(parsed) && parsed > 0) discountAmount = parsed
     pdf.setFillColor(COLOR_WHITE)
     pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
@@ -975,7 +1000,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // ═══ 8. BLOC TOTAL NET ═══
   y += 4
 
-  const totalVal = tvaEnabled ? totalTTC : subtotalHT
+  // Le TOTAL affiché DÉDUIT effectivement la remise — sinon le client lit
+  // "Remise -500€" puis "TOTAL 12 500€" alors qu'il devrait payer 12 000€
+  // (bug audit 03/05/2026 finding CRITIQUE #6 + ÉLEVÉ).
+  const totalRaw = tvaEnabled ? totalTTC : subtotalHT
+  const totalVal = Math.max(0, Math.round((totalRaw - discountAmount) * 100) / 100)
   const totBoxX = boxX_dest
   const totBoxW = destBoxW
   // totH déjà déclaré plus haut (estimation totalsBlockH)
