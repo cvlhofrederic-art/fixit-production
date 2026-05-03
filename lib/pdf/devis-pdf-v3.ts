@@ -805,16 +805,23 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
           // padding compact, indentation à gauche pour bien distinguer la
           // hiérarchie visuelle parent / enfant.
           if (kind === 'desc') {
+            // Alignement pixel-perfect : même cellPadding.left (3) que la row parent
+            // pour que la description commence exactement sous le motif. La
+            // différenciation visuelle est assurée par fontSize 9 + italique +
+            // couleur gris foncé (#555).
             data.cell.styles.fontSize = 9
             data.cell.styles.fontStyle = 'italic'
             data.cell.styles.textColor = [85, 85, 85]
             data.cell.styles.minCellHeight = 0
-            data.cell.styles.cellPadding = { top: 1, bottom: 1, left: data.column.index === 0 ? 8 : 3, right: 3 }
+            data.cell.styles.cellPadding = { top: 1, bottom: 1, left: 3, right: 3 }
           } else if (kind === 'etape') {
+            // Alignement pixel-perfect : même cellPadding.left que parent. La
+            // numérotation "1." "2." "3." en début de texte indique déjà la
+            // hiérarchie d'étape, pas besoin d'indentation supplémentaire.
             data.cell.styles.fontSize = 9
             data.cell.styles.textColor = [40, 40, 40]
             data.cell.styles.minCellHeight = 0
-            data.cell.styles.cellPadding = { top: 1, bottom: 1, left: data.column.index === 0 ? 8 : 3, right: 3 }
+            data.cell.styles.cellPadding = { top: 1, bottom: 1, left: 3, right: 3 }
           } else if (kind === 'parent' || !kind) {
             // Total HT en gras (dernière colonne) — uniquement sur les rows parent
             if (data.column.index === lastCol) {
