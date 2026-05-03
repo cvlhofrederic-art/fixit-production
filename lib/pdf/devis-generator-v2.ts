@@ -263,7 +263,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // 1. LOGO (coin haut-gauche)
   // ═══════════════════════════════════════════════════════════
 
-  console.log('[PDF V2] Logo URL:', input.artisan.logo_url ? input.artisan.logo_url.substring(0, 80) + '...' : 'null/empty')
+  // [Audit 03/05/2026 ÉLEVÉ] console.log fuit l'URL signée Supabase dans la
+  // console navigateur → leak Sentry session replay. Conservé en dev only.
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[PDF V2] Logo URL:', input.artisan.logo_url ? input.artisan.logo_url.substring(0, 80) + '...' : 'null/empty')
+  }
   if (input.artisan.logo_url) {
     try {
       const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -285,7 +289,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
         const logoSize = ptToMm(65)
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', ptToMm(15), ptToMm(8), logoSize, logoSize)
       }
-    } catch (e) { console.warn('[PDF V2] Logo load failed:', e) }
+    } catch (e) {
+      if (process.env.NODE_ENV !== 'production') console.warn('[PDF V2] Logo load failed:', e)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
