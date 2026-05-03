@@ -1073,19 +1073,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += totH + 6
 
   // ═══ 9. CONDITIONS + BON POUR ACCORD + ACOMPTES (devis) ou RÈGLEMENT (facture) ═══
-  checkPageBreak(55)
-
+  // Pré-calcul de la hauteur réelle du bloc CONDITIONS+SIGNATURE pour éviter
+  // que le bloc déborde en bas de page (CRITIQUE audit). Le bloc gris de
+  // signature s'étend sur toute la hauteur du contenu Conditions ; une longue
+  // liste de pénalités/escompte/notes peut le pousser au-delà des mentions
+  // légales. checkPageBreak dynamique selon longueur réelle.
   if (docType === 'devis') {
     const condX = mL
     const condW = emBoxW
     const sigX = boxX_dest
     const sigW = destBoxW
-    const condStartY = y
-
-    // ── CONDITIONS (côté gauche) ──
-    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('CONDITIONS', condX, condStartY + 5)
-    let cy = condStartY + 12
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     const validityStr = docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : `30 ${locale === 'pt' ? 'dias' : 'jours'}`
@@ -1099,6 +1096,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
       ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
     ]
+    // Pré-mesure : calcule la hauteur réelle du bloc CONDITIONS sans rendre.
+    // Permet de checkPageBreak dynamique avant de dessiner le rect signature.
+    let measuredH = 12 // titre CONDITIONS + gap
+    condTextLines.forEach(line => {
+      const wrapped = pdf.splitTextToSize(line, condW - 4)
+      measuredH += wrapped.length * ptToMm(13)
+    })
+    if (notes) {
+      const noteWrappedMeasure = pdf.splitTextToSize(notes, condW - 4)
+      measuredH += 2 + noteWrappedMeasure.length * ptToMm(13)
+    }
+    // Hauteur effective du bloc gris signature (max entre cond et 46 mm).
+    const blockH = Math.max(measuredH, 46)
+    // checkPageBreak dynamique : si pas la place pour CONDITIONS+SIGNATURE
+    // entier sur la page courante, on saute. +6 mm marge sécurité.
+    checkPageBreak(blockH + 6)
+
+    const condStartY = y
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('CONDITIONS', condX, condStartY + 5)
+    let cy = condStartY + 12
+
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     condTextLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, condW - 4)
       pdf.text(wrapped, condX, cy)
