@@ -152,7 +152,7 @@ export default function DevisSection({
           <div className="v22-page-title">{'📄'} {t('proDash.devis.title')}</div>
           <div className="v22-page-sub">{t('proDash.devis.subtitle')}</div>
         </div>
-        <button onClick={() => setShowDevisForm(true)} className="v22-btn v22-btn-primary">
+        <button onClick={() => { setConvertingDevis(null); setShowDevisForm(true) }} className="v22-btn v22-btn-primary">
           + {t('proDash.devis.nouveauDevis')}
         </button>
       </div>
@@ -316,7 +316,7 @@ export default function DevisSection({
             <div style={{ fontSize: 40, marginBottom: 12 }}>{'📄'}</div>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: tv.text }}>{t('proDash.devis.aucunDevis')}</div>
             <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 16 }}>{t('proDash.devis.creerPremierDevis')}</div>
-            <button onClick={() => setShowDevisForm(true)} className="v22-btn v22-btn-primary">
+            <button onClick={() => { setConvertingDevis(null); setShowDevisForm(true) }} className="v22-btn v22-btn-primary">
               {t('proDash.devis.creerDevis')}
             </button>
           </div>
@@ -377,7 +377,7 @@ function DevisSectionV5({
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button className="v5-btn v5-btn-p" onClick={() => setShowDevisForm(true)}>
+        <button className="v5-btn v5-btn-p" onClick={() => { setConvertingDevis(null); setShowDevisForm(true) }}>
           + {t('proDash.devis.creerDevisV5')}
         </button>
       </div>
