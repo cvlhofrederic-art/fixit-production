@@ -160,9 +160,18 @@ export interface PdfV3Input {
 /**
  * Remplace les caractères Unicode non supportés par helvetica (ISO-8859-1).
  * Empêche le rendu fantôme (ex. ᵉ rendu "l", ≤ rendu "d", ≥ rendu "e").
+ *
+ * Couvre :
+ * - Superscripts → équivalent ASCII
+ * - Symboles maths (≤≥≠≈) → ASCII
+ * - Flèches (→←↔) → ASCII
+ * - Cases à cocher (☐☑☒) → [ ]/[x]
+ * - Zero-width spaces → supprimés
+ * - Emojis (Unicode blocs 1F300-1FAFF, 2600-27BF) → supprimés
+ *   (sinon helvetica rend des glyphes vides ou des caractères fantômes)
  */
-function sanitizeForHelvetica(s: string): string {
-  if (!s) return s
+function sanitizeForHelvetica(s: string | null | undefined): string {
+  if (!s) return ''
   return s
     .replace(/[ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ]/g, ch => ({ ᵃ:'a',ᵇ:'b',ᶜ:'c',ᵈ:'d',ᵉ:'e',ᶠ:'f',ᵍ:'g',ʰ:'h',ⁱ:'i',ʲ:'j',ᵏ:'k',ˡ:'l',ᵐ:'m',ⁿ:'n',ᵒ:'o',ᵖ:'p',ʳ:'r',ˢ:'s',ᵗ:'t',ᵘ:'u',ᵛ:'v',ʷ:'w',ˣ:'x',ʸ:'y',ᶻ:'z' } as Record<string,string>)[ch] || ch)
     .replace(/≤/g, '<=').replace(/≥/g, '>=')
@@ -170,6 +179,7 @@ function sanitizeForHelvetica(s: string): string {
     .replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->')
     .replace(/[☑☒]/g, '[x]').replace(/☐/g, '[ ]')
     .replace(/[​-‍﻿]/g, '') // zero-width spaces
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, '') // emojis
 }
 
 /**
@@ -191,6 +201,32 @@ function splitAddress(addr: string): { street: string; city: string | null } {
 // ─── Main generator ──────────────────────────────────────
 
 export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string }> {
+  // Pre-sanitize : tous les champs textuels saisis par l'utilisateur passent par
+  // sanitizeForHelvetica AVANT d'être utilisés. Évite emojis fantômes, glyphes
+  // manquants, caractères Unicode hors ISO-8859-1 dans le PDF rendu.
+  const _s = sanitizeForHelvetica
+  const sanitizedInput: PdfV3Input = {
+    ...input,
+    docTitle: _s(input.docTitle),
+    companyName: _s(input.companyName),
+    companyAddress: _s(input.companyAddress),
+    companyRCS: _s(input.companyRCS),
+    companyEmail: _s(input.companyEmail),
+    tvaNumber: _s(input.tvaNumber),
+    insuranceName: _s(input.insuranceName),
+    insuranceCoverage: _s(input.insuranceCoverage),
+    mediatorName: _s(input.mediatorName),
+    clientName: _s(input.clientName),
+    clientAddress: _s(input.clientAddress),
+    clientEmail: _s(input.clientEmail),
+    interventionAddress: _s(input.interventionAddress),
+    interventionBatiment: _s(input.interventionBatiment),
+    interventionEtage: _s(input.interventionEtage),
+    interventionEspacesCommuns: _s(input.interventionEspacesCommuns),
+    interventionExterieur: _s(input.interventionExterieur),
+    paymentCondition: _s(input.paymentCondition),
+    notes: _s(input.notes),
+  }
   const {
     locale, localeFormats, t,
     docType, docNumber, docTitle, docDate, docValidity,
@@ -212,7 +248,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     signatureData, attachedRapport, selectedPhotos,
     ptFiscalData,
     svgToImageDataUrl, fetchFreshLogo,
-  } = input
+  } = sanitizedInput
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
@@ -440,18 +476,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(`Ville : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
     }
   }
-  if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
-  if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
-  if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
+  // Helper : rendu d'une ligne d'identité avec ramping fontSize 10→9→8 si débordement
+  // (évite que SIRET/RCS/TVA/APE/Email longs débordent à droite hors de l'encadré).
+  const drawEmitterLine = (text: string) => {
+    let fs = 10
+    pdf.setFontSize(fs)
+    if (pdf.getTextWidth(text) > emMaxW) { fs = 9; pdf.setFontSize(fs) }
+    if (pdf.getTextWidth(text) > emMaxW) { fs = 8; pdf.setFontSize(fs) }
+    if (pdf.getTextWidth(text) > emMaxW) { fs = 7; pdf.setFontSize(fs) }
+    pdf.text(text, emTx, ey2); ey2 += ptToMm(14)
+    pdf.setFontSize(10)
+  }
+  if (companyPhone) { drawEmitterLine(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`) }
+  if (companyEmail) { drawEmitterLine(`E-mail : ${companyEmail}`) }
+  if (companySiret) { drawEmitterLine(`SIRET : ${companySiret}`) }
   if (companyRCS) {
     let rmRaw = companyRCS.trim()
     if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
     const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
-    pdf.text(rmDisplay, emTx, ey2); ey2 += ptToMm(14)
+    drawEmitterLine(rmDisplay)
   }
-  if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey2); ey2 += ptToMm(14) }
-  if (companyAPE) { pdf.text(`APE / NAF : ${companyAPE}`, emTx, ey2); ey2 += ptToMm(14) }
-  if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey2); ey2 += ptToMm(14) }
+  if (tvaEnabled && tvaNumber) { drawEmitterLine(`TVA Intra. : ${tvaNumber}`) }
+  if (companyAPE) { drawEmitterLine(`APE / NAF : ${companyAPE}`) }
+  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} EUR`) }
 
   // Destinataire
   let dy3 = boxStartY + boxPadTop
@@ -546,57 +593,87 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
     : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
+  // Construit la description complète d'une ligne (titre + détail + lineDetail + étapes wrappées).
+  // Utilisée à la fois pour le rendu autoTable ET pour la mesure de hauteur préventive.
+  // Clamp défensif : si la description résultante dépasse 60 lignes, on tronque pour éviter
+  // qu'une cellule unique soit plus haute qu'une page A4 (auquel cas autoTable la coupe).
+  const MAX_DESC_LINES = 60
+  const descColW = contentW * 0.35 - 6 // largeur utile colonne Désignation
+  const buildRowDescription = (l: ProductLine): string => {
+    const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
+    const parts = cleanDesc.split('\n')
+    const title = parts[0]
+    let detail = parts.slice(1).join('\n').trim()
+
+    // If étapes exist as structured data, strip them from the description text
+    // to avoid duplication (description may contain étapes joined with ' → ')
+    if (l.etapes && l.etapes.length > 0) {
+      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+      if (sortedEtapes.length > 0) {
+        const etapeNames = sortedEtapes.map(e => e.designation.trim())
+        const arrowJoined = etapeNames.join(' → ')
+        if (detail === arrowJoined) {
+          detail = ''
+        } else if (detail.includes(arrowJoined)) {
+          detail = detail.replace(arrowJoined, '').trim()
+        }
+      }
+    }
+
+    // Build: title, then lineDetail (description), then étapes
+    const lineDetail = sanitizeForHelvetica((l.lineDetail || '').trim())
+    let displayDesc = title
+    if (detail) displayDesc += `\n${detail}`
+    if (lineDetail) displayDesc += `\n \n${lineDetail}`
+    if (l.etapes && l.etapes.length > 0) {
+      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+      if (sortedEtapes.length > 0) {
+        pdf.setFontSize(10)
+        const etapeLines = sortedEtapes.map((e, i) => {
+          const prefix = `${i + 1}. `
+          const prefixW = pdf.getTextWidth(prefix)
+          const unitSuffix = e.unit ? ` / ${formatUnitForPdf(e.unit)}` : ''
+          const priceSuffix = e.prixHT != null && e.prixHT > 0
+            ? ` — ${localeFormats.currencyFormat(e.prixHT)}${unitSuffix}`
+            : ''
+          const etapeText = sanitizeForHelvetica(e.designation) + priceSuffix
+          const wrapped = pdf.splitTextToSize(etapeText, descColW - prefixW) as string[]
+          let indent = ''
+          while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '
+          return wrapped.map((line: string, li: number) =>
+            li === 0 ? `${prefix}${line}` : `${indent}${line}`
+          ).join('\n')
+        })
+        displayDesc += '\n \n' + etapeLines.join('\n \n')
+      }
+    }
+
+    // Clamp défensif : truncate si > MAX_DESC_LINES (≈ 244mm = pleine page)
+    const allLines = displayDesc.split('\n')
+    if (allLines.length > MAX_DESC_LINES) {
+      const truncated = allLines.slice(0, MAX_DESC_LINES - 1).join('\n')
+      const moreCount = allLines.length - (MAX_DESC_LINES - 1)
+      displayDesc = `${truncated}\n[…${moreCount} ${locale === 'pt' ? 'linhas adicionais' : 'lignes supplémentaires'}]`
+    }
+    return displayDesc
+  }
+
+  // Mesure la hauteur réelle d'une description rendue dans la colonne Désignation.
+  // Utilise pdf.getTextDimensions (méthode officielle jsPDF) au lieu d'estimation
+  // par formule. Précision au mm, élimine les sauts de page mal calibrés.
+  const measureRowHeight = (l: ProductLine): number => {
+    const text = buildRowDescription(l)
+    pdf.setFontSize(10)
+    const dims = pdf.getTextDimensions(text, { maxWidth: descColW })
+    // padding cellule (top 2.5 + bot 2.5) + petit buffer pour interligne
+    const minBody = ptToMm(32) // minCellHeight body
+    return Math.max(minBody, dims.h + 5)
+  }
+
   const buildTableBody = (srcLines: ProductLine[]) => {
     const body = srcLines.filter(l => l.description.trim()).map(l => {
       const unitStr = formatUnitForPdf(l.unit, l.customUnit)
-      const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
-      const parts = cleanDesc.split('\n')
-      const title = parts[0]
-      let detail = parts.slice(1).join('\n').trim()
-
-      // If étapes exist as structured data, strip them from the description text
-      // to avoid duplication (description may contain étapes joined with ' → ')
-      if (l.etapes && l.etapes.length > 0) {
-        const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-        if (sortedEtapes.length > 0) {
-          const etapeNames = sortedEtapes.map(e => e.designation.trim())
-          const arrowJoined = etapeNames.join(' → ')
-          if (detail === arrowJoined) {
-            detail = ''
-          } else if (detail.includes(arrowJoined)) {
-            detail = detail.replace(arrowJoined, '').trim()
-          }
-        }
-      }
-
-      // Build: title, then lineDetail (description), then étapes
-      const lineDetail = sanitizeForHelvetica((l.lineDetail || '').trim())
-      let displayDesc = title
-      if (detail) displayDesc += `\n${detail}`
-      if (lineDetail) displayDesc += `\n \n${lineDetail}`
-      if (l.etapes && l.etapes.length > 0) {
-        const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-        if (sortedEtapes.length > 0) {
-          const descColW = contentW * 0.35 - 6
-          pdf.setFontSize(10)
-          const etapeLines = sortedEtapes.map((e, i) => {
-            const prefix = `${i + 1}. `
-            const prefixW = pdf.getTextWidth(prefix)
-            const unitSuffix = e.unit ? ` / ${formatUnitForPdf(e.unit)}` : ''
-            const priceSuffix = e.prixHT != null && e.prixHT > 0
-              ? ` — ${localeFormats.currencyFormat(e.prixHT)}${unitSuffix}`
-              : ''
-            const etapeText = e.designation + priceSuffix
-            const wrapped = pdf.splitTextToSize(etapeText, descColW - prefixW) as string[]
-            let indent = ''
-            while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '
-            return wrapped.map((line: string, li: number) =>
-              li === 0 ? `${prefix}${line}` : `${indent}${line}`
-            ).join('\n')
-          })
-          displayDesc += '\n \n' + etapeLines.join('\n \n')
-        }
-      }
+      const displayDesc = buildRowDescription(l)
       const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
       if (tvaEnabled) row.push(`${l.tvaRate}%`)
       row.push(localeFormats.currencyFormat(l.totalHT))
@@ -717,33 +794,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   if (sections.length > 1) {
-    // Estime la hauteur de la PREMIÈRE ligne d'une section (motif + détail + étapes).
-    // Suffit pour décider si label+head+1re ligne tient dans la place restante.
-    // autoTable + rowPageBreak:'avoid' gèrent ensuite la pagination des lignes suivantes.
-    //
-    // Calibre wrap : helvetica 10pt, descColW ≈ 52mm utiles → ~34 chars/ligne réels.
-    // Ne pas sur-estimer pour ne pas sauter de page trop tôt et laisser du vide en bas.
-    const estimateFirstRowH = (r: ProductLine): number => {
-      const baseH = 12 // titre 1 ligne + paddings (≈ minCellHeight body 11.3mm)
-      const detailLines = r.lineDetail ? Math.max(1, Math.ceil((r.lineDetail.length || 0) / 38)) : 0
-      const detailH = detailLines * 4 + (detailLines > 0 ? 4 : 0)
-      const validEtapes = (r.etapes || []).filter(e => e.designation?.trim())
-      const etapesH = validEtapes.reduce((s, e) => {
-        const lines = Math.max(1, Math.ceil((e.designation.length || 0) / 34))
-        return s + lines * 4 + 4
-      }, 0)
-      return baseH + detailH + etapesH
-    }
+    // Méthode pro : mesure RÉELLE de la 1re ligne via pdf.getTextDimensions
+    // (au lieu d'estimer avec une formule chars/mm imprécise). Garantit que le
+    // saut de page se déclenche au mm près — pas d'orphelin ET pas de gros vide.
+    // Couple "label + head + 1re ligne" = équivalent du "Keep with next" Word.
     const labelH = 6
     const headH = 12
-
     for (const s of sections) {
-      // Saute de page si label + head + 1re ligne ne tient pas dans la place restante.
-      // Évite à la fois l'orphelin (header sans body row) ET le sur-saut (qui laissait
-      // un tiers de page vide à chaque section). Les lignes suivantes sont paginées
-      // naturellement par autoTable, rowPageBreak:'avoid' protège chaque ligne d'une coupe.
-      const firstRowH = s.rows.length > 0 ? estimateFirstRowH(s.rows[0]) : 12
-      const minNeeded = labelH + headH + firstRowH + 4
+      const firstRowH = s.rows.length > 0 ? measureRowHeight(s.rows[0]) : ptToMm(32)
+      const minNeeded = labelH + headH + firstRowH + 2 // +2mm marge sécurité
       checkPageBreak(minNeeded)
       drawSectionLabel(s.name)
       renderTable(buildTableBody(s.rows), y)
@@ -1281,13 +1340,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         const infoY = py + photoH + 1
         pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
         const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString(dateLocaleStr) : 'N/D'
-        pdf.text(`📅 ${dateStr}`, x + 2, infoY + 2)
+        pdf.text(`Date : ${dateStr}`, x + 2, infoY + 2)
         if (photo.lat && photo.lng) {
-          pdf.text(`📍 ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, infoY + 5.5)
+          pdf.text(`GPS : ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, infoY + 5.5)
         }
         if (photo.label) {
           pdf.setFont('helvetica', 'bold')
-          const labelTrunc = photo.label.length > 35 ? photo.label.substring(0, 35) + '...' : photo.label
+          // UTF-8 safe truncation : Array.from itère par code points (évite couper un emoji en 2)
+          const labelClean = sanitizeForHelvetica(photo.label)
+          const labelChars = Array.from(labelClean)
+          const labelTrunc = labelChars.length > 35 ? labelChars.slice(0, 35).join('') + '...' : labelClean
           pdf.text(labelTrunc, x + photoW / 2, infoY + 2, { align: 'center' })
         }
       } catch {
