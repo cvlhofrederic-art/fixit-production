@@ -608,99 +608,103 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
     : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
-  // Construit la description complète d'une ligne (titre + détail + lineDetail + étapes wrappées).
-  // Utilisée à la fois pour le rendu autoTable ET pour la mesure de hauteur préventive.
-  // Clamp défensif : si la description résultante dépasse 60 lignes, on tronque pour éviter
-  // qu'une cellule unique soit plus haute qu'une page A4 (auquel cas autoTable la coupe).
-  const MAX_DESC_LINES = 60
-  const descColW = contentW * 0.35 - 6 // largeur utile colonne Désignation
-  const buildRowDescription = (l: ProductLine): string => {
-    const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
-    const parts = cleanDesc.split('\n')
-    const title = parts[0]
-    let detail = parts.slice(1).join('\n').trim()
+  // ═══ Méthode 100% pro 2026 : étapes en sub-rows distincts ═══
+  // Pattern Codial / Mediabat / Onaya (BTP français premium) : au lieu d'agréger
+  // motif + détail + N étapes dans UNE seule cellule autoTable (qui devient atomique
+  // et bloque la pagination), chaque élément devient sa propre row autoTable :
+  //
+  //   parent  : motif + qté + unité + prix + TVA + total
+  //   desc    : description complémentaire (lineDetail) — colonnes prix vides
+  //   etape   : "N. {étape}" indentée — colonnes prix vides
+  //
+  // Bénéfice : autoTable peut paginer entre n'importe quelle sub-row → plus de gros
+  // vide en bas de page. rowPageBreak:'avoid' continue à protéger chaque sub-row
+  // individuelle (étape jamais coupée au milieu de son texte).
+  type RowKind = 'parent' | 'desc' | 'etape'
+  const colCount = tvaEnabled ? 6 : 5
+  const emptyCols = (text: string): string[] => {
+    const r = Array(colCount).fill('')
+    r[0] = text
+    return r
+  }
 
-    // If étapes exist as structured data, strip them from the description text
-    // to avoid duplication (description may contain étapes joined with ' → ')
-    if (l.etapes && l.etapes.length > 0) {
-      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-      if (sortedEtapes.length > 0) {
-        const etapeNames = sortedEtapes.map(e => e.designation.trim())
-        const arrowJoined = etapeNames.join(' → ')
-        if (detail === arrowJoined) {
-          detail = ''
-        } else if (detail.includes(arrowJoined)) {
-          detail = detail.replace(arrowJoined, '').trim()
+  const buildTableBody = (srcLines: ProductLine[]): { rows: any[][]; rowKinds: RowKind[] } => {
+    const rows: any[][] = []
+    const rowKinds: RowKind[] = []
+
+    for (const l of srcLines.filter(l => l.description.trim())) {
+      const unitStr = formatUnitForPdf(l.unit, l.customUnit)
+      const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
+      const parts = cleanDesc.split('\n')
+      const title = parts[0]
+      let detail = parts.slice(1).join('\n').trim()
+
+      // Strip étapes du detail si elles sont dupliquées (legacy : description peut
+      // contenir les étapes jointes par ' → ').
+      if (l.etapes && l.etapes.length > 0) {
+        const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+        if (sortedEtapes.length > 0) {
+          const arrowJoined = sortedEtapes.map(e => e.designation.trim()).join(' → ')
+          if (detail === arrowJoined) detail = ''
+          else if (detail.includes(arrowJoined)) detail = detail.replace(arrowJoined, '').trim()
         }
       }
-    }
 
-    // Build: title, then lineDetail (description), then étapes
-    const lineDetail = sanitizeForHelvetica((l.lineDetail || '').trim())
-    let displayDesc = title
-    if (detail) displayDesc += `\n${detail}`
-    if (lineDetail) displayDesc += `\n \n${lineDetail}`
-    if (l.etapes && l.etapes.length > 0) {
-      const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-      if (sortedEtapes.length > 0) {
-        pdf.setFontSize(10)
-        const etapeLines = sortedEtapes.map((e, i) => {
-          const prefix = `${i + 1}. `
-          const prefixW = pdf.getTextWidth(prefix)
+      // 1. Row parent (motif + colonnes prix complètes)
+      const parentRow: any[] = [title, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
+      if (tvaEnabled) parentRow.push(`${l.tvaRate}%`)
+      parentRow.push(localeFormats.currencyFormat(l.totalHT))
+      rows.push(parentRow)
+      rowKinds.push('parent')
+
+      // 2. Row détail (continuation du motif si multi-ligne dans description)
+      if (detail) {
+        rows.push(emptyCols(detail))
+        rowKinds.push('desc')
+      }
+
+      // 3. Row description complémentaire (lineDetail)
+      const lineDetail = sanitizeForHelvetica((l.lineDetail || '').trim())
+      if (lineDetail) {
+        rows.push(emptyCols(lineDetail))
+        rowKinds.push('desc')
+      }
+
+      // 4. Rows étapes (1 row par étape, numérotées)
+      if (l.etapes && l.etapes.length > 0) {
+        const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+        sortedEtapes.forEach((e, i) => {
           const unitSuffix = e.unit ? ` / ${formatUnitForPdf(e.unit)}` : ''
           const priceSuffix = e.prixHT != null && e.prixHT > 0
             ? ` — ${localeFormats.currencyFormat(e.prixHT)}${unitSuffix}`
             : ''
-          const etapeText = sanitizeForHelvetica(e.designation) + priceSuffix
-          const wrapped = pdf.splitTextToSize(etapeText, descColW - prefixW) as string[]
-          let indent = ''
-          while (pdf.getTextWidth(indent + ' ') < prefixW) indent += ' '
-          return wrapped.map((line: string, li: number) =>
-            li === 0 ? `${prefix}${line}` : `${indent}${line}`
-          ).join('\n')
+          const etapeText = `${i + 1}. ${sanitizeForHelvetica(e.designation)}${priceSuffix}`
+          rows.push(emptyCols(etapeText))
+          rowKinds.push('etape')
         })
-        displayDesc += '\n \n' + etapeLines.join('\n \n')
       }
     }
 
-    // Clamp défensif : truncate si > MAX_DESC_LINES (≈ 244mm = pleine page)
-    const allLines = displayDesc.split('\n')
-    if (allLines.length > MAX_DESC_LINES) {
-      const truncated = allLines.slice(0, MAX_DESC_LINES - 1).join('\n')
-      const moreCount = allLines.length - (MAX_DESC_LINES - 1)
-      displayDesc = `${truncated}\n[…${moreCount} ${locale === 'pt' ? 'linhas adicionais' : 'lignes supplémentaires'}]`
+    if (rows.length === 0) {
+      rows.push(emptyCols(t('devis.noLinesMessage')))
+      rowKinds.push('parent')
     }
-    return displayDesc
+    return { rows, rowKinds }
   }
 
-  // Mesure la hauteur réelle d'une description rendue dans la colonne Désignation.
-  // Utilise pdf.getTextDimensions (méthode officielle jsPDF) au lieu d'estimation
-  // par formule. Précision au mm, élimine les sauts de page mal calibrés.
+  // Mesure la hauteur de la 1re row (parent) pour décider du saut de page avant
+  // un nouveau label de section. Avec le refactor sub-rows, la parent row est
+  // beaucoup plus petite (juste le motif sur 1-2 lignes) → moins d'espace requis →
+  // plus de chance de remplir la fin de page courante avec au moins le début de la
+  // nouvelle section.
+  const descColW = contentW * 0.35 - 6 // largeur utile colonne Désignation
   const measureRowHeight = (l: ProductLine): number => {
-    const text = buildRowDescription(l)
+    const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
+    const title = cleanDesc.split('\n')[0]
     pdf.setFontSize(10)
-    const dims = pdf.getTextDimensions(text, { maxWidth: descColW })
-    // padding cellule (top 2.5 + bot 2.5) + petit buffer pour interligne
-    const minBody = ptToMm(22) // minCellHeight body (synchronisé avec bodyStyles)
+    const dims = pdf.getTextDimensions(title, { maxWidth: descColW })
+    const minBody = ptToMm(22) // minCellHeight body
     return Math.max(minBody, dims.h + 5)
-  }
-
-  const buildTableBody = (srcLines: ProductLine[]) => {
-    const body = srcLines.filter(l => l.description.trim()).map(l => {
-      const unitStr = formatUnitForPdf(l.unit, l.customUnit)
-      const displayDesc = buildRowDescription(l)
-      const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
-      if (tvaEnabled) row.push(`${l.tvaRate}%`)
-      row.push(localeFormats.currencyFormat(l.totalHT))
-      return row
-    })
-    if (body.length === 0) {
-      body.push(tvaEnabled
-        ? [t('devis.noLinesMessage'), '', '', '', '', '']
-        : [t('devis.noLinesMessage'), '', '', '', '']
-      )
-    }
-    return body
   }
 
   const colStyles: Record<number, { cellWidth: number; halign: string }> = {
@@ -729,7 +733,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     headColStyles[4] = { halign: 'right' }
   }
 
-  const renderTable = (body: any[][], startY: number, sectionName?: string) => {
+  const renderTable = (
+    body: any[][],
+    startY: number,
+    sectionName?: string,
+    rowKinds?: RowKind[],
+  ) => {
     // Track la page de départ pour détecter les pages débordées (overflow).
     // Sur ces pages, autoTable redessine le head (showHead: 'everyPage') et nous
     // ajoutons le titre de section "(suite)" via didDrawPage pour éviter qu'une
@@ -788,9 +797,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         if (data.section === 'head' && headColStyles[data.column.index]) {
           data.cell.styles.halign = headColStyles[data.column.index].halign
         }
-        const lastCol = tvaEnabled ? 5 : 4
-        if (data.section === 'body' && data.column.index === lastCol) {
-          data.cell.styles.fontStyle = 'bold'
+        if (data.section === 'body') {
+          const lastCol = tvaEnabled ? 5 : 4
+          const kind: RowKind | undefined = rowKinds?.[data.row.index]
+          // Style des sub-rows (description et étapes) : police plus petite,
+          // padding compact, indentation à gauche pour bien distinguer la
+          // hiérarchie visuelle parent / enfant.
+          if (kind === 'desc') {
+            data.cell.styles.fontSize = 9
+            data.cell.styles.fontStyle = 'italic'
+            data.cell.styles.textColor = [85, 85, 85]
+            data.cell.styles.minCellHeight = 0
+            data.cell.styles.cellPadding = { top: 1, bottom: 1, left: data.column.index === 0 ? 8 : 3, right: 3 }
+          } else if (kind === 'etape') {
+            data.cell.styles.fontSize = 9
+            data.cell.styles.textColor = [40, 40, 40]
+            data.cell.styles.minCellHeight = 0
+            data.cell.styles.cellPadding = { top: 1, bottom: 1, left: data.column.index === 0 ? 8 : 3, right: 3 }
+          } else if (kind === 'parent' || !kind) {
+            // Total HT en gras (dernière colonne) — uniquement sur les rows parent
+            if (data.column.index === lastCol) {
+              data.cell.styles.fontStyle = 'bold'
+            }
+          }
         }
       },
     })
@@ -845,15 +874,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       drawSectionLabel(s.name)
       // Passe le sectionName pour que renderTable puisse redessiner le titre
       // "(suite)" sur les pages débordées via didDrawPage.
-      renderTable(buildTableBody(s.rows), y, s.name)
+      const built = buildTableBody(s.rows)
+      renderTable(built.rows, y, s.name, built.rowKinds)
       y = (pdf as any).lastAutoTable.finalY + ptToMm(10)
     }
   } else if (sections.length === 1) {
     // Une seule section : rendu sans label de section (comportement historique)
-    renderTable(buildTableBody(sections[0].rows), y)
+    const built = buildTableBody(sections[0].rows)
+    renderTable(built.rows, y, undefined, built.rowKinds)
   } else {
     // Aucune des sections enrichies n'a de contenu → fallback sur le tableau "lines" classique
-    renderTable(buildTableBody(lines), y)
+    const built = buildTableBody(lines)
+    renderTable(built.rows, y, undefined, built.rowKinds)
   }
 
   y = (pdf as any).lastAutoTable.finalY
