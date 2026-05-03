@@ -779,7 +779,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // Sur ces pages, autoTable redessine le head (showHead: 'everyPage') et nous
     // ajoutons le titre de section "(suite)" via didDrawPage pour éviter qu'une
     // ligne body apparaisse orpheline (sans titre ni head) en haut de page.
-    const startPageNum = (pdf as any).internal.getNumberOfPages()
+    const startPageNum = pdf.getNumberOfPages()
     const suiteSuffix = locale === 'pt' ? ' (continuação)' : ' (suite)'
     autoTable(pdf, {
       head: tableHead,
@@ -823,7 +823,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       didDrawPage: () => {
         // Si on est sur une page créée par autoTable (overflow), redrawer le
         // titre de section "(suite)" pour éviter l'orphelin visuel.
-        const currentPage = (pdf as any).internal.getNumberOfPages()
+        const currentPage = pdf.getNumberOfPages()
         if (sectionName && currentPage > startPageNum) {
           pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
           pdf.text(`${sectionName}${suiteSuffix}`, mL, 18)
@@ -1205,7 +1205,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 10. RAPPORT JOINT (optionnel) ═══
-  if (attachedRapport && !checkPageBreak(20)) {
+  // Bug critique audit : `if (attachedRapport && !checkPageBreak(20))` →
+  // checkPageBreak retourne true SI un saut a eu lieu, donc `!checkPageBreak`
+  // = false dès qu'un saut est nécessaire, et le rapport entier est SKIP
+  // silencieusement (+ page blanche orpheline créée par le saut). Logique
+  // inversée. Fix : checkPageBreak inconditionnel, puis rendu.
+  if (attachedRapport) {
+    checkPageBreak(20)
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
     const rapportTextLines: string[] = []
     rapportTextLines.push(t('devis.pdf.attachedReport').replace('{number}', attachedRapport.rapportNumber))
@@ -1542,7 +1548,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Le n° de devis est répété sur chaque page (à gauche) en complément du
   // "Page X/Y" (à droite). Pratique standard SaaS pro 2026 + utile pour
   // contrôles fiscaux : chaque page reste identifiable même imprimée séparément.
-  const totalPgs = (pdf as any).internal.getNumberOfPages()
+  const totalPgs = pdf.getNumberOfPages()
   const footerDocRef = ptFiscalData?.docNumber || docNumber
   for (let p = 1; p <= totalPgs; p++) {
     pdf.setPage(p)
@@ -1566,6 +1572,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const namedFile = new File([blob], filename, { type: 'application/pdf' })
     const url = URL.createObjectURL(namedFile)
     window.open(url, '_blank')
+    // Memory leak fix : révoquer l'URL après 60s — assez long pour que le
+    // navigateur ait chargé le PDF dans le nouvel onglet, suffisamment court
+    // pour ne pas saturer la heap sur des dizaines de previews successives.
+    // L'utilisateur peut toujours télécharger depuis l'onglet ouvert.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
   } else {
     pdf.save(filename)
   }
