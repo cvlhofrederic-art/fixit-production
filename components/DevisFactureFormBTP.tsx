@@ -667,8 +667,12 @@ export default function DevisFactureFormBTP({
   }
 
   const removeMaterialLine = (id: number) => {
+    // UX pro 2026 : si on supprime la dernière ligne d'une table optionnelle,
+    // on désactive toute la table au lieu d'afficher une erreur. L'utilisateur
+    // peut toujours réactiver via "+ Ajouter une table → Réactiver Matériaux".
     if (materialLines.length === 1) {
-      toast.error('Au moins une ligne est requise')
+      setMaterialLinesEnabled(false)
+      toast.success('Section Matériaux masquée (réactivable via + Ajouter une table)')
       return
     }
     // Suppression par index : robuste aux IDs dupliqués (cf. removeLine)
@@ -691,8 +695,11 @@ export default function DevisFactureFormBTP({
   }
 
   const removeFraisLine = (id: number) => {
+    // UX pro 2026 : dernière ligne supprimée → désactive la section Frais annexes
+    // (réactivable via "+ Ajouter une table → Réactiver Frais annexes").
     if (fraisLines.length === 1) {
-      toast.error('Au moins une ligne est requise')
+      setFraisLinesEnabled(false)
+      toast.success('Section Frais annexes masquée (réactivable via + Ajouter une table)')
       return
     }
     setFraisLines(prev => {
@@ -725,7 +732,18 @@ export default function DevisFactureFormBTP({
   }
 
   const removeCustomLine = (tableId: string, lineId: number) => {
-    setCustomTables(prev => prev.map(t => t.id === tableId ? { ...t, lines: (t.lines || []).filter(l => l.id !== lineId) } : t))
+    // UX pro 2026 : dernière ligne supprimée → supprime toute la table custom
+    // (cohérent avec Matériaux/Frais qui se désactivent dans le même cas).
+    setCustomTables(prev => {
+      const target = prev.find(t => t.id === tableId)
+      if (!target) return prev
+      const remainingLines = (target.lines || []).filter(l => l.id !== lineId)
+      if (remainingLines.length === 0) {
+        toast.success(`Section "${target.name}" supprimée`)
+        return prev.filter(t => t.id !== tableId)
+      }
+      return prev.map(t => t.id === tableId ? { ...t, lines: remainingLines } : t)
+    })
   }
 
   const updateCustomLine = (tableId: string, lineId: number, patch: Partial<ProductLine>) => {
