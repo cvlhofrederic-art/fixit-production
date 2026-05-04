@@ -1723,25 +1723,46 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ])
       const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
       const pdfBytes = new Uint8Array(pdfArrayBuffer)
-      // Mapping COMPLET pour le XML CII — TOUS les champs accédés par
-      // generateFacturXML doivent être fournis ici, sinon `esc(undefined)`
-      // crash dans le mapper et on retombe en silence sur le PDF non-Factur-X.
-      // Hotfix audit 04/05/2026 : ajout des 5 champs manquants
-      // (companyEmail, clientEmail, iban, bic, notes).
+      // Mapping vers FacturXMappingInput (type strict — un champ manquant
+      // serait une erreur TypeScript à la compilation, pas un crash runtime).
+      // Hotfix audit 04/05/2026 : retrait du cast `as unknown as` qui
+      // masquait des champs manquants → crash silencieux en prod.
       const facturXData = {
-        docNumber, docTitle, docDate, paymentDue, docType, locale,
-        // Émetteur (TOUS les champs accédés par le mapper)
-        companyName, companySiret, companyAddress, companyEmail, tvaNumber,
+        docNumber,
+        docDate,
+        docType: docType as 'devis' | 'facture',
+        paymentDue,
+        notes: notes || undefined,
+        // Émetteur
+        companyName,
+        companySiret,
+        companyAddress,
+        companyEmail,
+        tvaEnabled,
+        tvaNumber: tvaNumber || undefined,
         // Destinataire
-        clientName, clientSiret, clientAddress, clientEmail,
+        clientName,
+        clientSiret: clientSiret || undefined,
+        clientAddress,
+        clientEmail: clientEmail || undefined,
+        // BT-10 BuyerReference (obligatoire BASIC FR-PPF) — fallback sur
+        // SIRET client puis email puis 'N/A' (géré dans le mapper).
+        buyerReference: clientSiret || clientEmail || undefined,
         // Paiement
-        paymentMode, iban, bic,
-        // Contenu
-        notes,
-        lines: lines.filter(l => l.description.trim()),
-        subtotalHT, totalTTC, tvaEnabled,
+        paymentMode: paymentMode || undefined,
+        iban: iban || undefined,
+        bic: bic || undefined,
+        // Lignes (mapping minimal)
+        lines: lines.filter(l => l.description.trim()).map(l => ({
+          description: l.description,
+          qty: l.qty,
+          unit: l.unit,
+          priceHT: l.priceHT,
+          totalHT: l.totalHT,
+          tvaRate: l.tvaRate,
+        })),
       }
-      const xml = generateFacturXML(facturXData as unknown as Parameters<typeof generateFacturXML>[0])
+      const xml = generateFacturXML(facturXData)
       outputBytes = await embedFacturX(pdfBytes, xml)
     } catch (e) {
       // Fallback : si l'embedding échoue, on conserve le PDF jsPDF normal.
