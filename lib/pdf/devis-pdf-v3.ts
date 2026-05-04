@@ -580,9 +580,32 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companyEmail) { drawEmitterLine(`E-mail : ${companyEmail}`) }
   if (companySiret) { drawEmitterLine(`SIRET : ${companySiret}`) }
   if (companyRCS) {
+    // Auto-détection RCS vs RM (mutuellement exclusifs en droit français) :
+    //   - RCS (Registre du Commerce et des Sociétés) → SAS, SARL, EURL, SASU,
+    //     SCI, SCP, SA, SNC, EI commerciale
+    //   - RM (Répertoire des Métiers) → EI artisanale, auto-entrepreneur
+    //     artisan, micro-entreprise artisanale
+    // Bug avant fix : on préfixait aveuglément "RM " si pas déjà présent →
+    // une référence "951 819 010 R.C.S. Aix-en-provence" devenait
+    // "RM 951 819 010 R.C.S. Aix-en-provence" (faux + ridicule).
     let rmRaw = companyRCS.trim()
-    if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
-    const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
+    // 1. Détecte si l'utilisateur a déjà spécifié le type (RCS ou RM)
+    const hasRegistryPrefix = /\b(R\.?C\.?S\.?|RM)\b/i.test(rmRaw)
+    if (!hasRegistryPrefix) {
+      // 2. Auto-détection depuis companyStatus
+      const commercialStatuses = ['sas', 'sasu', 'sarl', 'eurl', 'sci', 'scp', 'sa', 'snc']
+      const isCommercial = commercialStatuses.includes((companyStatus || '').toLowerCase())
+      rmRaw = isCommercial ? `RCS ${rmRaw}` : `RM ${rmRaw}`
+    }
+    // 3. Mise en forme propre : "RCS Ville : 123456789" ou "RM Ville : 123456789"
+    const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(
+      /^(R\.?C\.?S\.?|RM)\s*([A-Za-zÀ-ÿ\s.-]+?)?\s*(\d[\d\s]*\d)\s*([A-Za-zÀ-ÿ\s.-]+)?$/i,
+      (_match, type, cityBefore, num, cityAfter) => {
+        const city = (cityBefore || cityAfter || '').trim().replace(/\.$/, '')
+        const cleanNum = num.replace(/\s/g, '')
+        return city ? `${type} ${city} : ${cleanNum}` : `${type} : ${cleanNum}`
+      },
+    )
     drawEmitterLine(rmDisplay)
   }
   if (tvaEnabled && tvaNumber) { drawEmitterLine(`TVA Intra. : ${tvaNumber}`) }
