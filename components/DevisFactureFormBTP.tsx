@@ -35,9 +35,11 @@ import {
   sumMoney,
   round2,
   parseDecimalInput,
+  parseDecimalInput4,
   computeAcomptesAmounts,
   assertInvoiceInvariant,
 } from '@/lib/money'
+import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -736,12 +738,24 @@ export default function DevisFactureFormBTP({
     const totalTva = sumMoney(tvaBreakdown.map(b => b.amount))
     const totalTTC = round2(totalHT + totalTva)
 
-    // Invariant en dev — log warning si drift > 0,01 €.
-    if (process.env.NODE_ENV === 'development' && tvaEnabled) {
+    // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
+    // Sans ce check actif en prod, un PDF avec totaux incohérents passerait
+    // inaperçu jusqu'à un audit Bercy ou une contestation client.
+    // Niveau warning (non-bloquant) : on ne casse pas le rendu, on alerte.
+    if (tvaEnabled) {
       const inv = assertInvoiceInvariant(totalHT, totalTva, totalTTC)
       if (!inv.ok) {
-        // eslint-disable-next-line no-console
-        console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
+        }
+        // Sentry capture (silent en prod, ne bloque pas le render)
+        try {
+          Sentry.captureMessage('invoice-invariant-broken-btp', {
+            level: 'warning',
+            extra: { totalHT, totalTva, totalTTC, delta: inv.delta, tvaBreakdownCount: tvaBreakdown.length },
+          })
+        } catch { /* Sentry indisponible — pas bloquant */ }
       }
     }
 
@@ -2157,7 +2171,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2273,7 +2287,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2381,7 +2395,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2518,7 +2532,7 @@ export default function DevisFactureFormBTP({
                             {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                           </select>
                         </td>
-                        <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                        <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                         <td>
                           <select value={l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
