@@ -360,19 +360,31 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 1. LOGO (coin haut-droit, bord droit aligné avec la fin de la ligne orange) ═══
-  // Validation URL logo : allowlist domaines de confiance pour éviter SSRF/XSS
-  // (un logo SVG malveillant chargé depuis un domaine externe pourrait leak
-  // des données via <image href>, ou un PNG de 50 Mo crasherait le worker).
-  // Hotfix audit 04/05/2026 : localhost et 127.0.0.1 retirés en prod
-  // (exploitable sur Capacitor mobile où webview tourne sur localhost).
+  // Validation URL logo : 3 sources autorisées :
+  //  1. Data URI image (data:image/png|jpeg|jpg|webp;base64,…) — embarqué dans
+  //     profiles_artisan.logo_url, sans risque SSRF/XSS car contenu local.
+  //     SVG REFUSÉ : peut contenir des scripts ou <foreignObject> malveillant.
+  //  2. Blob URL (blob:…) — File API local, sans risque externe.
+  //  3. HTTPS sur allowlist domaines (Supabase Storage, Vitfix CDN).
+  //
+  // Hotfix 04/05/2026 (post-audit) : ajout data: et blob: au check. Sans ça,
+  // les logos stockés en data URI base64 dans profiles_artisan.logo_url étaient
+  // rejetés silencieusement → logo disparu sur tous les PDF prod.
   const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
   const ALLOWED_LOGO_DOMAINS = isProd
     ? ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt']
     : ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
   const isLogoUrlAllowed = (url: string): boolean => {
+    if (!url) return false
+    // Data URI image (PNG/JPEG/WEBP/GIF), pas SVG (XSS vector)
+    if (url.startsWith('data:image/')) {
+      return /^data:image\/(png|jpe?g|webp|gif);(?:[a-z0-9-]+;)*base64,/i.test(url)
+    }
+    // Blob URL local (File API uploads)
+    if (url.startsWith('blob:')) return true
+    // HTTPS / HTTP sur allowlist domaines
     try {
       const parsed = new URL(url)
-      // Refuse les schémas autres que http(s)
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
       return ALLOWED_LOGO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
     } catch {
