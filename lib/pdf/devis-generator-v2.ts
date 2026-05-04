@@ -660,6 +660,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   const stH = ptToMm(27)
   const totH = ptToMm(27)
+  // checkPageBreak avant bloc totaux : évite TOTAL NET clippé en bas de page.
+  // Inclut maintenant les lignes TVA multi-taux (auto-entrepreneur en TVA après
+  // dépassement seuil 293 B) — Chunk 4 PR #103.
   const tvaRowH = 6
   const totalsBlockHV2 = stH + tvaBreakdown.length * tvaRowH + 4 + totH + 4
   checkPageBreak(totalsBlockHV2)
