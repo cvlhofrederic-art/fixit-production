@@ -198,7 +198,10 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docDate: doc.docDate || new Date().toISOString().split('T')[0],
     docValidity: doc.docValidity || 30,
     executionDelay: delayStr,
-    prestationDate: doc.prestationDate || doc.docDate || '',
+    // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
+    // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
+    // la date d'émission dans la case DATE PRESTATION.
+    prestationDate: doc.prestationDate || '',
 
     // Lines
     lines: mergedLines,
