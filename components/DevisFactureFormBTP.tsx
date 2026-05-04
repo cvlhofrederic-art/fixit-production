@@ -39,6 +39,7 @@ import {
   computeAcomptesAmounts,
   assertInvoiceInvariant,
 } from '@/lib/money'
+import { isValidSiret } from '@/lib/validation'
 import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
@@ -1425,13 +1426,15 @@ export default function DevisFactureFormBTP({
     try {
       const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
-      // Auto-détection clientType : si un SIRET 14 chiffres a été saisi, le
-      // client est forcément pro (sinon les mentions B2C/B2B sont inversées,
-      // notamment la rétractation 14 jours qui ne s'applique PAS aux pros).
-      // Cf. audit 03/05/2026 ÉLEVÉ EL-8.
-      const cleanSiret = (clientSiret || '').replace(/\s/g, '')
+      // Auto-détection clientType : SIRET 14 chiffres + checksum Luhn valide
+      // → client forcément pro. Avant hotfix audit 04/05/2026, on testait
+      // juste `length === 14` — un fake "12345678901234" forçait pro et
+      // désactivait la rétractation 14 jours (art. L.221-18 C. conso.) →
+      // régression légale pour le client final qui aurait pu invalider
+      // sa commande sur cette base.
+      // Maintenant : validation Luhn (cf. lib/validation.ts:isValidSiret).
       const detectedClientType: 'particulier' | 'professionnel' =
-        cleanSiret.length === 14 ? 'professionnel' : clientType
+        isValidSiret(clientSiret || '') ? 'professionnel' : clientType
       const validLabor = lines.filter(l => (l.description || '').trim())
       // Si la section Matériaux/Frais est désactivée par l'utilisateur (toggle),
       // ses lignes ne doivent PAS compter dans les totaux — sinon mismatch entre
