@@ -842,9 +842,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       head: tableHead,
       body,
       startY,
-      // top: 22mm réservés sur les pages overflow pour le titre "(suite)" + petit
-      // espace. N'affecte PAS la 1re page de la table (où startY est utilisé).
-      margin: { left: mL, right: mR, top: 22 },
+      // top: 12mm sur pages overflow = marge top standard PDF (10mm) + 2mm
+      // de respiration au-dessus du head. Si la page contient un nouveau poste
+      // (row 'parent'), le label "(suite)" est dessiné à y=8 dans cette marge
+      // (juste au-dessus du head). Si la page ne contient que des continuations
+      // (desc/etape), le head est effacé en post-process et le contenu coule
+      // depuis y=12+headerHeight ≈ 19mm. N'affecte PAS la 1re page (où startY
+      // est utilisé). Avant : 22mm → 29mm de blanc visible quand head effacé.
+      margin: { left: mL, right: mR, top: 12 },
       // 'everyPage' nécessaire pour que le head soit dessiné si une nouvelle
       // row parent apparaît sur la page d'overflow. Le post-process ci-dessous
       // efface le head si aucune row parent ne se trouve sur cette page.
@@ -951,9 +956,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         }
       } else if (sectionName) {
         // Page contient au moins un nouveau poste → "(suite)" légitime
+        // Position y=8 : dans la marge top de 12mm, au-dessus du head (y=12).
         pdf.setPage(p)
         pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(`${sectionName}${suiteSuffix}`, mL, 18)
+        pdf.text(`${sectionName}${suiteSuffix}`, mL, 8)
       }
     }
     // Restaurer la page courante = dernière page (pour rendu suivant)
