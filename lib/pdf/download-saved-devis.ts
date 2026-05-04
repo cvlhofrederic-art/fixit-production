@@ -13,6 +13,7 @@ import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
+import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
 
 interface SavedDevis {
@@ -230,12 +231,35 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   const customTables = ((doc as Record<string, unknown>).customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) || []
   const customLines = customTables.flatMap(t => t.lines || [])
 
-  const sum = (arr: ProductLine[]) => arr.reduce((s, l) => s + (l.totalHT || 0), 0)
-  const subtotalHT = sum([...lines, ...materialLines, ...laborLines, ...fraisLines, ...customLines])
+  // Bug #1 résolu : si les sections sont présentes (laborLines/materialLines/
+  // fraisLines/customLines), `lines` côté legacy peut être l'UNION (cf. BTP
+  // generatePdf qui sauvegarde validLines = [...labor, ...materials, ...]).
+  // Sommer toutes les listes en plus créerait des totaux × 2 — le client
+  // signerait un devis 2× le prix. Mirror la logique V3 (ligne 854-869) :
+  // si une section est non vide, c'est elle qui prime ; sinon fallback `lines`.
+  const hasSections = laborLines.length > 0 || materialLines.length > 0 || fraisLines.length > 0 || customLines.length > 0
+  const sourceLines = hasSections
+    ? [...laborLines, ...materialLines, ...fraisLines, ...customLines]
+    : lines
+  // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
+  const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false
-  const totalTTC = tvaEnabled
-    ? [...lines, ...materialLines, ...laborLines, ...fraisLines, ...customLines].reduce((s, l) => s + (l.totalHT || 0) * (1 + (l.tvaRate || 0) / 100), 0)
-    : subtotalHT
+  // Ventilation TVA : on agrège par taux puis on arrondit (BOFiP §50).
+  const tvaMap = new Map<number, { base: number; amount: number }>()
+  if (tvaEnabled) {
+    sourceLines.filter(l => (l.description || '').trim()).forEach(l => {
+      const cur = tvaMap.get(l.tvaRate || 0) || { base: 0, amount: 0 }
+      cur.base = round2(cur.base + (l.totalHT || 0))
+      tvaMap.set(l.tvaRate || 0, cur)
+    })
+    tvaMap.forEach((v, rate) => { v.amount = round2(v.base * rate / 100) })
+  }
+  const tvaBreakdown = Array.from(tvaMap.entries())
+    .map(([rate, { base, amount }]) => ({ rate, base, amount }))
+    .filter(b => b.rate > 0)
+    .sort((a, b) => b.rate - a.rate)
+  const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
+  const totalTTC = tvaEnabled ? round2(subtotalHT + totalTVA) : subtotalHT
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
@@ -308,6 +332,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     customTables: customTables.length > 0 ? customTables : undefined,
     subtotalHT,
     totalTTC,
+    tvaBreakdown: tvaEnabled && tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],

@@ -2,13 +2,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 const mockUpsert = vi.fn()
-const mockFrom = vi.fn().mockImplementation((_table: string) => ({
-  upsert: (...args: unknown[]) => ({
-    select: () => ({
-      single: () => mockUpsert(...args),
+// Ownership query mock : par défaut, retourne le profil artisan correspondant
+// au user.id (le test peut overrider via mockOwnershipResult).
+const mockOwnershipResult = vi.fn()
+const mockFrom = vi.fn().mockImplementation((table: string) => {
+  if (table === 'profiles_artisan') {
+    return {
+      select: () => ({
+        eq: () => mockOwnershipResult(),
+      }),
+    }
+  }
+  return {
+    upsert: (...args: unknown[]) => ({
+      select: () => ({
+        single: () => mockUpsert(...args),
+      }),
     }),
-  }),
-}))
+  }
+})
 
 vi.mock('@/lib/supabase-server', () => ({
   supabaseAdmin: { from: mockFrom },
@@ -69,6 +81,9 @@ describe('POST /api/devis/sync', () => {
     mockCheckRateLimit.mockReset()
     mockUpsert.mockReset()
     mockFrom.mockClear()
+    // Par défaut : ownership check OK (user possède bien artisanId)
+    mockOwnershipResult.mockReset()
+    mockOwnershipResult.mockResolvedValue({ data: [{ id: ARTISAN_ID }], error: null })
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon'
@@ -95,6 +110,21 @@ describe('POST /api/devis/sync', () => {
     const { POST } = await import('@/app/api/devis/sync/route')
     const res = await POST(makeRequest({ docType: 'invalid', artisanId: ARTISAN_ID, doc: validDoc }) as never)
     expect(res.status).toBe(400)
+  })
+
+  it('returns 403 when artisanId does not belong to authenticated user', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    // Ownership check retourne uniquement d'autres artisans (pas ARTISAN_ID)
+    mockOwnershipResult.mockResolvedValueOnce({
+      data: [{ id: '11111111-1111-4000-8000-000000000099' }],
+      error: null,
+    })
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: validDoc }) as never)
+    expect(res.status).toBe(403)
+    const json = await res.json()
+    expect(json.error).toMatch(/Forbidden/i)
   })
 
   it('returns 400 when artisanId not UUID', async () => {

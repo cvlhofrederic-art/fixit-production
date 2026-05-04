@@ -5,6 +5,14 @@ import NextImage from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { formatPrice } from '@/lib/utils'
+import {
+  mulMoney,
+  sumMoney,
+  round2,
+  parseDecimalInput,
+  computeAcomptesAmounts,
+  assertInvoiceInvariant,
+} from '@/lib/money'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
@@ -639,7 +647,7 @@ export default function DevisFactureForm({
     setLines(prev => prev.map(line => {
       if (line.id !== id) return line
       const updated = { ...line, [field]: value }
-      updated.totalHT = updated.qty * updated.priceHT
+      updated.totalHT = mulMoney(updated.qty || 0, updated.priceHT || 0)
       return updated
     }))
   }
@@ -665,7 +673,7 @@ export default function DevisFactureForm({
     setMaterialLines(prev => prev.map(line => {
       if (line.id !== id) return line
       const updated = { ...line, [field]: value }
-      updated.totalHT = updated.qty * updated.priceHT
+      updated.totalHT = mulMoney(updated.qty || 0, updated.priceHT || 0)
       return updated
     }))
   }
@@ -984,14 +992,37 @@ export default function DevisFactureForm({
   }, [])
 
   // ─── Calculations ───
-  const totalMaterialsHT = materialLines.reduce((sum, l) => sum + l.totalHT, 0)
-  const subtotalHT = lines.reduce((sum, l) => sum + l.totalHT, 0) + totalMaterialsHT + totalFraisAnnexesHT
-  const totalTVA = tvaEnabled
-    ? lines.reduce((sum, l) => sum + (l.totalHT * l.tvaRate / 100), 0)
-      + materialLines.reduce((sum, l) => sum + (l.totalHT * l.tvaRate / 100), 0)
-      + fraisAnnexes.reduce((sum, item) => sum + (item.total_ht * item.tva_applicable / 100), 0)
-    : 0
-  const totalTTC = subtotalHT + totalTVA
+  // Arrondi par ligne d'abord (norme BOFiP BOI-TVA-DECLA-30-20-20 §50),
+  // puis somme via centimes entiers (sumMoney). Élimine le drift IEEE 754
+  // observé sur 30+ lignes (cf. audit 03/05/2026).
+  const totalMaterialsHT = sumMoney(materialLines.map(l => l.totalHT || 0))
+  const subtotalHT = round2(
+    sumMoney(lines.map(l => l.totalHT || 0)) + totalMaterialsHT + totalFraisAnnexesHT,
+  )
+  // Ventilation TVA par taux (arrondie par taux après agrégation des bases —
+  // garantit l'invariant subtotalHT + Σ TVA = totalTTC à 0,01 € près).
+  const tvaBreakdown = useMemo(() => {
+    if (!tvaEnabled) return [] as Array<{ rate: number; base: number; amount: number }>
+    const map = new Map<number, { base: number; amount: number }>()
+    const acc = (ht: number, taux: number) => {
+      const cur = map.get(taux) || { base: 0, amount: 0 }
+      cur.base = round2(cur.base + ht)
+      map.set(taux, cur)
+    }
+    lines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0))
+    materialLines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0))
+    fraisAnnexes.forEach(f => acc(f.total_ht || 0, f.tva_applicable || 0))
+    map.forEach((v, taux) => { v.amount = mulMoney(v.base, taux / 100) })
+    return Array.from(map.entries())
+      .map(([rate, { base, amount }]) => ({ rate, base, amount }))
+      .sort((a, b) => b.rate - a.rate)
+  }, [lines, materialLines, fraisAnnexes, tvaEnabled])
+  const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
+  const totalTTC = round2(subtotalHT + totalTVA)
+  if (process.env.NODE_ENV === 'development' && tvaEnabled) {
+    const inv = assertInvoiceInvariant(subtotalHT, totalTVA, totalTTC)
+    if (!inv.ok) console.warn('[Artisan totaux] invariant cassé', inv)
+  }
 
   // Calculs rentabilité (dépend de subtotalHT)
   const rentaResult = useMemo(() => {
@@ -1228,7 +1259,15 @@ export default function DevisFactureForm({
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
-      lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
+      lines,
+      // Matériaux + frais annexes : passés au builder pour totalNet correct
+      // (sinon acomptes sous-calculés). Voir audit MOY-9.
+      materialLines,
+      fraisAnnexes,
+      // Ventilation TVA pré-calculée (single source of truth) — V2 affichera
+      // le détail multi-taux quand auto-entrepreneur en TVA.
+      tvaBreakdown: tvaEnabled ? tvaBreakdown : undefined,
+      acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
       isHorsEtablissement,
     })
   }
@@ -1245,10 +1284,11 @@ export default function DevisFactureForm({
     // Bloquer si acomptes activés mais total != 100%
     if (acomptesEnabled && acomptes.length > 0) {
       const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
-      if (totalPct !== 100) {
+      // Tolérance flottante 0.01 — sinon 33,33×3 = 99.99 IEEE bloque.
+      if (Math.abs(totalPct - 100) > 0.01) {
         toast.error(locale === 'pt'
-          ? `O total dos adiantamentos deve ser 100% (atualmente ${totalPct}%).`
-          : `Le total des acomptes doit être égal à 100% (actuellement ${totalPct}%).`)
+          ? `O total dos adiantamentos deve ser 100% (atualmente ${Math.round(totalPct)}%).`
+          : `Le total des acomptes doit être égal à 100% (actuellement ${Math.round(totalPct)}%).`)
         return
       }
     }
@@ -2662,14 +2702,11 @@ export default function DevisFactureForm({
                               inputMode="decimal"
                               step="0.01"
                               value={line.qty === 0 ? '' : line.qty}
-                              onChange={(e) => {
-                                const v = e.target.value.replace(',', '.')
-                                updateLine(line.id, 'qty', v === '' ? 0 : parseFloat(v) || 0)
-                              }}
+                              onChange={(e) => updateLine(line.id, 'qty', parseDecimalInput(e.target.value))}
                               onFocus={(e) => e.target.select()}
                               onBlur={(e) => {
                                 // Au blur, forcer minimum > 0 (accepte décimales)
-                                const v = parseFloat(e.target.value.replace(',', '.'))
+                                const v = parseDecimalInput(e.target.value)
                                 if (!v || v <= 0) updateLine(line.id, 'qty', 1)
                               }}
                               min={0}
@@ -2716,10 +2753,11 @@ export default function DevisFactureForm({
                             <input
                               type="number"
                               value={line.priceHT === 0 ? '' : line.priceHT}
-                              onChange={(e) => updateLine(line.id, 'priceHT', parseFloat(e.target.value) || 0)}
+                              onChange={(e) => updateLine(line.id, 'priceHT', parseDecimalInput(e.target.value))}
                               onFocus={(e) => e.target.select()}
-                              step="0.01"
+                              step="0.0001"
                               className="v22-form-input"
+                              title="Prix unitaire HT — jusqu'à 4 décimales (norme étude de prix)"
                             />
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
@@ -2752,8 +2790,7 @@ export default function DevisFactureForm({
                               type="number"
                               value={line.totalHT === 0 ? '' : line.totalHT}
                               onChange={(e) => {
-                                const raw = e.target.value
-                                const newTotal = raw === '' ? 0 : parseFloat(raw) || 0
+                                const newTotal = parseDecimalInput(e.target.value)
                                 const qty = line.qty > 0 ? line.qty : 1
                                 const newPrice = newTotal / qty
                                 setLines(prev => prev.map(l => l.id !== line.id ? l : { ...l, priceHT: newPrice, totalHT: newTotal }))
@@ -2834,11 +2871,11 @@ export default function DevisFactureForm({
                         {materialLines.map((line) => (
                           <tr key={line.id}>
                             <td><input type="text" className="v22-input" placeholder={locale === 'pt' ? 'Ex: Cimento, areia...' : 'Ex : Ciment, sable...'} value={line.description} onChange={(e) => updateMaterialLine(line.id, 'description', e.target.value)} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseFloat(e.target.value) || 0)} style={{ textAlign: 'center' }} /></td>
+                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
                             <td><input type="text" className="v22-input" value={line.unit} onChange={(e) => updateMaterialLine(line.id, 'unit', e.target.value)} style={{ textAlign: 'center' }} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseFloat(e.target.value) || 0)} style={{ textAlign: 'right' }} /></td>
+                            <td><input type="number" className="v22-input" min={0} step="0.0001" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput(e.target.value))} style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
                             {tvaEnabled && (
-                              <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseFloat(e.target.value) || 0)} style={{ textAlign: 'center' }} /></td>
+                              <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
                             )}
                             <td style={{ textAlign: 'right', fontWeight: 600 }}>{line.totalHT.toFixed(2)}</td>
                             <td>
@@ -2912,7 +2949,7 @@ export default function DevisFactureForm({
                               <input
                                 type="number"
                                 value={item.quantite || ''}
-                                onChange={(e) => updateFraisAnnexe(item.id, 'quantite', parseFloat(e.target.value) || 0)}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'quantite', parseDecimalInput(e.target.value))}
                                 onFocus={(e) => e.target.select()}
                                 min={0}
                                 step="0.01"
@@ -2934,7 +2971,7 @@ export default function DevisFactureForm({
                               <input
                                 type="number"
                                 value={item.prix_unitaire_ht || ''}
-                                onChange={(e) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', parseFloat(e.target.value) || 0)}
+                                onChange={(e) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', parseDecimalInput(e.target.value))}
                                 onFocus={(e) => e.target.select()}
                                 min={0}
                                 step="0.01"
@@ -3043,7 +3080,7 @@ export default function DevisFactureForm({
                               value={ac.pourcentage || ''}
                               onChange={(e) => {
                                 const updated = [...acomptes]
-                                updated[idx] = { ...ac, pourcentage: parseFloat(e.target.value) || 0 }
+                                updated[idx] = { ...ac, pourcentage: parseDecimalInput(e.target.value) }
                                 setAcomptes(updated)
                               }}
                               className={normalFieldClass}
@@ -3085,13 +3122,17 @@ export default function DevisFactureForm({
                       </button>
                     </div>
                     {(() => {
-                      const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
-                      const color = totalPct === 100 ? 'var(--v22-green)' : totalPct > 100 ? 'var(--v22-red)' : 'var(--v22-amber)'
+                      // Tolérance flottante 0.01 — sinon 33,33+33,33+33,34
+                      // affiche 99.99 ou 100.00000001 selon les inputs.
+                      const totalPctRaw = acomptes.reduce((s, a) => s + a.pourcentage, 0)
+                      const totalPct = Math.round(totalPctRaw)
+                      const isExact = Math.abs(totalPctRaw - 100) < 0.01
+                      const color = isExact ? 'var(--v22-green)' : totalPctRaw > 100.01 ? 'var(--v22-red)' : 'var(--v22-amber)'
                       return (
                         <div style={{ fontSize: 13, fontWeight: 600, color, marginTop: 4 }}>
-                          {locale === 'pt' ? 'Total faseado' : 'Total échelonné'} : {totalPct}% {totalPct === 100 ? '✅' : totalPct > 100 ? '❌' : '⚠️'}
-                          {totalPct > 100 && <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{locale === 'pt' ? 'O total dos adiantamentos excede 100%. Ajuste as percentagens.' : 'Le total des acomptes dépasse 100%. Ajustez les pourcentages.'}</div>}
-                          {totalPct < 100 && totalPct > 0 && <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{locale === 'pt' ? `Os ${100 - totalPct}% restantes serão pagos separadamente.` : `Les ${100 - totalPct}% restants seront réglés séparément.`}</div>}
+                          {locale === 'pt' ? 'Total faseado' : 'Total échelonné'} : {totalPct}% {isExact ? '✅' : totalPctRaw > 100.01 ? '❌' : '⚠️'}
+                          {totalPctRaw > 100.01 && <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{locale === 'pt' ? 'O total dos adiantamentos excede 100%. Ajuste as percentagens.' : 'Le total des acomptes dépasse 100%. Ajustez les pourcentages.'}</div>}
+                          {totalPctRaw < 99.99 && totalPctRaw > 0 && <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{locale === 'pt' ? `Os ${100 - totalPct}% restantes serão pagos separadamente.` : `Les ${100 - totalPct}% restants seront réglés séparément.`}</div>}
                         </div>
                       )
                     })()}
