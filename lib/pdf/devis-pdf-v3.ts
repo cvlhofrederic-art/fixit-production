@@ -363,7 +363,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Validation URL logo : allowlist domaines de confiance pour éviter SSRF/XSS
   // (un logo SVG malveillant chargé depuis un domaine externe pourrait leak
   // des données via <image href>, ou un PNG de 50 Mo crasherait le worker).
-  const ALLOWED_LOGO_DOMAINS = ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+  // Hotfix audit 04/05/2026 : localhost et 127.0.0.1 retirés en prod
+  // (exploitable sur Capacitor mobile où webview tourne sur localhost).
+  const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+  const ALLOWED_LOGO_DOMAINS = isProd
+    ? ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt']
+    : ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
   const isLogoUrlAllowed = (url: string): boolean => {
     try {
       const parsed = new URL(url)
@@ -1384,13 +1389,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       : 'Devis gratuit (art. L.111-1 C. conso.). Pour les prestations de dépannage, réparation et entretien : arrêté du 24 janvier 2017.'
   } else {
     // Facture — date d'échéance précise OBLIGATOIRE B2B (art. L.441-9 4° C. com.)
-    // Calcul date absolue depuis docDate + paymentDelay (jours).
-    const paymentDelayDays = parseInt(paymentDue || '30', 10) || 30
-    const computedDue = new Date(docDate)
-    if (!isNaN(computedDue.getTime())) computedDue.setDate(computedDue.getDate() + paymentDelayDays)
-    const dueDateStr = !isNaN(computedDue.getTime())
-      ? computedDue.toLocaleDateString(dateLocaleStr)
-      : (paymentDue || '---')
+    // `paymentDue` peut arriver dans 3 formats selon le caller :
+    //   1) Date ISO ("2026-06-15") — utilisée directement
+    //   2) Nombre de jours en string ("30") — additionné à docDate
+    //   3) Texte libre ("30 jours", "Comptant", "À réception") — parsé en
+    //      nombre via parseInt (extrait le préfixe numérique) ou fallback 30
+    // Hotfix audit 04/05/2026 BUG-2 : avant, parseInt('2026-06-15')
+    // retournait 2026 → mention "échéance dans 2026 jours" = 17/11/2031.
+    let dueDateStr = '---'
+    const isoMatch = (paymentDue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (isoMatch) {
+      // Format ISO date — utiliser tel quel
+      const dueAbs = new Date(paymentDue)
+      if (!isNaN(dueAbs.getTime())) {
+        dueDateStr = dueAbs.toLocaleDateString(dateLocaleStr)
+      }
+    } else {
+      // Texte libre / nombre de jours — parseInt extrait le préfixe numérique
+      const numericMatch = (paymentDue || '').match(/^\s*(\d+)/)
+      const paymentDelayDays = numericMatch ? parseInt(numericMatch[1], 10) : 30
+      const safeDelayDays = Number.isFinite(paymentDelayDays) && paymentDelayDays > 0 && paymentDelayDays <= 365
+        ? paymentDelayDays : 30
+      const computedDue = new Date(docDate)
+      if (!isNaN(computedDue.getTime())) {
+        computedDue.setDate(computedDue.getDate() + safeDelayDays)
+        dueDateStr = computedDue.toLocaleDateString(dateLocaleStr)
+      } else if (paymentDue) {
+        // Fallback affiche le texte libre tel quel ("Comptant", "À réception")
+        dueDateStr = paymentDue
+      }
+    }
     if (locale === 'pt') {
       legal2 = `Condições de pagamento : vencimento ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
     } else {
@@ -1439,9 +1467,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement, BTP > 500 €
-  // HT ou particulier — décret 2020-1817, art. L.541-21-2-1 C. env.).
-  if (locale !== 'pt' && (subtotalHT > 500 || isParticulier)) {
+  // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement).
+  // Hotfix audit 04/05/2026 : retrait du seuil 500 € HT inventé. Le décret
+  // 2020-1817 (art. R.541-12-2 C. env.) s'applique à TOUS les devis BTP de
+  // construction, rénovation, démolition et jardinage SANS SEUIL.
+  // Mention systématique sur le V3 BTP (locale FR).
+  if (locale !== 'pt') {
     legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
   }
 
@@ -1662,11 +1693,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // 2027 émission obligatoire pour toutes entreprises FR. Format = Factur-X
   // 1.0.07 (PDF/A-3 + XML CII EN 16931 BASIC profile).
   //
-  // Feature flag NEXT_PUBLIC_FEATURE_FACTURX permet rollback rapide en prod
-  // si bug, sans redéploiement (toggle env var Cloudflare Workers).
+  // ATTENTION : NEXT_PUBLIC_FEATURE_FACTURX est inliné par Next.js au build.
+  // Activer/désactiver cette feature nécessite un REBUILD + REDEPLOY, pas
+  // juste un wrangler secret put. Le commentaire d'origine PR #103 affirmait
+  // à tort qu'on pouvait toggle live — corrigé hotfix audit 04/05/2026.
   //
   // Conditions d'activation strictes :
-  //  - docType === 'facture' (pas un devis)
+  //  - docType === 'facture' (pas un devis — un devis n'est pas une "Invoice"
+  //    au sens CII, le mapper retournerait TypeCode 325 mort-né)
   //  - locale === 'fr' (réforme française uniquement)
   //  - tvaEnabled (XML CII exige TVA structurée)
   //  - clientType === 'professionnel' (B2B)
@@ -1689,27 +1723,62 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ])
       const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
       const pdfBytes = new Uint8Array(pdfArrayBuffer)
-      // Build minimal DevisFactureData mapping pour le XML CII
+      // Mapping vers FacturXMappingInput (type strict — un champ manquant
+      // serait une erreur TypeScript à la compilation, pas un crash runtime).
+      // Hotfix audit 04/05/2026 : retrait du cast `as unknown as` qui
+      // masquait des champs manquants → crash silencieux en prod.
       const facturXData = {
-        docNumber, docTitle, docDate, paymentDue, docType, locale,
-        companyName, companySiret, companyAddress, tvaNumber,
-        clientName, clientSiret, clientAddress,
-        lines: lines.filter(l => l.description.trim()),
-        subtotalHT, totalTTC, tvaEnabled, paymentMode,
+        docNumber,
+        docDate,
+        docType: docType as 'devis' | 'facture',
+        paymentDue,
+        notes: notes || undefined,
+        // Émetteur
+        companyName,
+        companySiret,
+        companyAddress,
+        companyEmail,
+        tvaEnabled,
+        tvaNumber: tvaNumber || undefined,
+        // Destinataire
+        clientName,
+        clientSiret: clientSiret || undefined,
+        clientAddress,
+        clientEmail: clientEmail || undefined,
+        // BT-10 BuyerReference (obligatoire BASIC FR-PPF) — fallback sur
+        // SIRET client puis email puis 'N/A' (géré dans le mapper).
+        buyerReference: clientSiret || clientEmail || undefined,
+        // Paiement
+        paymentMode: paymentMode || undefined,
+        iban: iban || undefined,
+        bic: bic || undefined,
+        // Lignes (mapping minimal)
+        lines: lines.filter(l => l.description.trim()).map(l => ({
+          description: l.description,
+          qty: l.qty,
+          unit: l.unit,
+          priceHT: l.priceHT,
+          totalHT: l.totalHT,
+          tvaRate: l.tvaRate,
+        })),
       }
-      // generateFacturXML attend un type DevisFactureData complet ; on cast
-      // via unknown car le mapper n'utilise pas tous les champs (dépendances
-      // strictement nominales sur lines, totalHT, totalTTC, tvaEnabled, etc.).
-      // Si un champ requis manque, l'embedding échoue dans le try/catch et
-      // on retombe sur le PDF jsPDF non-Factur-X (pas de blocage utilisateur).
-      const xml = generateFacturXML(facturXData as unknown as Parameters<typeof generateFacturXML>[0])
+      const xml = generateFacturXML(facturXData)
       outputBytes = await embedFacturX(pdfBytes, xml)
     } catch (e) {
       // Fallback : si l'embedding échoue, on conserve le PDF jsPDF normal.
-      // L'erreur ne doit pas bloquer la facturation.
+      // L'erreur ne doit pas bloquer la facturation MAIS doit remonter en
+      // Sentry — sinon en septembre 2026 (réception obligatoire), on aurait
+      // 0 % de Factur-X généré sans aucune trace.
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[PDF V3] Factur-X embedding failed, falling back to plain PDF:', e)
       }
+      try {
+        const Sentry = await import('@sentry/nextjs')
+        Sentry.captureException(e, {
+          tags: { agent_type: 'facturx', stage: 'embed' },
+          extra: { docNumber, clientType, locale },
+        })
+      } catch { /* Sentry indisponible — pas bloquant */ }
       outputBytes = null
     }
   }

@@ -14,6 +14,7 @@ import {
   mulMoney,
   sumMoney,
   parseDecimalInput,
+  parseDecimalInput4,
   computeAcomptesAmounts,
   assertInvoiceInvariant,
 } from '@/lib/money'
@@ -35,10 +36,12 @@ describe('round2 — ROUND_HALF_UP commercial (BOFiP BOI-TVA-DECLA-30-20-20 §50
     expect(round2(0.1 + 0.2)).toBe(0.30)
   })
 
-  it('arrondit -0.005 à -0.01 (négatifs symétriques)', () => {
-    // Note : `Math.round` arrondit vers +∞ pour 0.5, donc -0.005 → 0.
-    // Pour les remises (négatifs), on accepte cette convention.
-    expect(round2(-0.005)).toBeCloseTo(0, 2)
+  it('arrondit -0.005 à -0.01 (symétrique commercial — fix BUG-3 hotfix audit)', () => {
+    // FIX HOTFIX 04/05/2026 : Math.round(-0.5) === 0 en JS (asymétrique).
+    // Sur les remises, l\'arrondi commercial doit être SYMÉTRIQUE pour ne pas
+    // drifter en faveur de l\'artisan (contestation client). Implémentation
+    // via sign × Math.round(|n|).
+    expect(round2(-0.005)).toBe(-0.01)
   })
 
   it('arrondit NaN à 0 (garde-fou)', () => {
@@ -286,6 +289,150 @@ describe('assertInvoiceInvariant — Sous-total HT + TVA = TOTAL TTC', () => {
     // Après fix (TVA 10% = 6820 sur base 68 200.01) :
     const rFixed = assertInvoiceInvariant(68600.01, 6820.00 + 80.00, 75500.01)
     expect(rFixed.ok).toBe(true)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HOTFIX AUDIT INTERNE 04/05/2026 — Tests régression pour 5 bugs critiques
+// introduits par PR #103. Ces tests DOIVENT échouer sur le code avant fix.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('HOTFIX BUG-1 — sumMoney drift sur valeurs avec demi-cents', () => {
+  it('100 lignes à 1.005 € donnent 100.50 € (pas 101 €)', () => {
+    // BUG : la pré-conversion en cents par item arrondit chaque demi-cent UP
+    //       → 100 × Math.round(1.005×100) = 100×101 = 10100 cents = 101 €
+    // FIX : sommer brut puis arrondir UNE FOIS en fin
+    expect(sumMoney(Array(100).fill(1.005))).toBe(100.50)
+  })
+
+  it('2 lignes à 1.005 € = 2.01 € (round_half_up sur la somme)', () => {
+    expect(sumMoney([1.005, 1.005])).toBe(2.01)
+  })
+
+  it('marge 1.005 % matériaux × 50 lignes BTP — pas de drift', () => {
+    const lines = Array(50).fill(1.005)
+    expect(sumMoney(lines)).toBe(50.25)
+  })
+})
+
+describe('HOTFIX BUG-2 — computeAcomptesAmounts force 100 % sur acompte partiel', () => {
+  it('1 acompte de 30 % sur 1000 € donne [300] (pas [1000])', () => {
+    // BUG : `slice(0, -1)` = [], donc `last = total - 0 = total = 1000`
+    //       → l\'utilisateur saisit "30% à la commande" et le PDF facture 100 %
+    // FIX : si Σ pourcentages !== 100, ne pas rattraper le résidu
+    expect(computeAcomptesAmounts(1000, [{ pourcentage: 30 }])).toEqual([300])
+  })
+
+  it('2 acomptes partiels (30 % + 50 %) donnent [300, 500] sur 1000 €', () => {
+    expect(computeAcomptesAmounts(1000, [
+      { pourcentage: 30 },
+      { pourcentage: 50 },
+    ])).toEqual([300, 500])
+  })
+
+  it('3 acomptes 33,33 % × 3 sur 100,01 (Σ=99,99) → [33.33, 33.33, 33.33] sans rattrapage', () => {
+    // L\'utilisateur a saisi 99.99 % volontairement (1 cent réglé séparément)
+    // → ne pas forcer à 100 %
+    const r = computeAcomptesAmounts(100.01, [
+      { pourcentage: 33.33 },
+      { pourcentage: 33.33 },
+      { pourcentage: 33.33 },
+    ])
+    expect(sumMoney(r)).toBeCloseTo(99.99, 2)
+  })
+
+  it('3 acomptes Σ=100 — le rattrapage absorbe le résidu sur le dernier', () => {
+    // Cas où le rattrapage est légitime (Σ === 100)
+    const r = computeAcomptesAmounts(100.01, [
+      { pourcentage: 33.33 },
+      { pourcentage: 33.33 },
+      { pourcentage: 33.34 },
+    ])
+    expect(sumMoney(r)).toBe(100.01)
+  })
+})
+
+describe('HOTFIX BUG-3 — round2 négatifs symétrique (remises)', () => {
+  it('round2(-1.005) = -1.01 (symétrique commercial, pas Math.round natif)', () => {
+    // BUG : Math.round(-0.5) === 0 en JS (asymétrique vers +∞)
+    //       round2(-1.005) retournait -1 au lieu de -1.01
+    //       → drift en faveur de l\'artisan sur les remises
+    expect(round2(-1.005)).toBe(-1.01)
+  })
+
+  it('round2(-1.045) = -1.05', () => {
+    expect(round2(-1.045)).toBe(-1.05)
+  })
+
+  it('round2(-0.005) = -0.01 (symétrique)', () => {
+    expect(round2(-0.005)).toBe(-0.01)
+  })
+
+  it('round2(0.005) = 0.01 (positif)', () => {
+    expect(round2(0.005)).toBe(0.01)
+  })
+})
+
+describe('HOTFIX BUG-4 — parseDecimalInput sans cap silencieux à 10M €', () => {
+  it('accepte un devis légitime de 12 000 000 € (gros chantier rénovation)', () => {
+    // BUG : cap à 9_999_999.99 retournait 0 silencieusement
+    // FIX : cap relevé à Number.MAX_SAFE_INTEGER / 100 (≈ 9 × 10^13)
+    expect(parseDecimalInput('12000000')).toBe(12_000_000)
+    expect(parseDecimalInput(12_000_000)).toBe(12_000_000)
+  })
+
+  it('accepte 999 999 999.99 € (immeuble HLM par exemple)', () => {
+    expect(parseDecimalInput('999999999.99')).toBe(999_999_999.99)
+  })
+
+  it('refuse encore les vrais overflows (1e308, Infinity)', () => {
+    expect(parseDecimalInput('1e308')).toBe(0)
+    expect(parseDecimalInput(Infinity)).toBe(0)
+  })
+})
+
+describe('HOTFIX BUG-5 — assertInvoiceInvariant tolérance <= 0.01', () => {
+  it('delta exactement 0.01 → ok=true (tolérance inclusive)', () => {
+    // BUG : `delta < 0.01` excluait le cas exact 0.01
+    // FIX : `delta <= 0.01` (inclusive)
+    const r = assertInvoiceInvariant(100.00, 20.00, 120.01)
+    expect(r.ok).toBe(true)
+  })
+
+  it('delta 0.005 → ok=true', () => {
+    const r = assertInvoiceInvariant(100.00, 20.005, 120.00)
+    expect(r.ok).toBe(true)
+  })
+
+  it('delta 0.02 → ok=false (au-delà de la tolérance)', () => {
+    const r = assertInvoiceInvariant(100.00, 20.00, 120.02)
+    expect(r.ok).toBe(false)
+  })
+})
+
+describe('parseDecimalInput4 — saisie PU 4 décimales (BTP étude de prix)', () => {
+  it('"381.8181" → 381.8181 (4 décimales conservées)', () => {
+    expect(parseDecimalInput4('381.8181')).toBe(381.8181)
+  })
+
+  it('"381,8181" → 381.8181 (virgule FR)', () => {
+    expect(parseDecimalInput4('381,8181')).toBe(381.8181)
+  })
+
+  it('"381.81818" → 381.8182 (5e décimale arrondit à 4)', () => {
+    expect(parseDecimalInput4('381.81818')).toBe(381.8182)
+  })
+
+  it('vide → 0', () => {
+    expect(parseDecimalInput4('')).toBe(0)
+  })
+
+  it('NaN → 0', () => {
+    expect(parseDecimalInput4(NaN)).toBe(0)
+  })
+
+  it('cas Adeline : 1909.09 / 5 = 381.818 (3 décimales) accepté tel quel', () => {
+    expect(parseDecimalInput4('381.818')).toBe(381.818)
   })
 })
 

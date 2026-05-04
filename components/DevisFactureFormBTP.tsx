@@ -35,9 +35,12 @@ import {
   sumMoney,
   round2,
   parseDecimalInput,
+  parseDecimalInput4,
   computeAcomptesAmounts,
   assertInvoiceInvariant,
 } from '@/lib/money'
+import { isValidSiret } from '@/lib/validation'
+import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -736,12 +739,24 @@ export default function DevisFactureFormBTP({
     const totalTva = sumMoney(tvaBreakdown.map(b => b.amount))
     const totalTTC = round2(totalHT + totalTva)
 
-    // Invariant en dev — log warning si drift > 0,01 €.
-    if (process.env.NODE_ENV === 'development' && tvaEnabled) {
+    // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
+    // Sans ce check actif en prod, un PDF avec totaux incohérents passerait
+    // inaperçu jusqu'à un audit Bercy ou une contestation client.
+    // Niveau warning (non-bloquant) : on ne casse pas le rendu, on alerte.
+    if (tvaEnabled) {
       const inv = assertInvoiceInvariant(totalHT, totalTva, totalTTC)
       if (!inv.ok) {
-        // eslint-disable-next-line no-console
-        console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
+        }
+        // Sentry capture (silent en prod, ne bloque pas le render)
+        try {
+          Sentry.captureMessage('invoice-invariant-broken-btp', {
+            level: 'warning',
+            extra: { totalHT, totalTva, totalTTC, delta: inv.delta, tvaBreakdownCount: tvaBreakdown.length },
+          })
+        } catch { /* Sentry indisponible — pas bloquant */ }
       }
     }
 
@@ -1411,13 +1426,15 @@ export default function DevisFactureFormBTP({
     try {
       const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
-      // Auto-détection clientType : si un SIRET 14 chiffres a été saisi, le
-      // client est forcément pro (sinon les mentions B2C/B2B sont inversées,
-      // notamment la rétractation 14 jours qui ne s'applique PAS aux pros).
-      // Cf. audit 03/05/2026 ÉLEVÉ EL-8.
-      const cleanSiret = (clientSiret || '').replace(/\s/g, '')
+      // Auto-détection clientType : SIRET 14 chiffres + checksum Luhn valide
+      // → client forcément pro. Avant hotfix audit 04/05/2026, on testait
+      // juste `length === 14` — un fake "12345678901234" forçait pro et
+      // désactivait la rétractation 14 jours (art. L.221-18 C. conso.) →
+      // régression légale pour le client final qui aurait pu invalider
+      // sa commande sur cette base.
+      // Maintenant : validation Luhn (cf. lib/validation.ts:isValidSiret).
       const detectedClientType: 'particulier' | 'professionnel' =
-        cleanSiret.length === 14 ? 'professionnel' : clientType
+        isValidSiret(clientSiret || '') ? 'professionnel' : clientType
       const validLabor = lines.filter(l => (l.description || '').trim())
       // Si la section Matériaux/Frais est désactivée par l'utilisateur (toggle),
       // ses lignes ne doivent PAS compter dans les totaux — sinon mismatch entre
@@ -2157,7 +2174,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2273,7 +2290,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2381,7 +2398,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                      <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateFraisLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2518,7 +2535,7 @@ export default function DevisFactureFormBTP({
                             {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                           </select>
                         </td>
-                        <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: parseDecimalInput(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
+                        <td><input type="number" min={0} step="0.0001" placeholder="0" value={l.priceHT || ''} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — jusqu'à 4 décimales pour étude de prix BTP" /></td>
                         <td>
                           <select value={l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
