@@ -1111,8 +1111,23 @@ export const devisSyncSchema = z.object({
     docNumber: z.string().min(1, 'docNumber requis').max(100),
     docType: z.enum(['devis', 'facture']).optional(),
     clientName: z.string().max(500).optional(),
-    clientEmail: z.string().email('email invalide').nullable().optional(),
-    chantierId: z.string().uuid('chantierId doit être un UUID valide').nullable().optional(),
+    // clientEmail : accepte email valide OU chaîne vide (cas fréquent : le
+    // client n'a pas d'email saisi) OU null/undefined. Avant fix 04/05/2026 :
+    // .email() rejetait "" → 400 « doc.clientEmail: email invalide » sur
+    // tout devis sans email client. Sync DB échouait silencieusement, devis
+    // restaient en localStorage uniquement.
+    clientEmail: z.union([
+      z.string().email('email invalide'),
+      z.literal(''),
+      z.null(),
+    ]).optional(),
+    // chantierId : accepte UUID OU chaîne vide OU null. Même problème
+    // potentiel : si le form envoie "" au lieu de null, validation casse.
+    chantierId: z.union([
+      z.string().uuid('chantierId doit être un UUID valide'),
+      z.literal(''),
+      z.null(),
+    ]).optional(),
     status: z.string().max(50).optional(),
     lines: z.array(z.unknown()).optional(),
     materialLines: z.array(z.unknown()).optional(),
