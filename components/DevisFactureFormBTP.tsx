@@ -435,6 +435,42 @@ export default function DevisFactureFormBTP({
   // "À convenir" (même logique que executionDelay vide).
   const [prestationDate, setPrestationDate] = useState<string>(initialData?.prestationDate || '')
 
+  // RIB & coordonnées bancaires — chargés depuis le profil paramètres entreprise
+  // (/api/artisan-payment-info) puis injectés dans le PDF V3 (au pied du document
+  // sous les notes). Bug 04/05/2026 : avant, l'IBAN était hardcodé '' lors de la
+  // génération PDF → rien ne s'affichait malgré le toggle « RIB ajouté
+  // automatiquement ». Fix : fetch async au montage du form.
+  const [profileIban, setProfileIban] = useState<string>('')
+  const [profileBic, setProfileBic] = useState<string>('')
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/artisan-payment-info', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        // Trouve le 1er mode 'virement' actif avec IBAN renseigné
+        const virement = (data.paiement_modes || []).find(
+          (m: { type?: string; iban?: string; actif?: boolean }) =>
+            m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
+        )
+        if (virement) {
+          setProfileIban((virement.iban || '').trim())
+          setProfileBic(((virement as { bic?: string }).bic || '').trim())
+        }
+      } catch (e) {
+        // Silent fail — le PDF se génère sans IBAN si l'API échoue.
+        console.warn('[BTP form] Loading payment info failed:', e)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   // Lignes prestations
   const [lines, setLines] = useState<ProductLine[]>(
     initialData?.lines && initialData.lines.length > 0
@@ -1488,7 +1524,9 @@ export default function DevisFactureFormBTP({
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
         paymentDue: paymentDelay || '30 jours',
-        paymentCondition: escompte || '', discount: '', penaltyRate: penaltyRate || '', recoveryFee: recoveryFee || '', iban: '', bic: '',
+        paymentCondition: escompte || '', discount: '', penaltyRate: penaltyRate || '', recoveryFee: recoveryFee || '',
+        // RIB chargé depuis le profil paramètres entreprise (cf. useEffect plus haut).
+        iban: profileIban, bic: profileBic,
         lines: validLines.length > 0 ? validLines : lines,
         laborLines: validLabor,
         materialLines: validMaterials,
