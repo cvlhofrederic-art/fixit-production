@@ -815,12 +815,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     sectionName?: string,
     rowKinds?: RowKind[],
   ) => {
-    // Track la page de départ pour détecter les pages débordées (overflow).
-    // Sur ces pages, autoTable redessine le head (showHead: 'everyPage') et nous
-    // ajoutons le titre de section "(suite)" via didDrawPage pour éviter qu'une
-    // ligne body apparaisse orpheline (sans titre ni head) en haut de page.
+    // PAGINATION INTELLIGENTE — fix bug 04/05/2026 (rapport audit utilisateur)
+    //
+    // Avant : autoTable showHead:'everyPage' redessine le head sur CHAQUE page
+    // d'overflow + didDrawPage ajoute "(suite)" inconditionnellement. Problème :
+    // quand une description longue (sub-row 'desc' ou 'etape') déborde sur la
+    // page suivante SANS qu'un nouveau poste 'parent' n'y commence, on a un
+    // head + "(suite)" orphelins suivis seulement de la queue de description
+    // → typographiquement faux et trompeur pour le client (laisse penser qu'il
+    // y a un nouveau poste).
+    //
+    // Fix : après autoTable, post-process des pages overflow :
+    //   - Si la page contient au moins une row 'parent' (= nouveau poste) →
+    //     garder le head, ajouter "(suite)" AVANT le head (positionné y=18).
+    //   - Sinon (page contient seulement desc/etape, queue d'un poste de la
+    //     page précédente) → effacer le head par overdraw blanc, pas de
+    //     "(suite)". La queue de description coule naturellement.
+    //
+    // Tracking via didDrawCell : on enregistre les kinds de rows par page +
+    // les bornes du head re-dessiné par autoTable.
     const startPageNum = pdf.getNumberOfPages()
     const suiteSuffix = locale === 'pt' ? ' (continuação)' : ' (suite)'
+    const pageRowKinds = new Map<number, Set<RowKind>>()
+    const pageHeaderBox = new Map<number, { y: number; h: number }>()
     autoTable(pdf, {
       head: tableHead,
       body,
@@ -828,9 +845,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       // top: 22mm réservés sur les pages overflow pour le titre "(suite)" + petit
       // espace. N'affecte PAS la 1re page de la table (où startY est utilisé).
       margin: { left: mL, right: mR, top: 22 },
-      // 'everyPage' au lieu de 'firstPage' : si la table déborde sur une page
-      // suivante, le head est répété (Désignation / Qté / Unité / Prix / TVA /
-      // Total). Évite l'orphelin ligne body sans contexte de colonnes.
+      // 'everyPage' nécessaire pour que le head soit dessiné si une nouvelle
+      // row parent apparaît sur la page d'overflow. Le post-process ci-dessous
+      // efface le head si aucune row parent ne se trouve sur cette page.
       showHead: 'everyPage',
       theme: 'plain',
       rowPageBreak: 'avoid',
@@ -860,13 +877,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       columnStyles: colStyles as any,
       tableLineColor: [224, 224, 220],
       tableLineWidth: 0,
-      didDrawPage: () => {
-        // Si on est sur une page créée par autoTable (overflow), redrawer le
-        // titre de section "(suite)" pour éviter l'orphelin visuel.
-        const currentPage = pdf.getNumberOfPages()
-        if (sectionName && currentPage > startPageNum) {
-          pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-          pdf.text(`${sectionName}${suiteSuffix}`, mL, 18)
+      didDrawCell: (data: any) => {
+        const pageNum = pdf.getNumberOfPages()
+        if (data.section === 'head' && pageNum > startPageNum) {
+          // Tracker bornes du head re-dessiné sur page overflow (1re cellule
+          // head rencontrée pour cette page suffit — toutes ont même y/height).
+          if (!pageHeaderBox.has(pageNum)) {
+            pageHeaderBox.set(pageNum, { y: data.cell.y, h: data.row.height })
+          }
+        } else if (data.section === 'body' && rowKinds) {
+          const kind = rowKinds[data.row.index]
+          if (kind) {
+            let set = pageRowKinds.get(pageNum)
+            if (!set) { set = new Set<RowKind>(); pageRowKinds.set(pageNum, set) }
+            set.add(kind)
+          }
         }
       },
       didParseCell: (data: any) => {
@@ -906,6 +931,33 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         }
       },
     })
+
+    // Post-process pages overflow (= toutes pages > startPageNum) :
+    //   - Si page contient row 'parent' (nouveau poste) → "(suite)" + head OK
+    //   - Sinon (queue de desc/etape) → effacer head orphelin, pas de "(suite)"
+    const endPageNum = pdf.getNumberOfPages()
+    for (let p = startPageNum + 1; p <= endPageNum; p++) {
+      const kinds = pageRowKinds.get(p) ?? new Set<RowKind>()
+      const hasParent = kinds.has('parent')
+      if (!hasParent) {
+        // Head orphelin : la page ne contient que la suite d'une description du
+        // poste de la page précédente. Effacer par overdraw blanc.
+        const box = pageHeaderBox.get(p)
+        if (box) {
+          pdf.setPage(p)
+          pdf.setFillColor(255, 255, 255)
+          // +0.5mm de marge pour couvrir d'éventuelles bordures fines
+          pdf.rect(mL - 0.5, box.y - 0.3, contentW + 1, box.h + 0.6, 'F')
+        }
+      } else if (sectionName) {
+        // Page contient au moins un nouveau poste → "(suite)" légitime
+        pdf.setPage(p)
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(`${sectionName}${suiteSuffix}`, mL, 18)
+      }
+    }
+    // Restaurer la page courante = dernière page (pour rendu suivant)
+    pdf.setPage(endPageNum)
   }
 
   const drawSectionLabel = (label: string) => {
