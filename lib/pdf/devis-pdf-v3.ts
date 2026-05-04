@@ -815,44 +815,35 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     sectionName?: string,
     rowKinds?: RowKind[],
   ) => {
-    // PAGINATION INTELLIGENTE — fix bug 04/05/2026 (rapport audit utilisateur)
+    // PAGINATION TABLE — fix bug 04/05/2026 (rapport audit utilisateur)
     //
-    // Avant : autoTable showHead:'everyPage' redessine le head sur CHAQUE page
-    // d'overflow + didDrawPage ajoute "(suite)" inconditionnellement. Problème :
-    // quand une description longue (sub-row 'desc' ou 'etape') déborde sur la
-    // page suivante SANS qu'un nouveau poste 'parent' n'y commence, on a un
-    // head + "(suite)" orphelins suivis seulement de la queue de description
-    // → typographiquement faux et trompeur pour le client (laisse penser qu'il
-    // y a un nouveau poste).
-    //
-    // Fix : après autoTable, post-process des pages overflow :
-    //   - Si la page contient au moins une row 'parent' (= nouveau poste) →
-    //     garder le head, ajouter "(suite)" AVANT le head (positionné y=18).
-    //   - Sinon (page contient seulement desc/etape, queue d'un poste de la
-    //     page précédente) → effacer le head par overdraw blanc, pas de
-    //     "(suite)". La queue de description coule naturellement.
-    //
-    // Tracking via didDrawCell : on enregistre les kinds de rows par page +
-    // les bornes du head re-dessiné par autoTable.
+    // Évolution :
+    //   v1 (PR #110) : showHead:'everyPage' + post-process pour effacer head
+    //                  orphelin (page sans row parent). Mais quand un nouveau
+    //                  parent apparaissait sur la page d'overflow (cas CUISINE
+    //                  ligne 1 sur page 3 + ligne 2 page 4), le head était
+    //                  redessiné en top de page 4 sans label de section visible
+    //                  → head dupliqué à l'œil, trompeur pour le client.
+    //   v2 (ici)     : showHead:'firstPage'. Head dessiné uniquement sur la
+    //                  première page de chaque table. Les rows de continuation
+    //                  (desc/etape ET nouveaux parents) coulent sans head
+    //                  dupliqué. autoTable préserve l'alignement des colonnes
+    //                  entre pages, donc les valeurs (qty/unit/price/tva/total)
+    //                  restent lisibles colonne par colonne sans header répété.
+    //                  C'est le comportement « 1 head par table », typo classique
+    //                  utilisée par Stripe Invoicing, Pennylane, Tipee.
     const startPageNum = pdf.getNumberOfPages()
-    const pageRowKinds = new Map<number, Set<RowKind>>()
-    const pageHeaderBox = new Map<number, { y: number; h: number }>()
     autoTable(pdf, {
       head: tableHead,
       body,
       startY,
       // top: 12mm sur pages overflow = marge top standard PDF (10mm) + 2mm
-      // de respiration au-dessus du head. Si la page contient un nouveau poste
-      // (row 'parent'), le label "(suite)" est dessiné à y=8 dans cette marge
-      // (juste au-dessus du head). Si la page ne contient que des continuations
-      // (desc/etape), le head est effacé en post-process et le contenu coule
-      // depuis y=12+headerHeight ≈ 19mm. N'affecte PAS la 1re page (où startY
-      // est utilisé). Avant : 22mm → 29mm de blanc visible quand head effacé.
+      // de respiration. Body coule directement depuis y=12 (pas de head sur
+      // pages d'overflow).
       margin: { left: mL, right: mR, top: 12 },
-      // 'everyPage' nécessaire pour que le head soit dessiné si une nouvelle
-      // row parent apparaît sur la page d'overflow. Le post-process ci-dessous
-      // efface le head si aucune row parent ne se trouve sur cette page.
-      showHead: 'everyPage',
+      // 'firstPage' : head dessiné uniquement sur la première page de la
+      // table. Évite le head dupliqué + orphelin sur pages d'overflow.
+      showHead: 'firstPage',
       theme: 'plain',
       rowPageBreak: 'avoid',
       headStyles: {
@@ -881,23 +872,6 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       columnStyles: colStyles as any,
       tableLineColor: [224, 224, 220],
       tableLineWidth: 0,
-      didDrawCell: (data: any) => {
-        const pageNum = pdf.getNumberOfPages()
-        if (data.section === 'head' && pageNum > startPageNum) {
-          // Tracker bornes du head re-dessiné sur page overflow (1re cellule
-          // head rencontrée pour cette page suffit — toutes ont même y/height).
-          if (!pageHeaderBox.has(pageNum)) {
-            pageHeaderBox.set(pageNum, { y: data.cell.y, h: data.row.height })
-          }
-        } else if (data.section === 'body' && rowKinds) {
-          const kind = rowKinds[data.row.index]
-          if (kind) {
-            let set = pageRowKinds.get(pageNum)
-            if (!set) { set = new Set<RowKind>(); pageRowKinds.set(pageNum, set) }
-            set.add(kind)
-          }
-        }
-      },
       didParseCell: (data: any) => {
         if (data.section === 'head' && headColStyles[data.column.index]) {
           data.cell.styles.halign = headColStyles[data.column.index].halign
@@ -936,37 +910,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       },
     })
 
-    // Post-process pages overflow (= toutes pages > startPageNum) :
-    //   - Si page contient row 'parent' (nouveau poste) → head légitime, on
-    //     garde tel quel. La continuité de section est portée par le head
-    //     re-dessiné + le contenu de la nouvelle row parent (descriptive).
-    //   - Sinon (page contient seulement desc/etape, queue d'un poste) →
-    //     effacer le head orphelin par overdraw blanc.
-    //
-    // Note : le label "(suite)" en haut de page a été retiré (bug 04/05/2026 :
-    // placement incorrect via post-process pdf.setPage + pdf.text qui pouvait
-    // s'afficher en fin de section au lieu d'en haut de page de continuation,
-    // créant un orphelin trompeur APRÈS la dernière row de la section). Le
-    // user accepte la suppression complète du label car le contexte de
-    // section est déjà implicite via la row parent + le head.
-    const endPageNum = pdf.getNumberOfPages()
-    for (let p = startPageNum + 1; p <= endPageNum; p++) {
-      const kinds = pageRowKinds.get(p) ?? new Set<RowKind>()
-      const hasParent = kinds.has('parent')
-      if (!hasParent) {
-        // Head orphelin : la page ne contient que la suite d'une description du
-        // poste de la page précédente. Effacer par overdraw blanc.
-        const box = pageHeaderBox.get(p)
-        if (box) {
-          pdf.setPage(p)
-          pdf.setFillColor(255, 255, 255)
-          // +0.5mm de marge pour couvrir d'éventuelles bordures fines
-          pdf.rect(mL - 0.5, box.y - 0.3, contentW + 1, box.h + 0.6, 'F')
-        }
-      }
-    }
-    // Restaurer la page courante = dernière page (pour rendu suivant)
-    pdf.setPage(endPageNum)
+    // Pas de post-process : avec showHead:'firstPage', autoTable ne dessine
+    // le head que sur la 1re page → aucun head orphelin à effacer, aucun
+    // label "(suite)" à ajouter. Les rows de continuation coulent naturellement
+    // sous y=12 (margin.top). startPageNum reste tracké pour debug futur.
+    void startPageNum
   }
 
   const drawSectionLabel = (label: string) => {
