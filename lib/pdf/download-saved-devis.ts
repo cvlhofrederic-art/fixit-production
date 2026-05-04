@@ -286,7 +286,12 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docTitle: doc.docTitle || `${doc.docType === 'facture' ? 'Facture' : 'Devis'} ${doc.docNumber || ''}`,
     docDate: doc.docDate || new Date().toISOString().split('T')[0],
     docValidity: doc.docValidity || 30,
-    prestationDate: doc.prestationDate || doc.docDate || '',
+    // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
+    // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
+    // la date d'émission dans la case DATE PRESTATION lors d'un download depuis
+    // la liste devis (path BTP). PR #108 avait fixé le path V2 (ligne 204) mais
+    // raté ce path V3. Symptôme : preview = « À convenir » ✓, download = date ✗.
+    prestationDate: doc.prestationDate || '',
     executionDelay: delayStr,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',
