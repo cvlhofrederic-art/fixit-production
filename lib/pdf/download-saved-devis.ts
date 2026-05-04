@@ -226,21 +226,23 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   const { locale, t, artisan } = ctx
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
-  const laborLines = (doc.laborLines as ProductLine[]) || []
+  const laborLinesRaw = (doc.laborLines as ProductLine[]) || []
   const fraisLines = ((doc as Record<string, unknown>).fraisLines as ProductLine[]) || []
   const customTables = ((doc as Record<string, unknown>).customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) || []
   const customLines = customTables.flatMap(t => t.lines || [])
 
-  // Bug #1 résolu : si les sections sont présentes (laborLines/materialLines/
-  // fraisLines/customLines), `lines` côté legacy peut être l'UNION (cf. BTP
-  // generatePdf qui sauvegarde validLines = [...labor, ...materials, ...]).
-  // Sommer toutes les listes en plus créerait des totaux × 2 — le client
-  // signerait un devis 2× le prix. Mirror la logique V3 (ligne 854-869) :
-  // si une section est non vide, c'est elle qui prime ; sinon fallback `lines`.
-  const hasSections = laborLines.length > 0 || materialLines.length > 0 || fraisLines.length > 0 || customLines.length > 0
-  const sourceLines = hasSections
-    ? [...laborLines, ...materialLines, ...fraisLines, ...customLines]
-    : lines
+  // CORRIGE le bug introduit par H5 (audit interne 04/05/2026) :
+  // Dans le BTP form `buildPayload`, `lines` n'est PAS une union — c'est la
+  // section principale "Main d'œuvre" (renommée DÉMOLITION dans certains cas).
+  // `laborLines` n'est généralement pas dans le storage (pas dans buildPayload).
+  // Donc :
+  //   - laborLines (storage explicite) priorité 1
+  //   - sinon `lines` agit comme labor section (legacy + actuel BTP)
+  // PUIS sommer materialLines + fraisLines + customLines en plus (jamais l'union).
+  // Avant ce fix : `lines` était IGNORÉ quand customTables existaient → la
+  // section DÉMOLITION disparaissait du PDF (5 272,73 € manquants sur Adeline).
+  const labor = laborLinesRaw.length > 0 ? laborLinesRaw : lines
+  const sourceLines = [...labor, ...materialLines, ...fraisLines, ...customLines]
   // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
   const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false
@@ -320,8 +322,11 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     recoveryFee: doc.recoveryFee || '',
     iban: doc.iban || '',
     bic: doc.bic || '',
-    lines: lines.length > 0 ? lines : [...laborLines, ...materialLines],
-    laborLines: laborLines.length > 0 ? laborLines : undefined,
+    lines: lines.length > 0 ? lines : [...labor, ...materialLines],
+    // V3 PDF rend `laborLines` comme première section ; on lui passe le résultat
+    // résolu (laborLinesRaw si présent, sinon `lines` legacy) pour garantir que
+    // la section principale (souvent "DÉMOLITION") s'affiche.
+    laborLines: labor.length > 0 ? labor : undefined,
     materialLines: materialLines.length > 0 ? materialLines : undefined,
     fraisLines: fraisLines.length > 0 ? fraisLines : undefined,
     linesName: ((doc as Record<string, unknown>).linesName as string) || undefined,

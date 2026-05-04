@@ -45,33 +45,34 @@ const lineHT = (l: ProductLineLike): number =>
 /**
  * Total HT en euros (décimaux). Couvre les 4 sources de lignes possibles.
  *
- * Anti double-comptage : si des sections séparées existent (laborLines /
- * materialLines / fraisLines / customTables avec contenu), on ignore `lines`
- * (potentiellement l'union legacy) et on somme uniquement les sections.
- * Sinon fallback sur `lines` directement.
+ * Logique corrigée (post-fix bug DÉMOLITION 04/05/2026) :
+ *   Dans le BTP `buildPayload`, `lines` est la section labor (PAS une union).
+ *   `laborLines` n'est généralement pas dans le storage. Donc :
+ *     - laborLines (storage explicite) priorité 1
+ *     - sinon `lines` agit comme labor section
+ *   Puis on additionne materialLines + fraisLines + fraisAnnexes + customLines.
+ *
+ *   Le fix précédent (H5) excluait `lines` quand des sections existaient,
+ *   ce qui faisait disparaître la section DÉMOLITION du dashboard car elle
+ *   est stockée dans `lines` (pas `laborLines`).
  */
 export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
   if (!doc) return 0
-  const labor = (doc.laborLines || []) as ProductLineLike[]
+  const laborRaw = (doc.laborLines || []) as ProductLineLike[]
+  const lines = (doc.lines || []) as ProductLineLike[]
   const material = (doc.materialLines || []) as ProductLineLike[]
   const frais = (doc.fraisLines || []) as ProductLineLike[]
   const fraisAnnexes = (doc.fraisAnnexes || []) as ProductLineLike[]
   const customLines = (doc.customTables || []).flatMap(t => t.lines || [])
-  const hasSections =
-    labor.length > 0 || material.length > 0 || frais.length > 0
-    || fraisAnnexes.length > 0 || customLines.length > 0
-  if (hasSections) {
-    // Sections séparées présentes → ne PAS additionner `lines` (union legacy)
-    return sumMoney([
-      ...labor.map(lineHT),
-      ...material.map(lineHT),
-      ...frais.map(lineHT),
-      ...fraisAnnexes.map(lineHT),
-      ...customLines.map(lineHT),
-    ])
-  }
-  // Pas de sections → `lines` est la source unique
-  return sumMoney((doc.lines || []).map(lineHT))
+  // labor : laborLines explicite si présent, sinon lines (legacy + BTP buildPayload)
+  const labor = laborRaw.length > 0 ? laborRaw : lines
+  return sumMoney([
+    ...labor.map(lineHT),
+    ...material.map(lineHT),
+    ...frais.map(lineHT),
+    ...fraisAnnexes.map(lineHT),
+    ...customLines.map(lineHT),
+  ])
 }
 
 /**
