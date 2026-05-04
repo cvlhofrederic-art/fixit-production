@@ -1280,8 +1280,18 @@ export default function DevisFactureFormBTP({
       const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
       const validLabor = lines.filter(l => (l.description || '').trim())
-      const validMaterials = materialLines.filter(l => (l.description || '').trim())
-      const validFrais = fraisLines.filter(l => (l.description || '').trim())
+      // Si la section Matériaux/Frais est désactivée par l'utilisateur (toggle),
+      // ses lignes ne doivent PAS compter dans les totaux — sinon mismatch entre
+      // Sous-total HT (calc form) et détail TVA (qui itère seulement sur les
+      // sections rendues côté PDF). Bug visible : "TVA 10% sur 62 927,28 €" ne
+      // tombait pas juste car les lignes désactivées étaient incluses dans HT
+      // mais exclues du breakdown TVA. Fix : aligner les deux logiques.
+      const validMaterials = materialLinesEnabled
+        ? materialLines.filter(l => (l.description || '').trim())
+        : []
+      const validFrais = fraisLinesEnabled
+        ? fraisLines.filter(l => (l.description || '').trim())
+        : []
       const validCustom = customTables.flatMap(t => (t.lines || []).filter(l => (l.description || '').trim()))
       const validLines = [...validLabor, ...validMaterials, ...validFrais, ...validCustom]
       const totalNet = validLines.reduce((s, l) => s + (l.totalHT || (l.qty || 0) * (l.priceHT || 0)), 0)
