@@ -1141,11 +1141,19 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
       t('devis.pdf.amendmentClause'),
       ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
-      ...(iban ? [`IBAN : ${iban}${bic ? ` | BIC : ${bic}` : ''}`] : []),
       ...(paymentCondition ? [paymentCondition] : []),
       ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
       ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
     ]
+    // RIB rendu comme bloc distinct sous les notes (bug 04/05/2026 : avant
+    // l'IBAN était une ligne au milieu des conditions, peu lisible et peu pro).
+    // Aujourd'hui : label gras « RIB & coordonnées bancaires » + IBAN + BIC,
+    // chargé depuis le profil paramètres entreprise.
+    const ribTitle = locale === 'pt' ? 'IBAN & dados bancários' : 'RIB & coordonnées bancaires'
+    const ribLines: string[] = []
+    if (iban) ribLines.push(`IBAN : ${iban}`)
+    if (bic) ribLines.push(`BIC : ${bic}`)
+
     // Pré-mesure : calcule la hauteur réelle du bloc CONDITIONS sans rendre.
     // Permet de checkPageBreak dynamique avant de dessiner le rect signature.
     let measuredH = 12 // titre CONDITIONS + gap
@@ -1156,6 +1164,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (notes) {
       const noteWrappedMeasure = pdf.splitTextToSize(notes, condW - 4)
       measuredH += 2 + noteWrappedMeasure.length * ptToMm(13)
+    }
+    if (ribLines.length > 0) {
+      // Espace + titre + lignes IBAN/BIC
+      measuredH += 4 + ptToMm(13) + ribLines.length * ptToMm(13)
     }
     // Hauteur effective du bloc gris signature (max entre cond et 46 mm).
     const blockH = Math.max(measuredH, 46)
@@ -1180,6 +1192,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       const noteWrapped = pdf.splitTextToSize(notes, condW - 4)
       pdf.text(noteWrapped, condX, cy)
       cy += noteWrapped.length * ptToMm(13)
+    }
+    // ── RIB & coordonnées bancaires (sous les notes) ──
+    if (ribLines.length > 0) {
+      cy += 4
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(ribTitle, condX, cy)
+      cy += ptToMm(13)
+      pdf.setFont('helvetica', 'normal')
+      ribLines.forEach(line => {
+        pdf.text(line, condX, cy)
+        cy += ptToMm(13)
+      })
     }
 
     // ── BON POUR ACCORD (côté droit) ──
