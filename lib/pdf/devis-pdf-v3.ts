@@ -835,7 +835,6 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // Tracking via didDrawCell : on enregistre les kinds de rows par page +
     // les bornes du head re-dessiné par autoTable.
     const startPageNum = pdf.getNumberOfPages()
-    const suiteSuffix = locale === 'pt' ? ' (continuação)' : ' (suite)'
     const pageRowKinds = new Map<number, Set<RowKind>>()
     const pageHeaderBox = new Map<number, { y: number; h: number }>()
     autoTable(pdf, {
@@ -938,8 +937,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     })
 
     // Post-process pages overflow (= toutes pages > startPageNum) :
-    //   - Si page contient row 'parent' (nouveau poste) → "(suite)" + head OK
-    //   - Sinon (queue de desc/etape) → effacer head orphelin, pas de "(suite)"
+    //   - Si page contient row 'parent' (nouveau poste) → head légitime, on
+    //     garde tel quel. La continuité de section est portée par le head
+    //     re-dessiné + le contenu de la nouvelle row parent (descriptive).
+    //   - Sinon (page contient seulement desc/etape, queue d'un poste) →
+    //     effacer le head orphelin par overdraw blanc.
+    //
+    // Note : le label "(suite)" en haut de page a été retiré (bug 04/05/2026 :
+    // placement incorrect via post-process pdf.setPage + pdf.text qui pouvait
+    // s'afficher en fin de section au lieu d'en haut de page de continuation,
+    // créant un orphelin trompeur APRÈS la dernière row de la section). Le
+    // user accepte la suppression complète du label car le contexte de
+    // section est déjà implicite via la row parent + le head.
     const endPageNum = pdf.getNumberOfPages()
     for (let p = startPageNum + 1; p <= endPageNum; p++) {
       const kinds = pageRowKinds.get(p) ?? new Set<RowKind>()
@@ -954,12 +963,6 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
           // +0.5mm de marge pour couvrir d'éventuelles bordures fines
           pdf.rect(mL - 0.5, box.y - 0.3, contentW + 1, box.h + 0.6, 'F')
         }
-      } else if (sectionName) {
-        // Page contient au moins un nouveau poste → "(suite)" légitime
-        // Position y=8 : dans la marge top de 12mm, au-dessus du head (y=12).
-        pdf.setPage(p)
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(`${sectionName}${suiteSuffix}`, mL, 8)
       }
     }
     // Restaurer la page courante = dernière page (pour rendu suivant)
