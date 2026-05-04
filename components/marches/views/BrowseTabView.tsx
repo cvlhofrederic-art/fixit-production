@@ -602,8 +602,15 @@ export default function BrowseTabView({
                       <span className="v22-tag" style={{ background: '#EEF2FF', color: '#4338CA', fontSize: 10 }} title={isPt ? 'Subcontratação publicada por uma empresa BTP' : 'Sous-traitance publiée par une société BTP'}>
                         🏗️ {isPt ? 'Subcontrat.' : 'Sous-trait.'}
                       </span>
+                    ) : (m.source_type && /^scan_/.test(m.source_type)) || m.source ? (
+                      // Marché public scrapé (BOAMP/TED/mairie/achatpublic/DECP/BASE.gov)
+                      // Avant fix 04/05/2026 : affichait à tort "🏠 Client" → confusion
+                      // pour l'artisan qui pensait que c'était privé alors que public.
+                      <span className="v22-tag" style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10 }} title={isPt ? 'Concurso público (BOAMP/TED/...)' : 'Marché public (BOAMP/TED/mairie/...)'}>
+                        🏛️ {isPt ? 'Público' : 'Public'}
+                      </span>
                     ) : (
-                      <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }} title={isPt ? 'Concurso publicado por um cliente' : 'Appel d’offres publié par un client'}>
+                      <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }} title={isPt ? 'Concurso publicado por um cliente particular' : 'Appel d\'offres publié par un client particulier'}>
                         🏠 {isPt ? 'Cliente' : 'Client'}
                       </span>
                     )}
