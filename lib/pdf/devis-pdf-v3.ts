@@ -1384,13 +1384,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       : 'Devis gratuit (art. L.111-1 C. conso.). Pour les prestations de dépannage, réparation et entretien : arrêté du 24 janvier 2017.'
   } else {
     // Facture — date d'échéance précise OBLIGATOIRE B2B (art. L.441-9 4° C. com.)
-    // Calcul date absolue depuis docDate + paymentDelay (jours).
-    const paymentDelayDays = parseInt(paymentDue || '30', 10) || 30
-    const computedDue = new Date(docDate)
-    if (!isNaN(computedDue.getTime())) computedDue.setDate(computedDue.getDate() + paymentDelayDays)
-    const dueDateStr = !isNaN(computedDue.getTime())
-      ? computedDue.toLocaleDateString(dateLocaleStr)
-      : (paymentDue || '---')
+    // `paymentDue` peut arriver dans 3 formats selon le caller :
+    //   1) Date ISO ("2026-06-15") — utilisée directement
+    //   2) Nombre de jours en string ("30") — additionné à docDate
+    //   3) Texte libre ("30 jours", "Comptant", "À réception") — parsé en
+    //      nombre via parseInt (extrait le préfixe numérique) ou fallback 30
+    // Hotfix audit 04/05/2026 BUG-2 : avant, parseInt('2026-06-15')
+    // retournait 2026 → mention "échéance dans 2026 jours" = 17/11/2031.
+    let dueDateStr = '---'
+    const isoMatch = (paymentDue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (isoMatch) {
+      // Format ISO date — utiliser tel quel
+      const dueAbs = new Date(paymentDue)
+      if (!isNaN(dueAbs.getTime())) {
+        dueDateStr = dueAbs.toLocaleDateString(dateLocaleStr)
+      }
+    } else {
+      // Texte libre / nombre de jours — parseInt extrait le préfixe numérique
+      const numericMatch = (paymentDue || '').match(/^\s*(\d+)/)
+      const paymentDelayDays = numericMatch ? parseInt(numericMatch[1], 10) : 30
+      const safeDelayDays = Number.isFinite(paymentDelayDays) && paymentDelayDays > 0 && paymentDelayDays <= 365
+        ? paymentDelayDays : 30
+      const computedDue = new Date(docDate)
+      if (!isNaN(computedDue.getTime())) {
+        computedDue.setDate(computedDue.getDate() + safeDelayDays)
+        dueDateStr = computedDue.toLocaleDateString(dateLocaleStr)
+      } else if (paymentDue) {
+        // Fallback affiche le texte libre tel quel ("Comptant", "À réception")
+        dueDateStr = paymentDue
+      }
+    }
     if (locale === 'pt') {
       legal2 = `Condições de pagamento : vencimento ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
     } else {
@@ -1662,11 +1685,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // 2027 émission obligatoire pour toutes entreprises FR. Format = Factur-X
   // 1.0.07 (PDF/A-3 + XML CII EN 16931 BASIC profile).
   //
-  // Feature flag NEXT_PUBLIC_FEATURE_FACTURX permet rollback rapide en prod
-  // si bug, sans redéploiement (toggle env var Cloudflare Workers).
+  // ATTENTION : NEXT_PUBLIC_FEATURE_FACTURX est inliné par Next.js au build.
+  // Activer/désactiver cette feature nécessite un REBUILD + REDEPLOY, pas
+  // juste un wrangler secret put. Le commentaire d'origine PR #103 affirmait
+  // à tort qu'on pouvait toggle live — corrigé hotfix audit 04/05/2026.
   //
   // Conditions d'activation strictes :
-  //  - docType === 'facture' (pas un devis)
+  //  - docType === 'facture' (pas un devis — un devis n'est pas une "Invoice"
+  //    au sens CII, le mapper retournerait TypeCode 325 mort-né)
   //  - locale === 'fr' (réforme française uniquement)
   //  - tvaEnabled (XML CII exige TVA structurée)
   //  - clientType === 'professionnel' (B2B)
@@ -1689,27 +1715,41 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ])
       const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
       const pdfBytes = new Uint8Array(pdfArrayBuffer)
-      // Build minimal DevisFactureData mapping pour le XML CII
+      // Mapping COMPLET pour le XML CII — TOUS les champs accédés par
+      // generateFacturXML doivent être fournis ici, sinon `esc(undefined)`
+      // crash dans le mapper et on retombe en silence sur le PDF non-Factur-X.
+      // Hotfix audit 04/05/2026 : ajout des 5 champs manquants
+      // (companyEmail, clientEmail, iban, bic, notes).
       const facturXData = {
         docNumber, docTitle, docDate, paymentDue, docType, locale,
-        companyName, companySiret, companyAddress, tvaNumber,
-        clientName, clientSiret, clientAddress,
+        // Émetteur (TOUS les champs accédés par le mapper)
+        companyName, companySiret, companyAddress, companyEmail, tvaNumber,
+        // Destinataire
+        clientName, clientSiret, clientAddress, clientEmail,
+        // Paiement
+        paymentMode, iban, bic,
+        // Contenu
+        notes,
         lines: lines.filter(l => l.description.trim()),
-        subtotalHT, totalTTC, tvaEnabled, paymentMode,
+        subtotalHT, totalTTC, tvaEnabled,
       }
-      // generateFacturXML attend un type DevisFactureData complet ; on cast
-      // via unknown car le mapper n'utilise pas tous les champs (dépendances
-      // strictement nominales sur lines, totalHT, totalTTC, tvaEnabled, etc.).
-      // Si un champ requis manque, l'embedding échoue dans le try/catch et
-      // on retombe sur le PDF jsPDF non-Factur-X (pas de blocage utilisateur).
       const xml = generateFacturXML(facturXData as unknown as Parameters<typeof generateFacturXML>[0])
       outputBytes = await embedFacturX(pdfBytes, xml)
     } catch (e) {
       // Fallback : si l'embedding échoue, on conserve le PDF jsPDF normal.
-      // L'erreur ne doit pas bloquer la facturation.
+      // L'erreur ne doit pas bloquer la facturation MAIS doit remonter en
+      // Sentry — sinon en septembre 2026 (réception obligatoire), on aurait
+      // 0 % de Factur-X généré sans aucune trace.
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[PDF V3] Factur-X embedding failed, falling back to plain PDF:', e)
       }
+      try {
+        const Sentry = await import('@sentry/nextjs')
+        Sentry.captureException(e, {
+          tags: { agent_type: 'facturx', stage: 'embed' },
+          extra: { docNumber, clientType, locale },
+        })
+      } catch { /* Sentry indisponible — pas bloquant */ }
       outputBytes = null
     }
   }
