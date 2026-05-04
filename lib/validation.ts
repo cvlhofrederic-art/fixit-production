@@ -96,6 +96,45 @@ export const fixyAiSchema = z.object({
 // ── SIRET schema ─────────────────────────────────────────────────────────────
 export const siretSchema = z.string().regex(/^\d{14}$/, 'Le SIRET doit contenir 14 chiffres')
 
+/**
+ * Validation SIRET avec checksum Luhn (modulo 10).
+ *
+ * Format INSEE : 14 chiffres = SIREN (9) + NIC (5).
+ * Algorithme Luhn : on parcourt les chiffres de DROITE à gauche, le premier
+ * (rightmost) n'est PAS doublé, le deuxième l'est, etc. Si produit ≥ 10,
+ * soustraire 9. Somme mod 10 doit être 0.
+ *
+ * Cas particulier La Poste (SIREN 356 000 000) : exception au Luhn — somme
+ * des 14 chiffres doit être divisible par 5 (pas 10). Géré séparément.
+ *
+ * Utilisé pour valider l'auto-détection clientType=professionnel (sinon un
+ * fake "12345678901234" forçait pro et désactivait la rétractation 14 jours
+ * art. L.221-18 C. conso., régression légale pour le client final).
+ */
+export function isValidSiret(siret: string): boolean {
+  const cleaned = (siret || '').replace(/\s/g, '')
+  if (!/^\d{14}$/.test(cleaned)) return false
+  // Cas particulier La Poste (SIREN 356 000 000)
+  if (cleaned.startsWith('356000000')) {
+    let s = 0
+    for (let i = 0; i < 14; i++) s += parseInt(cleaned[i]!, 10)
+    return s % 5 === 0
+  }
+  // Luhn standard — parcours de DROITE à gauche
+  let sum = 0
+  for (let i = 0; i < 14; i++) {
+    // posFromRight : 0 = rightmost. Position 1, 3, 5... doublées.
+    const posFromRight = 13 - i
+    let digit = parseInt(cleaned[i]!, 10)
+    if (posFromRight % 2 === 1) {
+      digit *= 2
+      if (digit >= 10) digit -= 9
+    }
+    sum += digit
+  }
+  return sum % 10 === 0
+}
+
 // ── NIF (Portugal) schema ───────────────────────────────────────────────────
 export const verifyNifSchema = z.string().regex(/^\d{9}$/, 'O NIF deve conter exatamente 9 dígitos')
 

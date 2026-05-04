@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createBookingSchema, fixyAiSchema, validateBody, siretSchema } from '@/lib/validation'
+import { createBookingSchema, fixyAiSchema, validateBody, siretSchema, isValidSiret } from '@/lib/validation'
 
 describe('Zod Validation Schemas', () => {
   describe('createBookingSchema', () => {
@@ -89,6 +89,42 @@ describe('Zod Validation Schemas', () => {
 
     it('should reject non-numeric SIRET', () => {
       expect(siretSchema.safeParse('1234567890abcd').success).toBe(false)
+    })
+  })
+
+  describe('isValidSiret (Luhn checksum)', () => {
+    it('refuse un fake 14 chiffres sans Luhn valide', () => {
+      // BUG hotfix audit 04/05/2026 : avant, length===14 suffisait → ce
+      // SIRET fake forçait clientType=pro et désactivait la rétractation 14j
+      expect(isValidSiret('12345678901234')).toBe(false)
+    })
+
+    it('accepte un SIRET valide Luhn (Renault siège 732 829 320 00074)', () => {
+      // Vérifié manuellement : alternance ×1/×2 from right, sum % 10 === 0
+      expect(isValidSiret('73282932000074')).toBe(true)
+    })
+
+    it('accepte avec espaces', () => {
+      expect(isValidSiret('732 829 320 00074')).toBe(true)
+    })
+
+    it('refuse une chaîne vide', () => {
+      expect(isValidSiret('')).toBe(false)
+    })
+
+    it('refuse moins de 14 chiffres', () => {
+      expect(isValidSiret('1234567890')).toBe(false)
+    })
+
+    it('refuse caractères non-numériques', () => {
+      expect(isValidSiret('1234567890abcd')).toBe(false)
+    })
+
+    it('cas particulier La Poste (SIREN 356 000 000) — somme mod 5 === 0', () => {
+      // La Poste n'utilise pas Luhn standard. Validation = somme des 14 chiffres
+      // divisible par 5. Test SIRET construit : 35600000000146
+      // Sum digits = 3+5+6+0+0+0+0+0+0+0+0+1+4+6 = 25 ; 25 mod 5 = 0 ✓
+      expect(isValidSiret('35600000000146')).toBe(true)
     })
   })
 })
