@@ -269,7 +269,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     console.log('[PDF V2] Logo URL:', input.artisan.logo_url ? input.artisan.logo_url.substring(0, 80) + '...' : 'null/empty')
   }
   // Validation URL logo : allowlist domaines de confiance (anti-SSRF/XSS).
-  const ALLOWED_LOGO_DOMAINS = ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+  // Hotfix audit 04/05/2026 : localhost/127.0.0.1 retirés en prod
+  // (exploitable sur Capacitor mobile où webview tourne sur localhost).
+  const isProdV2 = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+  const ALLOWED_LOGO_DOMAINS = isProdV2
+    ? ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt']
+    : ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
   const isLogoUrlAllowed = (url: string): boolean => {
     try {
       const parsed = new URL(url)

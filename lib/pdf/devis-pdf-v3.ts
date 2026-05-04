@@ -363,7 +363,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Validation URL logo : allowlist domaines de confiance pour éviter SSRF/XSS
   // (un logo SVG malveillant chargé depuis un domaine externe pourrait leak
   // des données via <image href>, ou un PNG de 50 Mo crasherait le worker).
-  const ALLOWED_LOGO_DOMAINS = ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+  // Hotfix audit 04/05/2026 : localhost et 127.0.0.1 retirés en prod
+  // (exploitable sur Capacitor mobile où webview tourne sur localhost).
+  const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+  const ALLOWED_LOGO_DOMAINS = isProd
+    ? ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt']
+    : ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
   const isLogoUrlAllowed = (url: string): boolean => {
     try {
       const parsed = new URL(url)
@@ -1462,9 +1467,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement, BTP > 500 €
-  // HT ou particulier — décret 2020-1817, art. L.541-21-2-1 C. env.).
-  if (locale !== 'pt' && (subtotalHT > 500 || isParticulier)) {
+  // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement).
+  // Hotfix audit 04/05/2026 : retrait du seuil 500 € HT inventé. Le décret
+  // 2020-1817 (art. R.541-12-2 C. env.) s'applique à TOUS les devis BTP de
+  // construction, rénovation, démolition et jardinage SANS SEUIL.
+  // Mention systématique sur le V3 BTP (locale FR).
+  if (locale !== 'pt') {
     legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
   }
 

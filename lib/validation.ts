@@ -318,21 +318,33 @@ export const artisanSettingsPostSchema = z.object({
   insurance_type: z.string().max(50).optional(),
   insurance_expiry: z.string().max(20).optional(),
   mediator_name: z.string().max(200).optional(),
-  // mediator_url : URL valide (http/https) ; vide accepté. Évite XSS / data
-  // leak via SVG malveillant ou URL forgée. Allowlist large (médiateurs FR
-  // officiels + sites associatifs) — restriction stricte par regex éviterait
-  // les médiateurs légitimes encore non recensés.
+  // mediator_url : URL HTTPS uniquement (refus HTTP, javascript:, data:, file:).
+  // Hotfix audit 04/05/2026 : accepter HTTP était cosmétique (aucun médiateur
+  // FR officiel ne sert encore en HTTP). Imposer HTTPS empêche le tracking
+  // via l'URL inscrite dans le PDF (vecteur phishing : un artisan compromis
+  // pourrait inscrire http://attaquant.com/track?id={CLIENT}). Refus aussi
+  // des hostnames internes (localhost, IPs privées RFC1918) pour éviter
+  // qu'une URL pointe vers un service local du client final.
   mediator_url: z.string().max(500).optional().refine(
     (v) => {
       if (!v || v.trim() === '') return true
       try {
         const u = new URL(v)
-        return u.protocol === 'https:' || u.protocol === 'http:'
+        if (u.protocol !== 'https:') return false
+        // Refus hostnames internes / IPs privées
+        const h = u.hostname.toLowerCase()
+        if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1') return false
+        // RFC 1918 (10/8, 172.16/12, 192.168/16) en notation IPv4 décimale
+        if (/^10\./.test(h) || /^192\.168\./.test(h)) return false
+        if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(h)) return false
+        // TLD obligatoire (refuse hostname sans point)
+        if (!h.includes('.')) return false
+        return true
       } catch {
         return false
       }
     },
-    { message: 'URL médiateur invalide (http:// ou https:// requis)' },
+    { message: 'URL médiateur invalide (HTTPS requis, domaine public)' },
   ),
 })
 
