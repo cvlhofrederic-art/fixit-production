@@ -64,22 +64,58 @@ export async function POST(request: NextRequest) {
   const { docType, artisanId, doc } = v.data
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
 
-  // 3bis. Vérification ownership artisanId — empêche un utilisateur
-  // authentifié d'écrire sous l'identité d'un autre artisan partageant
-  // son user.id (cas équipe BTP). Audit 03/05/2026 CRITIQUE sécurité.
+  // 3bis. Vérification ownership artisanId.
+  //
+  // Deux paths d'autorisation valides :
+  //   A) Artisan solo / gérant BTP : profiles_artisan.user_id === user.id
+  //      ET profiles_artisan.id === artisanId
+  //   B) Membre d'équipe BTP : pro_team_members.user_id === user.id AND
+  //      pro_team_members.is_active = true → on autorise le sync sous
+  //      l'artisanId de la company (profiles_artisan.user_id === company_id)
+  //
+  // Hotfix audit 04/05/2026 : path B ajouté. Avant, les membres BTP
+  // (COMPTABLE/SECRETAIRE) recevaient un 403 systématique car ils n'ont pas
+  // de ligne profiles_artisan avec user_id = leur user_id.
   try {
+    // Path A : profil artisan direct
     const { data: ownedProfiles, error: ownErr } = await supabaseAdmin
       .from('profiles_artisan')
       .select('id')
       .eq('user_id', user.id)
     if (ownErr) {
-      logger.error('[devis-sync] ownership check failed', ownErr.message)
+      logger.error('[devis-sync] ownership check (direct) failed', ownErr.message)
       return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
     }
-    const ownsArtisan = (ownedProfiles || []).some((p: { id: string }) => p.id === artisanId)
+    let ownsArtisan = (ownedProfiles || []).some((p: { id: string }) => p.id === artisanId)
+
+    // Path B : membre d'équipe BTP — résoudre via pro_team_members
+    if (!ownsArtisan) {
+      const { data: memberships, error: memErr } = await supabaseAdmin
+        .from('pro_team_members')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+      if (memErr) {
+        logger.error('[devis-sync] ownership check (team) failed', memErr.message)
+        return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+      }
+      const companyIds = (memberships || []).map((m: { company_id: string }) => m.company_id).filter(Boolean)
+      if (companyIds.length > 0) {
+        const { data: companyProfiles, error: cpErr } = await supabaseAdmin
+          .from('profiles_artisan')
+          .select('id')
+          .in('user_id', companyIds)
+        if (cpErr) {
+          logger.error('[devis-sync] ownership check (company profiles) failed', cpErr.message)
+          return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+        }
+        ownsArtisan = (companyProfiles || []).some((p: { id: string }) => p.id === artisanId)
+      }
+    }
+
     if (!ownsArtisan) {
       logger.warn(`[devis-sync] forbidden artisanId=${artisanId} user=${user.id}`)
-      return NextResponse.json({ error: 'Forbidden — artisanId does not belong to authenticated user' }, { status: 403 })
+      return NextResponse.json({ error: 'Forbidden — artisanId does not belong to authenticated user or team' }, { status: 403 })
     }
   } catch (e) {
     logger.error('[devis-sync] ownership check exception', e)
