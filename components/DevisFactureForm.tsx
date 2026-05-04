@@ -10,9 +10,11 @@ import {
   sumMoney,
   round2,
   parseDecimalInput,
+  parseDecimalInput4,
   computeAcomptesAmounts,
   assertInvoiceInvariant,
 } from '@/lib/money'
+import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
@@ -1019,9 +1021,19 @@ export default function DevisFactureForm({
   }, [lines, materialLines, fraisAnnexes, tvaEnabled])
   const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
   const totalTTC = round2(subtotalHT + totalTVA)
-  if (process.env.NODE_ENV === 'development' && tvaEnabled) {
+  // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
+  // Niveau warning (non-bloquant) : on ne casse pas le rendu, on alerte.
+  if (tvaEnabled) {
     const inv = assertInvoiceInvariant(subtotalHT, totalTVA, totalTTC)
-    if (!inv.ok) console.warn('[Artisan totaux] invariant cassé', inv)
+    if (!inv.ok) {
+      if (process.env.NODE_ENV !== 'production') console.warn('[Artisan totaux] invariant cassé', inv)
+      try {
+        Sentry.captureMessage('invoice-invariant-broken-artisan', {
+          level: 'warning',
+          extra: { subtotalHT, totalTVA, totalTTC, delta: inv.delta },
+        })
+      } catch { /* Sentry indisponible — pas bloquant */ }
+    }
   }
 
   // Calculs rentabilité (dépend de subtotalHT)
@@ -2753,7 +2765,7 @@ export default function DevisFactureForm({
                             <input
                               type="number"
                               value={line.priceHT === 0 ? '' : line.priceHT}
-                              onChange={(e) => updateLine(line.id, 'priceHT', parseDecimalInput(e.target.value))}
+                              onChange={(e) => updateLine(line.id, 'priceHT', parseDecimalInput4(e.target.value))}
                               onFocus={(e) => e.target.select()}
                               step="0.0001"
                               className="v22-form-input"
@@ -2873,7 +2885,7 @@ export default function DevisFactureForm({
                             <td><input type="text" className="v22-input" placeholder={locale === 'pt' ? 'Ex: Cimento, areia...' : 'Ex : Ciment, sable...'} value={line.description} onChange={(e) => updateMaterialLine(line.id, 'description', e.target.value)} /></td>
                             <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
                             <td><input type="text" className="v22-input" value={line.unit} onChange={(e) => updateMaterialLine(line.id, 'unit', e.target.value)} style={{ textAlign: 'center' }} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.0001" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput(e.target.value))} style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
+                            <td><input type="number" className="v22-input" min={0} step="0.0001" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput4(e.target.value))} style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
                             {tvaEnabled && (
                               <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
                             )}
