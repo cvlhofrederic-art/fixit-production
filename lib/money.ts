@@ -15,42 +15,60 @@
  *   entiers (Math.round(x * 100)) et un arrondi explicite ROUND_HALF_UP.
  *
  * Convention :
- *   - `round2(n)` : arrondi 2 décimales (norme TVA)
- *   - `round4(n)` : arrondi 4 décimales (PU étude de prix BTP)
+ *   - `round2(n)` : arrondi 2 décimales (norme TVA), SYMÉTRIQUE pour les négatifs
+ *   - `round4(n)` : arrondi 4 décimales (PU étude de prix BTP), symétrique
  *   - `mulMoney(a, b)` : multiplication monétaire, retourne 2 décimales
- *   - `sumMoney(values)` : somme via centimes entiers (zéro drift)
+ *   - `sumMoney(values)` : somme via centimes entiers, arrondi UNE fois en fin
  *   - `parseDecimalInput(v)` : parse input utilisateur, gère virgule FR
- *   - `computeAcomptesAmounts(total, acomptes)` : dernier acompte rattrape
- *      le résidu d'arrondi (convention comptable standard)
- *   - `assertInvoiceInvariant(ht, tva, ttc)` : vérifie HT + TVA = TTC
- *      (à brancher sur logger.warn / Sentry en prod)
+ *   - `parseDecimalInput4(v)` : variante 4 décimales pour PU étude BTP
+ *   - `computeAcomptesAmounts(total, acomptes)` : si Σ pourcentages === 100,
+ *      le dernier acompte absorbe le résidu d'arrondi (convention comptable
+ *      Henrri/EBP/Sage). Sinon, chaque acompte est rendu tel quel sans
+ *      forçage à 100 % (préserve l'intention utilisateur).
+ *   - `assertInvoiceInvariant(ht, tva, ttc)` : vérifie HT + TVA = TTC à 0,01 €
+ *      près. À brancher sur Sentry en prod (sans bloquer le rendu).
  *
  * Référence métier :
  *   - BOI-TVA-DECLA-30-20-20 §50 (méthode d'arrondi TVA)
  *   - Stripe Invoicing, QuickBooks FR, Sage, Henrri (BTP) appliquent
- *     tous le même pattern : centimes entiers + ROUND_HALF_UP
+ *     tous le même pattern : centimes entiers + ROUND_HALF_UP symétrique
+ *
+ * Hotfix audit interne 04/05/2026 :
+ *   - round2 négatifs : symétrie commerciale (Math.round JS asymétrique)
+ *   - sumMoney : somme brute puis arrondi UNIQUE (le pré-arrondi par item
+ *     causait un drift de 0,50 € sur 100 lignes à 1,005 €)
+ *   - computeAcomptesAmounts : ne force plus à 100 % si Σ pourcentages != 100
+ *   - parseDecimalInput : cap relevé à 999 999 999,99 (immeubles HLM possibles)
+ *   - assertInvoiceInvariant : tolérance <= 0,01 (inclusive)
+ *   - parseDecimalInput4 : nouvelle fonction pour PU 4 décimales BTP
  */
 
 /**
- * Arrondi commercial ROUND_HALF_UP à 2 décimales (norme TVA FR).
+ * Arrondi ROUND_HALF_UP commercial à 2 décimales, SYMÉTRIQUE.
  *
- * Note : `Math.round(0.005 * 100)` = 0 en JS (à cause de 0.005 → 0.00499999…).
- *   On ajoute Number.EPSILON pour forcer l'arrondi au-dessus dans ce cas.
- *   Vérifié : round2(1.005) === 1.01 (BOFiP), round2(1.015) === 1.02.
+ * Pour les positifs : 1.005 → 1.01, 1.045 → 1.05.
+ * Pour les négatifs : -1.005 → -1.01, -1.045 → -1.05 (symétrie).
+ *
+ * Pourquoi pas Math.round natif : `Math.round(0.5) === 1` mais
+ *   `Math.round(-0.5) === 0` (asymétrique vers +∞). Sur les remises,
+ *   l'asymétrie drifte en faveur de l'artisan → contestation client.
+ *   Stripe / Sage / Henrri appliquent tous l'arrondi symétrique.
  */
 export const round2 = (n: number): number => {
   if (!Number.isFinite(n)) return 0
-  return Math.round((n + Number.EPSILON) * 100) / 100
+  const sign = n < 0 ? -1 : 1
+  return sign * Math.round((Math.abs(n) + Number.EPSILON) * 100) / 100
 }
 
 /**
- * Arrondi à 4 décimales (PU étude de prix BTP).
+ * Arrondi à 4 décimales (PU étude de prix BTP), symétrique.
  * Norme : Bertrand & Faucou, "Étude de prix BTP" 7ème éd., chap. 4 — les
  * coefficients de matériaux et débours s'expriment souvent au 1/10 de centime.
  */
 export const round4 = (n: number): number => {
   if (!Number.isFinite(n)) return 0
-  return Math.round((n + Number.EPSILON) * 10_000) / 10_000
+  const sign = n < 0 ? -1 : 1
+  return sign * Math.round((Math.abs(n) + Number.EPSILON) * 10_000) / 10_000
 }
 
 /**
@@ -59,7 +77,8 @@ export const round4 = (n: number): number => {
  */
 export const toCents = (n: number): number => {
   if (!Number.isFinite(n)) return 0
-  return Math.round((n + Number.EPSILON) * 100)
+  const sign = n < 0 ? -1 : 1
+  return sign * Math.round((Math.abs(n) + Number.EPSILON) * 100)
 }
 
 /**
@@ -78,41 +97,50 @@ export const fromCents = (c: number): number => c / 100
  *   mulMoney(100, 0.055) === 5.50          // TVA 5,5% sans drift
  *
  * Garde-fou : NaN/Infinity → 0 (évite NaN pollution sur les sommes).
+ * Garde-fou anti-overflow : si a*b → Infinity, retourne 0.
  */
 export const mulMoney = (a: number, b: number): number => {
   if (!Number.isFinite(a) || !Number.isFinite(b)) return 0
-  return round2(a * b)
+  const product = a * b
+  if (!Number.isFinite(product)) return 0
+  return round2(product)
 }
 
 /**
- * Somme monétaire SANS drift flottant : passe par les centimes entiers.
+ * Somme monétaire à drift minimal : somme les valeurs brutes puis arrondit
+ * UNE FOIS en fin via `round2`. Préserve le comportement BOFiP (round half up
+ * sur la somme finale) et évite l'amplification du biais d'arrondi qui se
+ * produit quand on pré-arrondit chaque valeur en cents.
  *
- * Cas test : sumMoney([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
- *   doit retourner 1.00 exact (et non 0.9999999999999999).
+ * Cas test :
+ *   sumMoney([0.1, 0.1, ...]×10) === 1.00 (drift IEEE 754 absorbé)
+ *   sumMoney([1.005, 1.005]) === 2.01    (round_half_up sur la somme)
+ *   sumMoney([1.005]×100) === 100.50     (pas 101 € comme pré-arrondi)
  *
- * Garde-fou : valeurs non-finies → 0 silencieusement (évite NaN).
+ * Garde-fou : valeurs non-finies ignorées (n'ajoutent rien).
  */
 export const sumMoney = (values: number[]): number => {
-  const cents = values.reduce(
-    (s, v) => s + (Number.isFinite(v) ? Math.round((v + Number.EPSILON) * 100) : 0),
-    0,
-  )
-  return fromCents(cents)
+  let sum = 0
+  for (const v of values) {
+    if (Number.isFinite(v)) sum += v
+  }
+  return round2(sum)
 }
 
 /**
- * Parse un input utilisateur en montant monétaire valide.
+ * Parse un input utilisateur en montant monétaire valide à 2 décimales.
  *
  * Gère :
  *   - virgule décimale FR ("0,01" → 0.01)
  *   - espaces / NNBSP de séparateur de milliers ("1 234,56" → 1234.56)
  *   - chaînes vides / non-numériques → 0
  *   - négatifs / NaN / Infinity → 0
- *   - bornes : > max → 0 (anti-DoS via 1e308)
+ *   - bornes : cap à 999 999 999,99 € par défaut (immeuble HLM possible).
+ *     1e308 et autres notations exposant overflow → 0.
  *
  * Sortie toujours arrondie à 2 décimales (round2).
  */
-export const parseDecimalInput = (v: string | number, max = 9_999_999.99): number => {
+export const parseDecimalInput = (v: string | number, max = 999_999_999.99): number => {
   if (typeof v === 'number') {
     return Number.isFinite(v) && v >= 0 && v <= max ? round2(v) : 0
   }
@@ -125,15 +153,43 @@ export const parseDecimalInput = (v: string | number, max = 9_999_999.99): numbe
 }
 
 /**
- * Calcule la liste des montants d'acomptes pour un total et une liste
- * de pourcentages, en garantissant que la somme des acomptes === total
- * exactement (au centime près). Le DERNIER acompte absorbe le résidu
- * d'arrondi — convention comptable standard (Henrri, EBP, Sage).
+ * Variante 4 décimales pour les prix unitaires BTP (étude de prix).
  *
- * Cas test :
- *   computeAcomptesAmounts(100.01, [{p:33.33}, {p:33.33}, {p:33.34}])
- *   doit retourner [33.33, 33.33, 33.35] (somme = 100.01) au lieu de
- *   [33.33, 33.33, 33.34] (somme = 100.00, 1 cent perdu).
+ * Mêmes règles que parseDecimalInput mais arrondit à 4 décimales via round4.
+ * À utiliser pour les inputs `priceHT` BTP où la norme métier autorise jusqu'à
+ * 4 décimales (cas Adeline : 1909.09 / 5 = 381.8181 conservé exact).
+ *
+ * Le `totalHT = qty × priceHT` reste arrondi à 2 décimales via mulMoney(),
+ * donc le PDF affiche toujours du 2 décimales — seule la base de calcul
+ * conserve la précision.
+ */
+export const parseDecimalInput4 = (v: string | number, max = 999_999_999.99): number => {
+  if (typeof v === 'number') {
+    return Number.isFinite(v) && v >= 0 && v <= max ? round4(v) : 0
+  }
+  if (typeof v !== 'string') return 0
+  const cleaned = v.trim().replace(/\s/g, '').replace(',', '.')
+  if (cleaned === '') return 0
+  const n = parseFloat(cleaned)
+  if (!Number.isFinite(n) || n < 0 || n > max) return 0
+  return round4(n)
+}
+
+/**
+ * Calcule la liste des montants d'acomptes pour un total et une liste
+ * de pourcentages.
+ *
+ * Comportement (hotfix audit 04/05/2026) :
+ *   - Si Σ pourcentages === 100 % (à 0,001 près) : le DERNIER acompte
+ *     absorbe le résidu d'arrondi (Henrri/EBP/Sage convention) pour que
+ *     la somme === total exact au centime.
+ *   - Si Σ pourcentages !== 100 % : chaque acompte est calculé tel quel,
+ *     SANS forçage à 100 %. Préserve l'intention utilisateur quand il
+ *     saisit un acompte partiel ("30 % à la commande, le solde réglé
+ *     séparément").
+ *
+ * Avant fix (PR #103) : forçait toujours le dernier à compléter à 100 %
+ *   → un user qui saisit 1 acompte de 30 % voyait 100 % facturé. Bug majeur.
  */
 export const computeAcomptesAmounts = (
   total: number,
@@ -141,25 +197,39 @@ export const computeAcomptesAmounts = (
 ): number[] => {
   if (acomptes.length === 0) return []
   if (!Number.isFinite(total) || total <= 0) return acomptes.map(() => 0)
-  const amounts = acomptes.slice(0, -1).map(a => round2(total * (a.pourcentage || 0) / 100))
-  const last = round2(total - sumMoney(amounts))
-  return [...amounts, last]
+  const totalPct = acomptes.reduce((s, a) => s + (Number.isFinite(a.pourcentage) ? a.pourcentage : 0), 0)
+  const isFullPct = Math.abs(totalPct - 100) < 0.001
+  // Cas standard : tous les acomptes calculés indépendamment.
+  const amounts = acomptes.map(a => round2(total * (a.pourcentage || 0) / 100))
+  if (!isFullPct) return amounts
+  // Cas Σ === 100 : le DERNIER absorbe le résidu pour que sumMoney = total.
+  const last = round2(total - sumMoney(amounts.slice(0, -1)))
+  return [...amounts.slice(0, -1), last]
 }
 
 /**
  * Vérifie l'invariant fiscal : Sous-total HT + Σ TVA = TOTAL TTC à 0,01 € près.
  *
- * À brancher sur Sentry / logger.warn en prod (sans bloquer le rendu).
- * Si delta > 0,01, le PDF est incohérent : risque audit Bercy + contestation
- * client. Devrait toujours retourner ok=true en production.
+ * À brancher sur Sentry en prod (sans bloquer le rendu) — voir intégration
+ * dans DevisFactureForm.tsx et DevisFactureFormBTP.tsx.
+ *
+ * Tolérance : delta <= 0,01 (inclusive). Au-delà, le PDF est incohérent
+ * (risque audit Bercy + contestation client).
+ *
+ * Hotfix : tolérance changée de `< 0.01` à `<= 0.01` car un delta de 0,01 €
+ *   exactement arrive en pratique sur certaines combinaisons de taux mixtes
+ *   et ne devrait pas déclencher un faux positif.
  */
 export const assertInvoiceInvariant = (
   subtotalHT: number,
   totalTVA: number,
   totalTTC: number,
 ): { ok: boolean; delta: number } => {
-  const sum = round2((subtotalHT || 0) + (totalTVA || 0))
-  const ttc = round2(totalTTC || 0)
-  const delta = Math.abs(sum - ttc)
-  return { ok: delta < 0.01, delta }
+  // Comparaison en centimes entiers pour éviter le drift IEEE 754 :
+  // Math.abs(120 - 120.01) === 0.010000000000005116 dans certains cas.
+  const sumCents = toCents((subtotalHT || 0) + (totalTVA || 0))
+  const ttcCents = toCents(totalTTC || 0)
+  const deltaCents = Math.abs(sumCents - ttcCents)
+  const delta = fromCents(deltaCents)
+  return { ok: deltaCents <= 1, delta }
 }
