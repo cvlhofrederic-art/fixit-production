@@ -125,6 +125,13 @@ export interface PdfV3Input {
   customTables?: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
   subtotalHT: number
   totalTTC: number
+  // Ventilation TVA pré-calculée par le form (single source of truth) — élimine
+  // le drift form ↔ PDF. Fallback sur recompute si non fourni (legacy).
+  tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
+  // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI) : quand le
+  // pro est sous-traitant, il NE collecte PAS la TVA — le donneur d'ordre
+  // l'autoliquide. Mention obligatoire sur le devis/facture.
+  autoliquidationBTP?: boolean
 
   // Acomptes
   acomptesEnabled: boolean
@@ -180,6 +187,9 @@ function sanitizeForHelvetica(s: string | null | undefined): string {
     .replace(/[☑☒]/g, '[x]').replace(/☐/g, '[ ]')
     .replace(/[​-‍﻿]/g, '') // zero-width spaces
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, '') // emojis
+    // Strip control chars (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F) — peuvent corrompre
+    // la structure PDF interne (parenthèses non balancées dans strings PDF).
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
 }
 
 /**
@@ -224,6 +234,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     insuranceNumber: _s(input.insuranceNumber),
     insuranceCoverage: _s(input.insuranceCoverage),
     mediatorName: _s(input.mediatorName),
+    mediatorUrl: _s(input.mediatorUrl),
     // Destinataire (client) + lieu d'intervention
     clientName: _s(input.clientName),
     clientAddress: _s(input.clientAddress),
@@ -235,10 +246,38 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEtage: _s(input.interventionEtage),
     interventionEspacesCommuns: _s(input.interventionEspacesCommuns),
     interventionExterieur: _s(input.interventionExterieur),
-    // Paiement (champs libres)
+    // Paiement + délais (champs libres)
+    paymentMode: _s(input.paymentMode),
+    paymentDue: _s(input.paymentDue),
     paymentCondition: _s(input.paymentCondition),
+    discount: _s(input.discount),
+    penaltyRate: _s(input.penaltyRate),
+    recoveryFee: _s(input.recoveryFee),
+    executionDelay: _s(input.executionDelay),
     iban: _s(input.iban),
     bic: _s(input.bic),
+    // Identifiants doc + référence source (peuvent contenir caractères exotiques)
+    docNumber: _s(input.docNumber),
+    sourceDevisRef: input.sourceDevisRef ? _s(input.sourceDevisRef) : null,
+    // Sections custom BTP — noms saisis librement par l'utilisateur (peuvent
+    // contenir emojis ou superscripts qui rendraient en cubes côté helvetica).
+    linesName: input.linesName ? _s(input.linesName) : undefined,
+    materialLinesName: input.materialLinesName ? _s(input.materialLinesName) : undefined,
+    fraisLinesName: input.fraisLinesName ? _s(input.fraisLinesName) : undefined,
+    customTables: input.customTables?.map(ct => ({ ...ct, name: _s(ct.name) })),
+    // Rapport joint (motif + adresse chantier saisis dans rapport d'intervention)
+    attachedRapport: input.attachedRapport ? {
+      ...input.attachedRapport,
+      rapportNumber: _s(input.attachedRapport.rapportNumber),
+      motif: input.attachedRapport.motif ? _s(input.attachedRapport.motif) : undefined,
+      siteAddress: input.attachedRapport.siteAddress ? _s(input.attachedRapport.siteAddress) : undefined,
+    } : null,
+    // Signature (signataire libre, timestamp string)
+    signatureData: input.signatureData ? {
+      ...input.signatureData,
+      signataire: _s(input.signatureData.signataire),
+      timestamp: _s(input.signatureData.timestamp),
+    } : null,
     // Notes libres
     notes: _s(input.notes),
   }
@@ -256,7 +295,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC,
+    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -321,7 +360,25 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 1. LOGO (coin haut-droit, bord droit aligné avec la fin de la ligne orange) ═══
+  // Validation URL logo : allowlist domaines de confiance pour éviter SSRF/XSS
+  // (un logo SVG malveillant chargé depuis un domaine externe pourrait leak
+  // des données via <image href>, ou un PNG de 50 Mo crasherait le worker).
+  const ALLOWED_LOGO_DOMAINS = ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+  const isLogoUrlAllowed = (url: string): boolean => {
+    try {
+      const parsed = new URL(url)
+      // Refuse les schémas autres que http(s)
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
+      return ALLOWED_LOGO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
+    } catch {
+      return false
+    }
+  }
   let logoUrl = await fetchFreshLogo()
+  if (logoUrl && !isLogoUrlAllowed(logoUrl)) {
+    if (process.env.NODE_ENV !== 'production') console.warn('[PDF V3] Logo URL rejected (not in allowlist)')
+    logoUrl = null
+  }
   if (logoUrl) {
     try {
       const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -744,7 +801,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // Sur ces pages, autoTable redessine le head (showHead: 'everyPage') et nous
     // ajoutons le titre de section "(suite)" via didDrawPage pour éviter qu'une
     // ligne body apparaisse orpheline (sans titre ni head) en haut de page.
-    const startPageNum = (pdf as any).internal.getNumberOfPages()
+    const startPageNum = pdf.getNumberOfPages()
     const suiteSuffix = locale === 'pt' ? ' (continuação)' : ' (suite)'
     autoTable(pdf, {
       head: tableHead,
@@ -788,7 +845,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       didDrawPage: () => {
         // Si on est sur une page créée par autoTable (overflow), redrawer le
         // titre de section "(suite)" pour éviter l'orphelin visuel.
-        const currentPage = (pdf as any).internal.getNumberOfPages()
+        const currentPage = pdf.getNumberOfPages()
         if (sectionName && currentPage > startPageNum) {
           pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
           pdf.text(`${sectionName}${suiteSuffix}`, mL, 18)
@@ -937,20 +994,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
   y += stH
 
-  // Détail TVA par taux — itère sur les lignes RÉELLEMENT rendues (sections),
-  // sans dédoubler avec `lines` qui est l'union envoyée par les nouveaux callers.
+  // Détail TVA par taux — single source of truth : on utilise tvaBreakdown
+  // calculé par le form (avec arrondi BOFiP par taux après agrégation des
+  // bases). Élimine le drift form ↔ PDF observé sur 50+ lignes.
+  // Fallback : si pas de tvaBreakdown fourni (legacy callers), on recalcule
+  // avec la même logique d'arrondi par taux.
   if (tvaEnabled) {
-    const tvaByRate: Record<number, { base: number; amount: number }> = {}
-    const allTvaLines: ProductLine[] = sections.length > 0
-      ? sections.flatMap(s => s.rows)
-      : lines
-    allTvaLines.filter(l => l.description.trim()).forEach(l => {
-      if (!tvaByRate[l.tvaRate]) tvaByRate[l.tvaRate] = { base: 0, amount: 0 }
-      tvaByRate[l.tvaRate].base += l.totalHT
-      tvaByRate[l.tvaRate].amount += l.totalHT * l.tvaRate / 100
-    })
-    Object.entries(tvaByRate).forEach(([rate, { base, amount }]) => {
-      if (Number(rate) === 0) return
+    let breakdown: Array<{ rate: number; base: number; amount: number }> = []
+    if (tvaBreakdownInput && tvaBreakdownInput.length > 0) {
+      breakdown = tvaBreakdownInput
+    } else {
+      const tvaByRate = new Map<number, { base: number; amount: number }>()
+      const allTvaLines: ProductLine[] = sections.length > 0
+        ? sections.flatMap(s => s.rows)
+        : lines
+      allTvaLines.filter(l => l.description.trim()).forEach(l => {
+        const cur = tvaByRate.get(l.tvaRate) || { base: 0, amount: 0 }
+        // Base = somme HT par taux, arrondi à chaque ajout (anti-drift IEEE)
+        cur.base = Math.round((cur.base + (l.totalHT || 0)) * 100) / 100
+        tvaByRate.set(l.tvaRate, cur)
+      })
+      // Calcul amount = base × taux / 100 UNE FOIS par taux (pas par ligne)
+      tvaByRate.forEach((v, rate) => {
+        v.amount = Math.round(v.base * rate) / 100
+      })
+      breakdown = Array.from(tvaByRate.entries())
+        .map(([rate, { base, amount }]) => ({ rate, base, amount }))
+        .sort((a, b) => b.rate - a.rate)
+    }
+    breakdown.forEach(({ rate, base, amount }) => {
+      if (rate === 0) return
       pdf.setFillColor(COLOR_WHITE)
       pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
@@ -961,8 +1034,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     })
   }
 
-  // Remise
+  // Remise — extrait le montant numérique pour le déduire du TOTAL.
+  // Format accepté : "100", "100€", "100 €", "100,50 €", "100.50".
+  // Si parse échoue (chaîne libre type "Remise commerciale"), on n'applique
+  // pas de déduction (juste l'affichage informatif — comportement legacy).
+  let discountAmount = 0
   if (discount) {
+    const parsed = parseFloat(String(discount).replace(',', '.').replace(/[^\d.-]/g, ''))
+    if (Number.isFinite(parsed) && parsed > 0) discountAmount = parsed
     pdf.setFillColor(COLOR_WHITE)
     pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
@@ -975,7 +1054,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // ═══ 8. BLOC TOTAL NET ═══
   y += 4
 
-  const totalVal = tvaEnabled ? totalTTC : subtotalHT
+  // Le TOTAL affiché DÉDUIT effectivement la remise — sinon le client lit
+  // "Remise -500€" puis "TOTAL 12 500€" alors qu'il devrait payer 12 000€
+  // (bug audit 03/05/2026 finding CRITIQUE #6 + ÉLEVÉ).
+  const totalRaw = tvaEnabled ? totalTTC : subtotalHT
+  const totalVal = Math.max(0, Math.round((totalRaw - discountAmount) * 100) / 100)
   const totBoxX = boxX_dest
   const totBoxW = destBoxW
   // totH déjà déclaré plus haut (estimation totalsBlockH)
@@ -990,19 +1073,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += totH + 6
 
   // ═══ 9. CONDITIONS + BON POUR ACCORD + ACOMPTES (devis) ou RÈGLEMENT (facture) ═══
-  checkPageBreak(55)
-
+  // Pré-calcul de la hauteur réelle du bloc CONDITIONS+SIGNATURE pour éviter
+  // que le bloc déborde en bas de page (CRITIQUE audit). Le bloc gris de
+  // signature s'étend sur toute la hauteur du contenu Conditions ; une longue
+  // liste de pénalités/escompte/notes peut le pousser au-delà des mentions
+  // légales. checkPageBreak dynamique selon longueur réelle.
   if (docType === 'devis') {
     const condX = mL
     const condW = emBoxW
     const sigX = boxX_dest
     const sigW = destBoxW
-    const condStartY = y
-
-    // ── CONDITIONS (côté gauche) ──
-    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('CONDITIONS', condX, condStartY + 5)
-    let cy = condStartY + 12
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     const validityStr = docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : `30 ${locale === 'pt' ? 'dias' : 'jours'}`
@@ -1016,6 +1096,29 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
       ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
     ]
+    // Pré-mesure : calcule la hauteur réelle du bloc CONDITIONS sans rendre.
+    // Permet de checkPageBreak dynamique avant de dessiner le rect signature.
+    let measuredH = 12 // titre CONDITIONS + gap
+    condTextLines.forEach(line => {
+      const wrapped = pdf.splitTextToSize(line, condW - 4)
+      measuredH += wrapped.length * ptToMm(13)
+    })
+    if (notes) {
+      const noteWrappedMeasure = pdf.splitTextToSize(notes, condW - 4)
+      measuredH += 2 + noteWrappedMeasure.length * ptToMm(13)
+    }
+    // Hauteur effective du bloc gris signature (max entre cond et 46 mm).
+    const blockH = Math.max(measuredH, 46)
+    // checkPageBreak dynamique : si pas la place pour CONDITIONS+SIGNATURE
+    // entier sur la page courante, on saute. +6 mm marge sécurité.
+    checkPageBreak(blockH + 6)
+
+    const condStartY = y
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('CONDITIONS', condX, condStartY + 5)
+    let cy = condStartY + 12
+
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     condTextLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, condW - 4)
       pdf.text(wrapped, condX, cy)
@@ -1144,7 +1247,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 10. RAPPORT JOINT (optionnel) ═══
-  if (attachedRapport && !checkPageBreak(20)) {
+  // Bug critique audit : `if (attachedRapport && !checkPageBreak(20))` →
+  // checkPageBreak retourne true SI un saut a eu lieu, donc `!checkPageBreak`
+  // = false dès qu'un saut est nécessaire, et le rapport entier est SKIP
+  // silencieusement (+ page blanche orpheline créée par le saut). Logique
+  // inversée. Fix : checkPageBreak inconditionnel, puis rendu.
+  if (attachedRapport) {
+    checkPageBreak(20)
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
     const rapportTextLines: string[] = []
     rapportTextLines.push(t('devis.pdf.attachedReport').replace('{number}', attachedRapport.rapportNumber))
@@ -1210,14 +1319,43 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
   }
 
-  // TVA taux réduit (remplace CERFA supprimé fév. 2025, loi de finances 2025, art. 41)
+  // 2bis. Autoliquidation BTP sous-traitance (art. 283, 2 nonies CGI) — quand
+  // le pro BTP est sous-traitant, le donneur d'ordre autoliquide la TVA.
+  // La mention est OBLIGATOIRE pour que la facture soit conforme (sinon
+  // requalification + amende 50% des droits).
+  if (autoliquidationBTP && locale !== 'pt') {
+    legal1 += ' Autoliquidation par le preneur — TVA due par le donneur d\'ordre (art. 283, 2 nonies CGI).'
+  }
+
+  // TVA taux réduit (remplace CERFA supprimé fév. 2025 par mention simplifiée
+  // sur devis + facture, loi de finances 2025 art. 41). Mention conforme aux
+  // 3 critères BOI-TVA-LIQ-30-20-90 + engagement signature client.
+  // Itère sur les sections rendues (sections.flatMap) pour BTP multi-sections,
+  // pas sur `lines` legacy qui peut être incomplet.
   if (tvaEnabled && locale !== 'pt') {
-    const usedRates = new Set(lines.filter(l => l.description.trim()).map(l => l.tvaRate))
+    const allRenderedLines = (input.laborLines && input.laborLines.length > 0)
+      || (input.materialLines && input.materialLines.length > 0)
+      || (input.fraisLines && input.fraisLines.length > 0)
+      || (input.customTables && input.customTables.length > 0)
+      ? [
+          ...(input.laborLines || []),
+          ...(input.materialLines || []),
+          ...(input.fraisLines || []),
+          ...((input.customTables || []).flatMap(ct => ct.lines || [])),
+        ]
+      : lines
+    const usedRates = new Set(allRenderedLines.filter(l => l.description.trim()).map(l => l.tvaRate))
     if (usedRates.has(5.5)) {
-      legal1 += ' Travaux de rénovation énergétique sur logement > 2 ans, taux réduit 5,5 % (art. 278-0 bis A CGI, loi de finances 2025 art. 41).'
+      legal1 += ' Travaux de rénovation énergétique sur un local affecté à l\'habitation, achevé depuis plus de 2 ans, ne concourant ni à la production d\'un immeuble neuf au sens du II de l\'article 257 du CGI, ni à une augmentation de la surface de plancher de plus de 10 %. Taux réduit 5,5 % (art. 278-0 bis A CGI). Le client certifie l\'exactitude de ces déclarations en signant le présent document (loi de finances 2025, art. 41).'
     }
     if (usedRates.has(10)) {
-      legal1 += ' Travaux d\'amélioration/entretien sur logement > 2 ans, taux réduit 10 % (art. 279-0 bis CGI, loi de finances 2025 art. 41).'
+      legal1 += ' Travaux d\'amélioration, de transformation, d\'aménagement ou d\'entretien sur un local affecté à l\'habitation, achevé depuis plus de 2 ans, ne concourant ni à la production d\'un immeuble neuf au sens du II de l\'article 257 du CGI, ni à une augmentation de la surface de plancher de plus de 10 %. Taux réduit 10 % (art. 279-0 bis CGI). Le client certifie l\'exactitude de ces déclarations en signant le présent document (loi de finances 2025, art. 41).'
+    }
+    // Cohabitation 20 % + (10 % ou 5,5 %) : mention art. 30-00 A annexe IV CGI
+    // pour expliquer pourquoi la fourniture spécifique reste au taux normal
+    // (électroménager, mobilier, etc.).
+    if (usedRates.has(20) && (usedRates.has(10) || usedRates.has(5.5))) {
+      legal1 += ' Fournitures d\'équipements ménagers, mobilier ou matériels exclus du taux réduit (art. 30-00 A annexe IV CGI), facturés au taux normal de 20 %.'
     }
   }
 
@@ -1235,19 +1373,28 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  // 4. Devis / Orçamento
+  // 4. Devis / Orçamento — base légale adaptée selon contexte
   let legal2 = ''
   if (docType === 'devis') {
     legal2 = locale === 'pt'
       ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
-      : 'Devis gratuit, conformément à l\'arrêté du 24 janvier 2017 relatif à l\'information du consommateur sur les prestations de dépannage, de réparation et d\'entretien dans le secteur du bâtiment.'
+      // Information précontractuelle générale (art. L.111-1 C. conso.) + arrêté
+      // 24/01/2017 si dépannage/réparation/entretien. La mention couvre les
+      // deux cas usage (rénovation programmée + dépannage).
+      : 'Devis gratuit (art. L.111-1 C. conso.). Pour les prestations de dépannage, réparation et entretien : arrêté du 24 janvier 2017.'
   } else {
-    // Facture
-    const dueDateStr = paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---'
+    // Facture — date d'échéance précise OBLIGATOIRE B2B (art. L.441-9 4° C. com.)
+    // Calcul date absolue depuis docDate + paymentDelay (jours).
+    const paymentDelayDays = parseInt(paymentDue || '30', 10) || 30
+    const computedDue = new Date(docDate)
+    if (!isNaN(computedDue.getTime())) computedDue.setDate(computedDue.getDate() + paymentDelayDays)
+    const dueDateStr = !isNaN(computedDue.getTime())
+      ? computedDue.toLocaleDateString(dateLocaleStr)
+      : (paymentDue || '---')
     if (locale === 'pt') {
-      legal2 = `Condições de pagamento : ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
+      legal2 = `Condições de pagamento : vencimento ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
     } else {
-      legal2 = `Conditions de paiement : échéance ${dueDateStr}. Règlement : ${paymentMode || '---'}.`
+      legal2 = `Conditions de paiement : date d'échéance ${dueDateStr} (art. L.441-9 C. com.). Règlement : ${paymentMode || '---'}.`
     }
   }
 
@@ -1256,6 +1403,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (isPro) {
       // B2B : art. L. 441-10 C. com. + indemnité forfaitaire 40 € (art. D. 441-5 C. com.)
       legal2 += ` Pénalités de retard : ${penaltyRate || '3 fois le taux d\'intérêt légal en vigueur'} (art. L. 441-10 C. com.). Indemnité forfaitaire de recouvrement : 40 € (art. D. 441-5 C. com.).`
+      // Escompte facture B2B obligatoire (art. L.441-9 al. 4 C. com.) — mention
+      // même négative ("aucun escompte") est obligatoire sur la facture.
+      if (docType === 'facture') {
+        legal2 += ' Aucun escompte accordé pour paiement anticipé (art. L.441-9 al. 4 C. com.).'
+      }
     } else {
       // B2C : pénalités contractuelles, pas d'indemnité forfaitaire obligatoire
       legal2 += ` Pénalités de retard : ${penaltyRate || '3 fois le taux d\'intérêt légal en vigueur'}.`
@@ -1277,13 +1429,20 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // 8. Médiation de la consommation (particuliers uniquement, art. L. 612-1 C. conso.)
-  // Ne s'affiche que si le médiateur est explicitement renseigné
+  // Ne s'affiche que si le médiateur est explicitement renseigné — choix de
+  // l'artisan (non bloquant à la génération).
   if (isParticulier && mediatorName) {
     if (locale === 'pt') {
       legal3 += ` Resolução alternativa de litígios (Lei n.º 144/2015) : ${mediatorName}${mediatorUrl ? `, ${mediatorUrl}` : ''}.`
     } else {
       legal3 += ` Médiation de la consommation (art. L. 612-1 C. conso.) : ${mediatorName}${mediatorUrl ? `, ${mediatorUrl}` : ''}.`
     }
+  }
+
+  // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement, BTP > 500 €
+  // HT ou particulier — décret 2020-1817, art. L.541-21-2-1 C. env.).
+  if (locale !== 'pt' && (subtotalHT > 500 || isParticulier)) {
+    legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
   }
 
   const legal4 = locale === 'pt'
@@ -1481,7 +1640,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Le n° de devis est répété sur chaque page (à gauche) en complément du
   // "Page X/Y" (à droite). Pratique standard SaaS pro 2026 + utile pour
   // contrôles fiscaux : chaque page reste identifiable même imprimée séparément.
-  const totalPgs = (pdf as any).internal.getNumberOfPages()
+  const totalPgs = pdf.getNumberOfPages()
   const footerDocRef = ptFiscalData?.docNumber || docNumber
   for (let p = 1; p <= totalPgs; p++) {
     pdf.setPage(p)
@@ -1498,13 +1657,88 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     : docNumber
   const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
 
+  // ═══ Factur-X (PDF/A-3 + XML CII embarqué) — facture B2B FR uniquement ═══
+  // Réforme e-facturation française : septembre 2026 réception obligatoire,
+  // 2027 émission obligatoire pour toutes entreprises FR. Format = Factur-X
+  // 1.0.07 (PDF/A-3 + XML CII EN 16931 BASIC profile).
+  //
+  // Feature flag NEXT_PUBLIC_FEATURE_FACTURX permet rollback rapide en prod
+  // si bug, sans redéploiement (toggle env var Cloudflare Workers).
+  //
+  // Conditions d'activation strictes :
+  //  - docType === 'facture' (pas un devis)
+  //  - locale === 'fr' (réforme française uniquement)
+  //  - tvaEnabled (XML CII exige TVA structurée)
+  //  - clientType === 'professionnel' (B2B)
+  const facturXEnabled = (
+    typeof process !== 'undefined' &&
+    process.env?.NEXT_PUBLIC_FEATURE_FACTURX === 'true'
+  )
+  const shouldEmbedFacturX = facturXEnabled
+    && docType === 'facture'
+    && locale === 'fr'
+    && tvaEnabled
+    && clientType === 'professionnel'
+
+  let outputBytes: Uint8Array | null = null
+  if (shouldEmbedFacturX) {
+    try {
+      const [{ embedFacturX }, { generateFacturXML }] = await Promise.all([
+        import('@/lib/facturx'),
+        import('@/lib/facturx-mapper'),
+      ])
+      const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
+      const pdfBytes = new Uint8Array(pdfArrayBuffer)
+      // Build minimal DevisFactureData mapping pour le XML CII
+      const facturXData = {
+        docNumber, docTitle, docDate, paymentDue, docType, locale,
+        companyName, companySiret, companyAddress, tvaNumber,
+        clientName, clientSiret, clientAddress,
+        lines: lines.filter(l => l.description.trim()),
+        subtotalHT, totalTTC, tvaEnabled, paymentMode,
+      }
+      // generateFacturXML attend un type DevisFactureData complet ; on cast
+      // via unknown car le mapper n'utilise pas tous les champs (dépendances
+      // strictement nominales sur lines, totalHT, totalTTC, tvaEnabled, etc.).
+      // Si un champ requis manque, l'embedding échoue dans le try/catch et
+      // on retombe sur le PDF jsPDF non-Factur-X (pas de blocage utilisateur).
+      const xml = generateFacturXML(facturXData as unknown as Parameters<typeof generateFacturXML>[0])
+      outputBytes = await embedFacturX(pdfBytes, xml)
+    } catch (e) {
+      // Fallback : si l'embedding échoue, on conserve le PDF jsPDF normal.
+      // L'erreur ne doit pas bloquer la facturation.
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[PDF V3] Factur-X embedding failed, falling back to plain PDF:', e)
+      }
+      outputBytes = null
+    }
+  }
+
   if (input.action === 'preview') {
     // Use a named blob so the browser's PDF viewer shows the real filename
     // (not a UUID) when the user downloads from preview
-    const blob = pdf.output('blob')
+    const blob = outputBytes
+      ? new Blob([new Uint8Array(outputBytes)], { type: 'application/pdf' })
+      : pdf.output('blob')
     const namedFile = new File([blob], filename, { type: 'application/pdf' })
     const url = URL.createObjectURL(namedFile)
     window.open(url, '_blank')
+    // Memory leak fix : révoquer l'URL après 60s — assez long pour que le
+    // navigateur ait chargé le PDF dans le nouvel onglet, suffisamment court
+    // pour ne pas saturer la heap sur des dizaines de previews successives.
+    // L'utilisateur peut toujours télécharger depuis l'onglet ouvert.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } else if (outputBytes) {
+    // Téléchargement direct du PDF/A-3 Factur-X
+    const blob = new Blob([new Uint8Array(outputBytes)], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5_000)
   } else {
     pdf.save(filename)
   }
