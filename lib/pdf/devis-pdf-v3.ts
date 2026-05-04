@@ -647,8 +647,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ? [
         { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
         { label: locale === 'pt' ? 'VALIDADE' : 'VALIDITÉ', value: docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : '---' },
-        { label: locale === 'pt' ? 'PRAZO DE EXECUÇÃO' : 'DÉLAI D\'EXÉCUTION', value: executionDelay || '---' },
-        // Date de prestation : "À convenir" si vide (cohérent avec executionDelay)
+        // Délai d'exécution + Date prestation : « À convenir » si vide
+        // (cohérent : tant que rien n'est saisi, le devis ne fixe pas de date).
+        { label: locale === 'pt' ? 'PRAZO DE EXECUÇÃO' : 'DÉLAI D\'EXÉCUTION', value: executionDelay || (locale === 'pt' ? 'A combinar' : 'À convenir') },
         { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : (locale === 'pt' ? 'A combinar' : 'À convenir') },
       ]
     : [
