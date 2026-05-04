@@ -1166,8 +1166,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       measuredH += 2 + noteWrappedMeasure.length * ptToMm(13)
     }
     if (ribLines.length > 0) {
-      // Espace + titre + lignes IBAN/BIC
-      measuredH += 4 + ptToMm(13) + ribLines.length * ptToMm(13)
+      // Espace 6mm + titre + lignes IBAN/BIC (cohérent avec rendu ci-dessous)
+      measuredH += 6 + ptToMm(13) + ribLines.length * ptToMm(13)
     }
     // Hauteur effective du bloc gris signature (max entre cond et 46 mm).
     const blockH = Math.max(measuredH, 46)
@@ -1194,12 +1194,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       cy += noteWrapped.length * ptToMm(13)
     }
     // ── RIB & coordonnées bancaires (sous les notes) ──
+    // Style aligné sur les autres section headers : UPPERCASE + fontSize 9.5
+    // (= même hiérarchie que « BON POUR ACCORD » dans le bloc droit symétrique).
+    // Espacement 6mm avant pour bien séparer des notes en italique.
     if (ribLines.length > 0) {
-      cy += 4
-      pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      pdf.text(ribTitle, condX, cy)
+      cy += 6
+      pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(ribTitle.toUpperCase(), condX, cy)
       cy += ptToMm(13)
-      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal')
       ribLines.forEach(line => {
         pdf.text(line, condX, cy)
         cy += ptToMm(13)
