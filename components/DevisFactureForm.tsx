@@ -1507,44 +1507,12 @@ export default function DevisFactureForm({
     }
     setPdfLoading(true)
     try {
-      // ── PT Fiscal: Register document with AT engine (Portugal only) ──
-      let ptFiscalData: PdfV3PtFiscalData | null = null
-
-      if (locale === 'pt' && docType === 'facture') {
-        try {
-          const headers = await getAuthHeaders()
-          const fiscalRes = await fetch('/api/portugal-fiscal/register-document', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...headers },
-            body: JSON.stringify({
-              docType,
-              issuerNIF: companySiret,
-              issuerName: companyName,
-              issuerAddress: companyAddress,
-              clientNIF: clientSiret || undefined,
-              clientName,
-              clientAddress,
-              fiscalSpace: 'PT',
-              lines: lines.filter(l => l.description.trim()).map(l => ({
-                description: l.description,
-                quantity: l.qty,
-                unitPrice: l.priceHT,
-                taxRate: l.tvaRate,
-                lineTotal: l.totalHT,
-              })),
-              issueDate: docDate,
-            }),
-          })
-          if (fiscalRes.ok) {
-            const { fiscal } = await fiscalRes.json()
-            ptFiscalData = fiscal
-          } else {
-            console.warn('[PT Fiscal] Registration failed, generating PDF without fiscal data')
-          }
-        } catch (e) {
-          console.warn('[PT Fiscal] Error registering document:', e)
-        }
-      }
+      // ── PT Fiscal: désactivé PT-V1 2026-05-05 ──
+      // Vitfix.io n'est pas certifié AT (Decreto-Lei 28/2019). Toutes les
+      // factures PT sont émises en mode pro-forma (cf. lib/pdf/devis-pdf-v3.ts
+      // watermark PRÓ-FORMA — NÃO É FATURA). Pour réactiver, voir
+      // docs/integrations/pt-fatura-reactivation.md.
+      const ptFiscalData: PdfV3PtFiscalData | null = null
 
       // Generate PDF via extracted V3 generator
       await generateDevisPdfV3({
