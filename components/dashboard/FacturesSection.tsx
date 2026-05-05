@@ -64,6 +64,7 @@ export default function FacturesSection({
   const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
     useDocumentCancel<PersistedDocument>({
       artisanId: artisan?.id,
+      docType: 'facture',
       setSavedDocuments,
       confirmDraftDelete: (doc) =>
         confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`),
@@ -262,7 +263,7 @@ export default function FacturesSection({
                             e.stopPropagation()
                             handleRemoveDoc(doc)
                           }}>
-                            {isDocDraftStatus(doc.status)
+                            {isDocDraftStatus(doc.status, 'facture')
                               ? t('proDash.factures.supprimer')
                               : (locale === 'pt' ? 'Anular' : 'Annuler')}
                           </button>
@@ -462,7 +463,7 @@ function FacturesSectionV5({
                         e.stopPropagation()
                         onRemoveDoc(doc)
                       }}>
-                        {isDocDraftStatus(doc.status)
+                        {isDocDraftStatus(doc.status, 'facture')
                           ? t('proDash.factures.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       </button>
