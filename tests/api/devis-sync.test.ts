@@ -120,7 +120,7 @@ describe('POST /api/devis/sync', () => {
     mockCompanyProfiles.mockResolvedValue({ data: [], error: null })
     // FR-V1 default : aucun doc existant → status lookup retourne null
     mockStatusLookup.mockReset()
-    mockStatusLookup.mockResolvedValue({ data: null, error: null })
+    mockStatusLookup.mockResolvedValue({ data: null, error: null, content_hash: null })
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon'
@@ -335,12 +335,31 @@ describe('POST /api/devis/sync', () => {
   it('allows same-status idempotent upsert (sent → sent)', async () => {
     mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
     mockCheckRateLimit.mockResolvedValue(true)
-    mockStatusLookup.mockResolvedValue({ data: { status: 'sent' }, error: null })
+    mockStatusLookup.mockResolvedValue({ data: { status: 'sent', content_hash: 'abc' }, error: null })
     mockUpsert.mockResolvedValue({ data: { id: 'row-uuid-idem' }, error: null })
 
     const { POST } = await import('@/app/api/devis/sync/route')
     const docSent = { ...validDoc, status: 'envoye' }
     const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: docSent }) as never)
     expect(res.status).toBe(200)
+  })
+
+  // FR-V1.1 — fix audit code-reviewer #2 : pas de catch silencieux sur SELECT error
+  it('returns 500 when status lookup encounters a real DB error', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockStatusLookup.mockResolvedValue({
+      data: null,
+      error: { message: 'connection terminated unexpectedly' },
+    })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: validDoc }) as never)
+    expect(res.status).toBe(500)
+    const json = await res.json()
+    expect(json.error).toBe('Status lookup failed')
+    // Sentry doit être notifié pour qu'on puisse débugger
+    const Sentry = await import('@sentry/nextjs')
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
 })

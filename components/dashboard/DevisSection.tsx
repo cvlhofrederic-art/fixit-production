@@ -108,6 +108,7 @@ export default function DevisSection({
   const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
     useDocumentCancel<DevisDocument>({
       artisanId: artisan?.id,
+      docType: 'devis',
       isSameDoc,
       setSavedDocuments,
       confirmDraftDelete: (doc) => {
@@ -324,11 +325,11 @@ export default function DevisSection({
                             onClick={() => handleRemoveDoc(doc)}
                             className="v22-btn v22-btn-sm"
                             style={{ color: tv.red }}
-                            title={isDocDraftStatus(doc.status)
+                            title={isDocDraftStatus(doc.status, 'devis')
                               ? t('proDash.devis.supprimer')
                               : (locale === 'pt' ? 'Anular' : 'Annuler')}
                           >
-                            {isDocDraftStatus(doc.status) ? '🗑️' : '🚫'}
+                            {isDocDraftStatus(doc.status, 'devis') ? '🗑️' : '🚫'}
                           </button>
                         </div>
                       </td>
@@ -525,15 +526,15 @@ function DevisSectionV5({
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-d"
-                        title={isDocDraftStatus(doc.status)
+                        title={isDocDraftStatus(doc.status, 'devis')
                           ? t('proDash.devis.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                         onClick={() => onRemoveDoc(doc)}
-                        aria-label={isDocDraftStatus(doc.status)
+                        aria-label={isDocDraftStatus(doc.status, 'devis')
                           ? t('proDash.devis.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       >
-                        {isDocDraftStatus(doc.status) ? (
+                        {isDocDraftStatus(doc.status, 'devis') ? (
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
                             <path d="M10 11v6M14 11v6"/>

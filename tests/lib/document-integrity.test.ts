@@ -70,6 +70,27 @@ describe('computeContentHash', () => {
     const h2 = await computeContentHash({ ...baseDoc, numero: 'DEV-2026-002' })
     expect(h1).not.toBe(h2)
   })
+
+  // FR-V1.1 — gold-value test (audit code-reviewer #19)
+  // Lock l'algo canonical+SHA256. Si quelqu'un change canonicalize() sans
+  // bumper une version, ce test casse → empêche silent break de la chain
+  // existante en production.
+  it('produces stable known hash for fixed gold payload', async () => {
+    const goldPayload: CanonicalDocPayload = {
+      numero: 'DEV-2026-001',
+      artisan_user_id: '550e8400-e29b-41d4-a716-446655440000',
+      client_name: 'Mme Dupont',
+      total_ht_cents: 100000,
+      total_tax_cents: 20000,
+      total_ttc_cents: 120000,
+      items: [{ name: 'Item A', qty: 2, price_ht: 50000 }],
+      signed_at: '2026-05-05T12:00:00.000Z',
+    }
+    const h = await computeContentHash(goldPayload)
+    // Hash gold-value : si ce hash change, l'algo a changé.
+    // Tout artisan ayant des docs émis avant le changement aurait sa chain cassée.
+    expect(h).toBe('5af18f670b9a3d4b4414b14d3ebe2cdcbb8c8d5092bb0d43fa3169544a2eca7d')
+  })
 })
 
 describe('computeChainSignature', () => {
