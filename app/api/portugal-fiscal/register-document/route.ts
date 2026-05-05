@@ -19,7 +19,6 @@ export async function POST() {
     {
       error: 'PT fiscal document registration disabled',
       reason: 'Vitfix is not AT-certified (Decreto-Lei 28/2019). Use third-party certified software (Moloni, InvoiceXpress) for legal invoicing in Portugal.',
-      documentation: 'https://github.com/cvlhofrederic-art/fixit-production/blob/main/docs/integrations/pt-fatura-providers.md',
     },
     { status: 410 },
   )
