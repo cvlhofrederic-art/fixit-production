@@ -9,6 +9,9 @@ const mockUpsert = vi.fn()
 const mockOwnershipDirect = vi.fn()
 const mockMembershipResult = vi.fn()
 const mockCompanyProfiles = vi.fn()
+// FR-V1 : status lookup avant upsert pour valider transition.
+//   .from('devis').select('status').eq('numero',...).eq('artisan_user_id',...).maybeSingle()
+const mockStatusLookup = vi.fn()
 const mockFrom = vi.fn().mockImplementation((table: string) => {
   if (table === 'profiles_artisan') {
     return {
@@ -27,7 +30,15 @@ const mockFrom = vi.fn().mockImplementation((table: string) => {
       }),
     }
   }
+  // 'devis' ou 'factures' : supporte à la fois SELECT (status lookup) et UPSERT.
   return {
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          maybeSingle: () => mockStatusLookup(),
+        }),
+      }),
+    }),
     upsert: (...args: unknown[]) => ({
       select: () => ({
         single: () => mockUpsert(...args),
@@ -107,9 +118,14 @@ describe('POST /api/devis/sync', () => {
     mockMembershipResult.mockResolvedValue({ data: [], error: null })
     mockCompanyProfiles.mockReset()
     mockCompanyProfiles.mockResolvedValue({ data: [], error: null })
+    // FR-V1 default : aucun doc existant → status lookup retourne null
+    mockStatusLookup.mockReset()
+    mockStatusLookup.mockResolvedValue({ data: null, error: null })
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon'
+    // Hash chain skip par défaut (pas de DOC_HASH_SECRET en test)
+    delete process.env.DOC_HASH_SECRET
   })
 
   it('returns 401 without auth header', async () => {
@@ -268,5 +284,63 @@ describe('POST /api/devis/sync', () => {
     })
     const res = await POST(req as never)
     expect(res.status).toBe(400)
+  })
+
+  // ══════════════════════════════════════════════════════════════════════
+  // FR-V1 — Transition guards (art. 242 nonies CGI)
+  // ══════════════════════════════════════════════════════════════════════
+  it('returns 409 on invalid devis transition signed → draft', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockStatusLookup.mockResolvedValue({ data: { status: 'signed' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const docDraft = { ...validDoc, status: 'brouillon' } // → 'draft'
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: docDraft }) as never)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.error).toMatch(/Invalid status transition/i)
+    expect(json.current).toBe('signed')
+    expect(json.incoming).toBe('draft')
+  })
+
+  it('returns 409 on invalid facture transition paid → pending', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockStatusLookup.mockResolvedValue({ data: { status: 'paid' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const docFact = { ...validDoc, docNumber: 'FACT-2026-001', status: 'brouillon' } // → 'pending'
+    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: docFact }) as never)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.current).toBe('paid')
+    expect(json.incoming).toBe('pending')
+  })
+
+  it('allows valid devis transition draft → sent', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockStatusLookup.mockResolvedValue({ data: { status: 'draft' }, error: null })
+    mockUpsert.mockResolvedValue({ data: { id: 'row-uuid-trans' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const docSent = { ...validDoc, status: 'envoye' } // → 'sent'
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: docSent }) as never)
+    expect(res.status).toBe(200)
+    const [payload] = mockUpsert.mock.calls[0]
+    expect(payload.status).toBe('sent')
+  })
+
+  it('allows same-status idempotent upsert (sent → sent)', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockStatusLookup.mockResolvedValue({ data: { status: 'sent' }, error: null })
+    mockUpsert.mockResolvedValue({ data: { id: 'row-uuid-idem' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const docSent = { ...validDoc, status: 'envoye' }
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: docSent }) as never)
+    expect(res.status).toBe(200)
   })
 })
