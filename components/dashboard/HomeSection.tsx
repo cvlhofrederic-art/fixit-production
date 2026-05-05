@@ -111,6 +111,46 @@ export default function HomeSection({
   const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
   const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
 
+  // One-shot cleanup: purge fake data injected by the now-removed Démo button.
+  // Demo entries have stable signatures (id prefix `demo-conv-`/`demo-devis-` for
+  // convs/docs ; wallet entries with names 'RC Pro'/'KBIS'/'Décennale' and no url).
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id) return
+    try {
+      const convKey = `fixit_messagerie_convs_${artisan.id}`
+      const rawConv = localStorage.getItem(convKey)
+      if (rawConv) {
+        const convs = JSON.parse(rawConv) as Array<{ id?: string }>
+        const cleaned = convs.filter(c => !(typeof c.id === 'string' && c.id.startsWith('demo-conv-')))
+        if (cleaned.length !== convs.length) localStorage.setItem(convKey, JSON.stringify(cleaned))
+      }
+      const docsKey = `fixit_docs_${artisan.id}`
+      const rawDocs = localStorage.getItem(docsKey)
+      if (rawDocs) {
+        const docs = JSON.parse(rawDocs) as Array<{ id?: string }>
+        const cleaned = docs.filter(d => !(typeof d.id === 'string' && d.id.startsWith('demo-devis-')))
+        if (cleaned.length !== docs.length) localStorage.setItem(docsKey, JSON.stringify(cleaned))
+      }
+      const walletKey = `fixit_wallet_${artisan.id}`
+      const rawWallet = localStorage.getItem(walletKey)
+      if (rawWallet) {
+        const wallet = JSON.parse(rawWallet) as Record<string, { name?: string; url?: string; uploadedAt?: string; expiryDate?: string }>
+        const demoNames = new Set(['RC Pro', 'KBIS', 'Décennale'])
+        const cleaned: typeof wallet = {}
+        let dropped = false
+        for (const [k, doc] of Object.entries(wallet)) {
+          const isDemo = doc && !doc.url && !doc.uploadedAt && demoNames.has(doc.name || '')
+          if (isDemo) dropped = true
+          else cleaned[k] = doc
+        }
+        if (dropped) {
+          if (Object.keys(cleaned).length === 0) localStorage.removeItem(walletKey)
+          else localStorage.setItem(walletKey, JSON.stringify(cleaned))
+        }
+      }
+    } catch { /* ignore */ }
+  }, [artisan?.id])
+
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
     try {
