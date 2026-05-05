@@ -33,6 +33,27 @@ describe('canTransition — devis', () => {
     expect(canTransition('cancelled', 'draft', 'devis')).toBe(false)
     expect(canTransition('cancelled', 'signed', 'devis')).toBe(false)
   })
+  // FR-V7 : nouveaux statuts accepted + rejected
+  it('allows sent → accepted', () => {
+    expect(canTransition('sent', 'accepted', 'devis')).toBe(true)
+  })
+  it('allows sent → rejected', () => {
+    expect(canTransition('sent', 'rejected', 'devis')).toBe(true)
+  })
+  it('allows accepted → cancelled', () => {
+    expect(canTransition('accepted', 'cancelled', 'devis')).toBe(true)
+  })
+  it('forbids accepted → sent (no going back)', () => {
+    expect(canTransition('accepted', 'sent', 'devis')).toBe(false)
+  })
+  it('forbids rejected → anything (terminal)', () => {
+    expect(canTransition('rejected', 'sent', 'devis')).toBe(false)
+    expect(canTransition('rejected', 'cancelled', 'devis')).toBe(false)
+    expect(canTransition('rejected', 'accepted', 'devis')).toBe(false)
+  })
+  it('forbids draft → accepted (must pass via sent)', () => {
+    expect(canTransition('draft', 'accepted', 'devis')).toBe(false)
+  })
   it('forbids expired → sent', () => {
     expect(canTransition('expired', 'sent', 'devis')).toBe(false)
   })

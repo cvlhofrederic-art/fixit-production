@@ -15,13 +15,15 @@ export const maxDuration = 30
 // memes valeurs. Source de verite = ce fichier (server-side autoritaire).
 function mapStatus(rawStatus: string, table: 'factures' | 'devis'): string {
   if (table === 'devis') {
-    // Valid: draft | sent | signed | expired | cancelled
+    // Valid: draft | sent | signed | accepted | rejected | expired | cancelled (FR-V7)
     if (rawStatus === 'brouillon') return 'draft'
     if (rawStatus === 'envoye') return 'sent'
     if (rawStatus === 'signe') return 'signed'
+    if (rawStatus === 'accepte') return 'accepted'
+    if (rawStatus === 'refuse') return 'rejected'
     if (rawStatus === 'expire') return 'expired'
     if (rawStatus === 'annule') return 'cancelled'
-    if (['draft', 'sent', 'signed', 'expired', 'cancelled'].includes(rawStatus)) return rawStatus
+    if (['draft', 'sent', 'signed', 'accepted', 'rejected', 'expired', 'cancelled'].includes(rawStatus)) return rawStatus
     return 'draft'
   }
   // factures : pending | paid | overdue | cancelled | refunded
