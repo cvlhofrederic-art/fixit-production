@@ -1101,6 +1101,47 @@ export const emailAgentPollGetSchema = z.object({
 /** UUID v4 format validator for URL parameters */
 export const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i
 
+// ── Devis/Facture status enums + machine d'état ─────────────────────────────
+// Enums DB authoritatifs (cf. migrations 038 + 079). Toute transition non
+// listée dans canTransition() est rejetée par le trigger PG.
+export const devisStatusEnum = z.enum(['draft', 'sent', 'signed', 'expired', 'cancelled'])
+export const factureStatusEnum = z.enum(['pending', 'paid', 'overdue', 'cancelled', 'refunded'])
+export type DevisStatus = z.infer<typeof devisStatusEnum>
+export type FactureStatus = z.infer<typeof factureStatusEnum>
+
+const DEVIS_TRANSITIONS: Record<DevisStatus, ReadonlyArray<DevisStatus>> = {
+  draft: ['sent', 'cancelled'],
+  sent: ['signed', 'expired', 'cancelled'],
+  signed: ['cancelled'],
+  expired: [],
+  cancelled: [],
+}
+
+const FACTURE_TRANSITIONS: Record<FactureStatus, ReadonlyArray<FactureStatus>> = {
+  pending: ['paid', 'overdue', 'cancelled'],
+  paid: ['refunded', 'cancelled'],
+  overdue: ['paid', 'cancelled'],
+  refunded: [],
+  cancelled: [],
+}
+
+/** Returns true if the given status transition is allowed. Idempotent (same → same = true). */
+export function canTransition(current: string, next: string, docType: 'devis' | 'facture'): boolean {
+  if (current === next) return true
+  if (docType === 'devis') {
+    const map = DEVIS_TRANSITIONS as Record<string, ReadonlyArray<string>>
+    return Boolean(map[current]?.includes(next))
+  }
+  const map = FACTURE_TRANSITIONS as Record<string, ReadonlyArray<string>>
+  return Boolean(map[current]?.includes(next))
+}
+
+/** Returns true if the status is terminal (no further transitions allowed). */
+export function isTerminalStatus(status: string, docType: 'devis' | 'facture'): boolean {
+  if (docType === 'devis') return status === 'expired' || status === 'cancelled'
+  return status === 'refunded' || status === 'cancelled'
+}
+
 // ── Devis/Facture sync POST schema (server-side endpoint) ─────────────────────
 // Payload : { docType, artisanId, doc } où `doc` est l'objet localStorage complet.
 // passthrough() preserve les champs additionnels (raw_data restauration cross-device).
@@ -1134,4 +1175,14 @@ export const devisSyncSchema = z.object({
     fraisLines: z.array(z.unknown()).optional(),
     fraisAnnexes: z.array(z.unknown()).optional(),
   }).passthrough(),
+})
+
+// ── Document cancel POST schema (FR-V1) ─────────────────────────────────────
+// Annulation d'un devis ou facture émis. La raison est conservée comme preuve
+// fiscale (Code commerce L123-22). Identification par numero (clé naturelle
+// connue côté UI) ; l'API résout le UUID via numero + artisan_user_id.
+export const documentCancelSchema = z.object({
+  docType: z.enum(['devis', 'facture']),
+  numero: z.string().min(1, 'numero requis').max(100),
+  reason: z.string().min(5, 'Raison trop courte (5 caractères min)').max(500, 'Raison trop longue (500 max)'),
 })
