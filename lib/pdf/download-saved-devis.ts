@@ -221,7 +221,39 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
   const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
   const pdf = await generateDevisPdfV2(input)
-  pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+
+  // FR-V2 : wrap as PDF/A-3B for archivage probant (arrêté 22 mars 2017).
+  // Sans ça, l'archive numérique peut être requalifiée en non-probante par
+  // un contrôle DGFiP, exigeant l'original papier.
+  try {
+    const [{ wrapAsPdfA3 }] = await Promise.all([
+      import('@/lib/pdf/pdfa3-wrap'),
+    ])
+    const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
+    const pdfBytes = new Uint8Array(pdfArrayBuffer)
+    const docTitle = doc.docType === 'facture'
+      ? `Facture ${doc.docNumber || ''}`
+      : `Devis ${doc.docNumber || ''}`
+    const wrapped = await wrapAsPdfA3(pdfBytes, {
+      title: docTitle.trim(),
+      author: input.artisan.nom,
+    })
+    // Trigger download via Blob (jsPDF.save équivalent)
+    const blob = new Blob([new Uint8Array(wrapped).buffer as ArrayBuffer], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${doc.docNumber || 'devis'}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    // Fallback : si le wrapping échoue, on garde au moins le PDF non-PDF/A
+    // pour que le user ait son téléchargement.
+    console.warn('[download-saved-devis] PDF/A-3 wrap failed, falling back to plain PDF:', e)
+    pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+  }
 }
 
 // ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
