@@ -24,11 +24,26 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS pt_fiscal_documents_block_insert ON pt_fiscal_documents;
-CREATE TRIGGER pt_fiscal_documents_block_insert
-  BEFORE INSERT ON pt_fiscal_documents
-  FOR EACH ROW
-  EXECUTE FUNCTION public.block_pt_fiscal_emission();
+-- FR-V8 audit fix : trigger conditionnel. La table pt_fiscal_documents est
+-- créée par la migration 040, qui n'a pas été appliquée sur tous les
+-- environnements (la migration history prod l'a tracked mais pas exécutée).
+-- Sans IF EXISTS, le DROP TRIGGER fail. Si la table existe → trigger actif.
+-- Sinon → defense fournie par les routes API (410) + code applicatif.
+DO $migration_082_trigger$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'pt_fiscal_documents'
+  ) THEN
+    DROP TRIGGER IF EXISTS pt_fiscal_documents_block_insert ON public.pt_fiscal_documents;
+    EXECUTE 'CREATE TRIGGER pt_fiscal_documents_block_insert
+      BEFORE INSERT ON public.pt_fiscal_documents
+      FOR EACH ROW
+      EXECUTE FUNCTION public.block_pt_fiscal_emission()';
+    RAISE NOTICE 'pt_fiscal_documents_block_insert trigger installed.';
+  ELSE
+    RAISE NOTICE 'pt_fiscal_documents table not found — trigger skipped (defense provided by API + app layer).';
+  END IF;
+END $migration_082_trigger$;
 
 -- ── 2. Marquer les fiscal series existantes comme désactivées (informationnel) ─
 DO $migration$ BEGIN
