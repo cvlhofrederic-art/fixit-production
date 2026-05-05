@@ -58,7 +58,7 @@ export async function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://*.vercel-insights.com https://cloudflareinsights.com",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com",
     "frame-src 'self' https://js.stripe.com https://*.stripe.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -76,7 +76,6 @@ export async function middleware(request: NextRequest) {
     const allowedOrigins = [
       process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       'https://vitfix.io',
-      'https://fixit-production.vercel.app',  // Vercel preview/staging
       'capacitor://localhost',     // iOS Capacitor
       'https://localhost',         // F13: Android Capacitor (androidScheme: https)
     ]

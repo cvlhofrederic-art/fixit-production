@@ -721,7 +721,7 @@ async function seed() {
 ║  4 contas de equipa                                      ║
 ╚══════════════════════════════════════════════════════════╝
 
-URL: https://fixit-production.vercel.app/pt/pro/dashboard
+URL: https://vitfix.io/pt/pro/dashboard
 `)
 }
 

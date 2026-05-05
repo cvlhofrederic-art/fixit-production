@@ -5,8 +5,8 @@ import { logger } from '@/lib/logger'
 
 export const maxDuration = 300
 
-// ── GET /api/cron/scan-marches — Cron weekly scan (Vercel Cron) ──────────────
-// Schedule: every Monday at 6:00 AM (configured in vercel.json)
+// ── GET /api/cron/scan-marches — Cron weekly scan (Cloudflare Workers) ──────
+// Schedule: every Monday at 6:00 AM (configured in wrangler.toml triggers.crons)
 // Scans BOAMP + TED + BASE.gov for ALL corps de métier, stores in Supabase
 // Results stay visible until the next weekly cron replaces them
 
@@ -36,7 +36,7 @@ const ALL_METIERS = [
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret (Vercel sends CRON_SECRET header)
+    // Verify cron secret (Cloudflare cron forwards CRON_SECRET via Authorization)
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
