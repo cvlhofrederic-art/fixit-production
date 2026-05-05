@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
@@ -26,6 +26,16 @@ export default function DocumentCancelModal({
   const isPt = locale === 'pt'
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // a11y : Escape ferme la modal
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) onClose()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open, submitting, onClose])
 
   if (!open) return null
 
@@ -76,8 +86,8 @@ export default function DocumentCancelModal({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      role="presentation"
+      aria-hidden="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
         background: 'rgba(0,0,0,.55)',
@@ -86,7 +96,11 @@ export default function DocumentCancelModal({
       }}
       onClick={onClose}
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="doc-cancel-title"
         onClick={e => e.stopPropagation()}
         style={{
           background: '#fff', borderRadius: 12, padding: 24,
@@ -94,7 +108,7 @@ export default function DocumentCancelModal({
           boxShadow: '0 10px 40px rgba(0,0,0,.2)',
         }}
       >
-        <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700 }}>{title}</h3>
+        <h3 id="doc-cancel-title" style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700 }}>{title}</h3>
 
         <div style={{
           padding: 12, borderRadius: 8, background: '#FEF3C7',

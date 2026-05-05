@@ -37,7 +37,10 @@ function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
   const obj = value as Record<string, unknown>
-  const keys = Object.keys(obj).sort()
+  // Tri byte-wise déterministe (codepoint UTF-16). PAS localeCompare ici :
+  // un canonical hash doit être indépendant de la locale du runtime, sinon
+  // la chaîne de hash diverge entre serveurs.
+  const keys = Object.keys(obj).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
   return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}'
 }
 
