@@ -211,6 +211,18 @@ function splitAddress(addr: string): { street: string; city: string | null } {
 // ─── Main generator ──────────────────────────────────────
 
 export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string }> {
+  // FR-V8 audit fix : garde stricte sur ptFiscalData. Vitfix n'est PAS certifié
+  // AT (Decreto-Lei 28/2019). Émettre un PDF avec un certNumber arbitraire =
+  // délit fiscal PT (1500-150 000€). Tant que la certification n'est pas
+  // obtenue (cf. docs/integrations/pt-fatura-reactivation.md), on REFUSE
+  // tout ptFiscalData passé par un caller (script, test, composant non-mis à jour).
+  if (input.locale === 'pt' && input.ptFiscalData !== null && input.ptFiscalData !== undefined) {
+    throw new Error(
+      'PT fiscal data injection refused — Vitfix not AT-certified (Decreto-Lei 28/2019). ' +
+      'See docs/integrations/pt-fatura-reactivation.md to lift this guard after certification.',
+    )
+  }
+
   // Pre-sanitize : tous les champs textuels saisis par l'utilisateur passent par
   // sanitizeForHelvetica AVANT d'être utilisés. Évite emojis fantômes, glyphes
   // manquants, caractères Unicode hors ISO-8859-1 dans le PDF rendu.

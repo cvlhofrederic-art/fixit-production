@@ -13,7 +13,6 @@ import { NextResponse } from 'next/server'
 const DISABLED_PAYLOAD = {
   error: 'SAF-T export disabled',
   reason: 'Vitfix is not AT-certified (Decreto-Lei 28/2019). Use third-party certified software (Moloni, InvoiceXpress) for fiscal reporting in Portugal.',
-  documentation: 'https://github.com/cvlhofrederic-art/fixit-production/blob/main/docs/integrations/pt-fatura-providers.md',
 } as const
 
 export async function GET() {
