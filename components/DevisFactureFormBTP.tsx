@@ -3076,7 +3076,7 @@ export default function DevisFactureFormBTP({
               {pdfLoading ? 'Génération…' : 'Télécharger PDF'}
             </button>
             <button className="dv-sidebar-btn green" type="button" disabled={saving} onClick={saveAndSend}>
-              {saving ? 'Validation…' : 'Valider et envoyer'}
+              {saving ? 'Validation…' : 'Valider et enregistrer'}
             </button>
           </div>
 
