@@ -11,12 +11,33 @@ export interface CancellableDoc {
   status?: string
 }
 
-export function isDocDraftStatus(status?: string): boolean {
-  return !status || status === 'brouillon' || status === 'draft'
+// FR-V1.1 — paramétré par docType pour éviter le bug "doc fantôme"
+// (cf. audit code-reviewer #16). Pour facture, l'état émis se reconnaît à
+// 'pending'/'paid'/'overdue'/'cancelled'/'refunded' (DB EN) ou 'paye'/
+// 'en_retard'/'annule'/'rembourse' (localStorage FR).
+const DEVIS_EMITTED = new Set([
+  'sent', 'signed', 'expired', 'cancelled',
+  'envoye', 'signe', 'expire', 'annule',
+])
+const FACTURE_EMITTED = new Set([
+  'pending', 'paid', 'overdue', 'cancelled', 'refunded',
+  'paye', 'en_retard', 'annule', 'rembourse',
+])
+
+export function isDocDraftStatus(
+  status: string | undefined,
+  docType: 'devis' | 'facture',
+): boolean {
+  if (!status) return true
+  const emitted = docType === 'devis' ? DEVIS_EMITTED : FACTURE_EMITTED
+  return !emitted.has(status)
 }
 
 interface UseDocumentCancelOptions<T extends CancellableDoc> {
   artisanId: string | undefined
+  /** Type de document — déterminé l'enum DB pour isDocDraftStatus + autorise
+   *  la modal côté caller (devis vs facture). */
+  docType: 'devis' | 'facture'
   /** Identité unique d'un doc — par défaut comparaison par docNumber. */
   isSameDoc?: (a: T, b: T) => boolean
   /** Confirme la suppression brouillon ; retourner false annule. */
@@ -42,7 +63,7 @@ interface UseDocumentCancelReturn<T extends CancellableDoc> {
 export function useDocumentCancel<T extends CancellableDoc>(
   opts: UseDocumentCancelOptions<T>,
 ): UseDocumentCancelReturn<T> {
-  const { artisanId, isSameDoc, confirmDraftDelete, setSavedDocuments } = opts
+  const { artisanId, docType, isSameDoc, confirmDraftDelete, setSavedDocuments } = opts
   const [cancellingDoc, setCancellingDoc] = useState<T | null>(null)
 
   const matchDoc = (a: T, b: T): boolean => {
@@ -51,7 +72,7 @@ export function useDocumentCancel<T extends CancellableDoc>(
   }
 
   const handleRemoveDoc = useCallback((doc: T) => {
-    if (isDocDraftStatus(doc.status)) {
+    if (isDocDraftStatus(doc.status, docType)) {
       if (!confirmDraftDelete(doc)) return
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]') as T[]
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]') as T[]
@@ -64,7 +85,7 @@ export function useDocumentCancel<T extends CancellableDoc>(
     }
     setCancellingDoc(doc)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisanId, confirmDraftDelete, setSavedDocuments])
+  }, [artisanId, docType, confirmDraftDelete, setSavedDocuments])
 
   const handleCancelled = useCallback(() => {
     if (!cancellingDoc) return
