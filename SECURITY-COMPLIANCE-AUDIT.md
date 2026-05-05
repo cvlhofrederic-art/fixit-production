@@ -52,7 +52,7 @@ Google OAuth seul (pas d'Apple/SAML)   | Basse   | Basse   | 2/10  | Ajouter App
 ### CORS
 
 - Origin validation sur toutes les mutations (POST/PATCH/PUT/DELETE) dans `proxy.ts`
-- Origins autorisees : `vitfix.io`, `localhost:3000`, `capacitor://localhost`, `fixit-production.vercel.app`
+- Origins autorisees : `vitfix.io`, `localhost:3000`, `capacitor://localhost`, `https://localhost` (Android Capacitor)
 - Requetes sans header Origin acceptees (server-to-server)
 - `capacitor://localhost` trop permissif (accepte tout localhost)
 
@@ -253,7 +253,7 @@ Privacy policy incomplete (IA providers)| Haute   | Moyenne   | 6/10  | FIX ASAP
 |---|--------|--------|
 | 1 | `npm update jspdf` — corriger CVE injection PDF | 15min |
 | 2 | `npm update next` — corriger CVE DoS Server Components | 30min |
-| 3 | Supprimer `.env.sentry` et `.env.vercel` du disque local | 5min |
+| 3 | Supprimer `.env.sentry` du disque local (`.env.vercel` N/A — migration Cloudflare effectuée) | 5min |
 | 4 | Mettre a jour la privacy policy : ajouter Groq, Tavily, OpenRouter, Langfuse | 2h |
 
 ### Semaine 1

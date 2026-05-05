@@ -1,7 +1,9 @@
 # Audit Performance — Vitfix.io
 
+> **⚠ Document historique pré-migration Cloudflare.** Audit réalisé sur le stack Vercel ; les références à `vercel.json` et aux crons Vercel ne sont plus d'actualité (cf. `wrangler.toml` post-migration). Conservé pour comparaison perf avant/après. Pour l'état courant, voir `CLAUDE.md`.
+
 **Date :** 11 avril 2026  
-**Scope :** Application Next.js 16.2.2 + Supabase + Vercel  
+**Scope :** Application Next.js 16.2.2 + Supabase + Vercel (pré-migration Cloudflare)
 **Mode :** Read-only, analyse statique du code source  
 **Auditeur :** Claude Code (Opus 4.6)
 

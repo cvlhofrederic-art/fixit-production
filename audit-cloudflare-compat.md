@@ -1,5 +1,7 @@
 # Audit de Compatibilité Cloudflare — Vitfix.io (fixit-production)
 
+> **⚠ Document historique pré-migration.** La migration Cloudflare Workers a été effectuée et la production tourne désormais sur ce stack (pipeline `deploy-cloudflare.yml`, crons dans `wrangler.toml`). Les recommandations ci-dessous (`@vercel/analytics`, CSP `vercel-insights`, crons `vercel.json`, etc.) sont **résolues**. Conservé pour traçabilité de la migration. Pour l'état courant, voir `CLAUDE.md` à la racine.
+
 **Date :** 12 avril 2026
 **Mode :** Read-only, aucune modification
 **Source :** Analyse statique du repo + configuration infra
