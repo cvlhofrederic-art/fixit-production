@@ -86,23 +86,28 @@ export default function DocumentCancelModal({
 
   return (
     <div
-      role="presentation"
-      aria-hidden="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: 'rgba(0,0,0,.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
-      onClick={onClose}
     >
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <button
+        type="button"
+        aria-label={isPt ? 'Fechar' : 'Fermer'}
+        onClick={onClose}
+        style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,.55)',
+          border: 'none', padding: 0, cursor: 'pointer',
+        }}
+      />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="doc-cancel-title"
-        onClick={e => e.stopPropagation()}
         style={{
+          position: 'relative',
           background: '#fff', borderRadius: 12, padding: 24,
           maxWidth: 480, width: '100%',
           boxShadow: '0 10px 40px rgba(0,0,0,.2)',

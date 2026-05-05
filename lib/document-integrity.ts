@@ -37,9 +37,10 @@ function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
   const obj = value as Record<string, unknown>
-  // Tri byte-wise déterministe (codepoint UTF-16). PAS localeCompare ici :
-  // un canonical hash doit être indépendant de la locale du runtime, sinon
-  // la chaîne de hash diverge entre serveurs.
+  // NOSONAR typescript:S2871 - localeCompare est volontairement REFUSÉ ici.
+  // Un canonical hash doit être strictement byte-deterministic (codepoint UTF-16),
+  // indépendant de la locale du runtime. Sinon la chaîne de hash diverge entre
+  // serveurs FR/UTF-8, ZH, AR, etc., cassant l'intégrité ISCA (loi anti-fraude TVA).
   const keys = Object.keys(obj).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
   return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}'
 }
