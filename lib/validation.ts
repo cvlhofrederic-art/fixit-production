@@ -1102,17 +1102,22 @@ export const emailAgentPollGetSchema = z.object({
 export const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i
 
 // ── Devis/Facture status enums + machine d'état ─────────────────────────────
-// Enums DB authoritatifs (cf. migrations 038 + 079). Toute transition non
-// listée dans canTransition() est rejetée par le trigger PG.
-export const devisStatusEnum = z.enum(['draft', 'sent', 'signed', 'expired', 'cancelled'])
+// Enums DB authoritatifs (cf. migrations 038 + 079 + 086). Toute transition
+// non listée dans canTransition() est rejetée par le trigger PG.
+// FR-V7 : ajout de 'accepted' (acceptation manuelle artisan, sans signature)
+// et 'rejected' (refus explicite du client). 'signed' reste pour signature
+// électronique canvas.
+export const devisStatusEnum = z.enum(['draft', 'sent', 'signed', 'accepted', 'rejected', 'expired', 'cancelled'])
 export const factureStatusEnum = z.enum(['pending', 'paid', 'overdue', 'cancelled', 'refunded'])
 export type DevisStatus = z.infer<typeof devisStatusEnum>
 export type FactureStatus = z.infer<typeof factureStatusEnum>
 
 const DEVIS_TRANSITIONS: Record<DevisStatus, ReadonlyArray<DevisStatus>> = {
   draft: ['sent', 'cancelled'],
-  sent: ['signed', 'expired', 'cancelled'],
+  sent: ['signed', 'accepted', 'rejected', 'expired', 'cancelled'],
   signed: ['cancelled'],
+  accepted: ['cancelled'],
+  rejected: [],
   expired: [],
   cancelled: [],
 }
@@ -1138,7 +1143,7 @@ export function canTransition(current: string, next: string, docType: 'devis' | 
 
 /** Returns true if the status is terminal (no further transitions allowed). */
 export function isTerminalStatus(status: string, docType: 'devis' | 'facture'): boolean {
-  if (docType === 'devis') return status === 'expired' || status === 'cancelled'
+  if (docType === 'devis') return status === 'expired' || status === 'cancelled' || status === 'rejected'
   return status === 'refunded' || status === 'cancelled'
 }
 
@@ -1185,4 +1190,14 @@ export const documentCancelSchema = z.object({
   docType: z.enum(['devis', 'facture']),
   numero: z.string().min(1, 'numero requis').max(100),
   reason: z.string().min(5, 'Raison trop courte (5 caractères min)').max(500, 'Raison trop longue (500 max)'),
+})
+
+// ── Devis status update POST schema (FR-V7) ─────────────────────────────────
+// L'artisan marque manuellement un devis comme accepté ou refusé (cas où le
+// client a répondu hors ligne : appel téléphonique, accord en personne, email).
+// Pour signature électronique avec canvas, utiliser /api/devis-sign.
+export const devisStatusUpdateSchema = z.object({
+  numero: z.string().min(1, 'numero requis').max(100),
+  newStatus: z.enum(['accepted', 'rejected', 'expired']),
+  reason: z.string().max(500).optional(),
 })

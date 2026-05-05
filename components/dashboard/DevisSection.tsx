@@ -399,9 +399,55 @@ function DevisSectionV5({
     .sort((a, b) => getDocSeq(a) - getDocSeq(b))
 
   const getV5Badge = (doc: DevisDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
-    if (doc.status === 'signe') return { cls: 'v5-badge v5-badge-green', label: t('proDash.devis.signe') }
+    if (doc.status === 'accepte' || doc.status === 'accepted') return { cls: 'v5-badge v5-badge-green', label: locale === 'pt' ? 'Aceite' : 'Accepté' }
+    if (doc.status === 'refuse' || doc.status === 'rejected') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Recusado' : 'Refusé' }
+    if (doc.status === 'envoye' || doc.status === 'sent') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
+    if (doc.status === 'signe' || doc.status === 'signed') return { cls: 'v5-badge v5-badge-green', label: t('proDash.devis.signe') }
     return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.devis.brouillon') }
+  }
+
+  // FR-V7 — Marque manuellement le devis accepté/refusé via l'API.
+  // Met à jour localStorage + DB. L'audit log est généré par le trigger 080.
+  const updateDevisStatus = async (doc: DevisDocument, newStatus: 'accepted' | 'rejected') => {
+    if (!doc.docNumber) return
+    const isPt = locale === 'pt'
+    const labelAccept = isPt ? 'Aceite' : 'Accepté'
+    const labelReject = isPt ? 'Recusado' : 'Refusé'
+    const label = newStatus === 'accepted' ? labelAccept : labelReject
+    let reason: string | undefined
+    if (newStatus === 'rejected') {
+      const promptMsg = isPt
+        ? 'Razão do recusa (opcional, 5-500 caracteres)'
+        : 'Raison du refus (optionnel, 5-500 caractères)'
+      const r = window.prompt(promptMsg) || ''
+      reason = r.trim().length >= 5 ? r.trim() : undefined
+    }
+    try {
+      const res = await fetch('/api/devis-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numero: doc.docNumber, newStatus, reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data?.error || (isPt ? 'Erro' : 'Erreur'))
+        return
+      }
+      // Sync localStorage
+      const localStatus = newStatus === 'accepted' ? 'accepte' : 'refuse'
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const mark = (d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: localStatus } : d
+      const updDocs = docs.map(mark)
+      const updDrafts = drafts.map(mark)
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
+      setSavedDocuments([...updDocs, ...updDrafts])
+      toast.success(`${label} : ${doc.docNumber}`)
+    } catch (e) {
+      console.error('[updateDevisStatus] failed:', e)
+      toast.error(isPt ? 'Erro de rede' : 'Erreur réseau')
+    }
   }
 
   return (
@@ -518,6 +564,27 @@ function DevisSectionV5({
                       >
                         {t('proDash.devis.telecharger')}
                       </button>
+                      {/* FR-V7 : Boutons Accepté / Refusé visibles uniquement sur devis envoyés */}
+                      {(doc.status === 'envoye' || doc.status === 'sent') && (
+                        <>
+                          <button
+                            className="v5-btn v5-btn-sm"
+                            style={{ background: '#16A34A', color: 'white', borderColor: '#16A34A' }}
+                            onClick={() => updateDevisStatus(doc, 'accepted')}
+                            title={locale === 'pt' ? 'Marcar como aceite' : 'Marquer accepté'}
+                          >
+                            {locale === 'pt' ? '✓ Aceite' : '✓ Accepté'}
+                          </button>
+                          <button
+                            className="v5-btn v5-btn-sm"
+                            style={{ background: '#DC2626', color: 'white', borderColor: '#DC2626' }}
+                            onClick={() => updateDevisStatus(doc, 'rejected')}
+                            title={locale === 'pt' ? 'Marcar como recusado' : 'Marquer refusé'}
+                          >
+                            {locale === 'pt' ? '✗ Recusado' : '✗ Refusé'}
+                          </button>
+                        </>
+                      )}
                       <button
                         className="v5-btn v5-btn-sm v5-btn-p"
                         onClick={() => convertDevisToFacture(doc)}
