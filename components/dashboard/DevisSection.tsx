@@ -9,12 +9,7 @@ import DocumentCancelModal from '@/components/DocumentCancelModal'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-
-// FR-V1 : un brouillon peut être hard-deleted ; tout le reste passe par
-// l'API d'annulation soft (cancelled_at + raison).
-function isDevisDraftStatus(status?: string): boolean {
-  return !status || status === 'brouillon' || status === 'draft'
-}
+import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 
 interface DevisLine {
   totalHT?: number
@@ -103,7 +98,6 @@ export default function DevisSection({
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
-  const [cancellingDoc, setCancellingDoc] = useState<DevisDocument | null>(null)
 
   const refreshDocuments = () => {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -111,36 +105,16 @@ export default function DevisSection({
     setSavedDocuments([...docs, ...drafts])
   }
 
-  // FR-V1 : retire un devis des listes locales OU ouvre la modal d'annulation
-  // selon le statut.
-  const handleRemoveDoc = (doc: DevisDocument) => {
-    if (isDevisDraftStatus(doc.status)) {
-      const label = doc.docNumber || (doc.clientName || '')
-      if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)) return
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const updDocs = docs.filter((d: DevisDocument) => !isSameDoc(d, doc))
-      const updDrafts = drafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
-      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-      setSavedDocuments([...updDocs, ...updDrafts])
-      return
-    }
-    setCancellingDoc(doc)
-  }
-
-  const handleCancelled = () => {
-    if (!cancellingDoc) return
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    const mark = (d: DevisDocument) =>
-      isSameDoc(d, cancellingDoc) ? { ...d, status: 'annule' } : d
-    const updDocs = docs.map(mark)
-    const updDrafts = drafts.map(mark)
-    localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-    localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-    setSavedDocuments([...updDocs, ...updDrafts])
-  }
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
+    useDocumentCancel<DevisDocument>({
+      artisanId: artisan?.id,
+      isSameDoc,
+      setSavedDocuments,
+      confirmDraftDelete: (doc) => {
+        const label = doc.docNumber || (doc.clientName as string | undefined) || ''
+        return confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)
+      },
+    })
 
   if (showDevisForm) {
     if (orgRole === 'pro_societe') {
@@ -350,11 +324,11 @@ export default function DevisSection({
                             onClick={() => handleRemoveDoc(doc)}
                             className="v22-btn v22-btn-sm"
                             style={{ color: tv.red }}
-                            title={isDevisDraftStatus(doc.status)
+                            title={isDocDraftStatus(doc.status)
                               ? t('proDash.devis.supprimer')
                               : (locale === 'pt' ? 'Anular' : 'Annuler')}
                           >
-                            {isDevisDraftStatus(doc.status) ? '🗑️' : '🚫'}
+                            {isDocDraftStatus(doc.status) ? '🗑️' : '🚫'}
                           </button>
                         </div>
                       </td>
@@ -551,15 +525,15 @@ function DevisSectionV5({
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-d"
-                        title={isDevisDraftStatus(doc.status)
+                        title={isDocDraftStatus(doc.status)
                           ? t('proDash.devis.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                         onClick={() => onRemoveDoc(doc)}
-                        aria-label={isDevisDraftStatus(doc.status)
+                        aria-label={isDocDraftStatus(doc.status)
                           ? t('proDash.devis.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       >
-                        {isDevisDraftStatus(doc.status) ? (
+                        {isDocDraftStatus(doc.status) ? (
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
                             <path d="M10 11v6M14 11v6"/>
