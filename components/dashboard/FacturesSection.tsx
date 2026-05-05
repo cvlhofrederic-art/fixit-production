@@ -5,11 +5,18 @@ import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
+import DocumentCancelModal from '@/components/DocumentCancelModal'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
 import { useThemeVars, ThemeVars } from './useThemeVars'
+
+// Helpers FR-V1 : un brouillon peut être hard-deleted ; tout le reste passe
+// par l'API d'annulation soft (cancelled_at + raison).
+function isDraftStatus(status?: string): boolean {
+  return !status || status === 'brouillon' || status === 'draft'
+}
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -52,11 +59,44 @@ export default function FacturesSection({
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
+  const [cancellingDoc, setCancellingDoc] = useState<PersistedDocument | null>(null)
 
   const refreshDocuments = () => {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
     setSavedDocuments([...docs, ...drafts])
+  }
+
+  // FR-V1 : retire un doc des listes locales (sans toucher à la DB côté soft-cancel,
+  // qui est géré par l'API). Brouillon = hard delete local + DB ; émis = soft cancel.
+  const handleRemoveDoc = (doc: PersistedDocument) => {
+    if (isDraftStatus(doc.status)) {
+      if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const updDocs = (docs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
+      const updDrafts = (drafts as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
+      setSavedDocuments([...updDocs, ...updDrafts])
+      return
+    }
+    setCancellingDoc(doc)
+  }
+
+  const handleCancelled = () => {
+    if (!cancellingDoc) return
+    // Marque le doc comme cancelled localement (pas de hard delete) pour rester
+    // cohérent avec l'historique conservé en DB.
+    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+    const mark = (d: PersistedDocument) =>
+      d.docNumber === cancellingDoc.docNumber ? { ...d, status: 'annule' } : d
+    const updDocs = (docs as PersistedDocument[]).map(mark)
+    const updDrafts = (drafts as PersistedDocument[]).map(mark)
+    localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
+    localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
+    setSavedDocuments([...updDocs, ...updDrafts])
   }
 
   if (showFactureForm) {
@@ -93,19 +133,33 @@ export default function FacturesSection({
      V5 layout — pro_societe only
      ═══════════════════════════════════════════ */
   if (isV5) {
-    return <FacturesSectionV5
-      factureDocs={factureDocs}
-      setShowFactureForm={setShowFactureForm}
-      setConvertingDevis={setConvertingDevis}
-      openFactureForm={openFactureForm}
-      artisan={artisan}
-      setSavedDocuments={setSavedDocuments}
-      dateLocale={dateLocale}
-      locale={locale}
-      t={t}
-      tv={tv}
-      orgRole={orgRole}
-    />
+    return (
+      <>
+        <FacturesSectionV5
+          factureDocs={factureDocs}
+          setShowFactureForm={setShowFactureForm}
+          setConvertingDevis={setConvertingDevis}
+          openFactureForm={openFactureForm}
+          artisan={artisan}
+          setSavedDocuments={setSavedDocuments}
+          dateLocale={dateLocale}
+          locale={locale}
+          t={t}
+          tv={tv}
+          orgRole={orgRole}
+          onRemoveDoc={handleRemoveDoc}
+        />
+        {cancellingDoc && (
+          <DocumentCancelModal
+            open={!!cancellingDoc}
+            docType="facture"
+            docNumber={cancellingDoc.docNumber}
+            onCancelled={handleCancelled}
+            onClose={() => setCancellingDoc(null)}
+          />
+        )}
+      </>
+    )
   }
 
   /* ═══════════════════════════════════════════
@@ -236,16 +290,11 @@ export default function FacturesSection({
                           )}
                           <button className="v22-btn v22-btn-sm" style={{ color: tv.red }} onClick={(e) => {
                             e.stopPropagation()
-                            if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
-                            const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                            const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                            const updDocs = (docs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
-                            const updDrafts = (drafts as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
-                            localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-                            localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                            setSavedDocuments([...updDocs, ...updDrafts])
+                            handleRemoveDoc(doc)
                           }}>
-                            {t('proDash.factures.supprimer')}
+                            {isDraftStatus(doc.status)
+                              ? t('proDash.factures.supprimer')
+                              : (locale === 'pt' ? 'Anular' : 'Annuler')}
                           </button>
                         </div>
                       </td>
@@ -266,6 +315,15 @@ export default function FacturesSection({
           </div>
         )}
       </div>
+      {cancellingDoc && (
+        <DocumentCancelModal
+          open={!!cancellingDoc}
+          docType="facture"
+          docNumber={cancellingDoc.docNumber}
+          onCancelled={handleCancelled}
+          onClose={() => setCancellingDoc(null)}
+        />
+      )}
     </div>
   )
 }
@@ -276,6 +334,7 @@ export default function FacturesSection({
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis, openFactureForm,
   artisan, setSavedDocuments, dateLocale, locale, t, tv, orgRole,
+  onRemoveDoc,
 }: {
   factureDocs: PersistedDocument[]
   setShowFactureForm: (v: boolean) => void
@@ -288,6 +347,7 @@ function FacturesSectionV5({
   t: (k: string) => string
   tv: ThemeVars
   orgRole?: OrgRole
+  onRemoveDoc: (doc: PersistedDocument) => void
 }) {
   const [search, setSearch] = useState('')
 
@@ -430,16 +490,11 @@ function FacturesSectionV5({
                       )}
                       <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => {
                         e.stopPropagation()
-                        if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
-                        const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                        const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                        const uDocs = (allDocs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
-                        const uDrafts = (allDrafts as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
-                        localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
-                        localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                        setSavedDocuments([...uDocs, ...uDrafts])
+                        onRemoveDoc(doc)
                       }}>
-                        {t('proDash.factures.supprimer')}
+                        {isDraftStatus(doc.status)
+                          ? t('proDash.factures.supprimer')
+                          : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       </button>
                     </div>
                   </td>
