@@ -29,66 +29,6 @@ interface HomeSectionProps {
   openNewMotif: () => void
 }
 
-function seedDemoAlertsData(artisanId: string, chantiers: Array<{ client?: string; titre?: string }>): string {
-  if (typeof window === 'undefined' || !artisanId) return 'Impossible'
-  const clientsActifs = chantiers
-    .map(c => (c.client || '').trim())
-    .filter(Boolean)
-  const clientA = clientsActifs[0] || 'Mme Martin'
-  const clientB = clientsActifs[1] || clientsActifs[0] || 'M. Dupont'
-  const clientC = clientsActifs[2] || clientsActifs[0] || 'SCI Lumière'
-
-  // 1. Conversations non lues (sur clients de chantiers en cours)
-  const now = Date.now()
-  const convs = [
-    {
-      id: `demo-conv-${now}-1`,
-      other_user_name: clientA,
-      client_name: clientA,
-      unread_count: 2,
-      last_message: 'Bonjour, pouvez-vous passer demain ?',
-      last_message_at: new Date(now - 3600_000).toISOString(),
-    },
-    {
-      id: `demo-conv-${now}-2`,
-      other_user_name: clientB,
-      client_name: clientB,
-      unread_count: 1,
-      last_message: 'Question sur le devis envoyé',
-      last_message_at: new Date(now - 7200_000).toISOString(),
-    },
-  ]
-  localStorage.setItem(`fixit_messagerie_convs_${artisanId}`, JSON.stringify(convs))
-
-  // 2. Devis brouillon (fait mais pas envoyé)
-  const existingDocs = (() => {
-    try { return JSON.parse(localStorage.getItem(`fixit_docs_${artisanId}`) || '[]') } catch { return [] }
-  })() as SavedDocument[]
-  const demoDoc: SavedDocument = {
-    id: `demo-devis-${now}`,
-    type: 'devis',
-    ref: 'DEV-DEMO-001',
-    client: clientC,
-    clientName: clientC,
-    totalTTC: 2450,
-    status: 'brouillon',
-    date: new Date(now).toISOString(),
-  }
-  const merged = [demoDoc, ...existingDocs.filter(d => d.id !== demoDoc.id)]
-  localStorage.setItem(`fixit_docs_${artisanId}`, JSON.stringify(merged))
-
-  // 3. Wallet docs — un expiré, un qui expire bientôt
-  const day = 86400_000
-  const wallet = {
-    rc_pro: { name: 'RC Pro', expiryDate: new Date(now + 15 * day).toISOString() },
-    kbis: { name: 'KBIS', expiryDate: new Date(now - 5 * day).toISOString() },
-    decennale: { name: 'Décennale', expiryDate: new Date(now + 45 * day).toISOString() },
-  }
-  localStorage.setItem(`fixit_wallet_${artisanId}`, JSON.stringify(wallet))
-
-  return 'ok'
-}
-
 function extractClientName(booking: Booking): string {
   const notes = booking.notes || ''
   // Pattern: "Client: Name|..." or "Client: Name."
@@ -393,22 +333,6 @@ export default function HomeSection({
             <p>{artisan?.company_name || 'Entreprise'} — {locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum}, {monthYear}</p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {isSociete && (
-              <button
-                className="v5-btn v5-btn-sm"
-                title={locale === 'pt' ? 'Injeta alertas de demonstração (mensagens, orçamento rascunho, wallet)' : 'Injecte des alertes de démonstration (messages, devis brouillon, wallet)'}
-                onClick={() => {
-                  const res = seedDemoAlertsData(artisan?.id || '', btpChantiers)
-                  if (res === 'ok') {
-                    alert(locale === 'pt' ? '✅ Dados de demonstração injetados — a recarregar…' : '✅ Données démo injectées — rafraîchissement…')
-                    window.location.reload()
-                  }
-                }}
-              >
-                🎲 {locale === 'pt' ? 'Demo' : 'Démo'}
-              </button>
-            )}
-            <button className="v5-btn v5-btn-sm" onClick={() => navigateTo('stats')}>{locale === 'pt' ? 'Exportar' : 'Exporter'}</button>
             <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
           </div>
         </div>
