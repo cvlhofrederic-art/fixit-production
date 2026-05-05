@@ -438,9 +438,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
   const titleMaxW = pageW - 2 * (mR + logoZoneW)
   pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+  // PT-V1 : Vitfix non-certifié AT (Decreto-Lei 28/2019). Côté PT, toute
+  // facture devient une « Pró-forma » non-fiscale. Devis (Orçamento) reste
+  // valide en PT car non-fiscal par nature.
   const rawTitle = docTitle || (docType === 'devis'
     ? (locale === 'pt' ? 'Orçamento' : 'Devis')
-    : (locale === 'pt' ? 'Fatura' : 'Facture'))
+    : (locale === 'pt' ? 'Pró-forma' : 'Facture'))
   const safeTitle = sanitizeForHelvetica(rawTitle)
   // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
   // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
@@ -459,6 +462,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
   pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
   y += 3
+
+  // ── PT Proforma watermark (PT-V1) ──
+  // Si on émet en mode PT et qu'on n'a PAS de ptFiscalData (cas par défaut
+  // depuis la désactivation 2026-05), on affiche un avertissement clair que
+  // le document n'a pas de valeur fiscale.
+  if (locale === 'pt' && !ptFiscalData && docType === 'facture') {
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#B91C1C')
+    pdf.text('PRÓ-FORMA — NÃO É FATURA', pageW / 2, y, { align: 'center' })
+    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+    y += 4
+    pdf.setFontSize(6.5)
+    pdf.text('Sem valor fiscal. Para emitir fatura legal, utilize software certificado AT.', pageW / 2, y, { align: 'center' })
+    y += 3.5
+    pdf.setFontSize(9)
+  }
 
   // ── PT Fiscal: ATCUD + Hash ──
   if (ptFiscalData) {
