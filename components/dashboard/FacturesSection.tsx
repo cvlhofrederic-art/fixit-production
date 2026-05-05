@@ -11,12 +11,7 @@ import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
 import { useThemeVars, ThemeVars } from './useThemeVars'
-
-// Helpers FR-V1 : un brouillon peut être hard-deleted ; tout le reste passe
-// par l'API d'annulation soft (cancelled_at + raison).
-function isDraftStatus(status?: string): boolean {
-  return !status || status === 'brouillon' || status === 'draft'
-}
+import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -59,7 +54,6 @@ export default function FacturesSection({
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
-  const [cancellingDoc, setCancellingDoc] = useState<PersistedDocument | null>(null)
 
   const refreshDocuments = () => {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -67,37 +61,13 @@ export default function FacturesSection({
     setSavedDocuments([...docs, ...drafts])
   }
 
-  // FR-V1 : retire un doc des listes locales (sans toucher à la DB côté soft-cancel,
-  // qui est géré par l'API). Brouillon = hard delete local + DB ; émis = soft cancel.
-  const handleRemoveDoc = (doc: PersistedDocument) => {
-    if (isDraftStatus(doc.status)) {
-      if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const updDocs = (docs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
-      const updDrafts = (drafts as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
-      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-      setSavedDocuments([...updDocs, ...updDrafts])
-      return
-    }
-    setCancellingDoc(doc)
-  }
-
-  const handleCancelled = () => {
-    if (!cancellingDoc) return
-    // Marque le doc comme cancelled localement (pas de hard delete) pour rester
-    // cohérent avec l'historique conservé en DB.
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    const mark = (d: PersistedDocument) =>
-      d.docNumber === cancellingDoc.docNumber ? { ...d, status: 'annule' } : d
-    const updDocs = (docs as PersistedDocument[]).map(mark)
-    const updDrafts = (drafts as PersistedDocument[]).map(mark)
-    localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-    localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-    setSavedDocuments([...updDocs, ...updDrafts])
-  }
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
+    useDocumentCancel<PersistedDocument>({
+      artisanId: artisan?.id,
+      setSavedDocuments,
+      confirmDraftDelete: (doc) =>
+        confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`),
+    })
 
   if (showFactureForm) {
     // Pixel-perfect cohérence avec DevisSection : BTP (pro_societe) utilise
@@ -292,7 +262,7 @@ export default function FacturesSection({
                             e.stopPropagation()
                             handleRemoveDoc(doc)
                           }}>
-                            {isDraftStatus(doc.status)
+                            {isDocDraftStatus(doc.status)
                               ? t('proDash.factures.supprimer')
                               : (locale === 'pt' ? 'Anular' : 'Annuler')}
                           </button>
@@ -492,7 +462,7 @@ function FacturesSectionV5({
                         e.stopPropagation()
                         onRemoveDoc(doc)
                       }}>
-                        {isDraftStatus(doc.status)
+                        {isDocDraftStatus(doc.status)
                           ? t('proDash.factures.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       </button>
