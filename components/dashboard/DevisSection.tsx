@@ -5,9 +5,11 @@ import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
+import DocumentCancelModal from '@/components/DocumentCancelModal'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
+import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 
 interface DevisLine {
   totalHT?: number
@@ -103,6 +105,17 @@ export default function DevisSection({
     setSavedDocuments([...docs, ...drafts])
   }
 
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
+    useDocumentCancel<DevisDocument>({
+      artisanId: artisan?.id,
+      isSameDoc,
+      setSavedDocuments,
+      confirmDraftDelete: (doc) => {
+        const label = doc.docNumber || (doc.clientName as string | undefined) || ''
+        return confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)
+      },
+    })
+
   if (showDevisForm) {
     if (orgRole === 'pro_societe') {
       return (
@@ -129,19 +142,33 @@ export default function DevisSection({
      V5 layout — pro_societe only
      ═══════════════════════════════════════════ */
   if (isV5) {
-    return <DevisSectionV5
-      devisDocs={devisDocs}
-      setShowDevisForm={setShowDevisForm}
-      setConvertingDevis={setConvertingDevis}
-      openDevisForm={openDevisForm}
-      convertDevisToFacture={convertDevisToFacture}
-      artisan={artisan}
-      setSavedDocuments={setSavedDocuments}
-      dateLocale={dateLocale}
-      locale={locale}
-      t={t}
-      orgRole={orgRole}
-    />
+    return (
+      <>
+        <DevisSectionV5
+          devisDocs={devisDocs}
+          setShowDevisForm={setShowDevisForm}
+          setConvertingDevis={setConvertingDevis}
+          openDevisForm={openDevisForm}
+          convertDevisToFacture={convertDevisToFacture}
+          artisan={artisan}
+          setSavedDocuments={setSavedDocuments}
+          dateLocale={dateLocale}
+          locale={locale}
+          t={t}
+          orgRole={orgRole}
+          onRemoveDoc={handleRemoveDoc}
+        />
+        {cancellingDoc?.docNumber && (
+          <DocumentCancelModal
+            open={!!cancellingDoc}
+            docType="devis"
+            docNumber={cancellingDoc.docNumber}
+            onCancelled={handleCancelled}
+            onClose={() => setCancellingDoc(null)}
+          />
+        )}
+      </>
+    )
   }
 
   /* ═══════════════════════════════════════════
@@ -293,18 +320,15 @@ export default function DevisSection({
                               {'📧'}
                             </button>
                           )}
-                          <button onClick={() => {
-                            if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${doc.docNumber || ''} ?`)) return
-                            const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                            const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                            const updDocs = docs.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                            const updDrafts = drafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                            localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-                            localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                            setSavedDocuments([...updDocs, ...updDrafts])
-                          }}
-                            className="v22-btn v22-btn-sm" style={{ color: tv.red }}>
-                            {'🗑️'}
+                          <button
+                            onClick={() => handleRemoveDoc(doc)}
+                            className="v22-btn v22-btn-sm"
+                            style={{ color: tv.red }}
+                            title={isDocDraftStatus(doc.status)
+                              ? t('proDash.devis.supprimer')
+                              : (locale === 'pt' ? 'Anular' : 'Annuler')}
+                          >
+                            {isDocDraftStatus(doc.status) ? '🗑️' : '🚫'}
                           </button>
                         </div>
                       </td>
@@ -325,6 +349,15 @@ export default function DevisSection({
           </div>
         )}
       </div>
+      {cancellingDoc?.docNumber && (
+        <DocumentCancelModal
+          open={!!cancellingDoc}
+          docType="devis"
+          docNumber={cancellingDoc.docNumber}
+          onCancelled={handleCancelled}
+          onClose={() => setCancellingDoc(null)}
+        />
+      )}
     </div>
   )
 }
@@ -334,7 +367,7 @@ export default function DevisSection({
    ═══════════════════════════════════════════════════════ */
 function DevisSectionV5({
   devisDocs, setShowDevisForm, setConvertingDevis, openDevisForm, convertDevisToFacture,
-  artisan, setSavedDocuments, dateLocale, locale, t, orgRole,
+  artisan, setSavedDocuments, dateLocale, locale, t, orgRole, onRemoveDoc,
 }: {
   devisDocs: DevisDocument[]
   setShowDevisForm: (v: boolean) => void
@@ -347,6 +380,7 @@ function DevisSectionV5({
   locale: string
   t: (k: string) => string
   orgRole?: OrgRole
+  onRemoveDoc: (doc: DevisDocument) => void
 }) {
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
@@ -491,24 +525,25 @@ function DevisSectionV5({
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-d"
-                        title={t('proDash.devis.supprimer')}
-                        onClick={() => {
-                          const label = doc.docNumber || (doc.clientName || '')
-                          if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)) return
-                          const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                          const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                          const uDocs = allDocs.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                          const uDrafts = allDrafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                          localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
-                          localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                          setSavedDocuments([...uDocs, ...uDrafts])
-                        }}
-                        aria-label={t('proDash.devis.supprimer')}
+                        title={isDocDraftStatus(doc.status)
+                          ? t('proDash.devis.supprimer')
+                          : (locale === 'pt' ? 'Anular' : 'Annuler')}
+                        onClick={() => onRemoveDoc(doc)}
+                        aria-label={isDocDraftStatus(doc.status)
+                          ? t('proDash.devis.supprimer')
+                          : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-                          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
-                          <path d="M10 11v6M14 11v6"/>
-                        </svg>
+                        {isDocDraftStatus(doc.status) ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
+                            <path d="M10 11v6M14 11v6"/>
+                          </svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M4.93 4.93l14.14 14.14"/>
+                          </svg>
+                        )}
                       </button>
                     </div>
                   </td>

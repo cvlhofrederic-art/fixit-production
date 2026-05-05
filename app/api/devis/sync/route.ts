@@ -2,10 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { validateBody, devisSyncSchema } from '@/lib/validation'
+import { validateBody, devisSyncSchema, canTransition } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { computeDocumentTotalHtCents } from '@/lib/devis-totals'
 import { logger } from '@/lib/logger'
+import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
 
 export const maxDuration = 30
 
@@ -137,6 +138,35 @@ export async function POST(request: NextRequest) {
       ? docRec.fraisAnnexes
       : (docRec.fraisLines as unknown[]) || []
 
+  const incomingStatus = mapStatus((docRec.status as string) || '', table)
+
+  // 4bis. Transition guard (FR-V1) — empêche les retours en arrière interdits
+  // (`paid → pending`, `signed → draft`...). Migration 079 ajoute aussi un
+  // trigger PG defense-in-depth, mais on rejette ici dès le 409 pour éviter
+  // un round-trip DB inutile + retourner un message clair côté client.
+  let currentStatus: string | null = null
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from(table)
+      .select('status')
+      .eq('numero', docRec.docNumber as string)
+      .eq('artisan_user_id', user.id)
+      .maybeSingle()
+    currentStatus = (existing?.status as string) || null
+  } catch (e) {
+    logger.warn('[devis-sync] status lookup failed (proceeding):', e)
+  }
+
+  const docTypeForGuard: 'devis' | 'facture' = docType
+  if (currentStatus && !canTransition(currentStatus, incomingStatus, docTypeForGuard)) {
+    logger.warn(`[devis-sync] invalid transition ${currentStatus} -> ${incomingStatus} on ${docRec.docNumber}`)
+    return NextResponse.json({
+      error: 'Invalid status transition',
+      current: currentStatus,
+      incoming: incomingStatus,
+    }, { status: 409 })
+  }
+
   const payload: Record<string, unknown> = {
     artisan_user_id: user.id,
     artisan_id: artisanId,
@@ -152,8 +182,45 @@ export async function POST(request: NextRequest) {
     total_ttc_cents: totalHtCents,
     frais_annexes: fraisAnnexes,
     items,
-    status: mapStatus((docRec.status as string) || '', table),
+    status: incomingStatus,
     raw_data: doc,
+  }
+
+  // 4ter. Hash chain (FR-V1) — au moment du passage à 'sent' (devis) ou
+  // 'pending' (facture première émission), on calcule content_hash,
+  // previous_hash, chain_signature et signed_at. Les documents brouillons
+  // n'ont pas de hash (rien d'émis = rien à protéger).
+  const isFirstIssuance =
+    (table === 'devis' && incomingStatus === 'sent' && currentStatus !== 'sent') ||
+    (table === 'factures' && incomingStatus === 'pending' && currentStatus === null)
+
+  if (isFirstIssuance && process.env.DOC_HASH_SECRET) {
+    try {
+      const canonical: CanonicalDocPayload = {
+        numero: docRec.docNumber as string,
+        artisan_user_id: user.id,
+        client_name: (docRec.clientName as string) || '',
+        total_ht_cents: totalHtCents,
+        total_tax_cents: 0,
+        total_ttc_cents: totalHtCents,
+        items,
+        signed_at: new Date().toISOString(),
+      }
+      const chain = await buildHashChainFields(table, canonical)
+      payload.content_hash = chain.content_hash
+      payload.previous_hash = chain.previous_hash
+      payload.chain_signature = chain.chain_signature
+      payload.signed_at = chain.signed_at
+    } catch (e) {
+      logger.error('[devis-sync] hash chain build failed:', e)
+      Sentry.captureException(e, {
+        tags: { agent_type: 'devis-sync', stage: 'hash-chain', table },
+        extra: { numero: docRec.docNumber, artisan_id: artisanId },
+      })
+      return NextResponse.json({ error: 'Document integrity build failed' }, { status: 500 })
+    }
+  } else if (isFirstIssuance) {
+    logger.warn('[devis-sync] DOC_HASH_SECRET not set — skipping hash chain (dev/test only)')
   }
 
   // 5. Upsert (idempotent via natural PK numero+artisan_user_id)
