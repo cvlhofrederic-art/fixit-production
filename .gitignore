@@ -45,3 +45,6 @@ security/outputs/*
 !security/outputs/.gitkeep
 .worktrees/
 .claude/scheduled_tasks.lock
+
+# supabase CLI cache (project-ref, version pins)
+supabase/.temp/

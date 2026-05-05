@@ -144,17 +144,48 @@ export async function POST(request: NextRequest) {
   // (`paid → pending`, `signed → draft`...). Migration 079 ajoute aussi un
   // trigger PG defense-in-depth, mais on rejette ici dès le 409 pour éviter
   // un round-trip DB inutile + retourner un message clair côté client.
+  // FR-V1.1 : on récupère aussi content_hash pour permettre le rattrapage
+  // de hash chain sur des docs émis avant que DOC_HASH_SECRET soit configuré.
   let currentStatus: string | null = null
-  try {
-    const { data: existing } = await supabaseAdmin
+  let existingContentHash: string | null = null
+  {
+    const { data: existing, error: lookupErr } = await supabaseAdmin
       .from(table)
-      .select('status')
+      .select('status, content_hash')
       .eq('numero', docRec.docNumber as string)
       .eq('artisan_user_id', user.id)
       .maybeSingle()
-    currentStatus = (existing?.status as string) || null
-  } catch (e) {
-    logger.warn('[devis-sync] status lookup failed (proceeding):', e)
+    if (lookupErr) {
+      // Fallback si la colonne content_hash n'existe pas (migration 081 non appliquée).
+      // Ne JAMAIS swallow silently une vraie erreur DB : retour 500.
+      if (/column .*content_hash.* does not exist/i.test(lookupErr.message || '')) {
+        const fb = await supabaseAdmin
+          .from(table)
+          .select('status')
+          .eq('numero', docRec.docNumber as string)
+          .eq('artisan_user_id', user.id)
+          .maybeSingle()
+        if (fb.error) {
+          logger.error(`[devis-sync] status lookup fallback failed ${docRec.docNumber}:`, fb.error.message)
+          Sentry.captureException(fb.error, {
+            tags: { agent_type: 'devis-sync', stage: 'status-lookup-fallback', table },
+            extra: { numero: docRec.docNumber, artisan_id: artisanId },
+          })
+          return NextResponse.json({ error: 'Status lookup failed' }, { status: 500 })
+        }
+        currentStatus = (fb.data?.status as string) || null
+      } else {
+        logger.error(`[devis-sync] status lookup failed ${docRec.docNumber}:`, lookupErr.message)
+        Sentry.captureException(lookupErr, {
+          tags: { agent_type: 'devis-sync', stage: 'status-lookup', table },
+          extra: { numero: docRec.docNumber, artisan_id: artisanId },
+        })
+        return NextResponse.json({ error: 'Status lookup failed' }, { status: 500 })
+      }
+    } else {
+      currentStatus = (existing?.status as string) || null
+      existingContentHash = (existing?.content_hash as string) || null
+    }
   }
 
   const docTypeForGuard: 'devis' | 'facture' = docType
@@ -186,13 +217,15 @@ export async function POST(request: NextRequest) {
     raw_data: doc,
   }
 
-  // 4ter. Hash chain (FR-V1) — au moment du passage à 'sent' (devis) ou
-  // 'pending' (facture première émission), on calcule content_hash,
-  // previous_hash, chain_signature et signed_at. Les documents brouillons
-  // n'ont pas de hash (rien d'émis = rien à protéger).
-  const isFirstIssuance =
-    (table === 'devis' && incomingStatus === 'sent' && currentStatus !== 'sent') ||
-    (table === 'factures' && incomingStatus === 'pending' && currentStatus === null)
+  // 4ter. Hash chain (FR-V1.1) — calcul si :
+  //   1. doc en état émis (sent pour devis, pending pour facture)
+  //   2. ET pas encore de content_hash en DB (premier hash OU rattrapage si
+  //      DOC_HASH_SECRET vient d'être configuré sur des docs déjà émis).
+  // Les documents brouillons (status draft) n'ont pas de hash.
+  const inEmittedState =
+    (table === 'devis' && incomingStatus === 'sent') ||
+    (table === 'factures' && incomingStatus === 'pending')
+  const isFirstIssuance = inEmittedState && !existingContentHash
 
   if (isFirstIssuance && process.env.DOC_HASH_SECRET) {
     try {
