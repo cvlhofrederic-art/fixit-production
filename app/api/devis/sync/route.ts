@@ -253,7 +253,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document integrity build failed' }, { status: 500 })
     }
   } else if (isFirstIssuance) {
-    logger.warn('[devis-sync] DOC_HASH_SECRET not set — skipping hash chain (dev/test only)')
+    // FR-V8 audit fix : escalation Sentry en prod. DOC_HASH_SECRET DOIT être
+    // configuré en prod (cf. attestation éditeur opposable DGFiP). Si on tombe
+    // ici en prod, l'inaltérabilité ISCA est cassée → exception critique.
+    if (process.env.NODE_ENV !== 'production') {
+      logger.warn('[devis-sync] DOC_HASH_SECRET not set — hash chain skipped (dev/test)')
+    } else {
+      logger.error(`[devis-sync] CRITICAL: DOC_HASH_SECRET missing in prod for ${docRec.docNumber}`)
+      Sentry.captureMessage(
+        'DOC_HASH_SECRET missing in production — hash chain skipped, ISCA broken',
+        {
+          level: 'error',
+          tags: { agent_type: 'devis-sync', stage: 'hash-chain-missing-secret', table },
+          extra: { numero: docRec.docNumber, artisan_id: artisanId },
+        },
+      )
+    }
   }
 
   // 5. Upsert (idempotent via natural PK numero+artisan_user_id)

@@ -1,7 +1,11 @@
-// FR-V4 — Attestation éditeur conforme art. 88 LF 2016 + LF 2026 (modèle BOI-CF-COM-10-80)
+// FR-V4 — Attestation éditeur conforme art. 88 LF 2016 + LF 2026 (modèle BOFiP)
 // Page publique téléchargeable par tout artisan client de Vitfix.io en cas de
 // contrôle DGFiP. Évite à Vitfix de devoir certifier NF525/LNE (~5-15k€) tant
 // que cette attestation existe et est tenue à jour.
+//
+// FR-V8 audit fix : référence BOI-CF-COM-10-80 retirée (code BOFiP exact non
+// localisé formellement, à valider par expert-comptable). On garde le
+// référentiel BOFiP général + la base légale par articles.
 
 'use client'
 
@@ -28,8 +32,9 @@ export default function AttestationEditeurPage() {
               Attestation individuelle de l&apos;éditeur du logiciel de facturation
             </h1>
             <p className="text-sm text-gray-600 mt-2">
-              Conforme aux articles 88 de la loi n°2015-1785 du 29 décembre 2015 (loi de finances 2016)
-              et à la loi de finances 2026 du 19 février 2026 — modèle administratif BOI-CF-COM-10-80.
+              Conforme à l&apos;article 88 de la loi n°2015-1785 du 29 décembre 2015 (loi de finances 2016)
+              et à la loi de finances 2026 du 19 février 2026 (rétablissement de l&apos;attestation
+              individuelle d&apos;éditeur comme alternative à la certification NF525 / LNE).
             </p>
           </header>
 
@@ -155,12 +160,15 @@ export default function AttestationEditeurPage() {
           </section>
 
           <section className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">6. Référentiel BOI-CF-COM-10-80</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-3">6. Base légale</h2>
             <p className="text-sm text-gray-700">
-              La présente attestation est rédigée selon le modèle prévu par le Bulletin Officiel des Finances
-              Publiques BOI-CF-COM-10-80, restauré par la loi de finances 2026 (adoptée le 19 février 2026)
-              comme alternative à la certification NF525 ou LNE. Elle est opposable à l&apos;administration fiscale
-              en cas de contrôle.
+              La présente attestation est rédigée conformément au cadre prévu par l&apos;article 88
+              de la loi de finances 2016 (codifié au CGI art. 286 I 3° bis) et à la loi de
+              finances 2026 du 19 février 2026, qui rétablit explicitement l&apos;attestation
+              individuelle d&apos;éditeur comme alternative à la certification NF525 ou LNE.
+              Le modèle suivi est celui publié au Bulletin Officiel des Finances Publiques (BOFiP),
+              section relative aux logiciels de facturation. Elle est opposable à l&apos;administration
+              fiscale en cas de contrôle.
             </p>
           </section>
 
