@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- VITFIX favicon — squircle blanc + V noir + F jaune (style SaaS 2026) -->
-  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="#ffffff"/>
-  <!-- V (noir) — gauche -->
-  <path d="M11 18 L19 18 L23 42 L27 18 L35 18 L26 50 L20 50 Z" fill="#111110"/>
-  <!-- F (jaune brand #FFD600) — droite -->
-  <path d="M35 18 L53 18 L53 25 L41 25 L41 32 L51 32 L51 39 L41 39 L41 50 L35 50 Z" fill="#FFD600"/>
-</svg>
