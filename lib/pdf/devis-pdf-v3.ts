@@ -1184,26 +1184,57 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (iban) ribLines.push(`IBAN : ${iban}`)
     if (bic) ribLines.push(`BIC : ${bic}`)
 
-    // Pré-mesure : calcule la hauteur réelle du bloc CONDITIONS sans rendre.
-    // Permet de checkPageBreak dynamique avant de dessiner le rect signature.
-    let measuredH = 12 // titre CONDITIONS + gap
+    // ── Pré-mesure CÔTÉ GAUCHE — CONDITIONS + notes + RIB ──
+    let leftColH = 12 // titre CONDITIONS + gap
     condTextLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, condW - 4)
-      measuredH += wrapped.length * ptToMm(13)
+      leftColH += wrapped.length * ptToMm(13)
     })
     if (notes) {
       const noteWrappedMeasure = pdf.splitTextToSize(notes, condW - 4)
-      measuredH += 2 + noteWrappedMeasure.length * ptToMm(13)
+      leftColH += 2 + noteWrappedMeasure.length * ptToMm(13)
     }
     if (ribLines.length > 0) {
-      // Espace 6mm + titre + lignes IBAN/BIC (cohérent avec rendu ci-dessous)
-      measuredH += 6 + ptToMm(13) + ribLines.length * ptToMm(13)
+      leftColH += 6 + ptToMm(13) + ribLines.length * ptToMm(13)
     }
-    // Hauteur effective du bloc gris signature (max entre cond et 46 mm).
-    const blockH = Math.max(measuredH, 46)
-    // checkPageBreak dynamique : si pas la place pour CONDITIONS+SIGNATURE
-    // entier sur la page courante, on saute. +6 mm marge sécurité.
-    checkPageBreak(blockH + 6)
+
+    // ── Pré-mesure CÔTÉ DROIT — BON POUR ACCORD (hauteur naturelle) ──
+    // Bug 06/05/2026 : avant, sigContentH était forcé à max(leftColH, 46).
+    // Conséquence : ajouter le RIB côté gauche étirait artificiellement la
+    // signature côté droit, ce qui poussait le bloc ÉCHÉANCIER DE PAIEMENT
+    // (rendu juste sous la signature) hors de la page → saut de page parasite.
+    // Fix : la signature a sa propre hauteur naturelle, indépendante de la
+    // colonne gauche. Les deux colonnes ne se synchronisent qu'au départ
+    // (condStartY) et à l'arrivée (y final = max des deux bas).
+    const approvalText = locale === 'pt'
+      ? 'Orçamento recebido antes da execução dos trabalhos, lido e aprovado, bom para acordo.'
+      : 'Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.'
+    const appWrappedMeasure = pdf.splitTextToSize(approvalText, sigW - boxPadX * 2)
+    let sigNaturalH = 12 + appWrappedMeasure.length * ptToMm(13) + 4
+    if (signatureData) {
+      const sigImgW_m = sigW - boxPadX * 2 - 10
+      const sigImgH_m = sigImgW_m * (140 / 400)
+      sigNaturalH += sigImgH_m + 2 + 8 + 5 // image + signataire + timestamp + hash/eIDAS
+    } else {
+      sigNaturalH += ptToMm(18) + ptToMm(13) // Date placeholder + ligne Signature
+    }
+    sigNaturalH += 4 // marge basse interne au bloc gris
+    const sigBoxH = Math.max(sigNaturalH, 46)
+
+    // ── Pré-mesure CÔTÉ DROIT BAS — ÉCHÉANCIER DE PAIEMENT ──
+    const validAcomptes = (acomptesEnabled && acomptes.length > 0)
+      ? acomptes.filter(ac => ac.pourcentage > 0)
+      : []
+    const acBlockH = validAcomptes.length > 0
+      ? 12 + validAcomptes.length * ptToMm(13) + 4
+      : 0
+
+    // Hauteur totale = max des deux colonnes. Single page-break check pour
+    // garder l'ensemble cohérent (CONDITIONS et BON POUR ACCORD démarrent
+    // toujours à la même y). +6 mm de marge sécurité.
+    const rightColH = sigBoxH + (acBlockH > 0 ? 4 + acBlockH : 0)
+    const bothColsH = Math.max(leftColH, rightColH)
+    checkPageBreak(bothColsH + 6)
 
     const condStartY = y
     pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
@@ -1223,10 +1254,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(noteWrapped, condX, cy)
       cy += noteWrapped.length * ptToMm(13)
     }
-    // ── RIB & coordonnées bancaires (sous les notes) ──
+    // ── RIB & coordonnées bancaires (sous les notes, colonne gauche) ──
     // Style aligné sur les autres section headers : UPPERCASE + fontSize 9.5
     // (= même hiérarchie que « BON POUR ACCORD » dans le bloc droit symétrique).
-    // Espacement 6mm avant pour bien séparer des notes en italique.
     if (ribLines.length > 0) {
       cy += 6
       pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
@@ -1239,19 +1269,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       })
     }
 
-    // ── BON POUR ACCORD (côté droit) ──
-    const sigContentH = Math.max(cy - condStartY, 46)
+    // ── BON POUR ACCORD (côté droit, hauteur naturelle) ──
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-    pdf.rect(sigX, condStartY, sigW, sigContentH, 'FD')
+    pdf.rect(sigX, condStartY, sigW, sigBoxH, 'FD')
 
     pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     pdf.text('BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
 
     let sy = condStartY + 12
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-    const approvalText = locale === 'pt'
-      ? 'Orçamento recebido antes da execução dos trabalhos, lido e aprovado, bom para acordo.'
-      : 'Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.'
     const appWrapped = pdf.splitTextToSize(approvalText, sigW - boxPadX * 2)
     pdf.text(appWrapped, sigX + boxPadX, sy)
     sy += appWrapped.length * ptToMm(13) + 4
@@ -1281,33 +1307,32 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(`Signature :`, sigX + boxPadX, sy)
     }
 
-    y = condStartY + sigContentH + 4
-
-    // ═══ ACOMPTES ═══
-    if (acomptesEnabled && acomptes.length > 0) {
+    // ── ÉCHÉANCIER DE PAIEMENT (côté droit, sous BON POUR ACCORD) ──
+    // Position déterministe : juste sous la signature, sans dépendre de la
+    // hauteur du bloc CONDITIONS. La page-break a déjà été checkée plus haut
+    // pour l'ensemble des deux colonnes.
+    if (validAcomptes.length > 0) {
       const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
-      const validAcomptes = acomptes.filter(ac => ac.pourcentage > 0)
-      if (validAcomptes.length > 0) {
-        const acBlockH = 12 + validAcomptes.length * ptToMm(13) + 4
-        checkPageBreak(acBlockH + 4)
-        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-        pdf.rect(sigX, y, sigW, acBlockH, 'FD')
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, y + 5)
-        let ay = y + 12
-        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        for (const ac of validAcomptes) {
-          const montant = acompteTotal * ac.pourcentage / 100
-          const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
-          pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
-          pdf.setFont('helvetica', 'bold')
-          pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
-          pdf.setFont('helvetica', 'normal')
-          ay += ptToMm(13)
-        }
-        y += acBlockH + 4
+      const acY = condStartY + sigBoxH + 4
+      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+      pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, acY + 5)
+      let ay = acY + 12
+      pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+      for (const ac of validAcomptes) {
+        const montant = acompteTotal * ac.pourcentage / 100
+        const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
+        pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
+        pdf.setFont('helvetica', 'normal')
+        ay += ptToMm(13)
       }
     }
+
+    // y final = bas le plus bas des deux colonnes + marge
+    y = condStartY + bothColsH + 4
 
   } else if (docType === 'facture') {
     // ── Section RÈGLEMENT pour facture ──
