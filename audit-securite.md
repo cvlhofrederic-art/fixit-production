@@ -1,7 +1,9 @@
 # Audit de Securite — Vitfix.io (fixit-production)
 
+> **⚠ Document historique pré-migration Cloudflare.** Certaines recommandations infra (notamment F14 sur `x-vercel-forwarded-for`) ne s'appliquent plus depuis la bascule sur Cloudflare Workers : `cf-connecting-ip` est maintenant le header canonique. Conservé pour traçabilité. Pour l'état courant, voir `CLAUDE.md` et `lib/rate-limit.ts`.
+
 **Date :** 11 avril 2026
-**Scope :** Codebase Next.js 16.2.2 (App Router), Supabase, Vercel
+**Scope :** Codebase Next.js 16.2.2 (App Router), Supabase, Vercel (pré-migration Cloudflare)
 **Methode :** Revue de code statique (read-only)
 **Auditeur :** Claude Opus 4.6
 
