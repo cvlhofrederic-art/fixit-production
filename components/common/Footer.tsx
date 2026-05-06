@@ -37,9 +37,9 @@ export default function Footer() {
 
           {/* Particuliers */}
           <div>
-            <h4 className="font-display text-[0.85rem] font-bold text-white uppercase tracking-[0.08em] mb-4">
+            <h2 className="font-display text-[0.85rem] font-bold text-white uppercase tracking-[0.08em] mb-4">
               {t('footer.forIndividuals')}
-            </h4>
+            </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
                 <LocaleLink href={lp('search')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
@@ -66,9 +66,9 @@ export default function Footer() {
 
           {/* Artisans */}
           <div>
-            <h4 className="font-display text-[0.85rem] font-bold text-white uppercase tracking-[0.08em] mb-4">
+            <h2 className="font-display text-[0.85rem] font-bold text-white uppercase tracking-[0.08em] mb-4">
               {t('footer.forArtisans')}
-            </h4>
+            </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
                 <LocaleLink href="/pro/register" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
@@ -95,9 +95,9 @@ export default function Footer() {
 
           {/* Legal */}
           <div>
-            <h4 className="font-display text-[0.85rem] font-bold text-white uppercase tracking-[0.08em] mb-4">
+            <h2 className="font-display text-[0.85rem] font-bold text-white uppercase tracking-[0.08em] mb-4">
               {t('footer.legal')}
-            </h4>
+            </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
                 <LocaleLink href={lp('legalNotice')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
