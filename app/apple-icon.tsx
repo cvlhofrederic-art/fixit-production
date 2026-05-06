@@ -26,8 +26,11 @@ export default function AppleIcon() {
           letterSpacing: '-0.06em',
         }}
       >
-        <span style={{ color: '#FFD600' }}>V</span>
-        <span style={{ color: '#111110' }}>F</span>
+        {/* V noir + F jaune (cohérent avec app/icon.svg).
+            iOS applique automatiquement son masque squircle sur la PNG, donc
+            pas besoin de border-radius ici — fond blanc plein suffit. */}
+        <span style={{ color: '#111110' }}>V</span>
+        <span style={{ color: '#FFD600' }}>F</span>
       </div>
     ),
     { ...size },
