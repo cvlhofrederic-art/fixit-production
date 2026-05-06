@@ -13,6 +13,9 @@ import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
 import ConsentAnalytics from "@/components/common/ConsentAnalytics";
 import type { Locale } from "@/lib/i18n/config";
+import { CITIES } from "@/lib/data/seo-pages-data";
+import { FR_CITIES } from "@/lib/data/fr-seo-pages-data";
+import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -213,22 +216,55 @@ export default async function RootLayout({
                 },
                 {
                   '@context': 'https://schema.org',
-                  '@type': 'HomeAndConstructionBusiness',
+                  '@type': ['Organization', 'HomeAndConstructionBusiness'],
                   '@id': 'https://vitfix.io/#business',
                   name: 'VITFIX',
+                  alternateName: 'Vitfix',
+                  legalName: 'Vitfix SAS',
                   url: 'https://vitfix.io',
-                  logo: 'https://vitfix.io/logo.png',
+                  logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
                   image: 'https://vitfix.io/og-image.png',
                   description: locale === 'pt'
                     ? 'Plataforma de profissionais verificados para reparações e obras — canalização, eletricidade, faz-tudo em Portugal.'
                     : 'Plateforme d\'artisans vérifiés pour vos travaux — plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
-                  areaServed: ['FR', 'PT'],
+                  knowsLanguage: ['pt-PT', 'fr-FR', 'en'],
+                  email: CONTACT_EMAIL,
+                  telephone: PHONE_FR,
+                  contactPoint: [
+                    {
+                      '@type': 'ContactPoint',
+                      contactType: 'customer support',
+                      telephone: PHONE_FR,
+                      areaServed: 'FR',
+                      availableLanguage: ['French', 'English'],
+                    },
+                    {
+                      '@type': 'ContactPoint',
+                      contactType: 'customer support',
+                      telephone: PHONE_PT,
+                      areaServed: 'PT',
+                      availableLanguage: ['Portuguese', 'English'],
+                    },
+                  ],
+                  areaServed: [
+                    { '@type': 'Country', name: 'France' },
+                    { '@type': 'Country', name: 'Portugal' },
+                    { '@type': 'AdministrativeArea', name: 'Provence-Alpes-Côte d\'Azur, France' },
+                    { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
+                    ...FR_CITIES.map((c) => ({ '@type': 'City', name: c.name, address: { '@type': 'PostalAddress', addressCountry: 'FR' } })),
+                    ...CITIES.map((c) => ({ '@type': 'City', name: c.name, address: { '@type': 'PostalAddress', addressCountry: 'PT' } })),
+                  ],
                   priceRange: '€€',
                   aggregateRating: {
                     '@type': 'AggregateRating',
                     ratingValue: '4.8',
                     reviewCount: '250',
+                    bestRating: '5',
+                    worstRating: '1',
                   },
+                  // sameAs, address, taxID, foundingDate intentionnellement omis
+                  // tant que les données réelles ne sont pas fournies par l'utilisateur
+                  // (mieux qu'un placeholder qui invaliderait le schema).
                 },
               ],
             }),
