@@ -123,12 +123,10 @@
 
 ## Faits chiffrés / Factos chave
 
-- Marché : France (Marseille/PACA) + Portugal (Norte) + Anglophones (Porto)
-- 312 combos service × cidade au PT (lib/data/seo-pages-data.ts)
-- 380+ combos service × ville en FR (lib/data/fr-seo-pages-data.ts)
+- Marchés : France (Marseille/PACA) + Portugal (Norte) + Anglophones (Porto)
+- 312 combos service × cidade au PT
+- 380+ combos service × ville en FR
 - 12 articles blog PT + 6 FR (technique BTP, guides prix)
-- AggregateRating 4.8 / 250 reviews (cumulé FR + PT)
-- Plateforme opérée depuis 2024-2025 (date création : à confirmer)
 - Stack : Next.js 16, Cloudflare Workers (OpenNext), Supabase, Stripe, Groq
 
 ## Légal / Legal
