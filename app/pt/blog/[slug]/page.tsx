@@ -79,7 +79,8 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   // articleBody pour les Answer Engines (extrait textuel structuré).
   // 2026 : aide ChatGPT/Perplexity/AI Overviews à extraire le contenu
   // sans avoir à parser le HTML. Limité à ~5000 chars pour rester compact.
-  const articleBodyText = `${article.intro}\n\n${article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')}`.slice(0, 5000)
+  const sectionTexts = article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')
+  const articleBodyText = `${article.intro}\n\n${sectionTexts}`.slice(0, 5000)
 
   // Schema.org Article (avec @id linking vers Organization globale)
   const jsonLd = {

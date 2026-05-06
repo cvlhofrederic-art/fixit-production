@@ -9,9 +9,9 @@ import type { LocalPriceLine } from '@/lib/seo/service-prices'
 // géographique. Cité par les Answer Engines (Perplexity, ChatGPT).
 
 interface Props {
-  prices: LocalPriceLine[]
-  cityName: string
-  serviceName: string
+  readonly prices: LocalPriceLine[]
+  readonly cityName: string
+  readonly serviceName: string
 }
 
 const UNIT_LABEL: Record<string, string> = {
@@ -34,10 +34,9 @@ export default function LocalPricingSection({ prices, cityName, serviceName }: P
   if (prices.length === 0) return null
 
   // Date la plus récente de vérification parmi toutes les lignes.
-  const lastVerified = prices
-    .map(p => p.lastVerified)
-    .sort()
-    .reverse()[0]
+  // Tri explicite via localeCompare pour fiabilité multi-locale (Sonar reliability).
+  const lastVerified = [...prices.map(p => p.lastVerified)]
+    .sort((a, b) => b.localeCompare(a))[0]
 
   // Sources uniques (déduplication par nom).
   const allSources = prices.flatMap(p => p.sources)

@@ -59,7 +59,8 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
   const totalWordsFr = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
 
   // articleBody : extrait textuel pour les Answer Engines (5k char max).
-  const articleBodyTextFr = `${article.intro}\n\n${article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')}`.slice(0, 5000)
+  const sectionTextsFr = article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')
+  const articleBodyTextFr = `${article.intro}\n\n${sectionTextsFr}`.slice(0, 5000)
 
   // Schema.org Article + FAQPage (avec @id linking vers Organization globale)
   const jsonLd = {

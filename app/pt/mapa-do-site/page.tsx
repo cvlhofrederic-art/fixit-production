@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { SERVICES, CITIES, getAllPageCombos, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
+import HtmlSitemap from '@/components/seo/HtmlSitemap'
 
 export const metadata: Metadata = {
   title: 'Mapa do site VITFIX — Todas as nossas páginas serviços e cidades',
@@ -34,120 +34,61 @@ const breadcrumbSchema = {
 
 export default function MapaDoSitePage() {
   const combos = getAllPageCombos()
-  const combosByService = SERVICES.map(service => ({
-    service,
-    combos: combos.filter(c => c.service.slug === service.slug),
-  })).filter(g => g.combos.length > 0)
+  const servicesByCity = SERVICES
+    .map(service => ({
+      service: { slug: service.slug, name: service.name },
+      combos: combos
+        .filter(c => c.service.slug === service.slug)
+        .map(c => ({ slug: c.slug, city: { name: c.city.name } })),
+    }))
+    .filter(g => g.combos.length > 0)
 
   return (
-    <div className="min-h-screen bg-warm-gray py-12">
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
-          <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
-          <span className="mx-2">/</span>
-          <span className="text-dark font-medium">Mapa do site</span>
-        </nav>
-
-        <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-dark mb-3">
-          Mapa do site
-        </h1>
-        <p className="text-text-muted mb-10 max-w-2xl">
-          Todas as páginas VITFIX em Portugal: serviços de profissionais, cidades cobertas, recursos e artigos.
-        </p>
-
-        {/* ── Páginas principais ── */}
-        <section className="bg-white rounded-2xl shadow-sm p-8 mb-8">
-          <h2 className="font-display text-xl font-bold text-dark mb-5">Páginas principais</h2>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-            <li><Link href="/pt/" className="text-dark/80 hover:text-yellow hover:underline">Início</Link></li>
-            <li><Link href="/pt/pesquisar/" className="text-dark/80 hover:text-yellow hover:underline">Pesquisar profissionais</Link></li>
-            <li><Link href="/pt/servicos/" className="text-dark/80 hover:text-yellow hover:underline">Todos os serviços</Link></li>
-            <li><Link href="/pt/urgencia/" className="text-dark/80 hover:text-yellow hover:underline">Urgência 24/7</Link></li>
-            <li><Link href="/pt/perto-de-mim/" className="text-dark/80 hover:text-yellow hover:underline">Perto de mim</Link></li>
-            <li><Link href="/pt/como-funciona/" className="text-dark/80 hover:text-yellow hover:underline">Como funciona</Link></li>
-            <li><Link href="/pt/profissionais-verificados/" className="text-dark/80 hover:text-yellow hover:underline">Profissionais verificados</Link></li>
-            <li><Link href="/pt/torne-se-parceiro/" className="text-dark/80 hover:text-yellow hover:underline">Torne-se parceiro</Link></li>
-            <li><Link href="/pt/sobre/" className="text-dark/80 hover:text-yellow hover:underline">Sobre nós</Link></li>
-            <li><Link href="/pt/blog/" className="text-dark/80 hover:text-yellow hover:underline">Blog</Link></li>
-            <li><Link href="/pt/condominio/" className="text-dark/80 hover:text-yellow hover:underline">Condomínios</Link></li>
-            <li><Link href="/pt/simulador-orcamento/" className="text-dark/80 hover:text-yellow hover:underline">Simulador de orçamento</Link></li>
-            <li><Link href="/pt/precos/" className="text-dark/80 hover:text-yellow hover:underline">Preços</Link></li>
-            <li><Link href="/pt/especialidades/" className="text-dark/80 hover:text-yellow hover:underline">Especialidades</Link></li>
-            <li><Link href="/pt/avaliacoes/" className="text-dark/80 hover:text-yellow hover:underline">Avaliações</Link></li>
-            <li><Link href="/pt/avisos-legais/" className="text-dark/80 hover:text-yellow hover:underline">Avisos legais</Link></li>
-            <li><Link href="/pt/termos/" className="text-dark/80 hover:text-yellow hover:underline">Termos e condições</Link></li>
-            <li><Link href="/pt/privacidade/" className="text-dark/80 hover:text-yellow hover:underline">Privacidade</Link></li>
-          </ul>
-        </section>
-
-        {/* ── Serviços × cidades ── */}
-        <section className="bg-white rounded-2xl shadow-sm p-8 mb-8">
-          <h2 className="font-display text-xl font-bold text-dark mb-2">Serviços por cidade no Tâmega e Sousa</h2>
-          <p className="text-text-muted text-sm mb-6">
-            {combosByService.reduce((sum, g) => sum + g.combos.length, 0)} combinações serviços × cidades.
-          </p>
-          <div className="space-y-6">
-            {combosByService.map(({ service, combos: serviceCombos }) => (
-              <details key={service.slug} className="group rounded-xl border border-border/40 overflow-hidden" open={service.slug === 'canalizador'}>
-                <summary className="flex items-center justify-between gap-4 px-5 py-3 cursor-pointer list-none bg-warm-gray/40 font-semibold text-dark hover:bg-warm-gray transition select-none">
-                  <span className="flex items-center gap-3">
-                    <Link href={`/pt/perto-de-mim/${service.slug}/`} className="hover:text-yellow hover:underline">
-                      {service.name}
-                    </Link>
-                    <span className="text-xs text-text-muted">({serviceCombos.length} cidades)</span>
-                  </span>
-                  <span className="text-yellow text-sm group-open:rotate-45 transition-transform">+</span>
-                </summary>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 p-5 text-sm">
-                  {serviceCombos.map(c => (
-                    <li key={c.slug}>
-                      <Link href={`/pt/servicos/${c.slug}/`} className="text-dark/80 hover:text-yellow hover:underline">
-                        {service.name} em {c.city.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Cidades ── */}
-        <section className="bg-white rounded-2xl shadow-sm p-8 mb-8">
-          <h2 className="font-display text-xl font-bold text-dark mb-5">Cidades cobertas no Tâmega e Sousa</h2>
-          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">
-            {CITIES.map(city => (
-              <li key={city.slug}>
-                <Link href={`/pt/cidade/${city.slug}/`} className="text-dark/80 hover:text-yellow hover:underline">
-                  {city.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* ── Blog ── */}
-        {BLOG_ARTICLES.length > 0 && (
-          <section className="bg-white rounded-2xl shadow-sm p-8 mb-8">
-            <h2 className="font-display text-xl font-bold text-dark mb-5">Artigos do blog</h2>
-            <ul className="space-y-2 text-sm">
-              {BLOG_ARTICLES.map(a => (
-                <li key={a.slug}>
-                  <Link href={`/pt/blog/${a.slug}/`} className="text-dark/80 hover:text-yellow hover:underline">
-                    {a.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <p className="text-center text-xs text-text-muted mt-10">
-          Procura o sitemap XML? <a href="/sitemap.xml" className="hover:text-dark underline">/sitemap.xml</a>
-        </p>
-      </div>
-    </div>
+      <HtmlSitemap
+        locale="pt"
+        title="Mapa do site"
+        intro="Todas as páginas VITFIX em Portugal: serviços de profissionais, cidades cobertas, recursos e artigos."
+        breadcrumbHomeLabel="VITFIX"
+        breadcrumbCurrentLabel="Mapa do site"
+        homeHref="/pt/"
+        mainPagesTitle="Páginas principais"
+        mainPages={[
+          { href: '/pt/', label: 'Início' },
+          { href: '/pt/pesquisar/', label: 'Pesquisar profissionais' },
+          { href: '/pt/servicos/', label: 'Todos os serviços' },
+          { href: '/pt/urgencia/', label: 'Urgência 24/7' },
+          { href: '/pt/perto-de-mim/', label: 'Perto de mim' },
+          { href: '/pt/como-funciona/', label: 'Como funciona' },
+          { href: '/pt/profissionais-verificados/', label: 'Profissionais verificados' },
+          { href: '/pt/torne-se-parceiro/', label: 'Torne-se parceiro' },
+          { href: '/pt/sobre/', label: 'Sobre nós' },
+          { href: '/pt/blog/', label: 'Blog' },
+          { href: '/pt/condominio/', label: 'Condomínios' },
+          { href: '/pt/simulador-orcamento/', label: 'Simulador de orçamento' },
+          { href: '/pt/precos/', label: 'Preços' },
+          { href: '/pt/especialidades/', label: 'Especialidades' },
+          { href: '/pt/avaliacoes/', label: 'Avaliações' },
+          { href: '/pt/avisos-legais/', label: 'Avisos legais' },
+          { href: '/pt/termos/', label: 'Termos e condições' },
+          { href: '/pt/privacidade/', label: 'Privacidade' },
+        ]}
+        servicesByCityTitle="Serviços por cidade no Tâmega e Sousa"
+        servicesByCityCountSuffix=" cidades"
+        servicesByCityComboPrefix="em"
+        servicesByCityRoot="/pt/servicos"
+        servicesByCityNearMeRoot="/pt/perto-de-mim"
+        servicesByCity={servicesByCity}
+        defaultOpenServiceSlug="canalizador"
+        citiesTitle="Cidades cobertas no Tâmega e Sousa"
+        cities={CITIES.map(c => ({ slug: c.slug, name: c.name }))}
+        cityRoot="/pt/cidade"
+        blogTitle="Artigos do blog"
+        blogArticles={BLOG_ARTICLES.map(a => ({ slug: a.slug, title: a.title }))}
+        blogRoot="/pt/blog"
+        xmlSitemapNote="Procura o sitemap XML?"
+      />
+    </>
   )
 }
