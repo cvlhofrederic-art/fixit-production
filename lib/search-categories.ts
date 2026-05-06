@@ -43,6 +43,12 @@ export const CATEGORY_LABELS_PT: Record<string, string> = {
   'traitement-nuisibles': 'Controlo de pragas',
   'petits-travaux': 'Pequenos trabalhos',
   metallerie: 'Metaleiro / Ferreiro',
+  plaquiste: 'Aplicador de pladur',
+  ramonage: 'Limpa-chaminés',
+  piscine: 'Técnico de piscinas',
+  'store-banne': 'Instalador de toldos',
+  paysagiste: 'Paisagista',
+  debouchage: 'Desentupimento',
 }
 
 // Mapping catégorie slug → métiers catalogue (FR + PT)
