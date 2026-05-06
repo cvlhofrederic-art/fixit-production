@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { BLOG_ARTICLES, getBlogArticle, SERVICES, CITIES } from '@/lib/data/seo-pages-data'
+import { buildArticleSchema } from '@/lib/schemas'
 
 // ── Generate static pages for all blog articles ──
 export function generateStaticParams() {
@@ -86,34 +87,21 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      {
-        '@type': 'BlogPosting',
-        '@id': `https://vitfix.io/pt/blog/${slug}/#article`,
+      buildArticleSchema({
+        url: `https://vitfix.io/pt/blog/${slug}/`,
         headline: article.title,
         description: article.metaDesc,
-        url: `https://vitfix.io/pt/blog/${slug}/`,
+        image: 'https://vitfix.io/og-image.png',
+        datePublished: article.datePublished,
+        dateModified: article.dateModified,
+        author: { name: 'Equipa editorial Vitfix', url: 'https://vitfix.io/pt/sobre/' },
         inLanguage: 'pt-PT',
         articleSection: categoryLabel(article.category),
-        keywords: article.relatedServices.join(', '),
+        keywords: article.relatedServices,
         wordCount: totalWords,
-        publisher: { '@id': 'https://vitfix.io/#business' },
-        // E-E-A-T 2026 : Person plutôt qu'Organization comme author
-        // renforce le signal éditorial (Google Article docs).
-        author: {
-          '@type': 'Person',
-          name: 'Equipa editorial Vitfix',
-          url: 'https://vitfix.io/pt/sobre/',
-        },
-        mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/pt/blog/${slug}/` },
-        datePublished: article.datePublished,
-        dateModified: article.dateModified || article.datePublished,
-        image: 'https://vitfix.io/og-image.png',
         articleBody: articleBodyText,
-        speakable: {
-          '@type': 'SpeakableSpecification',
-          cssSelector: ['h1', 'h2', '.article-intro'],
-        },
-      },
+        speakableSelectors: ['h1', 'h2', '.article-intro'],
+      }),
       {
         '@type': 'BreadcrumbList',
         itemListElement: [

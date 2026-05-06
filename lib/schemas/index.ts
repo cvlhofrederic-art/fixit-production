@@ -174,6 +174,9 @@ interface ArticleSchemaOptions {
   inLanguage?: string
   articleSection?: string
   keywords?: string[]
+  wordCount?: number
+  articleBody?: string
+  speakableSelectors?: string[]
 }
 
 export function buildArticleSchema(options: ArticleSchemaOptions) {
@@ -181,6 +184,7 @@ export function buildArticleSchema(options: ArticleSchemaOptions) {
     '@type': 'BlogPosting',
     '@id': `${options.url}#article`,
     mainEntityOfPage: { '@type': 'WebPage', '@id': options.url },
+    url: options.url,
     headline: options.headline,
     description: options.description,
     ...(options.image && { image: options.image }),
@@ -195,6 +199,11 @@ export function buildArticleSchema(options: ArticleSchemaOptions) {
     },
     ...(options.inLanguage && { inLanguage: options.inLanguage }),
     ...(options.articleSection && { articleSection: options.articleSection }),
+    ...(options.wordCount && { wordCount: options.wordCount }),
+    ...(options.articleBody && { articleBody: options.articleBody }),
+    ...(options.speakableSelectors && {
+      speakable: { '@type': 'SpeakableSpecification', cssSelector: options.speakableSelectors },
+    }),
     ...(options.keywords && { keywords: options.keywords.join(', ') }),
   }
 }
@@ -251,6 +260,37 @@ export function buildHowToSchema(options: HowToSchemaOptions) {
   }
   if (options.image) schema.image = options.image
   return schema
+}
+
+// ── AboutPage schema ──
+// Centralise la construction du schema /a-propos/ et /sobre/ pour éviter
+// la duplication entre les locales (Sonar duplication detection).
+
+interface AboutPageSchemaOptions {
+  locale: 'fr' | 'pt' | 'en'
+  url: string
+  homeUrl: string
+  homeLabel: string
+  pageLabel: string
+}
+
+export function buildAboutPageSchema(options: AboutPageSchemaOptions) {
+  const inLanguage = options.locale === 'pt' ? 'pt-PT' : options.locale === 'en' ? 'en' : 'fr-FR'
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'AboutPage',
+    '@id': `${options.url}#aboutpage`,
+    url: options.url,
+    inLanguage,
+    mainEntity: { '@id': 'https://vitfix.io/#business' },
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: options.homeLabel, item: options.homeUrl },
+        { '@type': 'ListItem', position: 2, name: options.pageLabel, item: options.url },
+      ],
+    },
+  }
 }
 
 // ── Speakable (voice search / AI assistants) ──
