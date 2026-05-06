@@ -4,15 +4,19 @@ import { DM_Sans } from "next/font/google";
 import { Syne } from "next/font/google";
 import { Montserrat } from "next/font/google";
 import { Outfit } from "next/font/google";
-import { Playfair_Display } from "next/font/google";
-import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import "./globals.css";
+import dynamic from "next/dynamic";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
-import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
-import ConsentAnalytics from "@/components/common/ConsentAnalytics";
-import WebVitalsReporter from "@/components/common/WebVitalsReporter";
+
+// Lazy-load des composants below-fold + non-critiques pour améliorer LCP/INP.
+// next/dynamic + ssr:false → ces composants ne sont pas dans le HTML initial
+// ni dans le JS hydration critique. Pas de SSR car ils nécessitent l'API
+// browser (cookies, web-vitals, navigator).
+const CookieConsent = dynamic(() => import("@/components/common/CookieConsent"), { ssr: false });
+const ConsentAnalytics = dynamic(() => import("@/components/common/ConsentAnalytics"), { ssr: false });
+const WebVitalsReporter = dynamic(() => import("@/components/common/WebVitalsReporter"), { ssr: false });
 import type { Locale } from "@/lib/i18n/config";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
@@ -34,32 +38,21 @@ const montserrat = Montserrat({
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
-// Polices Syndic Dashboard (Outfit + Playfair Display)
+// Outfit utilisé sur les dashboards syndic + copro. Conservé global car
+// référencé dans app/globals.css via plusieurs sélecteurs scopés #syndic-dashboard
+// + #copro-dashboard. Les dashboards layouts (app/syndic/dashboard/layout.tsx,
+// app/coproprietaire/dashboard/layout.tsx) le redéfinissent aussi en local
+// pour cohérence d'arborescence.
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
 });
 
-const playfairDisplay = Playfair_Display({
-  variable: "--font-playfair",
-  subsets: ["latin"],
-  weight: ["400", "600"],
-  style: ["normal", "italic"],
-});
-
-// V22 Artisan Dashboard fonts
-const ibmPlexSans = IBM_Plex_Sans({
-  variable: "--font-ibm-plex-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-ibm-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
+// Playfair_Display + IBM_Plex_Sans/Mono déplacés hors du layout global :
+// - Playfair Display → app/syndic/dashboard/layout.tsx + app/coproprietaire/dashboard/layout.tsx
+// - IBM Plex Sans/Mono → app/rfq/repondre/[token]/layout.tsx
+// Économie ~150-300KB sur les pages publiques (perf SEO 2026, LCP mobile).
 
 const sharedMeta = {
   authors: [{ name: "Vitfix SAS" }] as Metadata['authors'],
@@ -192,8 +185,14 @@ export default async function RootLayout({
       <head>
         <meta name="csrf-protection" content="same-origin" />
         <meta name="theme-color" content="#FFD600" />
-        {/* favicon (icon.svg) + apple-touch-icon (apple-icon.tsx) auto-injectés
-            par Next.js via app/icon.svg + app/apple-icon.tsx */}
+        {/* Windows tiles (Edge legacy / Windows pinned sites) */}
+        <meta name="msapplication-TileColor" content="#FFD600" />
+        {/* Favicons : Next.js auto-injecte app/favicon.ico + app/icon.png +
+            app/apple-icon.png. On déclare en plus les variantes 16/32 explicites
+            (hint browsers pour bonne taille) + safari-pinned-tab pour macOS. */}
+        <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+        <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#FFD600" />
         <link rel="manifest" href="/manifest.json" />
         {/* hreflang SEO tags */}
         <link rel="alternate" hrefLang="fr" href="https://vitfix.io/fr/" />
@@ -282,7 +281,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body suppressHydrationWarning className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} ${playfairDisplay.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} font-sans antialiased`}>
         <Providers locale={locale}>
           <a href="#main-content" className="skip-to-content">
             {locale === 'en' || locale === 'nl' ? 'Skip to main content' : locale === 'pt' ? 'Ir para o conte\u00fado principal' : locale === 'es' ? 'Ir al contenido principal' : 'Aller au contenu principal'}
