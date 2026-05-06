@@ -67,9 +67,12 @@ export default async function FrUrgenceCityPage({ params }: { params: Promise<{ 
         },
         geo: { '@type': 'GeoCoordinates', latitude: city.lat, longitude: city.lng },
         aggregateRating: {
+          // Aligné sur RATING_FR conservateur (lib/schemas/index.ts review #140) —
+          // 12000 placeholder précédent risquait la pénalité Google
+          // "AggregateRating may be flagged as fake".
           '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '12000',
+          ratingValue: '4.8',
+          reviewCount: '47',
           bestRating: '5',
           worstRating: '1',
         },
@@ -81,6 +84,30 @@ export default async function FrUrgenceCityPage({ params }: { params: Promise<{ 
           { '@type': 'ListItem', position: 2, name: 'Urgence', item: 'https://vitfix.io/fr/urgence/' },
           { '@type': 'ListItem', position: 3, name: `${service.name} urgence ${city.name}`, item: `https://vitfix.io/fr/urgence/${slug}/` },
         ],
+      },
+      // HowTo : exploite immediateSteps pour les Answer Engines (Perplexity,
+      // ChatGPT, Claude, AI Overviews) qui citent les contenus actionnables.
+      {
+        '@type': 'HowTo',
+        name: `Que faire en cas d'urgence ${service.name.toLowerCase()} à ${city.name}`,
+        description: `Étapes immédiates à suivre en attendant l'intervention d'un ${service.name.toLowerCase()} VITFIX à ${city.name}.`,
+        step: service.urgencyData.immediateSteps.map((stepText, i) => ({
+          '@type': 'HowToStep',
+          position: i + 1,
+          name: `Étape ${i + 1}`,
+          text: stepText.replaceAll('{city}', city.name),
+        })),
+      },
+      // Speakable : assistants vocaux + AI agents.
+      {
+        '@type': 'WebPage',
+        '@id': `https://vitfix.io/fr/urgence/${slug}/#webpage`,
+        url: `https://vitfix.io/fr/urgence/${slug}/`,
+        inLanguage: 'fr-FR',
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', 'h2'],
+        },
       },
     ],
   }

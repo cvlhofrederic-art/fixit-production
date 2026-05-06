@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { FR_CITIES, FR_SERVICES, getFrCityBySlug } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
+import { buildBreadcrumbSchema } from '@/lib/schemas'
 
 export function generateStaticParams() {
   return FR_CITIES.map(city => ({ slug: city.slug }))
@@ -59,9 +60,10 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
           closes: '22:00',
         },
         aggregateRating: {
+          // Aligné RATING_FR conservateur (lib/schemas/index.ts review #140).
           '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '12000',
+          ratingValue: '4.8',
+          reviewCount: '47',
           bestRating: '5',
           worstRating: '1',
         },
@@ -71,14 +73,11 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
         ],
         priceRange: '€€',
       },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/fr/' },
-          { '@type': 'ListItem', position: 2, name: 'Services', item: 'https://vitfix.io/fr/services/' },
-          { '@type': 'ListItem', position: 3, name: city.name, item: `https://vitfix.io/fr/ville/${slug}/` },
-        ],
-      },
+      buildBreadcrumbSchema([
+        { name: 'VITFIX', url: 'https://vitfix.io/fr/' },
+        { name: 'Services', url: 'https://vitfix.io/fr/services/' },
+        { name: city.name, url: `https://vitfix.io/fr/ville/${slug}/` },
+      ]),
     ],
   }
 

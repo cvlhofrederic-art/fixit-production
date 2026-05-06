@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { buildBreadcrumbSchema } from '@/lib/schemas'
 
 // ── Generate 8 static city pages ──
 export function generateStaticParams() {
@@ -77,14 +78,11 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           longitude: city.lng,
         },
       },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Cidades', item: 'https://vitfix.io/pt/cidade/' },
-          { '@type': 'ListItem', position: 3, name: city.name, item: `https://vitfix.io/pt/cidade/${slug}/` },
-        ],
-      },
+      buildBreadcrumbSchema([
+        { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+        { name: 'Cidades', url: 'https://vitfix.io/pt/cidade/' },
+        { name: city.name, url: `https://vitfix.io/pt/cidade/${slug}/` },
+      ]),
     ],
   }
 
