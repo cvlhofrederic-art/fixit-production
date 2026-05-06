@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { supabase } from '@/lib/supabase'
 import type {
   Recipe,
   EstimationInput,
@@ -975,9 +976,14 @@ export default function EstimationMateriauxSection({
         items: items.map(i => ({ recipeId: i.recipeId, geometry: i.geometry, label: i.label })),
         chantierProfile: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
       }
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
       const res = await fetch('/api/estimation/compute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ ...payload, country }),
       })
       if (!res.ok) {
@@ -1001,9 +1007,14 @@ export default function EstimationMateriauxSection({
     setIaAssumptions([])
     setIaQuestions([])
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
       const res = await fetch('/api/estimation/ai-extract-and-compute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           description: text,
           projectName: projectName.trim() || undefined,
