@@ -191,8 +191,9 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <head>
         <meta name="csrf-protection" content="same-origin" />
-        <meta name="theme-color" content="#FFC107" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="theme-color" content="#FFD600" />
+        {/* favicon (icon.svg) + apple-touch-icon (apple-icon.tsx) auto-injectés
+            par Next.js via app/icon.svg + app/apple-icon.tsx */}
         <link rel="manifest" href="/manifest.json" />
         {/* hreflang SEO tags */}
         <link rel="alternate" hrefLang="fr" href="https://vitfix.io/fr/" />
