@@ -180,7 +180,7 @@ export function ArtisanCard({
             {artisan.profile_photo_url ? (
               <Image
                 src={artisan.profile_photo_url}
-                alt={displayName || 'Artisan'}
+                alt={displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}
                 width={64}
                 height={64}
                 className="w-14 h-14 lg:w-16 lg:h-16 rounded-full object-cover shadow-sm flex-shrink-0"
@@ -203,10 +203,10 @@ export function ArtisanCard({
             <div className="flex items-start justify-between gap-2">
               <div>
                 {isCatalogue ? (
-                  <span className="font-bold text-lg">{displayName || 'Artisan'}</span>
+                  <span className="font-bold text-lg">{displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}</span>
                 ) : (
                   <Link href={profileHref} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
-                    {displayName || 'Artisan'}
+                    {displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}
                   </Link>
                 )}
                 {primaryCategory && (
