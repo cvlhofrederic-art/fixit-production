@@ -1,13 +1,12 @@
 # ── Post-Deploy Smoke Test ────────────────────────────────────────────────────
 # Vérifie que la production répond correctement après chaque deploy sur main.
-# Se déclenche après le workflow CI (build réussi = Vercel deploy).
-# NOTE: utilise PROD_URL (vitfix.io par défaut, fallback fixit-production.vercel.app)
+# Se déclenche après le workflow "Deploy to Cloudflare Workers" (pipeline prod).
 
 name: "Post-Deploy — Smoke Test"
 
 on:
   workflow_run:
-    workflows: ["CI — Build"]
+    workflows: ["Deploy to Cloudflare Workers"]
     types: [completed]
     branches: [main]
 
@@ -15,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  PROD_URL: https://fixit-production.vercel.app
+  PROD_URL: https://vitfix.io
 
 jobs:
   smoke-test:
@@ -25,8 +24,8 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Attendre le deploy Vercel (propagation)
-        run: sleep 60
+      - name: Attendre la propagation Cloudflare
+        run: sleep 30
 
       - name: Vérifier /api/health
         run: |
@@ -63,5 +62,5 @@ jobs:
       - name: Alerte échec
         if: failure()
         run: |
-          echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://fixit-production.vercel.app immédiatement"
-          echo "Rollback: Vercel Dashboard > Deployments > Promote previous"
+          echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://vitfix.io immédiatement"
+          echo "Rollback: wrangler rollback ou redéployer le commit précédent via le workflow 'Deploy to Cloudflare Workers'"
