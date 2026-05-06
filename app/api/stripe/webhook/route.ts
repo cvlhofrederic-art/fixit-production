@@ -5,6 +5,7 @@ import { upsertSubscription, getUserSubscription } from '@/lib/subscription'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { computeRiskScore, RISK_THRESHOLD_BLOCK, RISK_THRESHOLD_REVIEW } from '@/lib/referral'
+import { captureServer } from '@/lib/posthog/server'
 import type Stripe from 'stripe'
 
 const log = logger.withTenant('api/stripe/webhook')
@@ -109,6 +110,22 @@ export async function POST(request: NextRequest) {
           })
           log.info('Checkout completed', { userId: userId.substring(0, 8), planId })
 
+          void captureServer({
+            event: 'checkout_completed',
+            distinctId: userId,
+            properties: {
+              plan_id: planId,
+              stripe_subscription_id: session.subscription as string,
+              amount_total: session.amount_total,
+              currency: session.currency,
+            },
+          })
+          void captureServer({
+            event: 'subscription_started',
+            distinctId: userId,
+            properties: { plan_id: planId },
+          })
+
           // ── Parrainage : vérification premier paiement filleul ──
           await handleReferralPaymentVerification(userId, session.customer as string)
         }
@@ -137,6 +154,14 @@ export async function POST(request: NextRequest) {
             status: 'canceled',
             stripe_subscription_id: sub.id,
             cancel_at_period_end: false,
+          })
+          void captureServer({
+            event: 'subscription_canceled',
+            distinctId: userId,
+            properties: {
+              previous_plan_id: sub.metadata?.planId ?? 'unknown',
+              stripe_subscription_id: sub.id,
+            },
           })
         }
         break

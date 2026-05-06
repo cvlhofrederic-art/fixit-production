@@ -126,6 +126,14 @@ NEXT_PUBLIC_SUPABASE_URL = "https://irluhepekbqgquveaett.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlybHVoZXBla2JxZ3F1dmVhZXR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzODY3MDIsImV4cCI6MjA4NTk2MjcwMn0.UU8I0YKpiGpXnV-e37zY50E7n6Kg4iABFPffEuYetIM"
 NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 
+# PostHog public host. The publishable key (NEXT_PUBLIC_POSTHOG_KEY) is
+# kept as a wrangler secret so it can be rotated without a deploy:
+#   wrangler secret put NEXT_PUBLIC_POSTHOG_KEY
+# Server-only key (POSTHOG_API_KEY) is also a wrangler secret. When neither
+# is set, the SDK init is a no-op and trackEvent() keeps writing only to
+# /api/analytics/track.
+NEXT_PUBLIC_POSTHOG_HOST = "https://eu.posthog.com"
+
 # ── Simulateur V2 feature flag ──────────────────────────────────────────────
 # SIMULATEUR_V2_ROLLOUT est gere via `wrangler secret put` (pas en [vars]
 # car conflit binding name avec secrets). Defaut effectif = 0 (V1 actif)

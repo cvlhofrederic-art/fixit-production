@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { devisSignSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { captureServer } from '@/lib/posthog/server'
 
 /**
  * POST /api/devis-sign
@@ -137,6 +138,16 @@ export async function POST(request: NextRequest) {
     } catch (notifErr) {
       logger.error('Error sending signature notification:', notifErr)
     }
+
+    void captureServer({
+      event: 'devis_accepted',
+      distinctId: user.id,
+      properties: {
+        booking_id,
+        message_id,
+        doc_number: docNumber,
+      },
+    })
 
     return NextResponse.json({ success: true, data: signedMsg })
   } catch (e: unknown) {
