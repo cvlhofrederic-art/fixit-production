@@ -4,24 +4,13 @@
  * PATCH  /api/marketplace-btp/[id]/demande  — accepter/rejeter (vendeur)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { getAdminClient, authenticateRequest } from '@/lib/supabase-clients'
 
-function getAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-function getAnon() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
-
-async function auth(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) return null
-  const { data: { user }, error } = await getAnon().auth.getUser(token)
-  return error || !user ? null : user
-}
+const getAdmin = getAdminClient
+const auth = authenticateRequest
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

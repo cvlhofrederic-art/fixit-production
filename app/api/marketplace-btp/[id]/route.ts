@@ -4,11 +4,11 @@
  * DELETE /api/marketplace-btp/[id] — soft delete (owner)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { VALID_UUID } from '@/lib/validation'
+import { getAdminClient, getAnonClient } from '@/lib/supabase-clients'
 
 const marketplaceUpdateSchema = z.object({
   title: z.string().max(200).optional(),
@@ -33,18 +33,8 @@ const marketplaceUpdateSchema = z.object({
   status: z.enum(['active', 'vendu', 'suspendu', 'archive']).optional(),
 }).strict()
 
-function getAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
-function getAnon() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
+const getAdmin = getAdminClient
+const getAnon = getAnonClient
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
