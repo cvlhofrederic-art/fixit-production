@@ -341,8 +341,8 @@ export default async function BlogPage() {
       {/* ── HERO ── */}
       <section className="pt-16 pb-12 md:pt-20 md:pb-16" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.08) 0%, #fff 40%, #F5F3EF 100%)' }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav aria-label="Fil d'Ariane" className="mb-6 text-sm text-text-muted">
-            <Link href="/" className="hover:text-yellow transition">VITFIX</Link>
+          <nav aria-label="Trilho de navegação" className="mb-6 text-sm text-text-muted">
+            <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
             <span className="text-dark font-medium">Blog</span>
           </nav>
@@ -353,10 +353,13 @@ export default async function BlogPage() {
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            Le blog Vitfix
+            O blog Vitfix
           </h1>
           <p className="text-lg text-text-muted max-w-2xl leading-relaxed">
-            Conseils travaux, guides pratiques et actualités pour votre habitat. Rédigés par nos experts.
+            Conselhos sobre obras, guias práticos e novidades para a sua habitação. Redigidos pelos nossos especialistas.
+          </p>
+          <p className="mt-3 text-sm text-text-muted/80 max-w-2xl">
+            ℹ️ Os artigos abaixo estão atualmente disponíveis em francês. Versão portuguesa em breve.
           </p>
         </div>
       </section>
@@ -366,10 +369,10 @@ export default async function BlogPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
-              { value: `${articlesFR.length}+`, label: 'Articles publiés' },
-              { value: '5', label: 'Catégories' },
-              { value: '100%', label: 'Contenu gratuit' },
-              { value: '2026', label: 'Mis à jour' },
+              { value: `${articlesFR.length}+`, label: 'Artigos publicados' },
+              { value: '5', label: 'Categorias' },
+              { value: '100%', label: 'Conteúdo gratuito' },
+              { value: '2026', label: 'Atualizado' },
             ].map(stat => (
               <div key={stat.label}>
                 <span className="font-display text-2xl md:text-3xl font-extrabold text-yellow">{stat.value}</span>
@@ -394,7 +397,7 @@ export default async function BlogPage() {
               <div className="p-8 md:p-10 flex flex-col justify-center">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="bg-yellow text-dark text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    À la une
+                    Em destaque
                   </span>
                   <span className="bg-yellow/10 border border-yellow/25 text-dark text-xs font-semibold px-2.5 py-1 rounded-full">
                     {articlesFR[0].categorie}
@@ -405,7 +408,7 @@ export default async function BlogPage() {
                 </h2>
                 <p className="text-text-muted leading-relaxed mb-6">{articlesFR[0].extrait}</p>
                 <span className="inline-flex items-center gap-2 text-yellow font-display font-bold text-sm group-hover:gap-3 transition-all">
-                  Lire l&apos;article complet
+                  Ler o artigo (FR)
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </span>
               </div>
@@ -420,7 +423,7 @@ export default async function BlogPage() {
           <div className="flex items-center gap-3 mb-8">
             <span className="text-2xl">📚</span>
             <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark">
-              Tous les articles
+              Todos os artigos
             </h2>
           </div>
 
@@ -446,7 +449,7 @@ export default async function BlogPage() {
                   </h2>
                   <p className="text-text-muted text-sm leading-relaxed">{article.extrait}</p>
                   <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-yellow">Lire la suite</span>
+                    <span className="text-sm font-semibold text-yellow">Ler mais (FR)</span>
                     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" className="text-yellow"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </div>
                 </div>
@@ -460,16 +463,16 @@ export default async function BlogPage() {
       <section className="py-16 md:py-20 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
-            Besoin d&apos;un artisan maintenant ?
+            Precisa de um profissional agora?
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">
-            Trouvez des artisans vérifiés près de chez vous pour tous vos travaux.
+            Encontre profissionais verificados perto de si para todas as suas obras.
           </p>
           <Link
-            href="/recherche"
+            href="/pt/pesquisar/"
             className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
           >
-            Trouver un artisan près de chez moi
+            Encontrar profissional perto de mim
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </Link>
         </div>
