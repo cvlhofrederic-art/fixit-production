@@ -90,4 +90,30 @@ describe('lib/supabase-clients', () => {
     const req = { headers: { get: () => 'Bearer bad-token' } } as unknown as import('next/server').NextRequest
     expect(await authenticateRequest(req)).toBeNull()
   })
+
+  it('getAuthedClient throws on empty token', async () => {
+    const { getAuthedClient } = await import('@/lib/supabase-clients')
+    expect(() => getAuthedClient('')).toThrow(/without a token/)
+  })
+
+  it('getAuthedClient passes Bearer header to createClient', async () => {
+    const { getAuthedClient } = await import('@/lib/supabase-clients')
+    getAuthedClient('jwt.value')
+    expect(createClientMock).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'anon-key',
+      expect.objectContaining({
+        global: expect.objectContaining({
+          headers: { Authorization: 'Bearer jwt.value' },
+        }),
+        auth: expect.objectContaining({ persistSession: false, autoRefreshToken: false }),
+      })
+    )
+  })
+
+  it('getAuthedClient throws when anon key is missing', async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const { getAuthedClient } = await import('@/lib/supabase-clients')
+    expect(() => getAuthedClient('jwt.value')).toThrow(/NEXT_PUBLIC_SUPABASE_ANON_KEY/)
+  })
 })

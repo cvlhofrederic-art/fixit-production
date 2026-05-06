@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
-import { getAdminClient, authenticateRequest } from '@/lib/supabase-clients'
+import { getAdminClient, authenticateRequest, getAuthedClient, getBearerToken } from '@/lib/supabase-clients'
 
 const getAdmin = getAdminClient
 const auth = authenticateRequest
@@ -45,8 +45,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { id } = await params
     if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
+    const token = getBearerToken(req)
     const user = await auth(req)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user || !token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
     const { type_demande, date_debut, date_fin, prix_propose } = body
@@ -54,13 +55,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!type_demande || !['achat', 'location'].includes(type_demande)) return NextResponse.json({ error: 'type_demande requis (achat ou location)' }, { status: 400 })
     if (prix_propose !== undefined && (typeof prix_propose !== 'number' || prix_propose < 0)) return NextResponse.json({ error: 'prix_propose invalide' }, { status: 400 })
 
-    // Vérifier que l'acheteur n'est pas le vendeur
+    // Listing lookup is a public read (RLS allows status<>'deleted'); admin
+    // is fine here and lets us read regardless of paused/deleted state.
     const { data: listing } = await getAdmin()
       .from('marketplace_listings').select('user_id, title, vendeur_nom').eq('id', id).single()
     if (!listing) return NextResponse.json({ error: 'Annonce introuvable' }, { status: 404 })
     if (listing.user_id === user.id) return NextResponse.json({ error: 'Vous ne pouvez pas contacter votre propre annonce' }, { status: 400 })
 
-    const { data: demande, error } = await getAdmin()
+    // Insert demande via the buyer's JWT so RLS policy
+    // `marketplace_demandes_insert` (auth.uid() = buyer_user_id) gates it.
+    const { data: demande, error } = await getAuthedClient(token)
       .from('marketplace_demandes')
       .insert({ listing_id: id, buyer_user_id: user.id, type_demande, date_debut, date_fin, message, prix_propose })
       .select()
@@ -91,8 +95,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     if (!VALID_UUID.test(id)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 })
+    const token = getBearerToken(req)
     const user = await auth(req)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user || !token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { demande_id, status, reponse_vendeur } = await req.json()
     if (!demande_id || !status) return NextResponse.json({ error: 'demande_id et status requis' }, { status: 400 })
@@ -102,12 +107,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Statut invalide' }, { status: 400 })
     }
 
-    // Vérifier que c'est bien le vendeur
+    // App-level seller check, mirrored by RLS policy
+    // `marketplace_demandes_update` (auth.uid() IN (buyer | listing.user_id)).
     const { data: listing } = await getAdmin()
       .from('marketplace_listings').select('user_id').eq('id', id).single()
     if (!listing || listing.user_id !== user.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
 
-    const { data, error } = await getAdmin()
+    const { data, error } = await getAuthedClient(token)
       .from('marketplace_demandes')
       .update({ status, reponse_vendeur })
       .eq('id', demande_id)

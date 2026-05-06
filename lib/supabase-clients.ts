@@ -43,6 +43,22 @@ export function getAnonClient(): SupabaseClient {
   return createClient(url, anonKey)
 }
 
+/**
+ * Returns an anon client with the user's JWT attached to every request.
+ * RLS policies that reference auth.uid() will then enforce tenant isolation.
+ * Use this for any user-scoped mutation that has matching RLS policies —
+ * it is the safe replacement for getAdminClient() on those paths.
+ */
+export function getAuthedClient(token: string): SupabaseClient {
+  const { url, anonKey } = readEnv()
+  if (!url || !anonKey) throw new Error('Missing Supabase env vars (NEXT_PUBLIC_SUPABASE_ANON_KEY)')
+  if (!token) throw new Error('getAuthedClient called without a token')
+  return createClient(url, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
 export function getBearerToken(req: NextRequest): string | null {
   const header = req.headers.get('authorization')
   if (!header) return null
