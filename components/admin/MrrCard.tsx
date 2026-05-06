@@ -32,7 +32,22 @@ function formatEuros(cents: number): string {
   }).format(cents / 100)
 }
 
-export function MrrCard({ getToken }: { getToken: () => Promise<string> }) {
+function renderMrrValue(loading: boolean, data: MrrPayload | null): string {
+  if (loading) return '…'
+  if (!data?.available) return '—'
+  if (data.latest) return formatEuros(data.latest.mrr_cents)
+  return '0 €'
+}
+
+function renderMrrLabel(error: string | null, available: boolean): string {
+  if (error) return `MRR (erreur: ${error})`
+  if (available) return 'MRR (snapshot quotidien)'
+  return 'MRR (migration 100 à appliquer)'
+}
+
+type MrrCardProps = Readonly<{ getToken: () => Promise<string> }>
+
+export function MrrCard({ getToken }: MrrCardProps) {
   const [data, setData] = useState<MrrPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +76,8 @@ export function MrrCard({ getToken }: { getToken: () => Promise<string> }) {
     }
   }, [getToken])
 
+  const available = data?.available === true
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
@@ -72,14 +89,10 @@ export function MrrCard({ getToken }: { getToken: () => Promise<string> }) {
         )}
       </div>
       <div className="text-2xl font-bold text-white">
-        {loading ? '…' : !data?.available ? '—' : data.latest ? formatEuros(data.latest.mrr_cents) : '0 €'}
+        {renderMrrValue(loading, data)}
       </div>
       <div className="text-xs text-gray-500 mt-1">
-        {error
-          ? `MRR (erreur: ${error})`
-          : !data?.available
-          ? 'MRR (migration 100 à appliquer)'
-          : 'MRR (snapshot quotidien)'}
+        {renderMrrLabel(error, available)}
       </div>
     </div>
   )

@@ -1,27 +1,43 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { NextRequest } from 'next/server'
 
+// ── Spies that the tests configure per-scenario ─────────────────────────────
 const adminInsert = vi.fn()
 const authedInsert = vi.fn()
 const authedUpdate = vi.fn()
 const adminSelectListing = vi.fn()
 const adminInsertNotification = vi.fn()
 
-const adminFromMock = vi.fn().mockImplementation((table: string) => {
-  if (table === 'marketplace_listings') {
-    return {
-      select: () => ({
-        eq: () => ({
-          single: () => adminSelectListing(),
-        }),
-      }),
-    }
+// ── Tiny chainable mock helper (flatten deep .select().eq()...().single()) ──
+// Returns a node where every chain method (select/eq/...) yields the same node
+// and `single` calls the supplied terminal. Bypasses SonarCloud's "do not nest
+// functions more than 4 levels" rule by replacing the cascade with one factory.
+function makeChain(terminal: () => unknown) {
+  const node: Record<string, unknown> = {}
+  for (const k of ['select', 'eq']) node[k] = () => node
+  node.single = terminal
+  return node
+}
+
+function adminListingTable() {
+  return makeChain(() => adminSelectListing())
+}
+
+function authedRowMutationTable() {
+  return {
+    insert: (payload: unknown) => makeChain(() => authedInsert(payload)),
+    update: (payload: unknown) => makeChain(() => authedUpdate(payload)),
   }
+}
+
+const adminFromMock = vi.fn().mockImplementation((table: string) => {
+  if (table === 'marketplace_listings') return adminListingTable()
   if (table === 'artisan_notifications') {
     return {
+      // Real Promise — never a thenable object literal (SonarCloud S4123).
       insert: (payload: unknown) => {
         adminInsertNotification(payload)
-        return { then: (cb: () => void) => cb() }
+        return Promise.resolve({ data: null, error: null })
       },
     }
   }
@@ -29,41 +45,8 @@ const adminFromMock = vi.fn().mockImplementation((table: string) => {
 })
 
 const authedFromMock = vi.fn().mockImplementation((table: string) => {
-  if (table === 'marketplace_listings') {
-    return {
-      insert: (payload: unknown) => ({
-        select: () => ({
-          single: () => authedInsert(payload),
-        }),
-      }),
-      update: (payload: unknown) => ({
-        eq: () => ({
-          eq: () => ({
-            select: () => ({
-              single: () => authedUpdate(payload),
-            }),
-          }),
-        }),
-      }),
-    }
-  }
-  if (table === 'marketplace_demandes') {
-    return {
-      insert: (payload: unknown) => ({
-        select: () => ({
-          single: () => authedInsert(payload),
-        }),
-      }),
-      update: (payload: unknown) => ({
-        eq: () => ({
-          eq: () => ({
-            select: () => ({
-              single: () => authedUpdate(payload),
-            }),
-          }),
-        }),
-      }),
-    }
+  if (table === 'marketplace_listings' || table === 'marketplace_demandes') {
+    return authedRowMutationTable()
   }
   return {}
 })
@@ -105,6 +88,10 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// ── Request builders (https-only to satisfy SonarCloud S5332) ───────────────
+const FAKE_ID = '11111111-1111-4111-8111-111111111111'
+const ROOT = 'https://test.local/api/marketplace-btp'
+
 function jsonRequest(url: string, method: string, body: unknown, token?: string): NextRequest {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
@@ -115,38 +102,42 @@ function jsonRequest(url: string, method: string, body: unknown, token?: string)
   }) as unknown as NextRequest
 }
 
+const params = (id: string) => ({ params: Promise.resolve({ id }) })
+
+// ── Tests ───────────────────────────────────────────────────────────────────
+
 describe('POST /api/marketplace-btp', () => {
   it('returns 401 when Bearer token is absent', async () => {
     const { POST } = await import('@/app/api/marketplace-btp/route')
-    const res = await POST(jsonRequest('http://t/api/marketplace-btp', 'POST', { title: 'x' }))
+    const res = await POST(jsonRequest(ROOT, 'POST', { title: 'x' }))
     expect(res.status).toBe(401)
   })
 
   it('returns 401 when token is invalid', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: null }, error: { message: 'invalid' } })
     const { POST } = await import('@/app/api/marketplace-btp/route')
-    const res = await POST(jsonRequest('http://t/api/marketplace-btp', 'POST', { title: 'x' }, 'bad'))
+    const res = await POST(jsonRequest(ROOT, 'POST', { title: 'x' }, 'bad'))
     expect(res.status).toBe(401)
   })
 
   it('returns 400 on invalid Zod payload', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
     const { POST } = await import('@/app/api/marketplace-btp/route')
-    const res = await POST(jsonRequest('http://t/api/marketplace-btp', 'POST', { foo: 'bar' }, 'jwt'))
+    const res = await POST(jsonRequest(ROOT, 'POST', { foo: 'bar' }, 'jwt'))
     expect(res.status).toBe(400)
   })
 
   it('insert goes through getAuthedClient (RLS-protected) on happy path', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
     authedInsert.mockResolvedValueOnce({ data: { id: 'L1' }, error: null })
-    const { POST } = await import('@/app/api/marketplace-btp/route')
     const valid = {
       title: 'Mini-pelle 1.5T',
       categorie: 'mini_engins',
       type_annonce: 'location',
       etat: 'bon',
     }
-    const res = await POST(jsonRequest('http://t/api/marketplace-btp', 'POST', valid, 'jwt'))
+    const { POST } = await import('@/app/api/marketplace-btp/route')
+    const res = await POST(jsonRequest(ROOT, 'POST', valid, 'jwt'))
     expect(res.status).toBe(201)
     const sb = await import('@/lib/supabase-clients')
     expect(sb.getAuthedClient).toHaveBeenCalledWith('jwt')
@@ -157,19 +148,15 @@ describe('POST /api/marketplace-btp', () => {
 describe('PUT /api/marketplace-btp/[id]', () => {
   it('returns 401 when Bearer token is absent', async () => {
     const { PUT } = await import('@/app/api/marketplace-btp/[id]/route')
-    const id = '11111111-1111-4111-8111-111111111111'
-    const res = await PUT(
-      jsonRequest(`http://t/api/marketplace-btp/${id}`, 'PUT', { title: 'x' }),
-      { params: Promise.resolve({ id }) }
-    )
+    const res = await PUT(jsonRequest(`${ROOT}/${FAKE_ID}`, 'PUT', { title: 'x' }), params(FAKE_ID))
     expect(res.status).toBe(401)
   })
 
   it('returns 400 on invalid UUID', async () => {
     const { PUT } = await import('@/app/api/marketplace-btp/[id]/route')
     const res = await PUT(
-      jsonRequest('http://t/api/marketplace-btp/not-a-uuid', 'PUT', { title: 'x' }, 'jwt'),
-      { params: Promise.resolve({ id: 'not-a-uuid' }) }
+      jsonRequest(`${ROOT}/not-a-uuid`, 'PUT', { title: 'x' }, 'jwt'),
+      params('not-a-uuid')
     )
     expect(res.status).toBe(400)
   })
@@ -177,12 +164,8 @@ describe('PUT /api/marketplace-btp/[id]', () => {
   it('update routes through getAuthedClient (RLS-protected)', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
     authedUpdate.mockResolvedValueOnce({ data: { id: 'L1', title: 'New' }, error: null })
-    const id = '11111111-1111-4111-8111-111111111111'
     const { PUT } = await import('@/app/api/marketplace-btp/[id]/route')
-    const res = await PUT(
-      jsonRequest(`http://t/api/marketplace-btp/${id}`, 'PUT', { title: 'New' }, 'jwt'),
-      { params: Promise.resolve({ id }) }
-    )
+    const res = await PUT(jsonRequest(`${ROOT}/${FAKE_ID}`, 'PUT', { title: 'New' }, 'jwt'), params(FAKE_ID))
     expect(res.status).toBe(200)
     const sb = await import('@/lib/supabase-clients')
     expect(sb.getAuthedClient).toHaveBeenCalledWith('jwt')
@@ -192,11 +175,7 @@ describe('PUT /api/marketplace-btp/[id]', () => {
 describe('DELETE /api/marketplace-btp/[id]', () => {
   it('returns 401 when Bearer token is absent', async () => {
     const { DELETE } = await import('@/app/api/marketplace-btp/[id]/route')
-    const id = '11111111-1111-4111-8111-111111111111'
-    const res = await DELETE(
-      jsonRequest(`http://t/api/marketplace-btp/${id}`, 'DELETE', {}),
-      { params: Promise.resolve({ id }) }
-    )
+    const res = await DELETE(jsonRequest(`${ROOT}/${FAKE_ID}`, 'DELETE', {}), params(FAKE_ID))
     expect(res.status).toBe(401)
   })
 })
@@ -204,22 +183,17 @@ describe('DELETE /api/marketplace-btp/[id]', () => {
 describe('POST /api/marketplace-btp/[id]/demande', () => {
   it('returns 401 when Bearer token is absent', async () => {
     const { POST } = await import('@/app/api/marketplace-btp/[id]/demande/route')
-    const id = '11111111-1111-4111-8111-111111111111'
-    const res = await POST(
-      jsonRequest(`http://t/api/marketplace-btp/${id}/demande`, 'POST', {}),
-      { params: Promise.resolve({ id }) }
-    )
+    const res = await POST(jsonRequest(`${ROOT}/${FAKE_ID}/demande`, 'POST', {}), params(FAKE_ID))
     expect(res.status).toBe(401)
   })
 
   it('rejects buyer == seller (cannot apply to your own listing)', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'owner' } }, error: null })
     adminSelectListing.mockResolvedValueOnce({ data: { user_id: 'owner', title: 'X', vendeur_nom: 'A' } })
-    const id = '11111111-1111-4111-8111-111111111111'
     const { POST } = await import('@/app/api/marketplace-btp/[id]/demande/route')
     const res = await POST(
-      jsonRequest(`http://t/api/marketplace-btp/${id}/demande`, 'POST', { type_demande: 'location' }, 'jwt'),
-      { params: Promise.resolve({ id }) }
+      jsonRequest(`${ROOT}/${FAKE_ID}/demande`, 'POST', { type_demande: 'location' }, 'jwt'),
+      params(FAKE_ID)
     )
     expect(res.status).toBe(400)
   })
@@ -228,16 +202,15 @@ describe('POST /api/marketplace-btp/[id]/demande', () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'buyer' } }, error: null })
     adminSelectListing.mockResolvedValueOnce({ data: { user_id: 'seller', title: 'X', vendeur_nom: 'A' } })
     authedInsert.mockResolvedValueOnce({ data: { id: 'D1' }, error: null })
-    const id = '11111111-1111-4111-8111-111111111111'
     const { POST } = await import('@/app/api/marketplace-btp/[id]/demande/route')
     const res = await POST(
-      jsonRequest(`http://t/api/marketplace-btp/${id}/demande`, 'POST', { type_demande: 'location' }, 'jwt'),
-      { params: Promise.resolve({ id }) }
+      jsonRequest(`${ROOT}/${FAKE_ID}/demande`, 'POST', { type_demande: 'location' }, 'jwt'),
+      params(FAKE_ID)
     )
     expect(res.status).toBe(201)
     const sb = await import('@/lib/supabase-clients')
     expect(sb.getAuthedClient).toHaveBeenCalledWith('jwt')
-    expect(authedInsert).toHaveBeenCalledWith(expect.objectContaining({ buyer_user_id: 'buyer', listing_id: id }))
+    expect(authedInsert).toHaveBeenCalledWith(expect.objectContaining({ buyer_user_id: 'buyer', listing_id: FAKE_ID }))
   })
 })
 
@@ -245,11 +218,10 @@ describe('PATCH /api/marketplace-btp/[id]/demande', () => {
   it('returns 403 when caller is not the listing owner', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'someone-else' } }, error: null })
     adminSelectListing.mockResolvedValueOnce({ data: { user_id: 'real-owner' } })
-    const id = '11111111-1111-4111-8111-111111111111'
     const { PATCH } = await import('@/app/api/marketplace-btp/[id]/demande/route')
     const res = await PATCH(
-      jsonRequest(`http://t/api/marketplace-btp/${id}/demande`, 'PATCH', { demande_id: 'D1', status: 'accepted' }, 'jwt'),
-      { params: Promise.resolve({ id }) }
+      jsonRequest(`${ROOT}/${FAKE_ID}/demande`, 'PATCH', { demande_id: 'D1', status: 'accepted' }, 'jwt'),
+      params(FAKE_ID)
     )
     expect(res.status).toBe(403)
   })

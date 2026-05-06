@@ -42,7 +42,7 @@ beforeEach(() => {
 })
 
 function makeRequest(): Request {
-  return new Request('http://localhost/api/admin/revenue', { method: 'GET' })
+  return new Request('https://test.local/api/admin/revenue', { method: 'GET' })
 }
 
 describe('GET /api/admin/revenue', () => {

@@ -45,7 +45,7 @@ afterEach(() => {
 })
 
 function makeRequest(headers: Record<string, string> = {}): Request {
-  return new Request('http://localhost/api/cron/snapshot-revenue', {
+  return new Request('https://test.local/api/cron/snapshot-revenue', {
     method: 'POST',
     headers,
   })
