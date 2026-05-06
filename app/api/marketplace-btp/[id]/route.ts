@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { VALID_UUID } from '@/lib/validation'
-import { getAdminClient, getAnonClient } from '@/lib/supabase-clients'
+import { getAdminClient, getAnonClient, getAuthedClient } from '@/lib/supabase-clients'
 
 const marketplaceUpdateSchema = z.object({
   title: z.string().max(200).optional(),
@@ -101,7 +101,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const AE_CATS = ['mini_engins', 'materiel_leger']
     if (body.categorie && typeof body.categorie === 'string') body.accessible_ae = AE_CATS.includes(body.categorie)
 
-    const { data, error } = await getAdmin()
+    // Use the user's JWT so RLS policy `marketplace_listings_update`
+    // (auth.uid() = user_id) enforces ownership at the DB layer.
+    // Defence-in-depth: keep .eq('user_id', user.id) — if RLS is ever
+    // misconfigured, the equality filter still blocks cross-tenant edits.
+    const { data, error } = await getAuthedClient(token)
       .from('marketplace_listings')
       .update(body)
       .eq('id', id)
@@ -128,7 +132,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { data: { user }, error: authErr } = await getAnon().auth.getUser(token)
     if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { error } = await getAdmin()
+    // Soft delete via RLS-protected UPDATE (auth.uid() = user_id).
+    const { error } = await getAuthedClient(token)
       .from('marketplace_listings')
       .update({ status: 'deleted' })
       .eq('id', id)

@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import type { CreateListingPayload } from '@/lib/marketplace-btp-types'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { getAdminClient, getAnonClient } from '@/lib/supabase-clients'
+import { getAdminClient, getAnonClient, getAuthedClient } from '@/lib/supabase-clients'
 
 const MARKETPLACE_CATEGORIE_IDS = [
   'engins_tp', 'grues_levage', 'camions', 'echafaudages', 'outillage_pro',
@@ -106,7 +106,9 @@ export async function POST(req: NextRequest) {
     const AE_CATS = ['mini_engins', 'materiel_leger']
     const accessible_ae = AE_CATS.includes(body.categorie)
 
-    const { data, error } = await getAdmin()
+    // Use the user's JWT so RLS policy `marketplace_listings_insert`
+    // (auth.uid() = user_id) enforces ownership at the DB layer.
+    const { data, error } = await getAuthedClient(token)
       .from('marketplace_listings')
       .insert({
         user_id: user.id,
