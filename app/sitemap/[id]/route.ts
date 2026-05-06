@@ -22,8 +22,9 @@ import {
   getAllFrUrgencyCombos,
 } from '@/lib/data/fr-seo-pages-data'
 
-export const runtime = 'edge'
-export const revalidate = 3600
+// runtime='nodejs' aligné avec le reste du codebase (cf. app/sitemap.xml/route.ts).
+// 'edge' causait un 500 Internal Server Error sur OpenNext + Cloudflare Workers.
+export const runtime = 'nodejs'
 
 const SIM_CITIES = [
   'marseille', 'aix-en-provence', 'aubagne', 'la-ciotat', 'cassis',
