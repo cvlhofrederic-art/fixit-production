@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { SERVICES, CITIES, type ServiceData, type CityData } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 
 // ─────────────────────────────────────────────────────────────
 // SLUG RESOLVER
@@ -173,7 +174,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         : {
             '@type': 'Service',
             name: `${displayName} Perto de Mim`,
-            description: `Encontre profissionais de ${displayName.toLowerCase()} verificados perto de si no Tâmega e Sousa.`,
+            description: `Encontre ${pluralizar(displayName)} verificados perto de si no Tâmega e Sousa.`,
             provider: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },
             areaServed: CITIES.map(c => ({ '@type': 'City', name: c.name })),
             serviceType: displayName,
@@ -200,7 +201,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
             acceptedAnswer: {
               '@type': 'Answer',
               text: city
-                ? `Na VITFIX, temos profissionais de ${displayName.toLowerCase()} que cobrem todas as freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} habitantes). Contacte-nos via WhatsApp ou telefone para uma resposta imediata.`
+                ? `Na VITFIX, temos ${pluralizar(displayName)} que cobrem todas as freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} habitantes). Contacte-nos via WhatsApp ou telefone para uma resposta imediata.`
                 : `Na VITFIX, basta selecionar o serviço de ${displayName.toLowerCase()} e indicar a sua localização. Apresentamos profissionais verificados disponíveis na sua zona, com orçamento grátis e sem compromisso.`,
             },
           },
@@ -219,7 +220,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               '@type': 'Answer',
               text: isPicheleiro
                 ? `"Picheleiro" é o nome regional no Norte de Portugal (especialmente no Tâmega e Sousa) para o que no resto do país se chama "canalizador". É o mesmo profissional — faz reparações de canalização, fugas de água, entupimentos e instalações. Na VITFIX, os nossos picheleiros/canalizadores cobrem ${CITIES.map(c => c.name).join(', ')}.`
-                : `O custo varia conforme o tipo de serviço. Na VITFIX, o orçamento é sempre gratuito e sem compromisso. Os nossos profissionais de ${displayName.toLowerCase()} apresentam preços transparentes antes de iniciar qualquer trabalho.`,
+                : `O custo varia conforme o tipo de serviço. Na VITFIX, o orçamento é sempre gratuito e sem compromisso. Os nossos ${pluralizar(displayName)} apresentam preços transparentes antes de iniciar qualquer trabalho.`,
             },
           },
         ],
@@ -268,8 +269,8 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
 
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             {city
-              ? `Profissional de ${displayName.toLowerCase()} disponível perto de si em ${city.name} e em todas as suas ${city.freguesias.length} freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
-              : `Encontre profissionais de ${displayName.toLowerCase()} verificados perto de si no Tâmega e Sousa. Resposta rápida, orçamento grátis, serviço 7 dias por semana.${isPicheleiro ? ' (Picheleiro = canalizador no Norte de Portugal)' : ''}`
+              ? `Encontre o seu ${displayName.toLowerCase()} de confiança perto de si em ${city.name} e em todas as suas ${city.freguesias.length} freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
+              : `Encontre ${pluralizar(displayName)} verificados perto de si no Tâmega e Sousa. Resposta rápida, orçamento grátis, serviço 7 dias por semana.${isPicheleiro ? ' (Picheleiro = canalizador no Norte de Portugal)' : ''}`
             }
           </p>
 
@@ -348,7 +349,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               {displayName} perto de si — Escolha a sua cidade
             </h2>
             <p className="text-text-muted mb-8 max-w-2xl">
-              Selecione a sua cidade para ver profissionais de {displayName.toLowerCase()} disponíveis perto de si. Cobrimos toda a região do Tâmega e Sousa.
+              Selecione a sua cidade para ver {pluralizar(displayName)} disponíveis perto de si. Cobrimos toda a região do Tâmega e Sousa.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {CITIES.map(c => (
@@ -530,7 +531,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               </summary>
               <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
                 {city
-                  ? `Na VITFIX, temos profissionais de ${displayName.toLowerCase()} que cobrem todas as freguesias de ${city.name}. O mais rápido é contactar-nos via WhatsApp — respondemos em ${service.urgency.avgResponseTime}.`
+                  ? `Na VITFIX, temos ${pluralizar(displayName)} que cobrem todas as freguesias de ${city.name}. O mais rápido é contactar-nos via WhatsApp — respondemos em ${service.urgency.avgResponseTime}.`
                   : `Na VITFIX, basta indicar a sua localização. Apresentamos-lhe profissionais verificados disponíveis na sua zona. Pode também contactar-nos diretamente via WhatsApp ou telefone para uma resposta imediata.`
                 }
               </div>
