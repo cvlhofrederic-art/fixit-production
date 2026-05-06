@@ -4,27 +4,7 @@ import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
-// Plurais corretos em português europeu
-const PLURAIS: Record<string, string> = {
-  'Eletricista': 'eletricistas',
-  'Canalizador': 'canalizadores',
-  'Pintor': 'pintores',
-  'Pladur e Tetos Falsos': 'profissionais de pladur',
-  'Obras e Remodelação': 'profissionais de obras',
-  'Isolamento Térmico e Capoto': 'profissionais de isolamento',
-  'Impermeabilização': 'profissionais de impermeabilização',
-  'Desentupimento': 'profissionais de desentupimento',
-  'Faz Tudo': 'profissionais faz-tudo',
-  'Serralheiro': 'serralheiros',
-  'Telhado e Cobertura': 'profissionais de telhados',
-  'Vidraceiro': 'vidraceiros',
-  'Azulejador e Ladrilhador': 'azulejadores',
-  'Pedreiro e Alvenaria': 'pedreiros',
-  'Ar Condicionado': 'profissionais de ar condicionado',
-}
-function pluralizar(nome: string): string {
-  return PLURAIS[nome] || 'profissionais de ' + nome.toLowerCase()
-}
+import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 
 // ── Generate all 32 static pages (4 services × 8 cities) ──
 export function generateStaticParams() {

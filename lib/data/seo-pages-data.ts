@@ -2501,7 +2501,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Como Garantir Manutenção Rápida Entre Hóspedes',
-        content: 'Ter profissionais "on call" é essencial: 1-2 encanadores, 1-2 eletricistas, reparador de eletrodomésticos, pintor/renovador, serralheiro. Manutenção preventiva entre temporadas: inspecionar tomadas, torneiras, paredes, filtros AC, aquecimento. Sistema de alerta rápido: treinar hóspedes a reportar problemas imediatamente. Buffer de tempo entre reservas: 4 horas entre check-out e check-in permite resolver problemas calmamente.'
+        content: 'Ter profissionais "on call" é essencial: 1-2 canalizadores, 1-2 eletricistas, reparador de eletrodomésticos, pintor/renovador, serralheiro. Manutenção preventiva entre temporadas: inspecionar tomadas, torneiras, paredes, filtros AC, aquecimento. Sistema de alerta rápido: treinar hóspedes a reportar problemas imediatamente. Buffer de tempo entre reservas: 4 horas entre check-out e check-in permite resolver problemas calmamente.'
       },
       {
         heading: 'Quanto Custa a Manutenção de um Alojamento Local no Porto?',
@@ -2532,7 +2532,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'As 9 Classes de Alvará em Portugal',
-        content: 'Classe 1: trabalhos muito simples (pintura, limpeza). Classe 2: trabalhos simples (azulejaria). Classe 3: trabalhos correntes (renovação cozinhas, banheiros). Classe 4: especializados (estruturas). Classe 5: complexos (edifícios inteiros). Classe 6: instalações especiais (AVAC, energia solar). Classe 7: conservação (estruturas históricas). Classe 8: escavação. Classe 9: subaquáticos. Se contrata empreiteiro Classe 1 para renovação banheiro (Classe 3) — o trabalho é ilegal. Verifica sempre classe contra tipo de trabalho.'
+        content: 'Classe 1: trabalhos muito simples (pintura, limpeza). Classe 2: trabalhos simples (azulejaria). Classe 3: trabalhos correntes (renovação cozinhas, casas de banho). Classe 4: especializados (estruturas). Classe 5: complexos (edifícios inteiros). Classe 6: instalações especiais (AVAC, energia solar). Classe 7: conservação (estruturas históricas). Classe 8: escavação. Classe 9: subaquáticos. Se contrata empreiteiro Classe 1 para renovação de casa de banho (Classe 3) — o trabalho é ilegal. Verifica sempre classe contra tipo de trabalho.'
       },
       {
         heading: 'Como Verificar se um Empreiteiro Tem Alvará Válido',
