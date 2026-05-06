@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { SERVICES, CITIES, getAllPageCombos, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import HtmlSitemap from '@/components/seo/HtmlSitemap'
+import { buildBreadcrumbSchema, buildSchemaGraph } from '@/lib/schemas'
 
 export const metadata: Metadata = {
   title: 'Mapa do site VITFIX — Todas as nossas páginas serviços e cidades',
@@ -23,14 +24,12 @@ export const metadata: Metadata = {
   },
 }
 
-const breadcrumbSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-    { '@type': 'ListItem', position: 2, name: 'Mapa do site', item: 'https://vitfix.io/pt/mapa-do-site/' },
-  ],
-}
+const breadcrumbSchema = buildSchemaGraph(
+  buildBreadcrumbSchema([
+    { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+    { name: 'Mapa do site', url: 'https://vitfix.io/pt/mapa-do-site/' },
+  ]),
+)
 
 export default function MapaDoSitePage() {
   const combos = getAllPageCombos()

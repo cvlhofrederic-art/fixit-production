@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { BLOG_ARTICLES, getBlogArticle, SERVICES, CITIES } from '@/lib/data/seo-pages-data'
-import { buildArticleSchema } from '@/lib/schemas'
+import { buildArticleSchema, buildBreadcrumbSchema, buildFaqSchema } from '@/lib/schemas'
 
 // ── Generate static pages for all blog articles ──
 export function generateStaticParams() {
@@ -102,25 +102,17 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
         articleBody: articleBodyText,
         speakableSelectors: ['h1', 'h2', '.article-intro'],
       }),
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://vitfix.io/pt/blog/' },
-          { '@type': 'ListItem', position: 3, name: article.title, item: `https://vitfix.io/pt/blog/${slug}/` },
-        ],
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: article.sections.slice(0, 5).map(section => ({
-          '@type': 'Question',
-          name: section.heading,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: section.content.slice(0, 300) + '...',
-          },
+      buildBreadcrumbSchema([
+        { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+        { name: 'Blog', url: 'https://vitfix.io/pt/blog/' },
+        { name: article.title, url: `https://vitfix.io/pt/blog/${slug}/` },
+      ]),
+      buildFaqSchema(
+        article.sections.slice(0, 5).map(s => ({
+          question: s.heading,
+          answer: `${s.content.slice(0, 300)}...`,
         })),
-      },
+      ),
     ],
   }
 
