@@ -622,8 +622,8 @@ export default function ArtisanProfilePage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Artisan non trouvé</h1>
-          <a href="/fr/recherche" className="text-yellow hover:underline">
-            Retour à la recherche
+          <a href={isPt ? '/pt/pesquisar' : '/fr/recherche'} className="text-yellow hover:underline">
+            {t('Retour à la recherche', 'Voltar à pesquisa')}
           </a>
         </div>
       </div>
@@ -683,7 +683,7 @@ export default function ArtisanProfilePage() {
                         try {
                           const { supabase: sb } = await import('@/lib/supabase')
                           const { data: { session } } = await sb.auth.getSession()
-                          if (!session) { window.location.href = '/fr/login'; return }
+                          if (!session) { window.location.href = '/auth/login'; return }
                           if (isFavorited) {
                             await fetch(`/api/favorites?artisan_id=${artisan.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } })
                             setIsFavorited(false)
@@ -931,17 +931,17 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/' : '/fr/'} className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
-                Accueil
+                {t('Accueil', 'Início')}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <Link href="/fr/recherche" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/pesquisar' : '/fr/recherche'} className="hover:text-yellow transition flex items-center gap-1">
                 <Search className="w-3.5 h-3.5" />
-                Recherche
+                {t('Recherche', 'Pesquisa')}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-dark font-medium">Choisir le motif</span>
+              <span className="text-dark font-medium">{t('Choisir le motif', 'Escolher o motivo')}</span>
             </nav>
           </div>
         </div>
@@ -1293,9 +1293,9 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/' : '/fr/'} className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
-                Accueil
+                {t('Accueil', 'Início')}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
               <button
