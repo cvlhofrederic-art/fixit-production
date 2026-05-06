@@ -53,6 +53,8 @@ export interface BlogArticle {
   category: 'eletricidade' | 'canalizacao' | 'pintura' | 'pladur' | 'obras' | 'isolamento' | 'impermeabilizacao' | 'desentupimento' | 'manutencao'
   icon: string
   datePublished: string
+  /** Optional override; falls back to datePublished in JSON-LD if absent */
+  dateModified?: string
   intro: string
   sections: { heading: string; content: string }[]
   ctaText: string
