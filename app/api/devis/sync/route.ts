@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { computeDocumentTotalHtCents } from '@/lib/devis-totals'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
+import { captureServer } from '@/lib/posthog/server'
 
 export const maxDuration = 30
 
@@ -296,6 +297,18 @@ export async function POST(request: NextRequest) {
     // Pas de leak du detail interne au client (lib/auth-helpers convention).
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 })
   }
+
+  // Fire-and-forget PostHog capture — never blocks the user response.
+  void captureServer({
+    event: docType === 'facture' ? 'facture_created' : 'devis_created',
+    distinctId: artisanId,
+    properties: {
+      doc_type: docType,
+      numero: payload.numero,
+      status: payload.status,
+      total_ht_cents: payload.total_ht_cents,
+    },
+  })
 
   return NextResponse.json({
     id: (result.data as { id: string }).id,

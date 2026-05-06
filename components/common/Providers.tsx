@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import { hydrateStorageFromServer, installStorageSync, pushAllLocalToServer } from '@/lib/storage-sync'
 import { importLocalStorageDocsToSupabase } from '@/lib/document-sync'
 import { createClient } from '@supabase/supabase-js'
+import { PostHogProvider } from './PostHogProvider'
 
 interface ProvidersProps {
   children: ReactNode
@@ -107,10 +108,12 @@ function StorageSyncBoot() {
 
 export default function Providers({ children, locale }: ProvidersProps) {
   return (
-    <LanguageProvider initialLocale={locale}>
-      <StorageSyncBoot />
-      {children}
-      <Toaster position="top-right" richColors closeButton duration={5000} />
-    </LanguageProvider>
+    <PostHogProvider>
+      <LanguageProvider initialLocale={locale}>
+        <StorageSyncBoot />
+        {children}
+        <Toaster position="top-right" richColors closeButton duration={5000} />
+      </LanguageProvider>
+    </PostHogProvider>
   )
 }

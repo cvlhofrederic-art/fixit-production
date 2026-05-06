@@ -109,15 +109,20 @@ function startFlushTimer(): void {
 
 /**
  * Track a custom event. Silently no-ops when consent is not given.
+ *
+ * Side-effect: also forwards to PostHog when the SDK is wired (and
+ * consented). The forward is fire-and-forget — analytics must never
+ * block or throw into the call-site.
  */
 export function trackEvent(type: EventType, properties: Record<string, unknown> = {}): void {
   if (!isConsentGiven()) return
 
+  const mergedProps = { ..._userTraits, ...properties }
   const event: AnalyticsEvent = {
     event_type: type,
     user_id: _userId,
     session_id: getSessionId(),
-    properties: { ..._userTraits, ...properties },
+    properties: mergedProps,
     timestamp: new Date().toISOString(),
     page_url: typeof window !== 'undefined' ? window.location.href : '',
     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
@@ -127,6 +132,19 @@ export function trackEvent(type: EventType, properties: Record<string, unknown> 
   startFlushTimer()
 
   if (queue.length >= MAX_QUEUE_SIZE) flush()
+
+  // Bridge to PostHog. Dynamic import keeps the SDK out of the bundle for
+  // pages that never call trackEvent (e.g. unauthenticated SEO pages).
+  void forwardToPostHog(type, mergedProps)
+}
+
+async function forwardToPostHog(type: EventType, properties: Record<string, unknown>): Promise<void> {
+  try {
+    const mod = await import('@/lib/posthog/client')
+    await mod.capture(type, properties)
+  } catch {
+    // Bridge is best-effort — never break the call-site.
+  }
 }
 
 /**
@@ -146,6 +164,7 @@ export function trackPageView(extraProps: Record<string, unknown> = {}): void {
 export function identifyUser(userId: string, traits?: Record<string, unknown>): void {
   _userId = userId
   if (traits) _userTraits = { ...traits }
+  void forwardIdentifyToPostHog(userId, traits ?? {})
 }
 
 /**
@@ -154,4 +173,23 @@ export function identifyUser(userId: string, traits?: Record<string, unknown>): 
 export function resetUser(): void {
   _userId = undefined
   _userTraits = {}
+  void forwardResetToPostHog()
+}
+
+async function forwardIdentifyToPostHog(userId: string, traits: Record<string, unknown>): Promise<void> {
+  try {
+    const mod = await import('@/lib/posthog/client')
+    await mod.identify(userId, traits)
+  } catch {
+    /* best-effort */
+  }
+}
+
+async function forwardResetToPostHog(): Promise<void> {
+  try {
+    const mod = await import('@/lib/posthog/client')
+    await mod.reset()
+  } catch {
+    /* best-effort */
+  }
 }

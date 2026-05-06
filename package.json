@@ -63,6 +63,8 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.59.1",
+    "posthog-js": "^1.372.9",
+    "posthog-node": "^5.33.3",
     "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
