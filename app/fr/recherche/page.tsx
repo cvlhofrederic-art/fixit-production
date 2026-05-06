@@ -727,6 +727,10 @@ function RechercheContent() {
     else if (e.key === 'Escape') { setLocDropOpen(false); setLocHighlight(-1) }
   }
 
+  // Path locale-aware : la page est servie sur /fr/recherche/ ET /pt/pesquisar/.
+  // On préserve la locale active dans l'URL pour ne pas renvoyer un user PT sur /fr/.
+  const searchBasePath = siteLocale === 'pt' ? '/pt/pesquisar' : '/fr/recherche'
+
   const handleSearch = () => {
     setActiveCategory(categoryInput)
     setActiveLocation(locationInput)
@@ -735,7 +739,7 @@ function RechercheContent() {
     const params = new URLSearchParams()
     if (categoryInput) params.set('category', categoryInput)
     if (locationInput) params.set('loc', locationInput)
-    router.push(`/fr/recherche?${params.toString()}`)
+    router.push(`${searchBasePath}?${params.toString()}`)
 
     fetchData(categoryInput, locationInput)
   }
@@ -799,7 +803,7 @@ function RechercheContent() {
           setActiveCategory(categoryInput)
           const params = new URLSearchParams()
           if (categoryInput) params.set('category', categoryInput)
-          router.push(`/fr/recherche?${params.toString()}`)
+          router.push(`${searchBasePath}?${params.toString()}`)
           fetchData(categoryInput, '')
         }, 100)
       },
@@ -990,8 +994,8 @@ function RechercheContent() {
               tp('Recherche en cours...', 'A pesquisar...')
             ) : (
               siteLocale === 'pt'
-                ? <>{filteredArtisans.length} profissional{filteredArtisans.length !== 1 ? 'is' : ''} disponível{filteredArtisans.length !== 1 ? 'eis' : ''}</>
-                : <>{filteredArtisans.length} artisan{filteredArtisans.length !== 1 ? 's' : ''} disponible{filteredArtisans.length !== 1 ? 's' : ''}</>
+                ? <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'profissionais disponíveis' : 'profissional disponível'}</>
+                : <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'artisans disponibles' : 'artisan disponible'}</>
             )}
           </h1>
           {!loading && (
@@ -1176,7 +1180,7 @@ function RechercheContent() {
                 setActiveCategory('')
                 setActiveLocation('')
                 fetchData('', '')
-                router.push('/fr/recherche')
+                router.push(searchBasePath)
               }}
               className="bg-yellow hover:bg-yellow-light text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >
