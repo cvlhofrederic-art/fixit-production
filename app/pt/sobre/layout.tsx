@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { buildAboutPageSchema } from '@/lib/schemas'
 
 export const metadata: Metadata = {
   title: 'Sobre a VITFIX | A nossa missão',
@@ -21,23 +22,13 @@ export const metadata: Metadata = {
   },
 }
 
-// AboutPage schema PT — pointe via mainEntity.@id vers l'Organization
-// globale (entity SEO 2026 Knowledge Graph linking).
-const aboutSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'AboutPage',
-  '@id': 'https://vitfix.io/pt/sobre/#aboutpage',
+const aboutSchema = buildAboutPageSchema({
+  locale: 'pt',
   url: 'https://vitfix.io/pt/sobre/',
-  inLanguage: 'pt-PT',
-  mainEntity: { '@id': 'https://vitfix.io/#business' },
-  breadcrumb: {
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-      { '@type': 'ListItem', position: 2, name: 'Sobre', item: 'https://vitfix.io/pt/sobre/' },
-    ],
-  },
-}
+  homeUrl: 'https://vitfix.io/pt/',
+  homeLabel: 'VITFIX',
+  pageLabel: 'Sobre',
+})
 
 export default function Layout({ children }: { readonly children: React.ReactNode }) {
   return (

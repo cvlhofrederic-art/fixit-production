@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { FR_BLOG_ARTICLES, getFrBlogArticle } from '@/lib/data/fr-blog-data'
+import { buildArticleSchema } from '@/lib/schemas'
 
 // ── Generate static pages for all FR blog articles ──
 export function generateStaticParams() {
@@ -66,36 +67,21 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      {
-        '@type': 'BlogPosting',
-        '@id': `https://vitfix.io/fr/blog/${slug}/#article`,
+      buildArticleSchema({
+        url: `https://vitfix.io/fr/blog/${slug}/`,
         headline: article.title,
         description: article.metaDesc,
-        url: `https://vitfix.io/fr/blog/${slug}/`,
+        image: 'https://vitfix.io/og-image.png',
+        datePublished: article.datePublished,
+        dateModified: article.dateModified,
+        author: { name: 'Équipe éditoriale Vitfix', url: 'https://vitfix.io/fr/a-propos/' },
         inLanguage: 'fr-FR',
         articleSection: article.category,
-        keywords: article.relatedServices.join(', '),
+        keywords: article.relatedServices,
         wordCount: totalWordsFr,
-        publisher: { '@id': 'https://vitfix.io/#business' },
-        // Author = équipe éditoriale liée à la page about (E-E-A-T 2026 :
-        // Person plutôt qu'Organization renforce la signal d'autorité,
-        // Google docs Article structured data).
-        author: {
-          '@type': 'Person',
-          name: 'Équipe éditoriale Vitfix',
-          url: 'https://vitfix.io/fr/a-propos/',
-        },
-        mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/fr/blog/${slug}/` },
-        datePublished: article.datePublished,
-        dateModified: article.dateModified || article.datePublished,
-        image: 'https://vitfix.io/og-image.png',
         articleBody: articleBodyTextFr,
-        // Speakable : sections lisibles par assistants vocaux + AI agents.
-        speakable: {
-          '@type': 'SpeakableSpecification',
-          cssSelector: ['h1', 'h2', '.article-intro'],
-        },
-      },
+        speakableSelectors: ['h1', 'h2', '.article-intro'],
+      }),
       {
         '@type': 'BreadcrumbList',
         itemListElement: [

@@ -8,11 +8,10 @@ import * as Sentry from '@sentry/nextjs'
 // SEO en 2026 — voir web.dev/articles/inp).
 //
 // Sampling 10% en prod pour limiter le volume Sentry tout en gardant un
-// signal statistique. Crypto.getRandomValues utilisé au lieu de Math.random
-// pour cohérence sécurité (sampling non-critique mais évite warning Sonar).
+// signal statistique. crypto.getRandomValues — disponible universellement
+// dans tous les browsers + Node.js 18+ (notre runtime min).
 
 function shouldSample(rate: number): boolean {
-  if (typeof globalThis.crypto?.getRandomValues !== 'function') return Math.random() < rate
   const buf = new Uint32Array(1)
   globalThis.crypto.getRandomValues(buf)
   return buf[0] / 0xffffffff < rate
