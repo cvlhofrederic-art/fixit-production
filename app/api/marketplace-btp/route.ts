@@ -4,9 +4,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@supabase/supabase-js'
 import type { CreateListingPayload } from '@/lib/marketplace-btp-types'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { getAdminClient, getAnonClient } from '@/lib/supabase-clients'
 
 const MARKETPLACE_CATEGORIE_IDS = [
   'engins_tp', 'grues_levage', 'camions', 'echafaudages', 'outillage_pro',
@@ -36,18 +36,8 @@ const listingBodySchema = z.object({
   vendeur_phone: z.string().optional(),
 })
 
-function getAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
-function getAnon() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
+const getAdmin = getAdminClient
+const getAnon = getAnonClient
 
 export async function GET(req: NextRequest) {
   try {
