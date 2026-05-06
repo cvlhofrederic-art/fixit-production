@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- VITFIX favicon — VF lockup, charte brand -->
-  <!-- Background blanc cohérent avec manifest background_color + logo brand -->
-  <rect width="64" height="64" fill="#ffffff"/>
-  <!-- V — display sans-serif chunky, sharp tip, jaune brand #FFD600 -->
-  <path d="M5 8 L16 8 L20 38 L24 8 L34 8 L23 58 L16 58 Z" fill="#FFD600"/>
-  <!-- F — vertical bar + 2 horizontal arms, noir brand #111110 -->
-  <path d="M34 8 L59 8 L59 17 L43 17 L43 27 L55 27 L55 36 L43 36 L43 58 L34 58 Z" fill="#111110"/>
-</svg>
