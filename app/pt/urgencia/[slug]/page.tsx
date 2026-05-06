@@ -121,6 +121,37 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
           acceptedAnswer: { '@type': 'Answer', text: replaceCity(faq.answer) },
         })),
       },
+      // HowTo : exploite immediateSteps pour les Answer Engines
+      // (Perplexity, ChatGPT, Claude, AI Overviews) qui citent les
+      // contenus actionnables structurés. Google a déprécié le rich
+      // result HowTo dans la SERP classique, mais le schéma reste
+      // exploité par les moteurs IA en 2026.
+      {
+        '@type': 'HowTo',
+        name: `O que fazer em caso de ${service.name.toLowerCase()} de urgência em ${city.name}`,
+        description: `Passos imediatos a seguir enquanto espera pelo profissional VITFIX em ${city.name}.`,
+        totalTime: `PT${urgency.avgResponseTime.match(/\d+/)?.[0] || '30'}M`,
+        step: urgency.immediateSteps.map((stepText, i) => ({
+          '@type': 'HowToStep',
+          position: i + 1,
+          name: `Passo ${i + 1}`,
+          text: replaceCity(stepText),
+        })),
+      },
+      // Speakable : signale aux assistants vocaux et IA que
+      // certaines sections sont lisibles à voix haute.
+      // Référence : developers.google.com/search/docs/appearance/structured-data/speakable
+      {
+        '@type': 'WebPage',
+        '@id': `https://vitfix.io/pt/urgencia/${slug}/#webpage`,
+        url: `https://vitfix.io/pt/urgencia/${slug}/`,
+        name: heroTitle,
+        inLanguage: 'pt-PT',
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', 'h2', '.urgency-summary'],
+        },
+      },
     ],
   }
 
@@ -155,7 +186,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             {heroTitle}
           </h1>
-          <p className="text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
+          <p className="urgency-summary text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
             {heroSubtitle}
           </p>
 

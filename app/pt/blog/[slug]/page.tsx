@@ -76,12 +76,17 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   const totalWords = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
   const readTime = Math.max(3, Math.ceil(totalWords / 200))
 
+  // articleBody pour les Answer Engines (extrait textuel structuré).
+  // 2026 : aide ChatGPT/Perplexity/AI Overviews à extraire le contenu
+  // sans avoir à parser le HTML. Limité à ~5000 chars pour rester compact.
+  const articleBodyText = `${article.intro}\n\n${article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')}`.slice(0, 5000)
+
   // Schema.org Article (avec @id linking vers Organization globale)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
-        '@type': 'Article',
+        '@type': 'BlogPosting',
         '@id': `https://vitfix.io/pt/blog/${slug}/#article`,
         headline: article.title,
         description: article.metaDesc,
@@ -91,11 +96,22 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
         keywords: article.relatedServices.join(', '),
         wordCount: totalWords,
         publisher: { '@id': 'https://vitfix.io/#business' },
-        author: { '@id': 'https://vitfix.io/#business' },
+        // E-E-A-T 2026 : Person plutôt qu'Organization comme author
+        // renforce le signal éditorial (Google Article docs).
+        author: {
+          '@type': 'Person',
+          name: 'Equipa editorial Vitfix',
+          url: 'https://vitfix.io/pt/sobre/',
+        },
         mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/pt/blog/${slug}/` },
         datePublished: article.datePublished,
         dateModified: article.dateModified || article.datePublished,
         image: 'https://vitfix.io/og-image.png',
+        articleBody: articleBodyText,
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', 'h2', '.article-intro'],
+        },
       },
       {
         '@type': 'BreadcrumbList',
@@ -154,7 +170,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
             {article.title}
           </h1>
 
-          <p className="text-lg text-text-muted leading-relaxed">
+          <p className="article-intro text-lg text-text-muted leading-relaxed">
             {article.intro}
           </p>
 

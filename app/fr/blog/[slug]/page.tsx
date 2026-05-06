@@ -58,12 +58,15 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
   // Word count rough — article.intro + each section
   const totalWordsFr = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
 
+  // articleBody : extrait textuel pour les Answer Engines (5k char max).
+  const articleBodyTextFr = `${article.intro}\n\n${article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')}`.slice(0, 5000)
+
   // Schema.org Article + FAQPage (avec @id linking vers Organization globale)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
-        '@type': 'Article',
+        '@type': 'BlogPosting',
         '@id': `https://vitfix.io/fr/blog/${slug}/#article`,
         headline: article.title,
         description: article.metaDesc,
@@ -73,17 +76,30 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
         keywords: article.relatedServices.join(', '),
         wordCount: totalWordsFr,
         publisher: { '@id': 'https://vitfix.io/#business' },
-        author: { '@id': 'https://vitfix.io/#business' },
+        // Author = équipe éditoriale liée à la page about (E-E-A-T 2026 :
+        // Person plutôt qu'Organization renforce la signal d'autorité,
+        // Google docs Article structured data).
+        author: {
+          '@type': 'Person',
+          name: 'Équipe éditoriale Vitfix',
+          url: 'https://vitfix.io/fr/a-propos/',
+        },
         mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/fr/blog/${slug}/` },
         datePublished: article.datePublished,
         dateModified: article.dateModified || article.datePublished,
         image: 'https://vitfix.io/og-image.png',
+        articleBody: articleBodyTextFr,
+        // Speakable : sections lisibles par assistants vocaux + AI agents.
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', 'h2', '.article-intro'],
+        },
       },
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/fr/' },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://vitfix.io/blog/' },
+          { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://vitfix.io/fr/blog/' },
           { '@type': 'ListItem', position: 3, name: article.title, item: `https://vitfix.io/fr/blog/${slug}/` },
         ],
       },
@@ -132,7 +148,7 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
             {article.title}
           </h1>
 
-          <p className="text-lg text-text-muted leading-relaxed">
+          <p className="article-intro text-lg text-text-muted leading-relaxed">
             {article.intro}
           </p>
         </div>

@@ -129,6 +129,25 @@ test.describe('SEO', () => {
     }
   })
 
+  test('SEO public routes return matching Cache-Control on GET and HEAD', async ({ request }) => {
+    // Bots SEO (Googlebot, Bingbot, GPTBot) font parfois des HEAD pour vérifier
+    // la fraîcheur. GET et HEAD doivent retourner le même Cache-Control public.
+    const url = '/pt/servicos/canalizador-porto/'
+    const [getRes, headRes] = await Promise.all([
+      request.get(url),
+      request.fetch(url, { method: 'HEAD' }),
+    ])
+    test.skip(getRes.status() === 404 || headRes.status() === 404, 'SEO route not available in CI build')
+    expect(getRes.status()).toBe(200)
+    expect(headRes.status()).toBe(200)
+
+    const getCache = getRes.headers()['cache-control'] || ''
+    const headCache = headRes.headers()['cache-control'] || ''
+    expect(getCache).toMatch(/public/)
+    expect(getCache).toMatch(/s-maxage=3600/)
+    expect(headCache).toBe(getCache)
+  })
+
   test('homepage has canonical-friendly structure', async ({ page }) => {
     await page.goto('/fr/', { waitUntil: 'networkidle' })
 

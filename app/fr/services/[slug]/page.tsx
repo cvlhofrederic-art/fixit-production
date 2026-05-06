@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllFrPageCombos, getFrPageCombo, FR_SERVICES } from '@/lib/data/fr-seo-pages-data'
 import ArtisansCatalogueSection from '@/components/ArtisansCatalogueSection'
+import LocalPricingSection from '@/components/seo/LocalPricingSection'
+import { getLocalPricesForService, buildPriceSpecificationsSchema } from '@/lib/seo/service-prices'
 import { PHONE_FR } from '@/lib/constants'
 
 // ── Generate all 32 static pages (4 services × 8 cities) ──
@@ -56,6 +58,11 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
   const waText = encodeURIComponent(`Bonjour VITFIX, j'ai besoin d'un ${service.name.toLowerCase()} à ${city.name}. Pouvez-vous m'aider ?`)
   const waUrgText = encodeURIComponent(`URGENCE ! J'ai besoin d'un ${service.name.toLowerCase()} immédiatement à ${city.name}. Pouvez-vous intervenir ?`)
 
+  // Données prix propriétaires 2026 (CAPEB/INSEE/FFB) ajustées zone PACA.
+  // Vide pour les services sans données dans prix-travaux-2026 (serrurier,
+  // vitrier, etc.) — la section ne s'affiche pas dans ce cas.
+  const localPrices = getLocalPricesForService(service.slug)
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -94,9 +101,10 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
           closes: '22:00',
         },
         aggregateRating: {
+          // Aligné RATING_FR conservateur (lib/schemas/index.ts review #140).
           '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '12000',
+          ratingValue: '4.8',
+          reviewCount: '47',
           bestRating: '5',
           worstRating: '1',
         },
@@ -118,6 +126,16 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
           acceptedAnswer: { '@type': 'Answer', text: faq.answer.replace(/{city}/g, city.name) },
         })),
       },
+      // OfferCatalog : expose les fourchettes de prix propriétaires aux
+      // moteurs IA et SERP. Sources et coefficient PACA dans
+      // lib/seo/service-prices.ts. Vide si pas de données prix-travaux-2026.
+      ...(localPrices.length > 0
+        ? [{
+          '@type': 'OfferCatalog',
+          name: `Tarifs ${service.name} à ${city.name} — 2026`,
+          itemListElement: buildPriceSpecificationsSchema(localPrices),
+        }]
+        : []),
     ],
   }
 
@@ -350,6 +368,9 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </section>
+
+      {/* ── PRIX INDICATIFS LOCAUX (sources Tier 1) ── */}
+      <LocalPricingSection prices={localPrices} cityName={city.name} serviceName={service.name} />
 
       {/* ── FAQ ── */}
       <section className="py-14 md:py-18 bg-white">
