@@ -54,11 +54,29 @@ crons = [
   "0 8 * * *",
 ]
 
-# ── Queue Bindings ─────────────────────────────────────��─────────────────────
+# ── Queue Bindings ───────────────────────────────────────────────────────────
 # For long-running jobs that exceed Workers 30s CPU limit.
 # Producers enqueue, consumers process in background (up to 15 min).
+#
+# Activation procedure (do NOT skip steps):
+#   1.  wrangler queues create fixit-sync-jobs
+#   2.  Uncomment the [[queues.producers]] block below.
+#   3.  Deploy to a preview environment and POST /api/tenders/scan with a
+#       valid auth header. The response should be 202 with { queued: true,
+#       jobId } and a row should appear in the background_jobs table once
+#       the consumer picks it up.
+#   4.  Wire the consumer in the OpenNext worker entry (the queue consumer
+#       handler is NOT a Next.js API route — it is the worker default
+#       export's `queue(batch, env)` method). Until that is in place,
+#       enqueued jobs accumulate but do not run, so KEEP the [[queues.consumers]]
+#       block commented while the producer is being validated.
+#   5.  Once the consumer is wired and verified, uncomment [[queues.consumers]].
+#   6.  Promote to production.
+#
+# The producer-side code in app/api/tenders/scan/route.ts already checks for
+# the SYNC_QUEUE binding at runtime and falls back to the inline scan when
+# absent. Activating the binding is a zero-risk capability flip.
 
-# Create with: wrangler queues create fixit-sync-jobs
 # [[queues.producers]]
 # binding = "SYNC_QUEUE"
 # queue = "fixit-sync-jobs"
