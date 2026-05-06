@@ -32,18 +32,38 @@ const LUSOPHONE_COUNTRIES = ['PT','BR','AO','MZ','CV','GW','TL','ST']
 // Ces préfixes correspondent au contenu programmatique SEO quasi-statique
 // (services, villes, blog, urgence, perto-de-mim) qui peut être servi
 // depuis le cache Cloudflare sans risque d'inconsistance.
+//
+// Sécurité (review #138) :
+// - Préfixes volontairement limités à des sous-routes publiques identifiables
+//   (pas de wildcard sur racine de locale entière).
+// - /fr/simulateur-devis/ EXCLU : peut contenir résultats personnalisés.
+// - /en/, /nl/, /es/ EXCLUS comme wildcards (trop large pour future-proof).
+//   Si on veut cacher des sous-routes EN, les lister explicitement.
+// - Couplé avec Vary: Cookie + skip si Set-Cookie sensible (ci-dessous).
 const SEO_PUBLIC_PREFIXES = [
   '/pt/servicos/', '/pt/cidade/', '/pt/blog/', '/pt/urgencia/',
   '/pt/perto-de-mim/', '/pt/precos/', '/pt/especialidades/',
   '/pt/condominio/', '/pt/avaliacoes/',
   '/fr/services/', '/fr/ville/', '/fr/blog/', '/fr/urgence/',
   '/fr/pres-de-chez-moi/', '/fr/specialites/', '/fr/copropriete/',
-  '/fr/simulateur-devis/',
-  '/en/', '/nl/', '/es/',
+  '/en/services/', '/en/blog/', '/en/emergency-home-repair-porto/',
 ] as const
 
 function isSeoPublicRoute(pathname: string): boolean {
   return SEO_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
+
+// Cookies considérés comme contenant de la session sensible (Supabase auth).
+// Si un de ces cookies est posé en Set-Cookie sur la réponse, on REFUSE
+// d'appliquer Cache-Control: public — risque cache poisoning / cookie leak.
+const SENSITIVE_COOKIE_PREFIXES = ['sb-', 'supabase-auth']
+
+function responseHasSensitiveCookie(response: NextResponse): boolean {
+  const setCookieHeaders = response.headers.getSetCookie?.() ?? []
+  return setCookieHeaders.some((c) => {
+    const lower = c.toLowerCase()
+    return SENSITIVE_COOKIE_PREFIXES.some((prefix) => lower.startsWith(prefix.toLowerCase()))
+  })
 }
 
 function detectPreferredLocale(request: NextRequest): string {
@@ -171,13 +191,25 @@ export async function middleware(request: NextRequest) {
 
   if (!needsAuth) {
     if (!isInternalRoute) {
-      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      // Skip locale cookie set si déjà correct côté client (réduit bruit Set-Cookie
+      // et permet au CDN de cacher sans Vary obligatoire).
+      const existingLocaleCookie = request.cookies.get('locale')?.value
+      if (existingLocaleCookie !== locale) {
+        supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      }
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
-    // Cache CDN agressif sur les routes SEO publiques GET (pages programmatiques)
-    if (request.method === 'GET' && isSeoPublicRoute(pathname)) {
+    // Cache CDN agressif sur les routes SEO publiques GET (pages programmatiques).
+    // Sécurité (review #138) :
+    //  - GET seulement (jamais POST/etc.)
+    //  - Préfixe whitelist explicite (isSeoPublicRoute)
+    //  - REFUSE si la réponse contient un Set-Cookie sensible (Supabase auth)
+    //    pour éviter de mettre en cache une session utilisateur.
+    //  - Vary: Cookie pour signaler aux CDN intermédiaires de varier sur cookies.
+    if (request.method === 'GET' && isSeoPublicRoute(pathname) && !responseHasSensitiveCookie(supabaseResponse)) {
       supabaseResponse.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
+      supabaseResponse.headers.set('Vary', 'Cookie, Accept-Language')
     }
     return supabaseResponse
   }

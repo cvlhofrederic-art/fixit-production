@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatSitemapXml, formatSitemapIndexXml } from '@/lib/sitemap-helpers'
+import { formatSitemapXml, formatSitemapIndexXml, parseSitemapId } from '@/lib/sitemap-helpers'
 
 describe('formatSitemapXml', () => {
   it('returns valid XML with declaration and urlset wrapper', () => {
@@ -47,5 +47,40 @@ describe('formatSitemapIndexXml', () => {
     expect(xml).toContain('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
     expect(xml).toContain('<loc>https://vitfix.io/sitemap/0.xml</loc>')
     expect(xml).toContain('<loc>https://vitfix.io/sitemap/1.xml</loc>')
+  })
+})
+
+describe('parseSitemapId (sub-sitemap route validation)', () => {
+  it('accepts plain ids 0-4', () => {
+    expect(parseSitemapId('0')).toBe(0)
+    expect(parseSitemapId('1')).toBe(1)
+    expect(parseSitemapId('4')).toBe(4)
+  })
+
+  it('accepts ids with .xml suffix', () => {
+    expect(parseSitemapId('0.xml')).toBe(0)
+    expect(parseSitemapId('3.xml')).toBe(3)
+  })
+
+  it('rejects out-of-range ids', () => {
+    expect(parseSitemapId('5')).toBeNull()
+    expect(parseSitemapId('10')).toBeNull()
+    expect(parseSitemapId('-1')).toBeNull()
+  })
+
+  it('rejects ambiguous suffix variants (defense vs canonical pollution)', () => {
+    expect(parseSitemapId('0.xml.xml')).toBeNull()
+    expect(parseSitemapId('0abc')).toBeNull()
+    expect(parseSitemapId('00')).toBeNull()
+    expect(parseSitemapId('0.')).toBeNull()
+    expect(parseSitemapId('.xml')).toBeNull()
+    expect(parseSitemapId('')).toBeNull()
+    expect(parseSitemapId(' 0')).toBeNull()
+    expect(parseSitemapId('0 ')).toBeNull()
+  })
+
+  it('strips XML control characters in URLs', () => {
+    const xml = formatSitemapXml([{ url: 'https://vitfix.io/\x00\x01\x08test' }])
+    expect(xml).toContain('<loc>https://vitfix.io/test</loc>')
   })
 })

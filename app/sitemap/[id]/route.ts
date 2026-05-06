@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { getProfilePath } from '@/lib/utils'
-import { formatSitemapXml, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
+import { formatSitemapXml, parseSitemapId, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
 import {
   getAllPageCombos,
   getAllUrgencyCombos,
@@ -31,13 +31,6 @@ const SIM_CITIES = [
   'bandol', 'gemenos', 'sanary-sur-mer', 'six-fours-les-plages',
   'ceyreste', 'la-seyne-sur-mer',
 ] as const
-
-function parseId(idParam: string): number | null {
-  const cleaned = idParam.replace(/\.xml$/, '')
-  const parsed = Number.parseInt(cleaned, 10)
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 4) return null
-  return parsed
-}
 
 function staticAndHubPages(baseUrl: string, now: Date): SitemapUrl[] {
   return [
@@ -247,7 +240,7 @@ async function artisanProfilePages(baseUrl: string, now: Date): Promise<SitemapU
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: idParam } = await ctx.params
-  const id = parseId(idParam)
+  const id = parseSitemapId(idParam)
   if (id === null) {
     return new Response('Not Found', { status: 404 })
   }
