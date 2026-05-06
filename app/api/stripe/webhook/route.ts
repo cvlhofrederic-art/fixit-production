@@ -38,6 +38,39 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
   }
 }
 
+interface SubscriptionEventInput {
+  eventId: string
+  eventType: string
+  stripeCustomerId: string | null
+  stripeSubscriptionId: string | null
+  payload: Record<string, unknown>
+}
+
+/**
+ * Persist a Stripe lifecycle event for revenue analytics. Defensive: if the
+ * subscription_events table is not yet provisioned (migration 100 not run),
+ * log a warning and continue — we never want to fail a webhook because the
+ * analytics surface is absent.
+ */
+async function recordSubscriptionEvent(input: SubscriptionEventInput): Promise<void> {
+  try {
+    await supabaseAdmin.from('subscription_events').insert({
+      stripe_event_id: input.eventId,
+      event_type: input.eventType,
+      stripe_customer_id: input.stripeCustomerId,
+      stripe_subscription_id: input.stripeSubscriptionId,
+      payload: input.payload,
+      occurred_at: new Date().toISOString(),
+    })
+  } catch (err) {
+    log.warn('Failed to record subscription event (table may be absent)', {
+      eventId: input.eventId,
+      eventType: input.eventType,
+      error: (err as Error).message,
+    })
+  }
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.text()
   const sig = request.headers.get('stripe-signature')
@@ -121,6 +154,48 @@ export async function POST(request: NextRequest) {
             })
           }
         }
+        break
+      }
+      case 'invoice.payment_action_required': {
+        // Strong Customer Authentication needed (3DS, etc.)
+        const invoice = event.data.object as Stripe.Invoice & { subscription: string | null; customer: string }
+        await recordSubscriptionEvent({
+          eventId: event.id,
+          eventType: event.type,
+          stripeCustomerId: invoice.customer,
+          stripeSubscriptionId: invoice.subscription,
+          payload: { invoice_id: invoice.id, amount_due: invoice.amount_due, currency: invoice.currency },
+        })
+        log.info('Payment action required', { invoiceId: invoice.id, customerId: invoice.customer })
+        break
+      }
+      case 'customer.subscription.trial_will_end': {
+        const sub = event.data.object as Stripe.Subscription
+        await recordSubscriptionEvent({
+          eventId: event.id,
+          eventType: event.type,
+          stripeCustomerId: sub.customer as string,
+          stripeSubscriptionId: sub.id,
+          payload: { trial_end: sub.trial_end, status: sub.status },
+        })
+        log.info('Trial will end soon', { subscriptionId: sub.id, trialEnd: sub.trial_end })
+        break
+      }
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge
+        await recordSubscriptionEvent({
+          eventId: event.id,
+          eventType: event.type,
+          stripeCustomerId: charge.customer as string | null,
+          stripeSubscriptionId: null,
+          payload: {
+            charge_id: charge.id,
+            amount_refunded: charge.amount_refunded,
+            currency: charge.currency,
+            reason: charge.refunds?.data?.[0]?.reason,
+          },
+        })
+        log.info('Charge refunded', { chargeId: charge.id, amountRefunded: charge.amount_refunded })
         break
       }
     }
