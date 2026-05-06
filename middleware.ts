@@ -28,6 +28,24 @@ const FRANCOPHONE_COUNTRIES = [
 // Lusophone countries — auto-detect PT
 const LUSOPHONE_COUNTRIES = ['PT','BR','AO','MZ','CV','GW','TL','ST']
 
+// ── SEO public routes — caché côté CDN (1h + SWR 24h)
+// Ces préfixes correspondent au contenu programmatique SEO quasi-statique
+// (services, villes, blog, urgence, perto-de-mim) qui peut être servi
+// depuis le cache Cloudflare sans risque d'inconsistance.
+const SEO_PUBLIC_PREFIXES = [
+  '/pt/servicos/', '/pt/cidade/', '/pt/blog/', '/pt/urgencia/',
+  '/pt/perto-de-mim/', '/pt/precos/', '/pt/especialidades/',
+  '/pt/condominio/', '/pt/avaliacoes/',
+  '/fr/services/', '/fr/ville/', '/fr/blog/', '/fr/urgence/',
+  '/fr/pres-de-chez-moi/', '/fr/specialites/', '/fr/copropriete/',
+  '/fr/simulateur-devis/',
+  '/en/', '/nl/', '/es/',
+] as const
+
+function isSeoPublicRoute(pathname: string): boolean {
+  return SEO_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
+
 function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
   const cookieLocale = request.cookies.get('locale')?.value
@@ -157,6 +175,10 @@ export async function middleware(request: NextRequest) {
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    // Cache CDN agressif sur les routes SEO publiques GET (pages programmatiques)
+    if (request.method === 'GET' && isSeoPublicRoute(pathname)) {
+      supabaseResponse.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
+    }
     return supabaseResponse
   }
 
