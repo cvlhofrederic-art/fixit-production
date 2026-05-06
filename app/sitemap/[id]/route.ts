@@ -26,6 +26,14 @@ import {
 // 'edge' causait un 500 Internal Server Error sur OpenNext + Cloudflare Workers.
 export const runtime = 'nodejs'
 
+// Date de dernière mise à jour majeure du contenu programmatique.
+// Bumper manuellement lors d'un refactor de contenu (services, villes,
+// lexique). Utiliser `now` partout dilue le signal `lastmod` aux yeux de
+// Google ("If <lastmod> dates are inaccurate, Google may ignore them" —
+// Google Search Central). Les blog articles et profils artisans utilisent
+// leur propre datePublished/updated_at (signal réel).
+const CONTENT_LAST_UPDATED = new Date('2026-05-06T00:00:00Z')
+
 const SIM_CITIES = [
   'marseille', 'aix-en-provence', 'aubagne', 'la-ciotat', 'cassis',
   'martigues', 'allauch', 'salon-de-provence', 'saint-cyr-sur-mer',
@@ -59,6 +67,10 @@ function staticAndHubPages(baseUrl: string, now: Date): SitemapUrl[] {
     { url: `${baseUrl}/fr/services/`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${baseUrl}/fr/urgence/`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${baseUrl}/fr/blog/`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${baseUrl}/fr/plan-du-site/`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${baseUrl}/pt/mapa-do-site/`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${baseUrl}/fr/a-propos/`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${baseUrl}/pt/sobre/`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
   ]
 }
 
@@ -247,21 +259,24 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
+  const lastModContent = CONTENT_LAST_UPDATED
+  // `now` reste utilisé uniquement pour le fallback artisans (qui ont
+  // leur propre updated_at quand dispo).
   const now = new Date()
 
   let urls: SitemapUrl[]
   switch (id) {
     case 0:
-      urls = staticAndHubPages(baseUrl, now)
+      urls = staticAndHubPages(baseUrl, lastModContent)
       break
     case 1:
-      urls = ptProgrammaticPages(baseUrl, now)
+      urls = ptProgrammaticPages(baseUrl, lastModContent)
       break
     case 2:
-      urls = frProgrammaticPages(baseUrl, now)
+      urls = frProgrammaticPages(baseUrl, lastModContent)
       break
     case 3:
-      urls = investorAndIntlPages(baseUrl, now)
+      urls = investorAndIntlPages(baseUrl, lastModContent)
       break
     case 4:
       urls = await artisanProfilePages(baseUrl, now)

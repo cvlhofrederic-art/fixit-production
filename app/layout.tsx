@@ -12,6 +12,7 @@ import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
 import ConsentAnalytics from "@/components/common/ConsentAnalytics";
+import WebVitalsReporter from "@/components/common/WebVitalsReporter";
 import type { Locale } from "@/lib/i18n/config";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
@@ -64,15 +65,26 @@ const sharedMeta = {
   authors: [{ name: "Vitfix SAS" }] as Metadata['authors'],
   creator: "Vitfix SAS",
   publisher: "Vitfix SAS",
+  // 2026 GEO/AEO best practice : autoriser explicitement les snippets
+  // longs et les images larges aux crawlers (Google + AI engines).
+  // Sans ces directives, AI Overviews / ChatGPT / Perplexity peuvent
+  // tronquer ou ignorer le contenu.
+  // Référence : developers.google.com/search/docs/crawling-indexing/robots-meta-tag
   robots: {
     index: true,
     follow: true,
     nocache: false,
+    'max-snippet': -1,
+    'max-image-preview': 'large',
+    'max-video-preview': -1,
     googleBot: {
       index: true,
       follow: true,
+      'max-snippet': -1,
+      'max-image-preview': 'large',
+      'max-video-preview': -1,
     },
-  },
+  } satisfies Metadata['robots'],
   alternates: {
     languages: {
       'fr': 'https://vitfix.io/fr/',
@@ -179,8 +191,9 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <head>
         <meta name="csrf-protection" content="same-origin" />
-        <meta name="theme-color" content="#FFC107" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="theme-color" content="#FFD600" />
+        {/* favicon (icon.svg) + apple-touch-icon (apple-icon.tsx) auto-injectés
+            par Next.js via app/icon.svg + app/apple-icon.tsx */}
         <link rel="manifest" href="/manifest.json" />
         {/* hreflang SEO tags */}
         <link rel="alternate" hrefLang="fr" href="https://vitfix.io/fr/" />
@@ -282,6 +295,7 @@ export default async function RootLayout({
           <CookieConsent />
         </Providers>
         <ConsentAnalytics />
+        <WebVitalsReporter />
       </body>
     </html>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { BLOG_ARTICLES, getBlogArticle, SERVICES, CITIES } from '@/lib/data/seo-pages-data'
+import { buildArticleSchema, buildBreadcrumbSchema, buildFaqSchema } from '@/lib/schemas'
 
 // ── Generate static pages for all blog articles ──
 export function generateStaticParams() {
@@ -76,46 +77,42 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   const totalWords = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
   const readTime = Math.max(3, Math.ceil(totalWords / 200))
 
+  // articleBody pour les Answer Engines (extrait textuel structuré).
+  // 2026 : aide ChatGPT/Perplexity/AI Overviews à extraire le contenu
+  // sans avoir à parser le HTML. Limité à ~5000 chars pour rester compact.
+  const sectionTexts = article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')
+  const articleBodyText = `${article.intro}\n\n${sectionTexts}`.slice(0, 5000)
+
   // Schema.org Article (avec @id linking vers Organization globale)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      {
-        '@type': 'Article',
-        '@id': `https://vitfix.io/pt/blog/${slug}/#article`,
+      buildArticleSchema({
+        url: `https://vitfix.io/pt/blog/${slug}/`,
         headline: article.title,
         description: article.metaDesc,
-        url: `https://vitfix.io/pt/blog/${slug}/`,
+        image: 'https://vitfix.io/og-image.png',
+        datePublished: article.datePublished,
+        dateModified: article.dateModified,
+        author: { name: 'Equipa editorial Vitfix', url: 'https://vitfix.io/pt/sobre/' },
         inLanguage: 'pt-PT',
         articleSection: categoryLabel(article.category),
-        keywords: article.relatedServices.join(', '),
+        keywords: article.relatedServices,
         wordCount: totalWords,
-        publisher: { '@id': 'https://vitfix.io/#business' },
-        author: { '@id': 'https://vitfix.io/#business' },
-        mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/pt/blog/${slug}/` },
-        datePublished: article.datePublished,
-        dateModified: article.dateModified || article.datePublished,
-        image: 'https://vitfix.io/og-image.png',
-      },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://vitfix.io/pt/blog/' },
-          { '@type': 'ListItem', position: 3, name: article.title, item: `https://vitfix.io/pt/blog/${slug}/` },
-        ],
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: article.sections.slice(0, 5).map(section => ({
-          '@type': 'Question',
-          name: section.heading,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: section.content.slice(0, 300) + '...',
-          },
+        articleBody: articleBodyText,
+        speakableSelectors: ['h1', 'h2', '.article-intro'],
+      }),
+      buildBreadcrumbSchema([
+        { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+        { name: 'Blog', url: 'https://vitfix.io/pt/blog/' },
+        { name: article.title, url: `https://vitfix.io/pt/blog/${slug}/` },
+      ]),
+      buildFaqSchema(
+        article.sections.slice(0, 5).map(s => ({
+          question: s.heading,
+          answer: `${s.content.slice(0, 300)}...`,
         })),
-      },
+      ),
     ],
   }
 
@@ -154,7 +151,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
             {article.title}
           </h1>
 
-          <p className="text-lg text-text-muted leading-relaxed">
+          <p className="article-intro text-lg text-text-muted leading-relaxed">
             {article.intro}
           </p>
 
