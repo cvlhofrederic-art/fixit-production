@@ -1,7 +1,10 @@
 import { formatSitemapIndexXml, SITEMAP_HEADERS } from '@/lib/sitemap-helpers'
 
-export const runtime = 'edge'
-export const revalidate = 3600
+// runtime='nodejs' aligné avec le reste du codebase (toutes les routes API
+// utilisent nodejs sur OpenNext + Cloudflare Workers). 'edge' causait un
+// 500 Internal Server Error en production (OpenNext ne supporte pas
+// pleinement le edge runtime pour les route handlers retournant Response).
+export const runtime = 'nodejs'
 
 const SUB_SITEMAP_IDS = [0, 1, 2, 3, 4]
 
