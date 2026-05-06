@@ -305,6 +305,32 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
       ? `${doc.executionDelayDays} ${doc.executionDelayType === 'calendaires' ? 'jours calendaires' : 'jours ouvrés'}`
       : '')
 
+  // Fallback IBAN/BIC pour les devis legacy enregistrés avant la persistance
+  // (cf. DevisFactureFormBTP.buildPayload, fix 06/05/2026). Les devis créés
+  // après le fix ont iban/bic dans `doc` ; les anciens doivent re-fetcher le
+  // profil paiement pour que le RIB apparaisse au téléchargement.
+  let resolvedIban = doc.iban || ''
+  let resolvedBic = doc.bic || ''
+  if (!resolvedIban && artisan?.id) {
+    try {
+      const { data } = await supabase
+        .from('profiles_artisan')
+        .select('paiement_modes')
+        .eq('id', artisan.id)
+        .single()
+      const modes = (data?.paiement_modes as Array<{ type?: string; iban?: string; bic?: string; actif?: boolean }>) || []
+      const virement = modes.find(
+        (m) => m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
+      )
+      if (virement) {
+        resolvedIban = (virement.iban || '').trim()
+        resolvedBic = (virement.bic || '').trim()
+      }
+    } catch (e) {
+      console.warn('[download-saved-devis] Loading payment info failed:', e)
+    }
+  }
+
   await generateDevisPdfV3({
     action: 'download',
     locale,
@@ -360,8 +386,8 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     discount: doc.discount || '',
     penaltyRate: doc.penaltyRate || '',
     recoveryFee: doc.recoveryFee || '',
-    iban: doc.iban || '',
-    bic: doc.bic || '',
+    iban: resolvedIban,
+    bic: resolvedBic,
     lines: lines.length > 0 ? lines : [...labor, ...materialLines],
     // V3 PDF rend `laborLines` comme première section ; on lui passe le résultat
     // résolu (laborLinesRaw si présent, sinon `lines` legacy) pour garantir que

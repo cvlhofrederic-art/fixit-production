@@ -1225,6 +1225,13 @@ export default function DevisFactureFormBTP({
       escompte,
       // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI)
       autoliquidationBTP,
+      // RIB & coordonnées bancaires — verrouillés au moment de l'émission.
+      // Sans persistance, le téléchargement depuis la liste devis ne disposait
+      // pas de l'IBAN (form fetch /api/artisan-payment-info au montage, mais le
+      // payload sauvegardé n'incluait pas iban/bic) → RIB visible en aperçu,
+      // absent en download. Bug 06/05/2026.
+      iban: profileIban,
+      bic: profileBic,
       // Notes
       notes,
     }
@@ -1240,6 +1247,7 @@ export default function DevisFactureFormBTP({
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP,
+    profileIban, profileBic,
     notes,
   ])
 
