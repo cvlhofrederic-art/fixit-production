@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getAllFrPageCombos, getFrPageCombo, FR_SERVICES } from '@/lib/data/fr-seo-pages-data'
 import ArtisansCatalogueSection from '@/components/ArtisansCatalogueSection'
 import LocalPricingSection from '@/components/seo/LocalPricingSection'
+import ProblemsGrid from '@/components/seo/ProblemsGrid'
 import { getLocalPricesForService, buildPriceSpecificationsSchema } from '@/lib/seo/service-prices'
 import { PHONE_FR } from '@/lib/constants'
 
@@ -223,24 +224,12 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
       </section>
 
       {/* ── PROBLEMS WE SOLVE ── */}
-      <section className="py-14 md:py-18 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Problèmes résolus à {city.name}
-          </h2>
-          <p className="text-text-muted mb-8 max-w-2xl">
-            Nos artisans règlent les problèmes les plus courants de {service.name.toLowerCase()} dans la région.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {service.problemsWeSolve.map((problem, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 hover:border-yellow/30 transition-colors">
-                <span className="flex-shrink-0 text-yellow text-lg mt-0.5">{service.icon}</span>
-                <span className="text-[0.93rem] text-dark">{problem}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ProblemsGrid
+        title={`Problèmes résolus à ${city.name}`}
+        intro={`Nos artisans règlent les problèmes les plus courants de ${service.name.toLowerCase()} dans la région.`}
+        problems={service.problemsWeSolve}
+        serviceIcon={service.icon}
+      />
 
       {/* ── URGENCY CTA ── */}
       <section className="py-12 md:py-16">

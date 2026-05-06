@@ -6,6 +6,7 @@ import { PHONE_PT } from '@/lib/constants'
 
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import ServiceFeaturesGrid from '@/components/seo/ServiceFeaturesGrid'
+import ProblemsGrid from '@/components/seo/ProblemsGrid'
 
 // ── Generate all 32 static pages (4 services × 8 cities) ──
 export function generateStaticParams() {
@@ -201,24 +202,12 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
       />
 
       {/* ── PROBLEMS WE SOLVE ── */}
-      <section className="py-14 md:py-18 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Problemas que resolvemos em {city.name}
-          </h2>
-          <p className="text-text-muted mb-8 max-w-2xl">
-            Os nossos profissionais têm experiência em resolver os problemas mais comuns de {service.name.toLowerCase()} na região.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {service.problemsWeSolve.map((problem, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 hover:border-yellow/30 transition-colors">
-                <span className="flex-shrink-0 text-yellow text-lg mt-0.5">{service.icon}</span>
-                <span className="text-[0.93rem] text-dark">{problem}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ProblemsGrid
+        title={`Problemas que resolvemos em ${city.name}`}
+        intro={`Os nossos profissionais têm experiência em resolver os problemas mais comuns de ${service.name.toLowerCase()} na região.`}
+        problems={service.problemsWeSolve}
+        serviceIcon={service.icon}
+      />
 
       {/* ── URGENCY CTA ── */}
       <section className="py-12 md:py-16">
