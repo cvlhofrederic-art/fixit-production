@@ -43,12 +43,14 @@ export const CATEGORY_LABELS_PT: Record<string, string> = {
   'traitement-nuisibles': 'Controlo de pragas',
   'petits-travaux': 'Pequenos trabalhos',
   metallerie: 'Metaleiro / Ferreiro',
-  plaquiste: 'Aplicador de pladur',
+  // Catégories manquantes apparaissaient en français côté PT (bug v1).
+  // Vocabulaire portugais européen (PT-PT, pas BR).
   ramonage: 'Limpa-chaminés',
-  piscine: 'Técnico de piscinas',
-  'store-banne': 'Instalador de toldos',
+  piscine: 'Especialista em piscinas',
+  'store-banne': 'Pose de toldos',
   paysagiste: 'Paisagista',
-  debouchage: 'Desentupimento',
+  debouchage: 'Desentupimentos',
+  plaquiste: 'Aplicador de pladur',
 }
 
 // Mapping catégorie slug → métiers catalogue (FR + PT)
