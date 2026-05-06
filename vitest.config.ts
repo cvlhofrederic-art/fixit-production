@@ -13,7 +13,7 @@ export default defineConfig({
     testTimeout: 30000,
     coverage: {
       reporter: ['text', 'json', 'html'],
-      include: ['lib/**', 'app/api/**'],
+      include: ['lib/**', 'app/api/**', 'components/**'],
     },
   },
   resolve: {
