@@ -29,7 +29,7 @@ const SOURCE_PNG = join(ROOT, 'assets/source-favicon-vf.png')
 // Le source PNG a déjà du whitespace, on trim d'abord puis on ajoute notre
 // propre padding standard pour respirer dans le squircle.
 const INNER_PADDING_RATIO = 0.18 // 18% padding (style iOS app icon)
-const SQUIRCLE_RADIUS_RATIO = 0.22 // 22% du width (radius iOS standard)
+const SQUIRCLE_RADIUS_RATIO = 0.5 // 50% du width = cercle parfait
 
 /**
  * Génère un PNG carré squircle à la taille demandée à partir du PNG brand.
@@ -75,10 +75,11 @@ async function buildSquireIcon(size) {
     .png()
     .toBuffer()
 
-  // 4. Applique le mask squircle via SVG composite (rounded rect alpha mask)
-  const radius = Math.round(size * SQUIRCLE_RADIUS_RATIO)
+  // 4. Applique le mask circle via SVG composite (cercle parfait, alpha mask)
+  const cx = size / 2
+  const r = size / 2
   const maskSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-    <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="#fff"/>
+    <circle cx="${cx}" cy="${cx}" r="${r}" fill="#fff"/>
   </svg>`
 
   return sharp(composed)
