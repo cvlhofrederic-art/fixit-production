@@ -28,8 +28,11 @@ const SOURCE_PNG = join(ROOT, 'assets/source-favicon-vf.png')
 // Padding intérieur autour du logo (% de la taille finale).
 // Le source PNG a déjà du whitespace, on trim d'abord puis on ajoute notre
 // propre padding standard pour respirer dans le squircle.
-const INNER_PADDING_RATIO = 0.18 // 18% padding (style iOS app icon)
-const SQUIRCLE_RADIUS_RATIO = 0.5 // 50% du width = cercle parfait
+// Padding pour cercle (vs squircle) : un rectangle wide doit tenir dans le
+// DISQUE inscrit, pas le carré. 22% = sweet spot lisible meme a 16x16 tout
+// en preservant la rondeur visible. Style favicon Meta/Wikipedia/FB.
+const INNER_PADDING_RATIO = 0.22
+const SQUIRCLE_RADIUS_RATIO = 0.5 // 50% = cercle parfait
 
 /**
  * Génère un PNG carré squircle à la taille demandée à partir du PNG brand.
