@@ -81,9 +81,12 @@ test.describe('SEO', () => {
       }
     }
 
-    // Find the LocalBusiness or HomeAndConstructionBusiness entry
+    // Find the LocalBusiness or HomeAndConstructionBusiness entry.
+    // @type peut être string OU array (Organization + HomeAndConstructionBusiness).
+    const matchesType = (typeField: unknown, target: string): boolean =>
+      typeField === target || (Array.isArray(typeField) && typeField.includes(target))
     const localBusiness = allJsonLd.find((d) =>
-      d['@type'] === 'LocalBusiness' || d['@type'] === 'HomeAndConstructionBusiness'
+      matchesType(d['@type'], 'LocalBusiness') || matchesType(d['@type'], 'HomeAndConstructionBusiness')
     )
     expect(localBusiness).toBeTruthy()
     expect(localBusiness['@context']).toBe('https://schema.org')
