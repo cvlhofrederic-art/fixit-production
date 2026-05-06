@@ -971,17 +971,22 @@ function RechercheContent() {
 
   return (
     <div className="min-h-screen bg-warm-gray">
-      <h1 className="sr-only">Rechercher un artisan près de chez vous</h1>
+      <h1 className="sr-only">{tp('Rechercher un artisan près de chez vous', 'Pesquisar um profissional perto de si')}</h1>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'BreadcrumbList',
-            itemListElement: [
-              { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.io/' },
-              { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.io/recherche/' },
-            ],
+            itemListElement: siteLocale === 'pt'
+              ? [
+                  { '@type': 'ListItem', position: 1, name: 'Início', item: 'https://vitfix.io/pt/' },
+                  { '@type': 'ListItem', position: 2, name: 'Pesquisar profissional', item: 'https://vitfix.io/pt/pesquisar/' },
+                ]
+              : [
+                  { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.io/fr/' },
+                  { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.io/fr/recherche/' },
+                ],
           }),
         }}
       />
@@ -1016,7 +1021,7 @@ function RechercheContent() {
                 onFocus={() => setCatDropOpen(true)}
                 onKeyDown={handleCategoryKeyDown}
                 placeholder={tp('Spécialité ou motif (ex: plombier, fuite...)', 'Especialidade (ex: canalizador, fuga...)')}
-                aria-label="Rechercher une spécialité"
+                aria-label={tp('Rechercher une spécialité', 'Pesquisar uma especialidade')}
                 className="w-full pl-9 pr-4 py-2.5 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:outline-none transition text-sm"
                 autoComplete="off"
               />
@@ -1049,7 +1054,7 @@ function RechercheContent() {
                 onFocus={() => setLocDropOpen(true)}
                 onKeyDown={handleLocationKeyDown}
                 placeholder={tp('Ville ou code postal', 'Cidade ou código postal')}
-                aria-label="Rechercher une ville"
+                aria-label={tp('Rechercher une ville', 'Pesquisar uma cidade')}
                 className={`w-full pl-9 pr-4 py-2.5 border-[1.5px] rounded-xl focus:outline-none transition text-sm ${userCoords ? 'border-yellow bg-amber-50' : 'bg-white border-[#E0E0E0]'}`}
                 autoComplete="off"
               />
@@ -1066,7 +1071,7 @@ function RechercheContent() {
                     <span className="font-semibold text-dark">{geoLoading ? tp('Localisation...', 'A localizar...') : tp('Autour de moi', 'Perto de mim')}</span>
                     {userCoords && !geoLoading && <span className="ml-auto text-xs text-green-600 font-medium">✓ Actif</span>}
                   </button>
-                  {citySuggestionsLoading && <div className="px-4 py-2 text-xs text-text-muted">Recherche des villes...</div>}
+                  {citySuggestionsLoading && <div className="px-4 py-2 text-xs text-text-muted">{tp('Recherche des villes...', 'A pesquisar cidades...')}</div>}
                   {!citySuggestionsLoading && citySuggestions.map((s, i) => (
                     <button
                       key={s.label}

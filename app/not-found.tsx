@@ -17,15 +17,15 @@ export default async function NotFound() {
       home: 'Voltar ao início',
       search: 'Encontrar profissional',
       homeHref: '/pt/',
-      searchHref: '/pesquisar/',
+      searchHref: '/pt/pesquisar/',
     },
     fr: {
       title: 'Page non trouvée',
       desc: "Désolé, la page que vous recherchez n'existe pas ou a été déplacée.",
       home: "Retour à l'accueil",
       search: 'Trouver un artisan',
-      homeHref: '/',
-      searchHref: '/recherche/',
+      homeHref: '/fr/',
+      searchHref: '/fr/recherche/',
     },
     en: {
       title: 'Page not found',
