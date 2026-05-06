@@ -5,6 +5,17 @@ vi.mock('@/lib/tenders/scanner', () => ({
   scanDepartment: scanDepartmentMock,
 }))
 
+const runTendersScanJobMock = vi.fn()
+vi.mock('@/lib/queue/consumers/tenders-scan', () => ({
+  TENDERS_SCAN_JOB_TYPE: 'tenders-scan',
+  runTendersScanJob: (...args: unknown[]) => runTendersScanJobMock(...args),
+}))
+
+const getCloudflareContextMock = vi.fn()
+vi.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: (...args: unknown[]) => getCloudflareContextMock(...args),
+}))
+
 const getAuthUserMock = vi.fn()
 vi.mock('@/lib/auth-helpers', () => ({
   getAuthUser: (...args: unknown[]) => getAuthUserMock(...args),
@@ -40,12 +51,14 @@ function makeRequest(headers: Record<string, string> = {}, body: unknown = {}): 
 describe('POST /api/tenders/scan', () => {
   it('returns 401 without any auth', async () => {
     getAuthUserMock.mockResolvedValueOnce(null)
+    getCloudflareContextMock.mockRejectedValue(new Error('no cf'))
     const { POST } = await import('@/app/api/tenders/scan/route')
     const res = await POST(makeRequest() as never)
     expect(res.status).toBe(401)
   })
 
-  it('runs inline scan when no SYNC_QUEUE binding is present', async () => {
+  it('runs inline scan when neither SYNC_QUEUE nor Cloudflare context are present', async () => {
+    getCloudflareContextMock.mockRejectedValue(new Error('no cf'))
     scanDepartmentMock.mockResolvedValueOnce({ meta: { total_after_dedup: 7 } })
     const { POST } = await import('@/app/api/tenders/scan/route')
     const res = await POST(makeRequest({ 'x-cron-secret': 'topsecret' }, { department: '13' }) as never)
@@ -54,6 +67,21 @@ describe('POST /api/tenders/scan', () => {
     expect(body.queued).toBe(false)
     expect(body.total_after_dedup).toBe(7)
     expect(scanDepartmentMock).toHaveBeenCalledWith('13')
+  })
+
+  it('dispatches via ctx.waitUntil when Cloudflare context is available (no queue)', async () => {
+    const waitUntil = vi.fn()
+    getCloudflareContextMock.mockResolvedValueOnce({ ctx: { waitUntil } })
+    runTendersScanJobMock.mockResolvedValueOnce({ status: 'completed', jobId: 'x', meta: { total_after_dedup: 0 } })
+    const { POST } = await import('@/app/api/tenders/scan/route')
+    const res = await POST(makeRequest({ 'x-cron-secret': 'topsecret' }, { department: '13' }) as never)
+    expect(res.status).toBe(202)
+    const body = await res.json()
+    expect(body.queued).toBe(false)
+    expect(body.dispatched).toBe(true)
+    expect(body.jobId).toMatch(/^[0-9a-f-]+$/)
+    expect(waitUntil).toHaveBeenCalledTimes(1)
+    expect(scanDepartmentMock).not.toHaveBeenCalled()
   })
 
   it('enqueues and returns 202 when SYNC_QUEUE binding is wired', async () => {
@@ -79,7 +107,7 @@ describe('POST /api/tenders/scan', () => {
     expect(scanDepartmentMock).not.toHaveBeenCalled()
   })
 
-  it('falls back to inline scan when enqueue throws (safety net)', async () => {
+  it('falls back to ctx.waitUntil when SYNC_QUEUE.send throws but Cloudflare context is available', async () => {
     const send = vi.fn().mockRejectedValueOnce(new Error('queue down'))
     ;(
       (globalThis as unknown as { process: { env: Record<string, unknown> } }).process
@@ -87,6 +115,28 @@ describe('POST /api/tenders/scan', () => {
       ...(globalThis as unknown as { process: { env: Record<string, unknown> } }).process.env,
       SYNC_QUEUE: { send },
     }
+    const waitUntil = vi.fn()
+    getCloudflareContextMock.mockResolvedValueOnce({ ctx: { waitUntil } })
+    runTendersScanJobMock.mockResolvedValueOnce({ status: 'completed', jobId: 'x' })
+    const { POST } = await import('@/app/api/tenders/scan/route')
+    const res = await POST(makeRequest({ 'x-cron-secret': 'topsecret' }, { department: '13' }) as never)
+    expect(res.status).toBe(202)
+    const body = await res.json()
+    expect(body.queued).toBe(false)
+    expect(body.dispatched).toBe(true)
+    expect(waitUntil).toHaveBeenCalledTimes(1)
+    expect(scanDepartmentMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to inline scan when both queue.send and Cloudflare context fail', async () => {
+    const send = vi.fn().mockRejectedValueOnce(new Error('queue down'))
+    ;(
+      (globalThis as unknown as { process: { env: Record<string, unknown> } }).process
+    ).env = {
+      ...(globalThis as unknown as { process: { env: Record<string, unknown> } }).process.env,
+      SYNC_QUEUE: { send },
+    }
+    getCloudflareContextMock.mockRejectedValue(new Error('no cf'))
     scanDepartmentMock.mockResolvedValueOnce({ meta: { total_after_dedup: 3 } })
     const { POST } = await import('@/app/api/tenders/scan/route')
     const res = await POST(makeRequest({ 'x-cron-secret': 'topsecret' }, { department: '13' }) as never)
@@ -97,6 +147,7 @@ describe('POST /api/tenders/scan', () => {
   })
 
   it('rejects an invalid department code', async () => {
+    getCloudflareContextMock.mockRejectedValue(new Error('no cf'))
     const { POST } = await import('@/app/api/tenders/scan/route')
     const res = await POST(makeRequest({ 'x-cron-secret': 'topsecret' }, { department: 'abc' }) as never)
     expect(res.status).toBe(400)
