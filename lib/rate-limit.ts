@@ -45,7 +45,7 @@ interface RateLimitEntry {
 }
 
 const requestCounts = new Map<string, RateLimitEntry>()
-const MAX_MAP_SIZE = 10_000 // Limite mémoire : max 10k entrées (évite fuite mémoire sur Vercel)
+const MAX_MAP_SIZE = 10_000 // Limite mémoire : max 10k entrées (évite fuite mémoire sur Workers)
 
 // Nettoyer les entrées expirées toutes les 5 minutes
 if (typeof setInterval !== 'undefined') {
@@ -128,10 +128,9 @@ export const checkRateLimitAsync = checkRateLimit
  * Extrait l'IP de la requête Next.js
  */
 export function getClientIP(request: NextRequest): string {
-  // Cloudflare-first, then Vercel fallback, then generic
+  // Cloudflare-first, then generic forwarded headers
   return (
     request.headers.get('cf-connecting-ip') ||
-    request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     'unknown'

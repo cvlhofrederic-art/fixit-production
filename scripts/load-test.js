@@ -27,7 +27,7 @@ const marchesDuration = new Trend('marches_duration', true);
 const errorRate = new Rate('errors');
 
 // --- URL de base (configurable via variable d'environnement) ---
-const BASE_URL = __ENV.BASE_URL || 'https://fixit-production.vercel.app';
+const BASE_URL = __ENV.BASE_URL || 'https://vitfix.io';
 
 // --- Seuils de performance ---
 // Les pages HTML ont un budget de 500ms au p95.
