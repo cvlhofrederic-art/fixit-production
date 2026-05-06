@@ -39,7 +39,7 @@ const aboutSchema = {
   },
 }
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children }: { readonly children: React.ReactNode }) {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }} />

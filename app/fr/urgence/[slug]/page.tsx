@@ -95,7 +95,7 @@ export default async function FrUrgenceCityPage({ params }: { params: Promise<{ 
           '@type': 'HowToStep',
           position: i + 1,
           name: `Étape ${i + 1}`,
-          text: stepText.replace(/\{city\}/g, city.name),
+          text: stepText.replaceAll('{city}', city.name),
         })),
       },
       // Speakable : assistants vocaux + AI agents.
