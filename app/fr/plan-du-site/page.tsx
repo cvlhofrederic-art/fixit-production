@@ -1,35 +1,21 @@
-import type { Metadata } from 'next'
 import { FR_SERVICES, FR_CITIES, getAllFrPageCombos } from '@/lib/data/fr-seo-pages-data'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
-import HtmlSitemap from '@/components/seo/HtmlSitemap'
-import { buildBreadcrumbSchema, buildSchemaGraph } from '@/lib/schemas'
+import HtmlSitemap, { buildSitemapMetadata, buildSitemapBreadcrumbSchema } from '@/components/seo/HtmlSitemap'
 
-export const metadata: Metadata = {
+export const metadata = buildSitemapMetadata({
+  locale: 'fr',
+  url: 'https://vitfix.io/fr/plan-du-site/',
+  altUrl: 'https://vitfix.io/pt/mapa-do-site/',
   title: 'Plan du site VITFIX — Toutes nos pages services et villes',
   description: 'Plan du site complet VITFIX : services artisans, villes desservies en PACA, articles de blog, ressources. Navigation rapide vers toutes nos pages.',
-  alternates: {
-    canonical: 'https://vitfix.io/fr/plan-du-site/',
-    languages: {
-      'fr': 'https://vitfix.io/fr/plan-du-site/',
-      'pt': 'https://vitfix.io/pt/mapa-do-site/',
-      'x-default': 'https://vitfix.io/fr/plan-du-site/',
-    },
-  },
-  openGraph: {
-    title: 'Plan du site VITFIX',
-    description: 'Toutes nos pages services et villes en PACA.',
-    type: 'website',
-    url: 'https://vitfix.io/fr/plan-du-site/',
-    siteName: 'VITFIX',
-    locale: 'fr_FR',
-  },
-}
+  ogTitle: 'Plan du site VITFIX',
+  ogDescription: 'Toutes nos pages services et villes en PACA.',
+})
 
-const breadcrumbSchema = buildSchemaGraph(
-  buildBreadcrumbSchema([
-    { name: 'VITFIX', url: 'https://vitfix.io/fr/' },
-    { name: 'Plan du site', url: 'https://vitfix.io/fr/plan-du-site/' },
-  ]),
+const breadcrumbSchema = buildSitemapBreadcrumbSchema(
+  'https://vitfix.io/fr/plan-du-site/',
+  'Plan du site',
+  'https://vitfix.io/fr/',
 )
 
 export default function PlanDuSitePage() {
