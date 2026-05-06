@@ -179,8 +179,14 @@ export default async function RootLayout({
       <head>
         <meta name="csrf-protection" content="same-origin" />
         <meta name="theme-color" content="#FFD600" />
-        {/* favicon (icon.svg) + apple-touch-icon (apple-icon.tsx) auto-injectés
-            par Next.js via app/icon.svg + app/apple-icon.tsx */}
+        {/* Windows tiles (Edge legacy / Windows pinned sites) */}
+        <meta name="msapplication-TileColor" content="#FFD600" />
+        {/* Favicons : Next.js auto-injecte app/favicon.ico + app/icon.png +
+            app/apple-icon.png. On déclare en plus les variantes 16/32 explicites
+            (hint browsers pour bonne taille) + safari-pinned-tab pour macOS. */}
+        <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+        <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#FFD600" />
         <link rel="manifest" href="/manifest.json" />
         {/* hreflang SEO tags */}
         <link rel="alternate" hrefLang="fr" href="https://vitfix.io/fr/" />
