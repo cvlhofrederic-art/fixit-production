@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { scanDepartment } from '@/lib/tenders/scanner'
 import { getAuthUser } from '@/lib/auth-helpers'
-import { TENDERS_SCAN_JOB_TYPE } from '@/lib/queue/consumers/tenders-scan'
+import { TENDERS_SCAN_JOB_TYPE, runTendersScanJob } from '@/lib/queue/consumers/tenders-scan'
 
 const scanBodySchema = z.object({
   department: z.string().regex(/^\d{2,3}$/, 'Code département invalide').default('13'),
@@ -56,9 +56,16 @@ export async function POST(request: NextRequest) {
   }
   const { department } = parsed.data
 
-  // If the Cloudflare Queue binding is wired, hand the work off and return
-  // 202 immediately — consumers get up to 15 min, well past the 30s CPU
-  // limit Workers enforces for HTTP requests on the standard plan.
+  // Strategy hierarchy (most async-safe → most fallback):
+  //   1. SYNC_QUEUE binding (Cloudflare Queue, up to 15 min in consumer).
+  //   2. ctx.waitUntil (Cloudflare Workers wall-clock extension, up to ~30 min
+  //      of subrequest budget — works on all paid Workers plans without queue).
+  //   3. Inline scanDepartment (local dev / non-CF runtime fallback).
+  //
+  // Each tier returns 202 + jobId so the caller can poll background_jobs for
+  // status. Step 3 returns 200 with the full meta payload for legacy compat.
+
+  // 1. Cloudflare Queue (preferred when wired)
   const queue = getSyncQueueBinding()
   if (queue) {
     try {
@@ -72,11 +79,33 @@ export async function POST(request: NextRequest) {
       logger.info(`[tenders/scan] Enqueued job ${jobId} for department ${department}`)
       return NextResponse.json({ success: true, queued: true, jobId }, { status: 202 })
     } catch (err) {
-      logger.error('[tenders/scan] Queue enqueue failed, falling back to inline scan', err)
-      // fall through to inline execution as a safety net
+      logger.error('[tenders/scan] Queue enqueue failed, falling through', err)
     }
   }
 
+  // 2. ctx.waitUntil — fire-and-forget on the Worker's wall-clock budget.
+  // Resolves the 30s CPU timeout for I/O-heavy scans (BOAMP, mairies) without
+  // requiring a queue + consumer pair. Available everywhere OpenNext runs on
+  // Cloudflare. We import lazily so getCloudflareContext doesn't blow up
+  // module load on non-CF runtimes.
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare')
+    const { ctx } = await getCloudflareContext({ async: true })
+    if (ctx && typeof ctx.waitUntil === 'function') {
+      const jobId = crypto.randomUUID()
+      ctx.waitUntil(
+        runTendersScanJob({ department }, { jobId }).catch((err: unknown) => {
+          logger.error('[tenders/scan] background scan failed', err)
+        })
+      )
+      logger.info(`[tenders/scan] Dispatched job ${jobId} to ctx.waitUntil`)
+      return NextResponse.json({ success: true, queued: false, dispatched: true, jobId }, { status: 202 })
+    }
+  } catch (err) {
+    logger.warn('[tenders/scan] No Cloudflare context, falling back to inline scan', err)
+  }
+
+  // 3. Inline (local dev / non-CF runtime)
   try {
     logger.info(`[tenders/scan] Starting inline scan for department ${department}`)
     const result = await scanDepartment(department)
