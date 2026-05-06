@@ -1,34 +1,20 @@
-import type { Metadata } from 'next'
 import { SERVICES, CITIES, getAllPageCombos, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
-import HtmlSitemap from '@/components/seo/HtmlSitemap'
-import { buildBreadcrumbSchema, buildSchemaGraph } from '@/lib/schemas'
+import HtmlSitemap, { buildSitemapMetadata, buildSitemapBreadcrumbSchema } from '@/components/seo/HtmlSitemap'
 
-export const metadata: Metadata = {
+export const metadata = buildSitemapMetadata({
+  locale: 'pt',
+  url: 'https://vitfix.io/pt/mapa-do-site/',
+  altUrl: 'https://vitfix.io/fr/plan-du-site/',
   title: 'Mapa do site VITFIX — Todas as nossas páginas serviços e cidades',
   description: 'Mapa do site completo VITFIX: serviços de profissionais, cidades cobertas no Tâmega e Sousa, artigos do blog. Navegação rápida para todas as páginas.',
-  alternates: {
-    canonical: 'https://vitfix.io/pt/mapa-do-site/',
-    languages: {
-      'pt': 'https://vitfix.io/pt/mapa-do-site/',
-      'fr': 'https://vitfix.io/fr/plan-du-site/',
-      'x-default': 'https://vitfix.io/pt/mapa-do-site/',
-    },
-  },
-  openGraph: {
-    title: 'Mapa do site VITFIX',
-    description: 'Todas as nossas páginas serviços e cidades em Portugal.',
-    type: 'website',
-    url: 'https://vitfix.io/pt/mapa-do-site/',
-    siteName: 'VITFIX',
-    locale: 'pt_PT',
-  },
-}
+  ogTitle: 'Mapa do site VITFIX',
+  ogDescription: 'Todas as nossas páginas serviços e cidades em Portugal.',
+})
 
-const breadcrumbSchema = buildSchemaGraph(
-  buildBreadcrumbSchema([
-    { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
-    { name: 'Mapa do site', url: 'https://vitfix.io/pt/mapa-do-site/' },
-  ]),
+const breadcrumbSchema = buildSitemapBreadcrumbSchema(
+  'https://vitfix.io/pt/mapa-do-site/',
+  'Mapa do site',
+  'https://vitfix.io/pt/',
 )
 
 export default function MapaDoSitePage() {

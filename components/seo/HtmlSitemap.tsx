@@ -1,9 +1,60 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import { buildBreadcrumbSchema, buildSchemaGraph } from '@/lib/schemas'
 
 // Composant partagé pour les pages plan-du-site (FR) / mapa-do-site (PT).
 // Centralise la logique d'affichage hiérarchique services × villes.
 // Les deux pages locale-spécifiques en sont des wrappers fournissant
 // uniquement la data et les labels traduits.
+
+// ── Metadata factory pour les pages sitemap HTML ──
+// Élimine la duplication des objets Metadata entre FR/PT (Sonar CPD).
+// Les strings locale-spécifiques sont fournies en paramètres.
+
+interface SitemapMetadataOptions {
+  locale: 'fr' | 'pt'
+  url: string
+  altUrl: string
+  title: string
+  description: string
+  ogTitle: string
+  ogDescription: string
+}
+
+export function buildSitemapMetadata(opts: SitemapMetadataOptions): Metadata {
+  const ogLocale = opts.locale === 'pt' ? 'pt_PT' : 'fr_FR'
+  return {
+    title: opts.title,
+    description: opts.description,
+    alternates: {
+      canonical: opts.url,
+      languages: {
+        [opts.locale]: opts.url,
+        [opts.locale === 'fr' ? 'pt' : 'fr']: opts.altUrl,
+        'x-default': opts.url,
+      },
+    },
+    openGraph: {
+      title: opts.ogTitle,
+      description: opts.ogDescription,
+      type: 'website',
+      url: opts.url,
+      siteName: 'VITFIX',
+      locale: ogLocale,
+    },
+  }
+}
+
+// ── Breadcrumb schema factory pour les pages sitemap HTML ──
+
+export function buildSitemapBreadcrumbSchema(currentUrl: string, currentLabel: string, homeUrl: string) {
+  return buildSchemaGraph(
+    buildBreadcrumbSchema([
+      { name: 'VITFIX', url: homeUrl },
+      { name: currentLabel, url: currentUrl },
+    ]),
+  )
+}
 
 export interface SitemapServiceCombo {
   service: { slug: string; name: string }
