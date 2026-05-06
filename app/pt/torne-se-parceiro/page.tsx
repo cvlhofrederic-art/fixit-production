@@ -241,7 +241,14 @@ export default function TorneSeParceiroPage() {
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </Link>
             <a
-              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=Olá! Sou profissional e gostaria de saber mais sobre como me juntar ao VITFIX.`}
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white font-medium rounded-full px-7 py-3 text-[0.95rem] hover:bg-dark/90 transition-all"
+            >
+              <span className="text-lg">📞</span>
+              Ligar +351 912 014 971
+            </a>
+            <a
+              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent('Olá! Sou profissional e gostaria de saber mais sobre como me juntar ao VITFIX.')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-[#25D366] text-white font-medium rounded-full px-7 py-3 text-[0.95rem] hover:bg-[#20ba59] transition-all"

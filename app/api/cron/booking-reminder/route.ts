@@ -54,9 +54,11 @@ export async function GET(request: NextRequest) {
 
         const artisan = booking.profiles_artisan as any
         const service = booking.services as any
-        const dateFmt = new Date(booking.booking_date + 'T12:00:00').toLocaleDateString('fr-FR', {
-          weekday: 'long', day: 'numeric', month: 'long'
-        })
+        const clientLocale = clientAuth.user.user_metadata?.locale === 'pt' ? 'pt' : 'fr'
+        const dateFmt = new Date(booking.booking_date + 'T12:00:00').toLocaleDateString(
+          clientLocale === 'pt' ? 'pt-PT' : 'fr-FR',
+          { weekday: 'long', day: 'numeric', month: 'long' }
+        )
 
         // Fetch artisan name
         let artisanName = artisan?.company_name || 'Artisan'
@@ -75,6 +77,7 @@ export async function GET(request: NextRequest) {
           bookingDate: dateFmt,
           bookingTime: booking.booking_time?.substring(0, 5),
           address: booking.address || undefined,
+          locale: clientLocale,
         })
 
         const result = await sendEmail({ to: clientAuth.user.email, ...emailData })

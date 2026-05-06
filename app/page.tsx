@@ -752,15 +752,15 @@ export default function HomePage() {
           <div className={s.footerCol}>
             <h5>{isPt ? 'Legal' : 'Légal'}</h5>
             <ul>
-              <li><Link href={isPt ? '/fr/cgu' : '/fr/cgu'}>{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
+              <li><Link href={isPt ? '/pt/termos' : '/fr/cgu'}>{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
               <li><Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link></li>
-              <li><Link href={isPt ? '/fr/mentions-legales' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
+              <li><Link href={isPt ? '/pt/avisos-legais' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
             </ul>
           </div>
         </div>
         <div className={s.footerBottom}>
           © 2026 Vitfix · {isPt ? 'Todos os direitos reservados' : 'Tous droits réservés'} ·{' '}
-          <Link href={isPt ? '/fr/mentions-legales' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
+          <Link href={isPt ? '/pt/avisos-legais' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
           <Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link>
         </div>
       </footer>

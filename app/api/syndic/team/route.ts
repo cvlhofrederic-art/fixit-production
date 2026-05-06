@@ -124,11 +124,13 @@ export async function POST(request: NextRequest) {
   }
   const roleName = roleLabels[memberRole] || memberRole
 
+  const inviterLocale = user.user_metadata?.locale === 'pt' ? 'pt' : 'fr'
   const emailTemplate = templateTeamInvite({
     memberName: full_name,
     roleName,
     cabinetName,
     inviteUrl,
+    locale: inviterLocale,
   })
 
   let emailSent = false

@@ -618,14 +618,18 @@ function RechercheContent() {
   // ------------------------------------------------------------------
 
   // Filtered specialty suggestions
+  // PT: match against translated label AND original FR (so "canalizador" matches the
+  // plomberie suggestion whose label is "Plombier" in the source dataset).
   const filteredSpecialtySuggestions = useMemo(() => {
     if (!categoryInput.trim()) return SPECIALTY_SUGGESTIONS_FR.filter(s => s.type === 'primary')
-    const norm = categoryInput.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    return SPECIALTY_SUGGESTIONS_FR.filter(s =>
-      s.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm) ||
-      (s.subtitle && s.subtitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm))
-    ).slice(0, 8)
-  }, [categoryInput])
+    const norm = normalizeForSearch(categoryInput)
+    return SPECIALTY_SUGGESTIONS_FR.filter(s => {
+      const labelLocal = siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.label) : s.label
+      const subtitleLocal = siteLocale === 'pt' && s.subtitle ? (CATEGORY_LABELS_PT[s.category] || s.subtitle) : (s.subtitle || '')
+      return [s.label, s.subtitle || '', labelLocal, subtitleLocal]
+        .some(t => t && normalizeForSearch(t).includes(norm))
+    }).slice(0, 8)
+  }, [categoryInput, siteLocale])
 
   // Autocomplete local (phase test) : départements + villes depuis nos datasets
   // FR : 13 + communes 13 / PT : Porto + freguesias/concelhos Porto
@@ -735,7 +739,7 @@ function RechercheContent() {
     setActiveCategory(categoryInput)
     setActiveLocation(locationInput)
 
-    // Update URL params
+    // Update URL params — keep the user on their locale's route (PT submitting must stay on /pt/pesquisar)
     const params = new URLSearchParams()
     if (categoryInput) params.set('category', categoryInput)
     if (locationInput) params.set('loc', locationInput)
@@ -798,7 +802,7 @@ function RechercheContent() {
         }
 
         setGeoLoading(false)
-        // Lancer la recherche automatiquement après géoloc
+        // Lancer la recherche automatiquement après géoloc — respecter la locale
         setTimeout(() => {
           setActiveCategory(categoryInput)
           const params = new URLSearchParams()
