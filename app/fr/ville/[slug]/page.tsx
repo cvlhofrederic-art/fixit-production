@@ -59,9 +59,10 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
           closes: '22:00',
         },
         aggregateRating: {
+          // Aligné RATING_FR conservateur (lib/schemas/index.ts review #140).
           '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '12000',
+          ratingValue: '4.8',
+          reviewCount: '47',
           bestRating: '5',
           worstRating: '1',
         },
