@@ -121,6 +121,20 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
               Encontrar profissional em {city.name}
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </Link>
+            <a
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+            >
+              📞 Ligar +351 912 014 971
+            </a>
+            <a
+              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`Olá VITFIX, preciso de um profissional em ${city.name}.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-[#20ba59] transition-all"
+            >
+              💬 WhatsApp
+            </a>
           </div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-muted">

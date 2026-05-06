@@ -233,7 +233,7 @@ export default async function RootLayout({
                     : 'Plateforme d\'artisans vérifiés pour vos travaux — plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
                   knowsLanguage: ['pt-PT', 'fr-FR', 'en'],
                   email: CONTACT_EMAIL,
-                  telephone: PHONE_FR,
+                  telephone: locale === 'pt' ? PHONE_PT : PHONE_FR,
                   contactPoint: [
                     {
                       '@type': 'ContactPoint',

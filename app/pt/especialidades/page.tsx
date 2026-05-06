@@ -199,7 +199,13 @@ export default function EspecialidadesPage() {
                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </Link>
               <a
-                href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=Ol%C3%A1%2C%20preciso%20de%20um%20profissional%20especializado%20na%20regi%C3%A3o%20do%20Porto`}
+                href={`tel:${PHONE_PT}`}
+                className="inline-flex items-center gap-2 bg-dark text-white rounded-full font-display font-bold px-8 py-4 text-base hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+              >
+                <span>📞</span> Ligar +351 912 014 971
+              </a>
+              <a
+                href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent('Olá, preciso de um profissional especializado na região do Porto')}`}
                 className="inline-flex items-center gap-2 border-2 border-dark text-dark rounded-full font-display font-bold px-8 py-4 text-base bg-transparent hover:bg-dark hover:text-white transition-all"
                 target="_blank"
                 rel="noopener noreferrer"

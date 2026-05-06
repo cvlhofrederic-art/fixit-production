@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
   title: 'Profissionais Verificados em Portugal — Garantia VITFIX | VITFIX',
@@ -335,6 +336,20 @@ export default function ProfissionaisVerificadosPage() {
                 Encontrar um profissional verificado
                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </Link>
+              <a
+                href={`tel:${PHONE_PT}`}
+                className="inline-flex items-center gap-2 bg-white text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-white/90 transition-all"
+              >
+                📞 Ligar +351 912 014 971
+              </a>
+              <a
+                href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent('Olá VITFIX, preciso de um profissional verificado.')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-8 py-4 text-base hover:bg-[#20ba59] transition-all"
+              >
+                💬 WhatsApp
+              </a>
               <Link
                 href="/pt/como-funciona/"
                 className="inline-flex items-center gap-2 border border-white/30 text-white rounded-full px-8 py-4 text-base hover:bg-white/10 transition-all"

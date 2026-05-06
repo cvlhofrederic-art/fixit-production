@@ -200,12 +200,20 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
               Pedir ajuda agora
             </Link>
             <a
-              href="https://wa.me/351920043853?text=Ol%C3%A1%20VITFIX%2C%20preciso%20de%20ajuda%20urgente"
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white rounded-full font-bold px-7 py-3.5 text-[0.95rem] hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+            >
+              <span className="text-lg">📞</span>
+              Ligar +351 912 014 971
+            </a>
+            <a
+              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent('Olá VITFIX, preciso de ajuda urgente')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border-2 border-dark text-dark rounded-full font-bold px-7 py-3.5 text-[0.95rem] bg-white/80 hover:bg-dark hover:text-white transition-all"
             >
-              Contactar-nos
+              <span className="text-lg">💬</span>
+              WhatsApp
             </a>
           </div>
 
