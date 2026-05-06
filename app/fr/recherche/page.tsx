@@ -933,8 +933,11 @@ function RechercheContent() {
     }
 
     // Groupe 2 — Catalogue SIRENE (toujours après les inscrits)
-    // Rotation toutes les 4h, seed décalé pour varier indépendamment du groupe 1
-    const sortedCatalogue = seededShuffle(catalogueArtisans, seed + 1)
+    // Si coords disponibles (GPS "autour de moi" ou ville geocodée) → tri par distance
+    // croissante. Sinon → rotation équitable toutes les 4h, seed décalé du groupe 1.
+    const sortedCatalogue = refCoords
+      ? [...catalogueArtisans].sort((a, b) => haversine(a) - haversine(b))
+      : seededShuffle(catalogueArtisans, seed + 1)
 
     return [...sortedRegistered, ...sortedCatalogue]
   }, [artisans, filters, allAvailability, allBookings, userCoords, searchCoords])
