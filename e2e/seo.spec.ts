@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('SEO', () => {
-  test('/sitemap.xml returns valid XML', async ({ request }) => {
+  test('/sitemap.xml returns valid sitemap index XML', async ({ request }) => {
     const response = await request.get('/sitemap.xml')
     // Dynamic sitemap may 404 in CI if build lacks full env — skip content checks
     test.skip(response.status() === 404, 'Sitemap not available in CI build')
@@ -12,9 +12,37 @@ test.describe('SEO', () => {
 
     const body = await response.text()
     expect(body).toContain('<?xml')
+    // /sitemap.xml est l'INDEX qui liste les sub-sitemaps (pas un urlset).
+    expect(body).toContain('<sitemapindex')
+    expect(body).toContain('<sitemap>')
+    expect(body).toContain('<loc>')
+  })
+
+  test('/sitemap/0.xml returns valid urlset XML', async ({ request }) => {
+    const response = await request.get('/sitemap/0.xml')
+    test.skip(response.status() === 404, 'Sub-sitemap not available in CI build')
+    expect(response.status()).toBe(200)
+
+    const contentType = response.headers()['content-type'] || ''
+    expect(contentType).toMatch(/xml/)
+
+    const body = await response.text()
+    expect(body).toContain('<?xml')
     expect(body).toContain('<urlset')
     expect(body).toContain('<url>')
     expect(body).toContain('<loc>')
+  })
+
+  test('/sitemap/{invalid}.xml returns 404', async ({ request }) => {
+    // Garde sécurité parseSitemapId : rejette ambiguïtés canoniques.
+    const responses = await Promise.all([
+      request.get('/sitemap/5.xml'),
+      request.get('/sitemap/0.xml.xml'),
+      request.get('/sitemap/0abc'),
+    ])
+    for (const r of responses) {
+      expect(r.status()).toBe(404)
+    }
   })
 
   test('/robots.txt is accessible and well-formed', async ({ request }) => {
@@ -81,9 +109,12 @@ test.describe('SEO', () => {
       }
     }
 
-    // Find the LocalBusiness or HomeAndConstructionBusiness entry
+    // Find the LocalBusiness or HomeAndConstructionBusiness entry.
+    // @type peut être string OU array (Organization + HomeAndConstructionBusiness).
+    const matchesType = (typeField: unknown, target: string): boolean =>
+      typeField === target || (Array.isArray(typeField) && typeField.includes(target))
     const localBusiness = allJsonLd.find((d) =>
-      d['@type'] === 'LocalBusiness' || d['@type'] === 'HomeAndConstructionBusiness'
+      matchesType(d['@type'], 'LocalBusiness') || matchesType(d['@type'], 'HomeAndConstructionBusiness')
     )
     expect(localBusiness).toBeTruthy()
     expect(localBusiness['@context']).toBe('https://schema.org')
