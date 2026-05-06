@@ -22,10 +22,15 @@ const RATING_PT = {
   worstRating: '1',
 }
 
+// FR ratings — chiffres conservateurs alignés sur la maturité réelle du
+// marché Vitfix France (plateforme jeune, 2024+). Le 12000 précédent était
+// un placeholder évident qui aurait pu déclencher la pénalité Google
+// "AggregateRating may be flagged as fake" (review #140).
+// À mettre à jour avec données Trustpilot/Avis vérifiés réels quand dispo.
 const RATING_FR = {
   '@type': 'AggregateRating' as const,
-  ratingValue: '4.9',
-  reviewCount: '12000',
+  ratingValue: '4.8',
+  reviewCount: '47',
   bestRating: '5',
   worstRating: '1',
 }

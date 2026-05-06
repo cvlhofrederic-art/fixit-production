@@ -76,29 +76,25 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   const totalWords = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
   const readTime = Math.max(3, Math.ceil(totalWords / 200))
 
-  // Schema.org Article
+  // Schema.org Article (avec @id linking vers Organization globale)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'Article',
+        '@id': `https://vitfix.io/pt/blog/${slug}/#article`,
         headline: article.title,
         description: article.metaDesc,
         url: `https://vitfix.io/pt/blog/${slug}/`,
-        publisher: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-          logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
-        },
-        mainEntityOfPage: `https://vitfix.io/pt/blog/${slug}/`,
+        inLanguage: 'pt-PT',
+        articleSection: categoryLabel(article.category),
+        keywords: article.relatedServices.join(', '),
+        wordCount: totalWords,
+        publisher: { '@id': 'https://vitfix.io/#business' },
+        author: { '@id': 'https://vitfix.io/#business' },
+        mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/pt/blog/${slug}/` },
         datePublished: article.datePublished,
-        dateModified: article.datePublished,
-        author: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-        },
+        dateModified: article.dateModified || article.datePublished,
         image: 'https://vitfix.io/og-image.png',
       },
       {

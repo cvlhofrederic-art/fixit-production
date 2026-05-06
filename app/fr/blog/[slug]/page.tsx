@@ -55,31 +55,29 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
     plaquiste: { name: 'Plaquiste', icon: '🏗️' },
   }
 
-  // Schema.org Article + FAQPage
+  // Word count rough — article.intro + each section
+  const totalWordsFr = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
+
+  // Schema.org Article + FAQPage (avec @id linking vers Organization globale)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'Article',
+        '@id': `https://vitfix.io/fr/blog/${slug}/#article`,
         headline: article.title,
         description: article.metaDesc,
         url: `https://vitfix.io/fr/blog/${slug}/`,
-        publisher: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-          logo: { '@type': 'ImageObject', url: 'https://vitfix.io/og-image.png' },
-        },
-        mainEntityOfPage: `https://vitfix.io/fr/blog/${slug}/`,
-        datePublished: article.datePublished,
-        dateModified: article.datePublished,
-        author: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-        },
-        image: 'https://vitfix.io/og-image.png',
         inLanguage: 'fr-FR',
+        articleSection: article.category,
+        keywords: article.relatedServices.join(', '),
+        wordCount: totalWordsFr,
+        publisher: { '@id': 'https://vitfix.io/#business' },
+        author: { '@id': 'https://vitfix.io/#business' },
+        mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vitfix.io/fr/blog/${slug}/` },
+        datePublished: article.datePublished,
+        dateModified: article.dateModified || article.datePublished,
+        image: 'https://vitfix.io/og-image.png',
       },
       {
         '@type': 'BreadcrumbList',
