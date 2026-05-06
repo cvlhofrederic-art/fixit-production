@@ -13,8 +13,6 @@ import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
 import ConsentAnalytics from "@/components/common/ConsentAnalytics";
 import type { Locale } from "@/lib/i18n/config";
-import { CITIES } from "@/lib/data/seo-pages-data";
-import { FR_CITIES } from "@/lib/data/fr-seo-pages-data";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
 const dmSans = DM_Sans({
@@ -246,25 +244,25 @@ export default async function RootLayout({
                       availableLanguage: ['Portuguese', 'English'],
                     },
                   ],
+                  // areaServed : Country + AdministrativeArea seulement.
+                  // Les City individuelles sont portées par les service pages
+                  // (lib/schemas/index.ts buildBusinessSchema avec city local).
+                  // Évite 31 entrées × 80 chars sur CHAQUE page (review #140).
                   areaServed: [
                     { '@type': 'Country', name: 'France' },
                     { '@type': 'Country', name: 'Portugal' },
                     { '@type': 'AdministrativeArea', name: 'Provence-Alpes-Côte d\'Azur, France' },
                     { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
-                    ...FR_CITIES.map((c) => ({ '@type': 'City', name: c.name, address: { '@type': 'PostalAddress', addressCountry: 'FR' } })),
-                    ...CITIES.map((c) => ({ '@type': 'City', name: c.name, address: { '@type': 'PostalAddress', addressCountry: 'PT' } })),
                   ],
                   priceRange: '€€',
-                  aggregateRating: {
-                    '@type': 'AggregateRating',
-                    ratingValue: '4.8',
-                    reviewCount: '250',
-                    bestRating: '5',
-                    worstRating: '1',
-                  },
+                  // aggregateRating intentionnellement OMIS de l'Organization
+                  // globale (review #140) :
+                  // - Évite incohérence avec ratings per-locale dans
+                  //   lib/schemas/index.ts (4.8 FR / 4.9 PT).
+                  // - Service pages portent leurs propres ratings localisés.
+                  // - Pas de risque Google "Inconsistent ratings warning".
                   // sameAs, address, taxID, foundingDate intentionnellement omis
-                  // tant que les données réelles ne sont pas fournies par l'utilisateur
-                  // (mieux qu'un placeholder qui invaliderait le schema).
+                  // tant que les données réelles ne sont pas fournies par l'utilisateur.
                 },
               ],
             }),
