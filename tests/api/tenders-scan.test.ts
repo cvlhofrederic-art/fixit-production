@@ -41,7 +41,7 @@ afterEach(() => {
 })
 
 function makeRequest(headers: Record<string, string> = {}, body: unknown = {}): Request {
-  return new Request('http://localhost/api/tenders/scan', {
+  return new Request('https://test.local/api/tenders/scan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),

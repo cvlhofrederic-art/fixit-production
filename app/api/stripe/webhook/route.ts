@@ -158,15 +158,17 @@ export async function POST(request: NextRequest) {
       }
       case 'invoice.payment_action_required': {
         // Strong Customer Authentication needed (3DS, etc.)
-        const invoice = event.data.object as Stripe.Invoice & { subscription: string | null; customer: string }
+        const invoice = event.data.object as Stripe.Invoice
+        const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null
+        const subscriptionId = (invoice as Stripe.Invoice & { subscription?: string | null }).subscription ?? null
         await recordSubscriptionEvent({
           eventId: event.id,
           eventType: event.type,
-          stripeCustomerId: invoice.customer,
-          stripeSubscriptionId: invoice.subscription,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
           payload: { invoice_id: invoice.id, amount_due: invoice.amount_due, currency: invoice.currency },
         })
-        log.info('Payment action required', { invoiceId: invoice.id, customerId: invoice.customer })
+        log.info('Payment action required', { invoiceId: invoice.id, customerId })
         break
       }
       case 'customer.subscription.trial_will_end': {

@@ -32,7 +32,7 @@ describe('MrrCard', () => {
     render(<MrrCard getToken={async () => 'jwt'} />)
     expect(await screen.findByText(/MRR \(snapshot quotidien\)/)).toBeInTheDocument()
     // 49000 cents = 490 € — Intl can use NBSP for thousands separator
-    expect(screen.getByText(/490[\s ]?€/)).toBeInTheDocument()
+    expect(screen.getByText(/490\s?€/)).toBeInTheDocument()
     expect(screen.getByText('10 actifs')).toBeInTheDocument()
   })
 

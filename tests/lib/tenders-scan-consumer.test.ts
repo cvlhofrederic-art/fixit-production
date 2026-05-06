@@ -9,22 +9,21 @@ const recentLookup = vi.fn()
 const upsertMock = vi.fn().mockResolvedValue({ error: null })
 const updateMock = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 
+// Builds a thenable chain that always returns the same handler at each level
+// — flattens the deeply-nested mock to a single function call.
+function chainTo<T>(terminal: () => T) {
+  const node: Record<string, unknown> = {}
+  for (const key of ['select', 'eq', 'contains', 'gte', 'limit']) {
+    node[key] = () => node
+  }
+  node.maybeSingle = terminal
+  return node
+}
+
 const fromMock = vi.fn().mockImplementation((table: string) => {
   if (table !== 'background_jobs') throw new Error(`unexpected table ${table}`)
   return {
-    select: () => ({
-      eq: () => ({
-        eq: () => ({
-          contains: () => ({
-            gte: () => ({
-              limit: () => ({
-                maybeSingle: () => recentLookup(),
-              }),
-            }),
-          }),
-        }),
-      }),
-    }),
+    ...chainTo(() => recentLookup()),
     upsert: (payload: unknown) => {
       upsertMock(payload)
       return Promise.resolve({ error: null })
