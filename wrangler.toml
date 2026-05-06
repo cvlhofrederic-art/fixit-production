@@ -80,6 +80,15 @@ crons = [
 # the SYNC_QUEUE binding at runtime and falls back to the inline scan when
 # absent. Activating the binding is a zero-risk capability flip.
 
+# IMPORTANT: queue `fixit-sync-jobs` is already provisioned in Cloudflare
+# (created 2026-04-22, 0 producers / 0 consumers attached). We deliberately
+# keep BOTH blocks commented because:
+#   - Decommenting the producer alone would route /api/tenders/scan calls
+#     to an orphan queue (consumer not yet wired in the OpenNext worker
+#     entry → enqueued jobs would never run, breaking the scan).
+#   - Activation must be a single atomic step: wire consumer first, then
+#     decomment both producer + consumer in the same deploy.
+#
 # [[queues.producers]]
 # binding = "SYNC_QUEUE"
 # queue = "fixit-sync-jobs"
