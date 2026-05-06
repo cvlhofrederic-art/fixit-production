@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { MrrCard } from '@/components/admin/MrrCard'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -410,6 +411,7 @@ export default function AdminDashboardPage() {
                   <KPICard label="Bookings (mois)" value={stats.bookings.thisMonth} sub={`${stats.bookings.evolution >= 0 ? '+' : ''}${stats.bookings.evolution}%`} subColor={stats.bookings.evolution >= 0 ? 'text-green-400' : 'text-red-400'} icon="📅" />
                   <KPICard label="Inscrits (7j)" value={stats.users.newThisWeek} icon="🆕" />
                   <KPICard label="Abonnés Pro" value={stats.subscriptions.byPlan.pro || 0} icon="💎" />
+                  <MrrCard getToken={getToken} />
                 </div>
 
                 {/* Details sections */}

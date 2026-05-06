@@ -52,6 +52,9 @@ crons = [
   "30 7 * * *",
   # Email agent poll — daily 8 AM UTC (must be batched < 30s)
   "0 8 * * *",
+  # Revenue snapshot — daily 4 AM UTC (computes MRR / churn / counts
+  # into subscription_metrics). Requires migration 100 to be applied.
+  "0 4 * * *",
 ]
 
 # ── Queue Bindings ───────────────────────────────────────────────────────────
