@@ -37,9 +37,11 @@ export default async function MentionsLegalesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">{t('legal.hosting.title')}</h2>
             <ul className="space-y-1 text-sm">
-              <li><strong>{t('legal.hosting.company')} :</strong> Vercel Inc.</li>
-              <li><strong>{t('legal.hosting.address')} :</strong> 440 N Barranca Ave #4133, Covina, CA 91723, {t('legal.hosting.country')}</li>
-              <li><strong>{t('legal.hosting.website')} :</strong> <a href="https://vercel.com" className="text-yellow hover:underline" target="_blank" rel="noopener noreferrer">vercel.com</a></li>
+              <li><strong>{t('legal.hosting.company')} :</strong> Cloudflare, Inc.</li>
+              <li><strong>{t('legal.hosting.address')} :</strong> 101 Townsend Street, San Francisco, CA 94107, {t('legal.hosting.country')}</li>
+              <li><strong>Tél. :</strong> +1 (650) 319-8930</li>
+              <li><strong>{t('legal.hosting.website')} :</strong> <a href="https://www.cloudflare.com" className="text-yellow hover:underline" target="_blank" rel="noopener noreferrer">cloudflare.com</a></li>
+              <li><strong>Représentant UE (RGPD art. 27) :</strong> Cloudflare Ireland Ltd, 25/28 North Wall Quay, Dublin 1, Irlande</li>
             </ul>
           </section>
 
