@@ -6,11 +6,17 @@ import { Montserrat } from "next/font/google";
 import { Outfit } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import "./globals.css";
+import dynamic from "next/dynamic";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
-import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
-import ConsentAnalytics from "@/components/common/ConsentAnalytics";
-import WebVitalsReporter from "@/components/common/WebVitalsReporter";
+
+// Lazy-load des composants below-fold + non-critiques pour améliorer LCP/INP.
+// next/dynamic + ssr:false → ces composants ne sont pas dans le HTML initial
+// ni dans le JS hydration critique. Pas de SSR car ils nécessitent l'API
+// browser (cookies, web-vitals, navigator).
+const CookieConsent = dynamic(() => import("@/components/common/CookieConsent"), { ssr: false });
+const ConsentAnalytics = dynamic(() => import("@/components/common/ConsentAnalytics"), { ssr: false });
+const WebVitalsReporter = dynamic(() => import("@/components/common/WebVitalsReporter"), { ssr: false });
 import type { Locale } from "@/lib/i18n/config";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
