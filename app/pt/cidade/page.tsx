@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { CITIES, SERVICES } from '@/lib/data/seo-pages-data'
+import { CITIES, SERVICES, type CityData } from '@/lib/data/seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Cidades VITFIX : Profissionais em Tâmega e Sousa, Porto e Braga',
-  description: 'Encontre profissionais verificados na sua cidade: Marco de Canaveses, Penafiel, Amarante, Porto, Braga e mais. Eletricista, canalizador, pintor. Orçamento grátis.',
+  title: 'Cidades VITFIX : Profissionais verificados em Portugal continental',
+  description: 'Encontre profissionais verificados na sua cidade. Eletricista, canalizador, pintor, pladur. Cobertura nos distritos do Porto, Braga e Aveiro. Orçamento grátis.',
   openGraph: {
     title: 'Cidades VITFIX : Profissionais na Sua Zona',
-    description: 'Serviços para casa em Marco de Canaveses, Penafiel, Amarante, Porto, Vila Nova de Gaia, Braga e região.',
+    description: 'Serviços para casa nos distritos do Porto, Braga e Aveiro.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
@@ -25,14 +25,41 @@ export const metadata: Metadata = {
   },
 }
 
+const DISTRITO_ORDER = ['Porto', 'Braga', 'Aveiro'] as const
+
+const DISTRITO_DESCRIPTIONS: Record<string, string> = {
+  Porto: 'Cidades do Tâmega e Sousa e Grande Porto.',
+  Braga: 'Cidades do distrito de Braga.',
+  Aveiro: 'Cidades do distrito de Aveiro, da ria à serra.',
+}
+
+function groupByDistrito(cities: CityData[]): Map<string, CityData[]> {
+  const groups = new Map<string, CityData[]>()
+  for (const c of cities) {
+    const list = groups.get(c.distrito) ?? []
+    list.push(c)
+    groups.set(c.distrito, list)
+  }
+  for (const list of groups.values()) {
+    list.sort((a, b) => b.population - a.population)
+  }
+  return groups
+}
+
 export default function CidadesHubPage() {
+  const grouped = groupByDistrito(CITIES)
+  const orderedDistritos = [
+    ...DISTRITO_ORDER.filter(d => grouped.has(d)),
+    ...[...grouped.keys()].filter(d => !DISTRITO_ORDER.includes(d as typeof DISTRITO_ORDER[number])),
+  ]
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'CollectionPage',
         name: 'Cidades VITFIX',
-        description: 'Todas as cidades onde a VITFIX opera na região Norte de Portugal.',
+        description: 'Cidades onde a VITFIX opera, organizadas por distrito.',
         url: 'https://vitfix.io/pt/cidade/',
       },
       {
@@ -69,67 +96,85 @@ export default function CidadesHubPage() {
             Todas as Cidades VITFIX
           </h1>
           <p className="text-lg text-text-muted max-w-2xl leading-relaxed">
-            Profissionais verificados em {CITIES.length} cidades da região Norte de Portugal.
-            Eletricista, canalizador, pintor, pladur e mais. Orçamento grátis, intervenção rápida.
+            Profissionais verificados em {CITIES.length} cidades, organizadas por distrito. Eletricista, canalizador, pintor, pladur. Orçamento grátis, intervenção rápida.
           </p>
         </div>
       </section>
 
-      {/* CITIES GRID */}
-      <section className="py-12 md:py-16">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark mb-8">
-            {CITIES.length} Cidades Disponíveis
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {CITIES.map(city => (
-              <Link
-                key={city.slug}
-                href={`/pt/cidade/${city.slug}/`}
-                className="flex items-start gap-4 p-5 bg-white rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
-              >
-                <span className="text-2xl">📍</span>
-                <div>
-                  <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-lg block">
-                    {city.name}
-                  </span>
-                  <span className="text-sm text-text-muted block mt-1">
-                    {city.population.toLocaleString('pt-PT')} habitantes
-                  </span>
-                  <span className="text-xs text-text-muted/70 mt-2 block">
-                    {topServices.map(s => s.name).join(', ')}...
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* CITIES BY DISTRITO */}
+      {orderedDistritos.map(distrito => {
+        const cities = grouped.get(distrito)!
+        return (
+          <section key={distrito} className="py-12 md:py-16 even:bg-white">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+              <header className="mb-8">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dark text-white text-xs font-semibold uppercase tracking-wider mb-3">
+                  <span>{cities.length} cidades</span>
+                </span>
+                <h2 className="font-display text-[clamp(1.6rem,3vw,2.2rem)] font-bold tracking-tight text-dark">
+                  Distrito de {distrito}
+                </h2>
+                <p className="text-text-muted mt-1">{DISTRITO_DESCRIPTIONS[distrito] ?? `Cidades do distrito de ${distrito}.`}</p>
+              </header>
 
-      {/* SERVICES PER CITY */}
-      {CITIES.map(city => (
-        <section key={city.slug} className="py-10 md:py-14 even:bg-white">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="font-display text-xl font-bold tracking-tight text-dark mb-4">
-              Serviços em {city.name}
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {SERVICES.map(service => (
-                <Link
-                  key={`${city.slug}-${service.slug}`}
-                  href={`/pt/servicos/${service.slug}-${city.slug}/`}
-                  className="flex items-center gap-2 p-3 bg-white rounded-lg border border-border/40 hover:border-yellow hover:shadow-sm transition-all group text-sm"
-                >
-                  <span>{service.icon}</span>
-                  <span className="font-medium text-dark group-hover:text-yellow transition-colors truncate">
-                    {service.name}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                {cities.map(city => (
+                  <Link
+                    key={city.slug}
+                    href={`/pt/cidade/${city.slug}/`}
+                    className="flex items-start gap-4 p-5 bg-white rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
+                  >
+                    <span className="text-2xl">📍</span>
+                    <div className="min-w-0">
+                      <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-lg block truncate">
+                        {city.name}
+                      </span>
+                      <span className="text-sm text-text-muted block mt-1">
+                        {city.population.toLocaleString('pt-PT')} habitantes
+                      </span>
+                      <span className="text-xs text-text-muted/70 mt-2 block">
+                        {topServices.map(s => s.name).join(', ')}...
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              <details className="group rounded-xl border border-border/40 bg-white">
+                <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between hover:bg-warm-gray/30 transition-colors rounded-xl">
+                  <span className="font-display font-bold text-dark">
+                    Ver todos os serviços por cidade ({cities.length} × {SERVICES.length} = {cities.length * SERVICES.length} páginas)
                   </span>
-                </Link>
-              ))}
+                  <span className="text-yellow text-xl group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-5 pb-5 pt-2 space-y-6 border-t border-border/30">
+                  {cities.map(city => (
+                    <div key={city.slug}>
+                      <h3 className="font-display text-sm font-bold tracking-tight text-dark mb-3 uppercase">
+                        Serviços em {city.name}
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {SERVICES.map(service => (
+                          <Link
+                            key={`${city.slug}-${service.slug}`}
+                            href={`/pt/servicos/${service.slug}-${city.slug}/`}
+                            className="flex items-center gap-2 p-2.5 rounded-lg border border-border/40 hover:border-yellow hover:bg-yellow/5 transition-all group text-sm"
+                          >
+                            <span>{service.icon}</span>
+                            <span className="font-medium text-dark group-hover:text-yellow transition-colors truncate">
+                              {service.name}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
             </div>
-          </div>
-        </section>
-      ))}
+          </section>
+        )
+      })}
 
       {/* CTA */}
       <section className="py-14 md:py-18 bg-dark text-white text-center">
