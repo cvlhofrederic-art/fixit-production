@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { runCron } from '@/lib/cron-heartbeat'
 
 const PLAN_PRICES_CENTS: Record<string, number> = {
   artisan_pro: 4900,
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  return runCron('cron/snapshot-revenue', () => snapshotRevenueHandler())
+}
+
+async function snapshotRevenueHandler(): Promise<Response> {
   try {
     const { data: subs, error } = await supabaseAdmin
       .from('subscriptions')

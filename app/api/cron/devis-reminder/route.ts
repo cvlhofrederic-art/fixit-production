@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { sendEmail, templateDevisReminder } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -19,6 +20,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  return runCron('cron/devis-reminder', () => devisReminderHandler())
+}
+
+async function devisReminderHandler(): Promise<Response> {
   const results = { sent: 0, errors: 0, skipped: 0 }
 
   try {
