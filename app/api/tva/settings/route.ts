@@ -1,41 +1,31 @@
 /**
  * GET  /api/tva/settings — Récupère les paramètres TVA de l'artisan
  * PATCH /api/tva/settings — Met à jour tva_auto_activate
+ *
+ * Both flows are user-scoped and rely on the existing RLS policies on
+ * profiles_artisan (owner_read / owner_update from migration 041).
+ * No service-role bypass is needed; the route runs the request through
+ * the user's JWT so RLS is the enforcer.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { authenticateRequest, getAuthedClient, getBearerToken } from '@/lib/supabase-clients'
 
 const tvaSettingsSchema = z.object({
   tva_auto_activate: z.boolean(),
 })
-
-// Lazy init — évite le crash au build CI
-function getSupabaseAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-function getSupabaseAnon() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
-
-async function authenticate(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) return null
-  const { data: { user }, error } = await getSupabaseAnon().auth.getUser(token)
-  if (error || !user) return null
-  return user
-}
 
 export async function GET(req: NextRequest) {
   try {
     const ip = getClientIP(req)
     if (!(await checkRateLimit(`tva_set_${ip}`, 15, 60_000))) return rateLimitResponse()
 
-    const user = await authenticate(req)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const token = getBearerToken(req)
+    const user = await authenticateRequest(req)
+    if (!user || !token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data, error } = await getSupabaseAdmin()
+    const { data, error } = await getAuthedClient(token)
       .from('profiles_artisan')
       .select('tva_auto_activate, tva_notified_level')
       .eq('user_id', user.id)
@@ -54,8 +44,9 @@ export async function PATCH(req: NextRequest) {
     const ip = getClientIP(req)
     if (!(await checkRateLimit(`tva_set_${ip}`, 15, 60_000))) return rateLimitResponse()
 
-    const user = await authenticate(req)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const token = getBearerToken(req)
+    const user = await authenticateRequest(req)
+    if (!user || !token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
     const parsed = tvaSettingsSchema.safeParse(body)
@@ -63,7 +54,7 @@ export async function PATCH(req: NextRequest) {
 
     const { tva_auto_activate } = parsed.data
 
-    const { error } = await getSupabaseAdmin()
+    const { error } = await getAuthedClient(token)
       .from('profiles_artisan')
       .update({ tva_auto_activate })
       .eq('user_id', user.id)

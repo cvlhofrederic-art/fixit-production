@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@supabase/supabase-js'
 import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { authenticateRequest, getAuthedClient, getBearerToken } from '@/lib/supabase-clients'
 
 const rfqItemSchema = z.object({
   product_name: z.string().min(1),
@@ -22,34 +22,16 @@ const rfqBodySchema = z.object({
   items: z.array(rfqItemSchema).min(1),
 })
 
-// Lazy init — évite le crash au build CI quand SUPABASE_SERVICE_ROLE_KEY n'est pas défini
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
-function getSupabaseAnon() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
-
 export async function GET(req: NextRequest) {
   try {
     const ip = getClientIP(req)
     if (!(await checkRateLimit(`rfq_${ip}`, 15, 60_000))) return rateLimitResponse()
 
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const token = getBearerToken(req)
+    const user = await authenticateRequest(req)
+    if (!user || !token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
-
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const supabase = getSupabase()
+    const supabase = getAuthedClient(token)
     const { data: rfqs, error } = await supabase
       .from('rfqs')
       .select('*, rfq_items(*), offers(id, supplier_name, total_price, delivery_days, status, created_at)')
@@ -66,15 +48,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const token = getBearerToken(req)
+    const user = await authenticateRequest(req)
+    if (!user || !token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
-
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const supabase = getSupabase()
+    const supabase = getAuthedClient(token)
     const rawBody = await req.json()
     const parsed = rfqBodySchema.safeParse(rawBody)
     if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
