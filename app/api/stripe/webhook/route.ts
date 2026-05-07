@@ -26,13 +26,18 @@ async function isEventProcessed(eventId: string): Promise<boolean> {
   }
 }
 
-async function markEventProcessed(eventId: string, eventType: string): Promise<void> {
+async function markEventProcessed(eventId: string, eventType: string, receivedAt?: string): Promise<void> {
   try {
-    await supabaseAdmin.from('stripe_webhook_events').upsert({
+    const row: Record<string, unknown> = {
       event_id: eventId,
       event_type: eventType,
       processed_at: new Date().toISOString(),
-    })
+    }
+    // received_at is migration 104 — write only if the caller passes it.
+    // Older deploys without the column will reject the column; the UPSERT
+    // tolerates the absence by being inside try/catch.
+    if (receivedAt) row.received_at = receivedAt
+    await supabaseAdmin.from('stripe_webhook_events').upsert(row)
   } catch {
     // Non-critical — log but don't fail
     log.warn('Failed to mark event as processed', { eventId })
@@ -87,6 +92,10 @@ export async function POST(request: NextRequest) {
     log.error('Signature verification failed', { sig: sig?.substring(0, 20) }, err as Error)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
+
+  // Capture the moment the signature was verified (start of handler). The
+  // gap to processed_at is what the stripe_webhook_stale alert keys on.
+  const receivedAt = new Date().toISOString()
 
   // ── Idempotence : skip already-processed events ──
   if (await isEventProcessed(event.id)) {
@@ -228,7 +237,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark event as processed for deduplication
-    await markEventProcessed(event.id, event.type)
+    await markEventProcessed(event.id, event.type, receivedAt)
 
     return NextResponse.json({ received: true })
   } catch (error) {

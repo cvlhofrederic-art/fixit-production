@@ -55,6 +55,9 @@ crons = [
   # Revenue snapshot — daily 4 AM UTC (computes MRR / churn / counts
   # into subscription_metrics). Requires migration 100 to be applied.
   "0 4 * * *",
+  # Stripe webhook stale check — every 6 hours (flags processed_at -
+  # received_at gap > 30 min). Requires migration 104 to be applied.
+  "0 */6 * * *",
 ]
 
 # ── Queue Bindings ───────────────────────────────────────────────────────────
