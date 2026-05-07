@@ -5,10 +5,31 @@ SIRET, NIF, future IBAN/BIC if we add them) get a side-by-side encrypted
 column. Plaintext stays alongside until we have validated dual-write across
 100 % of writes — only then do we drop the plaintext.
 
-**Status (2026-05-07): not yet activated in production.** Migration 103 is
-committed but not pushed; the `PII_ENCRYPTION_KEY` secret is not set; no
-write path runs `encryptPII()` yet. The helper + tests are in place so that
-the activation is a single deploy when ready.
+**Status (2026-05-07): live in production.** Migration 103 applied,
+`PII_ENCRYPTION_KEY` posted as a Cloudflare worker secret, dual-write wired
+in `kyc-orchestrate` (Phase 15), backfill route deployed (Phase 19).
+
+## Volume context — why so few rows are encrypted
+
+`profiles_artisan` is split into two populations:
+
+- **Catalogue rows** — artisans imported from external sources (scraping,
+  open data) who have **never created an account**. They have no SIRET / NIF
+  / KBIS because no KYC ever ran. As of 2026-05-07: 757 / 761 rows.
+- **Active rows** — artisans who self-registered and completed KYC. These
+  are the only rows with PII to encrypt. As of 2026-05-07: 4 / 761 rows.
+
+So when `/api/admin/pii-backfill` reports `encrypted: 4`, that is the full
+backfill — not a partial result. The new dual-write at registration time
+takes care of every future signup automatically; the backfill route exists
+for the rare case of a schema rotation or a bulk re-encryption.
+
+**The `nif` plain column doesn't exist** in `profiles_artisan` either —
+the schema never ships a column nobody uses. When the first PT artisan
+signs up and provides a NIF, add the plain column in a follow-up migration
+(`ALTER TABLE profiles_artisan ADD COLUMN nif TEXT`) so the dual-write has
+something to mirror. Until then, the helper writes `nif_encrypted` directly
+from the route payload (encrypted-only PT NIF storage works fine).
 
 ## Why application-level, not `pgcrypto`
 
