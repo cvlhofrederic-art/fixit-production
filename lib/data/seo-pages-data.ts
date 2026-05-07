@@ -216,6 +216,181 @@ export const CITIES: CityData[] = [
     freguesias: ['Águas Santas', 'Avioso (Santa Maria)', 'Avioso (S. Pedro)', 'Barca', 'Castêlo da Maia', 'Folgosa', 'Gueifães', 'Maia', 'Milheiroços', 'Moreira', 'Nogueira', 'Pedrouços', 'S. Pedro Fins', 'Silva Escura', 'Vermoim', 'Vila Nova da Telha'],
     nearby: ['porto', 'matosinhos', 'valongo'],
   },
+
+  // ============================================================
+  // DISTRITO DE AVEIRO : Pilot 3 cidades (2026-05-07)
+  // Fontes auditáveis em lib/data/aveiro-sources.ts
+  // ============================================================
+
+  {
+    slug: 'aveiro',
+    name: 'Aveiro',
+    distrito: 'Aveiro',
+    population: 80978,
+    lat: 40.6443,
+    lng: -8.6455,
+    freguesias: ['Aradas', 'Cacia', 'Eixo e Eirol', 'Esgueira', 'Glória e Vera Cruz', 'Oliveirinha', 'Requeixo, Nossa Senhora de Fátima e Nariz', 'Santa Joana', 'São Bernardo', 'São Jacinto'],
+    nearby: ['agueda', 'ovar'],
+    specialty: 'Capital do distrito e cidade lagunar única em Portugal, atravessada pelos canais da Ria de Aveiro onde ainda navegam os moliceiros tradicionais. Conhecida pelos ovos moles, pela produção artesanal de sal e por uma Universidade que dinamiza toda a cidade.',
+    climateChallenges: [
+      'Humidade elevada e constante junto aos canais da ria, que acelera o aparecimento de bolores e o desgaste de tintas interiores',
+      'Corrosão acentuada de metais expostos ao ar salino, sobretudo em portões, gradeamentos e canalizações exteriores',
+      'Risco de subida do nível das águas em zonas baixas (Beira-Mar, Cojo), exigindo impermeabilização cuidada de caves e r/c',
+      'Edifícios históricos com azulejaria de fachada que exigem restauro especializado, e não apenas pintura corrente',
+    ],
+    notableFreguesias: [
+      { name: 'Glória e Vera Cruz', context: 'Centro histórico e zona dos canais, com edifícios pombalinos e Arte Nova que exigem restauro especializado.' },
+      { name: 'Esgueira', context: 'Maior freguesia em população, mistura moradia e habitação coletiva, com forte procura de canalizadores e eletricistas residenciais.' },
+      { name: 'São Jacinto', context: 'Península arenosa entre a ria e o oceano, com acesso por barco que cria desafios logísticos para obras e materiais.' },
+    ],
+    localEconomy: 'Universidade de Aveiro, porto comercial e de pesca, indústria cerâmica e turismo dos canais.',
+    landmarks: [
+      'Sé Catedral de Aveiro',
+      'Mosteiro de Jesus (Museu de Santa Joana)',
+      'Estação ferroviária com painéis de azulejos artísticos',
+      'Teatro Aveirense',
+      'Canal Central e moliceiros',
+    ],
+    contentUpdatedAt: '2026-05-07',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas certificados em Aveiro, com experiência em instalações de habitações junto aos canais e de edifícios históricos no centro. Diagnóstico e reparação de quadros elétricos com proteção reforçada contra humidade e maresia.',
+        localCases: [
+          'Substituição de quadro elétrico antigo num apartamento na zona da Beira-Mar com sinais de oxidação por humidade salina.',
+          'Instalação de iluminação LED exterior numa moradia em São Jacinto, com caixas IP65 adaptadas ao ambiente costeiro.',
+          'Revisão completa da rede elétrica de uma loja em Glória e Vera Cruz após infiltração de água da chuva no quadro técnico.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Aveiro disponíveis para urgências em casas particulares, alojamentos locais junto aos canais e estabelecimentos do centro histórico. Conhecimento das particularidades das tubagens em zonas com lençol freático elevado.',
+        localCases: [
+          'Reparação de fuga de água numa cave em Esgueira, com identificação da origem por câmara endoscópica.',
+          'Substituição de canalização em chumbo num edifício antigo na Praça do Peixe por tubo multicamada certificado.',
+          'Desentupimento de saneamento numa moradia em Cacia após acumulação de raízes nas tubagens exteriores.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Aveiro especializados em fachadas com humidade salina, restauro de azulejaria de revestimento e pintura interior anti-bolor. Aplicação de tintas técnicas adequadas ao clima costeiro.',
+        localCases: [
+          'Pintura completa de uma moradia em Aradas, com tratamento prévio anti-fungos das paredes do quarto orientado a norte.',
+          'Restauro da pintura exterior de um edifício Arte Nova na Avenida Lourenço Peixinho com tintas microporosas.',
+          'Pintura interior de um escritório em Glória e Vera Cruz, incluindo isolamento térmico e acústico das paredes contíguas a estabelecimentos.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'agueda',
+    name: 'Águeda',
+    distrito: 'Aveiro',
+    population: 46131,
+    lat: 40.5747,
+    lng: -8.4404,
+    freguesias: ['Águeda e Borralha', 'Aguada de Cima', 'Belazaima do Chão, Castanheira do Vouga e Agadão', 'Fermentelos', 'Macinhata do Vouga', 'Préstimo e Macieira de Alcoba', 'Recardães e Espinhel', 'Trofa, Segadães e Lamas do Vouga', 'Travassô e Óis da Ribeira', 'Aguada de Baixo', 'Barrô', 'Valongo do Vouga'],
+    nearby: ['aveiro'],
+    specialty: 'Cidade industrial reconhecida como capital portuguesa das duas rodas, conhecida pelos festivais que enchem as ruas de cor (AgitÁgueda) e pelo icónico Umbrella Sky Project que cobre as ruas com guarda-chuvas em tons vivos. Localizada no Vale do Vouga.',
+    climateChallenges: [
+      'Humidade ribeirinha do Vouga e da Pateira de Fermentelos, que afeta caves e pisos térreos junto ao rio',
+      'Elevada concentração de pavilhões industriais antigos com instalações elétricas que carecem de modernização',
+      'Variação acentuada de temperatura entre o inverno frio do interior e o verão quente, exigindo isolamento térmico bem dimensionado',
+      'Festivais de verão com afluxo de público que aumentam a necessidade de obras de manutenção rápidas em estabelecimentos comerciais',
+    ],
+    notableFreguesias: [
+      { name: 'Águeda e Borralha', context: 'Sede do município com forte densidade urbana, restauro frequente em edifícios históricos do centro e iluminação pública especial.' },
+      { name: 'Fermentelos', context: 'Junto à maior lagoa natural da Península Ibérica, requer canalização adaptada à proximidade da água.' },
+      { name: 'Recardães e Espinhel', context: 'Zona de habitação e indústria ligeira, procura de eletricistas para pequenas oficinas e moradias.' },
+    ],
+    localEconomy: 'Indústria de bicicletas e ciclomotores, iluminação técnica, ferragens e parque empresarial do Casarão.',
+    landmarks: [
+      'Pateira de Fermentelos (maior lagoa natural da Península Ibérica)',
+      'Talabriga (oppidum lusitano-romano)',
+      'Panteão dos Lemos',
+      'Umbrella Sky Project (rua Luís de Camões)',
+    ],
+    contentUpdatedAt: '2026-05-07',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Águeda com experiência em instalações industriais, oficinas e habitação. Disponíveis para diagnóstico em pavilhões da zona industrial e modernização de quadros antigos no centro.',
+        localCases: [
+          'Modernização do quadro elétrico de uma oficina de bicicletas com cargas trifásicas elevadas no Parque do Casarão.',
+          'Instalação de iluminação LED técnica numa moradia em Recardães, com domótica básica integrada.',
+          'Reparação urgente de avaria geral numa unidade de produção de iluminação em Aguada de Cima após sobretensão.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Águeda disponíveis para residências, alojamentos rurais e estabelecimentos comerciais. Conhecimento das particularidades das ligações de saneamento em zonas afastadas da rede pública.',
+        localCases: [
+          'Substituição de fossa séptica por ligação à rede de saneamento numa moradia em Préstimo, com obras de escavação coordenadas.',
+          'Reparação de fuga numa cave em Borralha após inundação ribeirinha do inverno.',
+          'Instalação completa de canalização nova num apartamento renovado no centro de Águeda.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Águeda especializados em pintura interior anti-humidade, fachadas com tinta microporosa e restauro de edifícios do centro histórico. Tintas adequadas à variação climática do Vale do Vouga.',
+        localCases: [
+          'Pintura completa de um edifício comercial na rua Luís de Camões antes da edição anual do AgitÁgueda.',
+          'Restauro de fachada de um solar em Belazaima do Chão com tratamento anti-musgo.',
+          'Pintura interior de moradia em Fermentelos, incluindo isolamento contra humidade ascendente das paredes contíguas à pateira.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'ovar',
+    name: 'Ovar',
+    distrito: 'Aveiro',
+    population: 54953,
+    lat: 40.8593,
+    lng: -8.6262,
+    freguesias: ['Ovar, São João, Arada e São Vicente de Pereira Jusã', 'Esmoriz', 'Válega', 'Cortegaça', 'Maceda'],
+    nearby: ['aveiro'],
+    specialty: 'Cidade-Museu do Azulejo, com fachadas revestidas a azulejaria do final do século XIX. Famosa pelo Carnaval anual desde 1952 e pelo pão de ló tradicional, com 15 km de costa atlântica entre Esmoriz e a Praia do Furadouro.',
+    climateChallenges: [
+      'Salinidade atlântica que corrói rapidamente metais, gradeamentos e tubagens exteriores ao longo dos 15 km de costa',
+      'Ventos costeiros fortes que provocam infiltrações em telhados e janelas mal vedadas',
+      'Restauro de azulejaria de fachada que exige técnicas específicas, em vez de pintura simples',
+      'Elevada humidade marítima que ataca interiores em moradias de praia e segundas habitações sazonais',
+    ],
+    notableFreguesias: [
+      { name: 'Ovar, São João, Arada e São Vicente de Pereira Jusã', context: 'União das freguesias da sede com o centro histórico, igreja matriz e maior densidade de azulejaria de fachada.' },
+      { name: 'Esmoriz', context: 'Zona costeira a norte, com alojamentos de férias e residências de forte exposição salina que exigem manutenção exterior frequente.' },
+      { name: 'Válega', context: 'Conhecida pela Igreja Nova com fachada revestida a azulejos, exemplo de restauro patrimonial.' },
+    ],
+    localEconomy: 'Indústria transformadora, comércio, turismo de praia e indústria do calçado.',
+    landmarks: [
+      'Igreja Matriz de São Cristóvão',
+      'Sete Capelas dos Passos (Monumento de Interesse Nacional)',
+      'Praia do Furadouro',
+      'Igreja Nova de Válega (fachada em azulejo)',
+    ],
+    contentUpdatedAt: '2026-05-07',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Ovar adaptados ao ambiente costeiro, com experiência em moradias de praia, alojamentos sazonais e edifícios históricos. Quadros e caixas com proteção reforçada contra a maresia.',
+        localCases: [
+          'Substituição de quadro elétrico oxidado numa moradia em Esmoriz exposta diretamente ao vento marítimo.',
+          'Revisão completa de instalação elétrica num alojamento de férias na Praia do Furadouro antes do verão.',
+          'Reparação de iluminação exterior de um edifício no centro histórico, com caixas estanques compatíveis com as fachadas em azulejo.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Ovar disponíveis para urgências em casas de praia, residências e estabelecimentos comerciais. Tubagens e materiais resistentes à corrosão salina prolongada.',
+        localCases: [
+          'Substituição de canalização exterior corroída numa moradia em Cortegaça, com tubo PEX em vez de cobre.',
+          'Reparação de fuga em chuveiro de alojamento sazonal em Esmoriz após o inverno.',
+          'Desentupimento e reparação de saneamento numa unidade de restauração na Praia do Furadouro durante a época alta.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Ovar com formação em restauro de azulejaria, aplicação de tintas anti-salinidade e pintura exterior de moradias costeiras. Trabalho compatível com a estética da Cidade-Museu do Azulejo.',
+        localCases: [
+          'Restauro pontual de painéis de azulejo numa fachada do centro histórico, com substituição de peças partidas e rejuntamento.',
+          'Pintura exterior de uma moradia em Maceda com tinta acrílica anti-salina e selante reforçado nas juntas.',
+          'Pintura interior completa de um apartamento na Praia do Furadouro, incluindo tratamento anti-bolor nas paredes orientadas a poente.',
+        ],
+      },
+    },
+  },
 ]
 
 // ============================================================
