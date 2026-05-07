@@ -625,11 +625,14 @@ export default function HomePage() {
             <div className={s.pricingDesc}>{isPt ? 'Para equipas e empresas de construção' : 'Pour les équipes et entreprises du bâtiment'}</div>
             <ul className={s.pricingFeatures}>
               {[
-                isPt ? 'Multi-profissionais / agência' : 'Multi-artisans / agence',
-                isPt ? 'Painel de controlo centralizado' : 'Tableau de bord centralisé',
-                isPt ? 'API e integrações' : 'API & intégrations',
-                isPt ? 'Onboarding dedicado' : 'Onboarding dédié',
-                isPt ? 'SLA garantido' : 'SLA garanti',
+                isPt ? 'Secretariado à distância' : 'Secrétariat à distance',
+                isPt ? 'Angariação de clientes qualificados' : 'Apport de clients qualifiés',
+                isPt ? 'Orçamentos e faturas geridos' : 'Devis & factures gérés',
+                isPt ? 'Negociação de materiais dedicada' : 'Négociation matériaux dédiée',
+                isPt ? 'Concursos públicos e privados direcionados' : 'Marchés publics & privés ciblés',
+                isPt ? 'Acompanhamento das suas obras' : 'Suivi de vos chantiers',
+                isPt ? 'Contabilidade e rentabilidade' : 'Comptabilité & rentabilité',
+                isPt ? '38 módulos para a sua atividade' : '38 modules pour votre activité',
               ].map((f, i) => <li key={i}><span className={s.pfCheck}>✓</span> {f}</li>)}
             </ul>
             <Link href="/contact" className={s.btnPricingOutline}>
