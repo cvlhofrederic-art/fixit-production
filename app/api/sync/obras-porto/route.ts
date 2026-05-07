@@ -5,6 +5,7 @@ import {
   type SyncedMarche, upsertMarches, startSyncJob, finishSyncJob, failSyncJob,
   fetchWithRetry, checkRobotsTxt,
 } from '@/lib/marches-sync'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const maxDuration = 60
 
@@ -20,6 +21,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  return runCron('sync/obras-porto', () => obrasPortoHandler())
+}
+
+async function obrasPortoHandler(): Promise<Response> {
   const jobId = await startSyncJob(supabase, 'cm-porto', 'porto-pt')
 
   try {

@@ -5,6 +5,7 @@ import {
   type SyncedMarche, upsertMarches, startSyncJob, finishSyncJob, failSyncJob,
   fetchWithRetry, checkRobotsTxt,
 } from '@/lib/marches-sync'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const maxDuration = 60
 
@@ -43,6 +44,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  return runCron('sync/mairies-13', () => mairies13Handler())
+}
+
+async function mairies13Handler(): Promise<Response> {
   const jobId = await startSyncJob(supabase, 'mairie-13', '13-paca')
 
   try {

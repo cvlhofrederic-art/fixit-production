@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import {
   type SyncedMarche, upsertMarches, startSyncJob, finishSyncJob, failSyncJob, fetchWithRetry,
 } from '@/lib/marches-sync'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const maxDuration = 60
 
@@ -19,6 +20,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  return runCron('sync/ted-porto', () => tedPortoHandler())
+}
+
+async function tedPortoHandler(): Promise<Response> {
   const jobId = await startSyncJob(supabase, 'ted-eu', 'porto-pt')
 
   try {
