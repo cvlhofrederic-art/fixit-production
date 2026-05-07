@@ -157,8 +157,8 @@
       "channel": ["slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
       "slo": "Stripe webhook delivery >= 99%",
-      "_status": "pending_schema",
-      "_blocked_on": "stripe_webhook_events (migration 042) only stores (event_id, event_type, processed_at) — there is no received_at distinct from processed_at, so 'idle' is not directly observable on this schema. Two unblock options: (1) add a received_at TIMESTAMPTZ column and insert at signature-verify time (before processing), so the gap received_at→processed_at = idle duration; (2) periodically poll Stripe's /v1/events?delivery_success=false API. Option (1) is simpler and stays internal — track in a follow-up migration 104."
+      "_status": "pending_setup",
+      "_blocked_on": "Schema and detector ship in this branch (migration 104 + /api/cron/stripe-webhook-stale-check + cron schedule '0 */6 * * *' in wrangler.toml). The Sentry rule itself remains to be created in the UI: filter `tag:event=stripe_webhook_stale`, threshold any new issue, send email. Wait until at least one stale event has been observed before creating the rule, otherwise it'll alert on its own absence-of-data signal."
     },
     {
       "key": "circuit_breaker_open",
