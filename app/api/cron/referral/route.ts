@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { distributeReferralReward } from '@/lib/referral'
 import { sendReferralRewardConfirmed, sendReferralReminderFilleul } from '@/lib/email-referral'
 import { logger } from '@/lib/logger'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 60 secondes max
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  return runCron('cron/referral', () => referralCronHandler())
+}
+
+async function referralCronHandler(): Promise<Response> {
   const results = {
     distributed: 0,
     blocked: 0,

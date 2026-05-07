@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { scanMarches } from '@/lib/marches-scanner'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const maxDuration = 300
 
@@ -35,14 +36,18 @@ const ALL_METIERS = [
 ]
 
 export async function GET(request: NextRequest) {
-  try {
-    // Verify cron secret (Cloudflare cron forwards CRON_SECRET via Authorization)
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  // Verify cron secret (Cloudflare cron forwards CRON_SECRET via Authorization)
+  const authHeader = request.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
+  return runCron('cron/scan-marches', () => scanMarchesHandler())
+}
+
+async function scanMarchesHandler(): Promise<Response> {
+  try {
     logger.info('[cron/scan-marches] Starting weekly scan for all corps de métier...')
 
     // ── 1. Cleanup old scan results (> 8 days) to avoid stale data ──────────
