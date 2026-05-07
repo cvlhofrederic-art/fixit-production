@@ -102,9 +102,23 @@ travels with the ciphertext; tampering one byte makes `decryptPII` throw.
    })
    ```
 
-5. **Backfill existing rows** with a one-off cron / script that reads each
-   plaintext, encrypts it, writes `_encrypted`, and bumps version to 1.
-   Run it idempotently (`WHERE pii_encryption_version = 0`).
+5. **Backfill existing rows** via the admin route shipped in Phase 19:
+   ```bash
+   # Always dry-run first — count + sample, no writes.
+   curl -X POST 'https://vitfix.io/api/admin/pii-backfill?dry_run=true' \
+     -H "Authorization: Bearer <super-admin-jwt>"
+
+   # Then the real run (default batch=100, max 500).
+   curl -X POST 'https://vitfix.io/api/admin/pii-backfill?dry_run=false' \
+     -H "Authorization: Bearer <super-admin-jwt>"
+
+   # Re-run is idempotent — already-encrypted rows are skipped via the
+   # `pii_encryption_version = 0` filter. Loop until the response shows
+   # `encrypted: 0`.
+   ```
+   The route lives at [app/api/admin/pii-backfill/route.ts](../app/api/admin/pii-backfill/route.ts)
+   and runs inside the worker (no need to expose `PII_ENCRYPTION_KEY`
+   to a local shell).
 
 6. **Validate** in Sentry / logs that no `decryptPII` call throws — that
    would indicate a key mismatch. Wait at least 7 days of clean operation
