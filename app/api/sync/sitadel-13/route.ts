@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import {
   type SyncedMarche, upsertMarches, startSyncJob, finishSyncJob, failSyncJob, fetchWithRetry,
 } from '@/lib/marches-sync'
+import { runCron } from '@/lib/cron-heartbeat'
 
 export const maxDuration = 60
 
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  return runCron('sync/sitadel-13', () => sitadel13Handler())
+}
+
+async function sitadel13Handler(): Promise<Response> {
   const jobId = await startSyncJob(supabase, 'sitadel', '13-paca')
 
   try {

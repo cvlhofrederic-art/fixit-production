@@ -18,6 +18,7 @@
 import { scanDepartment } from '@/lib/tenders/scanner'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { recordHeartbeat } from '@/lib/cron-heartbeat'
 
 export const TENDERS_SCAN_JOB_TYPE = 'tenders-scan' as const
 
@@ -40,6 +41,7 @@ export async function runTendersScanJob(
 ): Promise<RunResult> {
   const department = payload?.department || '13'
   const jobId = opts.jobId || crypto.randomUUID()
+  const startedAt = Date.now()
 
   // Idempotency window: a recent completed scan for this department wins.
   try {
@@ -68,10 +70,24 @@ export async function runTendersScanJob(
   try {
     const result = await scanDepartment(department)
     await markJobCompleted(jobId, result.meta)
+    // Consumer-side heartbeat (distinct from the producer's). Detection of
+    // "consumer never picked up the queue message" is the question this
+    // alert answers — recorded only when the job actually ran to completion.
+    await recordHeartbeat({
+      cron_name: 'tenders-scan/consumer',
+      duration_ms: Date.now() - startedAt,
+      details: { jobId, ...result.meta, department },
+    })
     return { status: 'completed', jobId, meta: result.meta }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await markJobFailed(jobId, message)
+    await recordHeartbeat({
+      cron_name: 'tenders-scan/consumer',
+      duration_ms: Date.now() - startedAt,
+      status: 'failed',
+      details: { jobId, department, error: message },
+    })
     return { status: 'failed', jobId, error: message }
   }
 }

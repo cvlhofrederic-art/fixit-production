@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { scanDepartment } from '@/lib/tenders/scanner'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { TENDERS_SCAN_JOB_TYPE, runTendersScanJob } from '@/lib/queue/consumers/tenders-scan'
+import { recordHeartbeat } from '@/lib/cron-heartbeat'
 
 const scanBodySchema = z.object({
   department: z.string().regex(/^\d{2,3}$/, 'Code département invalide').default('13'),
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
   // Each tier returns 202 + jobId so the caller can poll background_jobs for
   // status. Step 3 returns 200 with the full meta payload for legacy compat.
 
+  const cronStart = Date.now()
+
   // 1. Cloudflare Queue (preferred when wired)
   const queue = getSyncQueueBinding()
   if (queue) {
@@ -77,6 +80,13 @@ export async function POST(request: NextRequest) {
         enqueuedAt: new Date().toISOString(),
       })
       logger.info(`[tenders/scan] Enqueued job ${jobId} for department ${department}`)
+      // Producer-side heartbeat: the cron fired & enqueued. The consumer
+      // records its own heartbeat (tenders-scan/consumer) when it runs.
+      await recordHeartbeat({
+        cron_name: 'tenders/scan/producer',
+        duration_ms: Date.now() - cronStart,
+        details: { mode: 'queue', jobId, department },
+      })
       return NextResponse.json({ success: true, queued: true, jobId }, { status: 202 })
     } catch (err) {
       logger.error('[tenders/scan] Queue enqueue failed, falling through', err)
@@ -99,6 +109,11 @@ export async function POST(request: NextRequest) {
         })
       )
       logger.info(`[tenders/scan] Dispatched job ${jobId} to ctx.waitUntil`)
+      await recordHeartbeat({
+        cron_name: 'tenders/scan/producer',
+        duration_ms: Date.now() - cronStart,
+        details: { mode: 'waitUntil', jobId, department },
+      })
       return NextResponse.json({ success: true, queued: false, dispatched: true, jobId }, { status: 202 })
     }
   } catch (err) {
@@ -110,9 +125,20 @@ export async function POST(request: NextRequest) {
     logger.info(`[tenders/scan] Starting inline scan for department ${department}`)
     const result = await scanDepartment(department)
     logger.info(`[tenders/scan] Completed: ${result.meta.total_after_dedup} tenders found`)
+    await recordHeartbeat({
+      cron_name: 'tenders/scan/inline',
+      duration_ms: Date.now() - cronStart,
+      details: { mode: 'inline', ...result.meta, department },
+    })
     return NextResponse.json({ success: true, queued: false, ...result.meta })
   } catch (err: unknown) {
     logger.error('[tenders/scan] Fatal error:', err)
+    await recordHeartbeat({
+      cron_name: 'tenders/scan/inline',
+      duration_ms: Date.now() - cronStart,
+      status: 'failed',
+      details: { mode: 'inline', department, error: (err as Error).message },
+    })
     return NextResponse.json({ error: 'Erreur interne du scan' }, { status: 500 })
   }
 }
