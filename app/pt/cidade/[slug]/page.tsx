@@ -341,15 +341,34 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
             Precisa de um profissional em {city.name}?
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">
-            Encontre profissionais verificados perto de si em poucos cliques. Orçamento grátis, sem compromisso.
+            Contacte-nos diretamente. Resposta rápida, orçamento gratuito, sem compromisso.
           </p>
-          <Link
-            href="/pt/pesquisar/"
-            className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
-          >
-            Encontrar profissional agora
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </Link>
+          <div className="flex flex-wrap justify-center gap-3">
+            <a
+              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`Olá VITFIX, preciso de um profissional em ${city.name}.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-4 text-base hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(37,211,102,0.3)]"
+            >
+              💬 WhatsApp, Resposta imediata
+            </a>
+            <a
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white font-display font-bold rounded-full px-7 py-4 text-base hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+            >
+              📞 Ligar +351 912 014 971
+            </a>
+            <Link
+              href="/pt/pesquisar/"
+              className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
+            >
+              Encontrar profissional
+              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </Link>
+          </div>
+          <p className="text-xs text-text-muted mt-4">
+            Atendimento 7 dias por semana. Resposta em 20 a 45 minutos.
+          </p>
         </div>
       </section>
     </div>
