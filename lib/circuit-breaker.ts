@@ -85,3 +85,26 @@ export function createCircuitBreaker(options: CircuitBreakerOptions) {
 // Pre-configured circuit breakers for external services
 export const groqCircuit = createCircuitBreaker({ name: 'groq', failureThreshold: 5, resetTimeoutMs: 30000 })
 export const govApiCircuit = createCircuitBreaker({ name: 'api-gouv', failureThreshold: 3, resetTimeoutMs: 60000 })
+
+/**
+ * Read-only snapshot of a circuit's current state. Used by the health
+ * endpoint and the SLO alert pipeline. Returns null if the circuit has
+ * never been exercised (the breaker is CLOSED-by-default but we want
+ * the consumer to be able to distinguish "never used" from "actively
+ * healthy".)
+ */
+export function getCircuitState(name: string): {
+  state: CircuitState
+  failures: number
+  last_success_at: string | null
+  last_failure_at: string | null
+} | null {
+  const circuit = circuits.get(name)
+  if (!circuit) return null
+  return {
+    state: circuit.state,
+    failures: circuit.failures,
+    last_success_at: circuit.lastSuccess > 0 ? new Date(circuit.lastSuccess).toISOString() : null,
+    last_failure_at: circuit.lastFailure > 0 ? new Date(circuit.lastFailure).toISOString() : null,
+  }
+}
