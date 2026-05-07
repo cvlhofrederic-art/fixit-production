@@ -4,6 +4,10 @@ import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 import { buildBreadcrumbSchema } from '@/lib/schemas'
+import { CitySpecialtySection } from '@/components/seo/CitySpecialtySection'
+import { CityChallengesSection } from '@/components/seo/CityChallengesSection'
+import { CityLandmarksSection } from '@/components/seo/CityLandmarksSection'
+import { NotableFreguesiasSection } from '@/components/seo/NotableFreguesiasSection'
 
 // ── Generate 8 static city pages ──
 export function generateStaticParams() {
@@ -246,31 +250,33 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         </div>
       </section>
 
-      {/* ── FREGUESIAS ── */}
-      <section className="py-14 md:py-18 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Freguesias de {city.name}
-          </h2>
-          <p className="text-text-muted mb-6">
-            Os nossos profissionais atuam em todas as {city.freguesias.length} freguesias do concelho de {city.name}:
-          </p>
-          <div className="flex flex-wrap gap-2 mb-8">
-            {city.freguesias.map(f => (
-              <span key={f} className="px-3 py-1.5 bg-warm-gray rounded-full text-sm text-dark/70 border border-border/30">{f}</span>
-            ))}
-          </div>
+      {/* ── SPECIALTY (anti-thin-content, conditional) ── */}
+      <CitySpecialtySection city={city} />
 
-          <div className="mt-8 rounded-2xl p-6 md:p-8" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.06) 0%, rgba(255,214,0,0.12) 100%)' }}>
-            <h3 className="font-display font-bold text-dark mb-2">Sobre {city.name}</h3>
-            <p className="text-text-muted text-sm leading-relaxed">
-              {city.name} é um concelho do distrito de {city.distrito} com uma população de {city.population.toLocaleString('pt-PT')} habitantes.
-              A VITFIX oferece serviços de eletricidade, canalização, pintura e pladur em todo o concelho,
-              incluindo as {city.freguesias.length} freguesias. Todos os nossos profissionais são verificados e oferecem orçamento gratuito.
-            </p>
+      {/* ── CLIMATE / CONSTRUCTION CHALLENGES (anti-thin-content, conditional) ── */}
+      <CityChallengesSection city={city} />
+
+      {/* ── LANDMARKS (anti-thin-content, conditional) ── */}
+      <CityLandmarksSection city={city} />
+
+      {/* ── FREGUESIAS (enriched if notableFreguesias present, fallback to flat list) ── */}
+      <NotableFreguesiasSection city={city} />
+
+      {/* ── ABOUT FALLBACK (only if no specialty enrichment) ── */}
+      {!city.specialty ? (
+        <section className="py-12 md:py-16 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="rounded-2xl p-6 md:p-8" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.06) 0%, rgba(255,214,0,0.12) 100%)' }}>
+              <h3 className="font-display font-bold text-dark mb-2">Sobre {city.name}</h3>
+              <p className="text-text-muted text-sm leading-relaxed">
+                {city.name} é um concelho do distrito de {city.distrito} com uma população de {city.population.toLocaleString('pt-PT')} habitantes.
+                A VITFIX oferece serviços de eletricidade, canalização, pintura e pladur em todo o concelho,
+                incluindo as {city.freguesias.length} freguesias. Todos os nossos profissionais são verificados e oferecem orçamento gratuito.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {/* ── NEARBY CITIES ── */}
       {nearbyCities.length > 0 && (

@@ -59,7 +59,9 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const { service, city, nearbyCities } = combo
   const replaceCity = (text: string) => text.replace(/\{city\}/g, city.name)
   const heroTitle = replaceCity(service.heroTitle)
-  const heroSubtitle = replaceCity(service.heroSubtitle)
+  const overrideIntro = city.serviceCityOverrides?.[service.slug]?.intro
+  const heroSubtitle = overrideIntro ?? replaceCity(service.heroSubtitle)
+  const localCases = city.serviceCityOverrides?.[service.slug]?.localCases
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
@@ -208,6 +210,33 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
         problems={service.problemsWeSolve}
         serviceIcon={service.icon}
       />
+
+      {/* ── LOCAL CASES (anti-thin-content, conditional) ── */}
+      {localCases?.length ? (
+        <section className="py-12 md:py-16">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark mb-2">
+              Intervenções recentes em {city.name}
+            </h2>
+            <p className="text-text-muted text-sm mb-6 max-w-2xl">
+              Exemplos de trabalhos realizados pelos profissionais VITFIX no concelho.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {localCases.map((c, i) => (
+                <article
+                  key={i}
+                  className="p-5 rounded-2xl bg-white border border-border/40 hover:border-yellow/40 transition-colors flex gap-4"
+                >
+                  <span className="shrink-0 w-9 h-9 rounded-lg bg-yellow/15 flex items-center justify-center text-base font-bold text-dark">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm text-dark/85 leading-relaxed">{c}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* ── URGENCY CTA ── */}
       <section className="py-12 md:py-16">

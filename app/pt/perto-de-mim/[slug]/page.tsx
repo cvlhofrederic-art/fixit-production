@@ -174,7 +174,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         : {
             '@type': 'Service',
             name: `${displayName} Perto de Mim`,
-            description: `Encontre ${pluralizar(displayName)} verificados perto de si no Tâmega e Sousa.`,
+            description: `Encontre ${pluralizar(displayName)} verificados perto de si em Portugal continental.`,
             provider: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },
             areaServed: CITIES.map(c => ({ '@type': 'City', name: c.name })),
             serviceType: displayName,
