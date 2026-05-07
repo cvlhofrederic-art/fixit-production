@@ -26,12 +26,12 @@ export default function HomePage() {
   const [showAllServices, setShowAllServices] = useState(false)
   const [revealedEls, setRevealedEls] = useState<Set<string>>(new Set())
 
-  // Autocomplete localisation — style Doctolib (phase test : dept 13 FR / Porto PT)
+  // Autocomplete localisation - style Doctolib (phase test : dept 13 FR / Porto PT)
   const [locOpen, setLocOpen] = useState(false)
   const [locCursor, setLocCursor] = useState(0)
   const locBoxRef = useRef<HTMLDivElement | null>(null)
 
-  // Autocomplete service — style Doctolib (tous mots-clés FR/PT)
+  // Autocomplete service - style Doctolib (tous mots-clés FR/PT)
   const [serviceQuery, setServiceQuery] = useState('')
   const [serviceOpen, setServiceOpen] = useState(false)
   const [serviceCursor, setServiceCursor] = useState(0)
@@ -74,7 +74,7 @@ export default function HomePage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Scroll reveal — reveals elements entering viewport OR already scrolled past
+  // Scroll reveal - reveals elements entering viewport OR already scrolled past
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -137,7 +137,7 @@ export default function HomePage() {
 
   const isPt = locale === 'pt'
 
-  // Suggestions localisation — locale-aware, phase test uniquement (dept 13 FR / Porto PT)
+  // Suggestions localisation - locale-aware, phase test uniquement (dept 13 FR / Porto PT)
   const locSuggestions = useMemo(() => {
     const raw = location.trim()
     if (raw.length < 1) return [] as Array<{ key: string; label: string; right?: string }>
@@ -186,7 +186,7 @@ export default function HomePage() {
     setLocOpen(false)
   }
 
-  // Suggestions service — locale-aware (FR / PT)
+  // Suggestions service - locale-aware (FR / PT)
   const serviceSuggestions = useMemo(() => {
     return searchServices(serviceQuery, isPt ? 'pt' : 'fr', 10)
   }, [serviceQuery, isPt])

@@ -87,7 +87,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies()
   const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
 
-  // NL and ES landing pages — fall back to EN metadata
+  // NL and ES landing pages - fall back to EN metadata
   if (locale === 'nl') {
     return {
       ...sharedMeta,
@@ -229,8 +229,8 @@ export default async function RootLayout({
                   logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
                   image: 'https://vitfix.io/og-image.png',
                   description: locale === 'pt'
-                    ? 'Plataforma de profissionais verificados para reparações e obras — canalização, eletricidade, faz-tudo em Portugal.'
-                    : 'Plateforme d\'artisans vérifiés pour vos travaux — plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
+                    ? 'Plataforma de profissionais verificados para reparações e obras, canalização, eletricidade, faz-tudo em Portugal.'
+                    : 'Plateforme d\'artisans vérifiés pour vos travaux, plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
                   knowsLanguage: ['pt-PT', 'fr-FR', 'en'],
                   email: CONTACT_EMAIL,
                   telephone: locale === 'pt' ? PHONE_PT : PHONE_FR,
