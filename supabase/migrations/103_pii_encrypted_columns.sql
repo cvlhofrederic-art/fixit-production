@@ -23,12 +23,31 @@ COMMENT ON COLUMN profiles_artisan.kbis_extracted_encrypted IS
 COMMENT ON COLUMN profiles_artisan.pii_encryption_version IS
   '0 = plaintext only, 1 = dual-write (plaintext + AES-256-GCM), 2+ = future rotations.';
 
-ALTER TABLE pt_fiscal_documents
-  ADD COLUMN IF NOT EXISTS issuer_nif_encrypted     BYTEA,
-  ADD COLUMN IF NOT EXISTS client_nif_encrypted     BYTEA,
-  ADD COLUMN IF NOT EXISTS pii_encryption_version   INT NOT NULL DEFAULT 0;
+-- pt_fiscal_documents block — conditional. The table only exists in
+-- environments that have applied the Portugal fiscal feature (migration
+-- 040_portugal_fiscal.sql) and at the time this migration was authored
+-- the production environment had not yet enabled it. Wrap the ALTER in
+-- a DO block so re-running the migration on any environment is safe:
+--   - if pt_fiscal_documents exists → encrypted columns added.
+--   - if not → block is a no-op.
 
-COMMENT ON COLUMN pt_fiscal_documents.issuer_nif_encrypted IS
-  'AES-256-GCM ciphertext of issuer_nif. Plaintext mirror in pt_fiscal_documents.issuer_nif until cleanup phase.';
-COMMENT ON COLUMN pt_fiscal_documents.client_nif_encrypted IS
-  'AES-256-GCM ciphertext of client_nif. Plaintext mirror in pt_fiscal_documents.client_nif until cleanup phase.';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'pt_fiscal_documents'
+  ) THEN
+    EXECUTE $sql$
+      ALTER TABLE pt_fiscal_documents
+        ADD COLUMN IF NOT EXISTS issuer_nif_encrypted     BYTEA,
+        ADD COLUMN IF NOT EXISTS client_nif_encrypted     BYTEA,
+        ADD COLUMN IF NOT EXISTS pii_encryption_version   INT NOT NULL DEFAULT 0;
+
+      COMMENT ON COLUMN pt_fiscal_documents.issuer_nif_encrypted IS
+        'AES-256-GCM ciphertext of issuer_nif. Plaintext mirror in pt_fiscal_documents.issuer_nif until cleanup phase.';
+      COMMENT ON COLUMN pt_fiscal_documents.client_nif_encrypted IS
+        'AES-256-GCM ciphertext of client_nif. Plaintext mirror in pt_fiscal_documents.client_nif until cleanup phase.';
+    $sql$;
+  END IF;
+END
+$$;

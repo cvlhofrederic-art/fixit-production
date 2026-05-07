@@ -1,8 +1,74 @@
 {
   "$schema": "https://json.schemastore.org/json",
-  "_comment": "Declarative manifest of the Sentry alerts that should exist for vitfix-frontend. Sentry has no public API to apply this directly — the manifest is the source of truth, the Sentry UI is the runtime. Adding/removing an entry here is the same change as adding/removing an alert in Sentry. Reviewed during incident post-mortems (see docs/oncall.md).",
+  "_comment": "Declarative manifest of the Sentry alerts that should exist for vitfix-production. Sentry has no public API to apply this directly — the manifest is the source of truth, the Sentry UI is the runtime. Each alert has a _status field reflecting the current state in the Sentry UI. Reviewed during incident post-mortems (see docs/oncall.md).",
   "_version": "2026-05-07",
+  "_org": "vitfix",
+  "_project": "vitfix-production",
+  "_legend": {
+    "applied": "Alert exists in the Sentry UI as of _version date.",
+    "pending_plan": "Requires a Sentry plan upgrade (metric / performance alerts not on the free tier). Track upgrade decision in docs/slos.md error budget review.",
+    "pending_setup": "Requires upstream wiring (e.g. cron heartbeat tagging) before the alert can fire — author is captured in `_blocked_on`."
+  },
   "alerts": [
+    {
+      "key": "fatal_level_captured",
+      "severity": "P1",
+      "title": "Fatal-level error captured",
+      "type": "issue",
+      "filter": "level:fatal",
+      "threshold": "any new issue",
+      "channel": ["email"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Error rate < 0.5%",
+      "_status": "applied",
+      "_sentry_rule_id": 571453
+    },
+    {
+      "key": "stripe_webhook_error",
+      "severity": "P1",
+      "title": "Stripe webhook error (any module=api/stripe/webhook)",
+      "type": "issue",
+      "filter": "tag:module=api/stripe/webhook",
+      "threshold": "any new issue",
+      "channel": ["email"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Stripe webhook delivery >= 99%",
+      "_status": "applied",
+      "_sentry_rule_id": 571455
+    },
+    {
+      "key": "simulateur_v2_hallucinations",
+      "severity": "P2",
+      "title": "Simulateur V2 — Hallucinations bloquées en pic (>5/min)",
+      "type": "issue",
+      "filter": "tag:agent_type=simulateur-v2 tag:event=hallucination_blocked",
+      "threshold": ">5 events in 1m",
+      "channel": ["email"],
+      "runbook": "docs/sentry-alerts-simulateur-v2.md",
+      "_status": "applied"
+    },
+    {
+      "key": "simulateur_v2_tool_loop",
+      "severity": "P2",
+      "title": "Simulateur V2 — Tool loop exceeded (>1/5min)",
+      "type": "issue",
+      "filter": "tag:agent_type=simulateur-v2 tag:event=tool_loop_exceeded",
+      "threshold": ">1 events in 5m",
+      "channel": ["email"],
+      "runbook": "docs/sentry-alerts-simulateur-v2.md",
+      "_status": "applied"
+    },
+    {
+      "key": "simulateur_v2_validate_quote_failed",
+      "severity": "P2",
+      "title": "Simulateur V2 — validateQuote failed (>2/5min)",
+      "type": "issue",
+      "filter": "tag:agent_type=simulateur-v2 tag:event=validate_quote_failed",
+      "threshold": ">2 events in 5m",
+      "channel": ["email"],
+      "runbook": "docs/sentry-alerts-simulateur-v2.md",
+      "_status": "applied"
+    },
     {
       "key": "availability_drop",
       "severity": "P1",
@@ -12,7 +78,9 @@
       "threshold": "count() > 3 in 5m",
       "channel": ["email", "slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Availability ≥ 99.5%"
+      "slo": "Availability >= 99.5%",
+      "_status": "pending_plan",
+      "_blocked_on": "Sentry free tier does not allow Number of Errors / metric alerts. Requires Team plan ($26/mo) or Business plan."
     },
     {
       "key": "error_rate_spike",
@@ -23,7 +91,9 @@
       "threshold": "count() > 5 in 1m",
       "channel": ["email", "slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Error rate < 0.5%"
+      "slo": "Error rate < 0.5%",
+      "_status": "pending_plan",
+      "_blocked_on": "Same as availability_drop — requires Sentry plan upgrade."
     },
     {
       "key": "latency_p95_breach",
@@ -34,7 +104,9 @@
       "threshold": "p95(transaction.duration) > 3000 in 15m",
       "channel": ["slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "API p95 < 3000 ms"
+      "slo": "API p95 < 3000 ms",
+      "_status": "pending_plan",
+      "_blocked_on": "Performance alert — requires Sentry plan upgrade."
     },
     {
       "key": "agent_latency_breach",
@@ -45,7 +117,9 @@
       "threshold": "p95(transaction.duration) > 5000 in 15m",
       "channel": ["slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Critical agent p95 < 5000 ms"
+      "slo": "Critical agent p95 < 5000 ms",
+      "_status": "pending_plan",
+      "_blocked_on": "Performance alert — requires Sentry plan upgrade."
     },
     {
       "key": "cron_missing_heartbeat",
@@ -54,9 +128,11 @@
       "type": "issue",
       "filter": "tag:event=cron_heartbeat tag:status=missed",
       "threshold": "any",
-      "channel": ["email", "slack:#vitfix-alerts"],
+      "channel": ["email"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Cron reliability 100% / day"
+      "slo": "Cron reliability 100% / day",
+      "_status": "pending_setup",
+      "_blocked_on": "Migration 102 (cron_heartbeats) was applied 2026-05-07. The Sentry-side issue alert can be created once the post-deploy ships and crons start emitting heartbeats — at which point we'll have a concrete tag value to match."
     },
     {
       "key": "stripe_webhook_signature_fail",
@@ -65,9 +141,11 @@
       "type": "issue",
       "filter": "logger:api/stripe/webhook level:error message:'Signature verification failed'",
       "threshold": "any",
-      "channel": ["email", "slack:#vitfix-alerts"],
+      "channel": ["email"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Stripe webhook delivery ≥ 99%"
+      "slo": "Stripe webhook delivery >= 99%",
+      "_status": "covered_by_stripe_webhook_error",
+      "_blocked_on": "Subsumed by `stripe_webhook_error` alert (any error in the webhook module pages, signature failure included). Keep this entry for traceability — if we need a dedicated P1 we'll switch the parent to a more specific filter."
     },
     {
       "key": "stripe_webhook_stale_events",
@@ -78,7 +156,9 @@
       "threshold": "any",
       "channel": ["slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Stripe webhook delivery ≥ 99%"
+      "slo": "Stripe webhook delivery >= 99%",
+      "_status": "pending_setup",
+      "_blocked_on": "Need a daily cron that scans stripe_webhook_events for idle > 24h rows and emits a tagged Sentry message. Cron not yet wired."
     },
     {
       "key": "circuit_breaker_open",
@@ -89,7 +169,9 @@
       "threshold": "any sustained 5m",
       "channel": ["slack:#vitfix-alerts"],
       "runbook": "docs/oncall.md#alert-runbook-map",
-      "slo": "Circuit breaker uptime ≥ 99%"
+      "slo": "Circuit breaker uptime >= 99%",
+      "_status": "pending_setup",
+      "_blocked_on": "logger.circuitState() helper landed in Phase 8 but no production code calls it yet — the circuit breaker state transitions need to be instrumented (one-line edit per breaker)."
     },
     {
       "key": "audit_mass_cancel",
@@ -98,9 +180,11 @@
       "type": "issue",
       "filter": "tag:event=audit_mass_cancel",
       "threshold": "any",
-      "channel": ["email", "slack:#vitfix-alerts"],
+      "channel": ["email"],
       "runbook": "docs/conformite/sentry-alerts.md",
-      "slo": "Document integrity"
+      "slo": "Document integrity",
+      "_status": "pending_setup",
+      "_blocked_on": "Tag emission is documented in docs/conformite/sentry-alerts.md but the SQL trigger or cron that detects mass-cancel and emits the tag is not yet shipped."
     },
     {
       "key": "audit_hash_chain_break",
@@ -109,9 +193,11 @@
       "type": "issue",
       "filter": "tag:event=hash_chain_break",
       "threshold": "any",
-      "channel": ["email", "slack:#vitfix-alerts"],
+      "channel": ["email"],
       "runbook": "docs/conformite/sentry-alerts.md",
-      "slo": "Document integrity"
+      "slo": "Document integrity",
+      "_status": "pending_setup",
+      "_blocked_on": "Same — tag emission is documented but the verification job that detects chain breaks and emits the tag is not yet shipped."
     }
   ]
 }
