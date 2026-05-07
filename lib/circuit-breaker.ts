@@ -12,6 +12,8 @@
 // TODO: Migrate circuit state to a shared store (Redis / KV) for cross-instance
 // coordination. Track in: https://github.com/your-org/fixit-cf/issues (F08)
 
+import { logger } from '@/lib/logger'
+
 type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
 
 interface CircuitBreakerOptions {
@@ -49,6 +51,19 @@ function getCircuit(name: string): CircuitBreakerState {
   return circuits.get(name)!
 }
 
+/**
+ * Mutate the circuit's state and emit a `logger.circuitState()` event ONLY
+ * when the new value differs from the previous one. The Sentry alert
+ * `circuit_breaker_open` (monitoring/sentry-alerts.json) keys on the tag
+ * Sentry receives from this helper, so spamming it on every CLOSED tick
+ * would drown the alert in noise.
+ */
+function transition(circuit: CircuitBreakerState, name: string, next: CircuitState) {
+  if (circuit.state === next) return
+  circuit.state = next
+  logger.circuitState(name, next)
+}
+
 export function createCircuitBreaker(options: CircuitBreakerOptions) {
   const { failureThreshold = 5, resetTimeoutMs = 30000, name } = options
 
@@ -57,7 +72,7 @@ export function createCircuitBreaker(options: CircuitBreakerOptions) {
 
     if (circuit.state === 'OPEN') {
       if (Date.now() - circuit.lastFailure > resetTimeoutMs) {
-        circuit.state = 'HALF_OPEN'
+        transition(circuit, name, 'HALF_OPEN')
       } else {
         throw new Error(`Circuit breaker [${name}] is OPEN — service temporarily unavailable`)
       }
@@ -66,7 +81,7 @@ export function createCircuitBreaker(options: CircuitBreakerOptions) {
     try {
       const result = await fn()
       circuit.failures = 0
-      circuit.state = 'CLOSED'
+      transition(circuit, name, 'CLOSED')
       circuit.lastSuccess = Date.now()
       return result
     } catch (error) {
@@ -74,7 +89,7 @@ export function createCircuitBreaker(options: CircuitBreakerOptions) {
       circuit.lastFailure = Date.now()
 
       if (circuit.failures >= failureThreshold) {
-        circuit.state = 'OPEN'
+        transition(circuit, name, 'OPEN')
       }
 
       throw error
