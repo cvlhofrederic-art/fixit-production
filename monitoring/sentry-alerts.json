@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json.schemastore.org/json",
+  "_comment": "Declarative manifest of the Sentry alerts that should exist for vitfix-frontend. Sentry has no public API to apply this directly — the manifest is the source of truth, the Sentry UI is the runtime. Adding/removing an entry here is the same change as adding/removing an alert in Sentry. Reviewed during incident post-mortems (see docs/oncall.md).",
+  "_version": "2026-05-07",
+  "alerts": [
+    {
+      "key": "availability_drop",
+      "severity": "P1",
+      "title": "Availability drop — /api/health 5xx",
+      "type": "metric",
+      "filter": "transaction.op:http.server transaction:/api/health http.status_code:>=500",
+      "threshold": "count() > 3 in 5m",
+      "channel": ["email", "slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Availability ≥ 99.5%"
+    },
+    {
+      "key": "error_rate_spike",
+      "severity": "P1",
+      "title": "5xx rate spike — > 5/min on /api/*",
+      "type": "metric",
+      "filter": "transaction.op:http.server http.status_code:>=500",
+      "threshold": "count() > 5 in 1m",
+      "channel": ["email", "slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Error rate < 0.5%"
+    },
+    {
+      "key": "latency_p95_breach",
+      "severity": "P2",
+      "title": "API p95 latency > 3s sustained",
+      "type": "metric",
+      "filter": "transaction.op:http.server transaction:/api/*",
+      "threshold": "p95(transaction.duration) > 3000 in 15m",
+      "channel": ["slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "API p95 < 3000 ms"
+    },
+    {
+      "key": "agent_latency_breach",
+      "severity": "P2",
+      "title": "Agent latency p95 > 5s (fixy-ai / devis*)",
+      "type": "metric",
+      "filter": "transaction.op:http.server (transaction:/api/fixy-ai/* OR transaction:/api/devis*)",
+      "threshold": "p95(transaction.duration) > 5000 in 15m",
+      "channel": ["slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Critical agent p95 < 5000 ms"
+    },
+    {
+      "key": "cron_missing_heartbeat",
+      "severity": "P2",
+      "title": "Cron missed scheduled run",
+      "type": "issue",
+      "filter": "tag:event=cron_heartbeat tag:status=missed",
+      "threshold": "any",
+      "channel": ["email", "slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Cron reliability 100% / day"
+    },
+    {
+      "key": "stripe_webhook_signature_fail",
+      "severity": "P1",
+      "title": "Stripe webhook signature verification failed",
+      "type": "issue",
+      "filter": "logger:api/stripe/webhook level:error message:'Signature verification failed'",
+      "threshold": "any",
+      "channel": ["email", "slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Stripe webhook delivery ≥ 99%"
+    },
+    {
+      "key": "stripe_webhook_stale_events",
+      "severity": "P2",
+      "title": "Stripe webhook events idle > 24h",
+      "type": "issue",
+      "filter": "tag:event=stripe_webhook_stale",
+      "threshold": "any",
+      "channel": ["slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Stripe webhook delivery ≥ 99%"
+    },
+    {
+      "key": "circuit_breaker_open",
+      "severity": "P2",
+      "title": "Groq circuit breaker stayed OPEN > 5 min",
+      "type": "issue",
+      "filter": "tag:circuit=groq tag:state=open",
+      "threshold": "any sustained 5m",
+      "channel": ["slack:#vitfix-alerts"],
+      "runbook": "docs/oncall.md#alert-runbook-map",
+      "slo": "Circuit breaker uptime ≥ 99%"
+    },
+    {
+      "key": "audit_mass_cancel",
+      "severity": "P1",
+      "title": "Mass cancel detected on devis/factures",
+      "type": "issue",
+      "filter": "tag:event=audit_mass_cancel",
+      "threshold": "any",
+      "channel": ["email", "slack:#vitfix-alerts"],
+      "runbook": "docs/conformite/sentry-alerts.md",
+      "slo": "Document integrity"
+    },
+    {
+      "key": "audit_hash_chain_break",
+      "severity": "P1",
+      "title": "Hash chain integrity broken (devis or factures)",
+      "type": "issue",
+      "filter": "tag:event=hash_chain_break",
+      "threshold": "any",
+      "channel": ["email", "slack:#vitfix-alerts"],
+      "runbook": "docs/conformite/sentry-alerts.md",
+      "slo": "Document integrity"
+    }
+  ]
+}

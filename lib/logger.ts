@@ -143,4 +143,48 @@ export const logger = {
       console.log(entry)
     }
   },
+  /**
+   * Wrap a Promise so that its wall-clock duration is logged at info and
+   * propagated to Sentry as a breadcrumb tag. Re-throws the original
+   * error verbatim — this helper is observability-only.
+   *
+   * Usage:
+   *   const result = await logger.withTiming('api/devis/sync', () => doWork())
+   */
+  async withTiming<T>(name: string, fn: () => Promise<T>, context?: LogContext): Promise<T> {
+    const start = Date.now()
+    try {
+      const result = await fn()
+      const latency_ms = Date.now() - start
+      logger.info(`timing.${name}`, { ...context, name, latency_ms })
+      Sentry.addBreadcrumb({
+        category: 'timing',
+        message: name,
+        data: { latency_ms, ...(context ?? {}) },
+        level: 'info',
+      })
+      return result
+    } catch (err) {
+      const latency_ms = Date.now() - start
+      logger.warn(`timing.${name}.failed`, { ...context, name, latency_ms })
+      throw err
+    }
+  },
+  /**
+   * Record a circuit-breaker state transition with a Sentry tag. The
+   * SLO alert `circuit_breaker_open` matches on these tags.
+   */
+  circuitState(name: string, state: 'CLOSED' | 'OPEN' | 'HALF_OPEN', context?: LogContext) {
+    const ctx: LogContext = { circuit: name, state, ...(context ?? {}) }
+    if (state === 'OPEN') {
+      logger.warn(`circuit.${name}.open`, ctx)
+    } else {
+      logger.info(`circuit.${name}.${state.toLowerCase()}`, ctx)
+    }
+    Sentry.withScope((scope) => {
+      scope.setTag('circuit', name)
+      scope.setTag('state', state.toLowerCase())
+      Sentry.captureMessage(`circuit ${name} ${state}`, { level: state === 'OPEN' ? 'warning' : 'info' })
+    })
+  },
 }
