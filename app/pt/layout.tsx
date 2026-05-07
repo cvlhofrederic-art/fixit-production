@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   metadataBase: new URL('https://vitfix.io'),
   title: {
-    default: 'VITFIX Portugal — Canalizador, Eletricista, Pintor | Orçamento grátis',
+    default: 'VITFIX Portugal, Canalizador, Eletricista, Pintor | Orçamento grátis',
     template: '%s | VITFIX Portugal',
   },
   description: 'Encontre um profissional verificado em Marco de Canaveses, Penafiel, Amarante e toda a região do Tâmega e Sousa. Canalizador, eletricista, pintor, faz-tudo. Orçamento grátis, 7 dias por semana.',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'VITFIX Portugal — Profissionais Verificados',
+    title: 'VITFIX Portugal : Profissionais Verificados',
     description: 'Canalizador, eletricista, pintor e faz-tudo na região do Tâmega e Sousa. Orçamento grátis.',
     siteName: 'VITFIX',
     locale: 'pt_PT',

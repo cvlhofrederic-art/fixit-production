@@ -1,4 +1,4 @@
-// Re-export root homepage — PT locale injected via LanguageProvider
+// Re-export root homepage - PT locale injected via LanguageProvider
 export { default } from '../page'
 
 import type { Metadata } from 'next'

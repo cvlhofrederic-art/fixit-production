@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Especialidades VITFIX Portugal — Impermeabilização, Capoto, Desentupimento Urgente',
+  title: 'Especialidades VITFIX Portugal : Impermeabilização, Capoto, Desentupimento Urgente',
   description: 'Páginas especializadas para intervenções específicas em Portugal: impermeabilização, isolamento térmico ETICS, obras com alvará, reabilitação urbana, desentupimento urgente e manutenção Airbnb.',
   alternates: {
     canonical: 'https://vitfix.io/pt/especialidades/',
@@ -29,7 +29,7 @@ const ESPECIALIDADES_PT = [
   },
   {
     icon: '🧱',
-    name: 'Capoto ETICS — IVA 6%',
+    name: 'Capoto ETICS : IVA 6%',
     slug: 'capoto-etics-iva-6',
     description: 'Isolamento térmico exterior pelo sistema ETICS (capoto). Benefício fiscal IVA reduzido a 6% para reabilitação. Poupança energética até 40%.',
     keywords: ['capoto ETICS', 'isolamento térmico exterior', 'IVA 6% reabilitação'],
@@ -69,7 +69,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX Portugal — Especialidades',
+      name: 'VITFIX Portugal : Especialidades',
       url: 'https://vitfix.io/pt/especialidades/',
       telephone: PHONE_PT,
       address: { '@type': 'PostalAddress', addressRegion: 'Porto', addressCountry: 'PT' },

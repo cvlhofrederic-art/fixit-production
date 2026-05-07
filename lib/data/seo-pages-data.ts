@@ -1,5 +1,5 @@
 // ============================================================
-// VITFIX — SEO Programmatic Pages Data
+// VITFIX - SEO Programmatic Pages Data
 // Cities × Services = Landing Pages
 // ============================================================
 
@@ -63,7 +63,7 @@ export interface BlogArticle {
 }
 
 // ============================================================
-// CITIES — Marco de Canaveses + surrounding area (20km radius)
+// CITIES - Marco de Canaveses + surrounding area (20km radius)
 // ============================================================
 
 export const CITIES: CityData[] = [
@@ -190,7 +190,7 @@ export const CITIES: CityData[] = [
 ]
 
 // ============================================================
-// SERVICES — Focused on what the user's artisans do
+// SERVICES - Focused on what the user's artisans do
 // ============================================================
 
 export const SERVICES: ServiceData[] = [
@@ -198,7 +198,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'eletricista',
     name: 'Eletricista',
     icon: '⚡',
-    metaTitle: 'Eletricista em {city} — Urgências e Reparações Elétricas | VITFIX',
+    metaTitle: 'Eletricista em {city} : Urgências e Reparações Elétricas | VITFIX',
     metaDesc: 'Precisa de um eletricista em {city}? Intervenção rápida para curto-circuitos, quadros elétricos, avarias elétricas. Orçamento grátis. Serviço 7/7.',
     heroTitle: 'Eletricista em {city}',
     heroSubtitle: 'Intervenção rápida para todas as suas urgências elétricas. Profissionais verificados, orçamento gratuito.',
@@ -210,7 +210,7 @@ export const SERVICES: ServiceData[] = [
       'Diagnóstico de problemas elétricos',
       'Colocação de disjuntores e proteções',
       'Certificação de instalações elétricas',
-      'Urgências elétricas — resposta rápida',
+      'Urgências elétricas, resposta rápida',
     ],
     urgencyText: 'Tem uma urgência elétrica? Não toque na instalação! Ligue-nos para uma intervenção segura e rápida.',
     problemsWeSolve: [
@@ -228,7 +228,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'Como sei se a minha instalação elétrica precisa de ser atualizada?', answer: 'Se a sua casa tem mais de 20 anos e nunca foi revista, se ainda tem fusíveis em vez de disjuntores, se os disjuntores disparam frequentemente, ou se tem tomadas de modelo antigo sem terra, é recomendável uma atualização.' },
     ],
     urgency: {
-      metaTitle: 'Eletricista Urgente em {city} — Disponível 24h | VITFIX',
+      metaTitle: 'Eletricista Urgente em {city} : Disponível 24h | VITFIX',
       metaDesc: 'Precisa de um eletricista urgente em {city}? Curto-circuito, falha elétrica, disjuntor que dispara? Intervenção rápida 7/7. Ligue agora!',
       heroTitle: 'Eletricista Urgente em {city}',
       heroSubtitle: 'Tem uma urgência elétrica? Não toque na instalação! Os nossos eletricistas intervêm rapidamente em {city} e arredores para resolver qualquer emergência elétrica em segurança.',
@@ -241,7 +241,7 @@ export const SERVICES: ServiceData[] = [
         'Contacte um eletricista profissional VITFIX',
       ],
       whenToCall: [
-        'Curto-circuito — disjuntor geral disparou e não religa',
+        'Curto-circuito, disjuntor geral disparou e não religa',
         'Cheiro a queimado na instalação elétrica',
         'Faíscas ou fumo numa tomada ou interruptor',
         'Toda a casa sem eletricidade (e vizinhos têm luz)',
@@ -256,10 +256,10 @@ export const SERVICES: ServiceData[] = [
     slug: 'canalizador',
     name: 'Canalizador',
     icon: '🔧',
-    metaTitle: 'Canalizador / Picheleiro em {city} — Urgências e Reparações | VITFIX',
+    metaTitle: 'Canalizador / Picheleiro em {city} : Urgências e Reparações | VITFIX',
     metaDesc: 'Canalizador e picheleiro profissional em {city}. Fugas de água, entupimentos, reparação de esquentadores e caldeiras. Disponível 7/7. Orçamento grátis.',
     heroTitle: 'Canalizador em {city}',
-    heroSubtitle: 'Canalizador (picheleiro) profissional em {city} — resolução rápida de fugas, entupimentos e avarias de canalização. Profissionais de confiança, disponíveis 7 dias por semana.',
+    heroSubtitle: 'Canalizador (picheleiro) profissional em {city}, resolução rápida de fugas, entupimentos e avarias de canalização. Profissionais de confiança, disponíveis 7 dias por semana.',
     features: [
       'Reparação de fugas de água',
       'Desentupimento de canos e esgotos',
@@ -268,7 +268,7 @@ export const SERVICES: ServiceData[] = [
       'Reparação de autoclismos',
       'Deteção de fugas ocultas',
       'Instalação de sistemas de canalização',
-      'Picheleiro disponível — serviços completos de canalização',
+      'Picheleiro disponível, serviços completos de canalização',
       'Urgências de canalização 24h',
     ],
     urgencyText: 'Fuga de água? Feche a torneira de segurança e contacte-nos imediatamente para minimizar os danos. Canalizador (picheleiro) disponível 24h.',
@@ -288,7 +288,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'O que é um picheleiro? É diferente de um canalizador?', answer: 'No Norte de Portugal (e especialmente no Tâmega e Sousa), "picheleiro" é o nome regional para canalizador. Referem-se ao mesmo profissional que faz reparações de canalização, fugas, entupimentos e instalações de água. Na VITFIX, os nossos canalizadores/picheleiros trabalham em {city} e em toda a região.' },
     ],
     urgency: {
-      metaTitle: 'Canalizador Urgente em {city} — Picheleiro 24h | VITFIX',
+      metaTitle: 'Canalizador Urgente em {city} : Picheleiro 24h | VITFIX',
       metaDesc: 'Fuga de água urgente em {city}? Cano rebentado, inundação, esquentador avariado? Canalizador / picheleiro disponível 24h, 7/7. Intervenção rápida!',
       heroTitle: 'Canalizador Urgente em {city}',
       heroSubtitle: 'Fuga de água? Cano rebentado? Não espere que os danos aumentem! Os nossos canalizadores (picheleiros) intervêm rapidamente em {city} e arredores, 24 horas por dia.',
@@ -297,13 +297,13 @@ export const SERVICES: ServiceData[] = [
         'Se não sabe onde fica, feche a torneira do contador',
         'Coloque baldes e toalhas para conter a água',
         'Desligue a eletricidade se a água tocar em tomadas',
-        'Não tente reparar sozinho — pode piorar a situação',
-        'Ligue para a VITFIX — estamos disponíveis 24h',
+        'Não tente reparar sozinho, pode piorar a situação',
+        'Ligue para a VITFIX, estamos disponíveis 24h',
       ],
       whenToCall: [
-        'Cano rebentado — água a jorrar',
+        'Cano rebentado, água a jorrar',
         'Inundação ativa que não consegue parar',
-        'Fuga de gás (cheiro a gás) — ligue 112 primeiro',
+        'Fuga de gás (cheiro a gás), ligue 112 primeiro',
         'Esgoto a transbordar dentro de casa',
         'Fuga de água no teto ou paredes',
         'Esquentador com fuga de água ou gás',
@@ -316,7 +316,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'pintor',
     name: 'Pintor',
     icon: '🎨',
-    metaTitle: 'Pintor em {city} — Pintura Interior e Exterior | VITFIX',
+    metaTitle: 'Pintor em {city} : Pintura Interior e Exterior | VITFIX',
     metaDesc: 'Pintor profissional em {city}. Pintura interior e exterior, remodelação, tratamento de humidade. Orçamento grátis e trabalho de qualidade.',
     heroTitle: 'Pintor em {city}',
     heroSubtitle: 'Pintura profissional para renovar a sua casa ou escritório. Acabamento impecável garantido.',
@@ -346,14 +346,14 @@ export const SERVICES: ServiceData[] = [
       { question: 'Preciso de sair de casa durante a pintura?', answer: 'Não é necessário. Usamos tintas de baixo odor e base aquosa. Recomendamos apenas manter boa ventilação durante e após a pintura. As divisões podem ser utilizadas 24 horas após a última demão.' },
     ],
     urgency: {
-      metaTitle: 'Pintor Urgente em {city} — Reparação Rápida | VITFIX',
+      metaTitle: 'Pintor Urgente em {city} : Reparação Rápida | VITFIX',
       metaDesc: 'Precisa de um pintor urgente em {city}? Danos de água, manchas de humidade, pintura descascada? Intervenção rápida e trabalho de qualidade.',
       heroTitle: 'Pintor Urgente em {city}',
       heroSubtitle: 'Danos de água nas paredes? Manchas de humidade que se espalham? Os nossos pintores intervêm rapidamente em {city} para reparar e proteger as suas paredes.',
       immediateSteps: [
         'Identifique a causa da mancha (fuga, condensação, infiltração)',
         'Ventile bem a divisão afetada',
-        'Não pinte por cima de manchas de humidade — o problema volta',
+        'Não pinte por cima de manchas de humidade, o problema volta',
         'Se há bolor, evite tocar sem proteção (luvas, máscara)',
         'Documente os danos com fotos para o seguro',
         'Contacte a VITFIX para diagnóstico e reparação completa',
@@ -374,7 +374,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'pladur',
     name: 'Pladur e Tetos Falsos',
     icon: '🏗️',
-    metaTitle: 'Pladur em {city} — Tetos Falsos e Divisórias | VITFIX',
+    metaTitle: 'Pladur em {city} : Tetos Falsos e Divisórias | VITFIX',
     metaDesc: 'Instalação de pladur em {city}. Tetos falsos, divisórias, isolamento acústico e térmico. Profissionais experientes. Orçamento grátis.',
     heroTitle: 'Pladur e Tetos Falsos em {city}',
     heroSubtitle: 'Especialistas em pladur para divisórias, tetos falsos e isolamento. Trabalho limpo e rápido.',
@@ -404,14 +404,14 @@ export const SERVICES: ServiceData[] = [
       { question: 'O pladur isola do barulho?', answer: 'Sim, especialmente se combinado com lã mineral no interior da estrutura. Uma divisória em pladur com isolamento acústico pode reduzir o ruído em 35-45 dB, o equivalente a tornar uma conversa alta praticamente inaudível do outro lado.' },
     ],
     urgency: {
-      metaTitle: 'Pladur Urgente em {city} — Reparação de Tetos e Paredes | VITFIX',
+      metaTitle: 'Pladur Urgente em {city} : Reparação de Tetos e Paredes | VITFIX',
       metaDesc: 'Precisa de reparação urgente de pladur em {city}? Teto danificado, infiltração, divisória partida? Profissionais experientes, intervenção rápida.',
       heroTitle: 'Pladur Urgente em {city}',
       heroSubtitle: 'Teto em pladur danificado? Infiltração que afetou as placas? Os nossos profissionais de pladur intervêm rapidamente em {city} para reparar e substituir painéis danificados.',
       immediateSteps: [
         'Se o teto está inchado ou a ceder, saia da divisão',
         'Coloque um balde sob qualquer ponto de goteira',
-        'Não toque em pladur molhado — pode ceder sem aviso',
+        'Não toque em pladur molhado, pode ceder sem aviso',
         'Desligue a eletricidade se houver focos de luz no teto afetado',
         'Ventile a divisão para secar o mais rápido possível',
         'Contacte a VITFIX para avaliação e reparação',
@@ -432,10 +432,10 @@ export const SERVICES: ServiceData[] = [
     slug: 'obras-remodelacao',
     name: 'Obras e Remodelação',
     icon: '🏠',
-    metaTitle: 'Obras e Remodelação em {city} — Renovação de Casas e Apartamentos | VITFIX',
+    metaTitle: 'Obras e Remodelação em {city} : Renovação de Casas e Apartamentos | VITFIX',
     metaDesc: 'Obras e remodelação em {city}. Renovação de cozinhas, casas de banho, apartamentos completos. Orçamento grátis. Profissionais verificados.',
     heroTitle: 'Obras e Remodelação em {city}',
-    heroSubtitle: 'Renovação completa ou parcial da sua casa. Cozinhas, casas de banho, apartamentos — tudo com profissionais verificados e orçamento gratuito.',
+    heroSubtitle: 'Renovação completa ou parcial da sua casa. Cozinhas, casas de banho, apartamentos, tudo com profissionais verificados e orçamento gratuito.',
     features: [
       'Remodelação completa de apartamentos',
       'Renovação de cozinhas e casas de banho',
@@ -444,7 +444,7 @@ export const SERVICES: ServiceData[] = [
       'Substituição de pavimentos e revestimentos',
       'Instalação de caixilharia e janelas',
       'Impermeabilização de terraços e varandas',
-      'Gestão integral de obras — chave na mão',
+      'Gestão integral de obras, chave na mão',
     ],
     urgencyText: 'Precisa de fazer obras rapidamente? Avaliamos o seu projeto e apresentamos orçamento em 24 horas.',
     problemsWeSolve: [
@@ -462,7 +462,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'Posso continuar a viver em casa durante as obras?', answer: 'Na maioria dos casos sim, especialmente em remodelações parciais (uma divisão de cada vez). Em remodelações completas, pode ser necessário arranjar alojamento temporário durante 1 a 2 semanas na fase mais intensa. Planeamos as obras para minimizar o transtorno.' },
     ],
     urgency: {
-      metaTitle: 'Obras Urgentes em {city} — Reparação e Remodelação Rápida | VITFIX',
+      metaTitle: 'Obras Urgentes em {city} : Reparação e Remodelação Rápida | VITFIX',
       metaDesc: 'Precisa de obras urgentes em {city}? Danos de água, reparações estruturais, preparação urgente de imóvel? Intervenção rápida com profissionais verificados.',
       heroTitle: 'Obras Urgentes em {city}',
       heroSubtitle: 'Danos de água? Problemas estruturais? Precisa de preparar um imóvel rapidamente? Os nossos profissionais intervêm com urgência em {city} e arredores para obras de reparação e remodelação.',
@@ -490,7 +490,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'isolamento-termico',
     name: 'Isolamento Térmico e Capoto',
     icon: '🧱',
-    metaTitle: 'Isolamento Térmico e Capoto em {city} — ETICS e Eficiência Energética | VITFIX',
+    metaTitle: 'Isolamento Térmico e Capoto em {city} : ETICS e Eficiência Energética | VITFIX',
     metaDesc: 'Isolamento térmico e capoto (ETICS) em {city}. Reduza a conta de energia, elimine pontes térmicas e melhore o conforto da sua casa. IVA 6%. Orçamento grátis.',
     heroTitle: 'Isolamento Térmico e Capoto em {city}',
     heroSubtitle: 'Melhore a eficiência energética da sua casa com isolamento térmico pelo exterior (capoto/ETICS). Reduza até 40% na fatura de energia. Orçamento gratuito.',
@@ -502,7 +502,7 @@ export const SERVICES: ServiceData[] = [
       'Substituição de caixilharia com corte térmico',
       'Isolamento acústico de paredes e tetos',
       'Correção de pontes térmicas',
-      'Certificação energética — melhoria de classe',
+      'Certificação energética, melhoria de classe',
     ],
     urgencyText: 'Casa fria no inverno e quente no verão? O isolamento térmico é a solução definitiva para conforto e poupança energética.',
     problemsWeSolve: [
@@ -517,10 +517,10 @@ export const SERVICES: ServiceData[] = [
       { question: 'Quanto custa aplicar capoto por m²?', answer: 'O custo do sistema ETICS (capoto) varia entre 40€ e 80€ por m², dependendo da espessura do isolamento (geralmente 6 a 10 cm de EPS ou lã mineral), da complexidade da fachada e dos acabamentos. Para uma moradia média de 150m² de fachada, o investimento total situa-se entre 6 000€ e 12 000€. Este valor pode beneficiar de IVA reduzido a 6% em habitações com mais de 2 anos.' },
       { question: 'O isolamento térmico paga-se a si próprio?', answer: 'Sim, o isolamento térmico pode reduzir a fatura energética entre 25% e 40%. Com uma poupança média de 500€ a 1 000€ por ano em aquecimento e arrefecimento, o investimento recupera-se tipicamente em 6 a 10 anos. Além disso, valoriza o imóvel ao melhorar a sua classe energética, o que é cada vez mais importante na compra e venda de casas em Portugal.' },
       { question: 'Posso aplicar capoto sem licença da câmara?', answer: 'A aplicação de capoto altera o aspeto exterior do edifício, pelo que em muitos municípios é necessária uma comunicação prévia à Câmara Municipal. No entanto, o processo é geralmente simples e rápido. Em edifícios de apartamentos, é necessária a aprovação do condomínio. A VITFIX ajuda com todo o processo burocrático.' },
-      { question: 'Qual a diferença entre EPS e lã mineral no capoto?', answer: 'O EPS (poliestireno expandido) é mais económico, leve e fácil de aplicar — é a escolha mais comum. A lã mineral oferece melhor isolamento acústico e é incombustível (classificação A1 ao fogo), sendo recomendada para edifícios altos ou zonas com requisitos especiais de proteção contra incêndio. Ambos oferecem excelente desempenho térmico.' },
+      { question: 'Qual a diferença entre EPS e lã mineral no capoto?', answer: 'O EPS (poliestireno expandido) é mais económico, leve e fácil de aplicar, é a escolha mais comum. A lã mineral oferece melhor isolamento acústico e é incombustível (classificação A1 ao fogo), sendo recomendada para edifícios altos ou zonas com requisitos especiais de proteção contra incêndio. Ambos oferecem excelente desempenho térmico.' },
     ],
     urgency: {
-      metaTitle: 'Isolamento Térmico Urgente em {city} — Capoto e ETICS Rápido | VITFIX',
+      metaTitle: 'Isolamento Térmico Urgente em {city} : Capoto e ETICS Rápido | VITFIX',
       metaDesc: 'Precisa de isolamento térmico urgente em {city}? Problemas de condensação, bolor, fachada danificada? Intervenção rápida. IVA 6% em habitações.',
       heroTitle: 'Isolamento Térmico Urgente em {city}',
       heroSubtitle: 'Problemas graves de condensação ou bolor? Fachada degradada que precisa de intervenção imediata? Os nossos especialistas em isolamento térmico intervêm rapidamente em {city} para proteger a sua casa.',
@@ -548,7 +548,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'impermeabilizacao',
     name: 'Impermeabilização',
     icon: '🛡️',
-    metaTitle: 'Impermeabilização em {city} — Telhados, Terraços e Caves | VITFIX',
+    metaTitle: 'Impermeabilização em {city} : Telhados, Terraços e Caves | VITFIX',
     metaDesc: 'Impermeabilização profissional em {city}. Telhados, terraços, varandas, caves e fachadas. Acabar com infiltrações definitivamente. Orçamento grátis.',
     heroTitle: 'Impermeabilização em {city}',
     heroSubtitle: 'Soluções definitivas contra infiltrações e humidade. Impermeabilização de telhados, terraços, varandas, caves e fachadas com garantia.',
@@ -562,7 +562,7 @@ export const SERVICES: ServiceData[] = [
       'Impermeabilização de casas de banho e cozinhas',
       'Drenagem periférica de fundações',
     ],
-    urgencyText: 'Infiltrações ativas? Cada dia que passa aumenta os danos. Não espere — a impermeabilização de urgência evita reparações muito mais caras.',
+    urgencyText: 'Infiltrações ativas? Cada dia que passa aumenta os danos. Não espere, a impermeabilização de urgência evita reparações muito mais caras.',
     problemsWeSolve: [
       'Infiltrações pelo telhado durante a chuva',
       'Terraço ou varanda que infiltra para o andar de baixo',
@@ -578,7 +578,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'A impermeabilização resolve problemas de humidade nas paredes?', answer: 'Depende da causa da humidade. Se a humidade vem de infiltrações exteriores (telhado, fachada), a impermeabilização resolve o problema. Se é condensação (falta de ventilação e isolamento), a solução passa por melhorar a ventilação e o isolamento térmico. Se é capilaridade (humidade que sobe do solo), é necessário um tratamento específico com barreiras químicas. Um diagnóstico profissional identifica a causa correta.' },
     ],
     urgency: {
-      metaTitle: 'Impermeabilização Urgente em {city} — Infiltrações e Telhados | VITFIX',
+      metaTitle: 'Impermeabilização Urgente em {city} : Infiltrações e Telhados | VITFIX',
       metaDesc: 'Infiltração urgente em {city}? Telhado a deixar entrar água, terraço inundado, cave alagada? Impermeabilização de emergência. Contacte-nos agora!',
       heroTitle: 'Impermeabilização Urgente em {city}',
       heroSubtitle: 'Infiltração ativa? Telhado danificado pela tempestade? Os nossos especialistas intervêm com urgência em {city} para parar as infiltrações e proteger a sua casa de danos maiores.',
@@ -606,7 +606,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'desentupimento',
     name: 'Desentupimento',
     icon: '🚿',
-    metaTitle: 'Desentupimento em {city} — Esgotos, Canos e Sarjetas | VITFIX',
+    metaTitle: 'Desentupimento em {city} : Esgotos, Canos e Sarjetas | VITFIX',
     metaDesc: 'Desentupimento profissional em {city}. Canos, esgotos, sarjetas, fossas e colunas de esgoto. Equipamento especializado. Disponível 24h. Orçamento grátis.',
     heroTitle: 'Desentupimento em {city}',
     heroSubtitle: 'Desentupimento rápido e eficaz de canos, esgotos e sarjetas. Equipamento profissional e intervenção urgente disponível.',
@@ -636,7 +636,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'Como prevenir entupimentos?', answer: 'Para prevenir entupimentos: não deite gorduras ou óleos pelo ralo da cozinha, use um ralo com filtro para apanhar cabelos na banheira, não deite toalhitas húmidas pela sanita (mesmo as "biodegradáveis"), faça uma limpeza preventiva dos ralos mensalmente com água a ferver, e considere uma manutenção profissional anual dos esgotos.' },
     ],
     urgency: {
-      metaTitle: 'Desentupimento Urgente em {city} — Disponível 24h | VITFIX',
+      metaTitle: 'Desentupimento Urgente em {city} : Disponível 24h | VITFIX',
       metaDesc: 'Esgoto entupido em {city}? Sanita bloqueada, água estagnada, cheiro a esgoto? Desentupimento urgente 24h com equipamento profissional.',
       heroTitle: 'Desentupimento Urgente em {city}',
       heroSubtitle: 'Esgoto a transbordar? Sanita bloqueada? Não espere que a situação piore! Os nossos técnicos intervêm rapidamente em {city} com equipamento profissional de desentupimento.',
@@ -664,7 +664,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'faz-tudo',
     name: 'Faz Tudo',
     icon: '🔨',
-    metaTitle: 'Faz Tudo em {city} — Pequenas Reparações e Manutenção | VITFIX',
+    metaTitle: 'Faz Tudo em {city} : Pequenas Reparações e Manutenção | VITFIX',
     metaDesc: 'Faz tudo em {city}. Pequenas reparações, montagem de móveis, bricolage, manutenção doméstica. Profissional de confiança. Orçamento grátis.',
     heroTitle: 'Faz Tudo em {city}',
     heroSubtitle: 'Um profissional para todas as pequenas reparações e manutenção da sua casa. Prático, rápido e de confiança.',
@@ -694,13 +694,13 @@ export const SERVICES: ServiceData[] = [
       { question: 'O faz-tudo traz as ferramentas?', answer: 'Sim, os profissionais faz-tudo da VITFIX trazem o seu próprio equipamento e ferramentas. Para tarefas que necessitem de materiais específicos (fechaduras, parafusos, silicone), o profissional pode comprá-los antecipadamente ou inclui-los no orçamento.' },
     ],
     urgency: {
-      metaTitle: 'Faz Tudo Urgente em {city} — Reparações Rápidas | VITFIX',
+      metaTitle: 'Faz Tudo Urgente em {city} : Reparações Rápidas | VITFIX',
       metaDesc: 'Precisa de um faz-tudo urgente em {city}? Porta partida, estore encravado, fechadura avariada? Intervenção rápida no próprio dia.',
       heroTitle: 'Faz Tudo Urgente em {city}',
       heroSubtitle: 'Uma reparação urgente em casa? Porta que não fecha, estore partido, fechadura avariada? O nosso faz-tudo intervém rapidamente em {city} para resolver o problema no próprio dia.',
       immediateSteps: [
         'Se é uma porta exterior que não fecha, improvise uma segurança temporária',
-        'Se o estore está encravado, não force — pode piorar',
+        'Se o estore está encravado, não force, pode piorar',
         'Se a fechadura bloqueou, não tente forçar com objetos',
         'Tire fotos do problema para facilitar o diagnóstico',
         'Contacte a VITFIX para uma reparação rápida',
@@ -709,7 +709,7 @@ export const SERVICES: ServiceData[] = [
       whenToCall: [
         'Porta de entrada que não fecha ou tranca',
         'Estore completamente partido ou encravado',
-        'Fechadura avariada — não consegue entrar ou sair',
+        'Fechadura avariada, não consegue entrar ou sair',
         'Vidro partido que precisa de proteção imediata',
         'Fuga de água simples (torneira, autoclismo)',
         'Necessidade urgente de montagem (ex: berço, cama)',
@@ -722,7 +722,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'serralheiro',
     name: 'Serralheiro',
     icon: '🔐',
-    metaTitle: 'Serralheiro em {city} — Abertura de Portas e Fechaduras | VITFIX',
+    metaTitle: 'Serralheiro em {city} : Abertura de Portas e Fechaduras | VITFIX',
     metaDesc: 'Serralheiro profissional em {city}. Abertura de portas fechadas, mudança de fechaduras, cofres, portões. Disponível 24h. Orçamento grátis.',
     heroTitle: 'Serralheiro em {city}',
     heroSubtitle: 'Ficou fechado fora de casa? Precisa de mudar a fechadura? Os nossos serralheiros intervêm rapidamente em {city}, 24 horas por dia.',
@@ -736,7 +736,7 @@ export const SERVICES: ServiceData[] = [
       'Duplicação de chaves',
       'Portões e automatismos',
     ],
-    urgencyText: 'Fechado fora de casa? Fechadura partida? Ligue agora — serralheiro disponível 24h em {city}.',
+    urgencyText: 'Fechado fora de casa? Fechadura partida? Ligue agora, serralheiro disponível 24h em {city}.',
     problemsWeSolve: [
       'Fechado fora de casa ou do carro',
       'Chave partida na fechadura',
@@ -752,17 +752,17 @@ export const SERVICES: ServiceData[] = [
       { question: 'Posso mudar a fechadura da minha porta?', answer: 'Sim. Recomendamos mudar a fechadura sempre que: se mudou de casa, após um assalto ou tentativa, perdeu a chave, ou simplesmente por segurança. Os nossos serralheiros instalam fechaduras certificadas de classe 3 e 4, com certificação europeia, em qualquer tipo de porta.' },
     ],
     urgency: {
-      metaTitle: 'Serralheiro Urgente em {city} — Abertura de Portas 24h | VITFIX',
+      metaTitle: 'Serralheiro Urgente em {city} : Abertura de Portas 24h | VITFIX',
       metaDesc: 'Serralheiro urgente em {city}: fechado fora de casa, chave partida, porta bloqueada. Intervenção rápida 24h, 7 dias por semana. Ligue agora!',
       heroTitle: 'Serralheiro Urgente em {city}',
       heroSubtitle: 'Emergência de serralharia em {city}? Os nossos serralheiros intervêm em menos de 30 minutos, 24 horas por dia, incluindo fins de semana e feriados.',
       immediateSteps: [
-        'Mantenha a calma — não force a porta ou a fechadura',
+        'Mantenha a calma, não force a porta ou a fechadura',
         'Verifique se há outra entrada disponível (janela, porta traseira)',
         'Reúna o seu documento de identificação para mostrar ao serralheiro',
         'Avise um vizinho se necessário',
         'Não tente abrir a porta com objetos improvisados (pode danificar a fechadura)',
-        'Ligue para a VITFIX — serralheiro disponível 24h em {city}',
+        'Ligue para a VITFIX, serralheiro disponível 24h em {city}',
       ],
       whenToCall: [
         'Fechado fora de casa ou do escritório',
@@ -780,10 +780,10 @@ export const SERVICES: ServiceData[] = [
     slug: 'telhador',
     name: 'Telhado e Cobertura',
     icon: '🏠',
-    metaTitle: 'Telhador em {city} — Reparação e Impermeabilização de Telhados | VITFIX',
+    metaTitle: 'Telhador em {city} : Reparação e Impermeabilização de Telhados | VITFIX',
     metaDesc: 'Telhador profissional em {city}. Reparação de telhas, impermeabilização, limpeza e manutenção de coberturas. Orçamento grátis. Profissionais verificados.',
     heroTitle: 'Telhador em {city}',
-    heroSubtitle: 'Especialistas em reparação e manutenção de telhados em {city}. Telhas partidas, infiltrações, impermeabilização — resolução rápida e duradoura.',
+    heroSubtitle: 'Especialistas em reparação e manutenção de telhados em {city}. Telhas partidas, infiltrações, impermeabilização, resolução rápida e duradoura.',
     features: [
       'Reparação e substituição de telhas',
       'Impermeabilização de coberturas',
@@ -794,7 +794,7 @@ export const SERVICES: ServiceData[] = [
       'Tratamento e pintura de telhados',
       'Isolamento térmico de coberturas',
     ],
-    urgencyText: 'Infiltração no telhado? Não espere — a água pode danificar toda a estrutura. Chamada urgente disponível.',
+    urgencyText: 'Infiltração no telhado? Não espere, a água pode danificar toda a estrutura. Chamada urgente disponível.',
     problemsWeSolve: [
       'Infiltração de água pelo teto',
       'Telhas partidas ou deslocadas após tempestade',
@@ -810,7 +810,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'Qual é o tipo de telha mais durável?', answer: 'As telhas cerâmicas (barro) e as telhas de betão têm uma durabilidade de 40 a 80 anos se bem mantidas. As telhas de ardósia podem durar mais de 100 anos. Para telhados planos, as membranas de PVC e betuminosas de alta qualidade têm garantias de 20 a 25 anos. O nosso telhador recomenda a melhor solução para cada situação.' },
     ],
     urgency: {
-      metaTitle: 'Telhador Urgente em {city} — Reparação de Infiltrações 24h | VITFIX',
+      metaTitle: 'Telhador Urgente em {city} : Reparação de Infiltrações 24h | VITFIX',
       metaDesc: 'Telhado com infiltração urgente em {city}? Telhas partidas, cobertura danificada após tempestade? Telhador disponível rapidamente. Orçamento imediato.',
       heroTitle: 'Telhador Urgente em {city}',
       heroSubtitle: 'Tempestade danificou o seu telhado? Infiltração ativa no interior? Os nossos telhadores intervêm com urgência em {city} para proteger a sua casa.',
@@ -838,7 +838,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'vidraceiro',
     name: 'Vidraceiro',
     icon: '🪟',
-    metaTitle: 'Vidraceiro em {city} — Substituição de Vidros e Janelas | VITFIX',
+    metaTitle: 'Vidraceiro em {city} : Substituição de Vidros e Janelas | VITFIX',
     metaDesc: 'Vidraceiro profissional em {city}. Substituição de vidros partidos, instalação de vidro duplo, espelhos, claraboias. Intervenção rápida. Orçamento grátis.',
     heroTitle: 'Vidraceiro em {city}',
     heroSubtitle: 'Vidro partido? Janela com condensação? Os nossos vidraceiros substituem e instalam vidros de todos os tipos em {city} com rapidez e profissionalismo.',
@@ -864,16 +864,16 @@ export const SERVICES: ServiceData[] = [
     faqs: [
       { question: 'Quanto custa substituir um vidro?', answer: 'A substituição de um vidro simples de janela custa entre 40€ e 80€, dependendo do tamanho. Um vidro duplo (caixilho standard) custa entre 80€ e 200€. Vidros especiais (laminado, temperado, acústico) têm custos entre 150€ e 500€. A deslocação e mão de obra estão normalmente incluídas no orçamento final.' },
       { question: 'Vale a pena trocar vidro simples por vidro duplo?', answer: 'Sim, o vidro duplo (janela com duas folhas de vidro separadas por câmara de ar) reduz as perdas de calor em 50% e melhora significativamente o isolamento acústico. Em Portugal, os gastos de aquecimento e arrefecimento podem reduzir-se em 20 a 30%. O investimento recupera-se tipicamente em 5 a 8 anos através da poupança energética.' },
-      { question: 'Por que há condensação entre os vidros do duplo vidro?', answer: 'A condensação entre os vidros do duplo vidro significa que a câmara de argon/ar ficou comprometida — o vedante periférico falhou e a humidade entrou. Neste caso, o duplo vidro tem de ser substituído; não é possível reparar. O nosso vidraceiro substitui apenas o painel de vidro, mantendo o caixilho existente se estiver em boas condições.' },
+      { question: 'Por que há condensação entre os vidros do duplo vidro?', answer: 'A condensação entre os vidros do duplo vidro significa que a câmara de argon/ar ficou comprometida, o vedante periférico falhou e a humidade entrou. Neste caso, o duplo vidro tem de ser substituído; não é possível reparar. O nosso vidraceiro substitui apenas o painel de vidro, mantendo o caixilho existente se estiver em boas condições.' },
       { question: 'Fazem substituição de vidros ao fim de semana?', answer: 'Sim, especialmente em situações de urgência (vidro partido com risco de segurança). Para substituições programadas, trabalhamos de segunda a sábado. Em caso de vandalismo ou acidente, podemos colocar um painel temporário de proteção imediatamente e agendar a substituição definitiva para o dia seguinte.' },
     ],
     urgency: {
-      metaTitle: 'Vidraceiro Urgente em {city} — Vidro Partido 24h | VITFIX',
+      metaTitle: 'Vidraceiro Urgente em {city} : Vidro Partido 24h | VITFIX',
       metaDesc: 'Vidro partido urgente em {city}? Janela partida por vandalismo ou acidente? Vidraceiro disponível rapidamente. Painel provisório e substituição definitiva.',
       heroTitle: 'Vidraceiro Urgente em {city}',
       heroSubtitle: 'Vidro partido em {city}? Os nossos vidraceiros intervêm com urgência para proteger a sua propriedade com um painel provisório e proceder à substituição definitiva.',
       immediateSteps: [
-        'Afaste-se dos vidros partidos — os cacos cortam gravemente',
+        'Afaste-se dos vidros partidos, os cacos cortam gravemente',
         'Use luvas e calçado fechado antes de limpar os cacos',
         'Proteja a abertura com cartão ou plástico resistente',
         'Se foi vandalismo, apresente queixa na PSP antes da intervenção',
@@ -883,7 +883,7 @@ export const SERVICES: ServiceData[] = [
       whenToCall: [
         'Vidro partido que expõe o interior ao tempo ou a intrusos',
         'Janela partida após tempestade ou granizo',
-        'Vandalismos — vidro da montra ou entrada',
+        'Vandalismos, vidro da montra ou entrada',
         'Claraboia com vidro rachado ou partido',
         'Espelho de grande dimensão a ceder da parede',
         'Porta de vidro partida',
@@ -896,10 +896,10 @@ export const SERVICES: ServiceData[] = [
     slug: 'azulejador',
     name: 'Azulejador e Ladrilhador',
     icon: '🏗️',
-    metaTitle: 'Azulejador em {city} — Colocação de Azulejos e Ladrilhos | VITFIX',
+    metaTitle: 'Azulejador em {city} : Colocação de Azulejos e Ladrilhos | VITFIX',
     metaDesc: 'Azulejador profissional em {city}. Colocação de azulejos, ladrilhos, mosaicos para casas de banho, cozinhas e terraços. Orçamento grátis.',
     heroTitle: 'Azulejador em {city}',
-    heroSubtitle: 'Especialistas em colocação de azulejos e ladrilhos em {city}. Casas de banho, cozinhas, terraços e pavimentos — acabamento impecável garantido.',
+    heroSubtitle: 'Especialistas em colocação de azulejos e ladrilhos em {city}. Casas de banho, cozinhas, terraços e pavimentos, acabamento impecável garantido.',
     features: [
       'Colocação de azulejos para paredes de casa de banho',
       'Ladrilhamento de pavimentos interiores e exteriores',
@@ -926,13 +926,13 @@ export const SERVICES: ServiceData[] = [
       { question: 'Posso colocar azulejos novos por cima dos antigos?', answer: 'Em alguns casos sim, se o revestimento antigo estiver firme, nivelado e em boas condições. No entanto, aumenta a espessura da parede/pavimento e pode causar problemas com portas e rodapés. O nosso azulejador avalia sempre no local e recomenda a melhor opção para o seu caso.' },
     ],
     urgency: {
-      metaTitle: 'Azulejador Urgente em {city} — Reparação de Azulejos | VITFIX',
+      metaTitle: 'Azulejador Urgente em {city} : Reparação de Azulejos | VITFIX',
       metaDesc: 'Azulejos partidos ou a cair em {city}? Infiltração por juntas danificadas? Reparação urgente de azulejos e ladrilhos. Profissionais verificados.',
       heroTitle: 'Azulejador Urgente em {city}',
       heroSubtitle: 'Azulejos descolados com risco de queda? Infiltração ativa por juntas partidas? Os nossos azulejadores intervêm rapidamente em {city}.',
       immediateSteps: [
         'Se um azulejo da parede estiver a ceder, sinalize a área com fita',
-        'Não puxe os azulejos soltos — podem partir e criar cacos perigosos',
+        'Não puxe os azulejos soltos, podem partir e criar cacos perigosos',
         'Se houver infiltração, coloque proteção no pavimento abaixo',
         'Documente os danos com fotos',
         'Evite utilizar a zona afetada até à reparação',
@@ -954,10 +954,10 @@ export const SERVICES: ServiceData[] = [
     slug: 'pedreiro',
     name: 'Pedreiro e Alvenaria',
     icon: '🧱',
-    metaTitle: 'Pedreiro em {city} — Obras de Alvenaria e Construção | VITFIX',
+    metaTitle: 'Pedreiro em {city} : Obras de Alvenaria e Construção | VITFIX',
     metaDesc: 'Pedreiro em {city}. Construção de muros, paredes, reparação de fachadas, betonagem, demolições interiores. Profissionais verificados. Orçamento grátis.',
     heroTitle: 'Pedreiro em {city}',
-    heroSubtitle: 'Obras de alvenaria e construção em {city}. Muros, paredes, fachadas, betonagem — trabalho sólido, materiais de qualidade, profissionais experientes.',
+    heroSubtitle: 'Obras de alvenaria e construção em {city}. Muros, paredes, fachadas, betonagem, trabalho sólido, materiais de qualidade, profissionais experientes.',
     features: [
       'Construção e reparação de muros e paredes',
       'Reboco e estuque de paredes',
@@ -984,7 +984,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'Quanto custa rebocar uma parede?', answer: 'O reboco de uma parede custa entre 12€ e 25€ por m², incluindo preparação e aplicação de argamassa. Para uma divisão completa (40 m² de parede), o custo situa-se entre 500€ e 1 000€. Revestimentos decorativos (estanhado, marmorite) têm custos superiores, entre 20€ e 40€/m².' },
     ],
     urgency: {
-      metaTitle: 'Pedreiro Urgente em {city} — Reparação Estrutural Rápida | VITFIX',
+      metaTitle: 'Pedreiro Urgente em {city} : Reparação Estrutural Rápida | VITFIX',
       metaDesc: 'Pedreiro urgente em {city}: muro com risco de colapso, fissura estrutural, rebocos a cair. Intervenção rápida para garantir a segurança da sua propriedade.',
       heroTitle: 'Pedreiro Urgente em {city}',
       heroSubtitle: 'Muro em risco de colapso? Fissura estrutural preocupante? Rebocos a cair de fachada? Os nossos pedreiros intervêm com urgência em {city}.',
@@ -1012,7 +1012,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'ar-condicionado',
     name: 'Ar Condicionado',
     icon: '❄️',
-    metaTitle: 'Ar Condicionado em {city} — Instalação e Manutenção | VITFIX',
+    metaTitle: 'Ar Condicionado em {city} : Instalação e Manutenção | VITFIX',
     metaDesc: 'Instalação e manutenção de ar condicionado em {city}. Split, multi-split, bomba de calor. Técnicos certificados. Orçamento grátis. Serviço 7 dias.',
     heroTitle: 'Ar Condicionado em {city}',
     heroSubtitle: 'Instalação, manutenção e reparação de sistemas de ar condicionado em {city}. Split, multi-split e bomba de calor. Técnicos certificados F-Gás.',
@@ -1038,11 +1038,11 @@ export const SERVICES: ServiceData[] = [
     faqs: [
       { question: 'Quanto custa instalar ar condicionado?', answer: 'Um split mono de 9000 BTU (adequado para uma divisão até 25m²) custa entre 600€ e 1 200€ instalado, incluindo equipamento e mão de obra. Multi-splits para 2-3 divisões situam-se entre 1 500€ e 3 000€. A bomba de calor ar-água (aquecimento central) pode custar entre 4 000€ e 10 000€ instalada. Orçamento gratuito para qualquer configuração.' },
       { question: 'Com que frequência fazer manutenção ao ar condicionado?', answer: 'A manutenção anual é essencial para garantir o bom funcionamento, eficiência energética e qualidade do ar. Inclui limpeza dos filtros e evaporador, verificação do gás refrigerante, controlo elétrico e limpeza do condensador exterior. Um equipamento bem mantido tem uma vida útil de 15 a 20 anos e consome 20 a 30% menos energia.' },
-      { question: 'O ar condicionado pode ser usado para aquecer?', answer: 'Sim, os ar condicionados modernos tipo bomba de calor (inverter) funcionam tanto em modo frio como em modo calor, com eficiências (COP) de 3 a 5 — ou seja, produzem 3 a 5 vezes mais energia do que consomem. São muito mais eficientes que radiadores elétricos e mais práticos que sistemas de gás para o aquecimento de divisões individuais.' },
+      { question: 'O ar condicionado pode ser usado para aquecer?', answer: 'Sim, os ar condicionados modernos tipo bomba de calor (inverter) funcionam tanto em modo frio como em modo calor, com eficiências (COP) de 3 a 5, ou seja, produzem 3 a 5 vezes mais energia do que consomem. São muito mais eficientes que radiadores elétricos e mais práticos que sistemas de gás para o aquecimento de divisões individuais.' },
       { question: 'Quais as marcas de ar condicionado mais fiáveis?', answer: 'As marcas com melhor relação qualidade-preço são Daikin, Mitsubishi Electric, Fujitsu e Panasonic. Para uma gama mais económica, LG e Samsung oferecem bom desempenho. O nosso técnico é certificado para instalar e reparar todas as principais marcas. Recomendamos sempre equipamentos com inverter e classe energética A++.' },
     ],
     urgency: {
-      metaTitle: 'Ar Condicionado Urgente em {city} — Reparação Rápida | VITFIX',
+      metaTitle: 'Ar Condicionado Urgente em {city} : Reparação Rápida | VITFIX',
       metaDesc: 'Ar condicionado avariado em {city}? Verão com calor intenso, inverno sem aquecimento? Técnico F-Gás disponível rapidamente para reparação urgente.',
       heroTitle: 'Ar Condicionado Urgente em {city}',
       heroSubtitle: 'Ar condicionado avariado no pico do verão ou do inverno em {city}? Os nossos técnicos certificados F-Gás intervêm rapidamente para repor o conforto.',
@@ -1070,16 +1070,16 @@ export const SERVICES: ServiceData[] = [
     slug: 'carpinteiro',
     name: 'Carpinteiro',
     icon: '🪵',
-    metaTitle: 'Carpinteiro em {city} — Marcenaria e Carpintaria | VITFIX',
+    metaTitle: 'Carpinteiro em {city} : Marcenaria e Carpintaria | VITFIX',
     metaDesc: 'Carpinteiro em {city}. Móveis, portas, janelas, armários, assoalhos de madeira. Profissionais de marcenaria certificados. Orçamento grátis.',
     heroTitle: 'Carpinteiro em {city}',
-    heroSubtitle: 'Carpinteiro profissional em {city}. Móveis personalizados, armários, portas de madeira, assoalhos, reparações estruturais — trabalho de qualidade em madeira.',
+    heroSubtitle: 'Carpinteiro profissional em {city}. Móveis personalizados, armários, portas de madeira, assoalhos, reparações estruturais, trabalho de qualidade em madeira.',
     features: [
       'Móveis personalizados e armários de madeira',
       'Instalação e reparação de portas de madeira',
       'Reparação e instalação de janelas de madeira',
       'Armários de cozinha e closets sob medida',
-      'Assoalhos de madeira — instalação e reparação',
+      'Assoalhos de madeira, instalação e reparação',
       'Estruturas de madeira para pergolados e telheiros',
       'Reparação de móveis danificados',
       'Prateleiras e móveis fixos personalizados',
@@ -1101,7 +1101,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'É possível reparar uma porta de madeira empenada?', answer: 'Portas ligeiramente empenadas podem ser ajustadas com cintas ou reforços internos (€100-200). Se o empenamento é severo, a porta pode ser substituída (€150-500). Portas históricas valiosas podem ser restauradas por um marceneiro especializado (€300-1.000+).' },
     ],
     urgency: {
-      metaTitle: 'Carpinteiro Urgente em {city} — Reparação Rápida | VITFIX',
+      metaTitle: 'Carpinteiro Urgente em {city} : Reparação Rápida | VITFIX',
       metaDesc: 'Porta partida, assoalho danificado ou móvel urgente em {city}? Carpinteiro profissional para reparação rápida. Orçamento grátis.',
       heroTitle: 'Carpinteiro Urgente em {city}',
       heroSubtitle: 'Porta partida? Assoalho com tábua levantada? Móvel danificado? Os nossos carpinteiros intervêm rapidamente em {city}.',
@@ -1129,7 +1129,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'jardineiro',
     name: 'Jardineiro e Paisagismo',
     icon: '🌿',
-    metaTitle: 'Jardineiro em {city} — Manutenção Jardins e Paisagismo | VITFIX',
+    metaTitle: 'Jardineiro em {city} : Manutenção Jardins e Paisagismo | VITFIX',
     metaDesc: 'Jardineiro profissional em {city}: corte de relva, poda de sebes, plantação, rega automática. Manutenção mensal ou pontual. Orçamento grátis.',
     heroTitle: 'Jardineiro em {city}: Manutenção e paisagismo',
     heroSubtitle: 'Jardineiros qualificados para todos os seus espaços verdes em {city}: corte, poda, plantação, limpeza. Disponíveis 7 dias por semana.',
@@ -1161,7 +1161,7 @@ export const SERVICES: ServiceData[] = [
       { question: 'Instalam rega automática?', answer: 'Sim, os nossos jardineiros instalam sistemas de rega automática (gota-a-gota, aspersores, programadores) adaptados ao seu jardim.' },
     ],
     urgency: {
-      metaTitle: 'Jardineiro Urgente em {city} — Limpeza de Terrenos | VITFIX',
+      metaTitle: 'Jardineiro Urgente em {city} : Limpeza de Terrenos | VITFIX',
       metaDesc: 'Jardineiro para intervenções urgentes em {city}: limpeza pós-tempestade, árvore caída, terreno a limpar. Orçamento rápido.',
       heroTitle: 'Jardineiro urgente em {city}',
       heroSubtitle: 'Intervenção rápida para limpeza de terrenos e situações urgentes de jardinagem.',
@@ -1189,7 +1189,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'limpeza-espacos',
     name: 'Limpeza e Remoção de Entulho',
     icon: '🗑️',
-    metaTitle: 'Limpeza e Remoção de Entulho em {city} — Despejos e Limpezas | VITFIX',
+    metaTitle: 'Limpeza e Remoção de Entulho em {city} : Despejos e Limpezas | VITFIX',
     metaDesc: 'Limpeza de espaços e remoção de entulho em {city}: despejo de casas, caves, garagens. Remoção de resíduos de obra. Orçamento grátis.',
     heroTitle: 'Limpeza e remoção de entulho em {city}',
     heroSubtitle: 'Profissionais para despejo de casas, remoção de entulho de obra, limpeza de caves e garagens em {city}.',
@@ -1249,7 +1249,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'poda-arvores',
     name: 'Poda e Abate de Árvores',
     icon: '🌲',
-    metaTitle: 'Poda e Abate de Árvores em {city} — Serviço Certificado | VITFIX',
+    metaTitle: 'Poda e Abate de Árvores em {city} : Serviço Certificado | VITFIX',
     metaDesc: 'Poda, abate e remoção de árvores em {city}. Profissionais certificados com equipamento adequado. Remoção de cepos, limpeza de terrenos.',
     heroTitle: 'Poda e abate de árvores em {city}',
     heroSubtitle: 'Profissionais certificados para poda controlada, abate seguro e remoção de cepos em {city}.',
@@ -1281,9 +1281,9 @@ export const SERVICES: ServiceData[] = [
       { question: 'Removem o cepo da árvore?', answer: 'Sim, fazemos remoção de cepos com fresadora de cepos ou escavação manual. O terreno fica pronto para nova plantação ou pavimentação.' },
     ],
     urgency: {
-      metaTitle: 'Árvore Caída Urgente em {city} — Remoção Rápida | VITFIX',
+      metaTitle: 'Árvore Caída Urgente em {city} : Remoção Rápida | VITFIX',
       metaDesc: 'Remoção urgente de árvore caída em {city}. Intervenção rápida após tempestade. Equipamento profissional.',
-      heroTitle: 'Árvore caída — intervenção urgente em {city}',
+      heroTitle: 'Árvore caída, intervenção urgente em {city}',
       heroSubtitle: 'Remoção rápida de árvores caídas ou em risco após tempestade.',
       immediateSteps: [
         'Afastar-se da zona de perigo',
@@ -1309,7 +1309,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'limpeza-condominio',
     name: 'Limpeza de Condomínio',
     icon: '🏢',
-    metaTitle: 'Limpeza de Condomínio em {city} — Partes Comuns e Garagens | VITFIX',
+    metaTitle: 'Limpeza de Condomínio em {city} : Partes Comuns e Garagens | VITFIX',
     metaDesc: 'Limpeza de partes comuns de condomínio em {city}: escadas, halls, garagens, pátios. Contratos mensais, faturação ao administrador.',
     heroTitle: 'Limpeza de condomínio em {city}',
     heroSubtitle: 'Profissionais especializados na limpeza de partes comuns: escadas, halls, garagens e espaços exteriores em {city}.',
@@ -1369,7 +1369,7 @@ export const SERVICES: ServiceData[] = [
     slug: 'estores-portoes',
     name: 'Estores e Portões Automáticos',
     icon: '🪟',
-    metaTitle: 'Reparação Estores e Portões em {city} — Instalação e Manutenção | VITFIX',
+    metaTitle: 'Reparação Estores e Portões em {city} : Instalação e Manutenção | VITFIX',
     metaDesc: 'Reparação e instalação de estores e portões automáticos em {city}. Estores elétricos, portões de garagem, grades de segurança. Orçamento grátis.',
     heroTitle: 'Estores e portões automáticos em {city}',
     heroSubtitle: 'Reparação, instalação e manutenção de estores, portões automáticos e grades em {city}.',
@@ -1401,10 +1401,10 @@ export const SERVICES: ServiceData[] = [
       { question: 'Quanto tempo demora uma reparação?', answer: 'Reparação simples de estore: 30min a 1h. Substituição de motor ou portão: meio dia a 1 dia dependendo do tipo.' },
     ],
     urgency: {
-      metaTitle: 'Estore Partido Urgente em {city} — Reparação Rápida | VITFIX',
+      metaTitle: 'Estore Partido Urgente em {city} : Reparação Rápida | VITFIX',
       metaDesc: 'Reparação urgente de estore partido ou portão bloqueado em {city}. Intervenção rápida.',
       heroTitle: 'Estore partido ou portão bloqueado em {city}',
-      heroSubtitle: 'Reparação urgente de estores e portões — intervenção rápida.',
+      heroSubtitle: 'Reparação urgente de estores e portões, intervenção rápida.',
       immediateSteps: [
         'Não forçar o mecanismo',
         'Verificar se o problema é elétrico (disjuntor)',
@@ -1478,13 +1478,13 @@ export function getUrgencyCombo(slug: string): PageCombo | undefined {
 }
 
 // ============================================================
-// BLOG ARTICLES — Problem-based content for SEO
+// BLOG ARTICLES - Problem-based content for SEO
 // ============================================================
 
 export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: 'curto-circuito-o-que-fazer',
-    title: 'Curto-Circuito em Casa — O Que Fazer?',
+    title: 'Curto-Circuito em Casa, O Que Fazer?',
     metaTitle: 'Curto-Circuito em Casa: O Que Fazer e Como Resolver | VITFIX',
     metaDesc: 'O que fazer quando há um curto-circuito em casa? Saiba como agir em segurança, identificar a causa e quando chamar um eletricista profissional.',
     category: 'eletricidade',
@@ -1494,15 +1494,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'O que é um curto-circuito?',
-        content: 'Um curto-circuito ocorre quando a corrente elétrica segue um caminho não previsto, geralmente devido a um contacto direto entre dois condutores (fase e neutro) ou por um isolamento danificado. Isto provoca um pico súbito de corrente — podendo atingir centenas de amperes em milissegundos — que faz disparar as proteções do quadro elétrico. Em instalações sem proteções adequadas, este pico pode gerar calor suficiente para derreter condutores e iniciar um incêndio. É por isso que um quadro elétrico moderno e bem dimensionado é essencial para a segurança de qualquer habitação.',
+        content: 'Um curto-circuito ocorre quando a corrente elétrica segue um caminho não previsto, geralmente devido a um contacto direto entre dois condutores (fase e neutro) ou por um isolamento danificado. Isto provoca um pico súbito de corrente, podendo atingir centenas de amperes em milissegundos, que faz disparar as proteções do quadro elétrico. Em instalações sem proteções adequadas, este pico pode gerar calor suficiente para derreter condutores e iniciar um incêndio. É por isso que um quadro elétrico moderno e bem dimensionado é essencial para a segurança de qualquer habitação.',
       },
       {
         heading: 'Tipos de curto-circuito',
-        content: 'Existem vários tipos de curto-circuito. O curto-circuito franco ocorre quando dois condutores entram em contacto direto, provocando um disparo imediato do disjuntor — é o mais fácil de detetar. O curto-circuito intermitente acontece quando o contacto entre condutores é esporádico, por exemplo devido a um cabo mal fixado que se move com vibrações ou vento. Este tipo é mais difícil de diagnosticar porque o problema aparece e desaparece. O curto-circuito por defeito de isolamento ocorre quando o isolamento dos cabos se deteriora com o tempo, a humidade ou o calor, permitindo fugas de corrente para a terra. Neste caso, é o diferencial (e não o disjuntor) que dispara.',
+        content: 'Existem vários tipos de curto-circuito. O curto-circuito franco ocorre quando dois condutores entram em contacto direto, provocando um disparo imediato do disjuntor, é o mais fácil de detetar. O curto-circuito intermitente acontece quando o contacto entre condutores é esporádico, por exemplo devido a um cabo mal fixado que se move com vibrações ou vento. Este tipo é mais difícil de diagnosticar porque o problema aparece e desaparece. O curto-circuito por defeito de isolamento ocorre quando o isolamento dos cabos se deteriora com o tempo, a humidade ou o calor, permitindo fugas de corrente para a terra. Neste caso, é o diferencial (e não o disjuntor) que dispara.',
       },
       {
         heading: 'O que fazer imediatamente?',
-        content: 'Primeiro, mantenha a calma. Se o disjuntor geral disparou, não tente religá-lo de imediato. Siga estes passos: desligue todos os aparelhos elétricos das tomadas e apague todos os interruptores. Verifique se há algum cheiro a queimado, fumo, ou marcas escuras em tomadas ou interruptores. Se tudo parecer normal, tente religar o disjuntor geral. Se o disjuntor se mantiver ligado, ligue os circuitos um a um para identificar qual está com problema. Se voltar a disparar imediatamente ao religar, o problema está na instalação fixa e precisa de um eletricista profissional. Nunca tente contornar ou bloquear um disjuntor que dispara — ele está a proteger a sua casa de um perigo real.',
+        content: 'Primeiro, mantenha a calma. Se o disjuntor geral disparou, não tente religá-lo de imediato. Siga estes passos: desligue todos os aparelhos elétricos das tomadas e apague todos os interruptores. Verifique se há algum cheiro a queimado, fumo, ou marcas escuras em tomadas ou interruptores. Se tudo parecer normal, tente religar o disjuntor geral. Se o disjuntor se mantiver ligado, ligue os circuitos um a um para identificar qual está com problema. Se voltar a disparar imediatamente ao religar, o problema está na instalação fixa e precisa de um eletricista profissional. Nunca tente contornar ou bloquear um disjuntor que dispara, ele está a proteger a sua casa de um perigo real.',
       },
       {
         heading: 'Causas mais comuns em casas portuguesas',
@@ -1510,7 +1510,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Perigos de um curto-circuito não resolvido',
-        content: 'Ignorar um curto-circuito, mesmo que intermitente, pode ter consequências graves. O risco mais sério é o incêndio elétrico — segundo dados dos bombeiros portugueses, os incêndios de origem elétrica representam uma parte significativa dos incêndios domésticos. Um curto-circuito repetido pode danificar progressivamente a cablagem dentro das paredes, tornando a reparação mais complexa e dispendiosa. Há também risco de eletrocussão se o diferencial não atuar corretamente, especialmente em instalações antigas sem ligação à terra. Os aparelhos eletrodomésticos ligados durante um curto-circuito podem sofrer danos permanentes nos seus componentes eletrónicos.',
+        content: 'Ignorar um curto-circuito, mesmo que intermitente, pode ter consequências graves. O risco mais sério é o incêndio elétrico, segundo dados dos bombeiros portugueses, os incêndios de origem elétrica representam uma parte significativa dos incêndios domésticos. Um curto-circuito repetido pode danificar progressivamente a cablagem dentro das paredes, tornando a reparação mais complexa e dispendiosa. Há também risco de eletrocussão se o diferencial não atuar corretamente, especialmente em instalações antigas sem ligação à terra. Os aparelhos eletrodomésticos ligados durante um curto-circuito podem sofrer danos permanentes nos seus componentes eletrónicos.',
       },
       {
         heading: 'Quanto custa reparar um curto-circuito?',
@@ -1518,11 +1518,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Prevenção: como evitar curto-circuitos',
-        content: 'A melhor forma de prevenir curto-circuitos é manter a instalação elétrica em bom estado. Faça uma inspeção profissional a cada 10 anos, ou sempre que fizer obras. Evite utilizar extensões e adaptadores múltiplos em permanência — se precisa de mais tomadas, peça a instalação de novas. Não ligue aparelhos de alta potência (aquecedores, máquinas de lavar) em multiconnectores. Substitua imediatamente qualquer tomada ou interruptor que apresente sinais de deterioração, como descoloração, aquecimento ou faíscas. Em zonas húmidas como casas de banho e cozinhas, certifique-se de que as tomadas são do tipo adequado com proteção contra salpicos.',
+        content: 'A melhor forma de prevenir curto-circuitos é manter a instalação elétrica em bom estado. Faça uma inspeção profissional a cada 10 anos, ou sempre que fizer obras. Evite utilizar extensões e adaptadores múltiplos em permanência, se precisa de mais tomadas, peça a instalação de novas. Não ligue aparelhos de alta potência (aquecedores, máquinas de lavar) em multiconnectores. Substitua imediatamente qualquer tomada ou interruptor que apresente sinais de deterioração, como descoloração, aquecimento ou faíscas. Em zonas húmidas como casas de banho e cozinhas, certifique-se de que as tomadas são do tipo adequado com proteção contra salpicos.',
       },
       {
         heading: 'Quando chamar um eletricista?',
-        content: 'Deve chamar um eletricista profissional se o disjuntor continua a disparar depois de desligar todos os aparelhos, se sente cheiro a queimado perto de tomadas, interruptores ou do quadro elétrico, se vê marcas de queimadura ou descoloração em qualquer componente elétrico, se ouve zumbidos ou estalidos vindos do quadro elétrico, se nota que tomadas ou interruptores aquecem anormalmente, ou se a sua instalação tem mais de 20 anos sem ter sido revista por um profissional. Não tente fazer reparações elétricas sozinho — o risco de eletrocussão é real e as reparações mal feitas podem criar problemas mais graves.',
+        content: 'Deve chamar um eletricista profissional se o disjuntor continua a disparar depois de desligar todos os aparelhos, se sente cheiro a queimado perto de tomadas, interruptores ou do quadro elétrico, se vê marcas de queimadura ou descoloração em qualquer componente elétrico, se ouve zumbidos ou estalidos vindos do quadro elétrico, se nota que tomadas ou interruptores aquecem anormalmente, ou se a sua instalação tem mais de 20 anos sem ter sido revista por um profissional. Não tente fazer reparações elétricas sozinho, o risco de eletrocussão é real e as reparações mal feitas podem criar problemas mais graves.',
       },
     ],
     ctaText: 'Tem um curto-circuito em casa? Contacte um eletricista VITFIX para uma intervenção segura e rápida.',
@@ -1541,23 +1541,23 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'O que é o quadro elétrico e para que serve?',
-        content: 'O quadro elétrico é o ponto central que recebe a eletricidade da rede pública e a distribui pelos diferentes circuitos da casa — iluminação, tomadas, cozinha, casa de banho, etc. Contém dispositivos de proteção que cortam automaticamente a corrente em caso de anomalia, protegendo as pessoas contra choques elétricos e os equipamentos contra sobrecargas. Um quadro bem dimensionado e atualizado é fundamental para a segurança elétrica de qualquer habitação. Em Portugal, as normas elétricas (RTIEBT — Regras Técnicas de Instalações Elétricas de Baixa Tensão) definem os requisitos mínimos que cada quadro deve cumprir.',
+        content: 'O quadro elétrico é o ponto central que recebe a eletricidade da rede pública e a distribui pelos diferentes circuitos da casa, iluminação, tomadas, cozinha, casa de banho, etc. Contém dispositivos de proteção que cortam automaticamente a corrente em caso de anomalia, protegendo as pessoas contra choques elétricos e os equipamentos contra sobrecargas. Um quadro bem dimensionado e atualizado é fundamental para a segurança elétrica de qualquer habitação. Em Portugal, as normas elétricas (RTIEBT, Regras Técnicas de Instalações Elétricas de Baixa Tensão) definem os requisitos mínimos que cada quadro deve cumprir.',
       },
       {
         heading: 'Componentes do quadro elétrico',
-        content: 'Um quadro elétrico moderno contém vários componentes essenciais. O disjuntor geral (ou interruptor de corte geral) permite desligar toda a instalação de uma só vez — é o primeiro componente depois do contador. Os disjuntores individuais protegem cada circuito contra sobrecargas e curto-circuitos, desligando automaticamente quando a corrente excede o valor nominal. O diferencial (ou interruptor diferencial) deteta fugas de corrente à terra e corta a alimentação para prevenir eletrocussões — é obrigatório em todas as instalações em Portugal. Os barramentos de ligação distribuem a corrente do disjuntor geral para os vários circuitos. Pode ainda incluir descarregadores de sobretensão para proteger contra raios, e relés de controlo para sistemas específicos.',
+        content: 'Um quadro elétrico moderno contém vários componentes essenciais. O disjuntor geral (ou interruptor de corte geral) permite desligar toda a instalação de uma só vez, é o primeiro componente depois do contador. Os disjuntores individuais protegem cada circuito contra sobrecargas e curto-circuitos, desligando automaticamente quando a corrente excede o valor nominal. O diferencial (ou interruptor diferencial) deteta fugas de corrente à terra e corta a alimentação para prevenir eletrocussões, é obrigatório em todas as instalações em Portugal. Os barramentos de ligação distribuem a corrente do disjuntor geral para os vários circuitos. Pode ainda incluir descarregadores de sobretensão para proteger contra raios, e relés de controlo para sistemas específicos.',
       },
       {
         heading: 'Sinais de alerta no quadro elétrico',
-        content: 'Esteja atento a estes sinais que indicam problemas no seu quadro elétrico. Disjuntores que disparam frequentemente sem causa aparente podem indicar sobrecarga, curto-circuito ou defeito de isolamento. Zumbidos, estalidos ou ruídos contínuos vindos do quadro são sinal de ligações soltas ou componentes defeituosos. Cheiro a queimado é um sinal grave que exige ação imediata — desligue o disjuntor geral e chame um eletricista. Descoloração, marcas escuras ou deformação de componentes indicam sobreaquecimento passado ou presente. Aquecimento excessivo do quadro ou de disjuntores individuais ao toque é sinal de sobrecarga ou mau contacto. Se notar qualquer destes sinais, não os ignore — podem evoluir para situações perigosas.',
+        content: 'Esteja atento a estes sinais que indicam problemas no seu quadro elétrico. Disjuntores que disparam frequentemente sem causa aparente podem indicar sobrecarga, curto-circuito ou defeito de isolamento. Zumbidos, estalidos ou ruídos contínuos vindos do quadro são sinal de ligações soltas ou componentes defeituosos. Cheiro a queimado é um sinal grave que exige ação imediata, desligue o disjuntor geral e chame um eletricista. Descoloração, marcas escuras ou deformação de componentes indicam sobreaquecimento passado ou presente. Aquecimento excessivo do quadro ou de disjuntores individuais ao toque é sinal de sobrecarga ou mau contacto. Se notar qualquer destes sinais, não os ignore, podem evoluir para situações perigosas.',
       },
       {
         heading: 'Disjuntor que dispara: o que fazer',
-        content: 'Se um disjuntor específico dispara repetidamente, o problema está geralmente no circuito que ele protege, não no próprio disjuntor. Comece por desligar todos os aparelhos ligados a esse circuito. Religue o disjuntor. Se se mantiver ligado, ligue os aparelhos um a um para identificar qual está a causar o problema. Se o disjuntor dispara mesmo sem aparelhos ligados, há provavelmente um defeito de isolamento na cablagem dentro das paredes — esta situação exige intervenção profissional. Se é o diferencial que dispara (e não um disjuntor individual), a fuga de corrente pode ser mais perigosa e deve ser diagnosticada com urgência, pois pode representar risco de eletrocussão.',
+        content: 'Se um disjuntor específico dispara repetidamente, o problema está geralmente no circuito que ele protege, não no próprio disjuntor. Comece por desligar todos os aparelhos ligados a esse circuito. Religue o disjuntor. Se se mantiver ligado, ligue os aparelhos um a um para identificar qual está a causar o problema. Se o disjuntor dispara mesmo sem aparelhos ligados, há provavelmente um defeito de isolamento na cablagem dentro das paredes, esta situação exige intervenção profissional. Se é o diferencial que dispara (e não um disjuntor individual), a fuga de corrente pode ser mais perigosa e deve ser diagnosticada com urgência, pois pode representar risco de eletrocussão.',
       },
       {
         heading: 'Diferença entre disjuntor e diferencial',
-        content: 'É importante distinguir estes dois dispositivos porque protegem contra riscos diferentes. O disjuntor protege a instalação contra sobrecargas e curto-circuitos — quando a corrente excede o limite, ele desliga. Protege os cabos e equipamentos, não as pessoas diretamente. O diferencial compara a corrente que entra num circuito com a que sai. Se houver uma diferença (fuga de corrente à terra, por exemplo através do corpo de uma pessoa), desliga em milissegundos. O diferencial de 30mA é o que protege efetivamente as pessoas contra eletrocussão. Ambos são obrigatórios e complementares — um não substitui o outro. Se o seu quadro não tem diferencial, a atualização é urgente.',
+        content: 'É importante distinguir estes dois dispositivos porque protegem contra riscos diferentes. O disjuntor protege a instalação contra sobrecargas e curto-circuitos, quando a corrente excede o limite, ele desliga. Protege os cabos e equipamentos, não as pessoas diretamente. O diferencial compara a corrente que entra num circuito com a que sai. Se houver uma diferença (fuga de corrente à terra, por exemplo através do corpo de uma pessoa), desliga em milissegundos. O diferencial de 30mA é o que protege efetivamente as pessoas contra eletrocussão. Ambos são obrigatórios e complementares, um não substitui o outro. Se o seu quadro não tem diferencial, a atualização é urgente.',
       },
       {
         heading: 'Quadro elétrico antigo: quando substituir?',
@@ -1565,7 +1565,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Potência contratada: está adequada?',
-        content: 'Muitas casas no distrito do Porto ainda têm potências contratadas de 3.45 kVA ou 6.9 kVA, que eram suficientes há 30 anos mas hoje podem ser insuficientes. Com a multiplicação de aparelhos elétricos — máquinas de lavar roupa e louça, forno, micro-ondas, aquecedor, ar condicionado — é comum exceder a potência contratada, causando o disparo do disjuntor geral. Se o seu disjuntor geral dispara frequentemente quando liga vários aparelhos em simultâneo, pode ser necessário aumentar a potência contratada junto da EDP ou outro comercializador. Um eletricista pode avaliar o consumo real da sua habitação e recomendar a potência adequada.',
+        content: 'Muitas casas no distrito do Porto ainda têm potências contratadas de 3.45 kVA ou 6.9 kVA, que eram suficientes há 30 anos mas hoje podem ser insuficientes. Com a multiplicação de aparelhos elétricos, máquinas de lavar roupa e louça, forno, micro-ondas, aquecedor, ar condicionado, é comum exceder a potência contratada, causando o disparo do disjuntor geral. Se o seu disjuntor geral dispara frequentemente quando liga vários aparelhos em simultâneo, pode ser necessário aumentar a potência contratada junto da EDP ou outro comercializador. Um eletricista pode avaliar o consumo real da sua habitação e recomendar a potência adequada.',
       },
       {
         heading: 'Manutenção preventiva do quadro',
@@ -1592,7 +1592,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'A humidade no Norte de Portugal',
-        content: 'A região do Tâmega e Sousa — incluindo Marco de Canaveses, Penafiel, Amarante e Baião — é particularmente afetada por problemas de humidade devido ao seu clima. A precipitação anual na região ultrapassa frequentemente os 1200mm, concentrada entre outubro e março. Muitas casas foram construídas nas décadas de 1960-1980 sem isolamento térmico adequado nem barreiras contra humidade, tornando-as vulneráveis a condensação e infiltrações. As casas em granito, tradicionais da região, são particularmente suscetíveis a capilaridade. Além disso, a proximidade dos rios Tâmega e Douro aumenta os níveis de humidade ambiente em muitas freguesias. Tratar a humidade nestas casas exige frequentemente uma combinação de soluções — não basta pintar por cima.',
+        content: 'A região do Tâmega e Sousa, incluindo Marco de Canaveses, Penafiel, Amarante e Baião, é particularmente afetada por problemas de humidade devido ao seu clima. A precipitação anual na região ultrapassa frequentemente os 1200mm, concentrada entre outubro e março. Muitas casas foram construídas nas décadas de 1960-1980 sem isolamento térmico adequado nem barreiras contra humidade, tornando-as vulneráveis a condensação e infiltrações. As casas em granito, tradicionais da região, são particularmente suscetíveis a capilaridade. Além disso, a proximidade dos rios Tâmega e Douro aumenta os níveis de humidade ambiente em muitas freguesias. Tratar a humidade nestas casas exige frequentemente uma combinação de soluções, não basta pintar por cima.',
       },
       {
         heading: 'Como identificar a causa da humidade',
@@ -1600,7 +1600,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Consequências para a saúde',
-        content: 'A humidade prolongada nas paredes não é apenas um problema estético — pode ter consequências sérias para a saúde. O bolor que se desenvolve em ambientes húmidos liberta esporos microscópicos que são inalados pelos ocupantes da casa. Estes esporos podem causar ou agravar problemas respiratórios como asma, bronquite, rinite alérgica e sinusite. Crianças, idosos e pessoas com sistemas imunitários comprometidos são particularmente vulneráveis. A exposição prolongada ao bolor está associada a infeções respiratórias recorrentes e pode contribuir para o desenvolvimento de alergias. Além dos esporos, a humidade elevada favorece a proliferação de ácaros, outro alérgeno comum. Por estas razões, tratar problemas de humidade deve ser considerado uma prioridade de saúde, não apenas uma questão estética.',
+        content: 'A humidade prolongada nas paredes não é apenas um problema estético, pode ter consequências sérias para a saúde. O bolor que se desenvolve em ambientes húmidos liberta esporos microscópicos que são inalados pelos ocupantes da casa. Estes esporos podem causar ou agravar problemas respiratórios como asma, bronquite, rinite alérgica e sinusite. Crianças, idosos e pessoas com sistemas imunitários comprometidos são particularmente vulneráveis. A exposição prolongada ao bolor está associada a infeções respiratórias recorrentes e pode contribuir para o desenvolvimento de alergias. Além dos esporos, a humidade elevada favorece a proliferação de ácaros, outro alérgeno comum. Por estas razões, tratar problemas de humidade deve ser considerado uma prioridade de saúde, não apenas uma questão estética.',
       },
       {
         heading: 'Soluções para infiltrações',
@@ -1608,11 +1608,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Soluções para condensação e capilaridade',
-        content: 'Para resolver problemas de condensação, a chave é melhorar a ventilação e o isolamento térmico. Instalar extratores em casas de banho e cozinhas, criar grelhas de ventilação em janelas, e manter uma ventilação regular da casa são medidas essenciais. O isolamento térmico das paredes pelo exterior (sistema ETICS/capoto) elimina as pontes térmicas que provocam condensação. Para a capilaridade, as soluções são mais especializadas. A injeção de resinas hidrófugas na base das paredes cria uma barreira química que impede a água de subir — é o método mais eficaz e menos invasivo. Em alternativa, podem ser aplicadas membranas impermeabilizantes no exterior das fundações, embora isto exija escavação. Em caves, sistemas de drenagem periférica e bombas de água podem ser necessários.',
+        content: 'Para resolver problemas de condensação, a chave é melhorar a ventilação e o isolamento térmico. Instalar extratores em casas de banho e cozinhas, criar grelhas de ventilação em janelas, e manter uma ventilação regular da casa são medidas essenciais. O isolamento térmico das paredes pelo exterior (sistema ETICS/capoto) elimina as pontes térmicas que provocam condensação. Para a capilaridade, as soluções são mais especializadas. A injeção de resinas hidrófugas na base das paredes cria uma barreira química que impede a água de subir, é o método mais eficaz e menos invasivo. Em alternativa, podem ser aplicadas membranas impermeabilizantes no exterior das fundações, embora isto exija escavação. Em caves, sistemas de drenagem periférica e bombas de água podem ser necessários.',
       },
       {
         heading: 'Reparação das paredes danificadas',
-        content: 'Após resolver a causa da humidade, é essencial tratar as paredes afetadas corretamente para evitar que o problema volte a manifestar-se. O processo inclui várias etapas: remoção completa do reboco danificado até encontrar material são, limpeza e tratamento anti-fúngico da parede para eliminar esporos de bolor, aplicação de primário bloqueador de sais (para paredes afetadas por capilaridade), reboco novo com argamassa adequada (resistente à humidade em zonas de risco), e finalmente pintura com tinta anti-mofo de qualidade profissional. Pintar diretamente sobre paredes com humidade, sem tratar a causa nem preparar a superfície, é o erro mais comum — as manchas reaparecem em poucas semanas ou meses.',
+        content: 'Após resolver a causa da humidade, é essencial tratar as paredes afetadas corretamente para evitar que o problema volte a manifestar-se. O processo inclui várias etapas: remoção completa do reboco danificado até encontrar material são, limpeza e tratamento anti-fúngico da parede para eliminar esporos de bolor, aplicação de primário bloqueador de sais (para paredes afetadas por capilaridade), reboco novo com argamassa adequada (resistente à humidade em zonas de risco), e finalmente pintura com tinta anti-mofo de qualidade profissional. Pintar diretamente sobre paredes com humidade, sem tratar a causa nem preparar a superfície, é o erro mais comum, as manchas reaparecem em poucas semanas ou meses.',
       },
       {
         heading: 'Custos de tratamento da humidade',
@@ -1625,7 +1625,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'esquentador-nao-liga-diagnostico',
-    title: 'Esquentador Não Liga — Diagnóstico e Reparação',
+    title: 'Esquentador Não Liga, Diagnóstico e Reparação',
     metaTitle: 'Esquentador Não Liga: Causas e Como Resolver | VITFIX',
     metaDesc: 'O seu esquentador não liga ou não aquece água? Saiba as causas mais comuns e quando chamar um técnico. Reparação rápida na zona de Marco de Canaveses.',
     category: 'canalizacao',
@@ -1635,7 +1635,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Verificações básicas antes de chamar um técnico',
-        content: 'Antes de chamar um técnico, faça estas verificações simples que resolvem muitos casos. Primeiro, verifique se o gás está aberto — a torneira de gás junto ao esquentador e a torneira geral devem estar ambas abertas. Confirme que a água chega ao esquentador abrindo uma torneira de água fria. Verifique se a pilha ou sistema de ignição funciona — deve ouvir o "click" de ignição quando abre uma torneira de água quente. Inspecione o tubo de exaustão para verificar se não está obstruído por ninhos de pássaros, folhas ou outros detritos. Se o esquentador tem visor de chama, verifique se a chama aparece quando abre água quente. Estas verificações são seguras e não requerem conhecimentos técnicos.',
+        content: 'Antes de chamar um técnico, faça estas verificações simples que resolvem muitos casos. Primeiro, verifique se o gás está aberto, a torneira de gás junto ao esquentador e a torneira geral devem estar ambas abertas. Confirme que a água chega ao esquentador abrindo uma torneira de água fria. Verifique se a pilha ou sistema de ignição funciona, deve ouvir o "click" de ignição quando abre uma torneira de água quente. Inspecione o tubo de exaustão para verificar se não está obstruído por ninhos de pássaros, folhas ou outros detritos. Se o esquentador tem visor de chama, verifique se a chama aparece quando abre água quente. Estas verificações são seguras e não requerem conhecimentos técnicos.',
       },
       {
         heading: 'Tipos de esquentadores em Portugal',
@@ -1643,7 +1643,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Causas comuns de avaria',
-        content: 'As causas mais frequentes de um esquentador que não liga ou funciona mal incluem vários componentes. A membrana do corpo de água é uma peça de borracha que, ao desgastar-se, impede o esquentador de detetar o fluxo de água e acender. É uma das avarias mais comuns e tem reparação relativamente económica (30€ a 60€). O sensor de chama (termopar ou elétrodo de ionização) pode ficar sujo com resíduos de combustão, impedindo o esquentador de detetar que a chama está acesa e cortando o gás por segurança. A válvula de gás pode desenvolver defeitos que impedem a passagem de gás ao queimador. A calcificação interna é especialmente problemática em zonas com água dura como acontece em partes do distrito do Porto — o calcário acumula-se no permutador de calor, reduzindo a eficiência e eventualmente bloqueando o fluxo de água. Problemas no sistema de exaustão, como obstruções ou mau funcionamento do ventilador em modelos ventilados, ativam os sensores de segurança que impedem o esquentador de funcionar.',
+        content: 'As causas mais frequentes de um esquentador que não liga ou funciona mal incluem vários componentes. A membrana do corpo de água é uma peça de borracha que, ao desgastar-se, impede o esquentador de detetar o fluxo de água e acender. É uma das avarias mais comuns e tem reparação relativamente económica (30€ a 60€). O sensor de chama (termopar ou elétrodo de ionização) pode ficar sujo com resíduos de combustão, impedindo o esquentador de detetar que a chama está acesa e cortando o gás por segurança. A válvula de gás pode desenvolver defeitos que impedem a passagem de gás ao queimador. A calcificação interna é especialmente problemática em zonas com água dura como acontece em partes do distrito do Porto, o calcário acumula-se no permutador de calor, reduzindo a eficiência e eventualmente bloqueando o fluxo de água. Problemas no sistema de exaustão, como obstruções ou mau funcionamento do ventilador em modelos ventilados, ativam os sensores de segurança que impedem o esquentador de funcionar.',
       },
       {
         heading: 'Esquentador liga mas a água não aquece o suficiente',
@@ -1651,15 +1651,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Manutenção preventiva',
-        content: 'A manutenção regular do esquentador é essencial para garantir o seu bom funcionamento e prolongar a sua vida útil. Recomenda-se uma revisão anual, idealmente antes do início do inverno. A manutenção profissional inclui limpeza completa do queimador e remoção de resíduos de combustão, verificação e eventual substituição da membrana do corpo de água, teste de segurança do circuito de gás e deteção de fugas, limpeza de calcário do permutador de calor, verificação do sistema de exaustão, e teste do termopar e outros sensores de segurança. O custo de uma revisão anual situa-se entre 50€ e 80€ — um investimento que evita avarias dispendiosas e garante que o esquentador funciona com segurança e eficiência máxima.',
+        content: 'A manutenção regular do esquentador é essencial para garantir o seu bom funcionamento e prolongar a sua vida útil. Recomenda-se uma revisão anual, idealmente antes do início do inverno. A manutenção profissional inclui limpeza completa do queimador e remoção de resíduos de combustão, verificação e eventual substituição da membrana do corpo de água, teste de segurança do circuito de gás e deteção de fugas, limpeza de calcário do permutador de calor, verificação do sistema de exaustão, e teste do termopar e outros sensores de segurança. O custo de uma revisão anual situa-se entre 50€ e 80€, um investimento que evita avarias dispendiosas e garante que o esquentador funciona com segurança e eficiência máxima.',
       },
       {
         heading: 'Reparar ou substituir?',
-        content: 'A decisão entre reparar ou substituir depende de vários fatores. Se o esquentador tem menos de 8 anos e a avaria é pontual, a reparação é geralmente a melhor opção. Se tem mais de 10-12 anos e precisa de reparações frequentes (duas ou mais por ano), é provavelmente mais económico substituí-lo. Os esquentadores modernos são significativamente mais eficientes — um modelo novo de classe A pode reduzir o consumo de gás em 20-30% face a um modelo antigo, o que representa uma poupança considerável ao longo dos anos. Além disso, os modelos novos têm sistemas de segurança mais avançados, incluindo corte automático por falta de chama, proteção contra congelamento e controlo eletrónico de temperatura. Um esquentador novo de boa qualidade custa entre 250€ e 500€, mais 100€ a 150€ de instalação.',
+        content: 'A decisão entre reparar ou substituir depende de vários fatores. Se o esquentador tem menos de 8 anos e a avaria é pontual, a reparação é geralmente a melhor opção. Se tem mais de 10-12 anos e precisa de reparações frequentes (duas ou mais por ano), é provavelmente mais económico substituí-lo. Os esquentadores modernos são significativamente mais eficientes, um modelo novo de classe A pode reduzir o consumo de gás em 20-30% face a um modelo antigo, o que representa uma poupança considerável ao longo dos anos. Além disso, os modelos novos têm sistemas de segurança mais avançados, incluindo corte automático por falta de chama, proteção contra congelamento e controlo eletrónico de temperatura. Um esquentador novo de boa qualidade custa entre 250€ e 500€, mais 100€ a 150€ de instalação.',
       },
       {
         heading: 'Segurança: quando há perigo real',
-        content: 'Algumas situações relacionadas com o esquentador exigem ação imediata. Se sentir cheiro a gás, feche imediatamente a torneira de gás, abra janelas para ventilar, não acenda qualquer tipo de chama ou interruptor elétrico, saia de casa e ligue para o 112. Se notar manchas pretas ou fuligem à volta do esquentador, pode indicar uma combustão incompleta com produção de monóxido de carbono — um gás inodoro e potencialmente mortal. Se o esquentador está instalado numa divisão sem ventilação adequada, o risco de intoxicação por monóxido de carbono é real. Em Portugal, é obrigatório que os esquentadores a gás sejam instalados em locais ventilados ou sejam do tipo estanque com exaustão forçada. Se o seu esquentador não cumpre estas condições, consulte um profissional urgentemente.',
+        content: 'Algumas situações relacionadas com o esquentador exigem ação imediata. Se sentir cheiro a gás, feche imediatamente a torneira de gás, abra janelas para ventilar, não acenda qualquer tipo de chama ou interruptor elétrico, saia de casa e ligue para o 112. Se notar manchas pretas ou fuligem à volta do esquentador, pode indicar uma combustão incompleta com produção de monóxido de carbono, um gás inodoro e potencialmente mortal. Se o esquentador está instalado numa divisão sem ventilação adequada, o risco de intoxicação por monóxido de carbono é real. Em Portugal, é obrigatório que os esquentadores a gás sejam instalados em locais ventilados ou sejam do tipo estanque com exaustão forçada. Se o seu esquentador não cumpre estas condições, consulte um profissional urgentemente.',
       },
       {
         heading: 'Custos de reparação de referência',
@@ -1682,11 +1682,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Ação imediata: os primeiros 5 minutos',
-        content: 'Os primeiros minutos após descobrir uma fuga de água são críticos para minimizar os danos. Feche imediatamente a torneira de segurança geral — geralmente localizada junto ao contador de água, na entrada da casa ou no rés-do-chão do prédio. Se não sabe onde está, procure junto ao contador ou na cave do edifício. Se a fuga é visível, coloque baldes, bacias e toalhas para recolher e absorver a água. Desligue a eletricidade na zona afetada se houver qualquer risco de contacto entre água e instalação elétrica — isto é especialmente importante se a água está a escorrer por paredes onde existem tomadas ou interruptores. Se tem vizinhos por baixo, avise-os imediatamente para que possam proteger os seus bens. Documente os danos com fotografias e vídeos enquanto espera pelo canalizador — estas provas serão importantes para o seguro.',
+        content: 'Os primeiros minutos após descobrir uma fuga de água são críticos para minimizar os danos. Feche imediatamente a torneira de segurança geral, geralmente localizada junto ao contador de água, na entrada da casa ou no rés-do-chão do prédio. Se não sabe onde está, procure junto ao contador ou na cave do edifício. Se a fuga é visível, coloque baldes, bacias e toalhas para recolher e absorver a água. Desligue a eletricidade na zona afetada se houver qualquer risco de contacto entre água e instalação elétrica, isto é especialmente importante se a água está a escorrer por paredes onde existem tomadas ou interruptores. Se tem vizinhos por baixo, avise-os imediatamente para que possam proteger os seus bens. Documente os danos com fotografias e vídeos enquanto espera pelo canalizador, estas provas serão importantes para o seguro.',
       },
       {
         heading: 'Tipos de fugas de água',
-        content: 'As fugas de água podem ser classificadas em vários tipos, cada um com causas e soluções diferentes. A fuga visível e ativa é a mais urgente — um cano rebentado ou uma ligação que cedeu com água a jorrar. Exige ação imediata e canalizador de urgência. A fuga lenta e contínua, como uma torneira que pinga ou um autoclismo que corre, pode parecer insignificante mas ao longo de um ano pode desperdiçar milhares de litros de água e causar danos cumulativos. A fuga oculta ocorre dentro de paredes, sob pavimentos ou em canalizações enterradas. É a mais difícil de detetar e frequentemente só se manifesta quando os danos já são significativos. A fuga por condensação não é tecnicamente uma fuga de canalização, mas a água que se acumula em tubagens frias pode causar os mesmos danos — manchar paredes, estragar pavimentos e criar condições para o bolor.',
+        content: 'As fugas de água podem ser classificadas em vários tipos, cada um com causas e soluções diferentes. A fuga visível e ativa é a mais urgente, um cano rebentado ou uma ligação que cedeu com água a jorrar. Exige ação imediata e canalizador de urgência. A fuga lenta e contínua, como uma torneira que pinga ou um autoclismo que corre, pode parecer insignificante mas ao longo de um ano pode desperdiçar milhares de litros de água e causar danos cumulativos. A fuga oculta ocorre dentro de paredes, sob pavimentos ou em canalizações enterradas. É a mais difícil de detetar e frequentemente só se manifesta quando os danos já são significativos. A fuga por condensação não é tecnicamente uma fuga de canalização, mas a água que se acumula em tubagens frias pode causar os mesmos danos, manchar paredes, estragar pavimentos e criar condições para o bolor.',
       },
       {
         heading: 'Identificar a origem da fuga',
@@ -1702,14 +1702,14 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Custos de reparação de fugas',
-        content: 'Os custos variam conforme a gravidade e a localização da fuga. Uma reparação simples (substituir vedante de torneira, reparar ligação) custa entre 40€ e 80€. Substituição de torneira completa: entre 60€ e 120€ (mais o custo da torneira). Reparação de autoclismo: entre 30€ e 80€. Reparação de cano rebentado acessível: entre 80€ e 150€. Pesquisa de fuga oculta com equipamento especializado: entre 100€ e 250€. Reparação de fuga embutida (inclui abertura e reposição de parede): entre 200€ e 500€. Deslocação de urgência fora de horas: acréscimo de 30% a 50% sobre os valores normais. Na VITFIX, o diagnóstico inclui-se no preço da reparação — não cobra duas vezes.',
+        content: 'Os custos variam conforme a gravidade e a localização da fuga. Uma reparação simples (substituir vedante de torneira, reparar ligação) custa entre 40€ e 80€. Substituição de torneira completa: entre 60€ e 120€ (mais o custo da torneira). Reparação de autoclismo: entre 30€ e 80€. Reparação de cano rebentado acessível: entre 80€ e 150€. Pesquisa de fuga oculta com equipamento especializado: entre 100€ e 250€. Reparação de fuga embutida (inclui abertura e reposição de parede): entre 200€ e 500€. Deslocação de urgência fora de horas: acréscimo de 30% a 50% sobre os valores normais. Na VITFIX, o diagnóstico inclui-se no preço da reparação, não cobra duas vezes.',
       },
       {
         heading: 'Prevenção de fugas de água',
-        content: 'A prevenção é sempre mais económica do que a reparação. Faça verificações periódicas das torneiras e ligações visíveis, apertando ligações que pingam. Substitua mangueiras de máquinas de lavar roupa e louça a cada 5 anos, mesmo que pareçam em bom estado — a borracha deteriora-se com o tempo. Verifique regularmente o mecanismo do autoclismo e substitua vedantes desgastados. Em casas com mais de 20 anos, peça uma inspeção profissional da canalização para avaliar o estado das tubagens. Se as tubagens são em ferro galvanizado (comum em casas das décadas de 1960-1980), considere a substituição por tubagem em multicamadas ou PPR, que não corrói. Instale válvulas de segurança nos pontos críticos para poder isolar zonas específicas sem cortar a água a toda a casa. No inverno, proteja as tubagens exteriores ou em zonas não aquecidas contra congelamento com isolamento térmico.',
+        content: 'A prevenção é sempre mais económica do que a reparação. Faça verificações periódicas das torneiras e ligações visíveis, apertando ligações que pingam. Substitua mangueiras de máquinas de lavar roupa e louça a cada 5 anos, mesmo que pareçam em bom estado, a borracha deteriora-se com o tempo. Verifique regularmente o mecanismo do autoclismo e substitua vedantes desgastados. Em casas com mais de 20 anos, peça uma inspeção profissional da canalização para avaliar o estado das tubagens. Se as tubagens são em ferro galvanizado (comum em casas das décadas de 1960-1980), considere a substituição por tubagem em multicamadas ou PPR, que não corrói. Instale válvulas de segurança nos pontos críticos para poder isolar zonas específicas sem cortar a água a toda a casa. No inverno, proteja as tubagens exteriores ou em zonas não aquecidas contra congelamento com isolamento térmico.',
       },
     ],
-    ctaText: 'Fuga de água urgente? Contacte os canalizadores VITFIX — intervenção rápida em Marco de Canaveses e arredores.',
+    ctaText: 'Fuga de água urgente? Contacte os canalizadores VITFIX, intervenção rápida em Marco de Canaveses e arredores.',
     relatedServices: ['canalizador'],
     searchVolume: '10-30/mois, sporadique',
   },
@@ -1725,19 +1725,19 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Porque é que o disjuntor dispara?',
-        content: 'O disjuntor é um dispositivo de segurança que corta automaticamente a corrente elétrica quando deteta uma anomalia. Existem três razões principais para o disparo: sobrecarga (a corrente excede a capacidade do circuito), curto-circuito (contacto direto entre condutores) e fuga de corrente à terra (detetada pelo diferencial). Cada causa tem sintomas e soluções diferentes, por isso é importante identificar qual dos cenários se aplica à sua situação. O comportamento do disjuntor ao disparar dá pistas valiosas — se dispara imediatamente ao religar, gradualmente após alguns minutos, ou apenas quando liga determinados aparelhos.',
+        content: 'O disjuntor é um dispositivo de segurança que corta automaticamente a corrente elétrica quando deteta uma anomalia. Existem três razões principais para o disparo: sobrecarga (a corrente excede a capacidade do circuito), curto-circuito (contacto direto entre condutores) e fuga de corrente à terra (detetada pelo diferencial). Cada causa tem sintomas e soluções diferentes, por isso é importante identificar qual dos cenários se aplica à sua situação. O comportamento do disjuntor ao disparar dá pistas valiosas, se dispara imediatamente ao religar, gradualmente após alguns minutos, ou apenas quando liga determinados aparelhos.',
       },
       {
         heading: 'Sobrecarga: a causa mais comum',
-        content: 'A sobrecarga é a causa mais frequente de disparo do disjuntor, especialmente em casas mais antigas onde os circuitos foram dimensionados para consumos muito inferiores aos atuais. Se o disjuntor dispara quando liga vários aparelhos de alta potência em simultâneo — por exemplo aquecedor elétrico (2000W) + máquina de lavar (2200W) + micro-ondas (1000W) — o circuito está em sobrecarga. Os sinais de sobrecarga incluem o disjuntor que dispara após algum tempo de uso (não imediatamente), luzes que diminuem momentaneamente quando liga um aparelho, e aquecimento dos cabos ou tomadas. A solução pode ser redistribuir os aparelhos por diferentes circuitos, evitar ligar vários aparelhos de alta potência no mesmo circuito, ou em último caso, pedir ao eletricista a instalação de circuitos dedicados para os aparelhos mais exigentes.',
+        content: 'A sobrecarga é a causa mais frequente de disparo do disjuntor, especialmente em casas mais antigas onde os circuitos foram dimensionados para consumos muito inferiores aos atuais. Se o disjuntor dispara quando liga vários aparelhos de alta potência em simultâneo, por exemplo aquecedor elétrico (2000W) + máquina de lavar (2200W) + micro-ondas (1000W), o circuito está em sobrecarga. Os sinais de sobrecarga incluem o disjuntor que dispara após algum tempo de uso (não imediatamente), luzes que diminuem momentaneamente quando liga um aparelho, e aquecimento dos cabos ou tomadas. A solução pode ser redistribuir os aparelhos por diferentes circuitos, evitar ligar vários aparelhos de alta potência no mesmo circuito, ou em último caso, pedir ao eletricista a instalação de circuitos dedicados para os aparelhos mais exigentes.',
       },
       {
         heading: 'Curto-circuito: disparo imediato',
-        content: 'Se o disjuntor dispara instantaneamente ao ser ligado — em menos de um segundo — há provavelmente um curto-circuito no circuito que ele protege. Isto pode ser causado por um aparelho eletrodoméstico defeituoso (motor queimado, cabo danificado), uma tomada ou interruptor danificado com contactos internos em curto, cablagem deteriorada dentro das paredes (isolamento danificado por humidade, roedores ou envelhecimento), ou uma ligação mal feita (por exemplo após uma reparação amadora). Para diagnosticar, desligue todos os aparelhos ligados ao circuito afetado e religue o disjuntor. Se se mantiver ligado, vá ligando os aparelhos um a um até identificar qual causa o disparo. Se dispara mesmo sem nenhum aparelho ligado, o problema está na cablagem fixa ou numa tomada — precisa de um eletricista.',
+        content: 'Se o disjuntor dispara instantaneamente ao ser ligado, em menos de um segundo, há provavelmente um curto-circuito no circuito que ele protege. Isto pode ser causado por um aparelho eletrodoméstico defeituoso (motor queimado, cabo danificado), uma tomada ou interruptor danificado com contactos internos em curto, cablagem deteriorada dentro das paredes (isolamento danificado por humidade, roedores ou envelhecimento), ou uma ligação mal feita (por exemplo após uma reparação amadora). Para diagnosticar, desligue todos os aparelhos ligados ao circuito afetado e religue o disjuntor. Se se mantiver ligado, vá ligando os aparelhos um a um até identificar qual causa o disparo. Se dispara mesmo sem nenhum aparelho ligado, o problema está na cablagem fixa ou numa tomada, precisa de um eletricista.',
       },
       {
         heading: 'Diferencial vs. disjuntor: qual disparou?',
-        content: 'É fundamental distinguir qual dispositivo disparou, pois indicam problemas diferentes. O disjuntor individual protege um circuito específico contra sobrecargas e curto-circuitos. Quando dispara, apenas o circuito afetado fica sem eletricidade. O diferencial (interruptor diferencial) deteta fugas de corrente à terra e protege as pessoas contra eletrocussão. Quando dispara, todos os circuitos que ele protege ficam sem eletricidade. Se é o diferencial que dispara, a situação é potencialmente mais perigosa porque significa que há corrente a escapar para a terra — possivelmente através de um aparelho com defeito de isolamento que poderia causar um choque elétrico a alguém que lhe tocasse. Neste caso, a intervenção profissional é urgente. O diferencial tem um botão de teste (geralmente marcado com T) que deve ser pressionado mensalmente para verificar o seu correto funcionamento.',
+        content: 'É fundamental distinguir qual dispositivo disparou, pois indicam problemas diferentes. O disjuntor individual protege um circuito específico contra sobrecargas e curto-circuitos. Quando dispara, apenas o circuito afetado fica sem eletricidade. O diferencial (interruptor diferencial) deteta fugas de corrente à terra e protege as pessoas contra eletrocussão. Quando dispara, todos os circuitos que ele protege ficam sem eletricidade. Se é o diferencial que dispara, a situação é potencialmente mais perigosa porque significa que há corrente a escapar para a terra, possivelmente através de um aparelho com defeito de isolamento que poderia causar um choque elétrico a alguém que lhe tocasse. Neste caso, a intervenção profissional é urgente. O diferencial tem um botão de teste (geralmente marcado com T) que deve ser pressionado mensalmente para verificar o seu correto funcionamento.',
       },
       {
         heading: 'Potência contratada em Portugal',
@@ -1745,7 +1745,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Como testar e diagnosticar',
-        content: 'Se o seu disjuntor dispara repetidamente, siga este processo de diagnóstico sistemático. Primeiro, identifique qual disjuntor disparou (individual ou geral). Se foi um disjuntor individual, desligue todos os aparelhos e luzes desse circuito. Religue o disjuntor. Se se mantiver ligado, ligue os aparelhos um a um, esperando alguns minutos entre cada um. O aparelho que causa o disparo é provavelmente o culpado — desligue-o e não o use até ser verificado. Se o disjuntor dispara mesmo sem aparelhos, desaperte as tomadas do circuito e verifique visualmente se há sinais de danos ou humidade. Se é o diferencial que dispara, deslige todos os disjuntores individuais, religue o diferencial, e ligue os disjuntores um a um. O circuito que causa o disparo do diferencial tem uma fuga de corrente à terra. Se não consegue identificar a causa, um eletricista pode usar equipamento como um megóhmetro para medir a resistência de isolamento de cada circuito.',
+        content: 'Se o seu disjuntor dispara repetidamente, siga este processo de diagnóstico sistemático. Primeiro, identifique qual disjuntor disparou (individual ou geral). Se foi um disjuntor individual, desligue todos os aparelhos e luzes desse circuito. Religue o disjuntor. Se se mantiver ligado, ligue os aparelhos um a um, esperando alguns minutos entre cada um. O aparelho que causa o disparo é provavelmente o culpado, desligue-o e não o use até ser verificado. Se o disjuntor dispara mesmo sem aparelhos, desaperte as tomadas do circuito e verifique visualmente se há sinais de danos ou humidade. Se é o diferencial que dispara, deslige todos os disjuntores individuais, religue o diferencial, e ligue os disjuntores um a um. O circuito que causa o disparo do diferencial tem uma fuga de corrente à terra. Se não consegue identificar a causa, um eletricista pode usar equipamento como um megóhmetro para medir a resistência de isolamento de cada circuito.',
       },
       {
         heading: 'Disjuntor antigo ou defeituoso',
@@ -1753,7 +1753,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Custos de diagnóstico e reparação',
-        content: 'Os custos de resolução de problemas com disjuntores dependem da causa. Um diagnóstico elétrico profissional custa entre 40€ e 80€. A substituição de um disjuntor individual custa entre 30€ e 60€. A redistribuição de circuitos sobrecarregados pode custar entre 100€ e 300€ dependendo da complexidade. Reparação de cablagem danificada: entre 80€ e 250€ por troço. Substituição completa do quadro elétrico: entre 300€ e 600€. Aumento de potência contratada (parte elétrica): entre 100€ e 200€. Na VITFIX, o diagnóstico é gratuito quando seguido de reparação — não paga duas vezes pelo mesmo serviço.',
+        content: 'Os custos de resolução de problemas com disjuntores dependem da causa. Um diagnóstico elétrico profissional custa entre 40€ e 80€. A substituição de um disjuntor individual custa entre 30€ e 60€. A redistribuição de circuitos sobrecarregados pode custar entre 100€ e 300€ dependendo da complexidade. Reparação de cablagem danificada: entre 80€ e 250€ por troço. Substituição completa do quadro elétrico: entre 300€ e 600€. Aumento de potência contratada (parte elétrica): entre 100€ e 200€. Na VITFIX, o diagnóstico é gratuito quando seguido de reparação, não paga duas vezes pelo mesmo serviço.',
       },
     ],
     ctaText: 'Disjuntor que dispara sem parar? Os eletricistas VITFIX diagnosticam e resolvem o problema.',
@@ -1771,24 +1771,24 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     intro: 'Nem todos os problemas de canalização são urgências que justifiquem chamar um canalizador a meio da noite. Mas algumas situações exigem ação imediata para evitar danos graves e dispendiosos. Este guia completo ajuda-o a distinguir uma verdadeira urgência de uma situação que pode esperar, e explica como escolher o profissional certo.',
     sections: [
       {
-        heading: 'Situações de urgência real — chame imediatamente',
-        content: 'Algumas situações de canalização exigem intervenção imediata, independentemente da hora. Deve chamar um canalizador de urgência se tem um cano rebentado com água a jorrar — cada minuto que passa aumenta os danos. Se sente cheiro a gás, a prioridade é ligar para o 112 e para a empresa de gás, mas um canalizador certificado também deve intervir para reparar a fuga. Uma inundação ativa que não consegue parar fechando a torneira geral é uma emergência que pode causar danos estruturais. Esgoto a transbordar dentro de casa é não só uma emergência de canalização mas também um risco sanitário grave. Se há água a escorrer para instalações elétricas, deve desligar a eletricidade e chamar canalizador e eletricista. Nestas situações, cada minuto conta — os danos causados pela água aumentam exponencialmente com o tempo.',
+        heading: 'Situações de urgência real, chame imediatamente',
+        content: 'Algumas situações de canalização exigem intervenção imediata, independentemente da hora. Deve chamar um canalizador de urgência se tem um cano rebentado com água a jorrar, cada minuto que passa aumenta os danos. Se sente cheiro a gás, a prioridade é ligar para o 112 e para a empresa de gás, mas um canalizador certificado também deve intervir para reparar a fuga. Uma inundação ativa que não consegue parar fechando a torneira geral é uma emergência que pode causar danos estruturais. Esgoto a transbordar dentro de casa é não só uma emergência de canalização mas também um risco sanitário grave. Se há água a escorrer para instalações elétricas, deve desligar a eletricidade e chamar canalizador e eletricista. Nestas situações, cada minuto conta, os danos causados pela água aumentam exponencialmente com o tempo.',
       },
       {
         heading: 'Situações que podem esperar até ao dia seguinte',
-        content: 'Muitos problemas de canalização, embora inconvenientes, não são verdadeiras urgências e podem esperar pelo horário normal de trabalho, poupando-lhe o acréscimo de uma chamada fora de horas. Uma torneira que pinga pode ser controlada fechando a torneira de segurança específica dessa torneira. Um autoclismo que corre um pouco desperdiça água mas não causa danos imediatos — feche a torneira de entrada do autoclismo se possível. A pressão da água que baixou ligeiramente pode indicar um problema na rede pública que se resolve sozinho. Substituição de acessórios de casa de banho (chuveiro, bica, ralo) são trabalhos de rotina. Entupimentos parciais que ainda permitem algum escoamento podem geralmente esperar. A regra geral é: se consegue fechar uma torneira e conter a situação sem danos contínuos, pode esperar por uma intervenção em horário normal.',
+        content: 'Muitos problemas de canalização, embora inconvenientes, não são verdadeiras urgências e podem esperar pelo horário normal de trabalho, poupando-lhe o acréscimo de uma chamada fora de horas. Uma torneira que pinga pode ser controlada fechando a torneira de segurança específica dessa torneira. Um autoclismo que corre um pouco desperdiça água mas não causa danos imediatos, feche a torneira de entrada do autoclismo se possível. A pressão da água que baixou ligeiramente pode indicar um problema na rede pública que se resolve sozinho. Substituição de acessórios de casa de banho (chuveiro, bica, ralo) são trabalhos de rotina. Entupimentos parciais que ainda permitem algum escoamento podem geralmente esperar. A regra geral é: se consegue fechar uma torneira e conter a situação sem danos contínuos, pode esperar por uma intervenção em horário normal.',
       },
       {
         heading: 'O que fazer enquanto espera pelo canalizador',
-        content: 'Se a situação está controlada e aguarda a intervenção de um profissional, tome estas medidas para minimizar danos. Se fechou a torneira geral, informe os outros ocupantes da casa para que não tentem abrir água. Coloque toalhas e baldes nas zonas onde há água acumulada ou a escorrer. Afaste móveis e objetos de valor das zonas húmidas. Abra janelas para promover a ventilação e evitar acumulação de humidade. Se há água no pavimento, limpe o mais rápido possível para evitar danos no material (especialmente em pavimentos de madeira). Documente todos os danos com fotografias e vídeos — serão fundamentais para o seguro. Se mora num apartamento e a fuga pode afetar vizinhos dos andares inferiores, avise-os imediatamente. Anote a leitura do contador de água para referência.',
+        content: 'Se a situação está controlada e aguarda a intervenção de um profissional, tome estas medidas para minimizar danos. Se fechou a torneira geral, informe os outros ocupantes da casa para que não tentem abrir água. Coloque toalhas e baldes nas zonas onde há água acumulada ou a escorrer. Afaste móveis e objetos de valor das zonas húmidas. Abra janelas para promover a ventilação e evitar acumulação de humidade. Se há água no pavimento, limpe o mais rápido possível para evitar danos no material (especialmente em pavimentos de madeira). Documente todos os danos com fotografias e vídeos, serão fundamentais para o seguro. Se mora num apartamento e a fuga pode afetar vizinhos dos andares inferiores, avise-os imediatamente. Anote a leitura do contador de água para referência.',
       },
       {
         heading: 'Como escolher um canalizador de confiança',
-        content: 'Escolher o canalizador certo, especialmente numa urgência quando não há tempo para pesquisar, pode ser difícil. Eis os critérios a considerar. Verifique se o profissional tem alvará ou está inscrito na atividade — em Portugal, os canalizadores devem ter formação e certificação adequada. Peça sempre um orçamento antes da intervenção, mesmo que seja uma estimativa verbal. Desconfie de preços demasiado baixos — podem significar trabalho de má qualidade ou materiais baratos. Pergunte se dá garantia sobre o trabalho realizado — um profissional de confiança garante o seu trabalho. Verifique se tem seguro de responsabilidade civil, que o protege em caso de danos adicionais durante a reparação. Peça referências ou consulte avaliações online. Na VITFIX, todos os canalizadores são verificados, dão garantia sobre o trabalho e apresentam orçamento antes de iniciar.',
+        content: 'Escolher o canalizador certo, especialmente numa urgência quando não há tempo para pesquisar, pode ser difícil. Eis os critérios a considerar. Verifique se o profissional tem alvará ou está inscrito na atividade, em Portugal, os canalizadores devem ter formação e certificação adequada. Peça sempre um orçamento antes da intervenção, mesmo que seja uma estimativa verbal. Desconfie de preços demasiado baixos, podem significar trabalho de má qualidade ou materiais baratos. Pergunte se dá garantia sobre o trabalho realizado, um profissional de confiança garante o seu trabalho. Verifique se tem seguro de responsabilidade civil, que o protege em caso de danos adicionais durante a reparação. Peça referências ou consulte avaliações online. Na VITFIX, todos os canalizadores são verificados, dão garantia sobre o trabalho e apresentam orçamento antes de iniciar.',
       },
       {
         heading: 'Custos de referência: urgência vs. horário normal',
-        content: 'Conhecer os preços de referência ajuda-o a avaliar se está a receber um orçamento justo. Em horário normal (dias úteis, 8h-18h), os preços médios na região de Marco de Canaveses são: deslocação e diagnóstico entre 30€ e 50€, reparação de torneira entre 40€ e 80€, desentupimento simples entre 60€ e 120€, reparação de autoclismo entre 30€ e 70€, e reparação de cano rebentado entre 80€ e 200€. Para chamadas de urgência fora de horas (noites, fins de semana e feriados), aplica-se geralmente um acréscimo de 30% a 50% sobre estes valores. Ao fim de semana durante o dia, o acréscimo é tipicamente de 25-30%. Em feriados e durante a noite (22h-8h), o acréscimo pode atingir os 50%. Avalie se a situação justifica este custo adicional ou se pode esperar pelo horário normal. Se tiver dúvidas, ligue para a VITFIX — ajudamos a avaliar a urgência gratuitamente por telefone.',
+        content: 'Conhecer os preços de referência ajuda-o a avaliar se está a receber um orçamento justo. Em horário normal (dias úteis, 8h-18h), os preços médios na região de Marco de Canaveses são: deslocação e diagnóstico entre 30€ e 50€, reparação de torneira entre 40€ e 80€, desentupimento simples entre 60€ e 120€, reparação de autoclismo entre 30€ e 70€, e reparação de cano rebentado entre 80€ e 200€. Para chamadas de urgência fora de horas (noites, fins de semana e feriados), aplica-se geralmente um acréscimo de 30% a 50% sobre estes valores. Ao fim de semana durante o dia, o acréscimo é tipicamente de 25-30%. Em feriados e durante a noite (22h-8h), o acréscimo pode atingir os 50%. Avalie se a situação justifica este custo adicional ou se pode esperar pelo horário normal. Se tiver dúvidas, ligue para a VITFIX, ajudamos a avaliar a urgência gratuitamente por telefone.',
       },
       {
         heading: 'Entupimentos: o que funciona e o que não funciona',
@@ -1796,11 +1796,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Direitos do consumidor',
-        content: 'Ao contratar um canalizador, tem direitos que deve conhecer. O profissional é obrigado a apresentar orçamento antes de iniciar o trabalho, identificando os materiais a utilizar e o custo da mão de obra. Tem direito a uma fatura com NIF (contribuinte) pela prestação do serviço. O trabalho deve ter garantia — o prazo mínimo legal para serviços de construção e reparação é de 5 anos para defeitos estruturais e 2 anos para outros defeitos. Se o trabalho não ficar bem feito, tem direito à reparação gratuita. Em caso de danos causados pelo profissional durante a intervenção, o seu seguro de responsabilidade civil deve cobri-los. Nunca pague a totalidade antes do trabalho estar concluído — o habitual é pagar apenas os materiais antecipadamente (se necessário) e o restante após conclusão satisfatória.',
+        content: 'Ao contratar um canalizador, tem direitos que deve conhecer. O profissional é obrigado a apresentar orçamento antes de iniciar o trabalho, identificando os materiais a utilizar e o custo da mão de obra. Tem direito a uma fatura com NIF (contribuinte) pela prestação do serviço. O trabalho deve ter garantia, o prazo mínimo legal para serviços de construção e reparação é de 5 anos para defeitos estruturais e 2 anos para outros defeitos. Se o trabalho não ficar bem feito, tem direito à reparação gratuita. Em caso de danos causados pelo profissional durante a intervenção, o seu seguro de responsabilidade civil deve cobri-los. Nunca pague a totalidade antes do trabalho estar concluído, o habitual é pagar apenas os materiais antecipadamente (se necessário) e o restante após conclusão satisfatória.',
       },
       {
         heading: 'Manutenção preventiva da canalização',
-        content: 'A melhor forma de evitar chamadas de urgência é fazer manutenção preventiva regular. Limpe os ralos e sifões de lavatórios e banheiras a cada 2-3 meses, removendo cabelos e resíduos acumulados. Evite deitar gordura e óleo usado pelo ralo da cozinha — são a principal causa de entupimentos. Verifique periodicamente as mangueiras de ligação de máquinas de lavar e substitua-as a cada 5 anos. Faça revisão anual do esquentador ou caldeira, incluindo verificação das ligações de água. Em casas com mais de 20 anos, peça uma inspeção das tubagens — as tubagens em ferro galvanizado deterioram-se com o tempo e devem ser substituídas preventivamente por materiais modernos como multicamadas ou PPR. No inverno, proteja as tubagens exteriores contra congelamento — embora as temperaturas na região do Porto raramente atinjam o ponto de congelação, nas zonas mais altas de Amarante ou Baião pode acontecer. Esta manutenção simples pode evitar-lhe milhares de euros em reparações de emergência.',
+        content: 'A melhor forma de evitar chamadas de urgência é fazer manutenção preventiva regular. Limpe os ralos e sifões de lavatórios e banheiras a cada 2-3 meses, removendo cabelos e resíduos acumulados. Evite deitar gordura e óleo usado pelo ralo da cozinha, são a principal causa de entupimentos. Verifique periodicamente as mangueiras de ligação de máquinas de lavar e substitua-as a cada 5 anos. Faça revisão anual do esquentador ou caldeira, incluindo verificação das ligações de água. Em casas com mais de 20 anos, peça uma inspeção das tubagens, as tubagens em ferro galvanizado deterioram-se com o tempo e devem ser substituídas preventivamente por materiais modernos como multicamadas ou PPR. No inverno, proteja as tubagens exteriores contra congelamento, embora as temperaturas na região do Porto raramente atinjam o ponto de congelação, nas zonas mais altas de Amarante ou Baião pode acontecer. Esta manutenção simples pode evitar-lhe milhares de euros em reparações de emergência.',
       },
     ],
     ctaText: 'Precisa de um canalizador urgente? A VITFIX atua em Marco de Canaveses, Penafiel e arredores.',
@@ -1811,7 +1811,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: 'quanto-custa-remodelar-casa-portugal',
     title: 'Quanto Custa Remodelar uma Casa em Portugal? Guia Completo 2026',
     metaTitle: 'Quanto Custa Remodelar uma Casa em Portugal? Preços 2026 | VITFIX',
-    metaDesc: 'Guia completo de preços de remodelação em Portugal em 2026. Cozinha, casa de banho, apartamento completo — todos os custos detalhados por m².',
+    metaDesc: 'Guia completo de preços de remodelação em Portugal em 2026. Cozinha, casa de banho, apartamento completo, todos os custos detalhados por m².',
     category: 'obras',
     icon: '💰',
     datePublished: '2026-02-01',
@@ -1834,8 +1834,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: 'Vários fatores podem aumentar ou reduzir significativamente o custo final. O que encarece: alterações na disposição de paredes (exige projeto de arquitetura e eventualmente engenharia), mudança de localização da cozinha ou casas de banho (canalização e esgotos novos), materiais importados ou de gama alta, imprevistos estruturais (especialmente em casas antigas), e necessidade de licenciamento camarário. O que permite poupar: manter a disposição original (sem mexer em paredes estruturais), escolher materiais nacionais de boa qualidade (cerâmicas, torneiras, louças portuguesas), reaproveitar elementos em bom estado (caixilharia, portas interiores), planear bem antes de começar para evitar alterações durante a obra, e contratar um empreiteiro com orçamento fechado em vez de preço por hora.',
       },
       {
-        heading: 'IVA de 6% em remodelações — como beneficiar',
-        content: 'Em Portugal, as obras de remodelação e conservação em habitações com mais de 2 anos podem beneficiar de uma taxa de IVA reduzida de 6%, em vez dos habituais 23%. Esta redução aplica-se à mão de obra e pode representar uma poupança significativa — em obras de 20 000€, a diferença entre 23% e 6% de IVA representa cerca de 3 400€. Para beneficiar desta taxa, o imóvel deve ser para habitação própria e ter mais de 2 anos. O empreiteiro deve aplicar a taxa correta na fatura. Os materiais fornecidos pelo empreiteiro que não ultrapassem 20% do valor total da fatura também podem beneficiar da taxa reduzida. Materiais comprados separadamente pelo proprietário pagam IVA a 23%.',
+        heading: 'IVA de 6% em remodelações, como beneficiar',
+        content: 'Em Portugal, as obras de remodelação e conservação em habitações com mais de 2 anos podem beneficiar de uma taxa de IVA reduzida de 6%, em vez dos habituais 23%. Esta redução aplica-se à mão de obra e pode representar uma poupança significativa, em obras de 20 000€, a diferença entre 23% e 6% de IVA representa cerca de 3 400€. Para beneficiar desta taxa, o imóvel deve ser para habitação própria e ter mais de 2 anos. O empreiteiro deve aplicar a taxa correta na fatura. Os materiais fornecidos pelo empreiteiro que não ultrapassem 20% do valor total da fatura também podem beneficiar da taxa reduzida. Materiais comprados separadamente pelo proprietário pagam IVA a 23%.',
       },
       {
         heading: 'Prazos típicos de remodelação',
@@ -1843,7 +1843,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Como pedir orçamentos corretamente',
-        content: 'Para obter orçamentos realistas e comparáveis, siga estas recomendações. Peça pelo menos 3 orçamentos a empresas diferentes. Defina claramente o que pretende antes de pedir orçamento — quanto mais detalhado for o seu pedido, mais preciso será o orçamento. Peça orçamentos itemizados (com detalhe de cada trabalho e material) em vez de um valor global. Verifique se o orçamento inclui tudo: demolições, remoção de entulho, materiais, mão de obra, IVA, e se há custos extra previsíveis. Pergunte sobre o prazo de execução e as condições de pagamento. Verifique se a empresa tem seguro e alvará adequado. Desconfie de orçamentos demasiado baixos — podem significar materiais de qualidade inferior ou trabalho apressado. Na VITFIX, todos os orçamentos são detalhados, gratuitos e sem compromisso.',
+        content: 'Para obter orçamentos realistas e comparáveis, siga estas recomendações. Peça pelo menos 3 orçamentos a empresas diferentes. Defina claramente o que pretende antes de pedir orçamento, quanto mais detalhado for o seu pedido, mais preciso será o orçamento. Peça orçamentos itemizados (com detalhe de cada trabalho e material) em vez de um valor global. Verifique se o orçamento inclui tudo: demolições, remoção de entulho, materiais, mão de obra, IVA, e se há custos extra previsíveis. Pergunte sobre o prazo de execução e as condições de pagamento. Verifique se a empresa tem seguro e alvará adequado. Desconfie de orçamentos demasiado baixos, podem significar materiais de qualidade inferior ou trabalho apressado. Na VITFIX, todos os orçamentos são detalhados, gratuitos e sem compromisso.',
       },
       {
         heading: 'Preços na região de Marco de Canaveses vs. Porto',
@@ -1890,10 +1890,10 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Exemplos práticos: preciso de licença para isto?',
-        content: 'Para esclarecer as dúvidas mais comuns, eis alguns exemplos práticos. Pintar o interior da casa: isento — pode fazer livremente. Pintar a fachada com a mesma cor: geralmente isento, mas confirme na câmara. Pintar a fachada com cor diferente: comunicação prévia. Substituir o pavimento interior: isento. Trocar as janelas por caixilharia nova: comunicação prévia se alterar o aspeto exterior. Remodelar a cozinha sem mexer em paredes: isento. Remodelar a cozinha demolindo uma parede não estrutural: isento na maioria dos casos. Demolir uma parede estrutural: licença obrigatória. Instalar ar condicionado com unidade exterior visível: comunicação prévia. Construir uma piscina no quintal: comunicação prévia. Fechar uma varanda com vidro: licença obrigatória (altera a área construída).',
+        content: 'Para esclarecer as dúvidas mais comuns, eis alguns exemplos práticos. Pintar o interior da casa: isento, pode fazer livremente. Pintar a fachada com a mesma cor: geralmente isento, mas confirme na câmara. Pintar a fachada com cor diferente: comunicação prévia. Substituir o pavimento interior: isento. Trocar as janelas por caixilharia nova: comunicação prévia se alterar o aspeto exterior. Remodelar a cozinha sem mexer em paredes: isento. Remodelar a cozinha demolindo uma parede não estrutural: isento na maioria dos casos. Demolir uma parede estrutural: licença obrigatória. Instalar ar condicionado com unidade exterior visível: comunicação prévia. Construir uma piscina no quintal: comunicação prévia. Fechar uma varanda com vidro: licença obrigatória (altera a área construída).',
       },
     ],
-    ctaText: 'Vai fazer obras e não sabe se precisa de licença? Contacte a VITFIX — ajudamos com todo o processo.',
+    ctaText: 'Vai fazer obras e não sabe se precisa de licença? Contacte a VITFIX, ajudamos com todo o processo.',
     relatedServices: ['obras-remodelacao'],
     searchVolume: '300-1000/mois, stable',
   },
@@ -1917,7 +1917,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Quanto pode poupar com o IVA de 6%',
-        content: 'A diferença entre pagar 23% e 6% de IVA pode ser muito significativa. Numa obra de 10 000€ (sem IVA), pagaria 2 300€ de IVA a 23% mas apenas 600€ a 6% — uma poupança de 1 700€. Numa obra de 20 000€, a poupança sobe para 3 400€. Numa remodelação completa de 40 000€, a poupança atinge 6 800€. Para uma moradia completa de 80 000€, pode poupar até 13 600€ em IVA. Estes valores demonstram a importância de garantir que a taxa correta é aplicada. Se o empreiteiro aplicar 23% numa obra que qualifica para 6%, está a pagar a mais.',
+        content: 'A diferença entre pagar 23% e 6% de IVA pode ser muito significativa. Numa obra de 10 000€ (sem IVA), pagaria 2 300€ de IVA a 23% mas apenas 600€ a 6%, uma poupança de 1 700€. Numa obra de 20 000€, a poupança sobe para 3 400€. Numa remodelação completa de 40 000€, a poupança atinge 6 800€. Para uma moradia completa de 80 000€, pode poupar até 13 600€ em IVA. Estes valores demonstram a importância de garantir que a taxa correta é aplicada. Se o empreiteiro aplicar 23% numa obra que qualifica para 6%, está a pagar a mais.',
       },
       {
         heading: 'Que obras qualificam para IVA de 6%',
@@ -1929,10 +1929,10 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Erros comuns e como evitá-los',
-        content: 'Os erros mais comuns na aplicação do IVA reduzido incluem o empreiteiro aplicar 23% por desconhecimento ou para simplificar — peça sempre que aplique 6% se a obra qualifica. Outro erro frequente é não verificar se o imóvel tem mais de 2 anos — a data de construção pode ser confirmada na caderneta predial. Alguns empreiteiros facturam materiais e mão de obra em separado para evitar a regra dos 20% — esta prática é aceitável desde que reflita a realidade. Misturar obras em partes habitacionais e comerciais do mesmo edifício sem separar corretamente a faturação também é problemático. Em caso de dúvida, consulte um contabilista ou peça informação vinculativa às Finanças.',
+        content: 'Os erros mais comuns na aplicação do IVA reduzido incluem o empreiteiro aplicar 23% por desconhecimento ou para simplificar, peça sempre que aplique 6% se a obra qualifica. Outro erro frequente é não verificar se o imóvel tem mais de 2 anos, a data de construção pode ser confirmada na caderneta predial. Alguns empreiteiros facturam materiais e mão de obra em separado para evitar a regra dos 20%, esta prática é aceitável desde que reflita a realidade. Misturar obras em partes habitacionais e comerciais do mesmo edifício sem separar corretamente a faturação também é problemático. Em caso de dúvida, consulte um contabilista ou peça informação vinculativa às Finanças.',
       },
     ],
-    ctaText: 'Vai fazer obras de remodelação? Na VITFIX, aplicamos sempre a taxa de IVA correta — sem surpresas na fatura.',
+    ctaText: 'Vai fazer obras de remodelação? Na VITFIX, aplicamos sempre a taxa de IVA correta, sem surpresas na fatura.',
     relatedServices: ['obras-remodelacao'],
     searchVolume: '200-600/mois, forte hausse',
   },
@@ -1940,11 +1940,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: 'quanto-custa-remodelar-cozinha',
     title: 'Quanto Custa Remodelar uma Cozinha em Portugal?',
     metaTitle: 'Quanto Custa Remodelar uma Cozinha? Preços 2026 Portugal | VITFIX',
-    metaDesc: 'Preços reais de remodelação de cozinha em Portugal em 2026. Desde renovação simples a cozinha completa — todos os custos detalhados.',
+    metaDesc: 'Preços reais de remodelação de cozinha em Portugal em 2026. Desde renovação simples a cozinha completa, todos os custos detalhados.',
     category: 'obras',
     icon: '🍳',
     datePublished: '2026-02-10',
-    intro: 'A cozinha é uma das divisões mais importantes da casa e também uma das mais caras de remodelar. Os custos variam enormemente conforme o que se pretende — desde uma simples renovação de portas e bancada até uma remodelação completa com alteração de layout. Este guia apresenta os preços reais praticados em 2026.',
+    intro: 'A cozinha é uma das divisões mais importantes da casa e também uma das mais caras de remodelar. Os custos variam enormemente conforme o que se pretende, desde uma simples renovação de portas e bancada até uma remodelação completa com alteração de layout. Este guia apresenta os preços reais praticados em 2026.',
     sections: [
       {
         heading: 'Níveis de remodelação e custos',
@@ -1952,19 +1952,19 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Decomposição dos custos',
-        content: 'Para uma remodelação completa, eis como os custos se distribuem tipicamente. Demolição e remoção de entulho: 500€ a 1 000€. Canalização (água e esgotos): 800€ a 1 500€. Eletricidade (pontos de luz, tomadas, quadro): 600€ a 1 200€. Revestimento de paredes e chão (azulejos ou outro): 1 000€ a 3 000€. Móveis de cozinha: 2 000€ a 8 000€ (a maior variação de custo). Bancada: 500€ a 3 000€ (conforme material — laminado, granito, quartzo, Silestone). Eletrodomésticos de encastre: 1 500€ a 5 000€. Torneira e lava-loiça: 200€ a 800€. Iluminação: 200€ a 600€. Pintura e acabamentos finais: 300€ a 600€.',
+        content: 'Para uma remodelação completa, eis como os custos se distribuem tipicamente. Demolição e remoção de entulho: 500€ a 1 000€. Canalização (água e esgotos): 800€ a 1 500€. Eletricidade (pontos de luz, tomadas, quadro): 600€ a 1 200€. Revestimento de paredes e chão (azulejos ou outro): 1 000€ a 3 000€. Móveis de cozinha: 2 000€ a 8 000€ (a maior variação de custo). Bancada: 500€ a 3 000€ (conforme material, laminado, granito, quartzo, Silestone). Eletrodomésticos de encastre: 1 500€ a 5 000€. Torneira e lava-loiça: 200€ a 800€. Iluminação: 200€ a 600€. Pintura e acabamentos finais: 300€ a 600€.',
       },
       {
         heading: 'Bancadas: comparação de materiais',
-        content: 'A bancada é um dos elementos mais visíveis e utilizados da cozinha, e os preços variam enormemente conforme o material. O laminado (tipo Formica) é a opção mais económica, custando entre 80€ e 150€ por metro linear — resistente ao uso diário mas vulnerável a cortes e calor intenso. O granito é uma opção clássica e durável, entre 150€ e 300€ por metro linear — resiste ao calor e riscos. O quartzo compacto (Silestone, Caesarstone) é a escolha mais popular em remodelações modernas, entre 200€ e 400€ por metro linear — muito resistente, higiénico e disponível em muitas cores. O Dekton é uma opção premium ultraresistente, entre 300€ e 500€ por metro linear. A madeira maciça oferece um visual quente e natural, entre 150€ e 350€ por metro linear, mas requer manutenção regular.',
+        content: 'A bancada é um dos elementos mais visíveis e utilizados da cozinha, e os preços variam enormemente conforme o material. O laminado (tipo Formica) é a opção mais económica, custando entre 80€ e 150€ por metro linear, resistente ao uso diário mas vulnerável a cortes e calor intenso. O granito é uma opção clássica e durável, entre 150€ e 300€ por metro linear, resiste ao calor e riscos. O quartzo compacto (Silestone, Caesarstone) é a escolha mais popular em remodelações modernas, entre 200€ e 400€ por metro linear, muito resistente, higiénico e disponível em muitas cores. O Dekton é uma opção premium ultraresistente, entre 300€ e 500€ por metro linear. A madeira maciça oferece um visual quente e natural, entre 150€ e 350€ por metro linear, mas requer manutenção regular.',
       },
       {
         heading: 'Dicas para poupar na remodelação da cozinha',
-        content: 'É possível obter uma cozinha bonita e funcional sem gastar uma fortuna. Considere renovar as portas dos armários em vez de substituir os móveis inteiros — se a estrutura está em bom estado, novas portas e puxadores transformam completamente o aspeto por uma fração do custo. Mantenha a disposição existente se possível — mover a posição do lava-loiça, fogão ou frigorífico implica mexer em canalização e eletricidade, o que aumenta muito o custo. Compare preços de eletrodomésticos online e em várias lojas antes de comprar. Escolha azulejos nacionais de boa qualidade em vez de importados — a cerâmica portuguesa tem excelente relação qualidade-preço. Peça orçamento a pelo menos 3 empresas diferentes para garantir que obtém o melhor preço.',
+        content: 'É possível obter uma cozinha bonita e funcional sem gastar uma fortuna. Considere renovar as portas dos armários em vez de substituir os móveis inteiros, se a estrutura está em bom estado, novas portas e puxadores transformam completamente o aspeto por uma fração do custo. Mantenha a disposição existente se possível, mover a posição do lava-loiça, fogão ou frigorífico implica mexer em canalização e eletricidade, o que aumenta muito o custo. Compare preços de eletrodomésticos online e em várias lojas antes de comprar. Escolha azulejos nacionais de boa qualidade em vez de importados, a cerâmica portuguesa tem excelente relação qualidade-preço. Peça orçamento a pelo menos 3 empresas diferentes para garantir que obtém o melhor preço.',
       },
       {
         heading: 'Erros comuns na remodelação de cozinhas',
-        content: 'Evite estes erros frequentes que encarecem ou complicam a obra. Não planear a iluminação adequadamente — uma cozinha precisa de luz geral, luz de trabalho sobre a bancada e luz ambiente. Esquecer as tomadas — uma cozinha moderna precisa de muitas tomadas para pequenos eletrodomésticos. Escolher materiais bonitos mas pouco práticos — o pavimento da cozinha deve ser resistente à água e fácil de limpar. Não prever espaço de arrumação suficiente — é o erro mais lamentado após a obra. Não considerar a ventilação e exaustão — o exaustor deve ter potência adequada e saída para o exterior. Começar a obra sem ter todos os materiais disponíveis — atrasos na entrega de um material podem parar toda a obra.',
+        content: 'Evite estes erros frequentes que encarecem ou complicam a obra. Não planear a iluminação adequadamente, uma cozinha precisa de luz geral, luz de trabalho sobre a bancada e luz ambiente. Esquecer as tomadas, uma cozinha moderna precisa de muitas tomadas para pequenos eletrodomésticos. Escolher materiais bonitos mas pouco práticos, o pavimento da cozinha deve ser resistente à água e fácil de limpar. Não prever espaço de arrumação suficiente, é o erro mais lamentado após a obra. Não considerar a ventilação e exaustão, o exaustor deve ter potência adequada e saída para o exterior. Começar a obra sem ter todos os materiais disponíveis, atrasos na entrega de um material podem parar toda a obra.',
       },
     ],
     ctaText: 'Quer remodelar a sua cozinha? Peça um orçamento gratuito e detalhado à VITFIX.',
@@ -1975,7 +1975,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: 'quanto-custa-remodelar-casa-de-banho',
     title: 'Quanto Custa Remodelar uma Casa de Banho em Portugal?',
     metaTitle: 'Quanto Custa Remodelar uma Casa de Banho? Preços 2026 | VITFIX',
-    metaDesc: 'Preços reais de remodelação de casa de banho em Portugal 2026. Base de duche, banheira, revestimentos — custos detalhados por componente.',
+    metaDesc: 'Preços reais de remodelação de casa de banho em Portugal 2026. Base de duche, banheira, revestimentos, custos detalhados por componente.',
     category: 'obras',
     icon: '🚿',
     datePublished: '2026-02-15',
@@ -1999,7 +1999,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Tendências de design 2026',
-        content: 'As casas de banho em Portugal estão a seguir várias tendências em 2026. Os revestimentos de grande formato (60x120cm ou maiores) são cada vez mais populares — menos juntas significa menos manutenção e aspeto mais limpo. As cores neutras e naturais dominam — tons de bege, cinza suave e branco quente em vez do branco frio tradicional. Os móveis suspensos são preferidos por facilitarem a limpeza do chão. A iluminação LED integrada em espelhos e nichos substitui as tradicionais lâmpadas de teto. Torneiras de cor preta ou dourada escovada substituem o cromado clássico. Bases de duche niveladas com o pavimento (walk-in) são a escolha premium. Nichos embutidos na parede do duche substituem as tradicionais prateleiras para produtos.',
+        content: 'As casas de banho em Portugal estão a seguir várias tendências em 2026. Os revestimentos de grande formato (60x120cm ou maiores) são cada vez mais populares, menos juntas significa menos manutenção e aspeto mais limpo. As cores neutras e naturais dominam, tons de bege, cinza suave e branco quente em vez do branco frio tradicional. Os móveis suspensos são preferidos por facilitarem a limpeza do chão. A iluminação LED integrada em espelhos e nichos substitui as tradicionais lâmpadas de teto. Torneiras de cor preta ou dourada escovada substituem o cromado clássico. Bases de duche niveladas com o pavimento (walk-in) são a escolha premium. Nichos embutidos na parede do duche substituem as tradicionais prateleiras para produtos.',
       },
     ],
     ctaText: 'Quer remodelar a sua casa de banho? Orçamento gratuito e detalhado na VITFIX.',
@@ -2018,15 +2018,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'O que é o capoto e como funciona',
-        content: 'O capoto é um sistema de isolamento térmico aplicado pelo exterior das paredes de um edifício. Consiste em placas de material isolante (EPS, lã mineral ou XPS) coladas e fixadas mecanicamente à fachada existente, revestidas com uma armadura de fibra de vidro e um reboco final de acabamento. Funciona como um casaco para a casa — cria uma camada contínua de isolamento que elimina as pontes térmicas, os pontos onde o calor escapa mais facilmente. No inverno, mantém o calor dentro da casa, reduzindo a necessidade de aquecimento. No verão, impede o calor exterior de entrar, mantendo a casa mais fresca. Além do conforto térmico, protege a fachada das intempéries e dá ao edifício um aspeto renovado.',
+        content: 'O capoto é um sistema de isolamento térmico aplicado pelo exterior das paredes de um edifício. Consiste em placas de material isolante (EPS, lã mineral ou XPS) coladas e fixadas mecanicamente à fachada existente, revestidas com uma armadura de fibra de vidro e um reboco final de acabamento. Funciona como um casaco para a casa, cria uma camada contínua de isolamento que elimina as pontes térmicas, os pontos onde o calor escapa mais facilmente. No inverno, mantém o calor dentro da casa, reduzindo a necessidade de aquecimento. No verão, impede o calor exterior de entrar, mantendo a casa mais fresca. Além do conforto térmico, protege a fachada das intempéries e dá ao edifício um aspeto renovado.',
       },
       {
         heading: 'Preços do capoto em 2026',
-        content: 'O custo de aplicação de capoto em Portugal varia conforme vários fatores. O preço médio situa-se entre 40€ e 80€ por m², incluindo material e mão de obra. Para uma moradia com 150m² de fachada, o investimento total varia entre 6 000€ e 12 000€. Para um apartamento (fachada correspondente), entre 2 000€ e 5 000€. Os fatores que influenciam o preço são a espessura do isolamento (6cm, 8cm ou 10cm — mais espesso é mais caro mas mais eficaz), o tipo de isolante (EPS é mais económico, lã mineral é mais cara mas com melhor desempenho acústico e ao fogo), a complexidade da fachada (janelas, varandas, ornamentos encarecem a aplicação), a altura do edifício (andaimes para edifícios altos aumentam o custo), e o tipo de acabamento final.',
+        content: 'O custo de aplicação de capoto em Portugal varia conforme vários fatores. O preço médio situa-se entre 40€ e 80€ por m², incluindo material e mão de obra. Para uma moradia com 150m² de fachada, o investimento total varia entre 6 000€ e 12 000€. Para um apartamento (fachada correspondente), entre 2 000€ e 5 000€. Os fatores que influenciam o preço são a espessura do isolamento (6cm, 8cm ou 10cm, mais espesso é mais caro mas mais eficaz), o tipo de isolante (EPS é mais económico, lã mineral é mais cara mas com melhor desempenho acústico e ao fogo), a complexidade da fachada (janelas, varandas, ornamentos encarecem a aplicação), a altura do edifício (andaimes para edifícios altos aumentam o custo), e o tipo de acabamento final.',
       },
       {
         heading: 'Poupança energética real',
-        content: 'A poupança energética com capoto é significativa e documentada. Em casas sem isolamento no Norte de Portugal (onde se incluem Marco de Canaveses, Penafiel e Amarante), o capoto pode reduzir os custos de aquecimento entre 25% e 40%. Para uma família que gasta 1 200€ por ano em aquecimento (gás, eletricidade, pellets), isto representa uma poupança de 300€ a 480€ anuais. Considerando também a poupança em arrefecimento no verão, a poupança total pode atingir 500€ a 800€ por ano. Com um investimento de 8 000€ a 10 000€, o retorno do investimento situa-se tipicamente entre 10 e 16 anos. Além da poupança direta, o isolamento valoriza o imóvel ao melhorar a classe energética — um fator cada vez mais importante na compra e venda de casas.',
+        content: 'A poupança energética com capoto é significativa e documentada. Em casas sem isolamento no Norte de Portugal (onde se incluem Marco de Canaveses, Penafiel e Amarante), o capoto pode reduzir os custos de aquecimento entre 25% e 40%. Para uma família que gasta 1 200€ por ano em aquecimento (gás, eletricidade, pellets), isto representa uma poupança de 300€ a 480€ anuais. Considerando também a poupança em arrefecimento no verão, a poupança total pode atingir 500€ a 800€ por ano. Com um investimento de 8 000€ a 10 000€, o retorno do investimento situa-se tipicamente entre 10 e 16 anos. Além da poupança direta, o isolamento valoriza o imóvel ao melhorar a classe energética, um fator cada vez mais importante na compra e venda de casas.',
       },
       {
         heading: 'EPS vs. lã mineral: qual escolher',
@@ -2038,7 +2038,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'O processo de aplicação',
-        content: 'A aplicação de capoto segue um processo estruturado que demora geralmente entre 1 e 3 semanas para uma moradia. Primeiro, faz-se a preparação da fachada — limpeza, reparação de fissuras e tratamento de eventuais problemas de humidade. Depois, aplicam-se os perfis de arranque na base e os perfis de canto. As placas de isolamento são coladas com argamassa e fixadas mecanicamente com buchas. A camada de base (argamassa armada com rede de fibra de vidro) é aplicada sobre as placas. Após secagem, aplica-se o primário e o revestimento final de acabamento. O processo deve ser executado em condições climatéricas adequadas — sem chuva e com temperaturas entre 5°C e 35°C. A qualidade da aplicação é determinante para a durabilidade do sistema, que pode ultrapassar os 25 anos se bem executado.',
+        content: 'A aplicação de capoto segue um processo estruturado que demora geralmente entre 1 e 3 semanas para uma moradia. Primeiro, faz-se a preparação da fachada, limpeza, reparação de fissuras e tratamento de eventuais problemas de humidade. Depois, aplicam-se os perfis de arranque na base e os perfis de canto. As placas de isolamento são coladas com argamassa e fixadas mecanicamente com buchas. A camada de base (argamassa armada com rede de fibra de vidro) é aplicada sobre as placas. Após secagem, aplica-se o primário e o revestimento final de acabamento. O processo deve ser executado em condições climatéricas adequadas, sem chuva e com temperaturas entre 5°C e 35°C. A qualidade da aplicação é determinante para a durabilidade do sistema, que pode ultrapassar os 25 anos se bem executado.',
       },
     ],
     ctaText: 'Quer aplicar capoto na sua casa? Orçamento gratuito e sem compromisso na VITFIX.',
@@ -2057,15 +2057,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Critérios essenciais de seleção',
-        content: 'Antes de contratar um empreiteiro, verifique estes critérios fundamentais. O alvará ou título de registo no IMPIC (Instituto dos Mercados Públicos, do Imobiliário e da Construção) é obrigatório para empresas de construção em Portugal. Peça o número e verifique no site do IMPIC. O seguro de responsabilidade civil protege-o em caso de danos causados durante a obra. O seguro de acidentes de trabalho é obrigatório e protege os trabalhadores na sua obra. Referências de trabalhos anteriores — peça contactos de clientes anteriores e, se possível, visite obras já concluídas. Experiência documentada no tipo de obra que pretende — uma empresa especializada em construção nova pode não ser a melhor para uma remodelação, e vice-versa.',
+        content: 'Antes de contratar um empreiteiro, verifique estes critérios fundamentais. O alvará ou título de registo no IMPIC (Instituto dos Mercados Públicos, do Imobiliário e da Construção) é obrigatório para empresas de construção em Portugal. Peça o número e verifique no site do IMPIC. O seguro de responsabilidade civil protege-o em caso de danos causados durante a obra. O seguro de acidentes de trabalho é obrigatório e protege os trabalhadores na sua obra. Referências de trabalhos anteriores, peça contactos de clientes anteriores e, se possível, visite obras já concluídas. Experiência documentada no tipo de obra que pretende, uma empresa especializada em construção nova pode não ser a melhor para uma remodelação, e vice-versa.',
       },
       {
-        heading: 'Sinais de alerta — quando não contratar',
-        content: 'Esteja atento a estes sinais que indicam potenciais problemas. Recusa em apresentar orçamento detalhado por escrito — um profissional sério formaliza sempre a proposta. Pedido de pagamento integral ou maioritário antes de começar a obra — o habitual é um adiantamento de 10-20% e pagamentos faseados conforme o progresso. Preço muito abaixo dos outros orçamentos — pode significar que vai usar materiais inferiores, subcontratar a preços muito baixos, ou que não incluiu tudo no orçamento. Sem NIF ou empresa registada — significa que não pode emitir fatura e o trabalho não terá garantia legal. Indisponibilidade para assinar contrato — um contrato protege ambas as partes e é essencial para obras de valor significativo. Pressão para decidir rapidamente — um profissional de confiança dá-lhe tempo para pensar e comparar.',
+        heading: 'Sinais de alerta, quando não contratar',
+        content: 'Esteja atento a estes sinais que indicam potenciais problemas. Recusa em apresentar orçamento detalhado por escrito, um profissional sério formaliza sempre a proposta. Pedido de pagamento integral ou maioritário antes de começar a obra, o habitual é um adiantamento de 10-20% e pagamentos faseados conforme o progresso. Preço muito abaixo dos outros orçamentos, pode significar que vai usar materiais inferiores, subcontratar a preços muito baixos, ou que não incluiu tudo no orçamento. Sem NIF ou empresa registada, significa que não pode emitir fatura e o trabalho não terá garantia legal. Indisponibilidade para assinar contrato, um contrato protege ambas as partes e é essencial para obras de valor significativo. Pressão para decidir rapidamente, um profissional de confiança dá-lhe tempo para pensar e comparar.',
       },
       {
         heading: 'O orçamento: o que deve incluir',
-        content: 'Um bom orçamento deve ser detalhado e incluir a descrição pormenorizada de todos os trabalhos a realizar (por item ou por divisão), os materiais a utilizar (marca, modelo, quantidade), o custo da mão de obra separado dos materiais, o prazo de execução previsto (data de início e de conclusão), as condições de pagamento (faseamento, meios de pagamento), o prazo de validade do orçamento, a taxa de IVA aplicável (6% ou 23%), o que está e o que não está incluído (remoção de entulho, limpeza final, licenças), e as condições de revisão de preço em caso de imprevistos. Compare orçamentos item a item, não apenas o total — o mais barato no total pode ter os mesmos serviços a preços diferentes, com alguns itens subvalorizados que serão cobrados como extra durante a obra.',
+        content: 'Um bom orçamento deve ser detalhado e incluir a descrição pormenorizada de todos os trabalhos a realizar (por item ou por divisão), os materiais a utilizar (marca, modelo, quantidade), o custo da mão de obra separado dos materiais, o prazo de execução previsto (data de início e de conclusão), as condições de pagamento (faseamento, meios de pagamento), o prazo de validade do orçamento, a taxa de IVA aplicável (6% ou 23%), o que está e o que não está incluído (remoção de entulho, limpeza final, licenças), e as condições de revisão de preço em caso de imprevistos. Compare orçamentos item a item, não apenas o total, o mais barato no total pode ter os mesmos serviços a preços diferentes, com alguns itens subvalorizados que serão cobrados como extra durante a obra.',
       },
       {
         heading: 'O contrato de empreitada',
@@ -2073,7 +2073,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Pagamentos: como estruturar',
-        content: 'A estrutura de pagamento mais segura para o cliente é a seguinte: 10-20% como adiantamento na assinatura do contrato ou início da obra (para o empreiteiro comprar materiais iniciais), pagamentos faseados conforme marcos da obra (por exemplo, 20% após demolição e trabalhos de preparação, 20% após canalização e eletricidade, 20% após revestimentos, 20% na conclusão), e 5-10% retidos durante 30 dias após conclusão para garantir que não surgem problemas. Nunca pague a totalidade antecipadamente. Nunca pague em dinheiro sem recibo. Exija sempre fatura com IVA. Condicione cada pagamento à conclusão satisfatória da fase correspondente. Se o empreiteiro pedir adiantamentos muito elevados, pode indicar problemas de tesouraria — um sinal de alerta.',
+        content: 'A estrutura de pagamento mais segura para o cliente é a seguinte: 10-20% como adiantamento na assinatura do contrato ou início da obra (para o empreiteiro comprar materiais iniciais), pagamentos faseados conforme marcos da obra (por exemplo, 20% após demolição e trabalhos de preparação, 20% após canalização e eletricidade, 20% após revestimentos, 20% na conclusão), e 5-10% retidos durante 30 dias após conclusão para garantir que não surgem problemas. Nunca pague a totalidade antecipadamente. Nunca pague em dinheiro sem recibo. Exija sempre fatura com IVA. Condicione cada pagamento à conclusão satisfatória da fase correspondente. Se o empreiteiro pedir adiantamentos muito elevados, pode indicar problemas de tesouraria, um sinal de alerta.',
       },
       {
         heading: 'Garantias e direitos do consumidor',
@@ -2096,7 +2096,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Preços por tipo de substituição',
-        content: 'O custo varia conforme a complexidade da intervenção. A substituição simples — remover a banheira, colocar uma base de duche standard em acrílico, resguardo de vidro simples e revestir a parede exposta — custa entre 800€ e 1 500€ e demora 1 a 2 dias. A substituição intermédia — base de duche em resina, resguardo de vidro temperado fixo, revestimento cerâmico novo na zona do duche e nova torneira — custa entre 1 500€ e 2 500€ e demora 2 a 3 dias. A substituição premium — base de duche encastrada no pavimento (walk-in), painel de vidro à medida, revestimento cerâmico em toda a casa de banho, nicho embutido e nova torneira termostática — custa entre 2 500€ e 4 500€ e demora 3 a 5 dias.',
+        content: 'O custo varia conforme a complexidade da intervenção. A substituição simples, remover a banheira, colocar uma base de duche standard em acrílico, resguardo de vidro simples e revestir a parede exposta, custa entre 800€ e 1 500€ e demora 1 a 2 dias. A substituição intermédia, base de duche em resina, resguardo de vidro temperado fixo, revestimento cerâmico novo na zona do duche e nova torneira, custa entre 1 500€ e 2 500€ e demora 2 a 3 dias. A substituição premium, base de duche encastrada no pavimento (walk-in), painel de vidro à medida, revestimento cerâmico em toda a casa de banho, nicho embutido e nova torneira termostática, custa entre 2 500€ e 4 500€ e demora 3 a 5 dias.',
       },
       {
         heading: 'Tipos de bases de duche e preços',
@@ -2104,11 +2104,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Resguardos de duche: opções e preços',
-        content: 'O resguardo é o segundo componente mais importante (e visível) da substituição. A cortina de duche é a opção mais económica (20€-50€) mas menos estética e durável. O resguardo em acrílico custa entre 100€ e 200€ — leve e económico mas pode tornar-se opaco com o tempo. O painel fixo de vidro temperado custa entre 150€ e 350€ — a opção mais popular em remodelações modernas, com visual limpo e manutenção fácil. A porta de vidro de correr custa entre 250€ e 500€ — ideal para espaços reduzidos. A porta de vidro pivotante custa entre 300€ e 600€ — oferece maior abertura mas necessita de espaço para abrir. O vidro temperado com tratamento anti-calcário facilita a limpeza e mantém a transparência.',
+        content: 'O resguardo é o segundo componente mais importante (e visível) da substituição. A cortina de duche é a opção mais económica (20€-50€) mas menos estética e durável. O resguardo em acrílico custa entre 100€ e 200€, leve e económico mas pode tornar-se opaco com o tempo. O painel fixo de vidro temperado custa entre 150€ e 350€, a opção mais popular em remodelações modernas, com visual limpo e manutenção fácil. A porta de vidro de correr custa entre 250€ e 500€, ideal para espaços reduzidos. A porta de vidro pivotante custa entre 300€ e 600€, oferece maior abertura mas necessita de espaço para abrir. O vidro temperado com tratamento anti-calcário facilita a limpeza e mantém a transparência.',
       },
       {
         heading: 'Vantagens da base de duche vs. banheira',
-        content: 'A substituição oferece múltiplas vantagens. Em termos de espaço, uma base de duche ocupa geralmente menos área do que uma banheira, libertando espaço na casa de banho. A acessibilidade melhora significativamente, especialmente para idosos ou pessoas com mobilidade reduzida — entrar e sair de um duche é muito mais fácil e seguro do que de uma banheira. O consumo de água reduz-se drasticamente: um duche de 5 minutos consome cerca de 50 litros, enquanto encher uma banheira requer 150 a 200 litros. Com as tarifas de água em Portugal, isto pode representar uma poupança de 200€ a 400€ por ano para uma família. A limpeza é mais fácil e rápida. E o aspeto da casa de banho moderniza-se instantaneamente.',
+        content: 'A substituição oferece múltiplas vantagens. Em termos de espaço, uma base de duche ocupa geralmente menos área do que uma banheira, libertando espaço na casa de banho. A acessibilidade melhora significativamente, especialmente para idosos ou pessoas com mobilidade reduzida, entrar e sair de um duche é muito mais fácil e seguro do que de uma banheira. O consumo de água reduz-se drasticamente: um duche de 5 minutos consome cerca de 50 litros, enquanto encher uma banheira requer 150 a 200 litros. Com as tarifas de água em Portugal, isto pode representar uma poupança de 200€ a 400€ por ano para uma família. A limpeza é mais fácil e rápida. E o aspeto da casa de banho moderniza-se instantaneamente.',
       },
       {
         heading: 'O processo passo a passo',
@@ -2135,15 +2135,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Preços de caixilharia por material em 2026',
-        content: 'Os preços variam significativamente conforme o material e as dimensões da janela. O alumínio com corte térmico custa entre 250€ e 500€ por janela standard (120×120cm), incluindo vidro duplo e instalação. É o material mais popular em Portugal, resistente à corrosão e disponível em muitas cores. O PVC custa entre 200€ e 450€ por janela standard. Oferece excelente isolamento térmico e acústico, baixa manutenção e boa relação qualidade-preço. A madeira custa entre 350€ e 700€ por janela. Oferece o melhor aspeto estético e isolamento natural, mas exige manutenção periódica (envernizamento a cada 3-5 anos). O alumínio-madeira (exterior em alumínio, interior em madeira) custa entre 500€ e 900€ — combina a resistência do alumínio com a estética da madeira.',
+        content: 'Os preços variam significativamente conforme o material e as dimensões da janela. O alumínio com corte térmico custa entre 250€ e 500€ por janela standard (120×120cm), incluindo vidro duplo e instalação. É o material mais popular em Portugal, resistente à corrosão e disponível em muitas cores. O PVC custa entre 200€ e 450€ por janela standard. Oferece excelente isolamento térmico e acústico, baixa manutenção e boa relação qualidade-preço. A madeira custa entre 350€ e 700€ por janela. Oferece o melhor aspeto estético e isolamento natural, mas exige manutenção periódica (envernizamento a cada 3-5 anos). O alumínio-madeira (exterior em alumínio, interior em madeira) custa entre 500€ e 900€, combina a resistência do alumínio com a estética da madeira.',
       },
       {
         heading: 'PVC vs Alumínio: comparação detalhada',
-        content: 'A escolha entre PVC e alumínio depende das suas prioridades. Em isolamento térmico, o PVC é superior — o material é naturalmente isolante, enquanto o alumínio conduz calor e necessita de corte térmico para ser eficaz. Em resistência e durabilidade, o alumínio é mais resistente a impactos e deformação, especialmente em janelas de grandes dimensões. Em manutenção, ambos são de baixa manutenção, mas o PVC pode amarelecer com exposição solar intensa ao longo de muitos anos. Em estética, o alumínio oferece perfis mais finos e elegantes, permitindo mais entrada de luz. O PVC tem perfis mais grossos. Em preço, o PVC é geralmente 10-20% mais económico. Em reciclabilidade, ambos são recicláveis. Para a região do Tâmega e Sousa, onde os invernos são frios e húmidos, ambos os materiais com corte térmico e vidro duplo oferecem excelente desempenho.',
+        content: 'A escolha entre PVC e alumínio depende das suas prioridades. Em isolamento térmico, o PVC é superior, o material é naturalmente isolante, enquanto o alumínio conduz calor e necessita de corte térmico para ser eficaz. Em resistência e durabilidade, o alumínio é mais resistente a impactos e deformação, especialmente em janelas de grandes dimensões. Em manutenção, ambos são de baixa manutenção, mas o PVC pode amarelecer com exposição solar intensa ao longo de muitos anos. Em estética, o alumínio oferece perfis mais finos e elegantes, permitindo mais entrada de luz. O PVC tem perfis mais grossos. Em preço, o PVC é geralmente 10-20% mais económico. Em reciclabilidade, ambos são recicláveis. Para a região do Tâmega e Sousa, onde os invernos são frios e húmidos, ambos os materiais com corte térmico e vidro duplo oferecem excelente desempenho.',
       },
       {
         heading: 'Vidros: simples, duplo ou triplo?',
-        content: 'O tipo de vidro é tão importante quanto o material do caixilho. O vidro simples (4mm) está presente nas janelas mais antigas e oferece isolamento térmico e acústico mínimo — se ainda tem vidro simples, a substituição é altamente recomendada. O vidro duplo (4+16+4mm com câmara de ar ou árgon) é o standard atual, reduzindo as perdas térmicas em 50-60% face ao vidro simples. Com câmara de árgon em vez de ar, o desempenho melhora mais 10-15%. O vidro duplo com controlo solar inclui uma camada metalizada que reduz o ganho de calor no verão — ideal para fachadas expostas a sul e oeste. O vidro triplo oferece o melhor isolamento possível mas é significativamente mais caro e pesado — geralmente só se justifica em climas muito frios ou em edifícios passivos.',
+        content: 'O tipo de vidro é tão importante quanto o material do caixilho. O vidro simples (4mm) está presente nas janelas mais antigas e oferece isolamento térmico e acústico mínimo, se ainda tem vidro simples, a substituição é altamente recomendada. O vidro duplo (4+16+4mm com câmara de ar ou árgon) é o standard atual, reduzindo as perdas térmicas em 50-60% face ao vidro simples. Com câmara de árgon em vez de ar, o desempenho melhora mais 10-15%. O vidro duplo com controlo solar inclui uma camada metalizada que reduz o ganho de calor no verão, ideal para fachadas expostas a sul e oeste. O vidro triplo oferece o melhor isolamento possível mas é significativamente mais caro e pesado, geralmente só se justifica em climas muito frios ou em edifícios passivos.',
       },
       {
         heading: 'Quanto se poupa com caixilharia nova?',
@@ -2158,7 +2158,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: 'A substituição de caixilharia em habitações com mais de 2 anos beneficia de IVA reduzido a 6% (em vez de 23%), o que representa uma poupança significativa. Numa obra de 5 000€, a diferença entre 23% e 6% de IVA é de 850€. Além disso, o Fundo Ambiental disponibiliza periodicamente apoios para eficiência energética que podem incluir a substituição de janelas. As novas janelas melhoram a classe energética do imóvel na certificação, o que é cada vez mais importante para venda e arrendamento. Na região de Marco de Canaveses e Penafiel, existem bons fabricantes e instaladores locais, o que permite preços competitivos e prazos de entrega mais curtos do que na cidade do Porto.',
       },
     ],
-    ctaText: 'Quer trocar a caixilharia? Peça orçamento gratuito na VITFIX — medição ao domicílio sem compromisso.',
+    ctaText: 'Quer trocar a caixilharia? Peça orçamento gratuito na VITFIX, medição ao domicílio sem compromisso.',
     relatedServices: ['obras-remodelacao', 'isolamento-termico'],
     searchVolume: '500-2000/mois, forte hausse',
   },
@@ -2178,11 +2178,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Métodos caseiros que funcionam',
-        content: 'Antes de chamar um profissional, experimente estes métodos caseiros para entupimentos ligeiros. O desentupidor de borracha (ventosa) é a primeira ferramenta a usar — funciona por pressão e sucção alternadas para deslocar a obstrução. Coloque-o sobre o ralo, cubra com água e faça movimentos vigorosos de bombeamento. Para entupimentos causados por gordura no lava-loiça, deite água a ferver em abundância — a água quente dissolve a gordura acumulada. O bicarbonato de sódio com vinagre pode ajudar: deite meia chávena de bicarbonato pelo ralo, seguido de meia chávena de vinagre branco. Espere 30 minutos e depois lave com água quente. Para ralos de chuveiro ou lavatório, frequentemente o problema é acumulação de cabelos — use um gancho fino ou uma ferramenta própria para remover os cabelos acumulados no sifão.',
+        content: 'Antes de chamar um profissional, experimente estes métodos caseiros para entupimentos ligeiros. O desentupidor de borracha (ventosa) é a primeira ferramenta a usar, funciona por pressão e sucção alternadas para deslocar a obstrução. Coloque-o sobre o ralo, cubra com água e faça movimentos vigorosos de bombeamento. Para entupimentos causados por gordura no lava-loiça, deite água a ferver em abundância, a água quente dissolve a gordura acumulada. O bicarbonato de sódio com vinagre pode ajudar: deite meia chávena de bicarbonato pelo ralo, seguido de meia chávena de vinagre branco. Espere 30 minutos e depois lave com água quente. Para ralos de chuveiro ou lavatório, frequentemente o problema é acumulação de cabelos, use um gancho fino ou uma ferramenta própria para remover os cabelos acumulados no sifão.',
       },
       {
         heading: 'O que NÃO fazer: erros comuns',
-        content: 'Alguns métodos populares podem piorar a situação ou danificar a canalização. Os produtos químicos desentupidores agressivos (tipo ácido ou soda cáustica) podem corroer as tubagens, especialmente se forem antigas em PVC ou ferro. Se o produto não resolver o entupimento, fica retido na canalização e pode ser perigoso quando o canalizador intervém. Nunca use arames improvisados ou objetos pontiagudos — podem perfurar os canos ou empurrar a obstrução para uma zona mais difícil de alcançar. Não aplique pressão excessiva com mangueira de jardim — pode rebentar juntas ou ligações em tubagens envelhecidas. Não despeje grandes quantidades de lixívia — além de ineficaz contra a maioria dos entupimentos, é tóxica e danifica as juntas de borracha dos sifões.',
+        content: 'Alguns métodos populares podem piorar a situação ou danificar a canalização. Os produtos químicos desentupidores agressivos (tipo ácido ou soda cáustica) podem corroer as tubagens, especialmente se forem antigas em PVC ou ferro. Se o produto não resolver o entupimento, fica retido na canalização e pode ser perigoso quando o canalizador intervém. Nunca use arames improvisados ou objetos pontiagudos, podem perfurar os canos ou empurrar a obstrução para uma zona mais difícil de alcançar. Não aplique pressão excessiva com mangueira de jardim, pode rebentar juntas ou ligações em tubagens envelhecidas. Não despeje grandes quantidades de lixívia, além de ineficaz contra a maioria dos entupimentos, é tóxica e danifica as juntas de borracha dos sifões.',
       },
       {
         heading: 'Quando chamar um profissional',
@@ -2190,7 +2190,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Prevenção: como evitar entupimentos',
-        content: 'A maioria dos entupimentos é evitável com hábitos simples. Nunca deite gordura, óleo de cozinha ou restos de comida pelo ralo do lava-loiça — são a causa número um de entupimentos em cozinhas. Use um filtro ou rede no ralo para reter resíduos sólidos. Nos chuveiros e lavatórios, instale um filtro de cabelos — pequeno investimento que evita o problema mais comum nestas divisões. Não deite toalhitas húmidas, cotonetes, fio dental ou pensos na sanita — mesmo os que dizem ser biodegradáveis podem causar entupimentos. Faça uma limpeza preventiva mensal: deite água a ferver pelos ralos da cozinha para dissolver acumulações de gordura. Limpe os sifões dos lavatórios a cada 3-4 meses, removendo detritos acumulados. Se vive numa casa com canalização antiga (pré-1980), considere uma inspeção profissional com câmara de vídeo para avaliar o estado das tubagens.',
+        content: 'A maioria dos entupimentos é evitável com hábitos simples. Nunca deite gordura, óleo de cozinha ou restos de comida pelo ralo do lava-loiça, são a causa número um de entupimentos em cozinhas. Use um filtro ou rede no ralo para reter resíduos sólidos. Nos chuveiros e lavatórios, instale um filtro de cabelos, pequeno investimento que evita o problema mais comum nestas divisões. Não deite toalhitas húmidas, cotonetes, fio dental ou pensos na sanita, mesmo os que dizem ser biodegradáveis podem causar entupimentos. Faça uma limpeza preventiva mensal: deite água a ferver pelos ralos da cozinha para dissolver acumulações de gordura. Limpe os sifões dos lavatórios a cada 3-4 meses, removendo detritos acumulados. Se vive numa casa com canalização antiga (pré-1980), considere uma inspeção profissional com câmara de vídeo para avaliar o estado das tubagens.',
       },
     ],
     ctaText: 'Canos entupidos? Os canalizadores VITFIX resolvem no próprio dia. Orçamento gratuito.',
@@ -2205,7 +2205,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: 'impermeabilizacao',
     icon: '🏠',
     datePublished: '2026-03-10',
-    intro: 'O telhado é a primeira linha de defesa da sua casa contra as intempéries. Quando começa a falhar — goteiras, telhas partidas, caleiras entupidas — os danos podem escalar rapidamente se não forem tratados a tempo. Mas quanto custa reparar um telhado em Portugal? Este guia apresenta os preços reais praticados em 2026.',
+    intro: 'O telhado é a primeira linha de defesa da sua casa contra as intempéries. Quando começa a falhar, goteiras, telhas partidas, caleiras entupidas, os danos podem escalar rapidamente se não forem tratados a tempo. Mas quanto custa reparar um telhado em Portugal? Este guia apresenta os preços reais praticados em 2026.',
     sections: [
       {
         heading: 'Preços de reparação de telhado por tipo',
@@ -2213,19 +2213,19 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Tipos de telha e custos',
-        content: 'Em Portugal, existem vários tipos de telha utilizados. A telha cerâmica (Lusa, Marselha, canudo) é a mais tradicional e comum. Custa entre 0,50€ e 1,50€ por unidade conforme o modelo. É durável (30-50 anos), disponível em várias cores e com excelente relação qualidade-preço. A telha de betão é mais pesada mas mais resistente a impactos. Custa entre 0,40€ e 1€ por unidade. A sua principal desvantagem é o peso, que pode exigir uma estrutura mais robusta. A telha metálica (painel sandwich) custa entre 15€ e 30€ por m² e é ideal para coberturas de garagens, armazéns e anexos — instalação rápida e boa impermeabilização. A telha fotovoltaica é a novidade — integra painéis solares no próprio telhado, mas o custo é significativamente mais alto (150€-300€ por m²). Para a maioria das casas na região do Tâmega e Sousa, a telha cerâmica continua a ser a melhor escolha.',
+        content: 'Em Portugal, existem vários tipos de telha utilizados. A telha cerâmica (Lusa, Marselha, canudo) é a mais tradicional e comum. Custa entre 0,50€ e 1,50€ por unidade conforme o modelo. É durável (30-50 anos), disponível em várias cores e com excelente relação qualidade-preço. A telha de betão é mais pesada mas mais resistente a impactos. Custa entre 0,40€ e 1€ por unidade. A sua principal desvantagem é o peso, que pode exigir uma estrutura mais robusta. A telha metálica (painel sandwich) custa entre 15€ e 30€ por m² e é ideal para coberturas de garagens, armazéns e anexos, instalação rápida e boa impermeabilização. A telha fotovoltaica é a novidade, integra painéis solares no próprio telhado, mas o custo é significativamente mais alto (150€-300€ por m²). Para a maioria das casas na região do Tâmega e Sousa, a telha cerâmica continua a ser a melhor escolha.',
       },
       {
         heading: 'Sinais de que o telhado precisa de reparação',
-        content: 'Alguns sinais indicam que o seu telhado precisa de atenção. Manchas de humidade no teto interior, especialmente após chuva, são o sinal mais óbvio de uma infiltração ativa. Telhas visíveis partidas, deslocadas ou em falta — podem ser vistas do chão ou, melhor, com binóculos. Caleiras com vegetação crescendo ou visivelmente desalinhadas — caleiras entupidas causam transbordo que danifica fachadas e fundações. Bolor ou manchas escuras na face interior do telhado (visíveis do sótão) indicam humidade persistente. Luz visível através do telhado quando se está no sótão significa telhas partidas ou deslocadas. Acumulação de pequenos fragmentos de telha nas caleiras indica deterioração. Aumento inexplicável da fatura de aquecimento pode indicar perda de isolamento no telhado.',
+        content: 'Alguns sinais indicam que o seu telhado precisa de atenção. Manchas de humidade no teto interior, especialmente após chuva, são o sinal mais óbvio de uma infiltração ativa. Telhas visíveis partidas, deslocadas ou em falta, podem ser vistas do chão ou, melhor, com binóculos. Caleiras com vegetação crescendo ou visivelmente desalinhadas, caleiras entupidas causam transbordo que danifica fachadas e fundações. Bolor ou manchas escuras na face interior do telhado (visíveis do sótão) indicam humidade persistente. Luz visível através do telhado quando se está no sótão significa telhas partidas ou deslocadas. Acumulação de pequenos fragmentos de telha nas caleiras indica deterioração. Aumento inexplicável da fatura de aquecimento pode indicar perda de isolamento no telhado.',
       },
       {
         heading: 'Reparar vs. substituir: quando vale a pena',
-        content: 'A decisão entre reparar ou substituir o telhado depende de vários fatores. Se o telhado tem menos de 20 anos e os problemas são pontuais (telhas partidas, rufos danificados), a reparação é quase sempre a melhor opção. Se tem entre 20 e 40 anos com problemas recorrentes (infiltrações em vários pontos, várias reparações nos últimos anos), considere o retelhamento — substituir as telhas mantendo a estrutura de madeira se esta estiver em bom estado. Se tem mais de 40 anos, especialmente com estrutura de madeira deteriorada, a substituição completa pode ser a opção mais económica a longo prazo. Como referência, se o custo acumulado de reparações nos últimos 5 anos ultrapassa 30% do custo de um telhado novo, a substituição é provavelmente a decisão mais inteligente.',
+        content: 'A decisão entre reparar ou substituir o telhado depende de vários fatores. Se o telhado tem menos de 20 anos e os problemas são pontuais (telhas partidas, rufos danificados), a reparação é quase sempre a melhor opção. Se tem entre 20 e 40 anos com problemas recorrentes (infiltrações em vários pontos, várias reparações nos últimos anos), considere o retelhamento, substituir as telhas mantendo a estrutura de madeira se esta estiver em bom estado. Se tem mais de 40 anos, especialmente com estrutura de madeira deteriorada, a substituição completa pode ser a opção mais económica a longo prazo. Como referência, se o custo acumulado de reparações nos últimos 5 anos ultrapassa 30% do custo de um telhado novo, a substituição é provavelmente a decisão mais inteligente.',
       },
       {
         heading: 'Manutenção preventiva do telhado',
-        content: 'A manutenção regular é a melhor forma de prolongar a vida do telhado e evitar reparações caras. Limpe as caleiras e ralos pelo menos duas vezes por ano — no outono (após a queda das folhas) e na primavera. Inspecione visualmente o telhado após tempestades ou ventos fortes, procurando telhas deslocadas ou partidas. Corte ramos de árvores que toquem ou se aproximem do telhado — podem deslocar telhas e acumular folhas. Verifique os rufos e vedações à volta de chaminés, claraboias e ventilações. No sótão (se acessível), verifique a estrutura de madeira à procura de sinais de humidade, bolor ou insetos xilófagos (caruncho). Considere uma inspeção profissional a cada 5 anos, especialmente em telhados com mais de 20 anos. O custo de uma inspeção (100€-200€) é insignificante comparado com o custo de danos de infiltração não detetados a tempo.',
+        content: 'A manutenção regular é a melhor forma de prolongar a vida do telhado e evitar reparações caras. Limpe as caleiras e ralos pelo menos duas vezes por ano, no outono (após a queda das folhas) e na primavera. Inspecione visualmente o telhado após tempestades ou ventos fortes, procurando telhas deslocadas ou partidas. Corte ramos de árvores que toquem ou se aproximem do telhado, podem deslocar telhas e acumular folhas. Verifique os rufos e vedações à volta de chaminés, claraboias e ventilações. No sótão (se acessível), verifique a estrutura de madeira à procura de sinais de humidade, bolor ou insetos xilófagos (caruncho). Considere uma inspeção profissional a cada 5 anos, especialmente em telhados com mais de 20 anos. O custo de uma inspeção (100€-200€) é insignificante comparado com o custo de danos de infiltração não detetados a tempo.',
       },
     ],
     ctaText: 'Precisa de reparar o telhado? Na VITFIX, fazemos diagnóstico gratuito e orçamento sem compromisso.',
@@ -2248,15 +2248,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Microcimento vs. azulejo: comparação',
-        content: 'A decisão entre microcimento e azulejo depende das suas prioridades. Em estética, o microcimento oferece um visual contínuo sem juntas, moderno e minimalista. O azulejo oferece maior variedade de padrões e cores, incluindo opções decorativas tradicionais. Em durabilidade, o azulejo de boa qualidade dura décadas sem manutenção. O microcimento dura 15-20 anos com manutenção adequada. Em impermeabilidade, o azulejo é naturalmente impermeável. O microcimento necessita de selante protetor que deve ser reaplicado a cada 2-3 anos para manter a impermeabilidade. Em preço, o azulejo de qualidade média custa entre 30€ e 60€/m² instalado. O microcimento custa entre 60€ e 120€/m² — significativamente mais caro. Em manutenção, o azulejo exige limpeza das juntas. O microcimento exige reaplicação periódica de selante.',
+        content: 'A decisão entre microcimento e azulejo depende das suas prioridades. Em estética, o microcimento oferece um visual contínuo sem juntas, moderno e minimalista. O azulejo oferece maior variedade de padrões e cores, incluindo opções decorativas tradicionais. Em durabilidade, o azulejo de boa qualidade dura décadas sem manutenção. O microcimento dura 15-20 anos com manutenção adequada. Em impermeabilidade, o azulejo é naturalmente impermeável. O microcimento necessita de selante protetor que deve ser reaplicado a cada 2-3 anos para manter a impermeabilidade. Em preço, o azulejo de qualidade média custa entre 30€ e 60€/m² instalado. O microcimento custa entre 60€ e 120€/m², significativamente mais caro. Em manutenção, o azulejo exige limpeza das juntas. O microcimento exige reaplicação periódica de selante.',
       },
       {
         heading: 'Processo de aplicação',
-        content: 'A aplicação de microcimento é um trabalho especializado que exige experiência. O processo demora geralmente 5 a 7 dias para uma casa de banho completa, incluindo tempos de secagem. Primeiro, prepara-se a superfície — sobre azulejos existentes, aplica-se um primário de aderência. Sobre reboco, verifica-se a planimetria e corrige-se irregularidades. Depois aplicam-se duas camadas de microcimento base, com secagem entre camadas. Seguem-se duas camadas de microcimento de acabamento, lixadas entre si para obter a textura desejada. Finalmente, aplicam-se duas a três camadas de selante impermeabilizante. É fundamental que a aplicação seja feita por um profissional experiente — um aplicador inexperiente pode resultar em fissuras, descolamento ou problemas de impermeabilidade. Peça sempre para ver trabalhos anteriores antes de contratar.',
+        content: 'A aplicação de microcimento é um trabalho especializado que exige experiência. O processo demora geralmente 5 a 7 dias para uma casa de banho completa, incluindo tempos de secagem. Primeiro, prepara-se a superfície, sobre azulejos existentes, aplica-se um primário de aderência. Sobre reboco, verifica-se a planimetria e corrige-se irregularidades. Depois aplicam-se duas camadas de microcimento base, com secagem entre camadas. Seguem-se duas camadas de microcimento de acabamento, lixadas entre si para obter a textura desejada. Finalmente, aplicam-se duas a três camadas de selante impermeabilizante. É fundamental que a aplicação seja feita por um profissional experiente, um aplicador inexperiente pode resultar em fissuras, descolamento ou problemas de impermeabilidade. Peça sempre para ver trabalhos anteriores antes de contratar.',
       },
       {
         heading: 'Manutenção e cuidados',
-        content: 'O microcimento requer cuidados específicos para manter o seu aspeto e impermeabilidade. A limpeza diária deve ser feita com produtos neutros — evite produtos abrasivos, lixívia concentrada ou ácidos. O selante protetor deve ser reaplicado a cada 2 a 3 anos (custo de manutenção: 10€-20€ por m²). Evite deixar água parada sobre o microcimento durante longos períodos. Limpe imediatamente manchas de produtos corados (vinho, café, tinta de cabelo). Não arraste objetos pesados sobre o pavimento em microcimento. Com manutenção adequada, o microcimento mantém o seu aspeto durante 15 a 20 anos. Sem manutenção, pode começar a apresentar manchas e perda de impermeabilidade após 3 a 5 anos.',
+        content: 'O microcimento requer cuidados específicos para manter o seu aspeto e impermeabilidade. A limpeza diária deve ser feita com produtos neutros, evite produtos abrasivos, lixívia concentrada ou ácidos. O selante protetor deve ser reaplicado a cada 2 a 3 anos (custo de manutenção: 10€-20€ por m²). Evite deixar água parada sobre o microcimento durante longos períodos. Limpe imediatamente manchas de produtos corados (vinho, café, tinta de cabelo). Não arraste objetos pesados sobre o pavimento em microcimento. Com manutenção adequada, o microcimento mantém o seu aspeto durante 15 a 20 anos. Sem manutenção, pode começar a apresentar manchas e perda de impermeabilidade após 3 a 5 anos.',
       },
       {
         heading: 'É adequado para todas as casas de banho?',
@@ -2272,21 +2272,21 @@ export const BLOG_ARTICLES: BlogArticle[] = [
 
   {
     slug: 'torneira-a-pingar-como-reparar',
-    title: 'Torneira a Pingar — Causas e Como Reparar (Guia 2026)',
-    metaTitle: 'Torneira a Pingar — Causas e Como Reparar | VITFIX',
+    title: 'Torneira a Pingar, Causas e Como Reparar (Guia 2026)',
+    metaTitle: 'Torneira a Pingar : Causas e Como Reparar | VITFIX',
     metaDesc: 'A sua torneira pinga constantemente? Descubra as causas mais comuns (vedante, cartucho, pressão) e quando chamar um canalizador. Guia prático.',
     category: 'canalizacao',
     icon: '💧',
     datePublished: '2026-03-15',
-    intro: 'Uma torneira a pingar é um dos problemas domésticos mais comuns — e mais ignorados. Para além do ruído irritante, uma torneira a pingar desperdiça em média 15 a 20 litros de água por dia, o que representa mais de 5 000 litros por ano e um acréscimo significativo na conta de água. Neste guia, explicamos as causas mais frequentes, como diagnosticar o problema e quando vale a pena reparar ou substituir.',
+    intro: 'Uma torneira a pingar é um dos problemas domésticos mais comuns, e mais ignorados. Para além do ruído irritante, uma torneira a pingar desperdiça em média 15 a 20 litros de água por dia, o que representa mais de 5 000 litros por ano e um acréscimo significativo na conta de água. Neste guia, explicamos as causas mais frequentes, como diagnosticar o problema e quando vale a pena reparar ou substituir.',
     sections: [
       {
         heading: 'Porque é que a torneira pinga?',
-        content: 'As causas mais comuns de uma torneira a pingar são: vedante (O-ring) desgastado — é a causa mais frequente, especialmente em torneiras com mais de 5 anos. O vedante de borracha que sela a passagem de água perde elasticidade e começa a deixar passar água. Cartucho cerâmico danificado — nas torneiras monocomando (as mais comuns hoje em dia), o cartucho cerâmico interior controla o fluxo de água. Com o tempo, depósitos de calcário ou desgaste natural fazem com que o cartucho perca vedação. Sede da válvula corroída — a superfície metálica onde o vedante assenta pode ficar corroída ou irregular, impedindo uma vedação correta. Pressão de água excessiva — se a pressão na rede for superior a 4 bar, as torneiras podem começar a pingar, especialmente durante a noite quando a pressão tende a aumentar. Instalação incorreta — torneiras mal instaladas ou com peças incompatíveis podem apresentar fugas desde o início.'
+        content: 'As causas mais comuns de uma torneira a pingar são: vedante (O-ring) desgastado, é a causa mais frequente, especialmente em torneiras com mais de 5 anos. O vedante de borracha que sela a passagem de água perde elasticidade e começa a deixar passar água. Cartucho cerâmico danificado, nas torneiras monocomando (as mais comuns hoje em dia), o cartucho cerâmico interior controla o fluxo de água. Com o tempo, depósitos de calcário ou desgaste natural fazem com que o cartucho perca vedação. Sede da válvula corroída, a superfície metálica onde o vedante assenta pode ficar corroída ou irregular, impedindo uma vedação correta. Pressão de água excessiva, se a pressão na rede for superior a 4 bar, as torneiras podem começar a pingar, especialmente durante a noite quando a pressão tende a aumentar. Instalação incorreta, torneiras mal instaladas ou com peças incompatíveis podem apresentar fugas desde o início.'
       },
       {
         heading: 'Torneira da cozinha vs. casa de banho',
-        content: 'Na cozinha, as torneiras sofrem mais desgaste porque são usadas dezenas de vezes por dia e frequentemente com movimentos bruscos. O contacto com resíduos alimentares e produtos de limpeza também acelera a deterioração dos vedantes. As torneiras de cozinha com chuveiro extensível têm peças adicionais (mangueira, ligações) que são pontos frequentes de fuga. Na casa de banho, o problema mais comum é o calcário — a água quente do duche deposita calcário no cartucho cerâmico, reduzindo a sua capacidade de vedação ao longo do tempo. Torneiras de bidé e lavatório antigas (tipo torneira de cruzeta) usam vedantes de borracha que se desgastam facilmente. A torneira do duche ou banheira pode pingar pelo manípulo, pela saída de água ou pela ligação à mangueira do chuveiro — cada caso tem uma causa diferente.'
+        content: 'Na cozinha, as torneiras sofrem mais desgaste porque são usadas dezenas de vezes por dia e frequentemente com movimentos bruscos. O contacto com resíduos alimentares e produtos de limpeza também acelera a deterioração dos vedantes. As torneiras de cozinha com chuveiro extensível têm peças adicionais (mangueira, ligações) que são pontos frequentes de fuga. Na casa de banho, o problema mais comum é o calcário, a água quente do duche deposita calcário no cartucho cerâmico, reduzindo a sua capacidade de vedação ao longo do tempo. Torneiras de bidé e lavatório antigas (tipo torneira de cruzeta) usam vedantes de borracha que se desgastam facilmente. A torneira do duche ou banheira pode pingar pelo manípulo, pela saída de água ou pela ligação à mangueira do chuveiro, cada caso tem uma causa diferente.'
       },
       {
         heading: 'Reparar ou substituir?',
@@ -2298,15 +2298,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Quanto desperdiça uma torneira a pingar?',
-        content: 'O desperdício é maior do que parece. Uma torneira que pinga uma gota por segundo desperdiça cerca de 20 litros por dia, ou seja, mais de 7 000 litros por ano. Em termos de custo, com o preço médio da água em Portugal (cerca de 2€ por m³), isto representa um desperdício de 14€ a 20€ por ano — apenas para uma torneira. Se tiver várias torneiras a pingar, o custo multiplica-se rapidamente. Para além do desperdício financeiro, há o impacto ambiental. Em Portugal, onde a escassez de água é uma preocupação crescente, cada litro conta. Reparar uma torneira a pingar é um gesto simples com impacto real na sustentabilidade.'
+        content: 'O desperdício é maior do que parece. Uma torneira que pinga uma gota por segundo desperdiça cerca de 20 litros por dia, ou seja, mais de 7 000 litros por ano. Em termos de custo, com o preço médio da água em Portugal (cerca de 2€ por m³), isto representa um desperdício de 14€ a 20€ por ano, apenas para uma torneira. Se tiver várias torneiras a pingar, o custo multiplica-se rapidamente. Para além do desperdício financeiro, há o impacto ambiental. Em Portugal, onde a escassez de água é uma preocupação crescente, cada litro conta. Reparar uma torneira a pingar é um gesto simples com impacto real na sustentabilidade.'
       },
       {
         heading: 'Prevenção: como evitar que as torneiras pinguem',
-        content: 'Para prolongar a vida das suas torneiras e evitar fugas: não force as torneiras ao fechar — feche com suavidade, sem apertar com força. Instale um redutor de pressão se a pressão da rede for superior a 4 bar. Limpe periodicamente o filtro (arejador) na ponta da torneira — acumula calcário e impurezas. Use um descalcificador de água se viver numa zona com água muito calcária (comum na região do Tâmega e Sousa). Escolha torneiras de qualidade de marcas reconhecidas (Grohe, Roca, Hansgrohe) — custam mais mas duram muito mais tempo. Faça uma revisão anual da canalização com um profissional — previne problemas maiores.'
+        content: 'Para prolongar a vida das suas torneiras e evitar fugas: não force as torneiras ao fechar, feche com suavidade, sem apertar com força. Instale um redutor de pressão se a pressão da rede for superior a 4 bar. Limpe periodicamente o filtro (arejador) na ponta da torneira, acumula calcário e impurezas. Use um descalcificador de água se viver numa zona com água muito calcária (comum na região do Tâmega e Sousa). Escolha torneiras de qualidade de marcas reconhecidas (Grohe, Roca, Hansgrohe), custam mais mas duram muito mais tempo. Faça uma revisão anual da canalização com um profissional, previne problemas maiores.'
       },
       {
         heading: 'Quando chamar um canalizador',
-        content: 'Deve chamar um canalizador profissional quando: a torneira pinga mesmo completamente fechada e não consegue identificar a causa. A fuga é na base da torneira ou na ligação à parede (pode indicar problemas na canalização). Ao desmontar a torneira, verificou corrosão ou danos na sede da válvula. A torneira é embutida (encastrada na parede) — a reparação requer acesso à canalização interior. A fuga está a causar danos (humidade, manchas na parede ou armário inferior). Não consegue encontrar peças de substituição compatíveis. Na VITFIX, os nossos canalizadores na região do Tâmega e Sousa diagnosticam e reparam torneiras a pingar no próprio dia. Orçamento gratuito e sem compromisso.'
+        content: 'Deve chamar um canalizador profissional quando: a torneira pinga mesmo completamente fechada e não consegue identificar a causa. A fuga é na base da torneira ou na ligação à parede (pode indicar problemas na canalização). Ao desmontar a torneira, verificou corrosão ou danos na sede da válvula. A torneira é embutida (encastrada na parede), a reparação requer acesso à canalização interior. A fuga está a causar danos (humidade, manchas na parede ou armário inferior). Não consegue encontrar peças de substituição compatíveis. Na VITFIX, os nossos canalizadores na região do Tâmega e Sousa diagnosticam e reparam torneiras a pingar no próprio dia. Orçamento gratuito e sem compromisso.'
       },
     ],
     ctaText: 'Tem uma torneira a pingar? Peça orçamento gratuito a um canalizador VITFIX.',
@@ -2315,8 +2315,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'autoclismo-nao-enche-causas',
-    title: 'Autoclismo Não Enche — Causas, Diagnóstico e Soluções',
-    metaTitle: 'Autoclismo Não Enche — Causas e Soluções | VITFIX',
+    title: 'Autoclismo Não Enche, Causas, Diagnóstico e Soluções',
+    metaTitle: 'Autoclismo Não Enche : Causas e Soluções | VITFIX',
     metaDesc: 'O autoclismo não enche ou enche muito devagar? Descubra as causas mais comuns (boia, válvula, pressão) e como resolver. Guia prático com preços.',
     category: 'canalizacao',
     icon: '🚽',
@@ -2325,11 +2325,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Causas mais comuns',
-        content: 'Os problemas de autoclismo dividem-se em duas categorias: o autoclismo não enche (ou enche devagar) e o autoclismo perde água. No primeiro caso, as causas mais frequentes são: torneira de esquadria fechada ou parcialmente fechada — é a causa mais simples e mais esquecida. Verifique se a torneira que alimenta o autoclismo está completamente aberta. Boia desajustada ou avariada — a boia controla o nível de água no autoclismo. Se estiver mal regulada (demasiado baixa), o autoclismo enche pouco. Se estiver presa ou avariada, pode não deixar entrar água. Válvula de entrada obstruída — depósitos de calcário ou detritos podem bloquear parcial ou totalmente a entrada de água. Problema de pressão na rede — se a pressão de água for baixa (comum em andares altos ou zonas rurais), o autoclismo pode demorar muito a encher.'
+        content: 'Os problemas de autoclismo dividem-se em duas categorias: o autoclismo não enche (ou enche devagar) e o autoclismo perde água. No primeiro caso, as causas mais frequentes são: torneira de esquadria fechada ou parcialmente fechada, é a causa mais simples e mais esquecida. Verifique se a torneira que alimenta o autoclismo está completamente aberta. Boia desajustada ou avariada, a boia controla o nível de água no autoclismo. Se estiver mal regulada (demasiado baixa), o autoclismo enche pouco. Se estiver presa ou avariada, pode não deixar entrar água. Válvula de entrada obstruída, depósitos de calcário ou detritos podem bloquear parcial ou totalmente a entrada de água. Problema de pressão na rede, se a pressão de água for baixa (comum em andares altos ou zonas rurais), o autoclismo pode demorar muito a encher.'
       },
       {
         heading: 'Autoclismo que perde água',
-        content: 'Se o autoclismo enche mas perde água constantemente (ouve-se a água a correr), as causas mais comuns são: válvula de descarga (flapper) deteriorada — a borracha que sela o fundo do autoclismo desgasta-se com o tempo e começa a deixar passar água. É a reparação mais comum e mais simples — a peça custa 5€ a 15€. Boia ajustada demasiado alta — se a boia estiver regulada para um nível de água acima do tubo de ladrão (overflow), a água escorre constantemente pelo ladrão para a sanita. Mecanismo de descarga partido — nos autoclismos mais modernos com botão duplo, o mecanismo central pode partir-se ou desalinhar-se. Calcário acumulado — depósitos de calcário na sede da válvula impedem uma vedação correta. Um autoclismo a perder água pode desperdiçar 100 a 400 litros por dia — muito mais do que uma torneira a pingar.'
+        content: 'Se o autoclismo enche mas perde água constantemente (ouve-se a água a correr), as causas mais comuns são: válvula de descarga (flapper) deteriorada, a borracha que sela o fundo do autoclismo desgasta-se com o tempo e começa a deixar passar água. É a reparação mais comum e mais simples, a peça custa 5€ a 15€. Boia ajustada demasiado alta, se a boia estiver regulada para um nível de água acima do tubo de ladrão (overflow), a água escorre constantemente pelo ladrão para a sanita. Mecanismo de descarga partido, nos autoclismos mais modernos com botão duplo, o mecanismo central pode partir-se ou desalinhar-se. Calcário acumulado, depósitos de calcário na sede da válvula impedem uma vedação correta. Um autoclismo a perder água pode desperdiçar 100 a 400 litros por dia, muito mais do que uma torneira a pingar.'
       },
       {
         heading: 'Diagnóstico rápido em casa',
@@ -2337,15 +2337,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Reparação vs. substituição do mecanismo',
-        content: 'A boa notícia é que a maioria dos problemas de autoclismo são reparáveis a baixo custo. Substituir a válvula de descarga (flapper): peça custa 5€-15€, pode ser feito sem canalizador em muitos casos. Substituir a boia ou válvula de entrada: peça custa 10€-25€, requer alguma habilidade manual. Substituir o mecanismo completo: o kit completo (entrada + descarga) custa 25€-60€, a instalação por um canalizador custa 30€-70€ de mão de obra. Substituir o autoclismo inteiro: se o autoclismo estiver fissurado ou for muito antigo, a substituição completa custa entre 80€ e 200€ (peça + instalação). Os autoclismos embutidos (de parede) são mais caros de reparar — o acesso ao mecanismo requer abertura do painel, e os mecanismos de marcas como Geberit custam entre 30€ e 80€.'
+        content: 'A boa notícia é que a maioria dos problemas de autoclismo são reparáveis a baixo custo. Substituir a válvula de descarga (flapper): peça custa 5€-15€, pode ser feito sem canalizador em muitos casos. Substituir a boia ou válvula de entrada: peça custa 10€-25€, requer alguma habilidade manual. Substituir o mecanismo completo: o kit completo (entrada + descarga) custa 25€-60€, a instalação por um canalizador custa 30€-70€ de mão de obra. Substituir o autoclismo inteiro: se o autoclismo estiver fissurado ou for muito antigo, a substituição completa custa entre 80€ e 200€ (peça + instalação). Os autoclismos embutidos (de parede) são mais caros de reparar, o acesso ao mecanismo requer abertura do painel, e os mecanismos de marcas como Geberit custam entre 30€ e 80€.'
       },
       {
         heading: 'Autoclismos embutidos vs. exteriores',
-        content: 'Os autoclismos embutidos (de parede, marca Geberit ou OLI) são cada vez mais populares em casas modernas e remodelações. No entanto, quando avaria, o acesso ao mecanismo é mais complicado: é necessário abrir o painel de inspeção (se existir) ou, em alguns casos, partir azulejos para aceder ao mecanismo. Por isso, recomendamos sempre instalar autoclismos embutidos com painel de inspeção acessível. Os mecanismos Geberit são de alta qualidade e raramente avaria, mas quando o fazem, as peças são específicas e mais caras. Os autoclismos exteriores (de cerâmica, montados sobre a sanita) são mais fáceis de reparar — a tampa retira-se facilmente e todas as peças são acessíveis. Os mecanismos são mais universais e mais baratos.'
+        content: 'Os autoclismos embutidos (de parede, marca Geberit ou OLI) são cada vez mais populares em casas modernas e remodelações. No entanto, quando avaria, o acesso ao mecanismo é mais complicado: é necessário abrir o painel de inspeção (se existir) ou, em alguns casos, partir azulejos para aceder ao mecanismo. Por isso, recomendamos sempre instalar autoclismos embutidos com painel de inspeção acessível. Os mecanismos Geberit são de alta qualidade e raramente avaria, mas quando o fazem, as peças são específicas e mais caras. Os autoclismos exteriores (de cerâmica, montados sobre a sanita) são mais fáceis de reparar, a tampa retira-se facilmente e todas as peças são acessíveis. Os mecanismos são mais universais e mais baratos.'
       },
       {
         heading: 'Prevenção e manutenção',
-        content: 'Para evitar problemas no autoclismo: não use pastilhas de limpeza dentro do autoclismo — os químicos deterioram as borrachas mais rapidamente. Faça uma limpeza anual do mecanismo — retire a tampa e limpe os depósitos de calcário com vinagre branco. Verifique periodicamente se há fugas (teste do corante). Se notar que o autoclismo demora cada vez mais a encher, verifique a válvula de entrada antes que bloqueie completamente. Em zonas com água muito calcária (como partes da região do Tâmega e Sousa), considere instalar um filtro na entrada de água do autoclismo.'
+        content: 'Para evitar problemas no autoclismo: não use pastilhas de limpeza dentro do autoclismo, os químicos deterioram as borrachas mais rapidamente. Faça uma limpeza anual do mecanismo, retire a tampa e limpe os depósitos de calcário com vinagre branco. Verifique periodicamente se há fugas (teste do corante). Se notar que o autoclismo demora cada vez mais a encher, verifique a válvula de entrada antes que bloqueie completamente. Em zonas com água muito calcária (como partes da região do Tâmega e Sousa), considere instalar um filtro na entrada de água do autoclismo.'
       },
       {
         heading: 'Quando chamar um canalizador',
@@ -2358,41 +2358,41 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'teto-a-pingar-o-que-fazer',
-    title: 'Teto a Pingar — O Que Fazer e Como Resolver (Guia Urgente)',
-    metaTitle: 'Teto a Pingar — O Que Fazer e Como Resolver | VITFIX',
+    title: 'Teto a Pingar, O Que Fazer e Como Resolver (Guia Urgente)',
+    metaTitle: 'Teto a Pingar : O Que Fazer e Como Resolver | VITFIX',
     metaDesc: 'Tem o teto a pingar? Saiba o que fazer imediatamente, as causas possíveis (infiltração, fuga, condensação) e como resolver. Guia urgente.',
     category: 'canalizacao',
     icon: '🏠',
     datePublished: '2026-03-15',
-    intro: 'Um teto a pingar é uma situação urgente que exige ação imediata. Quanto mais tempo se espera, maiores são os danos — a água pode danificar a estrutura, mobiliário, equipamentos elétricos e favorecer o aparecimento de bolores prejudiciais à saúde. Neste guia urgente, explicamos o que fazer nos primeiros minutos, como identificar a causa e como resolver definitivamente o problema.',
+    intro: 'Um teto a pingar é uma situação urgente que exige ação imediata. Quanto mais tempo se espera, maiores são os danos, a água pode danificar a estrutura, mobiliário, equipamentos elétricos e favorecer o aparecimento de bolores prejudiciais à saúde. Neste guia urgente, explicamos o que fazer nos primeiros minutos, como identificar a causa e como resolver definitivamente o problema.',
     sections: [
       {
         heading: 'O que fazer imediatamente',
-        content: 'Se o teto está a pingar, aja nos primeiros minutos: coloque um balde ou recipiente sob o ponto de fuga para conter a água. Proteja o mobiliário e equipamentos elétricos que estejam por baixo — afaste-os ou cubra-os com plástico. Se houver uma bolha de água no teto (barriga), NÃO a rebente — pode libertar uma grande quantidade de água de uma vez. Em vez disso, fure a bolha com um prego fino sobre o balde para deixar a água escorrer de forma controlada. Desligue a eletricidade do circuito correspondente a essa divisão — água e eletricidade são uma combinação perigosa. Verifique se há algum vizinho de cima (em apartamentos) que possa ter uma fuga — muitas vezes o problema vem do andar superior. Contacte um profissional o mais rapidamente possível — cada hora conta.'
+        content: 'Se o teto está a pingar, aja nos primeiros minutos: coloque um balde ou recipiente sob o ponto de fuga para conter a água. Proteja o mobiliário e equipamentos elétricos que estejam por baixo, afaste-os ou cubra-os com plástico. Se houver uma bolha de água no teto (barriga), NÃO a rebente, pode libertar uma grande quantidade de água de uma vez. Em vez disso, fure a bolha com um prego fino sobre o balde para deixar a água escorrer de forma controlada. Desligue a eletricidade do circuito correspondente a essa divisão, água e eletricidade são uma combinação perigosa. Verifique se há algum vizinho de cima (em apartamentos) que possa ter uma fuga, muitas vezes o problema vem do andar superior. Contacte um profissional o mais rapidamente possível, cada hora conta.'
       },
       {
         heading: 'Causas mais comuns de teto a pingar',
-        content: 'As causas dividem-se em três categorias principais. Fuga de água na canalização: é a causa mais comum em apartamentos. Um cano furado, uma junta deteriorada, ou um autoclismo a perder água no andar de cima podem provocar pingos no teto de baixo. A água pode percorrer vários metros pela laje antes de aparecer — o ponto de fuga no teto pode não ser diretamente abaixo do cano danificado. Infiltração pelo telhado ou terraço: em moradias ou últimos andares, a causa mais provável é infiltração de água da chuva. Telhas partidas, membrana de impermeabilização danificada, ou caleiras entupidas são as origens mais frequentes. A infiltração intensifica-se nos dias de chuva forte. Condensação: em casos menos graves, o "pingar" pode ser condensação — especialmente em divisões húmidas (cozinha, casa de banho) mal ventiladas, durante o inverno. A condensação forma gotículas que pingam do teto, mas não é uma fuga.'
+        content: 'As causas dividem-se em três categorias principais. Fuga de água na canalização: é a causa mais comum em apartamentos. Um cano furado, uma junta deteriorada, ou um autoclismo a perder água no andar de cima podem provocar pingos no teto de baixo. A água pode percorrer vários metros pela laje antes de aparecer, o ponto de fuga no teto pode não ser diretamente abaixo do cano danificado. Infiltração pelo telhado ou terraço: em moradias ou últimos andares, a causa mais provável é infiltração de água da chuva. Telhas partidas, membrana de impermeabilização danificada, ou caleiras entupidas são as origens mais frequentes. A infiltração intensifica-se nos dias de chuva forte. Condensação: em casos menos graves, o "pingar" pode ser condensação, especialmente em divisões húmidas (cozinha, casa de banho) mal ventiladas, durante o inverno. A condensação forma gotículas que pingam do teto, mas não é uma fuga.'
       },
       {
         heading: 'Teto a pingar em apartamento',
-        content: 'Em apartamentos, o problema mais frequente é uma fuga de água na canalização do andar superior. Os passos a seguir são: contacte imediatamente o vizinho de cima — peça-lhe para verificar se tem alguma fuga visível na casa de banho, cozinha ou lavandaria. Contacte a administração do condomínio — se a fuga vem de partes comuns (coluna de esgoto, canalização geral), a reparação é responsabilidade do condomínio. Documente os danos com fotografias e vídeos — serão necessários para o seguro e para eventual responsabilização. Se o vizinho não está em casa ou não colabora, o condomínio pode autorizar a intervenção com acesso ao apartamento de cima. Em termos legais, o proprietário do apartamento de onde provém a fuga é responsável pelos danos causados ao vizinho (artigo 493.º do Código Civil).'
+        content: 'Em apartamentos, o problema mais frequente é uma fuga de água na canalização do andar superior. Os passos a seguir são: contacte imediatamente o vizinho de cima, peça-lhe para verificar se tem alguma fuga visível na casa de banho, cozinha ou lavandaria. Contacte a administração do condomínio, se a fuga vem de partes comuns (coluna de esgoto, canalização geral), a reparação é responsabilidade do condomínio. Documente os danos com fotografias e vídeos, serão necessários para o seguro e para eventual responsabilização. Se o vizinho não está em casa ou não colabora, o condomínio pode autorizar a intervenção com acesso ao apartamento de cima. Em termos legais, o proprietário do apartamento de onde provém a fuga é responsável pelos danos causados ao vizinho (artigo 493.º do Código Civil).'
       },
       {
         heading: 'Teto a pingar em moradia',
-        content: 'Numa moradia, o teto a pingar pode ter origens diferentes. Se pinga de um teto interior (não é o último piso): provavelmente é uma fuga na canalização do piso superior. Verifique a casa de banho, cozinha, ou qualquer ponto de água que fique acima da zona da fuga. Se pinga do teto do último piso ou sótão: a causa mais provável é infiltração pelo telhado. Verifique (sem subir ao telhado em dias de chuva) se há telhas partidas ou deslocadas visíveis do chão. Verifique se as caleiras estão limpas e a drenar corretamente. Se a casa tem terraço ou cobertura plana, a membrana de impermeabilização pode estar danificada — normalmente dura 10 a 15 anos antes de precisar de ser refeita. A reparação do telhado deve ser feita por um profissional — trabalhos em altura são perigosos e requerem equipamento adequado.'
+        content: 'Numa moradia, o teto a pingar pode ter origens diferentes. Se pinga de um teto interior (não é o último piso): provavelmente é uma fuga na canalização do piso superior. Verifique a casa de banho, cozinha, ou qualquer ponto de água que fique acima da zona da fuga. Se pinga do teto do último piso ou sótão: a causa mais provável é infiltração pelo telhado. Verifique (sem subir ao telhado em dias de chuva) se há telhas partidas ou deslocadas visíveis do chão. Verifique se as caleiras estão limpas e a drenar corretamente. Se a casa tem terraço ou cobertura plana, a membrana de impermeabilização pode estar danificada, normalmente dura 10 a 15 anos antes de precisar de ser refeita. A reparação do telhado deve ser feita por um profissional, trabalhos em altura são perigosos e requerem equipamento adequado.'
       },
       {
         heading: 'Custos de reparação',
-        content: 'O custo depende da causa e da extensão do dano. Reparação de fuga na canalização: 80€ a 250€ (diagnóstico + reparação do cano ou junta). Reparação de telhas partidas: 100€ a 300€ (inclui acesso ao telhado e substituição de telhas). Impermeabilização de terraço (por m²): 15€ a 35€/m². Reparação de caleiras entupidas: 50€ a 120€. Reparação do teto danificado pela água (após resolver a causa): pintura anti-humidade 15€-25€/m², substituição de pladur danificado 20€-40€/m². Importante: resolva SEMPRE a causa antes de reparar os danos estéticos. Pintar sobre manchas de humidade sem resolver a origem é deitar dinheiro fora — o problema reaparece sempre.'
+        content: 'O custo depende da causa e da extensão do dano. Reparação de fuga na canalização: 80€ a 250€ (diagnóstico + reparação do cano ou junta). Reparação de telhas partidas: 100€ a 300€ (inclui acesso ao telhado e substituição de telhas). Impermeabilização de terraço (por m²): 15€ a 35€/m². Reparação de caleiras entupidas: 50€ a 120€. Reparação do teto danificado pela água (após resolver a causa): pintura anti-humidade 15€-25€/m², substituição de pladur danificado 20€-40€/m². Importante: resolva SEMPRE a causa antes de reparar os danos estéticos. Pintar sobre manchas de humidade sem resolver a origem é deitar dinheiro fora, o problema reaparece sempre.'
       },
       {
         heading: 'Seguro cobre danos de água?',
-        content: 'A maioria dos seguros multirriscos habitação cobre danos causados por água, incluindo fugas de canalização e infiltrações. No entanto, há condições a cumprir: o seguro geralmente cobre os danos causados pela água (pintura, mobiliário, equipamentos danificados) mas NÃO cobre a reparação da causa (o cano ou telha que provocou a fuga). Deve comunicar o sinistro à seguradora o mais rapidamente possível — muitas exigem comunicação nas primeiras 48 a 72 horas. Documente tudo com fotografias, vídeos e, se possível, um relatório do profissional que fez a reparação. Se o dano é causado por falta de manutenção (caleiras nunca limpas, telhado em mau estado evidente), a seguradora pode recusar a cobertura. Guarde todas as faturas de reparação — são necessárias para a reclamação ao seguro.'
+        content: 'A maioria dos seguros multirriscos habitação cobre danos causados por água, incluindo fugas de canalização e infiltrações. No entanto, há condições a cumprir: o seguro geralmente cobre os danos causados pela água (pintura, mobiliário, equipamentos danificados) mas NÃO cobre a reparação da causa (o cano ou telha que provocou a fuga). Deve comunicar o sinistro à seguradora o mais rapidamente possível, muitas exigem comunicação nas primeiras 48 a 72 horas. Documente tudo com fotografias, vídeos e, se possível, um relatório do profissional que fez a reparação. Se o dano é causado por falta de manutenção (caleiras nunca limpas, telhado em mau estado evidente), a seguradora pode recusar a cobertura. Guarde todas as faturas de reparação, são necessárias para a reclamação ao seguro.'
       },
       {
         heading: 'Como prevenir futuros problemas',
-        content: 'Para evitar que o teto volte a pingar: faça uma revisão anual da canalização com um canalizador profissional. Limpe as caleiras pelo menos duas vezes por ano (primavera e outono). Inspecione o telhado visualmente uma vez por ano (após o inverno é o momento ideal). Em terraços e coberturas planas, verifique o estado da impermeabilização a cada 2-3 anos. Mantenha boa ventilação nas divisões húmidas para evitar condensação. Em apartamentos, mantenha contacto com os vizinhos e o condomínio para resolver problemas rapidamente. Na região do Tâmega e Sousa, os invernos chuvosos são particularmente exigentes para telhados e impermeabilizações — a manutenção preventiva é ainda mais importante.'
+        content: 'Para evitar que o teto volte a pingar: faça uma revisão anual da canalização com um canalizador profissional. Limpe as caleiras pelo menos duas vezes por ano (primavera e outono). Inspecione o telhado visualmente uma vez por ano (após o inverno é o momento ideal). Em terraços e coberturas planas, verifique o estado da impermeabilização a cada 2-3 anos. Mantenha boa ventilação nas divisões húmidas para evitar condensação. Em apartamentos, mantenha contacto com os vizinhos e o condomínio para resolver problemas rapidamente. Na região do Tâmega e Sousa, os invernos chuvosos são particularmente exigentes para telhados e impermeabilizações, a manutenção preventiva é ainda mais importante.'
       },
     ],
     ctaText: 'Teto a pingar? Contacte a VITFIX para diagnóstico e reparação urgente.',
@@ -2401,8 +2401,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'cano-entupido-como-resolver',
-    title: 'Cano Entupido — Como Resolver e Quando Chamar Profissional',
-    metaTitle: 'Cano Entupido — Como Resolver e Quando Chamar | VITFIX',
+    title: 'Cano Entupido, Como Resolver e Quando Chamar Profissional',
+    metaTitle: 'Cano Entupido : Como Resolver e Quando Chamar | VITFIX',
     metaDesc: 'Cano entupido? Descubra métodos caseiros seguros, o que NÃO fazer, e quando chamar um profissional de desentupimento. Preços e dicas.',
     category: 'desentupimento',
     icon: '🔧',
@@ -2411,7 +2411,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'Tipos de entupimento e causas',
-        content: 'Os entupimentos dividem-se por localização e causa. Na cozinha, a causa número um é a gordura — ao despejar gordura pelo ralo, esta solidifica ao arrefecer e acumula-se nas paredes interiores dos canos, apanhando restos de comida e formando uma obstrução cada vez maior. Na casa de banho, os culpados habituais são cabelos (no lavatório e ralo do duche), restos de sabão que se acumulam com os cabelos formando uma pasta densa, e toalhitas húmidas deitadas pela sanita. No esgoto exterior, as causas mais comuns são raízes de árvores que penetram nas juntas dos tubos, acumulação de terra e detritos, e colapso parcial de tubos antigos em cerâmica ou fibrocimento. Na sanita, os entupimentos são geralmente causados por objetos estranhos (toalhitas, pensos, brinquedos de crianças) ou excesso de papel higiénico.'
+        content: 'Os entupimentos dividem-se por localização e causa. Na cozinha, a causa número um é a gordura, ao despejar gordura pelo ralo, esta solidifica ao arrefecer e acumula-se nas paredes interiores dos canos, apanhando restos de comida e formando uma obstrução cada vez maior. Na casa de banho, os culpados habituais são cabelos (no lavatório e ralo do duche), restos de sabão que se acumulam com os cabelos formando uma pasta densa, e toalhitas húmidas deitadas pela sanita. No esgoto exterior, as causas mais comuns são raízes de árvores que penetram nas juntas dos tubos, acumulação de terra e detritos, e colapso parcial de tubos antigos em cerâmica ou fibrocimento. Na sanita, os entupimentos são geralmente causados por objetos estranhos (toalhitas, pensos, brinquedos de crianças) ou excesso de papel higiénico.'
       },
       {
         heading: 'Métodos caseiros que funcionam',
@@ -2419,11 +2419,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'O que NÃO fazer',
-        content: 'Atenção — alguns métodos populares podem piorar a situação ou causar danos. NÃO use produtos químicos de desentupimento: contêm ácido sulfúrico ou soda cáustica concentrada. Podem corroer tubos antigos (especialmente metálicos), danificar juntas de borracha, e são perigosos para a saúde e ambiente. Se já usou e não funcionou, avise o canalizador — o contacto com estes produtos durante a reparação pode causar queimaduras. NÃO use arames ou objetos improvisados: podem perfurar tubos de PVC, ficar presos nos canos, ou empurrar a obstrução para mais fundo. NÃO despeje mais água: se o cano está completamente entupido, adicionar água só vai causar transbordo. NÃO misture produtos químicos: a combinação de diferentes produtos de desentupimento pode criar gases tóxicos. NÃO tente desmontar sifões ou tubos sem experiência — pode causar inundações se não souber remontar corretamente.'
+        content: 'Atenção, alguns métodos populares podem piorar a situação ou causar danos. NÃO use produtos químicos de desentupimento: contêm ácido sulfúrico ou soda cáustica concentrada. Podem corroer tubos antigos (especialmente metálicos), danificar juntas de borracha, e são perigosos para a saúde e ambiente. Se já usou e não funcionou, avise o canalizador, o contacto com estes produtos durante a reparação pode causar queimaduras. NÃO use arames ou objetos improvisados: podem perfurar tubos de PVC, ficar presos nos canos, ou empurrar a obstrução para mais fundo. NÃO despeje mais água: se o cano está completamente entupido, adicionar água só vai causar transbordo. NÃO misture produtos químicos: a combinação de diferentes produtos de desentupimento pode criar gases tóxicos. NÃO tente desmontar sifões ou tubos sem experiência, pode causar inundações se não souber remontar corretamente.'
       },
       {
         heading: 'Quando chamar um profissional',
-        content: 'Chame um profissional de desentupimento quando: os métodos caseiros não funcionaram após 2-3 tentativas. A água está completamente estagnada (não escorre de todo). Vários pontos de água da casa estão com escoamento lento ao mesmo tempo — indica um entupimento na coluna de esgoto ou no coletor. Há cheiro forte a esgoto na casa — pode indicar obstrução no tubo de ventilação ou na fossa séptica. A sanita transborda ao dar descarga. Há água a sair por ralos de chão ou de outros pontos inesperados. O profissional de desentupimento dispõe de equipamento que os métodos caseiros não podem substituir: máquinas de alta pressão (hidrojato) que desobstruem qualquer tipo de entupimento, molas elétricas profissionais que alcançam obstruções a dezenas de metros, e câmaras de inspeção vídeo que permitem ver o interior dos canos e identificar a causa exata.'
+        content: 'Chame um profissional de desentupimento quando: os métodos caseiros não funcionaram após 2-3 tentativas. A água está completamente estagnada (não escorre de todo). Vários pontos de água da casa estão com escoamento lento ao mesmo tempo, indica um entupimento na coluna de esgoto ou no coletor. Há cheiro forte a esgoto na casa, pode indicar obstrução no tubo de ventilação ou na fossa séptica. A sanita transborda ao dar descarga. Há água a sair por ralos de chão ou de outros pontos inesperados. O profissional de desentupimento dispõe de equipamento que os métodos caseiros não podem substituir: máquinas de alta pressão (hidrojato) que desobstruem qualquer tipo de entupimento, molas elétricas profissionais que alcançam obstruções a dezenas de metros, e câmaras de inspeção vídeo que permitem ver o interior dos canos e identificar a causa exata.'
       },
       {
         heading: 'Preços de desentupimento profissional',
@@ -2431,7 +2431,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Prevenção de entupimentos',
-        content: 'A prevenção é sempre mais barata do que a reparação. Na cozinha: nunca deite gordura ou óleo pelo ralo — guarde num frasco e deposite no oleão. Use um filtro de ralo para apanhar restos de comida. Despeje água quente pelo ralo uma vez por semana para dissolver acumulações de gordura. Na casa de banho: instale um filtro de cabelos no ralo do duche e do lavatório (custam 2€-5€ e evitam a maioria dos entupimentos). Não deite toalhitas húmidas pela sanita — mesmo as que dizem ser "biodegradáveis" não se dissolvem na canalização. Na sanita: ensine as crianças que a sanita não é caixote do lixo — apenas papel higiénico e necessidades fisiológicas. No exterior: limpe as sarjetas e caleiras duas vezes por ano. Se tem árvores perto da canalização, faça uma inspeção a cada 2-3 anos para detetar intrusão de raízes.'
+        content: 'A prevenção é sempre mais barata do que a reparação. Na cozinha: nunca deite gordura ou óleo pelo ralo, guarde num frasco e deposite no oleão. Use um filtro de ralo para apanhar restos de comida. Despeje água quente pelo ralo uma vez por semana para dissolver acumulações de gordura. Na casa de banho: instale um filtro de cabelos no ralo do duche e do lavatório (custam 2€-5€ e evitam a maioria dos entupimentos). Não deite toalhitas húmidas pela sanita, mesmo as que dizem ser "biodegradáveis" não se dissolvem na canalização. Na sanita: ensine as crianças que a sanita não é caixote do lixo, apenas papel higiénico e necessidades fisiológicas. No exterior: limpe as sarjetas e caleiras duas vezes por ano. Se tem árvores perto da canalização, faça uma inspeção a cada 2-3 anos para detetar intrusão de raízes.'
       },
     ],
     ctaText: 'Cano entupido que não consegue resolver? Peça desentupimento profissional VITFIX.',
@@ -2440,41 +2440,41 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'cheiro-a-esgoto-em-casa',
-    title: 'Cheiro a Esgoto em Casa — Causas e Como Eliminar',
-    metaTitle: 'Cheiro a Esgoto em Casa — Causas e Soluções | VITFIX',
+    title: 'Cheiro a Esgoto em Casa, Causas e Como Eliminar',
+    metaTitle: 'Cheiro a Esgoto em Casa : Causas e Soluções | VITFIX',
     metaDesc: 'Cheiro a esgoto em casa? Descubra as 6 causas mais comuns (sifão seco, fuga, ventilação) e como eliminar o mau cheiro definitivamente.',
     category: 'desentupimento',
     icon: '🏠',
     datePublished: '2026-03-15',
-    intro: 'Um cheiro a esgoto em casa é mais do que desagradável — pode indicar um problema na canalização que afeta a saúde e o conforto da família. Os gases de esgoto contêm metano, sulfeto de hidrogénio e outros compostos que, em concentrações elevadas, podem causar dores de cabeça, náuseas e irritação das vias respiratórias. Neste guia, explicamos as causas mais comuns e como resolver cada uma.',
+    intro: 'Um cheiro a esgoto em casa é mais do que desagradável, pode indicar um problema na canalização que afeta a saúde e o conforto da família. Os gases de esgoto contêm metano, sulfeto de hidrogénio e outros compostos que, em concentrações elevadas, podem causar dores de cabeça, náuseas e irritação das vias respiratórias. Neste guia, explicamos as causas mais comuns e como resolver cada uma.',
     sections: [
       {
         heading: 'As 6 causas mais comuns',
-        content: 'O cheiro a esgoto dentro de casa tem quase sempre uma destas origens. Sifão seco — a causa mais frequente e mais fácil de resolver. Cada ralo (lavatório, banheira, duche, máquina de lavar) tem um sifão em forma de U que mantém uma pequena quantidade de água que bloqueia a passagem dos gases do esgoto. Se um ponto de água não é usado durante semanas, a água do sifão evapora e os gases sobem. Sifão obstruído ou sujo — mesmo com água, um sifão muito sujo (acumulação de cabelos, gordura, detritos) pode não bloquear eficazmente os odores. Tampa de ralo danificada ou ausente — ralos de chão sem tampa adequada permitem a passagem direta dos gases. Falha no sistema de ventilação — a canalização de esgoto tem tubos de ventilação que saem pelo telhado. Se estão obstruídos (por ninhos, detritos, folhas), a pressão negativa pode aspirar a água dos sifões. Fuga ou fissura no tubo de esgoto — um tubo rachado ou uma junta deteriorada permite a fuga de gases para dentro de casa. Fossa séptica cheia — em casas com fossa séptica (sem ligação à rede pública), uma fossa cheia provoca mau cheiro e pode causar refluxo.'
+        content: 'O cheiro a esgoto dentro de casa tem quase sempre uma destas origens. Sifão seco, a causa mais frequente e mais fácil de resolver. Cada ralo (lavatório, banheira, duche, máquina de lavar) tem um sifão em forma de U que mantém uma pequena quantidade de água que bloqueia a passagem dos gases do esgoto. Se um ponto de água não é usado durante semanas, a água do sifão evapora e os gases sobem. Sifão obstruído ou sujo, mesmo com água, um sifão muito sujo (acumulação de cabelos, gordura, detritos) pode não bloquear eficazmente os odores. Tampa de ralo danificada ou ausente, ralos de chão sem tampa adequada permitem a passagem direta dos gases. Falha no sistema de ventilação, a canalização de esgoto tem tubos de ventilação que saem pelo telhado. Se estão obstruídos (por ninhos, detritos, folhas), a pressão negativa pode aspirar a água dos sifões. Fuga ou fissura no tubo de esgoto, um tubo rachado ou uma junta deteriorada permite a fuga de gases para dentro de casa. Fossa séptica cheia, em casas com fossa séptica (sem ligação à rede pública), uma fossa cheia provoca mau cheiro e pode causar refluxo.'
       },
       {
         heading: 'Diagnóstico: como identificar a origem',
-        content: 'Para encontrar a fonte do cheiro, siga estes passos. Identifique a divisão — o cheiro é mais forte na casa de banho, cozinha, lavandaria ou zona exterior? Isso ajuda a localizar o problema. Verifique os sifões — abra todas as torneiras e ralos que não são usados regularmente. Deixe correr água durante 30 segundos em cada um para encher os sifões. Se o cheiro desaparece, o problema era um sifão seco. Inspecione as tampas de ralo — verifique se todos os ralos de chão têm tampa e se estão bem encaixadas. Verifique a máquina de lavar — a mangueira de descarga da máquina de lavar roupa ou loiça deve estar ligada ao esgoto com um sifão adequado. Uma ligação direta (sem sifão) permite a passagem de odores. Procure manchas de humidade — uma fuga no tubo de esgoto geralmente acompanha-se de manchas de humidade na parede ou chão. Se sente cheiro na zona exterior, verifique tampas de caixas de visita, sarjetas e o estado da fossa séptica.'
+        content: 'Para encontrar a fonte do cheiro, siga estes passos. Identifique a divisão, o cheiro é mais forte na casa de banho, cozinha, lavandaria ou zona exterior? Isso ajuda a localizar o problema. Verifique os sifões, abra todas as torneiras e ralos que não são usados regularmente. Deixe correr água durante 30 segundos em cada um para encher os sifões. Se o cheiro desaparece, o problema era um sifão seco. Inspecione as tampas de ralo, verifique se todos os ralos de chão têm tampa e se estão bem encaixadas. Verifique a máquina de lavar, a mangueira de descarga da máquina de lavar roupa ou loiça deve estar ligada ao esgoto com um sifão adequado. Uma ligação direta (sem sifão) permite a passagem de odores. Procure manchas de humidade, uma fuga no tubo de esgoto geralmente acompanha-se de manchas de humidade na parede ou chão. Se sente cheiro na zona exterior, verifique tampas de caixas de visita, sarjetas e o estado da fossa séptica.'
       },
       {
         heading: 'Soluções para cada causa',
-        content: 'Sifão seco: simplesmente abra a torneira e deixe correr água durante 30 segundos. Em pontos de água raramente usados (casa de banho de hóspedes, por exemplo), despeje meio copo de óleo mineral pelo ralo — o óleo flutua sobre a água e retarda a evaporação. Sifão sujo: desmonte o sifão (a maioria desenrosca-se à mão), limpe-o bem e volte a montar. Em ralos de chão, retire a grelha e limpe o sifão com uma escova. Tampa de ralo: substitua tampas danificadas ou ausentes. As tampas com vedação são as mais eficazes — encontram-se em lojas de bricolage por 5€-15€. Ventilação: a desobstrução do tubo de ventilação requer acesso ao telhado — chame um profissional. Fuga ou fissura: a reparação exige um canalizador profissional. Dependendo da localização e gravidade, pode ser necessário abrir paredes ou pavimentos. Custo: 100€-400€ dependendo da complexidade. Fossa séptica: necessita de limpeza profissional (150€-350€) e deve ser esvaziada periodicamente (cada 2-4 anos dependendo do uso).'
+        content: 'Sifão seco: simplesmente abra a torneira e deixe correr água durante 30 segundos. Em pontos de água raramente usados (casa de banho de hóspedes, por exemplo), despeje meio copo de óleo mineral pelo ralo, o óleo flutua sobre a água e retarda a evaporação. Sifão sujo: desmonte o sifão (a maioria desenrosca-se à mão), limpe-o bem e volte a montar. Em ralos de chão, retire a grelha e limpe o sifão com uma escova. Tampa de ralo: substitua tampas danificadas ou ausentes. As tampas com vedação são as mais eficazes, encontram-se em lojas de bricolage por 5€-15€. Ventilação: a desobstrução do tubo de ventilação requer acesso ao telhado, chame um profissional. Fuga ou fissura: a reparação exige um canalizador profissional. Dependendo da localização e gravidade, pode ser necessário abrir paredes ou pavimentos. Custo: 100€-400€ dependendo da complexidade. Fossa séptica: necessita de limpeza profissional (150€-350€) e deve ser esvaziada periodicamente (cada 2-4 anos dependendo do uso).'
       },
       {
         heading: 'Cheiro a esgoto na casa de banho',
-        content: 'A casa de banho é o local mais frequente para cheiro a esgoto. As causas específicas incluem: base do duche ou banheira com sifão inadequado — muitos ralos de duche modernos têm sifões muito rasos que secam rapidamente. Considere substituir por um modelo com sifão mais profundo. Ligação da sanita à coluna de esgoto com fuga — se o cheiro vem da base da sanita, o anel de vedação (anel de cera ou borracha) pode estar deteriorado. A substituição custa 30€-80€ por um canalizador. Silicone degradado à volta da base da sanita ou duche — o silicone antigo pode criar espaços por onde passam os odores. A reaplicação de silicone é simples e económica (5€-10€ de material). Ventilação insuficiente — uma casa de banho sem janela e sem extrator gera condensação e potencia odores. Instalar um extrator custa entre 80€ e 200€.'
+        content: 'A casa de banho é o local mais frequente para cheiro a esgoto. As causas específicas incluem: base do duche ou banheira com sifão inadequado, muitos ralos de duche modernos têm sifões muito rasos que secam rapidamente. Considere substituir por um modelo com sifão mais profundo. Ligação da sanita à coluna de esgoto com fuga, se o cheiro vem da base da sanita, o anel de vedação (anel de cera ou borracha) pode estar deteriorado. A substituição custa 30€-80€ por um canalizador. Silicone degradado à volta da base da sanita ou duche, o silicone antigo pode criar espaços por onde passam os odores. A reaplicação de silicone é simples e económica (5€-10€ de material). Ventilação insuficiente, uma casa de banho sem janela e sem extrator gera condensação e potencia odores. Instalar um extrator custa entre 80€ e 200€.'
       },
       {
         heading: 'Cheiro a esgoto na cozinha',
-        content: 'Na cozinha, o cheiro a esgoto tem causas específicas. Sifão do lava-loiça com acumulação de gordura — a gordura acumula-se no sifão e nas paredes dos canos, decompõe-se e produz mau cheiro. Limpeza: desmonte o sifão, limpe com água quente e detergente desengordurante, e volte a montar. Faça isto a cada 3-6 meses. Máquina de lavar loiça mal ligada — se a mangueira de descarga está ligada diretamente ao esgoto sem sifão, os gases sobem pela mangueira. Solução: instalar um sifão anti-retorno na ligação. Ralo de chão da cozinha seco — em cozinhas com ralo de chão (comum em cozinhas mais antigas), o sifão seca se não é usado regularmente. Trituradores de resíduos alimentares — se mal mantidos, acumulam restos de comida que se decompõem e produzem odores. Corra água fria durante 30 segundos após cada uso.'
+        content: 'Na cozinha, o cheiro a esgoto tem causas específicas. Sifão do lava-loiça com acumulação de gordura, a gordura acumula-se no sifão e nas paredes dos canos, decompõe-se e produz mau cheiro. Limpeza: desmonte o sifão, limpe com água quente e detergente desengordurante, e volte a montar. Faça isto a cada 3-6 meses. Máquina de lavar loiça mal ligada, se a mangueira de descarga está ligada diretamente ao esgoto sem sifão, os gases sobem pela mangueira. Solução: instalar um sifão anti-retorno na ligação. Ralo de chão da cozinha seco, em cozinhas com ralo de chão (comum em cozinhas mais antigas), o sifão seca se não é usado regularmente. Trituradores de resíduos alimentares, se mal mantidos, acumulam restos de comida que se decompõem e produzem odores. Corra água fria durante 30 segundos após cada uso.'
       },
       {
         heading: 'Prevenção e manutenção',
-        content: 'Para prevenir o cheiro a esgoto: mantenha todos os sifões com água — se tem pontos de água que não usa regularmente, abra a torneira uma vez por semana durante 30 segundos. Limpe os sifões a cada 6 meses — especialmente na cozinha (gordura) e na casa de banho (cabelos). Não deite gordura pelo ralo — guarde num frasco e deposite no oleão. Use bicarbonato + vinagre mensalmente como manutenção — despeje um copo de bicarbonato seguido de um copo de vinagre em cada ralo. Espere 15 minutos e enxague com água quente. Verifique as juntas e silicones anualmente. Limpe as caleiras e verifique os tubos de ventilação no telhado. Em casas com fossa séptica, programe a limpeza a cada 2-4 anos.'
+        content: 'Para prevenir o cheiro a esgoto: mantenha todos os sifões com água, se tem pontos de água que não usa regularmente, abra a torneira uma vez por semana durante 30 segundos. Limpe os sifões a cada 6 meses, especialmente na cozinha (gordura) e na casa de banho (cabelos). Não deite gordura pelo ralo, guarde num frasco e deposite no oleão. Use bicarbonato + vinagre mensalmente como manutenção, despeje um copo de bicarbonato seguido de um copo de vinagre em cada ralo. Espere 15 minutos e enxague com água quente. Verifique as juntas e silicones anualmente. Limpe as caleiras e verifique os tubos de ventilação no telhado. Em casas com fossa séptica, programe a limpeza a cada 2-4 anos.'
       },
       {
         heading: 'Quando é urgente chamar um profissional',
-        content: 'Chame um profissional imediatamente se: o cheiro é muito forte e persistente (mesmo com todos os sifões cheios). Há sinais de fuga de esgoto — manchas de humidade escuras no chão ou paredes, pavimento que incha. Vários pontos de água borbulham ao dar descarga na sanita — indica problema na ventilação ou obstrução parcial da coluna de esgoto. Há refluxo de água pelo ralo de chão. A fossa séptica está a transbordar. O cheiro surge após obras ou remodelação — pode ter sido danificado um tubo durante as obras. Na VITFIX, os nossos canalizadores na região do Tâmega e Sousa diagnosticam e resolvem problemas de mau cheiro de esgoto rapidamente. O diagnóstico inclui inspeção de sifões, ventilação e, se necessário, inspeção vídeo da canalização.'
+        content: 'Chame um profissional imediatamente se: o cheiro é muito forte e persistente (mesmo com todos os sifões cheios). Há sinais de fuga de esgoto, manchas de humidade escuras no chão ou paredes, pavimento que incha. Vários pontos de água borbulham ao dar descarga na sanita, indica problema na ventilação ou obstrução parcial da coluna de esgoto. Há refluxo de água pelo ralo de chão. A fossa séptica está a transbordar. O cheiro surge após obras ou remodelação, pode ter sido danificado um tubo durante as obras. Na VITFIX, os nossos canalizadores na região do Tâmega e Sousa diagnosticam e resolvem problemas de mau cheiro de esgoto rapidamente. O diagnóstico inclui inspeção de sifões, ventilação e, se necessário, inspeção vídeo da canalização.'
       },
     ],
     ctaText: 'Cheiro a esgoto persistente? Contacte a VITFIX para diagnóstico profissional.',
@@ -2483,7 +2483,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'manutencao-alojamento-local-airbnb-portugal',
-    title: 'Manutenção de Alojamento Local e Airbnb no Porto — Guia para Proprietários 2026',
+    title: 'Manutenção de Alojamento Local e Airbnb no Porto, Guia para Proprietários 2026',
     metaTitle: 'Manutenção Alojamento Local e Airbnb no Porto | Guia Completo 2026 | VITFIX',
     metaDesc: 'Guia completo: como gerir manutenção do teu Airbnb ou alojamento local no Porto. Profissionais verificados, reparações rápidas. Vitfix.io',
     category: 'manutencao',
@@ -2518,7 +2518,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'empreiteiro-certificado-portugal-alvara-verificar',
-    title: 'Empreiteiro Certificado em Portugal — Como Verificar o Alvará e a Documentação',
+    title: 'Empreiteiro Certificado em Portugal, Como Verificar o Alvará e a Documentação',
     metaTitle: 'Empreiteiro Certificado Portugal | Verificar Alvará e Documentação | VITFIX',
     metaDesc: 'Como verificar se um empreiteiro é certificado em Portugal. Alvará InCI, seguro RC, registos obrigatórios. Guia completo de segurança. Vitfix.io',
     category: 'obras',
@@ -2528,22 +2528,22 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: 'O Que é um Alvará de Construção Civil em Portugal?',
-        content: 'Um alvará é um documento oficial do Instituto da Qualidade na Construção (IQC) que certifica que um profissional pode executar trabalhos de construção civil. Qualquer pessoa que execute trabalhos de construção deve ter alvará — sem exceções (Decretos-Lei 80/2006 e 258/92). Multas de não cumprimento: €1.000 a €10.000. Se algo corre mal, empresa sem alvará não tem cobertura de seguro. Em 2025, o novo sistema IQC continua emitir alvarás com plataforma online para verificação em tempo real.'
+        content: 'Um alvará é um documento oficial do Instituto da Qualidade na Construção (IQC) que certifica que um profissional pode executar trabalhos de construção civil. Qualquer pessoa que execute trabalhos de construção deve ter alvará, sem exceções (Decretos-Lei 80/2006 e 258/92). Multas de não cumprimento: €1.000 a €10.000. Se algo corre mal, empresa sem alvará não tem cobertura de seguro. Em 2025, o novo sistema IQC continua emitir alvarás com plataforma online para verificação em tempo real.'
       },
       {
         heading: 'As 9 Classes de Alvará em Portugal',
-        content: 'Classe 1: trabalhos muito simples (pintura, limpeza). Classe 2: trabalhos simples (azulejaria). Classe 3: trabalhos correntes (renovação cozinhas, casas de banho). Classe 4: especializados (estruturas). Classe 5: complexos (edifícios inteiros). Classe 6: instalações especiais (AVAC, energia solar). Classe 7: conservação (estruturas históricas). Classe 8: escavação. Classe 9: subaquáticos. Se contrata empreiteiro Classe 1 para renovação de casa de banho (Classe 3) — o trabalho é ilegal. Verifica sempre classe contra tipo de trabalho.'
+        content: 'Classe 1: trabalhos muito simples (pintura, limpeza). Classe 2: trabalhos simples (azulejaria). Classe 3: trabalhos correntes (renovação cozinhas, casas de banho). Classe 4: especializados (estruturas). Classe 5: complexos (edifícios inteiros). Classe 6: instalações especiais (AVAC, energia solar). Classe 7: conservação (estruturas históricas). Classe 8: escavação. Classe 9: subaquáticos. Se contrata empreiteiro Classe 1 para renovação de casa de banho (Classe 3), o trabalho é ilegal. Verifica sempre classe contra tipo de trabalho.'
       },
       {
         heading: 'Como Verificar se um Empreiteiro Tem Alvará Válido',
-        content: 'Forma 1 (Mais rápida): vai para https://www.construcao.iqc.pt/, clica "Pesquisar Alvarás", introduz nome, número alvará ou NIF. Resultado mostra: status (VÁLIDO/CADUCADO), classes, datas, histórico disciplina. Forma 2: pede documentação diretamente — cópia alvará, screenshot portal IQC, certificado seguro RC, NIF. Recusa = bandeira vermelha. Forma 3: contacta câmara municipal — confirma alvará válido em 10 minutos.'
+        content: 'Forma 1 (Mais rápida): vai para https://www.construcao.iqc.pt/, clica "Pesquisar Alvarás", introduz nome, número alvará ou NIF. Resultado mostra: status (VÁLIDO/CADUCADO), classes, datas, histórico disciplina. Forma 2: pede documentação diretamente, cópia alvará, screenshot portal IQC, certificado seguro RC, NIF. Recusa = bandeira vermelha. Forma 3: contacta câmara municipal, confirma alvará válido em 10 minutos.'
       },
       {
         heading: 'O Alvará Não É o Único Documento',
         content: 'Seguro de Responsabilidade Civil (obrigatório): mínimo legal €250.000, recomendado €500.000-€1.000.000. Pede cópia apólice, confirma validade, montante, tipo (responsabilidade civil profissional). Declaração de Imposto: certidão negativa de débito (sem dívidas). Registo Acidentes/Multas: pede referências de clientes anteriores. Contacta-os diretamente.'
       },
       {
-        heading: 'Sinais de Alerta — Quando NÃO Contratar',
+        heading: 'Sinais de Alerta, Quando NÃO Contratar',
         content: 'Recusa mostrar alvará. Alvará caducado (>1 ano). Sem seguro RC. Preço 30%+ abaixo mercado. Trabalha só com dinheiro vivo (sem recibos). Sem contacto permanente. Trabalha como "amigo" sem empresa constituída. Promete acabar muito mais depressa que realista.'
       },
     ],
@@ -2553,7 +2553,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: 'programa-gestao-obras-empreiteiro-portugal',
-    title: 'Programa de Gestão de Obras para Empreiteiros em Portugal — Comparação 2026',
+    title: 'Programa de Gestão de Obras para Empreiteiros em Portugal, Comparação 2026',
     metaTitle: 'Programa Gestão Obras Empreiteiro Portugal 2026 | Comparação | VITFIX',
     metaDesc: 'Compara os melhores programas de gestão de obras para empreiteiros em Portugal. Faturação, agenda, orçamentos. Qual escolher? Vitfix.io',
     category: 'obras',
@@ -2578,7 +2578,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: 'Vantagens: desenhado para construção, gestão equipas, rastreamento materiais, fotos integradas, comunicação cliente, relatórios profissionais, integração subcontratados. Desvantagens: caro, complexo (leva tempo), overkill para pequenas obras, suporte PT fraco, muitas funcionalidades não usadas, contrato longo. Recomendação: bom para grandes obras com múltiplas equipas. Para individual/pequena empresa, exagero.'
       },
       {
-        heading: 'Opção 4: Vitfix.io — Plataforma de Ligação + Gestão Integrada',
+        heading: 'Opção 4: Vitfix.io, Plataforma de Ligação + Gestão Integrada',
         content: 'Receber encomendas: clientes publicam "preciso empreiteiro", tu recebas notificação real-time, respondes com orçamento em minutos. Gerir orçamentos: criar em 5 minutos, cliente vê online, aceita confirmado. Gestão obras: data confirmada, contacto direto cliente, fotos integradas, alertas automáticas. Faturação: gera automaticamente quando termina. Histórico: todas obras registadas, avaliações públicas. Vantagens: completo, simples (desenhado para quem não é tech), mensalidade previsível, telemóvel funciona bem, suporte PT, integrado Portugal, sem comissão obra. Desvantagens: novo em PT mas crescendo, precisas estar plataforma.'
       },
       {

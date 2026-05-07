@@ -3,10 +3,10 @@ import Link from 'next/link'
 import { BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Blog VITFIX — Dicas e Guias para a Sua Casa',
+  title: 'Blog VITFIX : Dicas e Guias para a Sua Casa',
   description: 'Artigos práticos sobre eletricidade, canalização, pintura e reparações domésticas. Dicas de profissionais para resolver os problemas mais comuns da sua casa.',
   openGraph: {
-    title: 'Blog VITFIX — Dicas e Guias',
+    title: 'Blog VITFIX : Dicas e Guias',
     description: 'Artigos práticos sobre eletricidade, canalização, pintura e reparações domésticas.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
@@ -39,7 +39,7 @@ const ptJsonLd = {
   '@graph': [
     {
       '@type': 'CollectionPage',
-      name: 'Blog VITFIX — Dicas e Guias para a Sua Casa',
+      name: 'Blog VITFIX : Dicas e Guias para a Sua Casa',
       description: 'Artigos práticos sobre eletricidade, canalização, pintura e reparações domésticas.',
       url: 'https://vitfix.io/pt/blog/',
       inLanguage: 'pt-PT',

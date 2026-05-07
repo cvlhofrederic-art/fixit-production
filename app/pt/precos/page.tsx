@@ -3,10 +3,10 @@ import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Tabela de Preços — Serviços para a Sua Casa | VITFIX',
+  title: 'Tabela de Preços : Serviços para a Sua Casa | VITFIX',
   description: 'Consulte os preços de referência para canalização, eletricidade, pintura e outros serviços em Marco de Canaveses, Penafiel, Amarante e região do Tâmega e Sousa.',
   openGraph: {
-    title: 'Tabela de Preços — Serviços para a Sua Casa | VITFIX',
+    title: 'Tabela de Preços : Serviços para a Sua Casa | VITFIX',
     description: 'Preços de referência para canalização, eletricidade, pintura e mais. Profissionais verificados na região do Tâmega e Sousa.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
@@ -87,7 +87,7 @@ export default function PrecosHubPage() {
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            Tabela de Preços — Serviços para a Sua Casa
+            Tabela de Preços, Serviços para a Sua Casa
           </h1>
           <p className="text-lg text-text-muted max-w-2xl leading-relaxed">
             Consulte os preços de referência para canalização, eletricidade, pintura e outros serviços em Marco de Canaveses, Penafiel, Amarante e toda a região do Tâmega e Sousa.

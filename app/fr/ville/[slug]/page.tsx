@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const city = getFrCityBySlug(slug)
   if (!city) return {}
 
-  const title = `Artisans à ${city.name} — Plombier, Électricien, Peintre | VITFIX`
+  const title = `Artisans à ${city.name}, Plombier, Électricien, Peintre | VITFIX`
   const description = `Trouvez un artisan qualifié à ${city.name} (${city.department}) : plombier, électricien, peintre, plaquiste. Devis gratuit, disponibles 7j/7.`
 
   return {
@@ -39,7 +39,7 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
     '@graph': [
       {
         '@type': 'HomeAndConstructionBusiness',
-        name: `VITFIX — Artisans à ${city.name}`,
+        name: `VITFIX : Artisans à ${city.name}`,
         description: `Services artisans à ${city.name} : plombier, électricien, peintre, serrurier, chauffagiste. Professionnels vérifiés, devis gratuit, réponse en 2h.`,
         url: `https://vitfix.io/fr/ville/${slug}/`,
         image: 'https://vitfix.io/og-image.png',
@@ -193,9 +193,9 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
           <div className="relative overflow-hidden rounded-2xl p-8" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' }}>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
-                <span className="text-yellow font-bold text-sm uppercase tracking-wider block mb-2">⚠️ Urgence {city.name} — 24h/7j</span>
+                <span className="text-yellow font-bold text-sm uppercase tracking-wider block mb-2">⚠️ Urgence {city.name}, 24h/7j</span>
                 <h3 className="font-display text-xl font-bold text-white mb-1">Besoin d&apos;un artisan en urgence ?</h3>
-                <p className="text-white/60 text-sm">Fuite d&apos;eau, panne électrique — intervention rapide à {city.name}</p>
+                <p className="text-white/60 text-sm">Fuite d&apos;eau, panne électrique, intervention rapide à {city.name}</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
                 <a

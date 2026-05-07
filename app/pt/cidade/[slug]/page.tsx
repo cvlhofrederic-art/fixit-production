@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const city = CITIES.find(c => c.slug === slug)
   if (!city) return {}
 
-  const title = `Serviços para Casa em ${city.name} — Eletricista, Canalizador, Pintor | VITFIX`
+  const title = `Serviços para Casa em ${city.name}, Eletricista, Canalizador, Pintor | VITFIX`
   const description = `Encontre profissionais verificados em ${city.name}: eletricista, canalizador, pintor e pladur. Orçamento grátis. Intervenção rápida em ${city.name} e freguesias.`
 
   return {
@@ -62,7 +62,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
     '@graph': [
       {
         '@type': 'LocalBusiness',
-        name: `VITFIX — Serviços para Casa em ${city.name}`,
+        name: `VITFIX : Serviços para Casa em ${city.name}`,
         description: `Profissionais verificados para eletricidade, canalização, pintura e pladur em ${city.name}.`,
         url: `https://vitfix.io/pt/cidade/${slug}/`,
         areaServed: {

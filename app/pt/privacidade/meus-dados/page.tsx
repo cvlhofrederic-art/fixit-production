@@ -195,7 +195,7 @@ export default function MeusDadosPage() {
             {t('rgpd.exportTitle', 'Exporter mes données')}
           </h2>
           <p className="text-sm text-gray-500 mb-4">
-            {t('rgpd.exportDesc', 'Téléchargez toutes vos données personnelles au format JSON (RGPD Art. 20 — Droit à la portabilité).')}
+            {t('rgpd.exportDesc', 'Téléchargez toutes vos données personnelles au format JSON (RGPD Art. 20, Droit à la portabilité).')}
           </p>
           <button
             onClick={handleExport}

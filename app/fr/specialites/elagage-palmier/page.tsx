@@ -3,13 +3,13 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Élagage Palmier PACA — Taille palmier Marseille, La Ciotat, Aubagne | VITFIX',
+  title: 'Élagage Palmier PACA : Taille palmier Marseille, La Ciotat, Aubagne | VITFIX',
   description: 'Élagage et taille de palmiers à Marseille, La Ciotat, Cassis, Bandol et PACA. Taille ananas, marguerite, traitement charançon rouge. Élagueur certifié, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/elagage-palmier/',
   },
   openGraph: {
-    title: 'Élagage Palmier PACA — Taille palmier Marseille & littoral',
+    title: 'Élagage Palmier PACA : Taille palmier Marseille & littoral',
     description: 'Spécialistes taille et élagage de palmiers en PACA. Traitement charançon rouge, taille ananas/marguerite. Toute la côte de Marseille à Hyères.',
   },
 }
@@ -20,7 +20,7 @@ const jsonLd = {
     {
       '@type': 'LocalBusiness',
       '@id': 'https://vitfix.io/fr/specialites/elagage-palmier/',
-      name: 'VITFIX — Élagage Palmier PACA',
+      name: 'VITFIX : Élagage Palmier PACA',
       description: 'Spécialiste élagage et taille de palmiers à Marseille et sur tout le littoral PACA (La Ciotat, Cassis, Bandol, Sanary, Hyères). Traitement charançon rouge agréé.',
       url: 'https://vitfix.io/fr/specialites/elagage-palmier/',
       telephone: PHONE_FR,
@@ -88,7 +88,7 @@ const FAQS = [
   },
   {
     q: 'Quelle est la différence entre taille ananas et taille marguerite ?',
-    a: 'La taille en ananas consiste à couper les palmes mortes ET une partie des palmes vertes pour donner une forme ronde au palmier (aspect ananas). La taille en marguerite ne coupe que les palmes mortes ou pendantes, en conservant toutes les palmes vertes — c\'est la taille la plus respectueuse du palmier. La taille ananas est déconseillée par les professionnels car elle affaiblit le palmier et crée des blessures supplémentaires, portes d\'entrée pour le charançon rouge.',
+    a: 'La taille en ananas consiste à couper les palmes mortes ET une partie des palmes vertes pour donner une forme ronde au palmier (aspect ananas). La taille en marguerite ne coupe que les palmes mortes ou pendantes, en conservant toutes les palmes vertes, c\'est la taille la plus respectueuse du palmier. La taille ananas est déconseillée par les professionnels car elle affaiblit le palmier et crée des blessures supplémentaires, portes d\'entrée pour le charançon rouge.',
   },
   {
     q: 'Le traitement contre le charançon rouge est-il encore obligatoire en PACA ?',
@@ -253,7 +253,7 @@ export default function ElagagePalmierPage() {
             <div className="bg-yellow-400 rounded-2xl p-5 sticky top-4">
               <h3 className="font-display font-bold text-xl mb-2">Devis palmiers gratuit</h3>
               <p className="text-zinc-800 text-sm mb-4">
-                Élagage, taille, traitement charançon ou abattage — réponse sous 24h.
+                Élagage, taille, traitement charançon ou abattage, réponse sous 24h.
               </p>
               <a
                 href={`https://wa.me/${PHONE_FR.replace('+', '')}?text=Bonjour%2C%20j%27ai%20besoin%20d%27un%20devis%20pour%20%C3%A9lagage%2Ftaille%20de%20palmier`}

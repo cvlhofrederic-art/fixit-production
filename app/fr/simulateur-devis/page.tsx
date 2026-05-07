@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import SimulateurDevisClient from './SimulateurDevisClient'
 
 export const metadata: Metadata = {
-  title: 'Simulateur de devis gratuit — Chiffrez vos travaux en PACA | VITFIX',
+  title: 'Simulateur de devis gratuit : Chiffrez vos travaux en PACA | VITFIX',
   description: 'Chiffrez vos travaux en 2 min : plomberie, électricité, peinture, serrurerie, toiture, jardin... Estimation gratuite et instantanée. Artisans certifiés Marseille, Aubagne, La Ciotat, Aix-en-Provence.',
   keywords: [
     'simulateur devis travaux PACA',
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     'estimation travaux gratuite PACA',
   ],
   openGraph: {
-    title: 'Simulateur devis gratuit — Chiffrez vos travaux en PACA 2026',
+    title: 'Simulateur devis gratuit : Chiffrez vos travaux en PACA 2026',
     description: 'Estimation instantanée et gratuite. Artisans certifiés disponibles à Marseille, Aubagne, La Ciotat, Aix-en-Provence et dans tout le 13.',
     siteName: 'VITFIX',
     locale: 'fr_FR',

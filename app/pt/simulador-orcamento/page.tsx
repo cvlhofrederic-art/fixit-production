@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import SimuladorOrcamentoClient from './SimuladorOrcamentoClient'
 
 export const metadata: Metadata = {
-  title: 'Simulador de Orçamento Grátis — Calcule o custo das suas obras | VITFIX',
+  title: 'Simulador de Orçamento Grátis : Calcule o custo das suas obras | VITFIX',
   description: 'Simule o orçamento das suas obras em 2 minutos: canalização, eletricidade, pintura, serralharia, telhado, jardinagem e mais. Grátis e sem compromisso.',
   keywords: ['simulador orçamento', 'orçamento grátis', 'quanto custa obras', 'preço profissional 2026'],
   alternates: {
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'Simulador de Orçamento Grátis — VITFIX',
+    title: 'Simulador de Orçamento Grátis : VITFIX',
     description: 'Simule o orçamento das suas obras em 2 minutos. Grátis e sem compromisso.',
     url: 'https://vitfix.io/pt/simulador-orcamento/',
     siteName: 'VITFIX',
@@ -53,7 +53,7 @@ export default function SimuladorOrcamentoPage() {
     '@graph': [
       {
         '@type': 'WebPage',
-        name: 'Simulador de Orçamento — VITFIX Portugal',
+        name: 'Simulador de Orçamento : VITFIX Portugal',
         url: 'https://vitfix.io/pt/simulador-orcamento/',
         description: 'Simule o orçamento das suas obras em Portugal. Gratuito e sem compromisso.',
         inLanguage: 'pt-PT',

@@ -5,11 +5,11 @@ import { PHONE_PT } from '@/lib/constants'
 
 // ── Static SEO metadata ──
 export const metadata: Metadata = {
-  title: 'Serviços de Urgência — Eletricista, Canalizador, Obras Urgentes | VITFIX',
+  title: 'Serviços de Urgência : Eletricista, Canalizador, Obras Urgentes | VITFIX',
   description:
     'Serviços de urgência 24h: eletricista, canalizador, pintor, pladur e obras urgentes em Marco de Canaveses, Penafiel, Amarante e região. Intervenção rápida 7/7. Ligue agora!',
   openGraph: {
-    title: 'Serviços de Urgência — Eletricista, Canalizador, Obras Urgentes | VITFIX',
+    title: 'Serviços de Urgência : Eletricista, Canalizador, Obras Urgentes | VITFIX',
     description:
       'Serviços de urgência 24h: eletricista, canalizador, pintor, pladur e obras urgentes em Marco de Canaveses, Penafiel, Amarante e região. Intervenção rápida 7/7.',
     siteName: 'VITFIX',
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Serviços de Urgência — VITFIX',
+    title: 'Serviços de Urgência : VITFIX',
     description:
       'Eletricista, canalizador, pintor, pladur e obras urgentes. Intervenção rápida 24h em Marco de Canaveses e região.',
     images: ['https://vitfix.io/og-image.png'],
@@ -60,13 +60,13 @@ const STEPS = [
 export default function UrgenciaHubPage() {
   const allCombos = getAllUrgencyCombos()
 
-  // Schema.org — CollectionPage + BreadcrumbList
+  // Schema.org - CollectionPage + BreadcrumbList
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'CollectionPage',
-        name: 'Serviços de Urgência — VITFIX',
+        name: 'Serviços de Urgência : VITFIX',
         description:
           'Todos os serviços de urgência VITFIX: eletricista, canalizador, pintor, pladur e obras urgentes disponíveis 24h em Marco de Canaveses, Penafiel, Amarante e região.',
         url: 'https://vitfix.io/pt/urgencia/',
@@ -123,14 +123,14 @@ export default function UrgenciaHubPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
-            <span className="text-red-700">URGÊNCIA — Disponível 24h, 7/7</span>
+            <span className="text-red-700">URGÊNCIA, Disponível 24h, 7/7</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             Serviços de Urgência
           </h1>
           <p className="text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
-            Emergência em casa? Os nossos profissionais verificados intervêm rapidamente em Marco de Canaveses, Penafiel, Amarante e toda a região do Tâmega e Sousa — 24 horas por dia, 7 dias por semana.
+            Emergência em casa? Os nossos profissionais verificados intervêm rapidamente em Marco de Canaveses, Penafiel, Amarante e toda a região do Tâmega e Sousa, 24 horas por dia, 7 dias por semana.
           </p>
 
           {/* CTAs */}
@@ -143,7 +143,7 @@ export default function UrgenciaHubPage() {
               style={{ background: '#25D366', boxShadow: '0 6px 20px rgba(37,211,102,0.4)' }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp — Resposta imediata
+              WhatsApp, Resposta imediata
             </a>
             <a
               href={`tel:${PHONE_PT}`}
@@ -275,7 +275,7 @@ export default function UrgenciaHubPage() {
                     {city.name}
                   </span>
                   <span className="block text-xs text-text-muted">
-                    {city.population.toLocaleString('pt-PT')} hab. — {city.distrito}
+                    {city.population.toLocaleString('pt-PT')} hab., {city.distrito}
                   </span>
                 </div>
               </Link>
@@ -306,7 +306,7 @@ export default function UrgenciaHubPage() {
               style={{ background: '#25D366', boxShadow: '0 6px 24px rgba(37,211,102,0.45)' }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp — Resposta imediata
+              WhatsApp, Resposta imediata
             </a>
             <a
               href={`tel:${PHONE_PT}`}

@@ -59,7 +59,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
   const heroSubtitle = replaceCity(urgency.heroSubtitle)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
-  // Schema.org — Emergency Service + FAQPage
+  // Schema.org - Emergency Service + FAQPage
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -180,7 +180,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
-            <span className="text-red-700">URGÊNCIA — {urgency.availableSchedule}</span>
+            <span className="text-red-700">URGÊNCIA, {urgency.availableSchedule}</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
@@ -310,7 +310,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Cobertura de urgência — {city.name}
+            Cobertura de urgência, {city.name}
           </h2>
           <p className="text-text-muted mb-6">
             Os nossos {service.name.toLowerCase()}s de urgência atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
@@ -349,7 +349,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
       <section className="py-14 md:py-18">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Perguntas frequentes — {service.name} urgente
+            Perguntas frequentes, {service.name} urgente
           </h2>
           <div className="space-y-4 mt-8">
             {service.faqs.map((faq, i) => (

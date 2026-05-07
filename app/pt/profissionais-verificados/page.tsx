@@ -3,10 +3,10 @@ import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Profissionais Verificados em Portugal — Garantia VITFIX | VITFIX',
+  title: 'Profissionais Verificados em Portugal : Garantia VITFIX | VITFIX',
   description: 'Todos os profissionais no VITFIX são verificados: seguro RC Pro, identidade e qualificações confirmadas. Trabalhos garantidos em Marco de Canaveses, Penafiel, Amarante e região.',
   openGraph: {
-    title: 'Profissionais Verificados em Portugal — Garantia VITFIX',
+    title: 'Profissionais Verificados em Portugal : Garantia VITFIX',
     description: 'Seguro RC Pro, identidade verificada, avaliações reais. Confie nos profissionais do VITFIX para os seus trabalhos em casa.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Profissionais Verificados — Garantia VITFIX',
+    title: 'Profissionais Verificados : Garantia VITFIX',
     description: 'RC Pro, identidade e qualificações verificadas. Profissionais de confiança em Portugal.',
   },
   alternates: {
@@ -89,7 +89,7 @@ const reviews = [
     city: 'Lousada',
     service: 'Canalização',
     rating: 5,
-    text: 'Fuga de água urgente ao fim de semana — profissional disponível em 1 hora. Perfeito! Preço razoável e trabalho limpo. O VITFIX salvou-nos.',
+    text: 'Fuga de água urgente ao fim de semana, profissional disponível em 1 hora. Perfeito! Preço razoável e trabalho limpo. O VITFIX salvou-nos.',
     date: 'Fevereiro 2026',
   },
   {
@@ -133,7 +133,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'WebPage',
-      name: 'Profissionais Verificados em Portugal — Garantia VITFIX',
+      name: 'Profissionais Verificados em Portugal : Garantia VITFIX',
       description: 'Informação sobre o processo de verificação dos profissionais VITFIX em Portugal.',
       url: 'https://vitfix.io/pt/profissionais-verificados/',
       inLanguage: 'pt-PT',
@@ -205,7 +205,7 @@ export default function ProfissionaisVerificadosPage() {
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            Profissionais verificados — a garantia VITFIX
+            Profissionais verificados, a garantia VITFIX
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             Cada profissional na plataforma é verificado manualmente: identidade, seguro RC Pro e qualificações. Trabalhe com total confiança.
