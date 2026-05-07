@@ -11,6 +11,7 @@ import {
   type KycMarket,
   type KycChecks,
 } from '@/lib/kyc-verification'
+import { piiDualWriteAdditions } from '@/lib/services/kyc/pii-dual-write'
 
 // ---------------------------------------------------------------------------
 // Identifiant validators
@@ -451,6 +452,25 @@ export async function POST(request: NextRequest) {
     } else {
       updatePayload.kbis_extracted = kbisExtracted
     }
+  }
+
+  // Phase 15 — PII dual-write. Writes the AES-256-GCM ciphertext columns
+  // (siret_encrypted/nif_encrypted/kbis_extracted_encrypted) alongside the
+  // plaintext mirror, bumps pii_encryption_version to 1. Wrapped in
+  // try/catch so a missing PII_ENCRYPTION_KEY in dev never breaks the KYC
+  // flow — the plaintext write still happens.
+  try {
+    const piiAdditions = await piiDualWriteAdditions({
+      market: isPt ? 'PT' : 'FR',
+      declaredIdentifiant: checks.identifiantFormatValid ? declaredIdentifiant : null,
+      kbisExtracted: kbisExtracted ?? null,
+    })
+    Object.assign(updatePayload, piiAdditions)
+  } catch (cryptoErr) {
+    logger.warn('[kyc-orchestrate] PII dual-write skipped (key missing or crypto error)', {
+      artisan_id,
+      err: (cryptoErr as Error).message,
+    })
   }
 
   try {
