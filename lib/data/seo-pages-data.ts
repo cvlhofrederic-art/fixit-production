@@ -3,6 +3,16 @@
 // Cities × Services = Landing Pages
 // ============================================================
 
+export interface NotableFreguesia {
+  name: string
+  context: string
+}
+
+export interface ServiceCityOverride {
+  intro?: string
+  localCases?: string[]
+}
+
 export interface CityData {
   slug: string
   name: string
@@ -11,7 +21,26 @@ export interface CityData {
   lat: number
   lng: number
   freguesias: string[]
-  nearby: string[] // slugs of nearby cities
+  nearby: string[]
+  /** @since 2026-aveiro anti-thin-content enrichment fields. Optional for backward compat with existing Porto cities. */
+  specialty?: string
+  climateChallenges?: string[]
+  notableFreguesias?: NotableFreguesia[]
+  localEconomy?: string
+  landmarks?: string[]
+  contentUpdatedAt?: string
+  serviceCityOverrides?: Record<string, ServiceCityOverride>
+}
+
+/** Returns true when a city has at least one anti-thin-content enrichment field populated. */
+export function hasEnrichedContent(city: CityData): boolean {
+  return Boolean(
+    city.specialty
+      || city.climateChallenges?.length
+      || city.notableFreguesias?.length
+      || city.localEconomy
+      || city.landmarks?.length
+  )
 }
 
 export interface ServiceFAQ {
