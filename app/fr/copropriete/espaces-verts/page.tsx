@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Espaces Verts Copropriété Marseille — Élagage, Entretien Jardins | VITFIX',
+  title: 'Espaces Verts Copropriété Marseille : Élagage, Entretien Jardins | VITFIX',
   description: 'Entretien espaces verts de copropriété à Marseille : tonte, taille, élagage, débroussaillage anti-incendie (obligation PACA). Contrat syndic, devis gratuit.',
   alternates: { canonical: 'https://vitfix.io/fr/copropriete/espaces-verts/' },
 }
@@ -14,7 +14,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Espaces Verts Copropriété Marseille',
+      name: 'VITFIX : Espaces Verts Copropriété Marseille',
       description: 'Entretien des espaces verts et élagage pour copropriétés à Marseille et dans les Bouches-du-Rhône.',
       url: 'https://vitfix.io/fr/copropriete/espaces-verts/',
       telephone: PHONE_FR,
@@ -71,7 +71,7 @@ export default function FrCoproEspacesVertsPage() {
           </nav>
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
             <span>🌿</span>
-            <span className="text-dark">Syndics · Copropriétés — Marseille & PACA</span>
+            <span className="text-dark">Syndics · Copropriétés, Marseille & PACA</span>
           </div>
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             Espaces Verts & Élagage<br />
@@ -85,7 +85,7 @@ export default function FrCoproEspacesVertsPage() {
           <div className="mb-8 p-4 rounded-xl border border-orange-200 bg-orange-50 flex items-start gap-3">
             <span className="text-2xl flex-shrink-0">⚠️</span>
             <div>
-              <p className="font-semibold text-orange-800 text-sm mb-1">Obligation légale PACA — Débroussaillage</p>
+              <p className="font-semibold text-orange-800 text-sm mb-1">Obligation légale PACA, Débroussaillage</p>
               <p className="text-orange-700 text-xs leading-relaxed">En région PACA, le débroussaillage est OBLIGATOIRE pour les copropriétés à moins de 200 m d&apos;espaces boisés. Le non-respect expose à des poursuites et à des travaux d&apos;office facturés par la mairie. Nos équipes réalisent ces travaux et vous remettent un certificat de conformité.</p>
             </div>
           </div>

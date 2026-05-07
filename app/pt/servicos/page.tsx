@@ -3,10 +3,10 @@ import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Serviços VITFIX — Eletricista, Canalizador, Desentupimento, Pintor, Faz Tudo | Portugal',
+  title: 'Serviços VITFIX : Eletricista, Canalizador, Desentupimento, Pintor, Faz Tudo | Portugal',
   description: 'Encontre profissionais verificados para eletricidade, canalização, desentupimento, pintura, faz tudo, pladur, obras, isolamento térmico e impermeabilização em Marco de Canaveses, Penafiel, Amarante e região.',
   openGraph: {
-    title: 'Serviços VITFIX — Profissionais para a Sua Casa',
+    title: 'Serviços VITFIX : Profissionais para a Sua Casa',
     description: 'Eletricista, canalizador, pintor, pladur, obras, isolamento térmico e impermeabilização. Profissionais verificados na região do Tâmega e Sousa.',
     siteName: 'VITFIX',
     locale: 'pt_PT',

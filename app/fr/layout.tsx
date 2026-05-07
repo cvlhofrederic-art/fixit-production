@@ -3,12 +3,12 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   metadataBase: new URL('https://vitfix.io'),
   title: {
-    default: 'VITFIX Marseille — Plombier, Électricien, Peintre | Devis gratuit',
+    default: 'VITFIX Marseille, Plombier, Électricien, Peintre | Devis gratuit',
     template: '%s | VITFIX Marseille',
   },
   description: 'Trouvez un artisan qualifié à Marseille et en région PACA : plombier, électricien, peintre, plaquiste. Disponibles rapidement, devis gratuit, 7j/7.',
   openGraph: {
-    title: 'VITFIX Marseille — Artisans Qualifiés',
+    title: 'VITFIX Marseille : Artisans Qualifiés',
     description: 'Plombier, électricien, peintre en région PACA. Devis gratuit, réponse rapide.',
     siteName: 'VITFIX',
     locale: 'fr_FR',

@@ -206,7 +206,7 @@ export default async function ArtisanLayout({
       jsonLdString = JSON.stringify(jsonLd)
     }
   } catch {
-    // DB error — render children without JSON-LD
+    // DB error - render children without JSON-LD
   }
 
   return (

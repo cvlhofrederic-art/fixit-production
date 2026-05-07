@@ -3,10 +3,10 @@ import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Torne-se Parceiro VITFIX — Profissional em Portugal | VITFIX',
+  title: 'Torne-se Parceiro VITFIX : Profissional em Portugal | VITFIX',
   description: 'Junte-se ao VITFIX e receba mais clientes em Marco de Canaveses e região. Plataforma gratuita para começar, sem comissões por reserva. Registe o seu perfil hoje.',
   openGraph: {
-    title: 'Torne-se Parceiro VITFIX — Mais clientes para o seu negócio',
+    title: 'Torne-se Parceiro VITFIX : Mais clientes para o seu negócio',
     description: 'Registe o seu perfil de profissional no VITFIX e receba pedidos de clientes verificados na sua zona. Grátis para começar.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Torne-se Parceiro VITFIX — Profissional em Portugal',
+    title: 'Torne-se Parceiro VITFIX : Profissional em Portugal',
     description: 'Mais clientes, sem comissões por reserva. Registe-se gratuitamente.',
   },
   alternates: {
@@ -57,7 +57,7 @@ const benefits = [
   {
     icon: '🔒',
     title: 'Badge verificado',
-    description: 'Após verificação do seu seguro RC Pro e identidade, obtém o badge "Verificado VITFIX" — sinal de confiança para os clientes.',
+    description: 'Após verificação do seu seguro RC Pro e identidade, obtém o badge "Verificado VITFIX", sinal de confiança para os clientes.',
   },
 ]
 
@@ -103,7 +103,7 @@ const faqs = [
   },
   {
     question: 'O VITFIX cobra comissão sobre os trabalhos?',
-    answer: 'Não. O VITFIX não cobra comissão sobre os trabalhos realizados. Paga apenas a subscrição mensal — sem surpresas na fatura.',
+    answer: 'Não. O VITFIX não cobra comissão sobre os trabalhos realizados. Paga apenas a subscrição mensal, sem surpresas na fatura.',
   },
   {
     question: 'Que documentos preciso para me registar?',
@@ -111,7 +111,7 @@ const faqs = [
   },
   {
     question: 'Posso escolher a zona onde recebo pedidos?',
-    answer: 'Sim. Define o raio de ação a partir da sua sede — por exemplo, 20 km à volta de Marco de Canaveses. Só recebe pedidos dentro da sua zona definida.',
+    answer: 'Sim. Define o raio de ação a partir da sua sede, por exemplo, 20 km à volta de Marco de Canaveses. Só recebe pedidos dentro da sua zona definida.',
   },
   {
     question: 'Em quanto tempo começo a receber pedidos?',
@@ -152,7 +152,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'WebPage',
-      name: 'Torne-se Parceiro VITFIX — Profissional em Portugal',
+      name: 'Torne-se Parceiro VITFIX : Profissional em Portugal',
       description: 'Registe-se na plataforma VITFIX e receba mais clientes em Portugal. Grátis para começar.',
       url: 'https://vitfix.io/pt/torne-se-parceiro/',
       inLanguage: 'pt-PT',
@@ -237,7 +237,7 @@ export default function TorneSeParceiroPage() {
               href="/pro/register/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
-              Registar o meu perfil — grátis
+              Registar o meu perfil, grátis
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </Link>
             <a
@@ -387,7 +387,7 @@ export default function TorneSeParceiroPage() {
       <section className="py-16 md:py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
-            Comece hoje — é gratuito
+            Comece hoje, é gratuito
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">
             Crie o seu perfil em 5 minutos e comece a receber pedidos de clientes na sua zona.

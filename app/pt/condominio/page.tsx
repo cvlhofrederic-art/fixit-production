@@ -4,11 +4,11 @@ import { CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Serviços Condomínio Portugal — Limpeza, Canalização, Manutenção | VITFIX',
+  title: 'Serviços Condomínio Portugal : Limpeza, Canalização, Manutenção | VITFIX',
   description: 'Serviços profissionais para condomínios em Portugal: limpeza de partes comuns, canalização, obras de manutenção. Faturação ao administrador, contratos anuais, relatórios de intervenção.',
   alternates: { canonical: 'https://vitfix.io/pt/condominio/' },
   openGraph: {
-    title: 'Serviços Condomínio Portugal — VITFIX',
+    title: 'Serviços Condomínio Portugal : VITFIX',
     description: 'Profissionais verificados para gestão de condomínios em Portugal',
     url: 'https://vitfix.io/pt/condominio/',
     siteName: 'VITFIX',
@@ -55,7 +55,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Serviços Condomínio Portugal',
+      name: 'VITFIX : Serviços Condomínio Portugal',
       description: 'Serviços profissionais para condomínios em Portugal: limpeza, canalização, eletricidade.',
       url: 'https://vitfix.io/pt/condominio/',
       telephone: PHONE_PT,
@@ -234,7 +234,7 @@ export default function PtCondominioPage() {
       <section className="py-16 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
-            Perguntas frequentes — Condomínios
+            Perguntas frequentes, Condomínios
           </h2>
           <div className="space-y-4">
             {FAQ_CONDOMINIO.map((faq, i) => (

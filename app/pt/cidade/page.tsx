@@ -3,10 +3,10 @@ import Link from 'next/link'
 import { CITIES, SERVICES } from '@/lib/data/seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Cidades VITFIX — Profissionais em Tâmega e Sousa, Porto e Braga',
+  title: 'Cidades VITFIX : Profissionais em Tâmega e Sousa, Porto e Braga',
   description: 'Encontre profissionais verificados na sua cidade: Marco de Canaveses, Penafiel, Amarante, Porto, Braga e mais. Eletricista, canalizador, pintor. Orçamento grátis.',
   openGraph: {
-    title: 'Cidades VITFIX — Profissionais na Sua Zona',
+    title: 'Cidades VITFIX : Profissionais na Sua Zona',
     description: 'Serviços para casa em Marco de Canaveses, Penafiel, Amarante, Porto, Vila Nova de Gaia, Braga e região.',
     siteName: 'VITFIX',
     locale: 'pt_PT',

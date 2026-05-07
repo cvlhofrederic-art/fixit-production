@@ -8,10 +8,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const isPt = locale === 'pt'
 
   return isPt ? {
-    title: 'Avaliações de clientes verificadas — Profissionais Vitfix | Vitfix',
-    description: 'Descubra as avaliações autênticas de clientes na Vitfix. Canalizadores, eletricistas, pintores, jardineiros no Porto e em Portugal — experiências reais após cada intervenção.',
+    title: 'Avaliações de clientes verificadas : Profissionais Vitfix | Vitfix',
+    description: 'Descubra as avaliações autênticas de clientes na Vitfix. Canalizadores, eletricistas, pintores, jardineiros no Porto e em Portugal, experiências reais após cada intervenção.',
     openGraph: {
-      title: 'Avaliações de clientes verificadas — Profissionais Vitfix',
+      title: 'Avaliações de clientes verificadas : Profissionais Vitfix',
       description: 'Avaliações autênticas de clientes após intervenção. Nota média 4,8/5.',
       siteName: 'Vitfix',
       locale: 'pt_PT',
@@ -21,10 +21,10 @@ export async function generateMetadata(): Promise<Metadata> {
       canonical: 'https://vitfix.io/pt/avaliacoes/',
     },
   } : {
-    title: 'Avis clients vérifiés — Artisans Vitfix | Vitfix',
-    description: 'Découvrez les avis authentiques de clients sur Vitfix. Plombiers, électriciens, peintres, jardiniers à Marseille et en PACA — expériences réelles après chaque intervention.',
+    title: 'Avis clients vérifiés : Artisans Vitfix | Vitfix',
+    description: 'Découvrez les avis authentiques de clients sur Vitfix. Plombiers, électriciens, peintres, jardiniers à Marseille et en PACA, expériences réelles après chaque intervention.',
     openGraph: {
-      title: 'Avis clients vérifiés — Artisans Vitfix',
+      title: 'Avis clients vérifiés : Artisans Vitfix',
       description: 'Avis authentiques de clients après intervention. Note moyenne 4,8/5.',
       siteName: 'Vitfix',
       locale: 'fr_FR',

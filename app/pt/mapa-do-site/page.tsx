@@ -5,7 +5,7 @@ export const metadata = buildSitemapMetadata({
   locale: 'pt',
   url: 'https://vitfix.io/pt/mapa-do-site/',
   altUrl: 'https://vitfix.io/fr/plan-du-site/',
-  title: 'Mapa do site VITFIX — Todas as nossas páginas serviços e cidades',
+  title: 'Mapa do site VITFIX : Todas as nossas páginas serviços e cidades',
   description: 'Mapa do site completo VITFIX: serviços de profissionais, cidades cobertas no Tâmega e Sousa, artigos do blog. Navegação rápida para todas as páginas.',
   ogTitle: 'Mapa do site VITFIX',
   ogDescription: 'Todas as nossas páginas serviços e cidades em Portugal.',

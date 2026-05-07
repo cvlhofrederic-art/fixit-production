@@ -2,10 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Devenir Artisan Partenaire Vitfix — Marseille & PACA | Vitfix',
+  title: 'Devenir Artisan Partenaire Vitfix : Marseille & PACA | Vitfix',
   description: 'Rejoignez Vitfix et recevez plus de clients particuliers à Marseille et en PACA. Sans commission par chantier. Créez votre profil gratuitement et développez votre activité.',
   openGraph: {
-    title: 'Devenir Artisan Partenaire Vitfix — Plus de clients en PACA',
+    title: 'Devenir Artisan Partenaire Vitfix : Plus de clients en PACA',
     description: 'Créez votre profil d\'artisan sur Vitfix et recevez des demandes de clients vérifiés dans votre zone. Gratuit pour commencer.',
     siteName: 'Vitfix',
     locale: 'fr_FR',
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Devenir Partenaire Vitfix — Artisan Marseille & PACA',
+    title: 'Devenir Partenaire Vitfix : Artisan Marseille & PACA',
     description: 'Plus de clients, sans commission par chantier. Inscrivez-vous gratuitement.',
   },
   alternates: {
@@ -56,7 +56,7 @@ const benefits = [
   {
     icon: '🏅',
     title: 'Badge "Artisan Vérifié Vitfix"',
-    description: 'Après vérification de votre SIRET, RC Pro et qualifications, obtenez le badge de confiance — signal fort pour les clients particuliers.',
+    description: 'Après vérification de votre SIRET, RC Pro et qualifications, obtenez le badge de confiance, signal fort pour les clients particuliers.',
   },
 ]
 
@@ -114,7 +114,7 @@ const testimonials = [
     name: 'Sébastien M.',
     job: 'Peintre',
     city: 'Aubagne',
-    text: '15 ans de métier et Vitfix m\'a apporté des clients que je n\'aurais jamais touchés autrement — notamment des copropriétés et des syndics. Excellent rapport qualité/prix.',
+    text: '15 ans de métier et Vitfix m\'a apporté des clients que je n\'aurais jamais touchés autrement, notamment des copropriétés et des syndics. Excellent rapport qualité/prix.',
     rating: 5,
   },
 ]
@@ -126,7 +126,7 @@ const faqs = [
   },
   {
     question: 'Vitfix prend-il une commission sur les chantiers ?',
-    answer: "Non. Vitfix ne prend aucune commission sur vos chantiers. Vous payez uniquement l'abonnement mensuel — aucune surprise sur votre trésorerie.",
+    answer: "Non. Vitfix ne prend aucune commission sur vos chantiers. Vous payez uniquement l'abonnement mensuel, aucune surprise sur votre trésorerie.",
   },
   {
     question: 'Quels documents faut-il pour s\'inscrire ?',
@@ -134,7 +134,7 @@ const faqs = [
   },
   {
     question: 'Puis-je choisir ma zone d\'intervention ?',
-    answer: "Oui. Vous définissez votre rayon d'action depuis votre domicile ou siège social — par exemple 20 km autour de Marseille. Vous ne recevez des demandes que dans votre zone définie.",
+    answer: "Oui. Vous définissez votre rayon d'action depuis votre domicile ou siège social, par exemple 20 km autour de Marseille. Vous ne recevez des demandes que dans votre zone définie.",
   },
   {
     question: 'Combien de temps avant de recevoir mes premières demandes ?',
@@ -151,7 +151,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'WebPage',
-      name: 'Devenir Artisan Partenaire Vitfix — Marseille & PACA',
+      name: 'Devenir Artisan Partenaire Vitfix : Marseille & PACA',
       description: 'Rejoignez la plateforme Vitfix pour recevoir plus de clients particuliers en PACA.',
       url: 'https://vitfix.io/fr/devenir-partenaire/',
       inLanguage: 'fr-FR',
@@ -228,7 +228,7 @@ export default function DevenirPartenairePage() {
               href="/pro/register/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
-              Créer mon profil artisan — gratuit
+              Créer mon profil artisan, gratuit
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </Link>
             <a
@@ -368,7 +368,7 @@ export default function DevenirPartenairePage() {
       <section className="py-16 md:py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
-            Commencez aujourd'hui — c'est gratuit
+            Commencez aujourd'hui, c'est gratuit
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">
             Créez votre profil en 5 minutes et commencez à recevoir des demandes de clients particuliers à Marseille et en PACA.

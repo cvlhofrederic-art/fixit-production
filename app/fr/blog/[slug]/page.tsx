@@ -56,7 +56,7 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
     plaquiste: { name: 'Plaquiste', icon: '🏗️' },
   }
 
-  // Word count rough — article.intro + each section
+  // Word count rough - article.intro + each section
   const totalWordsFr = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
 
   // articleBody : extrait textuel pour les Answer Engines (5k char max).
