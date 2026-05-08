@@ -368,27 +368,51 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ══════ STATS BAR ══════ */}
-      <div className={`${s.statsBar} ${revealClass('stats')}`} data-reveal-id="stats">
-        <div className={s.statsBarInner}>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>2 800+</div>
-            <div className={s.statLabel}>{isPt ? 'Profissionais certificados' : 'Artisans certifiés'}</div>
-          </div>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>48 000+</div>
-            <div className={s.statLabel}>{isPt ? 'Intervenções realizadas' : 'Interventions réalisées'}</div>
-          </div>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>4.9 / 5</div>
-            <div className={s.statLabel}>{isPt ? 'Nota média dos clientes' : 'Note moyenne clients'}</div>
-          </div>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>&lt; 2h</div>
-            <div className={s.statLabel}>{isPt ? 'Tempo de resposta médio' : 'Délai de réponse moyen'}</div>
+      {/* ══════ STATS BAR / MARQUEE (PT) ══════ */}
+      {isPt ? (
+        <div
+          className={`${s.marqueeBar} ${revealClass('stats')}`}
+          data-reveal-id="stats"
+          aria-label="Contacto direto VITFIX"
+        >
+          <div className={s.marqueeTrack}>
+            {[0, 1].map(group => (
+              <div key={group} className={s.marqueeGroup} aria-hidden={group === 1 ? true : undefined}>
+                {[0, 1, 2, 3].map(i => (
+                  <span key={i} className={s.marqueeItem}>
+                    <span>Fale com um conselheiro VITFIX :</span>
+                    <a href="tel:+351912014971" className={s.marqueePhone}>
+                      +351 912 014 971
+                    </a>
+                    <span className={s.marqueeBullet} aria-hidden>●</span>
+                  </span>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className={`${s.statsBar} ${revealClass('stats')}`} data-reveal-id="stats">
+          <div className={s.statsBarInner}>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>2 800+</div>
+              <div className={s.statLabel}>Artisans certifiés</div>
+            </div>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>48 000+</div>
+              <div className={s.statLabel}>Interventions réalisées</div>
+            </div>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>4.9 / 5</div>
+              <div className={s.statLabel}>Note moyenne clients</div>
+            </div>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>&lt; 2h</div>
+              <div className={s.statLabel}>Délai de réponse moyen</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════ SERVICES ══════ */}
       <section className={s.services} id="services">
