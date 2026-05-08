@@ -540,9 +540,9 @@ export default function HomePage() {
               {[
                 isPt ? 'Agenda online com confirmações automáticas por SMS' : 'Agenda en ligne avec confirmations automatiques par SMS',
                 isPt ? 'Geração de orçamentos e faturas PDF em 30 segundos' : 'Génération de devis et factures PDF en 30 secondes',
-                isPt ? 'Proof of Work : fotos antes/depois + assinatura do cliente geolocalizada' : 'Proof of Work : photos avant/après + signature client géolocalisée',
+                isPt ? 'Secretariado dedicado, criação dos seus orçamentos e faturas' : 'Secrétariat dédié, création de vos devis & factures',
                 isPt ? 'Contabilidade IA com declarações de IVA e balanço automatizado' : 'Comptabilité IA avec déclarations TVA et bilan automatisé',
-                isPt ? 'Aplicação móvel iOS & Android incluída' : 'Application mobile iOS & Android incluse',
+                isPt ? 'Negociação dos seus orçamentos de materiais com os nossos fornecedores' : 'Négociation de vos devis matériaux avec nos fournisseurs',
                 isPt ? 'Visibilidade junto de milhares de clientes verificados' : 'Visibilité auprès de milliers de clients vérifiés',
               ].map((feat, i) => (
                 <li key={i}><span className={s.proCheck}>✓</span> {feat}</li>
