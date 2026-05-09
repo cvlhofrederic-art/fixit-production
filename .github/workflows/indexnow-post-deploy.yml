@@ -21,7 +21,7 @@ env:
   INDEXNOW_KEY: f35626783ac34c45b8aed85303d1f5a8
   HOST: vitfix.io
   ENDPOINT: https://api.indexnow.org/indexnow
-  SITEMAP_COUNT: 5
+  SITEMAP_INDEX: https://vitfix.io/sitemap.xml
 
 jobs:
   indexnow-ping:
@@ -43,20 +43,44 @@ jobs:
           response_file=$(mktemp)
           trap 'rm -f "$urls_file" "$payload_file" "$response_file"' EXIT
 
-          # Fetch all sub-sitemaps (currently 5: 0.xml to 4.xml).
-          # On écrit chaque URL directement dans un fichier ligne par ligne,
-          # pas dans un array bash, pour éviter ARG_MAX (3000+ URLs en prod).
-          for i in $(seq 0 $((SITEMAP_COUNT - 1))); do
-            sitemap_url="https://${HOST}/sitemap/${i}.xml"
-            echo "Fetching $sitemap_url..."
+          # Helper : extrait les <loc> d'un XML sans tuer le pipeline si vide
+          # (grep retourne 1 quand zéro match → fatal sous pipefail sinon).
+          extract_locs() {
+            grep -oE '<loc>[^<]+</loc>' | sed 's|<loc>||;s|</loc>||' || true
+          }
 
+          # 1. Lire le sitemap index pour découvrir les sous-sitemaps réellement publiés.
+          # Source de vérité : la prod elle-même (sitemap.xml renvoie ce qu'on indexe).
+          # Robuste aux ajouts/suppressions de sitemaps (pas de hardcode SITEMAP_COUNT).
+          echo "Fetching sitemap index $SITEMAP_INDEX..."
+          index_xml=$(curl -sf --max-time 15 "$SITEMAP_INDEX" || echo "")
+          if [ -z "$index_xml" ]; then
+            echo "::error::Failed to fetch sitemap index"
+            exit 1
+          fi
+
+          mapfile -t sub_sitemaps < <(echo "$index_xml" | extract_locs)
+          echo "Sitemap index lists ${#sub_sitemaps[@]} sub-sitemaps"
+
+          if [ "${#sub_sitemaps[@]}" -eq 0 ]; then
+            echo "::error::No sub-sitemaps found in index"
+            exit 1
+          fi
+
+          # 2. Fetch chaque sous-sitemap et accumule les URLs ligne par ligne.
+          # Pas d'array bash → pas d'ARG_MAX même avec 10 000+ URLs.
+          for sitemap_url in "${sub_sitemaps[@]}"; do
+            echo "Fetching $sitemap_url..."
             xml=$(curl -sf --max-time 15 "$sitemap_url" || echo "")
             if [ -z "$xml" ]; then
               echo "::warning::Failed to fetch $sitemap_url, skipping"
               continue
             fi
 
-            echo "$xml" | grep -oE '<loc>[^<]+</loc>' | sed 's|<loc>||;s|</loc>||' >> "$urls_file"
+            count_before=$(grep -c . "$urls_file" 2>/dev/null || echo 0)
+            echo "$xml" | extract_locs >> "$urls_file"
+            count_after=$(grep -c . "$urls_file" 2>/dev/null || echo 0)
+            echo "  → $((count_after - count_before)) URLs collected from this sitemap"
           done
 
           total=$(grep -c . "$urls_file" || true)
