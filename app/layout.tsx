@@ -193,6 +193,11 @@ export default async function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#FFD600" />
         <link rel="manifest" href="/manifest.json" />
+        {/* Yandex Webmaster Tools verification — méthode meta tag, alternative
+            non-DNS pour valider la propriété du site sur webmaster.yandex.com.
+            Pertinent pour audience investisseurs étrangers ciblant Portugal
+            (Yandex couvre marché CIS + diaspora russophone à Lisbonne/Algarve). */}
+        <meta name="yandex-verification" content="20aba92ca9d2fbff" />
         {/* hreflang SEO tags — codes régionaux (BCP 47) pour cibler explicitement
             Portugal vs Brésil, France vs Canada. Cohérent avec inLanguage du
             JSON-LD ci-dessous. Source : developers.google.com/search/docs/specialty/international/localized-versions */}
