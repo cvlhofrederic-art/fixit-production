@@ -35,11 +35,16 @@ jobs:
 
       - name: Fetch all sitemap URLs and ping IndexNow
         run: |
-          set -e
+          set -euo pipefail
 
-          declare -a all_urls=()
+          urls_file=$(mktemp)
+          payload_file=$(mktemp)
+          response_file=$(mktemp)
+          trap 'rm -f "$urls_file" "$payload_file" "$response_file"' EXIT
 
-          # Fetch all sub-sitemaps (currently 5: 0.xml to 4.xml)
+          # Fetch all sub-sitemaps (currently 5: 0.xml to 4.xml).
+          # On écrit chaque URL directement dans un fichier ligne par ligne,
+          # pas dans un array bash, pour éviter ARG_MAX (3000+ URLs en prod).
           for i in $(seq 0 $((SITEMAP_COUNT - 1))); do
             sitemap_url="https://${HOST}/sitemap/${i}.xml"
             echo "Fetching $sitemap_url..."
@@ -50,13 +55,10 @@ jobs:
               continue
             fi
 
-            # Extract <loc>...</loc> URLs
-            while IFS= read -r url; do
-              [ -n "$url" ] && all_urls+=("$url")
-            done < <(echo "$xml" | grep -oE '<loc>[^<]+</loc>' | sed 's|<loc>||;s|</loc>||')
+            echo "$xml" | grep -oE '<loc>[^<]+</loc>' | sed 's|<loc>||;s|</loc>||' >> "$urls_file"
           done
 
-          total=${#all_urls[@]}
+          total=$(grep -c . "$urls_file" || true)
           echo "Collected $total URLs from sitemaps"
 
           if [ "$total" -eq 0 ]; then
@@ -64,37 +66,58 @@ jobs:
             exit 1
           fi
 
-          # Build JSON payload (jq escapes properly)
-          urls_json=$(printf '%s\n' "${all_urls[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+          # IndexNow accepte 10 000 URLs max par requête. Au-delà, on découpe.
+          # On écrit aussi le payload sur disque pour éviter ARG_MAX côté curl.
+          batch_size=10000
+          start=1
+          batch_num=1
+          ok=0
+          while [ "$start" -le "$total" ]; do
+            end=$((start + batch_size - 1))
+            jq -nc --rawfile urls_raw "$urls_file" \
+              --arg host "$HOST" \
+              --arg key "$INDEXNOW_KEY" \
+              --arg keyLoc "https://${HOST}/${INDEXNOW_KEY}.txt" \
+              --argjson startN "$start" \
+              --argjson endN "$end" \
+              '{
+                host: $host,
+                key: $key,
+                keyLocation: $keyLoc,
+                urlList: ($urls_raw | split("\n") | map(select(length > 0))[$startN-1:$endN])
+              }' > "$payload_file"
 
-          payload=$(jq -nc \
-            --arg host "$HOST" \
-            --arg key "$INDEXNOW_KEY" \
-            --arg keyLoc "https://${HOST}/${INDEXNOW_KEY}.txt" \
-            --argjson urls "$urls_json" \
-            '{host:$host, key:$key, keyLocation:$keyLoc, urlList:$urls}')
+            posted=$(jq '.urlList | length' "$payload_file")
+            echo "Posting batch #$batch_num: $posted URLs (range $start-$end of $total)..."
 
-          # IndexNow accepts max 10000 URLs/call; we are well below
-          echo "Posting $total URLs to IndexNow..."
-          status=$(curl -s -o /tmp/indexnow_response.txt -w "%{http_code}" \
-            -X POST "$ENDPOINT" \
-            -H "Content-Type: application/json; charset=utf-8" \
-            -d "$payload")
+            status=$(curl -sS -o "$response_file" -w "%{http_code}" \
+              -X POST "$ENDPOINT" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data-binary "@$payload_file")
 
-          echo "IndexNow API response: HTTP $status"
-          cat /tmp/indexnow_response.txt
-          echo ""
+            echo "IndexNow API response: HTTP $status"
+            head -c 500 "$response_file"; echo ""
 
-          # 200 = OK, 202 = Accepted, 422 = Some URLs invalid (not fatal)
-          case "$status" in
-            200|202)
-              echo "::notice::IndexNow ping succeeded ($total URLs submitted)"
-              ;;
-            422)
-              echo "::warning::IndexNow returned 422 (some URLs may be invalid). Non-fatal."
-              ;;
-            *)
-              echo "::error::IndexNow ping failed with HTTP $status"
-              exit 1
-              ;;
-          esac
+            case "$status" in
+              200|202)
+                ok=$((ok + posted))
+                ;;
+              422)
+                echo "::warning::IndexNow batch #$batch_num returned 422 (some URLs may be invalid). Non-fatal."
+                ok=$((ok + posted))
+                ;;
+              429)
+                echo "::warning::IndexNow rate limit hit on batch #$batch_num. Skipping remaining batches."
+                break
+                ;;
+              *)
+                echo "::error::IndexNow batch #$batch_num failed with HTTP $status"
+                exit 1
+                ;;
+            esac
+
+            start=$((end + 1))
+            batch_num=$((batch_num + 1))
+          done
+
+          echo "::notice::IndexNow ping succeeded ($ok / $total URLs submitted)"
