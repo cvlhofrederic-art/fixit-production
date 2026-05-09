@@ -77,13 +77,16 @@ jobs:
               continue
             fi
 
-            count_before=$(grep -c . "$urls_file" 2>/dev/null || echo 0)
+            # 'wc -l' renvoie toujours un entier propre (0 pour fichier vide).
+            # Eviter 'grep -c' ici: il sort code 1 si zero match, ce qui faisait
+            # planter l'arithmetique sur la 1re iteration (file vide au depart).
+            before=$(wc -l < "$urls_file")
             echo "$xml" | extract_locs >> "$urls_file"
-            count_after=$(grep -c . "$urls_file" 2>/dev/null || echo 0)
-            echo "  → $((count_after - count_before)) URLs collected from this sitemap"
+            after=$(wc -l < "$urls_file")
+            echo "  → $((after - before)) URLs collected from this sitemap"
           done
 
-          total=$(grep -c . "$urls_file" || true)
+          total=$(wc -l < "$urls_file")
           echo "Collected $total URLs from sitemaps"
 
           if [ "$total" -eq 0 ]; then
