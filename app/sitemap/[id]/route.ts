@@ -30,7 +30,7 @@ export const runtime = 'nodejs'
 // Pro SEO 2026 : lastmod précis par URL, pas de changefreq/priority.
 //
 // Google ignore <changefreq> et <priority> depuis 2017 (Gary Illyes confirmed).
-// Ne fournir QUE des <lastmod> précis et fiables — Google les utilise pour
+// Ne fournir QUE des <lastmod> précis et fiables : Google les utilise pour
 // prioriser le crawl. Lastmod erronés répétés = signal ignoré entièrement.
 // Source : developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
 // ────────────────────────────────────────────────────────────────────────────
