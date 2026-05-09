@@ -97,13 +97,9 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
           latitude: city.lat,
           longitude: city.lng,
         },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '127',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres inventés. À réactiver avec
+        // données réelles (Trustpilot / reviews vérifiées on-page liées via
+        // Review schema individuel) — cf. lib/schemas/index.ts.
       },
       {
         '@type': 'BreadcrumbList',

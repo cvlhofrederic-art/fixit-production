@@ -20,6 +20,14 @@ const STATIC_SUB_SITEMAP_IDS = [0, 1, 2, 3]
 // Spec : https://www.sitemaps.org/protocol.html (un sitemap doit contenir au moins 1 <url>)
 const DYNAMIC_ARTISAN_SITEMAP_ID = 4
 
+// Sitemaps additionnels par marché (URL prefix pattern) :
+// - /pt/sitemap.xml : sitemap PT-only soumis à la propriété GSC URL prefix
+//   `https://vitfix.io/pt/`. Référencé ici pour que la propriété racine puisse
+//   aussi suivre l'état PT et conserver un reporting granulaire en cas de
+//   problème transient sur les sub-sitemaps numériques.
+// - À ajouter quand on lancera FR/EN comme propriétés GSC séparées.
+const MARKET_SITEMAPS = ['/pt/sitemap.xml']
+
 async function hasVerifiedArtisans(): Promise<boolean> {
   try {
     const supabase = await createServerSupabaseClient()
@@ -40,6 +48,10 @@ export async function GET() {
   if (await hasVerifiedArtisans()) {
     ids.push(DYNAMIC_ARTISAN_SITEMAP_ID)
   }
-  const xml = formatSitemapIndexXml(ids.map((id) => `${baseUrl}/sitemap/${id}.xml`))
+  const sitemapUrls = [
+    ...ids.map((id) => `${baseUrl}/sitemap/${id}.xml`),
+    ...MARKET_SITEMAPS.map((path) => `${baseUrl}${path}`),
+  ]
+  const xml = formatSitemapIndexXml(sitemapUrls)
   return new Response(xml, { headers: SITEMAP_HEADERS })
 }

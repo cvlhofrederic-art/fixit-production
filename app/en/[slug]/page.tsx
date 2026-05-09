@@ -72,13 +72,7 @@ export default async function EnServicePage({ params }: { params: Promise<{ slug
           latitude: 41.1579,
           longitude: -8.6291,
         },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '127',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres invent\u00e9s. cf. lib/schemas/index.ts
         priceRange: '\u20ac\u20ac',
         ...(page.isEmergency ? {
           hoursAvailable: {

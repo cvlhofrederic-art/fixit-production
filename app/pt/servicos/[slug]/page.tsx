@@ -100,13 +100,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
           opens: '08:00',
           closes: '20:00',
         },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '127',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
       },
       {
         '@type': 'Service',

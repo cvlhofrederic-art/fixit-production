@@ -101,14 +101,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
           opens: '07:00',
           closes: '22:00',
         },
-        aggregateRating: {
-          // Aligné RATING_FR conservateur (lib/schemas/index.ts review #140).
-          '@type': 'AggregateRating',
-          ratingValue: '4.8',
-          reviewCount: '47',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
         availableLanguage: ['fr', 'en', 'pt'],
       },
       {
