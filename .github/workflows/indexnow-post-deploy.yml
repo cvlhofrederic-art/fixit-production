@@ -1,0 +1,100 @@
+# IndexNow Auto-Ping Post-Deploy
+# Notifie Bing/Yandex/Naver/Seznam des nouvelles URLs après chaque deploy main.
+# Doc protocole : https://www.indexnow.org/documentation
+#
+# Déclenche après le workflow "Deploy to Cloudflare Workers" sur la branche main.
+# Wait 30s pour propagation Cloudflare avant de fetch sitemap.
+
+name: "IndexNow - Post-Deploy Ping"
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Cloudflare Workers"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  INDEXNOW_KEY: f35626783ac34c45b8aed85303d1f5a8
+  HOST: vitfix.io
+  ENDPOINT: https://api.indexnow.org/indexnow
+  SITEMAP_COUNT: 5
+
+jobs:
+  indexnow-ping:
+    name: "Ping IndexNow API"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Wait for Cloudflare propagation
+        run: sleep 30
+
+      - name: Fetch all sitemap URLs and ping IndexNow
+        run: |
+          set -e
+
+          declare -a all_urls=()
+
+          # Fetch all sub-sitemaps (currently 5: 0.xml to 4.xml)
+          for i in $(seq 0 $((SITEMAP_COUNT - 1))); do
+            sitemap_url="https://${HOST}/sitemap/${i}.xml"
+            echo "Fetching $sitemap_url..."
+
+            xml=$(curl -sf --max-time 15 "$sitemap_url" || echo "")
+            if [ -z "$xml" ]; then
+              echo "::warning::Failed to fetch $sitemap_url, skipping"
+              continue
+            fi
+
+            # Extract <loc>...</loc> URLs
+            while IFS= read -r url; do
+              [ -n "$url" ] && all_urls+=("$url")
+            done < <(echo "$xml" | grep -oE '<loc>[^<]+</loc>' | sed 's|<loc>||;s|</loc>||')
+          done
+
+          total=${#all_urls[@]}
+          echo "Collected $total URLs from sitemaps"
+
+          if [ "$total" -eq 0 ]; then
+            echo "::error::No URLs collected from sitemaps"
+            exit 1
+          fi
+
+          # Build JSON payload (jq escapes properly)
+          urls_json=$(printf '%s\n' "${all_urls[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+
+          payload=$(jq -nc \
+            --arg host "$HOST" \
+            --arg key "$INDEXNOW_KEY" \
+            --arg keyLoc "https://${HOST}/${INDEXNOW_KEY}.txt" \
+            --argjson urls "$urls_json" \
+            '{host:$host, key:$key, keyLocation:$keyLoc, urlList:$urls}')
+
+          # IndexNow accepts max 10000 URLs/call; we are well below
+          echo "Posting $total URLs to IndexNow..."
+          status=$(curl -s -o /tmp/indexnow_response.txt -w "%{http_code}" \
+            -X POST "$ENDPOINT" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$payload")
+
+          echo "IndexNow API response: HTTP $status"
+          cat /tmp/indexnow_response.txt
+          echo ""
+
+          # 200 = OK, 202 = Accepted, 422 = Some URLs invalid (not fatal)
+          case "$status" in
+            200|202)
+              echo "::notice::IndexNow ping succeeded ($total URLs submitted)"
+              ;;
+            422)
+              echo "::warning::IndexNow returned 422 (some URLs may be invalid). Non-fatal."
+              ;;
+            *)
+              echo "::error::IndexNow ping failed with HTTP $status"
+              exit 1
+              ;;
+          esac
