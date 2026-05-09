@@ -52,6 +52,11 @@ const sharedMeta = {
   authors: [{ name: "Vitfix SAS" }] as Metadata['authors'],
   creator: "Vitfix SAS",
   publisher: "Vitfix SAS",
+  // Google Search Console verification (URL Prefix method).
+  // Génère <meta name="google-site-verification" content="..." /> dans le <head>.
+  verification: {
+    google: 'L5Xcai6puTpFfvMAQ7zvOinxUsg6u5YGfqhRNdVp34Y',
+  },
   // 2026 GEO/AEO best practice : autoriser explicitement les snippets
   // longs et les images larges aux crawlers (Google + AI engines).
   // Sans ces directives, AI Overviews / ChatGPT / Perplexity peuvent
