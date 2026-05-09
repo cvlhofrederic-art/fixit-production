@@ -391,6 +391,405 @@ export const CITIES: CityData[] = [
       },
     },
   },
+  {
+    slug: 'matosinhos',
+    name: 'Matosinhos',
+    distrito: 'Porto',
+    population: 172557,
+    lat: 41.1833,
+    lng: -8.7000,
+    freguesias: ['Matosinhos e Leça da Palmeira', 'Custóias, Leça do Balio e Guifões', 'Perafita, Lavra e Santa Cruz do Bispo', 'São Mamede de Infesta e Senhora da Hora'],
+    nearby: ['porto', 'maia', 'vila-do-conde'],
+    specialty: 'Concelho costeiro do norte da Área Metropolitana do Porto, lar do Porto de Leixões, segundo maior porto artificial do país. Reconhecido pela tradição piscatória, sardinhada à beira-mar e pela arquitetura moderna de Siza Vieira na Casa de Chá da Boa Nova.',
+    climateChallenges: [
+      'Salinidade atlântica intensa que ataca metais expostos, gradeamentos, portões e fixações em janelas',
+      'Ventos marítimos fortes que aceleram a degradação de tintas exteriores e fachadas',
+      'Humidade salina que provoca infiltrações em coberturas e paredes orientadas a oeste',
+      'Edifícios industriais e armazéns portuários antigos que requerem manutenção especializada para resistir ao ambiente corrosivo',
+    ],
+    notableFreguesias: [
+      { name: 'Matosinhos e Leça da Palmeira', context: 'Centro urbano denso com edifícios residenciais junto à praia e à frente portuária, forte procura de canalizadores e pintores especializados em ambiente costeiro.' },
+      { name: 'Perafita, Lavra e Santa Cruz do Bispo', context: 'Zona mista residencial e industrial perto do Porto de Leixões, com pavilhões petroquímicos e moradias unifamiliares.' },
+      { name: 'São Mamede de Infesta e Senhora da Hora', context: 'Coração comercial do interior do concelho com habitação coletiva densa, alvo regular de obras de remodelação e instalações elétricas.' },
+    ],
+    localEconomy: 'Porto de Leixões, indústria petroquímica e alimentar, pesca tradicional e turismo costeiro com a Exponor.',
+    landmarks: [
+      'Casa de Chá da Boa Nova (Siza Vieira)',
+      'Igreja do Senhor Bom Jesus de Matosinhos (Nicolau Nasoni)',
+      'Mosteiro de Leça do Balio',
+      'Escultura She Changes de Janet Echelman',
+      'Tanques Romanos de Angeiras',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas certificados em Matosinhos com experiência em instalações expostas ao ambiente atlântico salino. Utilização de material com proteção IP65 ou superior em zonas costeiras como Leça da Palmeira e Perafita.',
+        localCases: [
+          'Substituição de quadro elétrico oxidado num apartamento à beira-mar em Leça da Palmeira após corrosão progressiva.',
+          'Instalação de iluminação LED exterior numa moradia em Lavra com caixas estanques resistentes à maresia.',
+          'Reparação urgente do circuito de força num restaurante na frente atlântica de Matosinhos depois de uma tempestade.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Matosinhos disponíveis para urgências em moradias costeiras, alojamentos turísticos e estabelecimentos da frente portuária. Conhecimento das particularidades das tubagens em zonas próximas do mar.',
+        localCases: [
+          'Reparação de fuga de água numa cave em Custóias com infiltração identificada por câmara endoscópica.',
+          'Substituição de canalização galvanizada num edifício antigo em Senhora da Hora por tubo multicamada.',
+          'Desentupimento de saneamento numa peixaria do mercado de Matosinhos com acumulação de gorduras.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Matosinhos especializados em fachadas expostas ao Atlântico, com aplicação de tintas anti-salinas e tratamentos anti-bolor para paredes orientadas a oeste.',
+        localCases: [
+          'Pintura completa da fachada de uma moradia em Leça da Palmeira com tinta acrílica reforçada anti-maresia.',
+          'Restauro do interior de um edifício do centro de Matosinhos com tratamento prévio anti-fungos nas paredes humedecidas.',
+          'Pintura exterior de um pavilhão industrial em Perafita com tinta epóxi resistente ao ar salino.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'gondomar',
+    name: 'Gondomar',
+    distrito: 'Porto',
+    population: 164257,
+    lat: 41.1500,
+    lng: -8.5333,
+    freguesias: ['Gondomar (São Cosme), Valbom e Jovim', 'Rio Tinto', 'Fânzeres e São Pedro da Cova', 'Foz do Sousa e Covelo', 'Baguim do Monte', 'Lomba', 'Melres e Medas'],
+    nearby: ['porto', 'valongo', 'vila-nova-de-gaia'],
+    specialty: 'Capital portuguesa da ourivesaria e da filigrana tradicional, atravessada pelo rio Douro e por mais quatro afluentes (Tinto, Torto, Sousa, Ferreira). Concelho da grande área metropolitana do Porto com forte identidade artesanal.',
+    climateChallenges: [
+      'Margens fluviais que sobem em invernos chuvosos, exigindo impermeabilização cuidada de caves nas zonas ribeirinhas',
+      'Edifícios industriais antigos das oficinas de ourives que requerem reabilitação técnica',
+      'Habitação coletiva densa em Rio Tinto e Baguim do Monte com necessidades constantes de manutenção elétrica',
+      'Pavimentos em granito gasto nas zonas históricas que dificultam o acesso para grandes obras',
+    ],
+    notableFreguesias: [
+      { name: 'Gondomar (São Cosme), Valbom e Jovim', context: 'Centro do concelho e capital simbólica da ourivesaria portuguesa, com oficinas tradicionais que requerem instalações elétricas adaptadas.' },
+      { name: 'Rio Tinto', context: 'Zona urbana mais populosa, com habitação coletiva intensa e forte procura de canalizadores e pintores residenciais.' },
+      { name: 'Foz do Sousa e Covelo', context: 'Margens do Douro com moradias e quintas vinícolas, exposição às cheias fluviais a gerir com impermeabilização robusta.' },
+    ],
+    localEconomy: 'Ourivesaria e joalharia tradicional (capital nacional), indústria transformadora e serviços metropolitanos.',
+    landmarks: [
+      'Monte Crasto e miradouro sobre o vale do Douro',
+      'Centro histórico de São Cosme e oficinas de ourives',
+      'Praia fluvial da Lomba',
+      'Praia fluvial de Zebreiros',
+      'Igreja Matriz de Rio Tinto',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Gondomar com experiência em oficinas de ourivesaria, edifícios residenciais coletivos e moradias junto ao Douro. Diagnóstico técnico em instalações antigas frequentes em São Cosme e Valbom.',
+        localCases: [
+          'Modernização do quadro elétrico de uma oficina de ourives em Gondomar com proteção diferencial reforçada.',
+          'Instalação de iluminação técnica num atelier de filigrana em Valbom adaptada ao trabalho minucioso.',
+          'Substituição completa da rede elétrica de um edifício de habitação coletiva em Rio Tinto após sinais de sobrecarga.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Gondomar disponíveis para urgências em apartamentos urbanos de Rio Tinto, moradias junto ao Douro e oficinas de ourives. Atenção especial às tubagens em zonas com lençol freático elevado nas margens fluviais.',
+        localCases: [
+          'Reparação urgente de fuga de água numa cave em Foz do Sousa após cheias de inverno.',
+          'Substituição de tubagem em chumbo num edifício antigo de São Cosme por canalização certificada.',
+          'Desentupimento de coletor numa moradia em Lomba com acumulação de raízes vegetais.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Gondomar especializados em interiores residenciais densos, fachadas de edifícios coletivos e restauro pontual de oficinas tradicionais no centro histórico.',
+        localCases: [
+          'Pintura completa de um apartamento de três assoalhadas em Rio Tinto com primário anti-humidade.',
+          'Pintura exterior de uma moradia em Valbom com tinta acrílica adaptada ao clima atlântico interior.',
+          'Restauro pontual da pintura de uma oficina de ourivesaria em São Cosme respeitando a estética histórica.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'valongo',
+    name: 'Valongo',
+    distrito: 'Porto',
+    population: 94672,
+    lat: 41.1875,
+    lng: -8.4878,
+    freguesias: ['Valongo', 'Ermesinde', 'Alfena', 'Campo', 'Sobrado'],
+    nearby: ['gondomar', 'paredes', 'maia'],
+    specialty: 'Concelho oriental da Área Metropolitana do Porto, conhecido pela extração tradicional de lousa (ardósia) e pela Serra de Santa Justa, parte do Geopark Porto reconhecido pelo European Green Leaf 2022. Famosa pela regueifa e pelos biscoitos de Valongo.',
+    climateChallenges: [
+      'Solos rochosos com lousa xistosa que dificultam a abertura de caboucos para obras novas',
+      'Edifícios antigos do centro de Valongo e Ermesinde com humidade ascendente nas paredes em pedra',
+      'Pavilhões industriais antigos em Alfena com necessidade de impermeabilização de coberturas',
+      'Zona de serra com humidade matinal persistente que afeta acabamentos exteriores',
+    ],
+    notableFreguesias: [
+      { name: 'Ermesinde', context: 'Maior freguesia em população do concelho, com habitação coletiva muito densa e forte procura de canalizadores em prédios antigos.' },
+      { name: 'Valongo', context: 'Centro histórico com edifícios em pedra de lousa que requerem técnicas específicas de restauro e tratamento anti-humidade.' },
+      { name: 'Alfena', context: 'Zona industrial e residencial em expansão, com pavilhões e moradias unifamiliares recentes.' },
+    ],
+    localEconomy: 'Extração e transformação de lousa, indústria têxtil e cerâmica, padaria tradicional (regueifa, biscoitos), agroalimentar.',
+    landmarks: [
+      'Serra de Santa Justa (Geopark Porto)',
+      'Ponte de São Lázaro em Alfena',
+      'Parque das Serras do Porto',
+      'Centro histórico de Valongo',
+      'Forno de cal de Couce',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Valongo com experiência em edifícios antigos com paredes em pedra, em pavilhões industriais de Alfena e em habitação coletiva densa em Ermesinde.',
+        localCases: [
+          'Modernização do quadro elétrico de um prédio de habitação coletiva em Ermesinde com 30 anos de instalação original.',
+          'Instalação de iluminação industrial num pavilhão em Alfena adaptada às atividades de transformação têxtil.',
+          'Substituição parcial de cablagem antiga numa moradia em pedra no centro de Valongo respeitando a estrutura.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Valongo disponíveis para urgências em apartamentos densos de Ermesinde, em moradias antigas em pedra do centro e em estabelecimentos comerciais. Conhecimento das particularidades das tubagens em zona com solos rochosos.',
+        localCases: [
+          'Reparação de fuga em coluna montante de um prédio em Ermesinde sem necessidade de cortar abastecimento aos vizinhos.',
+          'Substituição de canalização exterior numa moradia em Sobrado com escavação adaptada ao terreno xistoso.',
+          'Desentupimento de saneamento num estabelecimento comercial no centro de Valongo após acumulação de calcário.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Valongo especializados em interiores de edifícios em pedra, fachadas com humidade ascendente e pavilhões industriais. Tratamento anti-bolor adaptado ao clima da serra de Santa Justa.',
+        localCases: [
+          'Tratamento anti-humidade e pintura completa de uma moradia antiga em pedra no centro de Valongo.',
+          'Pintura interior de um apartamento em Ermesinde com aplicação prévia de primário fungicida.',
+          'Pintura exterior de um pavilhão industrial em Alfena com tinta de manutenção alta.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'vila-do-conde',
+    name: 'Vila do Conde',
+    distrito: 'Porto',
+    population: 80825,
+    lat: 41.3528,
+    lng: -8.7444,
+    freguesias: ['Vila do Conde', 'Árvore', 'Azurara', 'Bagunte, Ferreiró, Outeiro Maior e Parada', 'Canidelo', 'Fajozes', 'Fornelo e Vairão', 'Gião', 'Guilhabreu', 'Junqueira', 'Labruge', 'Macieira da Maia', 'Malta e Canidelo', 'Mindelo', 'Modivas', 'Mosteiró', 'Retorta e Tougues', 'Rio Mau e Arcos', 'Touguinha e Touguinhó', 'Vila Chã', 'Vilar e Mosteiró'],
+    nearby: ['povoa-de-varzim', 'matosinhos', 'maia'],
+    specialty: 'Cidade costeira histórica do norte do Porto, com porto pesqueiro ativo, foral concedido em 1516 por D. Manuel I. Reconhecida internacionalmente pela tradição da renda de bilros e pela festa de São João em junho.',
+    climateChallenges: [
+      'Salinidade atlântica que ataca portões metálicos, varandas e tubagens exteriores em zonas frente-mar',
+      'Ventos costeiros fortes que aceleram a degradação de tintas e revestimentos exteriores',
+      'Humidade salina que provoca infiltrações em coberturas mal estanques',
+      'Edifícios históricos do centro com fachadas que exigem restauro especializado e não pintura corrente',
+    ],
+    notableFreguesias: [
+      { name: 'Vila do Conde', context: 'Centro histórico com Mosteiro de Santa Clara e edifícios manuelinos, alvo regular de restauro patrimonial.' },
+      { name: 'Mindelo', context: 'Zona residencial costeira com forte procura de manutenção exterior anti-salinidade.' },
+      { name: 'Vila Chã', context: 'Aldeia piscatória tradicional com pequenos edifícios em pedra e madeira que requerem cuidados específicos.' },
+    ],
+    localEconomy: 'Pesca tradicional, indústria têxtil, fábrica de canoas, turismo costeiro e comércio local.',
+    landmarks: [
+      'Mosteiro de Santa Clara',
+      'Aqueduto de Santa Clara',
+      'Igreja Matriz de São João Baptista',
+      'Paisagem Protegida do Litoral de Vila do Conde',
+      'Renda de Bilros (património imaterial)',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Vila do Conde com experiência em edifícios históricos do centro, moradias costeiras de Mindelo e Vila Chã, e instalações de unidades de turismo. Material com proteção IP65 obrigatória em zonas frente-mar.',
+        localCases: [
+          'Substituição de quadro elétrico num apartamento turístico em Mindelo com sinais de oxidação por humidade salina.',
+          'Instalação de iluminação exterior numa moradia em Vila Chã com caixas estanques resistentes à maresia.',
+          'Modernização da rede elétrica num edifício comercial do centro histórico respeitando a estética patrimonial.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Vila do Conde disponíveis para urgências em moradias costeiras, alojamentos turísticos e estabelecimentos de restauração junto ao porto pesqueiro. Conhecimento das tubagens em ambiente salino.',
+        localCases: [
+          'Reparação de fuga em canalização exterior corroída numa moradia em Mindelo após exposição prolongada à maresia.',
+          'Substituição de canalização em chumbo num edifício antigo do centro histórico por tubo multicamada certificado.',
+          'Desentupimento de coletor numa peixaria do mercado municipal com acumulação de gorduras de pescado.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Vila do Conde especializados em fachadas costeiras, restauro de edifícios manuelinos e pintura de moradias com exposição salina. Tintas anti-maresia e tratamento prévio das paredes orientadas a oeste.',
+        localCases: [
+          'Pintura completa da fachada de uma moradia em Mindelo com tinta acrílica reforçada contra a salinidade.',
+          'Restauro pontual da pintura interior de um edifício do centro histórico respeitando a paleta original.',
+          'Pintura exterior de um alojamento local em Vila Chã com selante reforçado nas juntas das janelas.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'santo-tirso',
+    name: 'Santo Tirso',
+    distrito: 'Porto',
+    population: 67785,
+    lat: 41.3447,
+    lng: -8.4742,
+    freguesias: ['Santo Tirso, Couto (Santa Cristina e São Miguel) e Burgães', 'Vila das Aves', 'Roriz', 'Vila Nova do Campo', 'Negrelos (São Tomé e São Mamede)', 'Lama', 'Areias, Sequeirô, Lama e Palmeira', 'Carreira e Refojos de Riba de Ave', 'Rebordões', 'Vilarinho', 'Aves', 'Monte Córdova', 'Reguenga', 'São Salvador do Campo'],
+    nearby: ['trofa', 'maia', 'pacos-de-ferreira'],
+    specialty: 'Berço da industrialização têxtil portuguesa com a primeira unidade do país (Fábrica de Rio Vizela, 1845). Concelho histórico com Mosteiro Beneditino do século X e Museu Internacional de Escultura Contemporânea desenhado por Siza Vieira e Souto de Moura.',
+    climateChallenges: [
+      'Pavilhões têxteis e calçado antigos que requerem instalações elétricas modernizadas e impermeabilização',
+      'Humidade do vale do Ave que afeta paredes em pedra de edifícios antigos',
+      'Cheias pontuais nas margens do rio Ave em invernos rigorosos',
+      'Edifícios industriais reconvertidos em habitação que exigem reforço estrutural e acústico',
+    ],
+    notableFreguesias: [
+      { name: 'Vila das Aves', context: 'Antiga capital têxtil do concelho com fábricas centenárias reconvertidas em habitação e serviços, alvo de obras de reabilitação.' },
+      { name: 'Santo Tirso, Couto e Burgães', context: 'Centro do concelho com Mosteiro Beneditino e MIEC, mistura património histórico e habitação moderna.' },
+      { name: 'Roriz', context: 'Igreja românica reconhecida nacionalmente, freguesia com forte tradição rural e património a preservar.' },
+    ],
+    localEconomy: 'Indústria têxtil e vestuário (53.6% do valor industrial), plásticos (25.4%), berço da industrialização portuguesa.',
+    landmarks: [
+      'Mosteiro de Santo Tirso (século X)',
+      'Museu Internacional de Escultura Contemporânea (Siza Vieira + Souto de Moura)',
+      'Igreja de Roriz (románica)',
+      'Fábrica de Rio Vizela (primeira têxtil do país, 1845)',
+      'Pastelaria Moura (Jesuíta desde 1892)',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Santo Tirso especializados em instalações de pavilhões têxteis modernizados, fábricas em reconversão e edifícios habitacionais antigos. Diagnóstico técnico em instalações de elevada potência industrial.',
+        localCases: [
+          'Modernização da rede elétrica de um pavilhão têxtil em Vila das Aves reconvertido em habitação coletiva.',
+          'Instalação de quadro técnico industrial numa fábrica de plásticos em Areias adaptada à carga elevada.',
+          'Substituição de cablagem antiga num edifício de habitação no centro de Santo Tirso após sinais de sobrecarga.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Santo Tirso disponíveis para urgências em pavilhões industriais, habitação coletiva em reabilitação e moradias rurais nas freguesias periféricas.',
+        localCases: [
+          'Reparação de fuga em rede de incêndio de uma fábrica têxtil em Vila das Aves após inspeção anual.',
+          'Substituição de canalização antiga num edifício de habitação no centro reconvertido a partir de fábrica.',
+          'Desentupimento de coletor numa moradia em Monte Córdova com acumulação de raízes nas tubagens exteriores.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Santo Tirso especializados em pavilhões industriais, restauro de edifícios fabris reconvertidos e pintura de habitação coletiva. Aplicação de tintas técnicas de longa duração para ambiente industrial.',
+        localCases: [
+          'Pintura completa de um pavilhão têxtil em Vila das Aves com tinta epóxi resistente à atividade industrial.',
+          'Restauro da fachada de uma antiga fábrica reconvertida em habitação no centro de Santo Tirso.',
+          'Pintura interior de um apartamento em Areias com tratamento prévio anti-humidade no quarto orientado a norte.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'povoa-de-varzim',
+    name: 'Póvoa de Varzim',
+    distrito: 'Porto',
+    population: 64320,
+    lat: 41.3800,
+    lng: -8.7608,
+    freguesias: ['Póvoa de Varzim, Beiriz e Argivai', 'Aguçadoura e Navais', 'Aver-o-Mar, Amorim e Terroso', 'Balazar', 'Estela', 'Laúndos', 'Rates'],
+    nearby: ['vila-do-conde', 'maia'],
+    specialty: 'Estância balnear do norte de Portugal há três séculos, com Casino histórico desde 1934 e o principal porto de pesca do norte do país no século XVII. Concelho costeiro com forte identidade piscatória e turística.',
+    climateChallenges: [
+      'Salinidade atlântica intensa em zonas frente-mar como Aver-o-Mar e Aguçadoura',
+      'Ventos marítimos fortes que afetam fachadas, telhados e estruturas exteriores',
+      'Humidade salina que provoca corrosão de portões, gradeamentos e portas exteriores',
+      'Alojamento local e segundas habitações que ficam vazias parte do ano e requerem manutenção sazonal',
+    ],
+    notableFreguesias: [
+      { name: 'Póvoa de Varzim, Beiriz e Argivai', context: 'Centro urbano e turístico com Casino, Praça do Almada e habitação coletiva densa, alvo regular de remodelação interior.' },
+      { name: 'Aver-o-Mar, Amorim e Terroso', context: 'Zona residencial costeira com tradição piscatória, manutenção exterior anti-maresia constante.' },
+      { name: 'Estela', context: 'Freguesia turística com campo de golfe e moradias de segunda habitação que exigem inspeção sazonal.' },
+    ],
+    localEconomy: 'Turismo balnear, gaming (Casino da Póvoa), pesca (porto histórico), comércio e hotelaria.',
+    landmarks: [
+      'Praça do Almada (centro cívico, edifício de 1791)',
+      'Casino da Póvoa (desde 1934)',
+      'Igreja Matriz da Póvoa (barroca do século XVIII)',
+      'Pelourinho manuelino de 1514',
+      'Igreja de São Pedro de Rates (románica)',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas na Póvoa de Varzim especializados em alojamentos locais, hotéis costeiros e moradias de segunda habitação. Material com proteção IP65 nas zonas frente-mar e diagnóstico de instalações sazonais.',
+        localCases: [
+          'Diagnóstico e modernização do quadro elétrico de um alojamento local em Aver-o-Mar antes da época alta.',
+          'Instalação de iluminação exterior numa moradia em Estela com caixas estanques anti-maresia.',
+          'Reparação urgente do circuito de força num restaurante na frente atlântica após uma tempestade.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores na Póvoa de Varzim disponíveis para urgências em alojamentos turísticos, hotéis e moradias costeiras. Conhecimento das tubagens em ambiente salino e gestão de fugas em propriedades sazonais.',
+        localCases: [
+          'Reparação urgente de fuga em alojamento local na Póvoa antes da chegada de hóspedes.',
+          'Substituição de canalização exterior numa moradia em Aguçadoura corroída pela maresia.',
+          'Desentupimento de saneamento num restaurante junto à Praia da Póvoa com acumulação de gorduras.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores na Póvoa de Varzim especializados em fachadas costeiras, restauro de edifícios históricos do centro e pintura de moradias sazonais. Aplicação de tintas anti-maresia adaptadas ao clima atlântico.',
+        localCases: [
+          'Pintura completa da fachada de um edifício comercial em Argivai com tinta resistente à salinidade.',
+          'Restauro pontual da pintura interior de uma moradia de segunda habitação em Estela após meses fechada.',
+          'Pintura exterior de um hotel boutique no centro com selante reforçado nas juntas das janelas.',
+        ],
+      },
+    },
+  },
+  {
+    slug: 'trofa',
+    name: 'Trofa',
+    distrito: 'Porto',
+    population: 38548,
+    lat: 41.3500,
+    lng: -8.5500,
+    freguesias: ['Bougado (São Martinho e Santiago)', 'Coronado (São Romão e São Mamede)', 'Alvarelhos', 'Covelas', 'Guidões', 'Muro'],
+    nearby: ['santo-tirso', 'maia', 'vila-do-conde'],
+    specialty: 'Concelho jovem (criado em 1998) com posição estratégica entre Porto, Braga, Santo Tirso e Vila do Conde. Forte ligação ferroviária histórica e tradição industrial transformadora, com Castro de Alvarelhos como sítio arqueológico pré-romano de referência.',
+    climateChallenges: [
+      'Pavilhões industriais e logísticos em Coronado que requerem manutenção elétrica e impermeabilização regular',
+      'Humidade interior persistente em moradias antigas das freguesias rurais como Covelas e Muro',
+      'Edifícios da estação ferroviária e armazéns ferroviários antigos que exigem reabilitação especializada',
+      'Solos argilosos em zonas baixas que dificultam fundações e canalizações exteriores',
+    ],
+    notableFreguesias: [
+      { name: 'Bougado (São Martinho e Santiago)', context: 'Centro urbano da Trofa com Igreja de Nicolau Nasoni e habitação coletiva, principal núcleo de procura de serviços.' },
+      { name: 'Coronado (São Romão e São Mamede)', context: 'Zona industrial e logística com pavilhões e indústria transformadora, manutenção elétrica e canalização industrial frequente.' },
+      { name: 'Alvarelhos', context: 'Freguesia rural com Castro pré-romano, casario antigo em pedra que exige restauro com técnicas tradicionais.' },
+    ],
+    localEconomy: 'Indústria transformadora, logística (eixo Porto-Braga), serviços e comércio local.',
+    landmarks: [
+      'Castro de Alvarelhos (sítio pré-romano)',
+      'Igreja de Santiago de Bougado (Nicolau Nasoni)',
+      'Estação Ferroviária da Trofa',
+      'Parque Nossa Senhora das Dores',
+      'Gravuras do Monte de São Gens',
+    ],
+    contentUpdatedAt: '2026-05-09',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas na Trofa com experiência em pavilhões industriais e logísticos de Coronado, moradias rurais nas freguesias periféricas e edifícios de habitação no centro de Bougado.',
+        localCases: [
+          'Modernização do quadro técnico de um armazém logístico em Coronado adaptado à carga industrial.',
+          'Instalação de iluminação industrial num pavilhão de transformação em Muro com material certificado.',
+          'Substituição de cablagem antiga numa moradia rural em Alvarelhos respeitando a estrutura em pedra.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores na Trofa disponíveis para urgências em pavilhões industriais, moradias rurais e habitação coletiva no centro. Conhecimento das particularidades das tubagens em solos argilosos das zonas baixas.',
+        localCases: [
+          'Reparação urgente de fuga numa moradia em Bougado com identificação por câmara endoscópica.',
+          'Substituição de canalização exterior numa quinta em Covelas com escavação adaptada ao solo argiloso.',
+          'Desentupimento de coletor industrial num pavilhão em Coronado após acumulação de resíduos transformadores.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores na Trofa especializados em pavilhões industriais, fachadas de habitação coletiva e restauro pontual de edifícios em pedra das freguesias rurais.',
+        localCases: [
+          'Pintura completa de um pavilhão industrial em Coronado com tinta epóxi resistente à atividade transformadora.',
+          'Pintura interior de um apartamento em Bougado com tratamento prévio anti-humidade.',
+          'Restauro pontual da pintura de uma moradia rural em pedra em Alvarelhos respeitando a paleta tradicional.',
+        ],
+      },
+    },
+  },
 ]
 
 // ============================================================
