@@ -37,8 +37,9 @@ describe('translateUrl', () => {
       expect(translateUrl('/fr/tarifs', 'pt')).toBe('/pt/precos')
     })
 
-    it('FR a-propos → EN (no equivalent) → home EN', () => {
-      expect(translateUrl('/fr/a-propos', 'en')).toBe('/en/')
+    it('FR a-propos → EN (no equivalent) → null', () => {
+      // a-propos n'existe pas en EN → drapeau caché côté UI.
+      expect(translateUrl('/fr/a-propos', 'en')).toBeNull()
     })
   })
 
@@ -63,32 +64,34 @@ describe('translateUrl', () => {
       expect(translateUrl('/fr/electricien-porto', 'pt')).toBe('/pt/perto-de-mim/eletricista-porto')
     })
 
-    it('Porto page → NL (no equivalent) → home NL', () => {
-      expect(translateUrl('/fr/plombier-porto', 'nl')).toBe('/nl/')
+    it('Porto page → NL (no equivalent) → null', () => {
+      // Pas de page Porto en NL → drapeau caché.
+      expect(translateUrl('/fr/plombier-porto', 'nl')).toBeNull()
     })
   })
 
   describe('Marseille SEO pages (no equivalent in other locales)', () => {
-    it('Marseille service page → PT → home PT', () => {
-      expect(translateUrl('/fr/pres-de-chez-moi/plombier-marseille', 'pt')).toBe('/pt/')
+    it('Marseille service page → PT → null (marchés séparés)', () => {
+      expect(translateUrl('/fr/pres-de-chez-moi/plombier-marseille', 'pt')).toBeNull()
     })
 
-    it('Marseille ville page → EN → home EN', () => {
-      expect(translateUrl('/fr/ville/marseille', 'en')).toBe('/en/')
+    it('Marseille ville page → EN → null', () => {
+      expect(translateUrl('/fr/ville/marseille', 'en')).toBeNull()
     })
 
-    it('Marseille services page → NL → home NL', () => {
-      expect(translateUrl('/fr/services/electricien', 'nl')).toBe('/nl/')
+    it('Marseille services page → NL → null', () => {
+      expect(translateUrl('/fr/services/electricien', 'nl')).toBeNull()
     })
   })
 
   describe('PT-only programmatic SEO pages (Tâmega e Sousa)', () => {
-    it('canalizador-marco-de-canaveses → FR → home FR', () => {
-      expect(translateUrl('/pt/perto-de-mim/canalizador-marco-de-canaveses', 'fr')).toBe('/fr/')
+    it('canalizador-marco-de-canaveses → FR → null', () => {
+      // Tâmega e Sousa = marché PT, pas d'équivalent FR. Drapeau caché.
+      expect(translateUrl('/pt/perto-de-mim/canalizador-marco-de-canaveses', 'fr')).toBeNull()
     })
 
-    it('eletricista-amarante → EN → home EN', () => {
-      expect(translateUrl('/pt/perto-de-mim/eletricista-amarante', 'en')).toBe('/en/')
+    it('eletricista-amarante → EN → null', () => {
+      expect(translateUrl('/pt/perto-de-mim/eletricista-amarante', 'en')).toBeNull()
     })
   })
 
@@ -103,12 +106,12 @@ describe('translateUrl', () => {
   })
 
   describe('unknown paths', () => {
-    it('unknown FR path → PT → home PT', () => {
-      expect(translateUrl('/fr/some-random-page-that-does-not-exist', 'pt')).toBe('/pt/')
+    it('unknown FR path → PT → null', () => {
+      expect(translateUrl('/fr/some-random-page-that-does-not-exist', 'pt')).toBeNull()
     })
 
-    it('non-locale path → fallback to target home', () => {
-      expect(translateUrl('/some-totally-random-thing', 'fr')).toBe('/fr/')
+    it('non-locale path → null', () => {
+      expect(translateUrl('/some-totally-random-thing', 'fr')).toBeNull()
     })
   })
 })

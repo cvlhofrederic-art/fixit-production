@@ -58,11 +58,14 @@ export function LanguageProvider({
     // Persist to localStorage
     try { localStorage.setItem(LOCALE_LS_KEY, newLocale) } catch (e) { console.warn('[i18n] localStorage setItem failed:', e) }
     // Navigation vers l'URL équivalente dans la nouvelle locale.
-    // Le translator garantit qu'on n'envoie jamais l'utilisateur sur un 404 :
-    // si la page actuelle n'a pas d'équivalent connu, on retombe sur la home
-    // de la langue cible. Cf. lib/i18n/url-translator.ts.
+    // Politique pro 2026 : marchés FR / PT / EN / NL / ES strictement
+    // séparés. Si la page actuelle n'a PAS d'équivalent dans la locale
+    // cible, on ne navigue pas (le drapeau aurait dû être caché côté UI
+    // par le LanguageSwitcher). Cf. lib/i18n/url-translator.ts.
     const newPath = translateUrl(window.location.pathname, newLocale)
-    router.replace(newPath)
+    if (newPath) {
+      router.replace(newPath)
+    }
   }, [router])
 
   const t = useCallback((key: string, fallback?: string): string => {

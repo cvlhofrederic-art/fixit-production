@@ -193,9 +193,11 @@ export default async function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#FFD600" />
         <link rel="manifest" href="/manifest.json" />
-        {/* hreflang SEO tags */}
-        <link rel="alternate" hrefLang="fr" href="https://vitfix.io/fr/" />
-        <link rel="alternate" hrefLang="pt" href="https://vitfix.io/pt/" />
+        {/* hreflang SEO tags — codes régionaux (BCP 47) pour cibler explicitement
+            Portugal vs Brésil, France vs Canada. Cohérent avec inLanguage du
+            JSON-LD ci-dessous. Source : developers.google.com/search/docs/specialty/international/localized-versions */}
+        <link rel="alternate" hrefLang="fr-FR" href="https://vitfix.io/fr/" />
+        <link rel="alternate" hrefLang="pt-PT" href="https://vitfix.io/pt/" />
         <link rel="alternate" hrefLang="en" href="https://vitfix.io/en/" />
         <link rel="alternate" hrefLang="nl" href="https://vitfix.io/nl/" />
         <link rel="alternate" hrefLang="es" href="https://vitfix.io/es/" />
@@ -213,13 +215,19 @@ export default async function RootLayout({
                   name: 'VITFIX',
                   url: 'https://vitfix.io',
                   inLanguage: locale === 'en' ? 'en' : locale === 'pt' ? 'pt-PT' : locale === 'nl' ? 'nl' : locale === 'es' ? 'es' : 'fr-FR',
+                  // Sitelinks Searchbox : target DOIT être un EntryPoint object
+                  // (pas une URL string nue) pour déclencher le rich result.
+                  // Source : developers.google.com/search/docs/appearance/structured-data/sitelinks-searchbox
                   potentialAction: {
                     '@type': 'SearchAction',
-                    target: locale === 'pt'
-                      ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
-                      : locale === 'en'
-                        ? 'https://vitfix.io/en/?q={search_term_string}'
-                        : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
+                    target: {
+                      '@type': 'EntryPoint',
+                      urlTemplate: locale === 'pt'
+                        ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
+                        : locale === 'en'
+                          ? 'https://vitfix.io/en/?q={search_term_string}'
+                          : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
+                    },
                     'query-input': 'required name=search_term_string',
                   },
                 },

@@ -16,11 +16,16 @@ on:
 
 permissions:
   contents: read
+  issues: write  # nécessaire pour gh issue create en cas de rate limit
 
 env:
   INDEXNOW_KEY: f35626783ac34c45b8aed85303d1f5a8
   HOST: vitfix.io
+  # Endpoint principal : forwarde aux moteurs partenaires (Yandex, Naver, Seznam).
   ENDPOINT: https://api.indexnow.org/indexnow
+  # Endpoint Bing direct (recommandé par Bing pour reliability + faster indexing).
+  # Doc : https://www.bing.com/webmasters/help/indexnow-api
+  BING_ENDPOINT: https://api.bing.com/IndexNow
   SITEMAP_INDEX: https://vitfix.io/sitemap.xml
 
 jobs:
@@ -35,6 +40,11 @@ jobs:
         run: sleep 30
 
       - name: Fetch all sitemap URLs and ping IndexNow
+        env:
+          # gh CLI utilise GH_TOKEN pour créer/commenter une issue d'alerte
+          # en cas de rate limit IndexNow. Le token par défaut suffit grâce
+          # à `permissions: issues: write` au niveau workflow.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -118,13 +128,24 @@ jobs:
             posted=$(jq '.urlList | length' "$payload_file")
             echo "Posting batch #$batch_num: $posted URLs (range $start-$end of $total)..."
 
+            # POST principal vers indexnow.org (forwarde Yandex/Naver/Seznam).
             status=$(curl -sS -o "$response_file" -w "%{http_code}" \
               -X POST "$ENDPOINT" \
               -H "Content-Type: application/json; charset=utf-8" \
               --data-binary "@$payload_file")
-
-            echo "IndexNow API response: HTTP $status"
+            echo "IndexNow generic response: HTTP $status"
             head -c 500 "$response_file"; echo ""
+
+            # POST direct vers Bing IndexNow endpoint (best-effort, parallèle).
+            # Bing recommande l'appel direct pour reliability + faster indexing.
+            # On ne fait pas échouer le job si Bing rejette : c'est un signal
+            # supplémentaire, pas un canal critique.
+            bing_status=$(curl -sS -o /dev/null -w "%{http_code}" \
+              --max-time 15 \
+              -X POST "$BING_ENDPOINT" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data-binary "@$payload_file" || echo "000")
+            echo "Bing direct response: HTTP $bing_status"
 
             case "$status" in
               200|202)
@@ -135,7 +156,24 @@ jobs:
                 ok=$((ok + posted))
                 ;;
               429)
-                echo "::warning::IndexNow rate limit hit on batch #$batch_num. Skipping remaining batches."
+                echo "::warning::IndexNow rate limit hit on batch #$batch_num after $ok URLs. Opening alert issue."
+                # Crée une issue GitHub pour rendre l'incident visible (pas
+                # besoin de Slack/email, gh CLI déjà disponible). Idempotent :
+                # on cherche d'abord une issue ouverte avec le label seo-alert.
+                if command -v gh >/dev/null 2>&1; then
+                  existing=$(gh issue list --state open --label seo-alert --json number --jq '.[0].number' 2>/dev/null || echo "")
+                  if [ -z "$existing" ]; then
+                    gh issue create \
+                      --title "IndexNow rate limit hit (HTTP 429)" \
+                      --body "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\n\n${ok} URLs ont été pingées avant le rate limit sur batch #${batch_num}/${total} URLs total. Les batches restants ont été ignorés. Le ping reprendra automatiquement au prochain deploy." \
+                      --label seo-alert \
+                      || echo "::warning::Could not create alert issue"
+                  else
+                    gh issue comment "$existing" \
+                      --body "Rate limit again on $(date -u +%Y-%m-%dT%H:%M:%SZ). Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+                      || echo "::warning::Could not comment alert issue"
+                  fi
+                fi
                 break
                 ;;
               *)
