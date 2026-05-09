@@ -1,13 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { getProfilePath } from '@/lib/utils'
 import { formatSitemapXml, parseSitemapId, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
-import {
-  getAllPageCombos,
-  getAllUrgencyCombos,
-  BLOG_ARTICLES,
-  CITIES,
-  SERVICES,
-} from '@/lib/data/seo-pages-data'
+import { ptProgrammaticPages } from '@/lib/sitemap-pt-pages'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
 import { EN_SERVICE_PAGES } from '@/lib/data/en-services-data'
 import {
@@ -63,12 +57,6 @@ function articleLastMod(article: { dateModified?: string, datePublished: string 
   return resolveDate(article.dateModified ?? article.datePublished, new Date())
 }
 
-/** Lastmod pour un combo service × ville PT (utilise city.contentUpdatedAt si présent). */
-function ptComboLastMod(citySlug: string, fallback: Date): Date {
-  const city = CITIES.find((c) => c.slug === citySlug)
-  return resolveDate(city?.contentUpdatedAt, fallback)
-}
-
 /** Lastmod pour un combo service × ville FR (FrCityData n'a pas encore contentUpdatedAt). */
 function frComboLastMod(_citySlug: string, fallback: Date): Date {
   return fallback
@@ -117,84 +105,9 @@ function staticAndHubPages(baseUrl: string, lastMod: Date): SitemapUrl[] {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sub-sitemap 1 : pages programmatiques PT
+// (fonction `ptProgrammaticPages` extraite vers `lib/sitemap-pt-pages.ts`
+// pour être partagée avec le sitemap PT dédié `app/pt/sitemap.xml/route.ts`)
 // ────────────────────────────────────────────────────────────────────────────
-
-function ptProgrammaticPages(baseUrl: string, fallback: Date): SitemapUrl[] {
-  const result: SitemapUrl[] = []
-
-  // Services × cidade combos
-  for (const combo of getAllPageCombos()) {
-    result.push({
-      url: `${baseUrl}/pt/servicos/${combo.slug}/`,
-      lastModified: ptComboLastMod(combo.city.slug, fallback),
-    })
-  }
-
-  // Urgência combos
-  for (const combo of getAllUrgencyCombos()) {
-    result.push({
-      url: `${baseUrl}/pt/urgencia/${combo.slug}/`,
-      lastModified: ptComboLastMod(combo.city.slug, fallback),
-    })
-  }
-
-  // Cidade hubs
-  for (const city of CITIES) {
-    result.push({
-      url: `${baseUrl}/pt/cidade/${city.slug}/`,
-      lastModified: resolveDate(city.contentUpdatedAt, fallback),
-    })
-  }
-
-  // Perto de mim génériques (par service)
-  for (const service of SERVICES) {
-    result.push({
-      url: `${baseUrl}/pt/perto-de-mim/${service.slug}/`,
-      lastModified: fallback,
-    })
-  }
-
-  // Perto de mim service × cidade
-  for (const service of SERVICES) {
-    for (const city of CITIES) {
-      result.push({
-        url: `${baseUrl}/pt/perto-de-mim/${service.slug}-${city.slug}/`,
-        lastModified: resolveDate(city.contentUpdatedAt, fallback),
-      })
-    }
-  }
-
-  // Picheleiro alias canalizador
-  result.push({
-    url: `${baseUrl}/pt/perto-de-mim/picheleiro/`,
-    lastModified: fallback,
-  })
-  for (const city of CITIES) {
-    result.push({
-      url: `${baseUrl}/pt/perto-de-mim/picheleiro-${city.slug}/`,
-      lastModified: resolveDate(city.contentUpdatedAt, fallback),
-    })
-  }
-
-  // Preços
-  result.push({ url: `${baseUrl}/pt/precos/`, lastModified: fallback })
-  for (const slug of ['canalizador', 'eletricista', 'pintor']) {
-    result.push({
-      url: `${baseUrl}/pt/precos/${slug}/`,
-      lastModified: fallback,
-    })
-  }
-
-  // Blog articles avec dateModified ou datePublished
-  for (const article of BLOG_ARTICLES) {
-    result.push({
-      url: `${baseUrl}/pt/blog/${article.slug}/`,
-      lastModified: articleLastMod(article),
-    })
-  }
-
-  return result
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sub-sitemap 2 : pages programmatiques FR
