@@ -109,6 +109,43 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
         },
       },
       {
+        '@type': 'Service',
+        '@id': `https://vitfix.io/pt/servicos/${slug}/#service`,
+        name: `${service.name} em ${city.name}`,
+        description: service.metaDesc.replace('{city}', city.name),
+        serviceType: service.name,
+        category: 'Home & Construction Services',
+        provider: { '@id': 'https://vitfix.io/#business' },
+        areaServed: {
+          '@type': 'City',
+          name: city.name,
+          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
+        },
+        hasOfferCatalog: {
+          '@type': 'OfferCatalog',
+          name: `Serviços de ${service.name.toLowerCase()} em ${city.name}`,
+          itemListElement: service.features.slice(0, 8).map((feature, idx) => ({
+            '@type': 'Offer',
+            position: idx + 1,
+            itemOffered: {
+              '@type': 'Service',
+              name: feature,
+            },
+            priceSpecification: {
+              '@type': 'PriceSpecification',
+              priceCurrency: 'EUR',
+              minPrice: '30',
+            },
+            availability: 'https://schema.org/InStock',
+          })),
+        },
+        audience: {
+          '@type': 'Audience',
+          audienceType: 'Particulares, condomínios e empresas em Portugal',
+        },
+        termsOfService: 'https://vitfix.io/pt/termos/',
+      },
+      {
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
