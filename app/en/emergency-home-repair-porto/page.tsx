@@ -41,7 +41,7 @@ export default function AdsLandingPage() {
           name: 'VITFIX',
           telephone: PHONE_PT,
           address: { '@type': 'PostalAddress', addressLocality: 'Porto', addressCountry: 'PT' },
-          aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.9', reviewCount: '127' },
+          // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
         },
         areaServed: { '@type': 'City', name: 'Porto' },
         availableLanguage: ['English', 'Portuguese'],

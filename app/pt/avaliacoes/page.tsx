@@ -177,47 +177,27 @@ export default async function AvisPage() {
   const isPt = locale === 'pt'
 
   const temoignages = isPt ? temoignagesPT : temoignagesFR
+  // Moyenne calculée sur les témoignages affichés on-page (cohérence visuelle).
+  // PAS utilisée dans un schema Google : voir bloc explicatif ci-dessous.
   const moyenne = (temoignages.reduce((a, t) => a + t.note, 0) / temoignages.length).toFixed(1)
   const searchPath = isPt ? '/pesquisar' : '/recherche'
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'Organization',
-        name: 'Vitfix',
-        url: isPt ? 'https://vitfix.io/pt/' : 'https://vitfix.io/',
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: moyenne,
-          reviewCount: isPt ? 2300 : 12000,
-          bestRating: '5',
-          worstRating: '1',
-        },
-        review: temoignages.map(t => ({
-          '@type': 'Review',
-          author: { '@type': 'Person', name: t.nom },
-          reviewRating: {
-            '@type': 'Rating',
-            ratingValue: t.note,
-            bestRating: '5',
-            worstRating: '1',
-          },
-          reviewBody: t.texte,
-          datePublished: '2026-01-15',
-          itemReviewed: {
-            '@type': 'Service',
-            name: t.metier,
-            areaServed: { '@type': 'City', name: t.ville },
-          },
-        })),
-      },
-    ],
-  }
+  // Pas de JSON-LD AggregateRating ni Review schema sur cette page :
+  // les `temoignagesFR/PT` ci-dessus sont du contenu marketing illustratif
+  // (noms et dates indicatifs), pas des reviews vérifiées. Émettre un schema
+  // Review/AggregateRating dessus serait un mensonge envers Google et risque
+  // une pénalité "AggregateRating may be flagged as fake".
+  //
+  // À réactiver UNIQUEMENT quand on a une source de vérité :
+  //   - Trustpilot widget + leur Verified Reviews schema officiel, ou
+  //   - Reviews on-page provenant d'une table Supabase `customer_reviews`
+  //     avec date/auteur/note vérifiables et liées à des prestations réelles.
+  //
+  // Le contenu visuel des témoignages reste pour l'UX (page de réassurance)
+  // mais sans signal Google falsifié.
 
   return (
     <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
     <div className="min-h-screen bg-warm-gray">
 
       {/* ── Hero section ── */}

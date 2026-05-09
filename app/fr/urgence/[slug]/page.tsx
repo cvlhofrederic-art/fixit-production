@@ -66,16 +66,7 @@ export default async function FrUrgenceCityPage({ params }: { params: Promise<{ 
           closes: '23:59',
         },
         geo: { '@type': 'GeoCoordinates', latitude: city.lat, longitude: city.lng },
-        aggregateRating: {
-          // Aligné sur RATING_FR conservateur (lib/schemas/index.ts review #140) -
-          // 12000 placeholder précédent risquait la pénalité Google
-          // "AggregateRating may be flagged as fake".
-          '@type': 'AggregateRating',
-          ratingValue: '4.8',
-          reviewCount: '47',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
       },
       {
         '@type': 'BreadcrumbList',

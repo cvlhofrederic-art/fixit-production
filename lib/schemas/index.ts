@@ -14,25 +14,39 @@ const COMPANY = {
   image: 'https://vitfix.io/og-image.png',
 }
 
-const RATING_PT = {
-  '@type': 'AggregateRating' as const,
-  ratingValue: '4.9',
-  reviewCount: '127',
-  bestRating: '5',
-  worstRating: '1',
+// AggregateRating : N'EST PLUS HARDCODÉ.
+//
+// Les ratings 4.9/127 PT et 4.8/47 FR étaient des placeholders non
+// reliés à des reviews réels. Google peut pénaliser pour
+// "AggregateRating may be flagged as fake" si les chiffres ne sont pas
+// supportés par des reviews vérifiables sur le site (Trustpilot, Google
+// Business Profile, ou tableau de reviews on-page liées au schema).
+//
+// Comportement actuel : `buildBusinessSchema()` n'inclut PAS de
+// aggregateRating par défaut. À réactiver quand on a une source de
+// vérité fiable :
+//   - Trustpilot widget on-page + leur Verified Reviews schema
+//   - Reviews on-page avec Review schema individuel agrégé
+//   - Google Business Profile rating exposé via API
+//
+// En attendant, les pages restent indexables et éligibles à tous les
+// rich results SAUF le star-rating dans la SERP. Honnêteté > stars.
+
+export interface AggregateRatingInput {
+  ratingValue: number | string
+  reviewCount: number | string
+  bestRating?: number | string
+  worstRating?: number | string
 }
 
-// FR ratings — chiffres conservateurs alignés sur la maturité réelle du
-// marché Vitfix France (plateforme jeune, 2024+). Le 12000 précédent était
-// un placeholder évident qui aurait pu déclencher la pénalité Google
-// "AggregateRating may be flagged as fake" (review #140).
-// À mettre à jour avec données Trustpilot/Avis vérifiés réels quand dispo.
-const RATING_FR = {
-  '@type': 'AggregateRating' as const,
-  ratingValue: '4.8',
-  reviewCount: '47',
-  bestRating: '5',
-  worstRating: '1',
+function formatAggregateRating(input: AggregateRatingInput) {
+  return {
+    '@type': 'AggregateRating' as const,
+    ratingValue: String(input.ratingValue),
+    reviewCount: String(input.reviewCount),
+    bestRating: String(input.bestRating ?? 5),
+    worstRating: String(input.worstRating ?? 1),
+  }
 }
 
 // ── Business schema ──
@@ -43,14 +57,19 @@ interface BusinessSchemaOptions {
   serviceTypes?: string[]
   description?: string
   isEmergency?: boolean
+  /**
+   * AggregateRating à afficher. NON FOURNI par défaut : on n'invente plus de
+   * notes. À passer UNIQUEMENT depuis une source de vérité (Trustpilot,
+   * reviews vérifiées on-page, GBP API) sinon laisser undefined.
+   */
+  aggregateRating?: AggregateRatingInput
 }
 
 export function buildBusinessSchema(options: BusinessSchemaOptions) {
-  const { locale, city, serviceTypes, description, isEmergency } = options
+  const { locale, city, serviceTypes, description, isEmergency, aggregateRating } = options
 
   const isFr = locale === 'fr'
   const phone = isFr ? PHONE_FR : PHONE_PT
-  const rating = isFr ? RATING_FR : RATING_PT
 
   const hours = isEmergency
     ? { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], opens: '00:00', closes: '23:59' }
@@ -64,9 +83,12 @@ export function buildBusinessSchema(options: BusinessSchemaOptions) {
       ? 'Artisans vérifiés à Marseille et en PACA. Devis gratuit, réponse rapide.'
       : 'Profissionais verificados na região do Tâmega e Sousa. Orçamento grátis.'),
     telephone: phone,
-    aggregateRating: rating,
     openingHoursSpecification: hours,
     priceRange: '€€',
+  }
+
+  if (aggregateRating) {
+    schema.aggregateRating = formatAggregateRating(aggregateRating)
   }
 
   if (city) {
