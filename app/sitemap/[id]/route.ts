@@ -24,15 +24,14 @@ export const runtime = 'nodejs'
 // Pro SEO 2026 : lastmod précis par URL, pas de changefreq/priority.
 //
 // Google ignore <changefreq> et <priority> depuis 2017 (Gary Illyes confirmed).
-// Ne fournir QUE des <lastmod> précis et fiables : Google les utilise pour
-// prioriser le crawl. Lastmod erronés répétés = signal ignoré entièrement.
+// Et — confirmation John Mueller 2023 — un <lastmod> factice (date du jour
+// systématique) est PIRE qu'un sitemap sans <lastmod> du tout : Google
+// détecte le pattern et ignore le signal entièrement, voire dégrade la
+// priorité de crawl. Politique : on émet `<lastmod>` UNIQUEMENT quand on
+// a une vraie date par URL (city.contentUpdatedAt, article.dateModified).
+// Sinon, on omet le tag.
 // Source : developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
 // ────────────────────────────────────────────────────────────────────────────
-
-// Date de dernière refonte majeure du contenu programmatique fallback.
-// Bumper manuellement lors d'un refactor structurel (services, villes,
-// lexique). Surchargé par city.contentUpdatedAt si disponible (Aveiro pilot).
-const CONTENT_LAST_UPDATED = new Date('2026-05-09T00:00:00Z')
 
 const SIM_CITIES = [
   'marseille', 'aix-en-provence', 'aubagne', 'la-ciotat', 'cassis',
@@ -42,35 +41,26 @@ const SIM_CITIES = [
 ] as const
 
 // ────────────────────────────────────────────────────────────────────────────
-// Helpers de résolution lastmod
+// Helpers de résolution lastmod (retourne undefined si pas de vraie date)
 // ────────────────────────────────────────────────────────────────────────────
 
-/** Résout une date ISO optionnelle vers Date, fallback si absente ou invalide. */
-function resolveDate(input: string | undefined, fallback: Date): Date {
-  if (!input) return fallback
+function resolveDateOrUndefined(input: string | undefined): Date | undefined {
+  if (!input) return undefined
   const d = new Date(input)
-  return Number.isNaN(d.getTime()) ? fallback : d
+  return Number.isNaN(d.getTime()) ? undefined : d
 }
 
 /** Lastmod pour un article de blog : dateModified > datePublished. */
-function articleLastMod(article: { dateModified?: string, datePublished: string }): Date {
-  return resolveDate(article.dateModified ?? article.datePublished, new Date())
-}
-
-/** Lastmod pour un combo service × ville FR (FrCityData n'a pas encore contentUpdatedAt). */
-function frComboLastMod(_citySlug: string, fallback: Date): Date {
-  return fallback
+function articleLastMod(article: { dateModified?: string, datePublished: string }): Date | undefined {
+  return resolveDateOrUndefined(article.dateModified ?? article.datePublished)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sub-sitemap 0 : pages statiques + hubs
+// Sub-sitemap 0 : pages statiques + hubs (pas de lastmod — éditorial)
 // ────────────────────────────────────────────────────────────────────────────
 
-function staticAndHubPages(baseUrl: string, lastMod: Date): SitemapUrl[] {
-  const url = (path: string): SitemapUrl => ({
-    url: `${baseUrl}${path}`,
-    lastModified: lastMod,
-  })
+function staticAndHubPages(baseUrl: string): SitemapUrl[] {
+  const url = (path: string): SitemapUrl => ({ url: `${baseUrl}${path}` })
   return [
     url('/'),
     url('/pt/'),
@@ -113,43 +103,28 @@ function staticAndHubPages(baseUrl: string, lastMod: Date): SitemapUrl[] {
 // Sub-sitemap 2 : pages programmatiques FR
 // ────────────────────────────────────────────────────────────────────────────
 
-function frProgrammaticPages(baseUrl: string, fallback: Date): SitemapUrl[] {
+function frProgrammaticPages(baseUrl: string): SitemapUrl[] {
   const result: SitemapUrl[] = []
 
   for (const combo of getAllFrPageCombos()) {
-    result.push({
-      url: `${baseUrl}/fr/services/${combo.slug}/`,
-      lastModified: frComboLastMod(combo.city.slug, fallback),
-    })
+    result.push({ url: `${baseUrl}/fr/services/${combo.slug}/` })
   }
 
   for (const combo of getAllFrUrgencyCombos()) {
-    result.push({
-      url: `${baseUrl}/fr/urgence/${combo.slug}/`,
-      lastModified: frComboLastMod(combo.city.slug, fallback),
-    })
+    result.push({ url: `${baseUrl}/fr/urgence/${combo.slug}/` })
   }
 
   for (const city of FR_CITIES) {
-    result.push({
-      url: `${baseUrl}/fr/ville/${city.slug}/`,
-      lastModified: fallback,
-    })
+    result.push({ url: `${baseUrl}/fr/ville/${city.slug}/` })
   }
 
   for (const service of FR_SERVICES) {
-    result.push({
-      url: `${baseUrl}/fr/pres-de-chez-moi/${service.slug}/`,
-      lastModified: fallback,
-    })
+    result.push({ url: `${baseUrl}/fr/pres-de-chez-moi/${service.slug}/` })
   }
 
   for (const service of FR_SERVICES) {
     for (const city of FR_CITIES) {
-      result.push({
-        url: `${baseUrl}/fr/pres-de-chez-moi/${service.slug}-${city.slug}/`,
-        lastModified: fallback,
-      })
+      result.push({ url: `${baseUrl}/fr/pres-de-chez-moi/${service.slug}-${city.slug}/` })
     }
   }
 
@@ -168,14 +143,11 @@ function frProgrammaticPages(baseUrl: string, fallback: Date): SitemapUrl[] {
     '/fr/specialites/fuite-eau-urgence/',
     '/fr/specialites/renovation-salle-de-bain/',
   ]) {
-    result.push({ url: `${baseUrl}${path}`, lastModified: fallback })
+    result.push({ url: `${baseUrl}${path}` })
   }
 
   for (const city of SIM_CITIES) {
-    result.push({
-      url: `${baseUrl}/fr/simulateur-devis/${city}/`,
-      lastModified: fallback,
-    })
+    result.push({ url: `${baseUrl}/fr/simulateur-devis/${city}/` })
   }
 
   for (const article of FR_BLOG_ARTICLES) {
@@ -189,45 +161,30 @@ function frProgrammaticPages(baseUrl: string, fallback: Date): SitemapUrl[] {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sub-sitemap 3 : pages investisseurs + EN/NL/ES
+// Sub-sitemap 3 : pages investisseurs + EN/NL/ES (pas de lastmod)
 // ────────────────────────────────────────────────────────────────────────────
 
-function investorAndIntlPages(baseUrl: string, lastMod: Date): SitemapUrl[] {
+function investorAndIntlPages(baseUrl: string): SitemapUrl[] {
   const result: SitemapUrl[] = []
 
-  result.push({ url: `${baseUrl}/en/`, lastModified: lastMod })
+  result.push({ url: `${baseUrl}/en/` })
   for (const page of EN_SERVICE_PAGES) {
-    result.push({
-      url: `${baseUrl}/en/${page.slug}/`,
-      lastModified: lastMod,
-    })
+    result.push({ url: `${baseUrl}/en/${page.slug}/` })
   }
-  result.push({
-    url: `${baseUrl}/en/emergency-home-repair-porto/`,
-    lastModified: lastMod,
-  })
+  result.push({ url: `${baseUrl}/en/emergency-home-repair-porto/` })
 
   for (const page of FR_INVESTOR_PAGES) {
-    result.push({
-      url: `${baseUrl}/fr/${page.slug}/`,
-      lastModified: lastMod,
-    })
+    result.push({ url: `${baseUrl}/fr/${page.slug}/` })
   }
 
-  result.push({ url: `${baseUrl}/nl/`, lastModified: lastMod })
+  result.push({ url: `${baseUrl}/nl/` })
   for (const page of NL_INVESTOR_PAGES) {
-    result.push({
-      url: `${baseUrl}/nl/${page.slug}/`,
-      lastModified: lastMod,
-    })
+    result.push({ url: `${baseUrl}/nl/${page.slug}/` })
   }
 
-  result.push({ url: `${baseUrl}/es/`, lastModified: lastMod })
+  result.push({ url: `${baseUrl}/es/` })
   for (const page of ES_INVESTOR_PAGES) {
-    result.push({
-      url: `${baseUrl}/es/${page.slug}/`,
-      lastModified: lastMod,
-    })
+    result.push({ url: `${baseUrl}/es/${page.slug}/` })
   }
 
   return result
@@ -237,7 +194,7 @@ function investorAndIntlPages(baseUrl: string, lastMod: Date): SitemapUrl[] {
 // Sub-sitemap 4 : profils artisans vérifiés (Supabase)
 // ────────────────────────────────────────────────────────────────────────────
 
-async function artisanProfilePages(baseUrl: string, fallback: Date): Promise<SitemapUrl[]> {
+async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
   try {
     const supabase = await createServerSupabaseClient()
     const { data: artisans } = await supabase
@@ -251,7 +208,9 @@ async function artisanProfilePages(baseUrl: string, fallback: Date): Promise<Sit
         { slug: a.slug, id: a.id, org_role: a.org_role },
         locale,
       )
-      const lastModified = a.updated_at ? new Date(a.updated_at) : fallback
+      // lastmod uniquement si updated_at présent en DB (vrai signal),
+      // sinon on omet le tag.
+      const lastModified = a.updated_at ? new Date(a.updated_at) : undefined
       return {
         url: `${baseUrl}${profilePath}/`,
         lastModified,
@@ -270,24 +229,23 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
-  const fallback = CONTENT_LAST_UPDATED
 
   let urls: SitemapUrl[]
   switch (id) {
     case 0:
-      urls = staticAndHubPages(baseUrl, fallback)
+      urls = staticAndHubPages(baseUrl)
       break
     case 1:
-      urls = ptProgrammaticPages(baseUrl, fallback)
+      urls = ptProgrammaticPages(baseUrl)
       break
     case 2:
-      urls = frProgrammaticPages(baseUrl, fallback)
+      urls = frProgrammaticPages(baseUrl)
       break
     case 3:
-      urls = investorAndIntlPages(baseUrl, fallback)
+      urls = investorAndIntlPages(baseUrl)
       break
     case 4:
-      urls = await artisanProfilePages(baseUrl, fallback)
+      urls = await artisanProfilePages(baseUrl)
       break
     default:
       urls = []

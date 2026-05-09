@@ -1,24 +1,22 @@
 // ─── URL Translator across locales ───
 //
-// Quand l'utilisateur clique un drapeau, on doit lui afficher la page
-// équivalente dans la langue cible — pas un 404 et pas la même URL avec
-// un préfixe différent. La règle métier :
+// Politique stricte (méthode pro 2026) : les marchés FR / PT / EN / NL / ES
+// sont indépendants. Le drapeau ne doit s'afficher QUE si la page actuelle
+// possède un équivalent traduit dans la locale cible. Sinon il est caché
+// dans le LanguageSwitcher (cf. components/common/LanguageSwitcher.tsx).
 //
-//   - Pages globales (CGU, à propos, blog…) : équivalent direct dans
-//     chaque langue → on map explicitement.
+// Règle métier :
+//   - Pages globales (CGU/Termos/Terms, à propos, blog index…) : équivalent
+//     direct dans chaque langue → map explicite. Drapeau visible.
+//   - Pages SEO Porto multilingues (audience investisseurs étrangers FR/EN/PT) :
+//     même contenu décliné. Drapeau visible entre ces 3 locales.
+//   - Pages SEO Marseille (FR-only) ou PT-only (Tâmega e Sousa) : pas
+//     d'équivalent → drapeaux des AUTRES locales cachés. Aucun fallback
+//     home (les marchés ne sont pas reliés).
 //
-//   - Pages SEO Marseille (`/fr/pres-de-chez-moi/*`, `/fr/services/*`…) :
-//     marché local FR uniquement, aucun équivalent PT/EN/NL/ES → fallback
-//     vers la home de la langue cible.
-//
-//   - Pages SEO Porto (audience investisseurs étrangers multilingues) :
-//     même contenu décliné FR/PT/EN. Map explicite par paire de routes.
-//
-//   - NL/ES : seules les pages investisseurs existent (home + landing).
-//     Tout le reste retombe sur la home NL/ES.
-//
-// La fonction `translateUrl` ne renvoie JAMAIS d'URL inexistante :
-// si aucune correspondance n'est trouvée, on retourne `/<targetLocale>/`.
+// `translateUrl` retourne `string | null` :
+//   - `string` : l'URL équivalente dans la locale cible
+//   - `null`  : aucun équivalent connu → drapeau caché côté UI
 
 import type { Locale } from './config'
 
@@ -81,14 +79,6 @@ const ROUTE_EQUIVALENTS: RouteEquivalent[] = [
   { en: '/en/english-speaking-electrician-porto' },
 ]
 
-const LOCALE_HOME: Record<Locale, string> = {
-  fr: '/fr/',
-  pt: '/pt/',
-  en: '/en/',
-  nl: '/nl/',
-  es: '/es/',
-}
-
 function normalize(path: string): string {
   // Trailing slash retiré sauf pour la racine et les racines locales (`/fr/`).
   if (path === '/' || /^\/[a-z]{2}\/$/.test(path)) return path
@@ -97,9 +87,12 @@ function normalize(path: string): string {
 
 /**
  * Traduit l'URL courante vers la locale cible.
- * Retourne toujours une URL valide ; à défaut d'équivalent, la home de la langue cible.
+ *
+ * Retourne `string` si un équivalent existe dans la locale cible.
+ * Retourne `null` si aucun équivalent — le drapeau correspondant doit
+ * être CACHÉ dans le LanguageSwitcher (FR / PT strictement séparés).
  */
-export function translateUrl(currentPath: string, targetLocale: Locale): string {
+export function translateUrl(currentPath: string, targetLocale: Locale): string | null {
   const normalized = normalize(currentPath)
 
   for (const entry of ROUTE_EQUIVALENTS) {
@@ -108,12 +101,11 @@ export function translateUrl(currentPath: string, targetLocale: Locale): string 
     )
     if (matchedLocale) {
       const target = entry[targetLocale]
-      if (target) return target
-      return LOCALE_HOME[targetLocale]
+      return target ?? null
     }
   }
 
-  return LOCALE_HOME[targetLocale]
+  return null
 }
 
 /**
