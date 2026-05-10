@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,8 @@ function generateDemoData(userId: string) {
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function CommunicationDematFRSection({ user, userRole }: { user: User; userRole: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const STORAGE_KEY = `fixit_comm_fr_${user.id}`
 
   const [activeTab, setActiveTab] = useState<'messages' | 'modeles' | 'envoi' | 'parametres'>('messages')
@@ -334,10 +337,10 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
   // ── Tabs ─────────────────────────────────────────────────────────────────────
 
   const tabs = [
-    { key: 'messages' as const,   label: 'Messages',      icon: '✉️' },
-    { key: 'modeles' as const,    label: 'Modèles',       icon: '📄' },
-    { key: 'envoi' as const,      label: 'Envoi groupé',  icon: '📤' },
-    { key: 'parametres' as const, label: 'Paramètres',    icon: '⚙️' },
+    { key: 'messages' as const,   label: isPt ? 'Mensagens'      : 'Messages',      icon: '✉️' },
+    { key: 'modeles' as const,    label: isPt ? 'Modelos'        : 'Modèles',       icon: '📄' },
+    { key: 'envoi' as const,      label: isPt ? 'Envio em grupo' : 'Envoi groupé',  icon: '📤' },
+    { key: 'parametres' as const, label: isPt ? 'Definições'     : 'Paramètres',    icon: '⚙️' },
   ]
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -360,10 +363,10 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           {/* Stats */}
           <div className="grid grid-cols-4 gap-3">
             {[
-              { label: 'Total envoyés', value: msgStats.total, icon: '📊', color: 'bg-[var(--sd-cream,#F7F4EE)] border-[var(--sd-border,#E4DDD0)]' },
-              { label: 'En attente', value: msgStats.envoyes, icon: '✉️', color: 'bg-gray-50 border-gray-200' },
-              { label: 'Distribués', value: msgStats.distribues, icon: '📬', color: 'bg-blue-50 border-blue-200' },
-              { label: 'Lus', value: msgStats.lus, icon: '👁️', color: 'bg-green-50 border-green-200' },
+              { label: isPt ? 'Total enviados' : 'Total envoyés', value: msgStats.total, icon: '📊', color: 'bg-[var(--sd-cream,#F7F4EE)] border-[var(--sd-border,#E4DDD0)]' },
+              { label: isPt ? 'Em espera'      : 'En attente',    value: msgStats.envoyes, icon: '✉️', color: 'bg-gray-50 border-gray-200' },
+              { label: isPt ? 'Distribuídos'   : 'Distribués',    value: msgStats.distribues, icon: '📬', color: 'bg-blue-50 border-blue-200' },
+              { label: isPt ? 'Lidos'          : 'Lus',           value: msgStats.lus, icon: '👁️', color: 'bg-green-50 border-green-200' },
             ].map((s, i) => (
               <div key={i} className={`rounded-xl border-2 p-3 ${s.color}`}>
                 <div className="text-lg mb-0.5">{s.icon}</div>
@@ -377,14 +380,14 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           <div className="flex gap-2 flex-wrap">
             <select value={filterType} onChange={e => setFilterType(e.target.value as any)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none">
-              <option value="">Tous les types</option>
+              <option value="">{isPt ? 'Todos os tipos' : 'Tous les types'}</option>
               {Object.entries(TYPE_COMM_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
             </select>
-            <input type="text" placeholder="Rechercher copropriétaire..." value={filterCopro} onChange={e => setFilterCopro(e.target.value)}
+            <input type="text" placeholder={isPt ? 'Pesquisar condómino...' : 'Rechercher copropriétaire...'} value={filterCopro} onChange={e => setFilterCopro(e.target.value)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none min-w-[200px]" />
             <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none" />
-            <span className="self-center text-xs text-gray-400">au</span>
+            <span className="self-center text-xs text-gray-400">{isPt ? 'até' : 'au'}</span>
             <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none" />
           </div>
@@ -392,11 +395,11 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           {/* Messages list */}
           <div className="bg-white rounded-2xl border border-[var(--sd-border,#E4DDD0)] shadow-sm overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-[var(--sd-cream,#F7F4EE)] text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <div className="col-span-2">Copropriétaire</div>
-              <div className="col-span-1">Lot</div>
-              <div className="col-span-2">Type</div>
-              <div className="col-span-3">Sujet</div>
-              <div className="col-span-1">Canal</div>
+              <div className="col-span-2">{isPt ? 'Condómino' : 'Copropriétaire'}</div>
+              <div className="col-span-1">{isPt ? 'Fração' : 'Lot'}</div>
+              <div className="col-span-2">{isPt ? 'Tipo' : 'Type'}</div>
+              <div className="col-span-3">{isPt ? 'Assunto' : 'Sujet'}</div>
+              <div className="col-span-1">{isPt ? 'Canal' : 'Canal'}</div>
               <div className="col-span-1">Date</div>
               <div className="col-span-1">Statut</div>
               <div className="col-span-1"></div>
