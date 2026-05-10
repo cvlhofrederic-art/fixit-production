@@ -289,9 +289,17 @@ export default function MissionDetailsModal({
 
                   {/* Destinataire */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-700">Destinataire</label>
+                    <label className="text-sm font-semibold text-gray-700">{locale === 'pt' ? 'Destinatário' : 'Destinataire'}</label>
                     <div className="grid grid-cols-3 gap-3 mt-2">
-                      {([['comptable', '🧮', 'Comptabilité', 'Validation des montants, intégration comptable'], ['valideur', '✅', 'Responsable', 'Validation du bon de travail avant paiement'], ['syndic', '🏛️', 'Syndic principal', 'Transmission au cabinet syndic pour archivage']] as const).map(([val, emoji, label, desc]) => (
+                      {(locale === 'pt' ? [
+                        ['comptable', '🧮', 'Contabilidade', 'Validação de montantes, integração contabilística'],
+                        ['valideur', '✅', 'Responsável', 'Validação da ordem de trabalho antes do pagamento'],
+                        ['syndic', '🏛️', 'Administrador principal', 'Envio ao gabinete para arquivo'],
+                      ] as const : [
+                        ['comptable', '🧮', 'Comptabilité', 'Validation des montants, intégration comptable'],
+                        ['valideur', '✅', 'Responsable', 'Validation du bon de travail avant paiement'],
+                        ['syndic', '🏛️', 'Syndic principal', 'Transmission au cabinet syndic pour archivage'],
+                      ] as const).map(([val, emoji, label, desc]) => (
                         <button
                           key={val}
                           onClick={() => setDestinataire(val)}

@@ -11,6 +11,7 @@ function safeHref(url: string): string {
 export default function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; setPage: (p: Page) => void }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
   const [docs, setDocs] = useState<DocIntervention[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
@@ -194,15 +195,15 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
       {/* ══════ FILTER TABS ══════ */}
       <div className="sd-doc-filter-bar">
         <button className={`sd-doc-filter-tab ${filterStatut === 'all' ? 'active' : ''}`} onClick={() => setFilterStatut('all')}>
-          📂 Tous <span className="sd-doc-ft-count">{stats.total}</span>
+          📂 {isPt ? 'Todos' : 'Tous'} <span className="sd-doc-ft-count">{stats.total}</span>
         </button>
         <button className={`sd-doc-filter-tab ${filterStatut === 'non_envoye' ? 'active' : ''}`} onClick={() => setFilterStatut('non_envoye')}>
           <span className="sd-doc-ft-dot" style={{ background: 'var(--sd-red)' }} />
-          À envoyer <span className="sd-doc-ft-count">{stats.nonEnvoyes}</span>
+          {isPt ? 'A enviar' : 'À envoyer'} <span className="sd-doc-ft-count">{stats.nonEnvoyes}</span>
         </button>
         <button className={`sd-doc-filter-tab ${filterStatut === 'envoye' ? 'active' : ''}`} onClick={() => setFilterStatut('envoye')}>
           <span className="sd-doc-ft-dot" style={{ background: 'var(--sd-teal)' }} />
-          Envoyés &amp; classés <span className="sd-doc-ft-count">{stats.envoyes}</span>
+          {isPt ? 'Enviados & classificados' : 'Envoyés & classés'} <span className="sd-doc-ft-count">{stats.envoyes}</span>
         </button>
       </div>
 
@@ -217,7 +218,7 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher par artisan, immeuble, fichier, notes…"
+            placeholder={isPt ? 'Pesquisar por profissional, edifício, ficheiro, notas…' : 'Rechercher par artisan, immeuble, fichier, notes…'}
           />
         </div>
         <button
@@ -239,7 +240,7 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
             setFilterArtisan(artisanValuesDropdown[next])
           }}
         >
-          <span>{artisanLabelsDropdown[artisanDropdownIdx] || '🔧 Tous artisans'}</span>
+          <span>{artisanLabelsDropdown[artisanDropdownIdx] || (isPt ? '🔧 Todos profissionais' : '🔧 Tous artisans')}</span>
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4"/></svg>
         </button>
       </div>
@@ -247,20 +248,22 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
       {/* ══════ TABLE ══════ */}
       <div className="sd-doc-table-wrap">
         <div className="sd-doc-count-bar">
-          <span><strong>{filtered.length}</strong> document{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</span>
-          <button className="sd-doc-filter-select" style={{ fontSize: 11, padding: '5px 11px' }}>⬇ Exporter</button>
+          <span><strong>{filtered.length}</strong> {isPt ? `documento${filtered.length > 1 ? 's' : ''} apresentado${filtered.length > 1 ? 's' : ''}` : `document${filtered.length > 1 ? 's' : ''} affiché${filtered.length > 1 ? 's' : ''}`}</span>
+          <button className="sd-doc-filter-select" style={{ fontSize: 11, padding: '5px 11px' }}>⬇ {isPt ? 'Exportar' : 'Exporter'}</button>
         </div>
 
         {filtered.length === 0 ? (
           <div className="sd-doc-empty">
             <div className="sd-doc-empty-icon">📁</div>
-            <div className="sd-doc-empty-title">{docs.length === 0 ? 'Aucun document' : 'Aucun résultat'}</div>
+            <div className="sd-doc-empty-title">{docs.length === 0 ? (isPt ? 'Nenhum documento' : 'Aucun document') : (isPt ? 'Nenhum resultado' : 'Aucun résultat')}</div>
             <div className="sd-doc-empty-sub">
-              {docs.length === 0 ? 'Ajoutez des factures, devis et rapports d\'intervention' : 'Essayez de modifier vos filtres'}
+              {docs.length === 0
+                ? (isPt ? 'Adicione faturas, orçamentos e relatórios de intervenção' : 'Ajoutez des factures, devis et rapports d\'intervention')
+                : (isPt ? 'Tente alterar os filtros' : 'Essayez de modifier vos filtres')}
             </div>
             {docs.length === 0 && (
               <button className="sd-doc-add-btn" style={{ marginTop: 6 }} onClick={() => setShowUploadModal(true)}>
-                <span style={{ color: 'var(--sd-gold)', fontSize: 16 }}>+</span> Ajouter un document
+                <span style={{ color: 'var(--sd-gold)', fontSize: 16 }}>+</span> {isPt ? 'Adicionar documento' : 'Ajouter un document'}
               </button>
             )}
           </div>
@@ -268,12 +271,12 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
           <table className="sd-doc-table">
             <thead>
               <tr>
-                <th>Document</th>
-                <th>Type</th>
-                <th>Résidence</th>
-                <th>Artisan</th>
-                <th>Date</th>
-                <th>Statut</th>
+                <th>{isPt ? 'Documento' : 'Document'}</th>
+                <th>{isPt ? 'Tipo' : 'Type'}</th>
+                <th>{isPt ? 'Edifício' : 'Résidence'}</th>
+                <th>{isPt ? 'Profissional' : 'Artisan'}</th>
+                <th>{isPt ? 'Data' : 'Date'}</th>
+                <th>{isPt ? 'Estado' : 'Statut'}</th>
                 <th></th>
               </tr>
             </thead>
@@ -290,7 +293,7 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy)' }}>{doc.filename}</div>
                           <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 1 }}>
-                            {doc.montant ? `${doc.montant.toLocaleString(locStr)} €` : 'Sans montant'}
+                            {doc.montant ? `${doc.montant.toLocaleString(locStr)} €` : (isPt ? 'Sem valor' : 'Sans montant')}
                           </div>
                         </div>
                       </div>
@@ -306,21 +309,21 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
                     <td>
                       {doc.envoye_compta ? (
                         <span className="sd-doc-status sd-doc-status-transmis">
-                          <span className="sd-doc-status-dot" /> Transmis
+                          <span className="sd-doc-status-dot" /> {isPt ? 'Transmitido' : 'Transmis'}
                         </span>
                       ) : (
                         <span className="sd-doc-status sd-doc-status-envoyer">
-                          <span className="sd-doc-status-dot" /> À envoyer
+                          <span className="sd-doc-status-dot" /> {isPt ? 'A enviar' : 'À envoyer'}
                         </span>
                       )}
                     </td>
                     <td>
                       <div className="sd-doc-row-actions">
-                        <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="sd-doc-row-btn" title="Télécharger">⬇</a>
-                        <button className="sd-doc-row-btn" title="Transmettre" onClick={() => doc.envoye_compta ? handleAnnulerEnvoi(doc.id) : handleEnvoyerCompta(doc)}>
+                        <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="sd-doc-row-btn" title={isPt ? 'Descarregar' : 'Télécharger'}>⬇</a>
+                        <button className="sd-doc-row-btn" title={isPt ? 'Transmitir' : 'Transmettre'} onClick={() => doc.envoye_compta ? handleAnnulerEnvoi(doc.id) : handleEnvoyerCompta(doc)}>
                           {sendingCompta === doc.id ? '⏳' : '📤'}
                         </button>
-                        <button className="sd-doc-row-btn danger" title="Supprimer" onClick={() => handleDelete(doc.id)}>🗑</button>
+                        <button className="sd-doc-row-btn danger" title={isPt ? 'Eliminar' : 'Supprimer'} onClick={() => handleDelete(doc.id)}>🗑</button>
                       </div>
                     </td>
                   </tr>
@@ -337,8 +340,8 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
           <div className="sd-doc-modal">
             <div className="sd-doc-modal-header">
               <div>
-                <div className="sd-doc-modal-title">Ajouter un document</div>
-                <div className="sd-doc-modal-sub">Factures, devis, rapports, photos d&apos;intervention</div>
+                <div className="sd-doc-modal-title">{isPt ? 'Adicionar documento' : 'Ajouter un document'}</div>
+                <div className="sd-doc-modal-sub">{isPt ? 'Faturas, orçamentos, relatórios, fotos de intervenção' : 'Factures, devis, rapports, photos d\'intervention'}</div>
               </div>
               <button className="sd-doc-modal-close" onClick={() => setShowUploadModal(false)}>✕</button>
             </div>
@@ -359,13 +362,13 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
                   <>
                     <div style={{ fontSize: 30, marginBottom: 8 }}>📄</div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-teal)' }}>{uploadFile.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 3 }}>{(uploadFile.size / 1024).toFixed(0)} Ko · Fichier sélectionné</div>
+                    <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 3 }}>{(uploadFile.size / 1024).toFixed(0)} {isPt ? 'KB · Ficheiro selecionado' : 'Ko · Fichier sélectionné'}</div>
                   </>
                 ) : (
                   <>
                     <div style={{ fontSize: 30, marginBottom: 8 }}>📎</div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy)', marginBottom: 3 }}>Glissez vos fichiers ici</div>
-                    <div style={{ fontSize: 11, color: 'var(--sd-ink-3)' }}>ou <strong style={{ color: 'var(--sd-gold)', cursor: 'pointer' }}>parcourir</strong> depuis votre ordinateur · PDF, JPG, PNG, DOCX</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy)', marginBottom: 3 }}>{isPt ? 'Arraste os ficheiros aqui' : 'Glissez vos fichiers ici'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--sd-ink-3)' }}>{isPt ? 'ou ' : 'ou '}<strong style={{ color: 'var(--sd-gold)', cursor: 'pointer' }}>{isPt ? 'procurar' : 'parcourir'}</strong> {isPt ? 'no seu computador · PDF, JPG, PNG, DOCX' : 'depuis votre ordinateur · PDF, JPG, PNG, DOCX'}</div>
                   </>
                 )}
               </div>
@@ -373,45 +376,45 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
               {/* Grid champs */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
-                  <label className="sd-doc-field-label">Type de document</label>
+                  <label className="sd-doc-field-label">{isPt ? 'Tipo de documento' : 'Type de document'}</label>
                   <select
                     className="sd-doc-field-select"
                     value={uploadForm.type}
                     onChange={e => setUploadForm(f => ({ ...f, type: e.target.value as DocIntervention['type'] }))}
                   >
-                    <option value="facture">Facture</option>
-                    <option value="devis">Devis</option>
-                    <option value="rapport">Rapport d&apos;intervention</option>
-                    <option value="photo">Photo</option>
-                    <option value="autre">Autre</option>
+                    <option value="facture">{isPt ? 'Fatura' : 'Facture'}</option>
+                    <option value="devis">{isPt ? 'Orçamento' : 'Devis'}</option>
+                    <option value="rapport">{isPt ? 'Relatório de intervenção' : 'Rapport d\'intervention'}</option>
+                    <option value="photo">{isPt ? 'Foto' : 'Photo'}</option>
+                    <option value="autre">{isPt ? 'Outro' : 'Autre'}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="sd-doc-field-label">Résidence</label>
+                  <label className="sd-doc-field-label">{isPt ? 'Edifício' : 'Résidence'}</label>
                   <input
                     className="sd-doc-field-input"
                     type="text"
                     value={uploadForm.immeuble}
                     onChange={e => setUploadForm(f => ({ ...f, immeuble: e.target.value }))}
-                    placeholder="Nom de la résidence"
+                    placeholder={isPt ? 'Nome do edifício' : 'Nom de la résidence'}
                   />
                 </div>
                 <div>
-                  <label className="sd-doc-field-label">Artisan</label>
+                  <label className="sd-doc-field-label">{isPt ? 'Profissional' : 'Artisan'}</label>
                   <input
                     className="sd-doc-field-input"
                     type="text"
                     value={uploadForm.artisan_nom}
                     onChange={e => setUploadForm(f => ({ ...f, artisan_nom: e.target.value }))}
                     list="artisans-docs-list"
-                    placeholder="Nom de l'artisan"
+                    placeholder={isPt ? 'Nome do profissional' : 'Nom de l\'artisan'}
                   />
                   <datalist id="artisans-docs-list">
                     {artisans.map(a => <option key={a.id} value={a.nom} />)}
                   </datalist>
                 </div>
                 <div>
-                  <label className="sd-doc-field-label">Date du document</label>
+                  <label className="sd-doc-field-label">{isPt ? 'Data do documento' : 'Date du document'}</label>
                   <input
                     className="sd-doc-field-input"
                     type="date"
@@ -422,13 +425,13 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
               </div>
 
               <div>
-                <label className="sd-doc-field-label">Notes <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--sd-ink-3)' }}>(optionnel)</span></label>
+                <label className="sd-doc-field-label">{isPt ? 'Notas' : 'Notes'} <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--sd-ink-3)' }}>{isPt ? '(opcional)' : '(optionnel)'}</span></label>
                 <input
                   className="sd-doc-field-input"
                   type="text"
                   value={uploadForm.notes}
                   onChange={e => setUploadForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Référence, observations…"
+                  placeholder={isPt ? 'Referência, observações…' : 'Référence, observations…'}
                 />
               </div>
 
@@ -439,13 +442,13 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
               )}
             </div>
             <div className="sd-doc-modal-footer">
-              <button className="sd-doc-btn-cancel" onClick={() => setShowUploadModal(false)}>Annuler</button>
+              <button className="sd-doc-btn-cancel" onClick={() => setShowUploadModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button
                 className="sd-doc-btn-submit"
                 onClick={handleUpload}
                 disabled={uploading || !uploadFile || !uploadForm.artisan_nom || !uploadForm.immeuble}
               >
-                {uploading ? 'Upload...' : 'Ajouter le document'}
+                {uploading ? (isPt ? 'A carregar...' : 'Upload...') : (isPt ? 'Adicionar documento' : 'Ajouter le document')}
               </button>
             </div>
           </div>

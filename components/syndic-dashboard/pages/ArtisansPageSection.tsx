@@ -198,9 +198,9 @@ export default function ArtisansPageSection({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-gray-500 text-sm">
-              {artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix
-              · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro valides
-              · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Décennales valides
+              {locale === 'pt'
+                ? <>{artisans.length} profissionais registados · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certificados Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro válidos · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Decenais válidos</>
+                : <>{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro valides · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Décennales valides</>}
             </p>
             <div className="flex gap-2">
               <button
@@ -256,39 +256,39 @@ export default function ArtisansPageSection({
                   {/* ── RC Pro status ── */}
                   {rcOk && rcExp && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 mb-2 flex items-center gap-2">
-                      <span>📄 RC Pro valide jusqu&apos;au {new Date(rcExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</span>
+                      <span>📄 {locale === 'pt' ? `RC Pro válido até ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro valide jusqu'au ${new Date(rcExp).toLocaleDateString('fr-FR')}`}</span>
                       {new Date(rcExp) < new Date(Date.now() + 60 * 86400000) && (
-                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">Expire bientôt</span>
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{locale === 'pt' ? 'Expira em breve' : 'Expire bientôt'}</span>
                       )}
                     </div>
                   )}
                   {!rcOk && rcExp && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-2">
-                      ⚠️ RC Pro expirée le {new Date(rcExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
+                      ⚠️ {locale === 'pt' ? `RC Pro expirado a ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro expirée le ${new Date(rcExp).toLocaleDateString('fr-FR')}`}
                     </div>
                   )}
                   {!rcOk && !rcExp && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 mb-2">
-                      💡 L&apos;artisan doit uploader sa RC Pro dans son Wallet Conformité
+                      💡 {locale === 'pt' ? 'O profissional deve carregar o seu RC Pro no Wallet de Conformidade' : 'L\'artisan doit uploader sa RC Pro dans son Wallet Conformité'}
                     </div>
                   )}
                   {/* ── Décennale status ── */}
                   {decOk && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 mb-3 flex items-center gap-2">
-                      <span>🛡️ Décennale valide{decExp ? ` jusqu'au ${new Date(decExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}` : ''}</span>
+                      <span>🛡️ {locale === 'pt' ? `Decenal válido${decExp ? ` até ${new Date(decExp).toLocaleDateString('pt-PT')}` : ''}` : `Décennale valide${decExp ? ` jusqu'au ${new Date(decExp).toLocaleDateString('fr-FR')}` : ''}`}</span>
                       {decExp && new Date(decExp) < new Date(Date.now() + 60 * 86400000) && (
-                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">Expire bientôt</span>
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{locale === 'pt' ? 'Expira em breve' : 'Expire bientôt'}</span>
                       )}
                     </div>
                   )}
                   {!decOk && decExp && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-3">
-                      ⚠️ Décennale expirée le {new Date(decExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
+                      ⚠️ {locale === 'pt' ? `Decenal expirado a ${new Date(decExp).toLocaleDateString('pt-PT')}` : `Décennale expirée le ${new Date(decExp).toLocaleDateString('fr-FR')}`}
                     </div>
                   )}
                   {!decOk && !decExp && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 mb-3">
-                      💡 L&apos;artisan doit uploader sa RC Décennale dans son Wallet
+                      💡 {locale === 'pt' ? 'O profissional deve carregar o seu seguro Decenal no Wallet' : 'L\'artisan doit uploader sa RC Décennale dans son Wallet'}
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -323,18 +323,18 @@ export default function ArtisansPageSection({
           {/* Header canal */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-3">
             <button onClick={() => { setSelectedArtisanChat(null); setMessages([]) }} className="text-gray-500 hover:text-gray-600 transition">
-              ← Retour
+              ← {locale === 'pt' ? 'Voltar' : 'Retour'}
             </button>
             <div className="w-10 h-10 bg-[#F7F4EE] rounded-full flex items-center justify-center text-lg font-bold text-[#C9A84C]">
               {selectedArtisanChat.nom.charAt(0)}
             </div>
             <div>
               <h3 className="font-bold text-gray-900">{selectedArtisanChat.nom}</h3>
-              <p className="text-xs text-gray-500">{selectedArtisanChat.metier} · Canal dédié interventions</p>
+              <p className="text-xs text-gray-500">{selectedArtisanChat.metier} · {locale === 'pt' ? 'Canal dedicado a intervenções' : 'Canal dédié interventions'}</p>
             </div>
             <div className="ml-auto flex gap-2">
               <button onClick={() => setShowModalMission(true)} className="text-xs bg-[#0D1B2E] text-white px-3 py-1.5 rounded-lg hover:bg-[#152338] transition">
-                + Nouvelle mission
+                + {locale === 'pt' ? 'Nova missão' : 'Nouvelle mission'}
               </button>
             </div>
           </div>
@@ -349,9 +349,9 @@ export default function ArtisansPageSection({
             {!msgLoading && messages.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-4xl mb-2">💬</div>
-                <p className="font-medium">Canal de communication dédié</p>
-                <p className="text-sm mt-1">Envoyez votre premier message à {selectedArtisanChat.nom}</p>
-                <p className="text-xs mt-2 text-gray-300">Les missions assignées, rapports et proof of work apparaîtront ici</p>
+                <p className="font-medium">{locale === 'pt' ? 'Canal de comunicação dedicado' : 'Canal de communication dédié'}</p>
+                <p className="text-sm mt-1">{locale === 'pt' ? `Envie a sua primeira mensagem a ${selectedArtisanChat.nom}` : `Envoyez votre premier message à ${selectedArtisanChat.nom}`}</p>
+                <p className="text-xs mt-2 text-gray-300">{locale === 'pt' ? 'As missões atribuídas, relatórios e provas de trabalho aparecerão aqui' : 'Les missions assignées, rapports et proof of work apparaîtront ici'}</p>
               </div>
             )}
             {messages.map(msg => {
@@ -360,13 +360,13 @@ export default function ArtisansPageSection({
                 <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${isMine ? 'bg-[#0D1B2E] text-white' : 'bg-gray-100 text-gray-900'}`}>
                     {!isMine && <p className="text-xs font-semibold mb-1 text-[#C9A84C]">{msg.sender_name}</p>}
-                    {msg.message_type === 'proof_of_work' && <p className="text-xs font-bold mb-1">📸 Proof of Work</p>}
-                    {msg.message_type === 'rapport' && <p className="text-xs font-bold mb-1">📋 Rapport d&apos;intervention</p>}
-                    {msg.message_type === 'devis' && <p className="text-xs font-bold mb-1">💶 Devis</p>}
+                    {msg.message_type === 'proof_of_work' && <p className="text-xs font-bold mb-1">📸 {locale === 'pt' ? 'Prova de Trabalho' : 'Proof of Work'}</p>}
+                    {msg.message_type === 'rapport' && <p className="text-xs font-bold mb-1">📋 {locale === 'pt' ? 'Relatório de intervenção' : 'Rapport d\'intervention'}</p>}
+                    {msg.message_type === 'devis' && <p className="text-xs font-bold mb-1">💶 {locale === 'pt' ? 'Orçamento' : 'Devis'}</p>}
                     <p className="text-sm">{msg.content}</p>
                     <p className={`text-xs mt-1 ${isMine ? 'text-[#E4DDD0]' : 'text-gray-500'}`}>
                       {new Date(msg.created_at).toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      {isMine && msg.read_at && ' · Lu'}
+                      {isMine && msg.read_at && (locale === 'pt' ? ' · Lida' : ' · Lu')}
                     </p>
                   </div>
                 </div>

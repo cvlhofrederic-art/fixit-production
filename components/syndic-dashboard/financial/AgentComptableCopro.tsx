@@ -166,8 +166,10 @@ export default function AgentComptableCopro({
           <div className="flex flex-col items-center justify-center h-full text-center py-8 space-y-4">
             <div><LeaAvatar size={64} /></div>
             <div>
-              <p className="font-bold text-gray-800 text-lg">Bonjour, je suis Léa !</p>
-              <p className="text-sm text-gray-500 mt-1 max-w-md">Je suis votre assistante comptable IA spécialisée en copropriété. Je connais le règlement de <strong>{imm?.nom || 'votre copropriété'}</strong> et toutes vos données comptables.</p>
+              <p className="font-bold text-gray-800 text-lg">{locale === 'pt' ? 'Olá, sou a Léa!' : 'Bonjour, je suis Léa !'}</p>
+              <p className="text-sm text-gray-500 mt-1 max-w-md">{locale === 'pt'
+                ? <>Sou a sua assistente contabilística IA especializada em condomínio. Conheço o regulamento de <strong>{imm?.nom || 'o seu condomínio'}</strong> e todos os seus dados contabilísticos.</>
+                : <>Je suis votre assistante comptable IA spécialisée en copropriété. Je connais le règlement de <strong>{imm?.nom || 'votre copropriété'}</strong> et toutes vos données comptables.</>}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
               {SUGGESTIONS.map((s, i) => (
