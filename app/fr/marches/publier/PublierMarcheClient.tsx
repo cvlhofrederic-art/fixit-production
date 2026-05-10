@@ -490,6 +490,9 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
     }`}>
       <button
         type="button"
+        role="switch"
+        aria-checked={!!form[field]}
+        aria-label={label}
         onClick={() => update(field, !form[field])}
         className={`relative w-11 h-6 rounded-full transition-all shrink-0 ${form[field] ? 'bg-green-500' : 'bg-gray-300'}`}
       >
