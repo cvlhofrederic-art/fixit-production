@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types locaux ──────────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ const formatDate = (s: string) => {
 // ─── Composant principal ───────────────────────────────────────────────────────
 
 export default function HistoriqueImmeubleSection({ user, userRole }: { user: { id: string }; userRole: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const uid = user.id
 
   const [allEvents, setAllEvents]         = useState<HistEvent[]>([])
@@ -303,11 +306,11 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
       {/* Sélection immeuble */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
         <div className="flex items-center gap-3 mb-3">
-          <span className="text-sm font-medium text-gray-700">Immeuble</span>
+          <span className="text-sm font-medium text-gray-700">{isPt ? 'Edifício' : 'Immeuble'}</span>
           <div className="flex-1 relative">
             <input
               className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Rechercher un immeuble..."
+              placeholder={isPt ? 'Pesquisar um edifício...' : 'Rechercher un immeuble...'}
               value={searchImm}
               onFocus={() => setShowSearch(true)}
               onBlur={() => setTimeout(() => setShowSearch(false), 200)}

@@ -78,6 +78,7 @@ export default function CanalCommunicationsPage({
 }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null)
   const [channelView, setChannelView] = useState<'artisans' | 'interne' | 'demandeurs'>('artisans')
   const [sending, setSending] = useState(false)
@@ -413,7 +414,9 @@ export default function CanalCommunicationsPage({
                     type="text"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    placeholder={listeVue === 'artisans' ? 'Rechercher artisan, résidence...' : 'Rechercher résident, immeuble...'}
+                    placeholder={listeVue === 'artisans'
+                      ? (isPt ? 'Pesquisar profissional, edifício...' : 'Rechercher artisan, résidence...')
+                      : (isPt ? 'Pesquisar residente, edifício...' : 'Rechercher résident, immeuble...')}
                     className="w-full rounded-lg outline-none"
                     style={{ padding: '9px 14px 9px 36px', background: 'var(--sd-cream)', border: '1px solid var(--sd-border)', color: 'var(--sd-navy)', fontSize: 12 }}
                     onFocus={e => (e.target.style.borderColor = 'var(--sd-gold)')}
@@ -425,10 +428,10 @@ export default function CanalCommunicationsPage({
               {/* Filter strip */}
               <div className="flex gap-1.5 px-5 py-2.5 overflow-x-auto" style={{ borderBottom: '1px solid var(--sd-border)', scrollbarWidth: 'none' }}>
                 {[
-                  { val: 'all', label: 'Toutes', dot: undefined },
-                  { val: 'en_attente', label: 'Urgent', dot: 'var(--sd-red)' },
-                  { val: 'en_cours', label: 'En cours', dot: 'var(--sd-teal)' },
-                  { val: 'terminée', label: 'En attente', dot: 'var(--sd-ink-3)' },
+                  { val: 'all', label: isPt ? 'Todas' : 'Toutes', dot: undefined },
+                  { val: 'en_attente', label: isPt ? 'Urgente' : 'Urgent', dot: 'var(--sd-red)' },
+                  { val: 'en_cours', label: isPt ? 'Em curso' : 'En cours', dot: 'var(--sd-teal)' },
+                  { val: 'terminée', label: isPt ? 'Em espera' : 'En attente', dot: 'var(--sd-ink-3)' },
                 ].map(f => (
                   <button
                     key={f.val}
@@ -439,7 +442,7 @@ export default function CanalCommunicationsPage({
                     {f.label}
                   </button>
                 ))}
-                <button onClick={onCreateMission} className="sd-chip">+ Mission</button>
+                <button onClick={onCreateMission} className="sd-chip">+ {isPt ? 'Missão' : 'Mission'}</button>
               </div>
 
               {/* Mission list */}
@@ -450,16 +453,18 @@ export default function CanalCommunicationsPage({
                       {listeVue === 'artisans' ? '🔧' : '👥'}
                     </div>
                     <p className="sd-ch-mission" style={{ fontSize: 15 }}>
-                      {listeVue === 'artisans' ? 'Aucun ordre de mission' : 'Aucune demande'}
+                      {listeVue === 'artisans'
+                        ? (isPt ? 'Nenhuma ordem de missão' : 'Aucun ordre de mission')
+                        : (isPt ? 'Nenhum pedido' : 'Aucune demande')}
                     </p>
                     <p className="text-xs mt-2" style={{ color: 'var(--sd-ink-3)' }}>
                       {listeVue === 'artisans'
-                        ? 'Créez un ordre de mission pour commencer'
-                        : 'Les demandes arrivent depuis le portail copropriétaire'}
+                        ? (isPt ? 'Crie uma ordem de missão para começar' : 'Créez un ordre de mission pour commencer')
+                        : (isPt ? 'Os pedidos chegam pelo portal do condómino' : 'Les demandes arrivent depuis le portail copropriétaire')}
                     </p>
                     {listeVue === 'artisans' && (
                       <button onClick={onCreateMission} className="mt-4 text-xs font-medium hover:underline" style={{ color: 'var(--sd-gold)' }}>
-                        + Créer un ordre de mission
+                        + {isPt ? 'Criar ordem de missão' : 'Créer un ordre de mission'}
                       </button>
                     )}
                   </div>
@@ -469,7 +474,7 @@ export default function CanalCommunicationsPage({
                     : (m.demandeurMessages && m.demandeurMessages.length > 0 ? m.demandeurMessages[m.demandeurMessages.length - 1] : null)
                   const msgCount = listeVue === 'artisans' ? (m.canalMessages?.length || 0) : (m.demandeurMessages?.length || 0)
                   const isSelected = m.id === selectedMissionId
-                  const displayName = listeVue === 'artisans' ? m.artisan : (m.demandeurNom || m.locataire || 'Résident')
+                  const displayName = listeVue === 'artisans' ? m.artisan : (m.demandeurNom || m.locataire || (isPt ? 'Residente' : 'Résident'))
 
                   return (
                     <button
@@ -857,14 +862,20 @@ export default function CanalCommunicationsPage({
                         {canalTab === 'artisan' ? '🔧' : '👤'}
                       </div>
                       <p className="sd-ch-mission">
-                        {canalTab === 'artisan' ? 'Canal artisan ouvert' : 'Canal demandeur'}
+                        {canalTab === 'artisan'
+                          ? (isPt ? 'Canal profissional aberto' : 'Canal artisan ouvert')
+                          : (isPt ? 'Canal do solicitante' : 'Canal demandeur')}
                       </p>
                       <p className="text-xs text-center" style={{ color: 'var(--sd-ink-3)', maxWidth: 280, lineHeight: 1.6 }}>
                         {canalTab === 'artisan'
-                          ? `L'ordre de mission a été envoyé à ${selectedMission.artisan}. Envoyez un message pour demarrer la conversation.`
+                          ? (isPt
+                              ? `A ordem de missão foi enviada para ${selectedMission.artisan}. Envie uma mensagem para iniciar a conversa.`
+                              : `L'ordre de mission a été envoyé à ${selectedMission.artisan}. Envoyez un message pour demarrer la conversation.`)
                           : (selectedMission.demandeurNom || selectedMission.locataire)
-                            ? `${selectedMission.demandeurNom || selectedMission.locataire} peut vous contacter via le portail copropriétaire.`
-                            : 'Aucun demandeur associé à cette mission.'}
+                            ? (isPt
+                                ? `${selectedMission.demandeurNom || selectedMission.locataire} pode contactá-lo através do portal do condómino.`
+                                : `${selectedMission.demandeurNom || selectedMission.locataire} peut vous contacter via le portail copropriétaire.`)
+                            : (isPt ? 'Nenhum solicitante associado a esta missão.' : 'Aucun demandeur associé à cette mission.')}
                       </p>
                     </div>
                   ) : (
