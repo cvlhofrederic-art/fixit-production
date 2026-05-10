@@ -340,7 +340,7 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
             )
           })}
           {allImmeubles.length === 0 && (
-            <p className="text-sm text-gray-400">Aucune donnée — renseignez le Carnet d&apos;entretien ou créez des Missions.</p>
+            <p className="text-sm text-gray-400">{isPt ? 'Sem dados — preencha o Caderno de manutenção ou crie Missões.' : 'Aucune donnée — renseignez le Carnet d\'entretien ou créez des Missions.'}</p>
           )}
         </div>
       </div>
@@ -353,7 +353,7 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
             onClick={() => setFilterType('all')}
             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${filterType === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
-            Tout
+            {isPt ? 'Tudo' : 'Tout'}
           </button>
           {(Object.keys(TYPE_CFG) as EventType[]).map(type => (
             <button
@@ -379,7 +379,7 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
           ))}
           {filterYear !== 0 && (
             <button onClick={() => setFilterYear(0)} className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
-              Toutes années
+              {isPt ? 'Todos os anos' : 'Toutes années'}
             </button>
           )}
         </div>
@@ -388,10 +388,10 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Événements',     value: filteredEvents.length,        color: 'text-gray-900' },
-          { label: 'Interventions',  value: countInterv,                   color: 'text-blue-600' },
-          { label: 'À venir',        value: countFutur,                    color: 'text-amber-600' },
-          { label: 'Coût total',     value: totalCout > 0 ? formatEur(totalCout) : '—', color: 'text-gray-900' },
+          { label: isPt ? 'Eventos'       : 'Événements',     value: filteredEvents.length,        color: 'text-gray-900' },
+          { label: isPt ? 'Intervenções'  : 'Interventions',  value: countInterv,                   color: 'text-blue-600' },
+          { label: isPt ? 'A vir'         : 'À venir',        value: countFutur,                    color: 'text-amber-600' },
+          { label: isPt ? 'Custo total'   : 'Coût total',     value: totalCout > 0 ? formatEur(totalCout) : '—', color: 'text-gray-900' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -404,11 +404,15 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
       {filteredEvents.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-16 text-center">
           <div className="text-5xl mb-4">🏛️</div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun événement trouvé</h3>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">{isPt ? 'Nenhum evento encontrado' : 'Aucun événement trouvé'}</h3>
           <p className="text-gray-400 text-sm">
             {selectedImm
-              ? `Aucun événement pour "${selectedImm}"${filterType !== 'all' ? ` de type "${TYPE_CFG[filterType as EventType]?.label}"` : ''}${filterYear ? ` en ${filterYear}` : ''}.`
-              : 'Commencez par saisir des données dans le Carnet d\'entretien, les Équipements, les Contrats ou créez des Missions.'
+              ? (isPt
+                  ? `Nenhum evento para "${selectedImm}"${filterType !== 'all' ? ` do tipo "${TYPE_CFG[filterType as EventType]?.label}"` : ''}${filterYear ? ` em ${filterYear}` : ''}.`
+                  : `Aucun événement pour "${selectedImm}"${filterType !== 'all' ? ` de type "${TYPE_CFG[filterType as EventType]?.label}"` : ''}${filterYear ? ` en ${filterYear}` : ''}.`)
+              : (isPt
+                  ? 'Comece por preencher dados no Caderno de manutenção, Equipamentos, Contratos ou crie Missões.'
+                  : 'Commencez par saisir des données dans le Carnet d\'entretien, les Équipements, les Contrats ou créez des Missions.')
             }
           </p>
         </div>

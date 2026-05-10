@@ -385,7 +385,7 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
         <div style={{ ...s.card, textAlign: 'center', maxWidth: '400px' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>🏗️</p>
           <p style={{ color: COLORS.navy, fontWeight: 600, fontSize: '16px' }}>Nenhum imóvel registado</p>
-          <p style={{ color: COLORS.text, fontSize: '13px', marginTop: '8px' }}>Adicione imóveis ao seu cabinet para ver o dashboard multi-imóveis.</p>
+          <p style={{ color: COLORS.text, fontSize: '13px', marginTop: '8px' }}>Adicione imóveis ao seu gabinete para ver o painel multi-imóveis.</p>
         </div>
       </div>
     )

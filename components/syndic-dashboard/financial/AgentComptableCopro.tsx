@@ -131,11 +131,11 @@ export default function AgentComptableCopro({
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex-shrink-0">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-lg font-bold text-[#0D1B2E] flex items-center gap-2"><LeaAvatar size={28} /> Agent Comptable Léa <span className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-2 py-0.5 rounded-full font-medium">IA</span></h2>
-            <p className="text-sm text-gray-500 mt-0.5">Analyse le règlement de copropriété et les données comptables pour répondre à vos questions</p>
+            <h2 className="text-lg font-bold text-[#0D1B2E] flex items-center gap-2"><LeaAvatar size={28} /> {locale === 'pt' ? 'Agente Contabilística Léa' : 'Agent Comptable Léa'} <span className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-2 py-0.5 rounded-full font-medium">IA</span></h2>
+            <p className="text-sm text-gray-500 mt-0.5">{locale === 'pt' ? 'Analisa o regulamento do condomínio e os dados contabilísticos para responder às suas perguntas' : 'Analyse le règlement de copropriété et les données comptables pour répondre à vos questions'}</p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 font-medium">Copropriété :</label>
+            <label className="text-xs text-gray-500 font-medium">{locale === 'pt' ? 'Condomínio' : 'Copropriété'} :</label>
             <select
               value={selectedImmeubleId}
               onChange={e => setSelectedImmeubleId(e.target.value)}
@@ -150,11 +150,13 @@ export default function AgentComptableCopro({
         {imm && (
           <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${hasReglement ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {hasReglement ? (
-              <>✅ Règlement chargé — {imm.reglementPdfNom || 'Texte saisi'}
-                {imm.reglementDateMaj && <span className="text-gray-500 font-normal ml-1">· MàJ {new Date(imm.reglementDateMaj).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</span>}
+              <>✅ {locale === 'pt' ? 'Regulamento carregado' : 'Règlement chargé'} — {imm.reglementPdfNom || (locale === 'pt' ? 'Texto inserido' : 'Texte saisi')}
+                {imm.reglementDateMaj && <span className="text-gray-500 font-normal ml-1">· {locale === 'pt' ? 'Atualizado' : 'MàJ'} {new Date(imm.reglementDateMaj).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</span>}
               </>
             ) : (
-              <>⚠️ Aucun règlement de copropriété pour <strong>{imm.nom}</strong> — Ajoutez-le dans la fiche immeuble pour des réponses précises</>
+              <>⚠️ {locale === 'pt'
+                ? <>Sem regulamento de condomínio para <strong>{imm.nom}</strong> — Adicione-o na ficha do edifício para obter respostas precisas</>
+                : <>Aucun règlement de copropriété pour <strong>{imm.nom}</strong> — Ajoutez-le dans la fiche immeuble pour des réponses précises</>}</>
             )}
           </div>
         )}
