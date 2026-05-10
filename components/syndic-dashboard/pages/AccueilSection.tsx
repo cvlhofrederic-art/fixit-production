@@ -55,17 +55,17 @@ export default function AccueilSection({
             {dateLabel}
           </div>
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: '#fff', fontWeight: 400, lineHeight: 1.2 }}>
-            {t('syndicDash.accueil.hello') || 'Bonjour,'} <em style={{ fontStyle: 'italic', color: 'var(--sd-gold-light)' }}>{userName}</em>
+            {t('syndicDash.accueil.hello') || (locale === 'pt' ? 'Olá,' : 'Bonjour,')} <em style={{ fontStyle: 'italic', color: 'var(--sd-gold-light)' }}>{userName}</em>
           </div>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>
-            {t('syndicDash.accueil.portfolioStatus') || 'Voici l\'état de votre portefeuille immobilier aujourd\'hui.'}
+            {t('syndicDash.accueil.portfolioStatus') || (locale === 'pt' ? 'Eis o estado do seu portefólio imobiliário hoje.' : 'Voici l\'état de votre portefeuille immobilier aujourd\'hui.')}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 32, position: 'relative' }}>
           {[
-            { val: totalLots, lbl: t('syndicDash.accueil.lotsTotal') || 'Fractions gérées' },
-            { val: missionsActives, lbl: t('syndicDash.accueil.activeMissions') || 'Missions actives' },
-            { val: `${totalBudget.toLocaleString(locStr)} €`, lbl: `${t('syndicDash.accueil.budget') || 'Budget'} ${new Date().getFullYear()}` },
+            { val: totalLots, lbl: t('syndicDash.accueil.lotsTotal') || (locale === 'pt' ? 'Frações geridas' : 'Fractions gérées') },
+            { val: missionsActives, lbl: t('syndicDash.accueil.activeMissions') || (locale === 'pt' ? 'Missões ativas' : 'Missions actives') },
+            { val: `${totalBudget.toLocaleString(locStr)} €`, lbl: `${t('syndicDash.accueil.budget') || (locale === 'pt' ? 'Orçamento' : 'Budget')} ${new Date().getFullYear()}` },
           ].map((s, idx) => (
             <div key={idx} style={{ textAlign: 'right', paddingLeft: 32, borderLeft: idx > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}>
               <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, color: '#fff', lineHeight: 1 }}>{s.val}</div>
@@ -81,26 +81,26 @@ export default function AccueilSection({
           {
             ico: '🏢', icoColor: 'rgba(13,27,46,0.07)',
             trend: '+0%', trendType: 'up',
-            val: immeubles.length, lbl: t('syndicDash.accueil.managedBuildings') || 'Édifices gérés',
-            sub: `${totalLots} ${t('syndicDash.accueil.lotsTotal') || 'fractions'}`
+            val: immeubles.length, lbl: t('syndicDash.accueil.managedBuildings') || (locale === 'pt' ? 'Edifícios geridos' : 'Édifices gérés'),
+            sub: `${totalLots} ${t('syndicDash.accueil.lotsTotal') || (locale === 'pt' ? 'frações' : 'fractions')}`
           },
           {
             ico: '🔧', icoColor: 'var(--sd-gold-dim)',
             trend: artisansActifs > 0 ? `${artisansActifs}` : '0', trendType: 'flat',
-            val: artisansActifs, lbl: t('syndicDash.accueil.activeArtisans') || 'Professionnels actifs',
-            sub: `${artisansCertifies} ${t('syndicDash.accueil.vitfixCertified') || 'certifiés VitFix'}`
+            val: artisansActifs, lbl: t('syndicDash.accueil.activeArtisans') || (locale === 'pt' ? 'Profissionais ativos' : 'Professionnels actifs'),
+            sub: `${artisansCertifies} ${t('syndicDash.accueil.vitfixCertified') || (locale === 'pt' ? 'certificados VitFix' : 'certifiés VitFix')}`
           },
           {
             ico: '📋', icoColor: 'var(--sd-teal-soft)',
-            trend: missionsEnAttente > 0 ? `${missionsEnAttente} ${t('syndicDash.accueil.pending') || 'en attente'}` : '—', trendType: missionsEnAttente > 0 ? 'warn' : 'flat',
-            val: missionsActives, lbl: t('syndicDash.accueil.ongoingMissions') || 'Missions en cours',
-            sub: `${missionsEnAttente} ${t('syndicDash.accueil.pending') || 'en attente'}`
+            trend: missionsEnAttente > 0 ? `${missionsEnAttente} ${t('syndicDash.accueil.pending') || (locale === 'pt' ? 'em espera' : 'en attente')}` : '—', trendType: missionsEnAttente > 0 ? 'warn' : 'flat',
+            val: missionsActives, lbl: t('syndicDash.accueil.ongoingMissions') || (locale === 'pt' ? 'Missões em curso' : 'Missions en cours'),
+            sub: `${missionsEnAttente} ${t('syndicDash.accueil.pending') || (locale === 'pt' ? 'em espera' : 'en attente')}`
           },
           {
             ico: '🔔', icoColor: alertesUrgentes.length > 0 ? 'var(--sd-red-soft)' : 'var(--sd-teal-soft)',
-            trend: alertesUrgentes.length > 0 ? `${t('syndicDash.accueil.toWatch') || 'À surveiller'}` : 'OK', trendType: alertesUrgentes.length > 0 ? 'alert' : 'up',
-            val: alertes.length, lbl: t('syndicDash.accueil.activeAlerts') || 'Alertes actives',
-            sub: `${alertesUrgentes.length} ${t('syndicDash.accueil.urgent') || 'urgentes'}`
+            trend: alertesUrgentes.length > 0 ? `${t('syndicDash.accueil.toWatch') || (locale === 'pt' ? 'A vigiar' : 'À surveiller')}` : 'OK', trendType: alertesUrgentes.length > 0 ? 'alert' : 'up',
+            val: alertes.length, lbl: t('syndicDash.accueil.activeAlerts') || (locale === 'pt' ? 'Alertas ativos' : 'Alertes actives'),
+            sub: `${alertesUrgentes.length} ${t('syndicDash.accueil.urgent') || (locale === 'pt' ? 'urgentes' : 'urgentes')}`
           },
         ].map((kpi, idx) => {
           const trendColors: Record<string, { bg: string; color: string }> = {
@@ -131,22 +131,22 @@ export default function AccueilSection({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 400, color: 'var(--sd-navy)' }}>
-              {t('syndicDash.accueil.globalBudget') || 'Budget global'} — {t('syndicDash.accueil.fiscalYear') || 'Exercice'} {new Date().getFullYear()}
+              {t('syndicDash.accueil.globalBudget') || (locale === 'pt' ? 'Orçamento global' : 'Budget global')} — {t('syndicDash.accueil.fiscalYear') || (locale === 'pt' ? 'Exercício' : 'Exercice')} {new Date().getFullYear()}
             </div>
             <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 2, letterSpacing: '0.3px' }}>
-              {t('syndicDash.accueil.budgetSubtitle') || 'Suivi des dépenses et solde disponible'}
+              {t('syndicDash.accueil.budgetSubtitle') || (locale === 'pt' ? 'Acompanhamento das despesas e saldo disponível' : 'Suivi des dépenses et solde disponible')}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--sd-gold-dim)', border: '1px solid rgba(201,168,76,0.25)', color: '#8A6A20', fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 20, letterSpacing: '0.5px' }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sd-gold)' }} />
-            {t('syndicDash.accueil.inProgress') || 'En cours'}
+            {t('syndicDash.accueil.inProgress') || (locale === 'pt' ? 'Em curso' : 'En cours')}
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 0, marginBottom: 20 }}>
           {[
-            { lbl: t('syndicDash.accueil.totalBudget') || 'Budget total', val: `${totalBudget.toLocaleString(locStr)} €`, note: `${t('syndicDash.accueil.fiscalYear') || 'Exercice'} ${new Date().getFullYear()}`, color: 'var(--sd-navy)' },
-            { lbl: t('syndicDash.accueil.spent') || 'Dépensé', val: `${totalDepenses.toLocaleString(locStr)} €`, note: `${Math.round(budgetPct)}% ${t('syndicDash.accueil.consumed') || 'consommé'}`, color: 'var(--sd-amber)' },
-            { lbl: t('syndicDash.accueil.remaining') || 'Solde restant', val: `${solde.toLocaleString(locStr)} €`, note: t('syndicDash.accueil.available') || 'Disponible', color: 'var(--sd-teal)' },
+            { lbl: t('syndicDash.accueil.totalBudget') || (locale === 'pt' ? 'Orçamento total' : 'Budget total'), val: `${totalBudget.toLocaleString(locStr)} €`, note: `${t('syndicDash.accueil.fiscalYear') || (locale === 'pt' ? 'Exercício' : 'Exercice')} ${new Date().getFullYear()}`, color: 'var(--sd-navy)' },
+            { lbl: t('syndicDash.accueil.spent') || (locale === 'pt' ? 'Gasto' : 'Dépensé'), val: `${totalDepenses.toLocaleString(locStr)} €`, note: `${Math.round(budgetPct)}% ${t('syndicDash.accueil.consumed') || (locale === 'pt' ? 'consumido' : 'consommé')}`, color: 'var(--sd-amber)' },
+            { lbl: t('syndicDash.accueil.remaining') || (locale === 'pt' ? 'Saldo restante' : 'Solde restant'), val: `${solde.toLocaleString(locStr)} €`, note: t('syndicDash.accueil.available') || (locale === 'pt' ? 'Disponível' : 'Disponible'), color: 'var(--sd-teal)' },
           ].map((fig, idx) => (
             <div key={idx} style={{ paddingRight: idx < 2 ? 24 : 0, paddingLeft: idx > 0 ? 24 : 0, borderRight: idx < 2 ? '1px solid var(--sd-border)' : 'none' }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--sd-ink-3)', marginBottom: 8 }}>{fig.lbl}</div>
@@ -157,8 +157,8 @@ export default function AccueilSection({
         </div>
         <div style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--sd-ink-3)', marginBottom: 6, letterSpacing: '0.3px' }}>
-            <span>{Math.round(budgetPct)}% {t('syndicDash.accueil.consumed') || 'consommé'}</span>
-            <span>{t('syndicDash.accueil.available') || 'Budget disponible'}</span>
+            <span>{Math.round(budgetPct)}% {t('syndicDash.accueil.consumed') || (locale === 'pt' ? 'consumido' : 'consommé')}</span>
+            <span>{t('syndicDash.accueil.available') || (locale === 'pt' ? 'Orçamento disponível' : 'Budget disponible')}</span>
           </div>
           <div style={{ height: 8, background: 'var(--sd-cream-dark)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ height: '100%', background: 'linear-gradient(90deg,var(--sd-navy),var(--sd-navy-soft))', borderRadius: 10, width: `${budgetPct}%`, transition: 'width 1.2s cubic-bezier(.4,0,.2,1)' }} />
@@ -174,16 +174,16 @@ export default function AccueilSection({
           <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--sd-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--sd-red-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>🔴</div>
-              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 14, fontWeight: 400, color: 'var(--sd-navy)' }}>{t('syndicDash.accueil.urgentAlerts') || 'Alertes urgentes'}</span>
+              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 14, fontWeight: 400, color: 'var(--sd-navy)' }}>{t('syndicDash.accueil.urgentAlerts') || (locale === 'pt' ? 'Alertas urgentes' : 'Alertes urgentes')}</span>
             </div>
             <button onClick={() => setPage('alertes')} style={{ fontSize: 11, color: 'var(--sd-gold)', textDecoration: 'none', fontWeight: 600, letterSpacing: '0.3px', background: 'none', border: 'none', cursor: 'pointer' }}>
-              {t('syndicDash.common.seeAll') || 'Voir tout'} →
+              {t('syndicDash.common.seeAll') || (locale === 'pt' ? 'Ver tudo' : 'Voir tout')} →
             </button>
           </div>
           {alertesUrgentes.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>✅</div>
-              <div style={{ color: 'var(--sd-ink-3)', fontSize: 13, lineHeight: 1.5 }}>{t('syndicDash.accueil.noUrgentAlert') || 'Aucune alerte urgente.'}<br />{t('syndicDash.accueil.allUnderControl') || 'Tout est sous contrôle.'}</div>
+              <div style={{ color: 'var(--sd-ink-3)', fontSize: 13, lineHeight: 1.5 }}>{t('syndicDash.accueil.noUrgentAlert') || (locale === 'pt' ? 'Nenhum alerta urgente.' : 'Aucune alerte urgente.')}<br />{t('syndicDash.accueil.allUnderControl') || (locale === 'pt' ? 'Está tudo sob controlo.' : 'Tout est sous contrôle.')}</div>
             </div>
           ) : (
             <div style={{ flex: 1 }}>
@@ -194,7 +194,7 @@ export default function AccueilSection({
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.message}</div>
                     <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 2 }}>{a.date}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--sd-red-soft)', color: 'var(--sd-red)', letterSpacing: '0.3px' }}>{t('syndicDash.accueil.urgent') || 'Urgent'}</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--sd-red-soft)', color: 'var(--sd-red)', letterSpacing: '0.3px' }}>{t('syndicDash.accueil.urgent') || (locale === 'pt' ? 'Urgente' : 'Urgent')}</span>
                 </div>
               ))}
             </div>
@@ -206,16 +206,16 @@ export default function AccueilSection({
           <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--sd-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(13,27,46,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>📋</div>
-              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 14, fontWeight: 400, color: 'var(--sd-navy)' }}>{t('syndicDash.accueil.recentMissions') || 'Missions récentes'}</span>
+              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 14, fontWeight: 400, color: 'var(--sd-navy)' }}>{t('syndicDash.accueil.recentMissions') || (locale === 'pt' ? 'Missões recentes' : 'Missions récentes')}</span>
             </div>
             <button onClick={() => setPage('missions')} style={{ fontSize: 11, color: 'var(--sd-gold)', fontWeight: 600, letterSpacing: '0.3px', background: 'none', border: 'none', cursor: 'pointer' }}>
-              {t('syndicDash.accueil.seeAllMissions') || 'Voir tout'} →
+              {t('syndicDash.accueil.seeAllMissions') || (locale === 'pt' ? 'Ver tudo' : 'Voir tout')} →
             </button>
           </div>
           {missions.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-              <div style={{ color: 'var(--sd-ink-3)', fontSize: 13 }}>{t('syndicDash.accueil.noMission') || 'Aucune mission en cours.'}</div>
+              <div style={{ color: 'var(--sd-ink-3)', fontSize: 13 }}>{t('syndicDash.accueil.noMission') || (locale === 'pt' ? 'Nenhuma missão em curso.' : 'Aucune mission en cours.')}</div>
             </div>
           ) : (
             <div style={{ flex: 1 }}>
@@ -226,11 +226,11 @@ export default function AccueilSection({
                     <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isUrgent ? 'var(--sd-red)' : 'var(--sd-amber)', boxShadow: isUrgent ? '0 0 0 3px var(--sd-red-soft)' : '0 0 0 3px var(--sd-amber-soft)' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.immeuble}</div>
-                      <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 2 }}>{m.type} · {m.artisan || t('syndicDash.missions.unassigned') || 'Non assigné'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 2 }}>{m.type} · {m.artisan || t('syndicDash.missions.unassigned') || (locale === 'pt' ? 'Por atribuir' : 'Non assigné')}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                      {isUrgent && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--sd-red-soft)', color: 'var(--sd-red)', letterSpacing: '0.3px' }}>{t('syndicDash.accueil.urgent') || 'Urgent'}</span>}
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--sd-amber-soft)', color: 'var(--sd-amber)', letterSpacing: '0.3px' }}>{m.statut === 'en_cours' ? (t('syndicDash.missions.inProgress') || 'En cours') : (t('syndicDash.missions.pending') || 'En attente')}</span>
+                      {isUrgent && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--sd-red-soft)', color: 'var(--sd-red)', letterSpacing: '0.3px' }}>{t('syndicDash.accueil.urgent') || (locale === 'pt' ? 'Urgente' : 'Urgent')}</span>}
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--sd-amber-soft)', color: 'var(--sd-amber)', letterSpacing: '0.3px' }}>{m.statut === 'en_cours' ? (t('syndicDash.missions.inProgress') || (locale === 'pt' ? 'Em curso' : 'En cours')) : (t('syndicDash.missions.pending') || (locale === 'pt' ? 'Em espera' : 'En attente'))}</span>
                     </div>
                   </div>
                 )
@@ -243,7 +243,7 @@ export default function AccueilSection({
       {/* ── Immeubles aperçu ── */}
       {immeubles.length > 0 && (
         <div style={{ background: '#fff', border: '1px solid var(--sd-border)', borderRadius: 14, padding: '26px 28px' }}>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 400, color: 'var(--sd-navy)', marginBottom: 20 }}>🏢 {t('syndicDash.accueil.myBuildings') || 'Mes immeubles'}</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 400, color: 'var(--sd-navy)', marginBottom: 20 }}>🏢 {t('syndicDash.accueil.myBuildings') || (locale === 'pt' ? 'Os meus edifícios' : 'Mes immeubles')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 14 }}>
             {immeubles.map(i => {
               const pct = i.budgetAnnuel > 0 ? Math.min((i.depensesAnnee / i.budgetAnnuel) * 100, 100) : 0
@@ -255,13 +255,13 @@ export default function AccueilSection({
                   <div style={{ fontWeight: 500, color: 'var(--sd-navy)', fontSize: 14, marginBottom: 4 }}>{i.nom}</div>
                   <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginBottom: 12 }}>{i.adresse}{i.ville ? `, ${i.ville}` : ''}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--sd-ink-2)', marginBottom: 8 }}>
-                    <span>🏠 {i.nbLots} {t('syndicDash.accueil.lots') || 'lots'}</span>
-                    <span>📋 {i.nbInterventions || 0} {t('syndicDash.accueil.interventions') || 'interventions'}</span>
+                    <span>🏠 {i.nbLots} {t('syndicDash.accueil.lots') || (locale === 'pt' ? 'frações' : 'lots')}</span>
+                    <span>📋 {i.nbInterventions || 0} {t('syndicDash.accueil.interventions') || (locale === 'pt' ? 'intervenções' : 'interventions')}</span>
                   </div>
                   <div style={{ height: 4, background: 'var(--sd-cream-dark)', borderRadius: 4, overflow: 'hidden' }}>
                     <div style={{ height: '100%', background: 'linear-gradient(90deg,var(--sd-navy),var(--sd-navy-soft))', borderRadius: 4, width: `${pct}%` }} />
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginTop: 4 }}>{t('syndicDash.accueil.budget') || 'Budget'} : {Math.round(pct)}% {t('syndicDash.accueil.consumed') || 'consommé'}</div>
+                  <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginTop: 4 }}>{t('syndicDash.accueil.budget') || (locale === 'pt' ? 'Orçamento' : 'Budget')} : {Math.round(pct)}% {t('syndicDash.accueil.consumed') || (locale === 'pt' ? 'consumido' : 'consommé')}</div>
                 </div>
               )
             })}

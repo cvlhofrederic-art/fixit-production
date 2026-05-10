@@ -93,10 +93,10 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
         }, 2000)
       } else {
         const data = await res.json().catch(() => ({}))
-        setSendError(data.error || 'Erreur lors de l\'envoi')
+        setSendError(data.error || (locale === 'pt' ? 'Erro ao enviar' : 'Erreur lors de l\'envoi'))
       }
     } catch {
-      setSendError('Erreur réseau')
+      setSendError(locale === 'pt' ? 'Erro de rede' : 'Erreur réseau')
     } finally {
       setSendingResponse(false)
     }
@@ -121,18 +121,19 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
     })).filter(t => t.count > 0),
   }
 
+  const isPt = locale === 'pt'
   const URGENCE_CONFIG = {
-    haute:   { emoji: '🔴', label: 'Urgente',  color: 'bg-red-100 text-red-700 border-red-200' },
-    moyenne: { emoji: '🟡', label: 'Moyenne',  color: 'bg-amber-100 text-amber-700 border-amber-200' },
-    basse:   { emoji: '🟢', label: 'Basse',    color: 'bg-green-100 text-green-700 border-green-200' },
+    haute:   { emoji: '🔴', label: isPt ? 'Urgente' : 'Urgente',  color: 'bg-red-100 text-red-700 border-red-200' },
+    moyenne: { emoji: '🟡', label: isPt ? 'Média'   : 'Moyenne',  color: 'bg-amber-100 text-amber-700 border-amber-200' },
+    basse:   { emoji: '🟢', label: isPt ? 'Baixa'   : 'Basse',    color: 'bg-green-100 text-green-700 border-green-200' },
   }
 
   const STATUT_CONFIG = {
-    nouveau:      { label: 'Nouveau',      color: 'bg-blue-100 text-blue-700' },
-    traite:       { label: 'Traité',       color: 'bg-green-100 text-green-700' },
-    archive:      { label: 'Archivé',      color: 'bg-[#F7F4EE] text-gray-500' },
-    mission_cree: { label: 'Mission créée', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
-    repondu:      { label: 'Répondu',      color: 'bg-emerald-100 text-emerald-700' },
+    nouveau:      { label: isPt ? 'Novo'           : 'Nouveau',       color: 'bg-blue-100 text-blue-700' },
+    traite:       { label: isPt ? 'Tratado'        : 'Traité',        color: 'bg-green-100 text-green-700' },
+    archive:      { label: isPt ? 'Arquivado'      : 'Archivé',       color: 'bg-[#F7F4EE] text-gray-500' },
+    mission_cree: { label: isPt ? 'Missão criada'  : 'Mission créée', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
+    repondu:      { label: isPt ? 'Respondido'     : 'Répondu',       color: 'bg-emerald-100 text-emerald-700' },
   } as Record<string, { label: string; color: string }>
 
   return (
@@ -141,22 +142,22 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-gray-500 text-sm">
-            Analyse IA de votre boîte email · <span className="font-semibold text-gray-700">{stats.total} emails</span>
-            {stats.urgents > 0 && <span className="ml-2 font-bold text-red-600">· {stats.urgents} urgent{stats.urgents > 1 ? 's' : ''} non traité{stats.urgents > 1 ? 's' : ''}</span>}
+            {isPt ? 'Análise IA da sua caixa de email' : 'Analyse IA de votre boîte email'} · <span className="font-semibold text-gray-700">{stats.total} emails</span>
+            {stats.urgents > 0 && <span className="ml-2 font-bold text-red-600">· {stats.urgents} {isPt ? `urgente${stats.urgents > 1 ? 's' : ''} por tratar` : `urgent${stats.urgents > 1 ? 's' : ''} non traité${stats.urgents > 1 ? 's' : ''}`}</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-[#F7F4EE] rounded-lg p-1 gap-1">
             <button onClick={() => setActiveTab('liste')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${activeTab === 'liste' ? 'bg-white shadow text-[#0D1B2E]' : 'text-gray-500 hover:text-gray-700'}`}>
-              📋 Liste
+              📋 {isPt ? 'Lista' : 'Liste'}
             </button>
             <button onClick={() => setActiveTab('rapport')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${activeTab === 'rapport' ? 'bg-white shadow text-[#0D1B2E]' : 'text-gray-500 hover:text-gray-700'}`}>
-              📊 Rapport
+              📊 {isPt ? 'Relatório' : 'Rapport'}
             </button>
           </div>
           <button onClick={handlePoll} disabled={polling}
             className="flex items-center gap-2 bg-[#0D1B2E] hover:bg-[#152338] text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60">
-            {polling ? <span className="animate-spin">⟳</span> : '⟳'} Analyser maintenant
+            {polling ? <span className="animate-spin">⟳</span> : '⟳'} {isPt ? 'Analisar agora' : 'Analyser maintenant'}
           </button>
         </div>
       </div>
@@ -165,16 +166,18 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
       {!loading && emails.length === 0 && (
         <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] border-2 border-[#E4DDD0] rounded-2xl p-6 text-center">
           <div className="text-5xl mb-3">📧</div>
-          <h3 className="text-lg font-bold text-[#0D1B2E] mb-2">Connectez votre boîte Gmail</h3>
+          <h3 className="text-lg font-bold text-[#0D1B2E] mb-2">{isPt ? 'Ligue a sua caixa Gmail' : 'Connectez votre boîte Gmail'}</h3>
           <p className="text-gray-500 text-sm mb-4 max-w-md mx-auto">
-            Fixy analysera automatiquement tous vos emails entrants — urgences, types de demandes, suggestions d'actions et brouillons de réponse.
+            {isPt
+              ? 'O Fixy irá analisar automaticamente todos os emails recebidos — urgências, tipos de pedido, sugestões de ações e rascunhos de resposta.'
+              : 'Fixy analysera automatiquement tous vos emails entrants — urgences, types de demandes, suggestions d\'actions et brouillons de réponse.'}
           </p>
           <button onClick={onNavigateParams}
             className="bg-[#0D1B2E] hover:bg-[#152338] text-white px-6 py-2.5 rounded-lg font-semibold transition inline-flex items-center gap-2">
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="white" d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z"/>
             </svg>
-            Connecter Gmail dans les Paramètres
+            {isPt ? 'Ligar Gmail nas Definições' : 'Connecter Gmail dans les Paramètres'}
           </button>
         </div>
       )}
@@ -185,10 +188,10 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
           {emails.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: 'Non traités', nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
-                { label: 'Urgents',     nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-[#F7F4EE] border-gray-200' },
-                { label: 'Traités',     nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
-                { label: 'Total',       nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
+                { label: isPt ? 'Por tratar' : 'Non traités', nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
+                { label: isPt ? 'Urgentes'   : 'Urgents',     nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-[#F7F4EE] border-gray-200' },
+                { label: isPt ? 'Tratados'   : 'Traités',     nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
+                { label: isPt ? 'Total'      : 'Total',       nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
               ].map(s => (
                 <div key={s.label} className={`rounded-xl border-2 p-3 ${s.color}`}>
                   <div className="text-xl mb-0.5">{s.emoji}</div>
@@ -207,21 +210,21 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                 <div className="relative flex-1 min-w-48">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
                   <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Rechercher dans les emails..."
+                    placeholder={isPt ? 'Pesquisar nos emails...' : 'Rechercher dans les emails...'}
                     className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
                 </div>
                 {/* Urgence */}
                 <select value={filterUrgence} onChange={e => setFilterUrgence(e.target.value as any)}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
-                  <option value="">Toutes urgences</option>
-                  <option value="haute">🔴 Urgente</option>
-                  <option value="moyenne">🟡 Moyenne</option>
-                  <option value="basse">🟢 Basse</option>
+                  <option value="">{isPt ? 'Todas as urgências' : 'Toutes urgences'}</option>
+                  <option value="haute">🔴 {isPt ? 'Urgente' : 'Urgente'}</option>
+                  <option value="moyenne">🟡 {isPt ? 'Média' : 'Moyenne'}</option>
+                  <option value="basse">🟢 {isPt ? 'Baixa' : 'Basse'}</option>
                 </select>
                 {/* Type */}
                 <select value={filterType} onChange={e => setFilterType(e.target.value)}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
-                  <option value="">Tous types</option>
+                  <option value="">{isPt ? 'Todos os tipos' : 'Tous types'}</option>
                   {Object.entries(TYPE_EMAIL_CONFIG).map(([k, v]) => (
                     <option key={k} value={k}>{v.emoji} {v.label}</option>
                   ))}
@@ -229,11 +232,11 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                 {/* Statut */}
                 <select value={filterStatut} onChange={e => setFilterStatut(e.target.value as any)}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
-                  <option value="">Tous statuts</option>
-                  <option value="nouveau">📬 Nouveaux</option>
-                  <option value="traite">✅ Traités</option>
-                  <option value="repondu">📧 Répondus</option>
-                  <option value="archive">📦 Archivés</option>
+                  <option value="">{isPt ? 'Todos os estados' : 'Tous statuts'}</option>
+                  <option value="nouveau">📬 {isPt ? 'Novos' : 'Nouveaux'}</option>
+                  <option value="traite">✅ {isPt ? 'Tratados' : 'Traités'}</option>
+                  <option value="repondu">📧 {isPt ? 'Respondidos' : 'Répondus'}</option>
+                  <option value="archive">📦 {isPt ? 'Arquivados' : 'Archivés'}</option>
                 </select>
                 {/* Compteur */}
                 <div className="flex items-center text-sm text-gray-500 ml-auto">
@@ -247,7 +250,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
           {loading ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
               <div className="text-4xl mb-3 animate-pulse">📧</div>
-              <p className="text-gray-500">Chargement des emails...</p>
+              <p className="text-gray-500">{isPt ? 'A carregar emails...' : 'Chargement des emails...'}</p>
             </div>
           ) : filtered.length > 0 ? (
             <div className="space-y-2">
@@ -275,7 +278,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statutCfg.color}`}>{statutCfg.label}</span>
                           </div>
                           <p className={`text-sm font-semibold text-[#0D1B2E] truncate ${isNew ? '' : 'opacity-70'}`}>{email.subject}</p>
-                          <p className="text-xs text-[#C9A84C] font-medium mt-0.5 truncate">💡 {email.resume_ia || 'Analyse en cours...'}</p>
+                          <p className="text-xs text-[#C9A84C] font-medium mt-0.5 truncate">💡 {email.resume_ia || (isPt ? 'Análise em curso...' : 'Analyse en cours...')}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                             <span>✉️ {email.from_name || email.from_email}</span>
                             {email.immeuble_detecte && <span>🏢 {email.immeuble_detecte}</span>}
@@ -295,16 +298,16 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                         {email.urgence === 'haute' && (
                           <button onClick={() => handleAction(email.id, 'creer_mission')}
                             className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-medium transition">
-                            🚨 Créer mission urgente
+                            🚨 {isPt ? 'Criar missão urgente' : 'Créer mission urgente'}
                           </button>
                         )}
                         <button onClick={() => handleAction(email.id, 'marquer_traite')}
                           className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg font-medium transition">
-                          ✅ Marquer traité
+                          ✅ {isPt ? 'Marcar como tratado' : 'Marquer traité'}
                         </button>
                         <button onClick={() => handleAction(email.id, 'archiver')}
                           className="text-xs bg-[#F7F4EE] hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg font-medium transition">
-                          📦 Archiver
+                          📦 {isPt ? 'Arquivar' : 'Archiver'}
                         </button>
                       </div>
                     )}
@@ -315,7 +318,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
           ) : emails.length > 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-500">
               <div className="text-4xl mb-3">🔍</div>
-              <p>Aucun email ne correspond aux filtres</p>
+              <p>{isPt ? 'Nenhum email corresponde aos filtros' : 'Aucun email ne correspond aux filtres'}</p>
             </div>
           ) : null}
         </>
@@ -326,17 +329,17 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
           {emails.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-500">
               <div className="text-4xl mb-3">📊</div>
-              <p>Aucune donnée — connectez Gmail pour générer des rapports</p>
+              <p>{isPt ? 'Sem dados — ligue o Gmail para gerar relatórios' : 'Aucune donnée — connectez Gmail pour générer des rapports'}</p>
             </div>
           ) : (
             <>
               {/* Rapport synthèse */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Total analysés',  nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
-                  { label: 'Non traités',      nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
-                  { label: '🔴 Urgents',        nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-200' },
-                  { label: 'Traités',          nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
+                  { label: isPt ? 'Total analisados' : 'Total analysés',  nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
+                  { label: isPt ? 'Por tratar'       : 'Non traités',      nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
+                  { label: isPt ? '🔴 Urgentes'       : '🔴 Urgents',        nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-200' },
+                  { label: isPt ? 'Tratados'         : 'Traités',          nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
                 ].map(s => (
                   <div key={s.label} className={`rounded-2xl border-2 p-5 ${s.color}`}>
                     <div className="text-3xl mb-2">{s.emoji}</div>
@@ -348,7 +351,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
 
               {/* Répartition par type */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-[#0D1B2E] mb-4">Répartition par type de demande</h3>
+                <h3 className="font-bold text-[#0D1B2E] mb-4">{isPt ? 'Distribuição por tipo de pedido' : 'Répartition par type de demande'}</h3>
                 <div className="space-y-2">
                   {stats.byType.sort((a, b) => b.count - a.count).map(t => (
                     <div key={t.type} className="flex items-center gap-3">
@@ -369,7 +372,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               {/* Emails urgents non traités */}
               {emails.filter(e => e.urgence === 'haute' && e.statut === 'nouveau').length > 0 && (
                 <div className="bg-white rounded-2xl shadow-sm border-2 border-red-200 p-6">
-                  <h3 className="font-bold text-red-700 mb-4">🚨 Emails urgents à traiter en priorité</h3>
+                  <h3 className="font-bold text-red-700 mb-4">🚨 {isPt ? 'Emails urgentes a tratar com prioridade' : 'Emails urgents à traiter en priorité'}</h3>
                   <div className="space-y-2">
                     {emails.filter(e => e.urgence === 'haute' && e.statut === 'nouveau').map(email => (
                       <div key={email.id} className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100"
@@ -430,16 +433,16 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
             <div className="p-5 space-y-4">
               {/* Résumé IA */}
               <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-4">
-                <p className="text-xs font-bold text-[#C9A84C] mb-1">🤖 Analyse de Fixy</p>
+                <p className="text-xs font-bold text-[#C9A84C] mb-1">🤖 {isPt ? 'Análise do Fixy' : 'Analyse de Fixy'}</p>
                 <p className="text-sm text-[#0D1B2E] font-medium">{selectedEmail.resume_ia}</p>
-                {selectedEmail.immeuble_detecte && <p className="text-xs text-[#C9A84C] mt-1">🏢 Immeuble : {selectedEmail.immeuble_detecte}</p>}
-                {selectedEmail.locataire_detecte && <p className="text-xs text-[#C9A84C]">👤 Résident : {selectedEmail.locataire_detecte}</p>}
+                {selectedEmail.immeuble_detecte && <p className="text-xs text-[#C9A84C] mt-1">🏢 {isPt ? 'Edifício' : 'Immeuble'} : {selectedEmail.immeuble_detecte}</p>}
+                {selectedEmail.locataire_detecte && <p className="text-xs text-[#C9A84C]">👤 {isPt ? 'Residente' : 'Résident'} : {selectedEmail.locataire_detecte}</p>}
               </div>
 
               {/* Corps de l'email */}
               {selectedEmail.body_preview && (
                 <div>
-                  <p className="text-xs font-bold text-gray-500 mb-2">CONTENU DE L'EMAIL</p>
+                  <p className="text-xs font-bold text-gray-500 mb-2">{isPt ? 'CONTEÚDO DO EMAIL' : 'CONTENU DE L\'EMAIL'}</p>
                   <div className="bg-[#F7F4EE] rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100 max-h-40 overflow-y-auto">
                     {selectedEmail.body_preview}
                   </div>
@@ -449,7 +452,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               {/* Réponse suggérée — validation et envoi */}
               {selectedEmail.reponse_suggeree && selectedEmail.statut !== 'repondu' && (
                 <div>
-                  <p className="text-xs font-bold text-gray-500 mb-2">✉️ BROUILLON DE RÉPONSE (généré par Fixy)</p>
+                  <p className="text-xs font-bold text-gray-500 mb-2">{isPt ? '✉️ RASCUNHO DE RESPOSTA (gerado pelo Fixy)' : '✉️ BROUILLON DE RÉPONSE (généré par Fixy)'}</p>
                   <div className="bg-blue-50 rounded-xl p-4 text-sm border border-blue-100">
                     <textarea
                       value={draftResponse || selectedEmail.reponse_suggeree}
@@ -457,10 +460,10 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                       onFocus={() => { if (!draftResponse) setDraftResponse(selectedEmail.reponse_suggeree || '') }}
                       rows={6}
                       className="w-full bg-white border border-blue-200 rounded-lg p-3 text-sm text-gray-700 resize-y focus:outline-none focus:border-blue-400"
-                      placeholder="Modifiez le brouillon si nécessaire..."
+                      placeholder={isPt ? 'Edite o rascunho se necessário...' : 'Modifiez le brouillon si nécessaire...'}
                     />
                     <p className="text-[11px] text-gray-400 mt-1 mb-3">
-                      Destinataire : {selectedEmail.from_email} · Objet : Re: {selectedEmail.subject}
+                      {isPt ? 'Destinatário' : 'Destinataire'} : {selectedEmail.from_email} · {isPt ? 'Assunto' : 'Objet'} : Re: {selectedEmail.subject}
                     </p>
                     {sendError && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-2 mb-3 text-xs text-red-600">
@@ -469,7 +472,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                     )}
                     {sendSuccess && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3 text-xs text-green-700 font-medium">
-                        ✅ Réponse envoyée avec succès !
+                        ✅ {isPt ? 'Resposta enviada com sucesso!' : 'Réponse envoyée avec succès !'}
                       </div>
                     )}
                     <div className="flex gap-2">
@@ -478,13 +481,13 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                         disabled={sendingResponse || sendSuccess}
                         className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-lg text-sm font-bold transition"
                       >
-                        {sendingResponse ? '⏳ Envoi en cours...' : '✅ Approuver et envoyer'}
+                        {sendingResponse ? (isPt ? '⏳ A enviar...' : '⏳ Envoi en cours...') : (isPt ? '✅ Aprovar e enviar' : '✅ Approuver et envoyer')}
                       </button>
                       <button
                         onClick={() => { setDraftResponse(''); setSendError('') }}
                         className="px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2.5 rounded-lg text-sm font-semibold transition"
                       >
-                        Réinitialiser
+                        {isPt ? 'Repor' : 'Réinitialiser'}
                       </button>
                     </div>
                   </div>
@@ -492,11 +495,11 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               )}
               {selectedEmail.statut === 'repondu' && (
                 <div>
-                  <p className="text-xs font-bold text-gray-500 mb-2">✅ RÉPONSE ENVOYÉE</p>
+                  <p className="text-xs font-bold text-gray-500 mb-2">{isPt ? '✅ RESPOSTA ENVIADA' : '✅ RÉPONSE ENVOYÉE'}</p>
                   <div className="bg-green-50 rounded-xl p-4 text-sm text-green-800 border border-green-200">
                     <p className="whitespace-pre-wrap">{(selectedEmail as any).response_sent || selectedEmail.reponse_suggeree}</p>
                     <p className="text-xs text-green-600 mt-2">
-                      Envoyé le {(selectedEmail as any).response_sent_at ? new Date((selectedEmail as any).response_sent_at).toLocaleString(dateFmtLocale) : '-'}
+                      {isPt ? 'Enviada a' : 'Envoyé le'} {(selectedEmail as any).response_sent_at ? new Date((selectedEmail as any).response_sent_at).toLocaleString(dateFmtLocale) : '-'}
                     </p>
                   </div>
                 </div>
@@ -504,7 +507,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
 
               {/* Actions suggérées */}
               <div>
-                <p className="text-xs font-bold text-gray-500 mb-2">ACTIONS SUGGÉRÉES PAR MAX</p>
+                <p className="text-xs font-bold text-gray-500 mb-2">{isPt ? 'AÇÕES SUGERIDAS PELO MAX' : 'ACTIONS SUGGÉRÉES PAR MAX'}</p>
                 <div className="flex flex-wrap gap-2">
                   {(Array.isArray(selectedEmail.actions_suggerees) ? selectedEmail.actions_suggerees : []).map(action => (
                     <span key={action} className="text-xs bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0] px-3 py-1.5 rounded-full">
@@ -521,22 +524,22 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                     {selectedEmail.urgence === 'haute' && (
                       <button onClick={() => handleAction(selectedEmail.id, 'creer_mission')}
                         className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-lg text-sm font-bold transition">
-                        🚨 Créer mission urgente
+                        🚨 {isPt ? 'Criar missão urgente' : 'Créer mission urgente'}
                       </button>
                     )}
                     <button onClick={() => handleAction(selectedEmail.id, 'marquer_traite')}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg text-sm font-semibold transition">
-                      ✅ Marquer traité
+                      ✅ {isPt ? 'Marcar como tratado' : 'Marquer traité'}
                     </button>
                     <button onClick={() => handleAction(selectedEmail.id, 'archiver')}
                       className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2.5 rounded-lg text-sm font-semibold transition">
-                      📦 Archiver
+                      📦 {isPt ? 'Arquivar' : 'Archiver'}
                     </button>
                   </>
                 )}
                 {selectedEmail.statut !== 'nouveau' && (
                   <div className="w-full text-center py-2 text-sm text-gray-500">
-                    Email {STATUT_CONFIG[selectedEmail.statut]?.label.toLowerCase() || 'traité'}
+                    Email {STATUT_CONFIG[selectedEmail.statut]?.label.toLowerCase() || (isPt ? 'tratado' : 'traité')}
                   </div>
                 )}
               </div>
