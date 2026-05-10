@@ -158,13 +158,13 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
       {/* ══════ HERO ══════ */}
       <div className="sd-doc-hero">
         <div>
-          <div className="sd-doc-hero-title">📁 Documents Interventions</div>
+          <div className="sd-doc-hero-title">📁 {isPt ? 'Documentos de Intervenção' : 'Documents Interventions'}</div>
           <div className="sd-doc-hero-sub">
-            <span>Factures</span> · <span>Devis</span> · <span>Rapports</span> · <span>Photos</span> — Transmission comptabilité
+            <span>{isPt ? 'Faturas' : 'Factures'}</span> · <span>{isPt ? 'Orçamentos' : 'Devis'}</span> · <span>{isPt ? 'Relatórios' : 'Rapports'}</span> · <span>{isPt ? 'Fotos' : 'Photos'}</span> — {isPt ? 'Transmissão à contabilidade' : 'Transmission comptabilité'}
           </div>
         </div>
         <button className="sd-doc-add-btn" onClick={() => setShowUploadModal(true)}>
-          <span style={{ color: 'var(--sd-gold)', fontSize: 18, fontWeight: 300, lineHeight: 1 }}>+</span> Ajouter un document
+          <span style={{ color: 'var(--sd-gold)', fontSize: 18, fontWeight: 300, lineHeight: 1 }}>+</span> {isPt ? 'Adicionar documento' : 'Ajouter un document'}
         </button>
       </div>
 

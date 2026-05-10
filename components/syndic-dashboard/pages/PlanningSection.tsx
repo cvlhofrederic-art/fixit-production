@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
               onClick={() => { setSelectedPlanningDay(new Date().toISOString().slice(0,10)); setShowPlanningModal(true) }}
               className="flex items-center gap-1 text-xs bg-[#0D1B2E] hover:bg-[#152338] text-white px-3 py-1.5 rounded-lg transition font-medium"
             >
-              + Ajouter
+              + {locale === 'pt' ? 'Adicionar' : 'Ajouter'}
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">

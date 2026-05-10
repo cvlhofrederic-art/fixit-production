@@ -105,7 +105,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
       const data = await res.json()
       setSignalements(data.signalements || [])
     } catch {
-      setSignalementError('Impossible de charger les demandes. Vérifiez votre connexion.')
+      setSignalementError(isPt ? 'Impossível carregar os pedidos. Verifique a sua ligação.' : 'Impossible de charger les demandes. Vérifiez votre connexion.')
     } finally {
       setLoadingSignalements(false)
     }
@@ -161,24 +161,24 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
     <div className="animate-fadeIn">
       <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-[#C9A84C] shadow-sm flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">👥 Extranet Copropriétaires</h1>
-          <p className="text-sm text-gray-500">Registre · Accès portail · Demandes d'intervention</p>
+          <h1 className="text-2xl font-semibold">👥 {isPt ? 'Extranet Condóminos' : 'Extranet Copropriétaires'}</h1>
+          <p className="text-sm text-gray-500">{isPt ? 'Registo · Acesso ao portal · Pedidos de intervenção' : 'Registre · Accès portail · Demandes d\'intervention'}</p>
         </div>
         {activeSection === 'copros' && (
-          <button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#152338]">+ Copropriétaire</button>
+          <button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#152338]">+ {isPt ? 'Condómino' : 'Copropriétaire'}</button>
         )}
         {activeSection === 'signalements' && (
-          <button onClick={fetchSignalements} disabled={loadingSignalements} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#152338] disabled:opacity-60">{loadingSignalements ? '⏳' : '🔄 Actualiser'}</button>
+          <button onClick={fetchSignalements} disabled={loadingSignalements} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#152338] disabled:opacity-60">{loadingSignalements ? '⏳' : (isPt ? '🔄 Atualizar' : '🔄 Actualiser')}</button>
         )}
       </div>
 
       {/* Tab bar */}
       <div className="bg-white border-b flex">
         <button onClick={() => setActiveSection('copros')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeSection === 'copros' ? 'border-[#C9A84C] text-[#C9A84C]' : 'border-transparent text-gray-500'}`}>
-          👥 Copropriétaires {copros.length > 0 && <span className="ml-1 bg-[#F7F4EE] text-[#0D1B2E] text-xs px-1.5 rounded-full">{copros.length}</span>}
+          👥 {isPt ? 'Condóminos' : 'Copropriétaires'} {copros.length > 0 && <span className="ml-1 bg-[#F7F4EE] text-[#0D1B2E] text-xs px-1.5 rounded-full">{copros.length}</span>}
         </button>
         <button onClick={() => setActiveSection('signalements')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeSection === 'signalements' ? 'border-[#C9A84C] text-[#C9A84C]' : 'border-transparent text-gray-500'}`}>
-          🔔 Demandes d'intervention
+          🔔 {isPt ? 'Pedidos de intervenção' : 'Demandes d\'intervention'}
           {pending > 0 && <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pending}</span>}
         </button>
       </div>
@@ -187,18 +187,18 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
       {activeSection === 'copros' && (
         <div className="p-6 lg:p-8">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">Copropriétaires</div><div className="text-3xl font-bold text-[#C9A84C]">{copros.length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Accès actifs</div><div className="text-3xl font-bold text-green-600">{copros.filter(c => c.accesActif).length}</div></div>
-            <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${totalSolde >= 0 ? 'border-green-400' : 'border-red-400'}`}><div className="text-sm text-gray-500">Solde global</div><div className={`text-3xl font-bold ${totalSolde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalSolde.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">En retard</div><div className="text-3xl font-bold text-red-600">{enRetard}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{isPt ? 'Condóminos' : 'Copropriétaires'}</div><div className="text-3xl font-bold text-[#C9A84C]">{copros.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{isPt ? 'Acessos ativos' : 'Accès actifs'}</div><div className="text-3xl font-bold text-green-600">{copros.filter(c => c.accesActif).length}</div></div>
+            <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${totalSolde >= 0 ? 'border-green-400' : 'border-red-400'}`}><div className="text-sm text-gray-500">{isPt ? 'Saldo global' : 'Solde global'}</div><div className={`text-3xl font-bold ${totalSolde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalSolde.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">{isPt ? 'Em atraso' : 'En retard'}</div><div className="text-3xl font-bold text-red-600">{enRetard}</div></div>
           </div>
 
           {copros.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">👥</div><h3 className="text-xl font-bold mb-2">Registre vide</h3><p className="text-gray-500 mb-6">Ajoutez vos copropriétaires pour leur donner accès au portail</p><button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ Premier copropriétaire</button></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">👥</div><h3 className="text-xl font-bold mb-2">{isPt ? 'Registo vazio' : 'Registre vide'}</h3><p className="text-gray-500 mb-6">{isPt ? 'Adicione os seus condóminos para lhes dar acesso ao portal' : 'Ajoutez vos copropriétaires pour leur donner accès au portail'}</p><button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ {isPt ? 'Primeiro condómino' : 'Premier copropriétaire'}</button></div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-[#F7F4EE] text-gray-500 uppercase text-xs"><tr><th className="px-5 py-3 text-left">Copropriétaire</th><th className="px-5 py-3 text-left">Lot</th><th className="px-5 py-3 text-right">Tantièmes</th><th className="px-5 py-3 text-right">Solde</th><th className="px-5 py-3 text-center">Accès</th><th className="px-5 py-3 text-center">Actions</th></tr></thead>
+                <thead className="bg-[#F7F4EE] text-gray-500 uppercase text-xs"><tr><th className="px-5 py-3 text-left">{isPt ? 'Condómino' : 'Copropriétaire'}</th><th className="px-5 py-3 text-left">{isPt ? 'Fração' : 'Lot'}</th><th className="px-5 py-3 text-right">{isPt ? 'Permilagem' : 'Tantièmes'}</th><th className="px-5 py-3 text-right">{isPt ? 'Saldo' : 'Solde'}</th><th className="px-5 py-3 text-center">{isPt ? 'Acesso' : 'Accès'}</th><th className="px-5 py-3 text-center">{isPt ? 'Ações' : 'Actions'}</th></tr></thead>
                 <tbody>
                   {copros.map(c => (
                     <tr key={c.id} className="border-t hover:bg-[#F7F4EE]">
@@ -206,8 +206,8 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                       <td className="px-5 py-4 text-gray-600">{c.lot || '—'}</td>
                       <td className="px-5 py-4 text-right">{c.tantieme}</td>
                       <td className={`px-5 py-4 text-right font-bold ${c.solde < 0 ? 'text-red-600' : 'text-green-600'}`}>{c.solde.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</td>
-                      <td className="px-5 py-4 text-center"><button onClick={() => toggleAcces(c.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${c.accesActif ? 'bg-green-100 text-green-700' : 'bg-[#F7F4EE] text-gray-500'}`}>{c.accesActif ? '✅ Actif' : '⏸ Inactif'}</button></td>
-                      <td className="px-5 py-4 text-center"><button onClick={() => setShowInvite(c)} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold">📧 Inviter</button></td>
+                      <td className="px-5 py-4 text-center"><button onClick={() => toggleAcces(c.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${c.accesActif ? 'bg-green-100 text-green-700' : 'bg-[#F7F4EE] text-gray-500'}`}>{c.accesActif ? (isPt ? '✅ Ativo' : '✅ Actif') : (isPt ? '⏸ Inativo' : '⏸ Inactif')}</button></td>
+                      <td className="px-5 py-4 text-center"><button onClick={() => setShowInvite(c)} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold">📧 {isPt ? 'Convidar' : 'Inviter'}</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -216,11 +216,11 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
           )}
 
           <div className="mt-6 bg-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-5">
-            <h3 className="font-bold text-[#0D1B2E] mb-2">🌐 Portail Copropriétaires</h3>
-            <p className="text-sm text-[#C9A84C] mb-3">Chaque copropriétaire peut accéder à son espace personnel pour consulter ses charges, PV d'AG et documents.</p>
+            <h3 className="font-bold text-[#0D1B2E] mb-2">🌐 {isPt ? 'Portal Condóminos' : 'Portail Copropriétaires'}</h3>
+            <p className="text-sm text-[#C9A84C] mb-3">{isPt ? 'Cada condómino pode aceder à sua área pessoal para consultar as suas quotas, atas de AG e documentos.' : 'Chaque copropriétaire peut accéder à son espace personnel pour consulter ses charges, PV d\'AG et documents.'}</p>
             <div className="flex gap-2">
               <input readOnly value={`${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail`} className="flex-1 bg-white border-2 border-[#E4DDD0] rounded-xl px-4 py-2 text-sm font-mono" />
-              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/coproprietaire/portail`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${copied ? 'bg-green-500 text-white' : 'bg-[#0D1B2E] text-white hover:bg-[#152338]'}`}>{copied ? '✅ Copié' : '📋 Copier'}</button>
+              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/coproprietaire/portail`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${copied ? 'bg-green-500 text-white' : 'bg-[#0D1B2E] text-white hover:bg-[#152338]'}`}>{copied ? (isPt ? '✅ Copiado' : '✅ Copié') : (isPt ? '📋 Copiar' : '📋 Copier')}</button>
             </div>
           </div>
         </div>
