@@ -326,7 +326,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
                   type="email"
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="jean@cabinet.fr"
+                  placeholder={locale === 'pt' ? 'joao@gabinete.pt' : 'jean@cabinet.fr'}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C9A84C] focus:outline-none"
                   required
                 />
