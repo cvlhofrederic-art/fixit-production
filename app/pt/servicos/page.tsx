@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/servicos/',
     languages: {
-      'pt': 'https://vitfix.io/pt/servicos/',
-      'fr': 'https://vitfix.io/fr/services/',
+      'pt-PT': 'https://vitfix.io/pt/servicos/',
+      'fr-FR': 'https://vitfix.io/fr/services/',
       'x-default': 'https://vitfix.io/pt/servicos/',
     },
   },

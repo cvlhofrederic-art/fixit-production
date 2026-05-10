@@ -27,8 +27,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/urgencia/',
     languages: {
-      'pt': 'https://vitfix.io/pt/urgencia/',
-      'fr': 'https://vitfix.io/fr/urgence/',
+      'pt-PT': 'https://vitfix.io/pt/urgencia/',
+      'fr-FR': 'https://vitfix.io/fr/urgence/',
       'x-default': 'https://vitfix.io/pt/urgencia/',
     },
   },

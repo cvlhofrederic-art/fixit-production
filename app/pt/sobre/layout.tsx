@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/sobre/',
     languages: {
-      'pt': 'https://vitfix.io/pt/sobre/',
-      'fr': 'https://vitfix.io/fr/a-propos/',
+      'pt-PT': 'https://vitfix.io/pt/sobre/',
+      'fr-FR': 'https://vitfix.io/fr/a-propos/',
       'x-default': 'https://vitfix.io/pt/sobre/',
     },
   },
