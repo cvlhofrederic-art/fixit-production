@@ -168,13 +168,13 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                       type="text"
                       value={coproSearch}
                       onChange={e => setCoproSearch(e.target.value)}
-                      placeholder="Rechercher par nom, lot, email…"
+                      placeholder={locale === 'pt' ? 'Pesquisar por nome, fração, email…' : 'Rechercher par nom, lot, email…'}
                       className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white"
                       autoFocus
                     />
                     <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-blue-100 shadow-sm">
                       {filteredCopros.length === 0 ? (
-                        <p className="text-xs text-gray-500 text-center py-3">Aucun résultat</p>
+                        <p className="text-xs text-gray-500 text-center py-3">{locale === 'pt' ? 'Nenhum resultado' : 'Aucun résultat'}</p>
                       ) : filteredCopros.map((c: Coproprio, i: number) => (
                         <button
                           key={c.id || i}

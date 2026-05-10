@@ -26,22 +26,37 @@ const STATUT_COLORS: Record<string, string> = {
   traite: 'bg-green-100 text-green-700',
   rejete: 'bg-gray-100 text-gray-500',
 }
-const STATUT_LABELS: Record<string, string> = {
+const STATUT_LABELS_FR: Record<string, string> = {
   en_attente: '⏳ En attente',
   en_cours: '🔄 En cours',
   traite: '✅ Traité',
   rejete: '⛔ Rejeté',
 }
-const PRIORITE_LABELS: Record<string, string> = {
+const STATUT_LABELS_PT: Record<string, string> = {
+  en_attente: '⏳ Em espera',
+  en_cours: '🔄 Em curso',
+  traite: '✅ Tratado',
+  rejete: '⛔ Rejeitado',
+}
+const PRIORITE_LABELS_FR: Record<string, string> = {
   urgente: '🔴 Urgente',
   haute: '🟠 Haute',
   normale: '🔵 Normale',
   basse: '⚪ Basse',
 }
+const PRIORITE_LABELS_PT: Record<string, string> = {
+  urgente: '🔴 Urgente',
+  haute: '🟠 Alta',
+  normale: '🔵 Normal',
+  basse: '⚪ Baixa',
+}
 
 export default function ExtranetSection({ user, userRole }: { user: User; userRole: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
+  const STATUT_LABELS = isPt ? STATUT_LABELS_PT : STATUT_LABELS_FR
+  const PRIORITE_LABELS = isPt ? PRIORITE_LABELS_PT : PRIORITE_LABELS_FR
   const uid = user?.id || 'demo'
 
   type Coproprietaire = { id: string; nom: string; email: string; lot: string; tantieme: number; telephone: string; solde: number; dateAdhesion: string; accesActif: boolean }
@@ -216,10 +231,10 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
         <div className="p-6 lg:p-8">
           {/* Stats */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-400"><div className="text-sm text-gray-500">En attente</div><div className="text-3xl font-bold text-amber-600">{signalements.filter(s => s.statut === 'en_attente').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">En cours</div><div className="text-3xl font-bold text-blue-600">{signalements.filter(s => s.statut === 'en_cours').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">Urgentes</div><div className="text-3xl font-bold text-red-600">{signalements.filter(s => s.priorite === 'urgente' && s.statut !== 'traite').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Traitées</div><div className="text-3xl font-bold text-green-600">{signalements.filter(s => s.statut === 'traite').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-400"><div className="text-sm text-gray-500">{isPt ? 'Em espera' : 'En attente'}</div><div className="text-3xl font-bold text-amber-600">{signalements.filter(s => s.statut === 'en_attente').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">{isPt ? 'Em curso' : 'En cours'}</div><div className="text-3xl font-bold text-blue-600">{signalements.filter(s => s.statut === 'en_cours').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">{isPt ? 'Urgentes' : 'Urgentes'}</div><div className="text-3xl font-bold text-red-600">{signalements.filter(s => s.priorite === 'urgente' && s.statut !== 'traite').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{isPt ? 'Tratadas' : 'Traitées'}</div><div className="text-3xl font-bold text-green-600">{signalements.filter(s => s.statut === 'traite').length}</div></div>
           </div>
 
           {/* Filtres */}
@@ -228,14 +243,14 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
               <div className="flex gap-1 flex-wrap">
                 {['all', 'en_attente', 'en_cours', 'traite', 'rejete'].map(st => (
                   <button key={st} onClick={() => setFilterStatut(st)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${filterStatut === st ? 'bg-[#0D1B2E] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
-                    {st === 'all' ? 'Tous statuts' : STATUT_LABELS[st]}
+                    {st === 'all' ? (isPt ? 'Todos os estados' : 'Tous statuts') : STATUT_LABELS[st]}
                   </button>
                 ))}
               </div>
               <div className="flex gap-1 flex-wrap">
                 {['all', 'urgente', 'haute', 'normale', 'basse'].map(p => (
                   <button key={p} onClick={() => setFilterPriorite(p)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${filterPriorite === p ? 'bg-[#C9A84C] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
-                    {p === 'all' ? 'Toutes priorités' : PRIORITE_LABELS[p]}
+                    {p === 'all' ? (isPt ? 'Todas as prioridades' : 'Toutes priorités') : PRIORITE_LABELS[p]}
                   </button>
                 ))}
               </div>
@@ -244,17 +259,17 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
 
           {/* Content */}
           {loadingSignalements ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-4xl mb-3 animate-pulse">⏳</div><p className="text-gray-500">Chargement des demandes...</p></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-4xl mb-3 animate-pulse">⏳</div><p className="text-gray-500">{isPt ? 'A carregar pedidos...' : 'Chargement des demandes...'}</p></div>
           ) : signalementError ? (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
               <p className="text-red-700 font-semibold mb-3">⚠️ {signalementError}</p>
-              <button onClick={fetchSignalements} className="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-red-700">Réessayer</button>
+              <button onClick={fetchSignalements} className="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-red-700">{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
               <div className="text-5xl mb-4">🔔</div>
-              <h3 className="text-xl font-bold mb-2">{signalements.length === 0 ? 'Aucune demande reçue' : 'Aucun résultat'}</h3>
-              <p className="text-gray-500">{signalements.length === 0 ? "Les demandes d'intervention des copropriétaires apparaîtront ici." : 'Essayez de modifier vos filtres.'}</p>
+              <h3 className="text-xl font-bold mb-2">{signalements.length === 0 ? (isPt ? 'Nenhum pedido recebido' : 'Aucune demande reçue') : (isPt ? 'Nenhum resultado' : 'Aucun résultat')}</h3>
+              <p className="text-gray-500">{signalements.length === 0 ? (isPt ? 'Os pedidos de intervenção dos condóminos aparecerão aqui.' : "Les demandes d'intervention des copropriétaires apparaîtront ici.") : (isPt ? 'Tente alterar os filtros.' : 'Essayez de modifier vos filtres.')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -263,7 +278,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-bold">{s.typeIntervention || 'Intervention'}</h3>
+                        <h3 className="font-bold">{s.typeIntervention || (isPt ? 'Intervenção' : 'Intervention')}</h3>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${PRIORITE_COLORS[s.priorite]}`}>{PRIORITE_LABELS[s.priorite]}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUT_COLORS[s.statut]}`}>{STATUT_LABELS[s.statut]}</span>
                         {s.messages.length > 0 && <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">💬 {s.messages.length} message{s.messages.length > 1 ? 's' : ''}</span>}
@@ -272,9 +287,9 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                       <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
                         {s.immeuble && <span>🏢 {s.immeuble}</span>}
                         {s.demandeurNom && <span>👤 {s.demandeurNom}</span>}
-                        {s.numLot && <span>🏠 Lot {s.numLot}</span>}
-                        {s.batiment && <span>🏗️ Bât. {s.batiment}{s.etage ? ` — Ét. ${s.etage}` : ''}</span>}
-                        {s.estPartieCommune && <span className="text-blue-600 font-semibold">Partie commune</span>}
+                        {s.numLot && <span>🏠 {isPt ? 'Fração' : 'Lot'} {s.numLot}</span>}
+                        {s.batiment && <span>🏗️ {isPt ? 'Bloco' : 'Bât.'} {s.batiment}{s.etage ? ` — ${isPt ? 'Andar' : 'Ét.'} ${s.etage}` : ''}</span>}
+                        {s.estPartieCommune && <span className="text-blue-600 font-semibold">{isPt ? 'Parte comum' : 'Partie commune'}</span>}
                         <span>📅 {new Date(s.createdAt).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                       </div>
                     </div>
@@ -286,12 +301,12 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                         disabled={updatingId === s.id}
                         className="text-xs border-2 border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-[#C9A84C] disabled:opacity-60"
                       >
-                        <option value="en_attente">⏳ En attente</option>
-                        <option value="en_cours">🔄 En cours</option>
-                        <option value="traite">✅ Traité</option>
-                        <option value="rejete">⛔ Rejeté</option>
+                        <option value="en_attente">{isPt ? '⏳ Em espera' : '⏳ En attente'}</option>
+                        <option value="en_cours">{isPt ? '🔄 Em curso' : '🔄 En cours'}</option>
+                        <option value="traite">{isPt ? '✅ Tratado' : '✅ Traité'}</option>
+                        <option value="rejete">{isPt ? '⛔ Rejeitado' : '⛔ Rejeté'}</option>
                       </select>
-                      <button onClick={e => { e.stopPropagation(); setSelected(s); setReplyText('') }} className="text-xs bg-[#F7F4EE] text-[#0D1B2E] px-2 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold text-center">💬 Répondre</button>
+                      <button onClick={e => { e.stopPropagation(); setSelected(s); setReplyText('') }} className="text-xs bg-[#F7F4EE] text-[#0D1B2E] px-2 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold text-center">💬 {isPt ? 'Responder' : 'Répondre'}</button>
                     </div>
                   </div>
                 </div>

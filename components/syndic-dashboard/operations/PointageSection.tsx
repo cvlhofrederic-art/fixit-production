@@ -557,10 +557,10 @@ export default function PointageSection({ immeubles, user, onUpdateImmeuble }: {
             {/* Filter chips + search */}
             <div className="sd-pt-hist-filters">
               {[
-                { key: 'tout' as const, label: 'Tout' },
-                { key: 'ce_mois' as const, label: 'Ce mois' },
-                { key: 'manuel' as const, label: 'Manuel' },
-                { key: 'geo' as const, label: 'Géoloc' },
+                { key: 'tout' as const, label: locale === 'pt' ? 'Tudo' : 'Tout' },
+                { key: 'ce_mois' as const, label: locale === 'pt' ? 'Este mês' : 'Ce mois' },
+                { key: 'manuel' as const, label: locale === 'pt' ? 'Manual' : 'Manuel' },
+                { key: 'geo' as const, label: locale === 'pt' ? 'Geoloc' : 'Géoloc' },
               ].map(chip => (
                 <button
                   key={chip.key}
@@ -578,7 +578,7 @@ export default function PointageSection({ immeubles, user, onUpdateImmeuble }: {
                 <input
                   type="text"
                   className="sd-pt-hist-search-input"
-                  placeholder="Rechercher résidence…"
+                  placeholder={locale === 'pt' ? 'Pesquisar edifício…' : 'Rechercher résidence…'}
                   value={histSearch}
                   onChange={e => setHistSearch(e.target.value)}
                 />
@@ -591,12 +591,12 @@ export default function PointageSection({ immeubles, user, onUpdateImmeuble }: {
                 <table className="sd-pt-hist-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Résidence</th>
-                      <th>Arrivée</th>
-                      <th>Départ</th>
-                      <th>Durée</th>
-                      <th>Méthode</th>
+                      <th>{locale === 'pt' ? 'Data' : 'Date'}</th>
+                      <th>{locale === 'pt' ? 'Edifício' : 'Résidence'}</th>
+                      <th>{locale === 'pt' ? 'Chegada' : 'Arrivée'}</th>
+                      <th>{locale === 'pt' ? 'Saída' : 'Départ'}</th>
+                      <th>{locale === 'pt' ? 'Duração' : 'Durée'}</th>
+                      <th>{locale === 'pt' ? 'Método' : 'Méthode'}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -624,15 +624,15 @@ export default function PointageSection({ immeubles, user, onUpdateImmeuble }: {
                           </td>
                           <td>
                             <span className={`sd-pt-hist-method-tag ${s.mode === 'manuel' ? 'sd-pt-hmt-manual' : 'sd-pt-hmt-geo'}`}>
-                              {s.mode === 'manuel' ? '✋ Manuel' : '📡 Géoloc'}
+                              {s.mode === 'manuel' ? (locale === 'pt' ? '✋ Manual' : '✋ Manuel') : (locale === 'pt' ? '📡 Geoloc' : '📡 Géoloc')}
                             </span>
                           </td>
                           <td>
                             <div className="sd-pt-hist-actions">
-                              <button className="sd-pt-hist-action-btn" title="Voir">👁</button>
+                              <button className="sd-pt-hist-action-btn" title={locale === 'pt' ? 'Ver' : 'Voir'}>👁</button>
                               <button
                                 className="sd-pt-hist-action-btn danger"
-                                title="Supprimer"
+                                title={locale === 'pt' ? 'Eliminar' : 'Supprimer'}
                                 onClick={() => deleteSession(s.id)}
                               >
                                 🗑
