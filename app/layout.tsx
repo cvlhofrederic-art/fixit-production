@@ -14,22 +14,30 @@ import WebVitalsReporter from "@/components/common/WebVitalsReporter";
 import type { Locale } from "@/lib/i18n/config";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
+// Pro SEO 2026 : `display: 'swap'` pour éviter le FOIT (Flash of Invisible
+// Text) et améliorer le LCP. Le navigateur affiche d'abord la fallback,
+// puis swap quand la font Google est chargée. Critique sur mobile 4G.
+// Source : web.dev/articles/font-display + Google Fonts Optimization 2026.
+
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500"],
+  display: "swap",
 });
 
 const syne = Syne({
   variable: "--font-syne",
   subsets: ["latin"],
   weight: ["400", "600", "700", "800"],
+  display: "swap",
 });
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
 });
 
 // Outfit utilisé sur les dashboards syndic + copro. Conservé global car
@@ -41,6 +49,7 @@ const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
+  display: "swap",
 });
 
 // Playfair_Display + IBM_Plex_Sans/Mono déplacés hors du layout global :

@@ -8,8 +8,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/simulador-orcamento/',
     languages: {
-      'pt': 'https://vitfix.io/pt/simulador-orcamento/',
-      'fr': 'https://vitfix.io/fr/simulateur-devis/',
+      'pt-PT': 'https://vitfix.io/pt/simulador-orcamento/',
+      'fr-FR': 'https://vitfix.io/fr/simulateur-devis/',
       'x-default': 'https://vitfix.io/pt/simulador-orcamento/',
     },
   },

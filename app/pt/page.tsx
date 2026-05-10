@@ -18,8 +18,15 @@ import {
 export const metadata: Metadata = {
   title: 'Profissionais de construção em Portugal | Vitfix',
   description:
-    'Encontre profissionais qualificados para obras e reparações em Porto e região Norte.',
-  alternates: { canonical: 'https://vitfix.io/pt/' },
+    'Encontre profissionais verificados em Marco de Canaveses, Penafiel, Amarante, Porto e região do Tâmega e Sousa. Canalizador, eletricista, pintor — orçamento grátis 24/7.',
+  alternates: {
+    canonical: 'https://vitfix.io/pt/',
+    // hreflang BCP 47 explicite — langue + région pour cibler PT et non BR.
+    languages: {
+      'pt-PT': 'https://vitfix.io/pt/',
+      'x-default': 'https://vitfix.io/pt/',
+    },
+  },
 }
 
 const HOME_URL = 'https://vitfix.io/pt/'

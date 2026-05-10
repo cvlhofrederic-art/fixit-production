@@ -21,8 +21,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/como-funciona/',
     languages: {
-      'pt': 'https://vitfix.io/pt/como-funciona/',
-      'fr': 'https://vitfix.io/fr/comment-ca-marche/',
+      'pt-PT': 'https://vitfix.io/pt/como-funciona/',
+      'fr-FR': 'https://vitfix.io/fr/comment-ca-marche/',
       'x-default': 'https://vitfix.io/pt/como-funciona/',
     },
   },

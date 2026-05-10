@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/cidade/',
     languages: {
-      'pt': 'https://vitfix.io/pt/cidade/',
+      'pt-PT': 'https://vitfix.io/pt/cidade/',
       'x-default': 'https://vitfix.io/pt/cidade/',
     },
   },
