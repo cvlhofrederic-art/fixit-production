@@ -445,7 +445,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
                         </div>
                         {eq.notes && <p className="text-xs text-gray-500 mt-1">{eq.notes}</p>}
                       </div>
-                      <button onClick={() => saveEquipements(equipements.filter(e => e.id !== eq.id))} aria-label="Supprimer équipement" className="text-red-400 hover:text-red-600 text-sm px-2 py-1 rounded-lg hover:bg-red-50">🗑️</button>
+                      <button onClick={() => saveEquipements(equipements.filter(e => e.id !== eq.id))} aria-label={locale === 'pt' ? 'Eliminar equipamento' : 'Supprimer équipement'} className="text-red-400 hover:text-red-600 text-sm px-2 py-1 rounded-lg hover:bg-red-50">🗑️</button>
                     </div>
                   </div>
                 )
@@ -507,7 +507,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
                         </div>
                         {c.notes && <p className="text-xs text-gray-500 mt-1">{c.notes}</p>}
                       </div>
-                      <button onClick={() => saveContrats(contrats.filter(ct => ct.id !== c.id))} aria-label="Supprimer contrat" className="text-red-400 hover:text-red-600 text-sm px-2 py-1 rounded-lg hover:bg-red-50">🗑️</button>
+                      <button onClick={() => saveContrats(contrats.filter(ct => ct.id !== c.id))} aria-label={locale === 'pt' ? 'Eliminar contrato' : 'Supprimer contrat'} className="text-red-400 hover:text-red-600 text-sm px-2 py-1 rounded-lg hover:bg-red-50">🗑️</button>
                     </div>
                   </div>
                 )
