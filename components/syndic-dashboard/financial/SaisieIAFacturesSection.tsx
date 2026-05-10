@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -290,7 +291,7 @@ const ANOMALIE_COLORS: Record<AnomalieType, { bg: string; color: string }> = {
   tva_incorrecte: { bg: '#F5EEF8', color: '#8E44AD' },
 }
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
+const TABS_FR: { id: TabId; label: string; icon: string }[] = [
   { id: 'import', label: 'Import factures', icon: '\u2B06' },
   { id: 'en_attente', label: 'En attente', icon: '\u23F3' },
   { id: 'traitees', label: 'Traitees', icon: '\u2705' },
@@ -298,9 +299,20 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'configuration', label: 'Configuration', icon: '\u2699' },
 ]
 
+const TABS_PT: { id: TabId; label: string; icon: string }[] = [
+  { id: 'import', label: 'Importar faturas', icon: '\u2B06' },
+  { id: 'en_attente', label: 'Em espera', icon: '\u23F3' },
+  { id: 'traitees', label: 'Tratadas', icon: '\u2705' },
+  { id: 'anomalies', label: 'Anomalias', icon: '\u26A0' },
+  { id: 'configuration', label: 'Configuracao', icon: '\u2699' },
+]
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function SaisieIAFacturesSection({ user, userRole }: { user: User; userRole: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const TABS = isPt ? TABS_PT : TABS_FR
   const uid = user?.id || 'demo'
   const storageKey = `fixit_saisie_ia_${uid}`
 
@@ -688,10 +700,12 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
           color: 'var(--sd-navy, #0D1B2E)',
           margin: 0, marginBottom: 6,
         }}>
-          Saisie IA des factures
+          {isPt ? 'Lançamento IA de faturas' : 'Saisie IA des factures'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--sd-ink-3, #8A9BB0)', margin: 0 }}>
-          Import, extraction automatique et validation des factures fournisseurs
+          {isPt
+            ? 'Importação, extração automática e validação das faturas de fornecedores'
+            : 'Import, extraction automatique et validation des factures fournisseurs'}
         </p>
       </div>
 
@@ -703,28 +717,28 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
           <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(201,168,76,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\uD83D\uDCC4'}</div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)', lineHeight: 1 }}>{data.factures.length}</div>
-            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Factures totales</div>
+            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Total faturas' : 'Factures totales'}</div>
           </div>
         </div>
         <div style={{ ...cardStyle, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FEF5E7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\u23F3'}</div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#E67E22', lineHeight: 1 }}>{pending.length}</div>
-            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>En attente</div>
+            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Em espera' : 'En attente'}</div>
           </div>
         </div>
         <div style={{ ...cardStyle, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EAFAF1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\u2705'}</div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#27AE60', lineHeight: 1 }}>{validated.length}</div>
-            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Validees</div>
+            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Validadas' : 'Validees'}</div>
           </div>
         </div>
         <div style={{ ...cardStyle, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FDEDEC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\u26A0\uFE0F'}</div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#E74C3C', lineHeight: 1 }}>{activeAnomalies.length}</div>
-            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Anomalies</div>
+            <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Anomalias' : 'Anomalies'}</div>
           </div>
         </div>
       </div>

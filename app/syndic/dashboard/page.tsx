@@ -2381,17 +2381,18 @@ export default function SyndicDashboard() {
     { id: 'sondages_fr', emoji: '📊', label: 'Sondages', category: 'copropriete_fr' },
     { id: 'reservation_espaces_fr', emoji: '📅', label: 'Réservation espaces', category: 'copropriete_fr' },
     { id: 'signalements_fr', emoji: '🔧', label: 'Signalements', category: 'copropriete_fr' },
-    { id: 'communication_demat', emoji: '📱', label: 'Communication démat.', category: 'copropriete_fr' },
     // ── OUTILS FR ──
     { id: 'vote_correspondance', emoji: '🗳️', label: 'Vote correspondance', category: 'outils_fr' },
     { id: 'pv_assemblee_ia', emoji: '📝', label: 'PV d\'AG assisté IA', category: 'outils_fr' },
-    { id: 'saisie_ia_factures', emoji: '🤖', label: 'Saisie IA Factures', category: 'outils_fr' },
     { id: 'appels_fonds', emoji: '💰', label: 'Appels de fonds', category: 'outils_fr' },
     { id: 'mise_en_concurrence', emoji: '📋', label: 'Mise en concurrence', category: 'outils_fr' },
     { id: 'recouvrement_enrichi_fr', emoji: '⚖️', label: 'Recouvrement enrichi', category: 'outils_fr' },
     { id: 'irve_bornes', emoji: '🔌', label: 'IRVE / Bornes VE', category: 'outils_fr' },
     { id: 'suivi_energetique_fr', emoji: '📈', label: 'Suivi énergétique', category: 'outils_fr' },
     { id: 'ged_certifiee', emoji: '🗄️', label: 'GED certifiée', category: 'outils_fr' },
+    // ── BILINGUES (FR + PT) ──
+    { id: 'saisie_ia_factures', emoji: '🤖', label: locale === 'pt' ? 'Lançamento IA Faturas' : 'Saisie IA Factures', category: 'outils_ia' },
+    { id: 'communication_demat', emoji: '📱', label: locale === 'pt' ? 'Comunicação digital' : 'Communication démat.', category: 'outils_ia' },
     // ── GESTÃO CONDÓMINOS (PT) ──
     { id: 'portal_condomino', emoji: '🏠', label: 'Portal do Condómino', category: 'condominios_pt' },
     { id: 'quadro_avisos', emoji: '📌', label: 'Quadro de Avisos', category: 'condominios_pt' },
