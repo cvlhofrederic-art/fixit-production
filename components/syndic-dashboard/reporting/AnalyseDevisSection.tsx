@@ -692,7 +692,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                               <div><span className="font-semibold text-gray-500">Statut :</span> <span className="text-green-600 font-semibold">Active ✅</span></div>
                             </>
                           ) : (
-                            <div className="text-red-600 font-semibold">{extracted?.artisan_siret ? `SIRET ${extracted.artisan_siret} non trouvé` : 'Aucun SIRET détecté'}</div>
+                            <div className="text-red-600 font-semibold">{extracted?.artisan_siret ? `${locale === 'pt' ? 'NIF' : 'SIRET'} ${extracted.artisan_siret} ${locale === 'pt' ? 'não encontrado' : 'non trouvé'}` : (locale === 'pt' ? 'Nenhum NIF detetado' : 'Aucun SIRET détecté')}</div>
                           )}
                         </div>
                       )}
