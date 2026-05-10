@@ -810,13 +810,13 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               fontSize: 16, fontWeight: 600,
               color: 'var(--sd-navy, #0D1B2E)', marginBottom: 8,
             }}>
-              Glissez-deposez vos factures ici
+              {isPt ? 'Arraste e largue as suas faturas aqui' : 'Glissez-deposez vos factures ici'}
             </div>
             <div style={{ fontSize: 13, color: 'var(--sd-ink-3, #8A9BB0)', marginBottom: 16 }}>
-              Formats acceptes : PDF, JPG, PNG — Import par lot supporte
+              {isPt ? 'Formatos aceites: PDF, JPG, PNG — Importação em lote suportada' : 'Formats acceptes : PDF, JPG, PNG — Import par lot supporte'}
             </div>
             <button style={btnPrimary}>
-              Parcourir les fichiers
+              {isPt ? 'Procurar ficheiros' : 'Parcourir les fichiers'}
             </button>
             <input
               ref={fileInputRef}
@@ -832,7 +832,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
           {uploadQueue.length > 0 && (
             <div style={cardStyle}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)', margin: '0 0 16px' }}>
-                File d'importation
+                {isPt ? 'Fila de importação' : 'File d\'importation'}
               </h3>
               {uploadQueue.map(item => (
                 <div key={item.id} style={{
@@ -854,7 +854,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                   </div>
                   <div>
                     {item.status === 'pending' && (
-                      <span style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>En file...</span>
+                      <span style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Em fila...' : 'En file...'}</span>
                     )}
                     {item.status === 'processing' && (
                       <span style={{ fontSize: 11, color: '#E67E22', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -864,14 +864,14 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                           borderRadius: '50%',
                           animation: 'saisie-spin 0.8s linear infinite',
                         }} />
-                        En cours de traitement
+                        {isPt ? 'A processar' : 'En cours de traitement'}
                       </span>
                     )}
                     {item.status === 'done' && (
-                      <span style={{ fontSize: 11, color: '#27AE60', fontWeight: 600 }}>Extrait</span>
+                      <span style={{ fontSize: 11, color: '#27AE60', fontWeight: 600 }}>{isPt ? 'Extraído' : 'Extrait'}</span>
                     )}
                     {item.status === 'error' && (
-                      <span style={{ fontSize: 11, color: '#E74C3C', fontWeight: 600 }}>Erreur</span>
+                      <span style={{ fontSize: 11, color: '#E74C3C', fontWeight: 600 }}>{isPt ? 'Erro' : 'Erreur'}</span>
                     )}
                   </div>
                 </div>
@@ -893,10 +893,10 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
             <div style={{ ...cardStyle, textAlign: 'center', padding: 48 }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>{'\u2705'}</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sd-navy, #0D1B2E)', marginBottom: 4 }}>
-                Aucune facture en attente
+                {isPt ? 'Nenhuma fatura em espera' : 'Aucune facture en attente'}
               </div>
               <div style={{ fontSize: 13, color: 'var(--sd-ink-3, #8A9BB0)' }}>
-                Toutes les factures ont ete traitees
+                {isPt ? 'Todas as faturas foram tratadas' : 'Toutes les factures ont ete traitees'}
               </div>
             </div>
           ) : (

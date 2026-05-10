@@ -99,23 +99,23 @@ export default function SignatureModal({ documentRef, signataire, onClose, onSig
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-[#0D1B2E]">✍️ {t('syndicDash.signature.title')}</h3>
-            <p className="text-xs text-gray-500">Conforme art. 1367 Code Civil · SHA-256</p>
+            <p className="text-xs text-gray-500">{locale === 'pt' ? 'Conforme DL 12/2021 (Chave Móvel Digital) · SHA-256' : 'Conforme art. 1367 Code Civil · SHA-256'}</p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-          <p className="text-xs text-blue-700">📄 Document : <span className="font-semibold">{documentRef}</span></p>
+          <p className="text-xs text-blue-700">📄 {locale === 'pt' ? 'Documento' : 'Document'} : <span className="font-semibold">{documentRef}</span></p>
         </div>
 
         <div className="mb-3">
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Nom du signataire *</label>
-          <input type="text" value={nom} onChange={e => setNom(e.target.value)} placeholder="Prénom Nom" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
+          <label className="block text-xs font-semibold text-gray-500 mb-1">{locale === 'pt' ? 'Nome do signatário *' : 'Nom du signataire *'}</label>
+          <input type="text" value={nom} onChange={e => setNom(e.target.value)} placeholder={locale === 'pt' ? 'Nome próprio Apelido' : 'Prénom Nom'} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
         </div>
 
         <div className="mb-1">
           <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-gray-500">Signature *</label>
+            <label className="text-xs font-semibold text-gray-500">{locale === 'pt' ? 'Assinatura *' : 'Signature *'}</label>
             <button onClick={clearCanvas} className="text-xs text-red-500 hover:text-red-700 transition">🗑 {t('syndicDash.signature.clear')}</button>
           </div>
           <canvas ref={canvasRef} width={400} height={160}
@@ -124,11 +124,11 @@ export default function SignatureModal({ documentRef, signataire, onClose, onSig
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
           />
-          {isEmpty && <p className="text-xs text-gray-500 text-center mt-1">Signez ici avec votre souris ou votre doigt</p>}
+          {isEmpty && <p className="text-xs text-gray-500 text-center mt-1">{locale === 'pt' ? 'Assine aqui com o rato ou o dedo' : 'Signez ici avec votre souris ou votre doigt'}</p>}
         </div>
 
         <div className="bg-[#F7F4EE] rounded-xl p-3 mb-4 text-xs text-gray-500">
-          🕐 Horodatage : {new Date().toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} · 🔐 SHA-256
+          🕐 {locale === 'pt' ? 'Carimbo temporal' : 'Horodatage'} : {new Date().toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} · 🔐 SHA-256
         </div>
 
         <div className="flex gap-3">

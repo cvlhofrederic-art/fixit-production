@@ -302,10 +302,12 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
       {activeTab === 'etat_date' && (
         <div className="p-6 lg:p-8">
           <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-4 mb-6">
-            <p className="text-sm text-[#0D1B2E]"><strong>📋 État daté — Art. 5 Décret 67-223</strong> — Document obligatoire lors de toute mutation de lot de copropriété. Générez un PDF conforme en quelques secondes.</p>
+            <p className="text-sm text-[#0D1B2E]">{locale === 'pt'
+              ? <><strong>📋 Estado datado — Art.º 1424.º CC</strong> — Documento obrigatório aquando de qualquer transferência de fração. Gere um PDF conforme em poucos segundos.</>
+              : <><strong>📋 État daté — Art. 5 Décret 67-223</strong> — Document obligatoire lors de toute mutation de lot de copropriété. Générez un PDF conforme en quelques secondes.</>}</p>
           </div>
           {etats.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📋</div><h3 className="text-xl font-bold mb-2">Aucun état daté</h3><p className="text-gray-500 mb-6">Générez des états datés conformes à la loi pour chaque mutation de lot</p><button onClick={() => setShowEtatModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ Créer un état daté</button></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📋</div><h3 className="text-xl font-bold mb-2">{locale === 'pt' ? 'Nenhum estado datado' : 'Aucun état daté'}</h3><p className="text-gray-500 mb-6">{locale === 'pt' ? 'Gere estados datados conformes à lei para cada transferência de fração' : 'Générez des états datés conformes à la loi pour chaque mutation de lot'}</p><button onClick={() => setShowEtatModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ {locale === 'pt' ? 'Criar um estado datado' : 'Créer un état daté'}</button></div>
           ) : (
             <div className="space-y-4">
               {etats.map(e => (
