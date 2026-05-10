@@ -138,11 +138,11 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
       const res = await fetch('/api/syndic/signalements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signalementId: selected.id, auteur: user?.email || 'Gestionnaire', role: 'gestionnaire', texte: replyText.trim() }),
+        body: JSON.stringify({ signalementId: selected.id, auteur: user?.email || (isPt ? 'Gestor' : 'Gestionnaire'), role: 'gestionnaire', texte: replyText.trim() }),
       })
       if (res.ok) {
         const data = await res.json()
-        const newMsg = { id: data.message?.id || Date.now().toString(), auteur: user?.email || 'Gestionnaire', role: 'gestionnaire', texte: replyText.trim(), createdAt: new Date().toISOString() }
+        const newMsg = { id: data.message?.id || Date.now().toString(), auteur: user?.email || (isPt ? 'Gestor' : 'Gestionnaire'), role: 'gestionnaire', texte: replyText.trim(), createdAt: new Date().toISOString() }
         setSignalements(prev => prev.map(s => s.id === selected.id ? { ...s, messages: [...s.messages, newMsg] } : s))
         setSelected(prev => prev ? { ...prev, messages: [...prev.messages, newMsg] } : null)
         setReplyText('')
