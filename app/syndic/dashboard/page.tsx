@@ -352,8 +352,11 @@ export default function SyndicDashboard() {
   const [pdfSelectedCopro, setPdfSelectedCopro] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [pdfObjet, setPdfObjet] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
+  const fixyInitialMsg = locale === 'pt'
+    ? 'Olá! Sou o **Fixy** 🤖, o seu assistente de ação Vitfix Pro.\n\nTenho acesso a **todos os seus dados em tempo real** e posso **agir diretamente**: criar missões, navegar, gerar comunicações, alertas...\n\n🎙️ Carregue no microfone para os comandos por voz!\n\nO que posso fazer por si?'
+    : 'Bonjour ! Je suis **Fixy** 🤖, votre assistant d\'action Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** et je peux **agir directement** : créer missions, naviguer, générer courriers, alertes...\n\n🎙️ Cliquez sur le micro pour les commandes vocales !\n\nQue puis-je faire pour vous ?'
   const [iaMessages, setIaMessages] = useState<IaMessage[]>([
-    { role: 'assistant', content: 'Bonjour ! Je suis **Fixy** 🤖, votre assistant d\'action Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** et je peux **agir directement** : créer missions, naviguer, générer courriers, alertes...\n\n🎙️ Cliquez sur le micro pour les commandes vocales !\n\nQue puis-je faire pour vous ?' }
+    { role: 'assistant', content: fixyInitialMsg }
   ])
   const [iaInput, setIaInput] = useState('')
   const [iaLoading, setIaLoading] = useState(false)
