@@ -209,8 +209,8 @@ function generateDemoData(): SaisieIAData {
   const anomalies: Anomalie[] = [
     {
       id: 'a1', type: 'doublon', factureId: 'f8', factureNumero: 'FE-2026-03-0847', fournisseur: 'ENGIE Entreprises',
-      detail: 'Facture identique (meme numero, meme montant) deja importee le ' + new Date(now.getTime() - 86400000).toLocaleDateString('fr-FR'),
-      actionRecommandee: 'Supprimer le doublon et conserver la premiere importation',
+      detail: 'Fatura identica (mesmo numero, mesmo montante) ja importada a ' + new Date(now.getTime() - 86400000).toLocaleDateString('pt-PT'),
+      actionRecommandee: 'Eliminar o duplicado e manter a primeira importacao',
       montantEconomie: 3414.72, statut: 'active',
     },
     {

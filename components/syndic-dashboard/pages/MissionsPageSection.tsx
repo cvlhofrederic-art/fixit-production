@@ -102,11 +102,11 @@ export default function MissionsPageSection({
                 </div>
                 <h3 className="font-bold text-gray-900">{m.immeuble}</h3>
                 <p className="text-sm text-gray-600">{m.type} · {m.description}</p>
-                {m.numLot && <p className="text-xs text-gray-500 mt-0.5">Lot {m.numLot}</p>}
+                {m.numLot && <p className="text-xs text-gray-500 mt-0.5">{locale === 'pt' ? 'Fração' : 'Lot'} {m.numLot}</p>}
               </div>
               <div className="text-right ml-4 flex-shrink-0">
                 {m.montantDevis && <p className="text-sm font-semibold text-gray-900">{m.montantDevis.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</p>}
-                {m.montantFacture && <p className="text-xs text-green-600">Facturé : {m.montantFacture.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</p>}
+                {m.montantFacture && <p className="text-xs text-green-600">{locale === 'pt' ? 'Faturado' : 'Facturé'} : {m.montantFacture.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</p>}
               </div>
             </div>
             <div className="flex items-center justify-between text-sm text-gray-500">
@@ -117,12 +117,12 @@ export default function MissionsPageSection({
               </div>
               <div className="flex gap-2">
                 {m.statut === 'en_attente' && (
-                  <button onClick={() => handleValiderMission(m.id)} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">✅ Valider</button>
+                  <button onClick={() => handleValiderMission(m.id)} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">✅ {locale === 'pt' ? 'Validar' : 'Valider'}</button>
                 )}
                 {m.statut === 'terminee' && (
-                  <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">📄 Rapport</button>
+                  <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">📄 {locale === 'pt' ? 'Relatório' : 'Rapport'}</button>
                 )}
-                <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📋 Ouvrir</button>
+                <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📋 {locale === 'pt' ? 'Abrir' : 'Ouvrir'}</button>
                 <button onClick={(e) => { e.stopPropagation(); handleDeleteMission(m.id) }} className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-lg hover:bg-red-200 transition font-medium" title={t('syndicDash.common.delete')} aria-label={t('syndicDash.common.delete')}>🗑️</button>
               </div>
             </div>
