@@ -59,7 +59,7 @@ export const SYNDIC_MODULES = [
   { key: 'vote_correspondance', label: 'Vote par correspondance', icon: '🗳️', description: 'Vote par correspondance · Loi ELAN · AG hybride · Vote électronique', default: true, locale: 'fr' as const },
   { key: 'extranet_enrichi', label: 'Extranet enrichi', icon: '🏠', description: 'Extranet conforme décret 2019 · Documents obligatoires · Espace copropriétaire', default: true, locale: 'fr' as const },
   { key: 'irve_bornes', label: 'IRVE / Bornes VE', icon: '🔌', description: 'Droit à la prise · Ordonnance 2020-71 · Prime ADVENIR · Pré-équipement LOM', default: true, locale: 'fr' as const },
-  { key: 'saisie_ia_factures', label: 'Saisie IA Factures', icon: '🤖', description: 'OCR intelligent · Extraction auto · Détection anomalies · Classification IA', default: true, locale: 'fr' as const },
+  { key: 'saisie_ia_factures', label: 'Saisie IA Factures', icon: '🤖', description: 'OCR intelligent · Extraction auto · Détection anomalies · Classification IA', default: true },
   { key: 'reservation_espaces_fr', label: 'Réservation espaces', icon: '📅', description: 'Réservation espaces communs · Calendrier · Règles · Caution', default: true, locale: 'fr' as const },
   { key: 'signalements_fr', label: 'Signalements', icon: '🔧', description: 'Signalement incidents · QR Codes · SLA · Suivi complet', default: true, locale: 'fr' as const },
   { key: 'sondages_fr', label: 'Sondages', icon: '📊', description: 'Sondages copropriétaires · Vote informel · Participation', default: true, locale: 'fr' as const },
@@ -69,7 +69,7 @@ export const SYNDIC_MODULES = [
   { key: 'mise_en_concurrence', label: 'Mise en concurrence', icon: '📋', description: 'Comparaison 3 devis obligatoires · Art. 21 loi 1965 · Scoring', default: true, locale: 'fr' as const },
   { key: 'recouvrement_enrichi_fr', label: 'Recouvrement enrichi', icon: '⚖️', description: 'Pipeline judiciaire FR · Art. 19 loi 1965 · Injonction · Hypothèque légale', default: true, locale: 'fr' as const },
   { key: 'suivi_energetique_fr', label: 'Suivi énergétique', icon: '📈', description: 'Consommations · DPE · Loi Climat · MaPrimeRénov\' Copro · PPT', default: false, locale: 'fr' as const },
-  { key: 'communication_demat', label: 'Communication démat.', icon: '📱', description: 'Envoi dématérialisé · Loi 2024-322 · Modèles · Envoi groupé', default: false, locale: 'fr' as const },
+  { key: 'communication_demat', label: 'Communication démat.', icon: '📱', description: 'Envoi dématérialisé · Loi 2024-322 · Modèles · Envoi groupé', default: false },
   { key: 'ged_certifiee', label: 'GED certifiée', icon: '🗄️', description: 'Archive certifiée · SHA-256 · Conformité décret 2019 · Interopérabilité ELAN', default: false, locale: 'fr' as const },
   // ── Modules PT uniquement ──
   { key: 'declaracao_encargos', label: 'Declaração de Encargos', icon: '📜', description: 'Obrigação legal desde 2022 · Declaração para venda de fração', default: true, locale: 'pt' as const },
