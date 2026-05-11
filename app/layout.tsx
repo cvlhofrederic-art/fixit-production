@@ -200,10 +200,8 @@ export default async function RootLayout({
   // Brésil) et France (pas Québec/Canada/Belgique). en/nl/es restent
   // génériques (un marché par locale).
   // Source : https://www.rfc-editor.org/info/bcp47
-  const htmlLang =
-    locale === 'pt' ? 'pt-PT' :
-    locale === 'fr' ? 'fr-FR' :
-    locale
+  const BCP47_MAP: Record<string, string> = { pt: 'pt-PT', fr: 'fr-FR' }
+  const htmlLang = BCP47_MAP[locale] ?? locale
 
   return (
     <html lang={htmlLang} suppressHydrationWarning>
