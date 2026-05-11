@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { buildLeaSystemPromptFR } from '@/lib/syndic/prompts/lea/system-prompt-fr'
 import { buildLeaSystemPromptPT } from '@/lib/syndic/prompts/lea/system-prompt-pt'
 import type { LeaPromptContext } from '@/lib/syndic/prompts/lea/system-prompt-fr'
+import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 
 export const maxDuration = 30
 
@@ -606,10 +607,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
+    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(syndic_context as LeaPromptContext)
+
     // ── LEGACY: buildSystemPrompt / buildPtSystemPrompt (inline ci-dessus) — remplacées par modules dédiés
     const systemPrompt = isPt
-      ? buildLeaSystemPromptPT(syndic_context as LeaPromptContext)
-      : buildLeaSystemPromptFR(syndic_context as LeaPromptContext)
+      ? buildLeaSystemPromptPT(sanitizedCtx)
+      : buildLeaSystemPromptFR(sanitizedCtx)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
@@ -624,12 +628,77 @@ export async function POST(request: NextRequest) {
     // ── Mode streaming SSE ──
     if (stream) {
       try {
-        const sseStream = await callGroqStreaming({
+        const rawStream = await callGroqStreaming({
           messages,
           temperature: 0.15,
           max_tokens: 4000,
         })
-        return new Response(sseStream, {
+
+        // Envelopper le stream pour résoudre les tokens PII dans chaque chunk SSE.
+        // Buffering pour éviter les tokens coupés entre deux chunks (ex: `<email:abc` / `12345>`).
+        const encoder = new TextEncoder()
+        const decoder = new TextDecoder()
+        let chunkBuffer = ''
+
+        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            const text = decoder.decode(chunk, { stream: true })
+            const lines = text.split('\n')
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed.startsWith('data: ')) {
+                controller.enqueue(encoder.encode(line + '\n'))
+                continue
+              }
+              const payload = trimmed.slice(6)
+              if (payload === '[DONE]') {
+                if (chunkBuffer) {
+                  const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+                  chunkBuffer = ''
+                }
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+                continue
+              }
+              try {
+                const json = JSON.parse(payload)
+                const delta: string | undefined = json.text
+                if (delta === undefined) {
+                  controller.enqueue(encoder.encode(line + '\n'))
+                  continue
+                }
+                chunkBuffer += delta
+                const lastOpen = chunkBuffer.lastIndexOf('<')
+                const lastClose = chunkBuffer.lastIndexOf('>')
+                if (lastOpen > lastClose) {
+                  const toFlush = chunkBuffer.slice(0, lastOpen)
+                  chunkBuffer = chunkBuffer.slice(lastOpen)
+                  if (toFlush) {
+                    const resolved = resolveSanitizedToken(toFlush, tokenMap) ?? toFlush
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+                  }
+                } else {
+                  const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+                  chunkBuffer = ''
+                }
+              } catch {
+                controller.enqueue(encoder.encode(line + '\n'))
+              }
+            }
+          },
+          flush(controller) {
+            if (chunkBuffer) {
+              const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+              chunkBuffer = ''
+            }
+          },
+        })
+
+        rawStream.pipeTo(writable).catch(() => { /* stream annulé côté client — ignorer */ })
+
+        return new Response(readable, {
           headers: {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -661,8 +730,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let response: string = groqData.choices?.[0]?.message?.content
+    const rawResponse: string = groqData.choices?.[0]?.message?.content
       || (isPt ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
+    // Résoudre les tokens PII dans la réponse finale
+    let response: string = resolveSanitizedToken(rawResponse, tokenMap) ?? rawResponse
 
     // Extraire l'action comptable si présente
     let comptaAction: Record<string, unknown> | null = null
