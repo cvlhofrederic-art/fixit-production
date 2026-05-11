@@ -12,6 +12,7 @@ import type { Locale } from '@/lib/i18n/config'
 import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
+import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
@@ -120,19 +121,23 @@ async function fetchFreshArtisanData(
   insuranceNumber: string | null
   insuranceCoverage: string | null
   insuranceType: 'rc_pro' | 'decennale' | 'both' | null
+  categories: string[] | null
+  typeActivite: string | null
 }> {
   let logoUrl: string | null = cachedLogoUrl
   let insuranceName: string | null = doc.insuranceName || null
   let insuranceNumber: string | null = doc.insuranceNumber || null
   let insuranceCoverage: string | null = doc.insuranceCoverage || null
   let insuranceType: 'rc_pro' | 'decennale' | 'both' | null = doc.insuranceType || null
+  let categories: string[] | null = null
+  let typeActivite: string | null = null
 
-  if (!artisanId) return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType }
+  if (!artisanId) return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType, categories, typeActivite }
 
   try {
     const { data } = await supabase
       .from('profiles_artisan')
-      .select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type')
+      .select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type, categories, type_activite')
       .eq('id', artisanId)
       .single()
     if (data?.logo_url) logoUrl = data.logo_url as string
@@ -140,9 +145,11 @@ async function fetchFreshArtisanData(
     if (data?.insurance_number && !insuranceNumber) insuranceNumber = data.insurance_number as string
     if (data?.insurance_coverage && !insuranceCoverage) insuranceCoverage = data.insurance_coverage as string
     if (data?.insurance_type && !insuranceType) insuranceType = data.insurance_type as 'rc_pro' | 'decennale' | 'both'
+    if (Array.isArray(data?.categories)) categories = data.categories as string[]
+    if (typeof data?.type_activite === 'string') typeActivite = data.type_activite as string
   } catch { /* fallback to cached values */ }
 
-  return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType }
+  return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType, categories, typeActivite }
 }
 
 // ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
@@ -311,23 +318,27 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   // profil paiement pour que le RIB apparaisse au téléchargement.
   let resolvedIban = doc.iban || ''
   let resolvedBic = doc.bic || ''
-  if (!resolvedIban && artisan?.id) {
+  let artisanCategories: string[] | null = null
+  let artisanTypeActivite: string | null = null
+  if (artisan?.id) {
     try {
       const { data } = await supabase
         .from('profiles_artisan')
-        .select('paiement_modes')
+        .select('paiement_modes, categories, type_activite')
         .eq('id', artisan.id)
         .single()
       const modes = (data?.paiement_modes as Array<{ type?: string; iban?: string; bic?: string; actif?: boolean }>) || []
       const virement = modes.find(
         (m) => m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
       )
-      if (virement) {
+      if (virement && !resolvedIban) {
         resolvedIban = (virement.iban || '').trim()
         resolvedBic = (virement.bic || '').trim()
       }
+      if (Array.isArray(data?.categories)) artisanCategories = data.categories as string[]
+      if (typeof data?.type_activite === 'string') artisanTypeActivite = data.type_activite as string
     } catch (e) {
-      console.warn('[download-saved-devis] Loading payment info failed:', e)
+      console.warn('[download-saved-devis] Loading profile data failed:', e)
     }
   }
 
@@ -366,6 +377,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     insuranceNumber: doc.insuranceNumber || '',
     insuranceCoverage: doc.insuranceCoverage || '',
     insuranceType: doc.insuranceType || 'rc_pro',
+    decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
     mediatorName: doc.mediatorName || '',
     mediatorUrl: doc.mediatorUrl || '',
     isHorsEtablissement: doc.isHorsEtablissement ?? (doc.clientType === 'particulier'),

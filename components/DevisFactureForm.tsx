@@ -46,6 +46,7 @@ import { toast } from 'sonner'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
+import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 
 // ═══════════════════════════════════════════════
 // COMPONENT
@@ -1523,6 +1524,9 @@ export default function DevisFactureForm({
         companyRCS, companyCapital, companyPhone, companyEmail,
         tvaEnabled, tvaNumber, companyAPE: '',
         insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
+        decennaleEligibility: getDecennaleEligibility(
+          (artisan?.categories as string[] | undefined) ?? (artisan?.type_activite as string | undefined) ?? null,
+        ),
         mediatorName, mediatorUrl, isHorsEtablissement,
         clientName, clientEmail, clientAddress, clientPhone, clientSiret,
         clientType: (clientSiret.trim().length > 0 || isProClient) ? 'professionnel' : 'particulier',

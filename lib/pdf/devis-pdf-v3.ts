@@ -79,6 +79,12 @@ export interface PdfV3Input {
   insuranceNumber: string
   insuranceCoverage: string
   insuranceType: 'rc_pro' | 'decennale' | 'both'
+  // Éligibilité aux garanties 1792 (parfait achèvement / biennale / décennale).
+  // Calculée par le caller à partir du corps de métier de l'artisan (cf.
+  // lib/decennale-eligibility.ts). `'always'` (default) garde la mention
+  // historique ; `'conditional'` et `'never'` adaptent legal3 pour les métiers
+  // hors champ 1792 (élagage, nettoyage, déménagement…).
+  decennaleEligibility?: 'always' | 'conditional' | 'never'
   mediatorName: string
   mediatorUrl: string
   isHorsEtablissement: boolean
@@ -301,6 +307,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
+    decennaleEligibility,
     mediatorName, mediatorUrl, isHorsEtablissement,
     clientName, clientEmail, clientAddress, clientPhone, clientSiret, clientType,
     interventionAddress, interventionBatiment, interventionEtage,
@@ -1575,12 +1582,31 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     legal2 += ' Droit de rétractation : 14 jours calendaires (art. L. 221-18 C. conso.). Aucun paiement exigible avant 7 jours (art. L. 221-10 C. conso.), sauf travaux urgents (plafond 200 € TTC).'
   }
 
-  // 7. Garanties BTP (articles précis)
+  // 7. Garanties légales — adaptées au corps de métier de l'artisan.
+  // Les articles 1792 / 1792-3 / 1792-6 C. civ. ne s'appliquent qu'aux
+  // ouvrages de construction (Cass. 3e civ., 4 nov. 2010, n° 09-68.949 :
+  // élagage = entretien, hors champ 1792). Pour les prestations de service
+  // (élagage, nettoyage, déménagement…) on bascule sur la responsabilité
+  // contractuelle de droit commun (art. 1231-1 C. civ.).
   let legal3 = ''
   if (locale === 'pt') {
-    legal3 += 'Garantia de defeitos de construção : 5 anos (art. 1225.º do Código Civil). Garantia de vícios ocultos (art. 913.º do Código Civil).'
+    // PT : la garantia de defeitos de construção (art. 1225.º CC) ne vise
+    // que les empreitadas d'ouvrages — même logique qu'en FR.
+    if (decennaleEligibility === 'never') {
+      legal3 += 'Prestação de serviços fora do âmbito do art. 1225.º do Código Civil. Responsabilidade contratual de direito comum (art. 798.º do Código Civil). Garantia de vícios ocultos (art. 913.º do Código Civil) aplicável aos bens fornecidos.'
+    } else if (decennaleEligibility === 'conditional') {
+      legal3 += 'Garantia de defeitos de construção (art. 1225.º do Código Civil, 5 anos) aplicável apenas em caso de execução de obra. Para prestações de manutenção corrente : responsabilidade contratual de direito comum (art. 798.º do Código Civil). Garantia de vícios ocultos (art. 913.º do Código Civil).'
+    } else {
+      legal3 += 'Garantia de defeitos de construção : 5 anos (art. 1225.º do Código Civil). Garantia de vícios ocultos (art. 913.º do Código Civil).'
+    }
   } else {
-    legal3 += 'Garanties légales : parfait achèvement 1 an (art. 1792-6 C. civ.), bon fonctionnement 2 ans (art. 1792-3 C. civ.), décennale 10 ans (art. 1792 C. civ.).'
+    if (decennaleEligibility === 'never') {
+      legal3 += "Prestation de service hors champ d'application de l'art. 1792 C. civ. (garanties de parfait achèvement, biennale et décennale réservées aux ouvrages de construction). Responsabilité contractuelle de droit commun (art. 1231-1 C. civ.). Garantie des vices cachés (art. 1641 C. civ.) applicable aux biens fournis."
+    } else if (decennaleEligibility === 'conditional') {
+      legal3 += "Garanties légales applicables uniquement aux travaux constituant un ouvrage au sens de l'art. 1792 C. civ. : parfait achèvement 1 an (art. 1792-6), bon fonctionnement 2 ans (art. 1792-3), décennale 10 ans (art. 1792). Pour les prestations d'entretien courant : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.)."
+    } else {
+      legal3 += 'Garanties légales : parfait achèvement 1 an (art. 1792-6 C. civ.), bon fonctionnement 2 ans (art. 1792-3 C. civ.), décennale 10 ans (art. 1792 C. civ.).'
+    }
   }
 
   // 8. Médiation de la consommation (particuliers uniquement, art. L. 612-1 C. conso.)
@@ -1595,11 +1621,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement).
-  // Hotfix audit 04/05/2026 : retrait du seuil 500 € HT inventé. Le décret
-  // 2020-1817 (art. R.541-12-2 C. env.) s'applique à TOUS les devis BTP de
-  // construction, rénovation, démolition et jardinage SANS SEUIL.
-  // Mention systématique sur le V3 BTP (locale FR).
-  if (locale !== 'pt') {
+  // Le décret 2020-1817 (art. R.541-12-2 C. env.) s'applique aux devis de
+  // construction, rénovation, démolition et jardinage. Il ne s'applique
+  // pas aux prestations de service pure sans déchets de chantier
+  // (nettoyage, déménagement, diagnostic…) — on saute la mention pour
+  // `decennaleEligibility === 'never'` qui marque ces métiers.
+  if (locale !== 'pt' && decennaleEligibility !== 'never') {
     legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
   }
 
