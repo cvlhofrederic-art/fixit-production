@@ -305,6 +305,31 @@ export default async function RootLayout({
                     { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
                   ],
                   priceRange: '€€',
+                  // knowsAbout : signal E-E-A-T explicit listant les
+                  // domaines d'expertise — Google et AI engines utilisent
+                  // pour évaluer la pertinence de l'organisation sur des
+                  // requêtes. Liste basée sur les services réellement
+                  // proposés (FR_SERVICES + PT SERVICES) en 2026.
+                  knowsAbout: [
+                    'Canalização e desentupimento',
+                    'Eletricidade residencial e industrial',
+                    'Pintura interior e exterior',
+                    'Pladur e tetos falsos',
+                    'Obras de remodelação e renovação',
+                    'Isolamento térmico e capoto',
+                    'Impermeabilização de coberturas e fachadas',
+                    'Serralharia e ferro forjado',
+                    'Telhados e telhadeiros',
+                    'Vidraçaria e janelas',
+                    'Plomberie et débouchage',
+                    'Électricité résidentielle et industrielle',
+                    'Peinture intérieure et extérieure',
+                    'Plaquisterie et faux plafonds',
+                    'Rénovation et travaux clés en main',
+                    'Espaces verts et élagage',
+                    'Débarras et nettoyage',
+                    'Climatisation et chauffe-eau',
+                  ],
                   // aggregateRating intentionnellement OMIS de l'Organization
                   // globale (review #140) :
                   // - Évite incohérence avec ratings per-locale dans
