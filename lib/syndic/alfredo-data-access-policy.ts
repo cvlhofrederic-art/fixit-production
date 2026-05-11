@@ -100,16 +100,17 @@ export function filterContextByRole<T extends ContextLike>(
   context: T,
 ): T & { rbac_omitted_fields: string[] } {
   const omitted: string[] = []
-  const out = { ...context, rbac_omitted_fields: [] as string[] }
+  const existingOmitted = (context as { rbac_omitted_fields?: string[] }).rbac_omitted_fields ?? []
+  const out = { ...context, rbac_omitted_fields: [...existingOmitted] as string[] }
 
   for (const [field, requiredSources] of Object.entries(FIELD_TO_SOURCES)) {
     const hasAccess = requiredSources.every(src => canAccessSource(role, src))
     if (!hasAccess && field in out) {
-      delete (out as Record<string, unknown>)[field]
+      delete (out as unknown as Record<string, unknown>)[field]
       omitted.push(field)
     }
   }
 
-  out.rbac_omitted_fields = omitted
+  out.rbac_omitted_fields = [...out.rbac_omitted_fields, ...omitted]
   return out
 }
