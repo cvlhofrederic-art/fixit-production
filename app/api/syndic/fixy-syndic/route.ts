@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/prompts/fixy/system-prompt-fr'
 import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt-pt'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 
 export const maxDuration = 30
 
@@ -534,9 +535,12 @@ export async function POST(request: NextRequest) {
       roleConfig,
     }
 
+    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
+    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(promptCtx)
+
     const systemPrompt = resolvedLocale === 'pt'
-      ? buildFixySystemPromptPT(promptCtx)
-      : buildFixySystemPromptFR(promptCtx)
+      ? buildFixySystemPromptPT(sanitizedCtx)
+      : buildFixySystemPromptFR(sanitizedCtx)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
@@ -575,12 +579,19 @@ export async function POST(request: NextRequest) {
         let toolResult: string
 
         if (toolCall.name === 'search_dossier') {
-          const result = await execSearchDossier(supabaseAdmin, cabinetId, toolCall.args?.query ?? '')
+          // Résoudre les tokens éventuels dans les args avant la query DB
+          const resolvedQuery = resolveSanitizedToken(toolCall.args?.query ?? '', tokenMap) ?? toolCall.args?.query ?? ''
+          const result = await execSearchDossier(supabaseAdmin, cabinetId, resolvedQuery)
           toolResult = JSON.stringify(result, null, 2)
         } else if (toolCall.name === 'find_email_thread') {
+          // Résoudre les tokens dans email/subject avant la query DB
+          const rawEmail = toolCall.args?.email
+          const rawSubject = toolCall.args?.subject
+          const resolvedEmail = rawEmail ? (resolveSanitizedToken(rawEmail, tokenMap) ?? rawEmail) : undefined
+          const resolvedSubject = rawSubject ? (resolveSanitizedToken(rawSubject, tokenMap) ?? rawSubject) : undefined
           const result = await execFindEmailThread(supabaseAdmin, user.id, {
-            email: toolCall.args?.email,
-            subject: toolCall.args?.subject,
+            email: resolvedEmail,
+            subject: resolvedSubject,
           })
           toolResult = JSON.stringify(result, null, 2)
         } else {
@@ -650,6 +661,9 @@ export async function POST(request: NextRequest) {
         // Ignore les actions malformées
       }
     }
+
+    // Résoudre les tokens PII dans la réponse finale (au cas où Groq les répercuterait)
+    response = resolveSanitizedToken(response, tokenMap) ?? response
 
     return NextResponse.json({ response, action, role: userRole })
 
