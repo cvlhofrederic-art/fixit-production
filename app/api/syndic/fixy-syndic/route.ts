@@ -3,6 +3,8 @@ import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/prompts/fixy/system-prompt-fr'
+import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt-pt'
 
 export const maxDuration = 30
 
@@ -65,6 +67,9 @@ interface AlerteSummary { urgence?: string; message: string }
 interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
 interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
 
+// LEGACY — supprimer après validation Plan A
+// Cette fonction est dépréciée. Le handler POST utilise désormais
+// buildFixySystemPromptFR / buildFixySystemPromptPT depuis lib/syndic/prompts/fixy/.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
 function buildSystemPrompt(ctx: Record<string, any>, userRole: string, locale?: string): string {
   const now = new Date()
@@ -404,7 +409,67 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const systemPrompt = buildSystemPrompt(syndic_context, userRole, locale)
+    // Résoudre la locale (défaut: 'fr')
+    const resolvedLocale: 'fr' | 'pt' = locale === 'pt' ? 'pt' : 'fr'
+
+    // Pré-calculer les données de date (partagées entre FR et PT)
+    const now = new Date()
+    const fmtLocale = resolvedLocale === 'pt' ? 'pt-PT' : 'fr-FR'
+    const today = now.toLocaleDateString(fmtLocale, {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    })
+    const todayISO = now.toISOString().split('T')[0]
+    const joursNoms = resolvedLocale === 'pt'
+      ? ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+      : ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+    const dateMapping: string[] = []
+    if (resolvedLocale === 'pt') {
+      dateMapping.push(`  - "hoje" = ${todayISO} (${joursNoms[now.getDay()]})`)
+      const amanha = new Date(now); amanha.setDate(amanha.getDate() + 1)
+      dateMapping.push(`  - "amanhã" = ${amanha.toISOString().split('T')[0]} (${joursNoms[amanha.getDay()]})`)
+    } else {
+      dateMapping.push(`  - "aujourd'hui" = ${todayISO} (${joursNoms[now.getDay()]})`)
+      const demain = new Date(now); demain.setDate(demain.getDate() + 1)
+      dateMapping.push(`  - "demain" = ${demain.toISOString().split('T')[0]} (${joursNoms[demain.getDay()]})`)
+    }
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(now); d.setDate(d.getDate() + i)
+      dateMapping.push(`  - "${joursNoms[d.getDay()]}" = ${d.toISOString().split('T')[0]}`)
+    }
+    const nextWeekMonday = new Date(now)
+    const dayOfWeek = nextWeekMonday.getDay()
+    const daysUntilNextMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 7 : 8 - dayOfWeek
+    nextWeekMonday.setDate(nextWeekMonday.getDate() + daysUntilNextMonday)
+    if (resolvedLocale === 'pt') {
+      dateMapping.push(`  - "próxima semana" = segunda-feira ${nextWeekMonday.toISOString().split('T')[0]}`)
+    } else {
+      dateMapping.push(`  - "semaine prochaine" = lundi ${nextWeekMonday.toISOString().split('T')[0]}`)
+    }
+
+    const roleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
+
+    // Assembler le FixyPromptContext pour les nouvelles fonctions
+    const promptCtx: FixyPromptContext = {
+      role: userRole as FixyPromptContext['role'],
+      cabinet: syndic_context.cabinet,
+      immeubles: syndic_context.immeubles,
+      artisans: syndic_context.artisans,
+      missions: syndic_context.missions,
+      alertes: syndic_context.alertes,
+      echeances: syndic_context.echeances,
+      documents: syndic_context.documents,
+      stats: syndic_context.stats,
+      coproprios_count: syndic_context.coproprios_count,
+      user_name: syndic_context.user_name,
+      date: today,
+      dateISO: todayISO,
+      dateMappingStr: dateMapping.join('\n'),
+      roleConfig,
+    }
+
+    const systemPrompt = resolvedLocale === 'pt'
+      ? buildFixySystemPromptPT(promptCtx)
+      : buildFixySystemPromptFR(promptCtx)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
