@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { isSyndicRole } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 
 const CreateConversationSchema = z.object({
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const ip = getClientIP(req)
   const allowed = await checkRateLimit(`conv-list:${ip}`, 60, 60_000)
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => null)
   const parsed = CreateConversationSchema.safeParse(body)
