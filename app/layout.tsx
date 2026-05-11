@@ -86,13 +86,21 @@ const sharedMeta = {
       'max-video-preview': -1,
     },
   } satisfies Metadata['robots'],
+  // hreflang BCP 47 régionalisé (fr-FR, pt-PT) cohérent avec app/fr/layout.tsx
+  // et app/pt/layout.tsx — cible explicitement France (vs Canada/Belgique) et
+  // Portugal (vs Brésil). `x-default` pointe vers `/` : Google sert cette URL
+  // aux utilisateurs dont l'Accept-Language ne match aucun locale listé.
+  // Sources :
+  //   developers.google.com/search/docs/specialty/international/localized-versions
+  //   developers.google.com/search/blog/2013/04/x-default-hreflang-for-international-pages
   alternates: {
     languages: {
-      'fr': 'https://vitfix.io/fr/',
-      'pt': 'https://vitfix.io/pt/',
+      'fr-FR': 'https://vitfix.io/fr/',
+      'pt-PT': 'https://vitfix.io/pt/',
       'en': 'https://vitfix.io/en/',
       'nl': 'https://vitfix.io/nl/',
       'es': 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
     },
   },
 }

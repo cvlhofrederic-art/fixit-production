@@ -38,16 +38,12 @@ module.exports = {
       },
     },
     assert: {
-      // Seuils globaux par défaut.
-      assertions: {
-        'categories:performance': ['error', { minScore: 0.80 }],
-        'categories:accessibility': ['error', { minScore: 0.90 }],
-        'categories:seo': ['error', { minScore: 0.90 }],
-        'categories:best-practices': ['error', { minScore: 0.85 }],
-      },
-      // Exceptions per-URL pour pages massives (1500+ lignes client) en
-      // attente de refactor perf (lazy load, code splitting, hydration).
-      // TODO(perf): ramener au seuil global après refactoring.
+      // LHCI exige `assertions` OU `assertMatrix`, pas les deux (erreur :
+      // "Cannot use assertMatrix with other options"). On utilise
+      // `assertMatrix` avec les patterns spécifiques d'abord (first-match-wins)
+      // et un catch-all `.*` final qui applique les seuils globaux par défaut.
+      // TODO(perf): supprimer les exceptions per-URL après refactor des
+      // pages massives (lazy load, code splitting, hydration).
       assertMatrix: [
         {
           matchingUrlPattern: '/(fr/recherche|pt/pesquisar)/?$',
@@ -63,6 +59,15 @@ module.exports = {
           assertions: {
             'categories:performance':   ['error', { minScore: 0.75 }],
             'categories:accessibility': ['error', { minScore: 0.85 }],
+            'categories:seo':           ['error', { minScore: 0.90 }],
+            'categories:best-practices':['error', { minScore: 0.85 }],
+          },
+        },
+        {
+          matchingUrlPattern: '.*',
+          assertions: {
+            'categories:performance':   ['error', { minScore: 0.80 }],
+            'categories:accessibility': ['error', { minScore: 0.90 }],
             'categories:seo':           ['error', { minScore: 0.90 }],
             'categories:best-practices':['error', { minScore: 0.85 }],
           },

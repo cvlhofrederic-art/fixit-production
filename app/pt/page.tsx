@@ -21,11 +21,11 @@ export const metadata: Metadata = {
     'Encontre profissionais verificados em Marco de Canaveses, Penafiel, Amarante, Porto e região do Tâmega e Sousa. Canalizador, eletricista, pintor — orçamento grátis 24/7.',
   alternates: {
     canonical: 'https://vitfix.io/pt/',
-    // hreflang BCP 47 explicite — langue + région pour cibler PT et non BR.
-    languages: {
-      'pt-PT': 'https://vitfix.io/pt/',
-      'x-default': 'https://vitfix.io/pt/',
-    },
+    // hreflang complet hérité de app/pt/layout.tsx (fr-FR, pt-PT, en, nl,
+    // es, x-default → /). Pas de surcharge ici : Next.js merge les
+    // metadata, déclarer `languages` au niveau page produisait des
+    // doublons d'entrées (pt-PT × 2, x-default × 2 avec destinations
+    // contradictoires) que Google ignore ou pénalise.
   },
 }
 
