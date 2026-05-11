@@ -133,6 +133,7 @@ const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/com
 const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/FixyAgentPage'))
 const MaxAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/MaxAgentPage'))
 const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
+const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/AlfredoAgentPage'))
 // ── Extracted layout + misc components ──
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
 const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
@@ -2438,6 +2439,7 @@ export default function SyndicDashboard() {
     { id: 'fixy_agent' as const, emoji: '🤖', label: 'Fixy', category: 'agents_ia' },
     { id: 'max_agent' as const, emoji: '🎓', label: 'Max', category: 'agents_ia' },
     { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
+    { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
     { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
@@ -2710,6 +2712,7 @@ export default function SyndicDashboard() {
           {page === 'fixy_agent' && user && <FixyAgentPage user={user} />}
           {page === 'max_agent' && user && <MaxAgentPage user={user} />}
           {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
+          {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}
 
           {/* ── MON ÉQUIPE ── */}
           {page === 'compta_copro' && user && <ComptaCoproSection user={user} userRole={userRole} immeubles={immeubles} />}
