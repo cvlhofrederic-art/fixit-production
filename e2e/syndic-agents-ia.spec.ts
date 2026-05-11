@@ -134,3 +134,22 @@ test.describe('Alfredo proactive (Plan C)', () => {
     await expect(page.getByText(/Aucun brouillon en attente|Sem rascunhos pendentes/i)).toBeVisible()
   })
 })
+
+test.describe('Parcours métier complet (Plan D)', () => {
+  test.skip(!SHOULD_RUN, 'Requires deployed app + DB migrations applied')
+
+  test('FixyPanel bulle flottante a été supprimée', async ({ page }) => {
+    await page.goto('/syndic/dashboard?test_role=syndic_admin')
+    // L'ancienne bulle flottante ne doit plus exister
+    await expect(page.locator('[data-testid="fixy-panel-bubble"]')).not.toBeVisible()
+  })
+
+  test('Bascule entre Fixy → Max via "Demander à Max"', async ({ page }) => {
+    await page.goto('/syndic/dashboard?test_role=syndic_admin&test_locale=fr')
+    await page.getByRole('button', { name: /Fixy/i }).click()
+    const input = page.getByPlaceholder(/Tape ou parle/i)
+    await input.fill('Quelle majorité pour modifier le règlement de copropriété ?')
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('button', { name: /→ Max/i })).toBeVisible({ timeout: 30000 })
+  })
+})
