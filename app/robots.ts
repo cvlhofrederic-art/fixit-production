@@ -19,6 +19,21 @@ export default function robots(): MetadataRoute.Robots {
     '/*/api/',
     '/*/auth/',
     '/*/coproprietaire/',
+    // Faceted navigation URLs (filter combinations create infinite duplicate
+    // content). Per Google "Faceted Navigation Best Practices" 2026 :
+    // https://developers.google.com/search/blog/2014/02/faceted-navigation-best-and-5-of-worst
+    // Protège le crawl budget — empêche Googlebot d'épuiser son budget sur
+    // des variantes de `?category=plomberie`, `?q=...`, `?page=2`, etc.
+    '/*/recherche/*?*',
+    '/*/pesquisar/*?*',
+    '/recherche/*?*',
+    '/pesquisar/*?*',
+    // Tracking params jamais canoniques — éviter index pollution.
+    '/*?utm_*',
+    '/*?fbclid=*',
+    '/*?gclid=*',
+    '/*?ref=*',
+    '/*?_branch_match_id=*',
   ]
 
   return {
