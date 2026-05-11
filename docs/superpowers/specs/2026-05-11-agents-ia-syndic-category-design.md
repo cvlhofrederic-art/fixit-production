@@ -158,6 +158,7 @@ CREATE TABLE syndic_ai_conversations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   syndic_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   agent_id text NOT NULL CHECK (agent_id IN ('fixy','max','lea','alfredo')),
+  locale text NOT NULL CHECK (locale IN ('fr','pt')),  -- immuable, défini à la création (§3.10)
   title text NOT NULL DEFAULT 'Nouvelle conversation',
   immeuble_id uuid REFERENCES immeubles(id) ON DELETE SET NULL,  -- contexte optionnel
   message_count int NOT NULL DEFAULT 0,
@@ -505,7 +506,51 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 - Sur push : déclenche `poll/route.ts` ciblé sur le syndic concerné (déduplication garantie par UNIQUE(syndic_id, gmail_message_id))
 - Cron Cloudflare quotidien pour renouveler les watch < 24h d'expiration
 
-### 3.10. Observabilité (Langfuse + Sentry)
+### 3.10. Isolation locale stricte FR ≠ PT (règle transversale)
+
+**Principe non négociable :** chaque agent répond exclusivement dans le cadre juridique/réglementaire/comptable du pays détecté pour la conversation. Jamais de mélange (ex: Max ne cite pas la loi ALUR à un syndic portugais, Léa ne mentionne pas la TVA portugaise à un syndic français).
+
+**Détection du contexte locale (déterministe, dans l'ordre de priorité) :**
+1. `user.profile.country` en base (`fr` ou `pt`) — source de vérité
+2. Sinon, locale active du dashboard (`useLocale()`)
+3. Sinon, fallback `fr`
+
+Le `locale` est attaché à chaque conversation au moment de sa création (`syndic_ai_conversations.locale text NOT NULL CHECK (locale IN ('fr','pt'))`) et **immuable** ensuite. Toute nouvelle conversation hérite du contexte locale courant.
+
+**Implications par agent :**
+
+| Agent | Règle FR/PT |
+|---|---|
+| **Fixy** | Prompt FR ou PT, vocabulaire métier localisé (ex: « ordre de mission » FR vs « ordem de serviço » PT, jamais mélangés). Tools utilisent toujours les libellés du pays. Documents générés (convocation AG, mise en demeure) dans le bon cadre légal. |
+| **Max** | **CRITIQUE** : corpus juridique strictement séparé. Système prompt FR cite uniquement ALUR (loi 65-557), ELAN, décret 67-223, art. 14-2, etc. Système prompt PT cite uniquement Lei 8/2022, DL 268/94, Lei 5/2021 (Condomínios). Une garde explicite en début de prompt : « Tu réponds dans le cadre juridique [FR/PT] uniquement. Si la question relève de l'autre juridiction, indique-le et refuse d'extrapoler. » |
+| **Léa** | Plan comptable copro FR (NF S 31-100, arrêté du 14 mars 2005) vs plan PT (Decreto-Lei n.º 268/94, contas correntes). Calcul TVA selon pays (FR 20%, PT 23%). Formats IBAN, devises, exercices fiscaux. |
+| **Alfredo** | Brouillons dans la langue du destinataire (détection automatique sur l'email entrant). Formules de politesse, signatures, mentions légales adaptées au cadre du syndic (FR ou PT). |
+
+**Implémentation concrète :**
+- `lib/syndic/agent-locale-resolver.ts` : helper `resolveAgentLocale(user, conversation?)` → `'fr' | 'pt'`
+- Chaque route API (`fixy-syndic`, `max-ai`, `lea-comptable`, `alfredo-chat`) reçoit `locale` en paramètre, refuse de mélanger
+- Les system prompts sont séparés en 2 fichiers par agent (`max-system-prompt-fr.ts`, `max-system-prompt-pt.ts`) — pas de switch ternaire à l'intérieur d'un seul prompt
+- Tests E2E : envoyer une question PT à Max en contexte FR → réponse doit indiquer "Cette question relève du cadre PT, je réponds dans le cadre FR uniquement"
+
+### 3.11. Corpus juridique Max (phase ultérieure — out of scope MVP)
+
+**Vision (demande utilisateur, à implémenter après le MVP) :** alimenter Max avec les textes officiels copropriété FR et PT pour éliminer les hallucinations sur les références d'articles, dates de décrets, montants de plafonds, etc. Approche type « Claude Project » avec corpus indexé.
+
+**Architecture cible (préparée mais non livrée dans ce spec) :**
+- Tables `syndic_legal_corpus_fr` et `syndic_legal_corpus_pt` (segments de textes officiels avec métadonnées : source, article, date d'entrée en vigueur, date de mise à jour)
+- Pipeline d'ingestion versionné depuis Légifrance (FR) et Diário da República (PT)
+- Embeddings (pgvector) pour retrieval sémantique
+- Tool `cite_legal_source(query)` côté Max qui retourne `{ article, texte_exact, source_url, date_maj }` — Max obligé de citer la source quand il s'appuie sur un texte
+- Détection de drift : si Max produit une réponse non sourcée dans un cadre juridique, warning dans Langfuse
+
+**Préparation MVP (ce qu'on fait dès maintenant pour faciliter la phase 2) :**
+- La table `syndic_ai_messages.metadata` accepte déjà un champ `sources_cited: { type, ref, url }[]` — la structure est prête
+- Les prompts Max sont structurés en deux fichiers (`-fr.ts`, `-pt.ts`) — facile d'injecter un bloc « Contexte juridique récupéré » avant l'historique
+- Les system prompts incluent dès maintenant la directive « Si tu ne connais pas une référence précise, dis-le. Ne pas inventer d'article ni de date. »
+
+**Hors scope strict du MVP** : l'ingestion du corpus, le pipeline embeddings, l'UI de gestion du corpus, le tool `cite_legal_source`. Issue GitHub à créer post-MVP pour tracker cette phase.
+
+### 3.12. Observabilité (Langfuse + Sentry)
 
 **Langfuse** (`lib/langfuse.ts` existant) :
 - Chaque appel Groq encapsulé dans `traceAgent({ agent_id, conversation_id, user_id, prompt, response, tools_called })`
@@ -522,12 +567,12 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 
 | # | Chunk | Description | Tests requis | Dépend de | Risque |
 |---|---|---|---|---|---|
-| 0 | DB migrations agents IA | `syndic_ai_conversations`, `syndic_ai_messages`, `syndic_ai_audit`, `syndic_alfredo_learning` + RLS | Tests RLS (anon ne voit rien, user voit ses propres rows) | — | 🟢 |
-| 1 | Composant `<AgentChatPage>` + hooks | UI partagée, mock backend pour iso | Vitest unit + Playwright iso | 0 | 🟢 |
+| 0 | DB migrations agents IA | `syndic_ai_conversations` (avec `locale`), `syndic_ai_messages`, `syndic_ai_audit`, `syndic_alfredo_learning` + RLS | Tests RLS (anon ne voit rien, user voit ses propres rows) | — | 🟢 |
+| 1 | Composant `<AgentChatPage>` + hooks + `agent-locale-resolver` | UI partagée locale-aware, mock backend pour iso | Vitest unit + Playwright iso | 0 | 🟢 |
 | 2 | Sidebar catégorie `agents_ia` | `SIDEBAR_CATEGORIES` + 4 navItems + types Page + RBAC | E2E Playwright (rôles différents voient bien les bons agents) | 1 | 🟢 |
-| 3 | **Fixy** branché | Réutilise endpoint existant, ajoute `search_dossier`, `classer_document`, `find_email_thread` (TDD) | Tests tools + E2E parcours secrétaire | 1, 2 | 🟡 |
-| 4 | **Max** branché | Ajoute streaming + voix au composant, parsing [DOC_PDF] | E2E parcours juridique | 1, 2 | 🟢 |
-| 5 | **Léa** branchée | Ajoute streaming + voix, garde scope strict | E2E parcours comptable | 1, 2 | 🟢 |
+| 3 | **Fixy** branché | Split prompts FR/PT, réutilise endpoint, ajoute `search_dossier`, `classer_document`, `find_email_thread` (TDD) | Tests tools + E2E parcours secrétaire FR et PT | 1, 2 | 🟡 |
+| 4 | **Max** branché | Split prompts en `max-system-prompt-{fr,pt}.ts`, ajoute streaming + voix, garde explicite anti-mélange juridique | E2E parcours juridique + test cross-locale (question PT en contexte FR → refus) | 1, 2 | 🟡 |
+| 5 | **Léa** branchée | Split prompts FR/PT (plans comptables séparés), streaming + voix, garde scope strict | E2E parcours comptable FR et PT | 1, 2 | 🟡 |
 | 6 | **Sanitization PII** | `lib/ai/sanitize-context.ts` + intégration prompts Fixy/Max/Léa | TDD couverture > 95% | — | 🟡 sécu |
 | 7 | **Encryption tokens OAuth** | Migration pgcrypto + Vault + wrapper `lib/oauth/tokens.ts` + script backfill | Tests round-trip, rotation | — | 🔴 sécu |
 | 8 | **Migration `syndic_emails_analysed`** | Ajout colonnes `draft_*` + index `idx_emails_pending_alfredo` | Tests Supabase migration up/down | — | 🟢 |
@@ -553,6 +598,8 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 | Tokens OAuth | pgcrypto symétrique, clé via Wrangler secret |
 | PII dans prompts | Sanitization systématique, tokenMap côté serveur |
 | Ocorrências IA | Rename « Classificador » uniquement (hors scope) |
+| Isolation locale | FR ≠ PT strict par conversation, immuable, prompts splittés en 2 fichiers par agent |
+| Corpus juridique Max | Architecture préparée (champ `sources_cited` dans messages, prompts splittés), ingestion en phase 2 post-MVP |
 | Copro-AI | Audit séparé chunk 11, suppression si orphelin |
 | Mobile | Sidebar conversations repliable, chat plein écran |
 | Workflow dev | brainstorming → writing-plans → executing-plans avec plan mode |
@@ -569,6 +616,7 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 - Aucun token OAuth en clair dans Postgres
 - Aucun email/téléphone PII envoyé en clair à Groq dans les prompts
 - Tous les agents instrumentés Langfuse, erreurs taggées Sentry par agent
+- **Isolation locale stricte : Max FR ne cite jamais une loi PT, Léa PT ne calcule jamais avec la TVA FR**, vérifié par tests E2E cross-locale
 - Tests E2E verts pour chaque parcours agent
 
 ## 7. Hors scope explicite
@@ -579,6 +627,7 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 - Refonte d'`EmailsSection` (Alfredo cohabite avec, lien réciproque)
 - Migration des agents Artisan ou BTP vers le même pattern (Syndic uniquement, par scope du `.claude/rules/artisan-vs-btp.md`)
 - Dashboard analytics IA pour admin (peut venir en chunk 13+)
+- **Corpus juridique RAG Max** (cf. §3.11) — l'ingestion des textes officiels FR/PT, le pipeline embeddings et le tool `cite_legal_source` arriveront en phase 2 post-MVP. L'architecture MVP est préparée pour les accueillir sans refactor.
 
 ## 8. Risques identifiés
 
