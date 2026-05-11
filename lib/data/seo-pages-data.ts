@@ -155,6 +155,57 @@ export const CITIES: CityData[] = [
     lng: -8.2838,
     freguesias: ['Lousada', 'Aveleda', 'Boim', 'Caíde de Rei', 'Cernadelo', 'Cristelos', 'Figueiras', 'Lodares', 'Lustosa', 'Macieira', 'Meinedo', 'Nespereira', 'Nogueira', 'Ordem', 'Pias', 'Silvares', 'Torno', 'Vilar do Torno'],
     nearby: ['penafiel', 'felgueiras', 'pacos-de-ferreira'],
+    specialty: 'Município rural-urbano do Tâmega e Sousa, com 47 mil habitantes, integrado na Região Norte de Portugal. Conhecido pela produção de vinho verde DOC Sub-Região do Sousa, pela indústria do mobiliário e calçado, e pelos seus monumentos românicos da Rota do Românico — destacando-se a Igreja de Cristelos, o Mosteiro de Pombeiro e o Solar dos Meneses em Aveleda.',
+    climateChallenges: [
+      'Clima continental temperado com invernos frios e húmidos (temperaturas médias 5–10 °C em janeiro) que causa condensação interior em paredes mal isoladas — sobretudo em moradias antigas de granito',
+      'Nevoeiros matinais frequentes em vales do Sousa que retêm humidade nas fachadas norte, acelerando o aparecimento de fungos e líquenes',
+      'Casas rurais antigas em granito e madeira que exigem técnicas tradicionais de impermeabilização e tratamento da pedra, e não soluções genéricas urbanas',
+      'Captações de água próprias (furos artesianos) em zonas rurais que obrigam a manutenção especializada de bombas e filtros, distinta da rede pública',
+    ],
+    notableFreguesias: [
+      { name: 'Lousada (sede)', context: 'Centro urbano administrativo e comercial, com edifícios de habitação coletiva recentes e maior concentração de serviços. Procura típica de manutenção urbana em apartamentos e estabelecimentos comerciais.' },
+      { name: 'Aveleda', context: 'Freguesia rural com Solar dos Meneses e património românico — moradias antigas em granito que exigem técnicas de restauro especializadas, sobretudo para fachadas e canalizações originais.' },
+      { name: 'Cristelos, Boim e Ordem', context: 'União de freguesias da zona industrial — fábricas de mobiliário e calçado, com necessidades técnicas distintas das habitações residenciais (instalações trifásicas, ventilação industrial).' },
+      { name: 'Lustosa e Lodares', context: 'Zona rural de vinhas e produção de vinho verde, com adegas tradicionais que necessitam de manutenção sazonal antes da vindima (setembro–outubro).' },
+    ],
+    localEconomy: 'Indústria do mobiliário (Lousada faz parte do triângulo Paredes–Paços de Ferreira–Lousada, capital portuguesa do móvel), calçado, têxtil, e vinho verde DOC do Sousa. A1 Porto–Lisboa e A11 Braga–Penafiel atravessam o concelho, facilitando o transporte de mercadorias.',
+    landmarks: [
+      'Igreja Românica de Cristelos (Rota do Românico)',
+      'Solar dos Meneses (Aveleda) — Monumento Nacional',
+      'Mosteiro de Pombeiro (Felgueiras, fronteira) — Rota do Românico',
+      'Parque Urbano de Lousada e Centro Histórico',
+      'Adegas tradicionais de vinho verde nos vales do Sousa',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Lousada com conhecimento das particularidades das instalações rurais (captações próprias, sistemas trifásicos para portões e bombas), restauro de instalações em moradias antigas de granito, e ligações industriais para fábricas de mobiliário das freguesias de Cristelos e Boim.',
+        localCases: [
+          'Instalação de quadro trifásico numa pequena fábrica de mobiliário em Cristelos com ligação à rede pública.',
+          'Modernização da instalação elétrica de uma moradia em Aveleda dos anos 1950, mantendo a estética compatível com o Solar dos Meneses (zona protegida).',
+          'Reparação de bomba de água submersa em furo artesiano de uma moradia rural em Lustosa após avaria por sobrecarga.',
+          'Instalação de iluminação pública sazonal em festas religiosas no centro de Lousada com adaptação à rede temporária.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Lousada disponíveis para urgências em moradias rurais (captação por furo + rede pública), apartamentos do centro urbano e adegas de vinho verde com sistemas de água específicos.',
+        localCases: [
+          'Substituição de tubagem em chumbo numa moradia centenária em Meinedo por tubo multicamada certificado.',
+          'Instalação de sistema de filtragem para água de furo artesiano numa moradia em Lustosa, com testes de qualidade.',
+          'Reparação de fuga em sistema de aquecimento central a gasóleo numa moradia em Boim antes do inverno.',
+          'Desentupimento de fossa séptica numa moradia rural em Aveleda sem rede de saneamento público.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Lousada com experiência em fachadas de moradias rurais em granito, restauro de pintura tradicional em zonas de património românico (Aveleda, Cristelos), e pintura interior anti-bolor em casas com humidade ascensional típica do clima continental húmido da região.',
+        localCases: [
+          'Pintura de fachada de moradia em Lodares com tratamento prévio da pedra granítica e tinta microporosa que respeita a respiração natural do material.',
+          'Restauro da pintura interior de uma casa antiga em Aveleda após infiltrações pela laje, incluindo tratamento anti-fungos.',
+          'Pintura completa de apartamento no centro de Lousada com cores neutras para fins de arrendamento.',
+          'Pintura de portão de ferro forjado numa moradia rural em Boim após oxidação por nevoeiros matinais do vale.',
+        ],
+      },
+    },
   },
   {
     slug: 'pacos-de-ferreira',
@@ -185,6 +236,61 @@ export const CITIES: CityData[] = [
     lng: -8.6291,
     freguesias: ['Bonfim', 'Campanhã', 'Paranhos', 'Ramalde', 'Aldoar', 'Foz do Douro', 'Nevogilde', 'Massarelos', 'Cedofeita', 'Santo Ildefonso', 'Sé', 'Miragaia', 'São Nicolau', 'Vitória'],
     nearby: ['vila-nova-de-gaia', 'maia', 'matosinhos'],
+    specialty: 'Segunda maior cidade de Portugal, capital da região Norte e centro de uma área metropolitana de cerca de 1,7 milhões de habitantes. Património Mundial UNESCO desde 1996 pelo seu centro histórico — Ribeira, Sé e Vitória — com edificado pombalino e arte nova exigente em obras de restauro. Cidade reconhecida internacionalmente pelo vinho do Porto, pelas suas pontes sobre o Douro e por uma topografia de encostas íngremes que condiciona acessos a obras.',
+    climateChallenges: [
+      'Humidade atlântica constante (média 75–85 %) que acelera o aparecimento de bolores em paredes interiores mal ventiladas, sobretudo em apartamentos pombalinos de Cedofeita, Vitória e Sé',
+      'Maresia salina nas freguesias costeiras (Foz do Douro, Nevogilde, Aldoar) que corrói portões metálicos, gradeamentos, canalizações exteriores e quadros elétricos sem proteção IP65',
+      'Chuvas intensas no inverno (média 1 200 mm/ano) que sobrecarregam telhados de edifícios antigos e exigem impermeabilização cuidada de terraços e platibandas',
+      'Topografia de encostas em Ribeira, Miragaia e Sé que dificulta o acesso de equipamentos pesados, obrigando a transporte manual de materiais por escadas e ruas estreitas',
+      'Edificado histórico em granito e madeira de pinho que exige técnicas tradicionais para restauro de fachadas, e não apenas pintura industrial corrente',
+    ],
+    notableFreguesias: [
+      { name: 'Cedofeita, Santo Ildefonso, Sé, Miragaia, São Nicolau e Vitória', context: 'União de freguesias do centro histórico UNESCO, com edifícios pombalinos protegidos que exigem licenças específicas e técnicas de restauro tradicionais. Alta procura de alojamentos locais com necessidades constantes de manutenção.' },
+      { name: 'Bonfim', context: 'Freguesia residencial densa em transformação, com edifícios antigos em reabilitação e forte procura de eletricistas e canalizadores para modernizar instalações pré-1980.' },
+      { name: 'Foz do Douro', context: 'Zona costeira premium com moradias junto ao mar — exposição direta à maresia exige materiais e equipamentos com proteção reforçada contra corrosão.' },
+      { name: 'Campanhã', context: 'Maior freguesia em área, com estações ferroviárias e parque industrial, mistura habitação social e zonas empresariais com necessidades técnicas distintas.' },
+      { name: 'Paranhos', context: 'Polo universitário com forte presença de alojamento estudantil — procura frequente de pequenas reparações, canalização sanitária e eletricidade em apartamentos partilhados.' },
+    ],
+    localEconomy: 'Universidade do Porto (polo Asprela em Paranhos), turismo cultural UNESCO, indústria vinícola (vinho do Porto exportado pelo cais da Ribeira), Porto de Leixões em Matosinhos, têxteis, calçado e tecnologia. Aeroporto Francisco Sá Carneiro a 11 km. Hub financeiro e empresarial do Norte de Portugal.',
+    landmarks: [
+      'Torre dos Clérigos e Igreja barroca (Vitória)',
+      'Sé Catedral do Porto e antiga Casa da Câmara',
+      'Estação de São Bento com painéis de azulejos históricos',
+      'Ponte Luís I sobre o Douro (ligação a Vila Nova de Gaia)',
+      'Casa da Música em Boavista (arquitetura Rem Koolhaas)',
+      'Livraria Lello (Cedofeita) e Palácio da Bolsa',
+      'Ribeira do Douro (Património Mundial UNESCO)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas certificados no Porto, com experiência comprovada em quadros elétricos de edifícios pombalinos do centro histórico UNESCO, instalações em moradias da Foz expostas à maresia e ligações trifásicas em alojamentos locais. Cumprimento das exigências da DGEG para certificação RECE e da Câmara Municipal do Porto para obras em zona protegida.',
+        localCases: [
+          'Substituição de quadro elétrico antigo num apartamento na Rua das Flores (Vitória) com sinais de oxidação por humidade, mantendo a estética compatível com o regulamento UNESCO.',
+          'Instalação de iluminação LED exterior numa moradia em Foz do Douro com caixas IP65 e cabos com bainha resistente à maresia.',
+          'Revisão completa da rede elétrica de um alojamento local em Cedofeita após renovação do imóvel, com certificação RECE entregue ao proprietário.',
+          'Reparação de quadro elétrico inundado por infiltração de chuva num edifício de Bonfim e instalação de diferencial de proteção adicional.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores no Porto disponíveis 7 dias por semana, com conhecimento detalhado das particularidades das canalizações em chumbo e ferro fundido de edifícios pombalinos, das pressões variáveis em zonas de encosta como Miragaia e Ribeira, e do saneamento antigo do centro histórico.',
+        localCases: [
+          'Reparação de fuga de água numa cave da Rua de Cedofeita com identificação da origem por câmara endoscópica, evitando a abertura de paredes em prédio classificado.',
+          'Substituição de canalização em chumbo num edifício de Sé por tubo multicamada certificado, com licenças específicas para obra em zona UNESCO.',
+          'Desentupimento de saneamento numa moradia em Paranhos após acumulação de gorduras, com limpeza por hidrojato sem danos no caleirado original.',
+          'Instalação de bomba de pressão num 3.º andar de Bonfim para resolver baixa pressão de água quente em hora de pico.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores no Porto especializados em fachadas atlânticas com humidade salina (Foz, Nevogilde, Aldoar), restauro de fachadas pombalinas e Arte Nova em zona UNESCO, e pintura interior anti-bolor em apartamentos antigos do Bonfim e Cedofeita. Aplicação de tintas microporosas e técnicas de pintura tradicionais autorizadas pela Câmara Municipal.',
+        localCases: [
+          'Pintura completa de uma moradia em Aldoar, com tratamento prévio anti-fungos das paredes orientadas a oeste expostas ao vento atlântico.',
+          'Restauro da pintura exterior de um edifício Arte Nova na Rua de Cedofeita com tintas microporosas compatíveis com o regulamento UNESCO.',
+          'Pintura interior de um alojamento local em Vitória, incluindo isolamento acústico das paredes contíguas a estabelecimentos de restauração.',
+          'Pintura de fachada de prédio na Rua da Boavista com primário antimaresia, garantia de durabilidade alargada em zona costeira.',
+        ],
+      },
+    },
   },
   {
     slug: 'vila-nova-de-gaia',
@@ -195,6 +301,59 @@ export const CITIES: CityData[] = [
     lng: -8.6118,
     freguesias: ['Arcozelo', 'Avintes', 'Canidelo', 'Crestuma', 'Lever', 'Madalena', 'Olival', 'Pedroso', 'Perozinho', 'Sandim', 'Santa Marinha', 'São Félix da Marinha', 'São Pedro da Afurada', 'Seixezelo', 'Sermonde', 'Serzedo', 'Tarouquela', 'Tijosa', 'Valadares', 'Vilar de Andorinho', 'Vilar do Paraíso'],
     nearby: ['porto', 'espinho', 'gondomar'],
+    specialty: 'Maior município do distrito do Porto em população (302 mil habitantes), separado do Porto pelo Douro e ligado por seis pontes. Reconhecido mundialmente pelas caves de vinho do Porto em Santa Marinha (Croft, Sandeman, Taylor, Graham\'s) que armazenam e envelhecem todo o vinho do Porto antes da exportação. Tem 17 km de costa atlântica com praias de Granja, Madalena, Miramar, Aguda, Valadares e Lavadores.',
+    climateChallenges: [
+      'Maresia salina intensa nas freguesias costeiras (Canidelo, Madalena, Valadares, São Félix da Marinha) que corrói portões, gradeamentos e equipamentos elétricos exteriores num raio de 1–2 km do litoral',
+      'Humidade elevada nas caves do vinho do Porto em Santa Marinha que obriga a sistemas de ventilação dedicados e impermeabilização rigorosa de paredes em granito',
+      'Erosão costeira em Madalena e Aguda que afeta moradias de primeira linha com risco de infiltrações sazonais',
+      'Edificado antigo da Ribeira de Gaia (Santa Marinha) com tipologia única — casas geminadas em granito com vista sobre o Porto — exigindo conhecimento das técnicas de restauro do património histórico',
+    ],
+    notableFreguesias: [
+      { name: 'Santa Marinha e São Pedro da Afurada', context: 'Zona ribeirinha histórica com caves de vinho do Porto, alojamentos locais turísticos e edifícios em granito antigos. Procura constante de pintores especialistas em fachadas históricas e canalizadores familiarizados com tubagens antigas.' },
+      { name: 'Mafamude e Vilar do Paraíso', context: 'Centro administrativo e comercial de Gaia, com edifícios de habitação coletiva dos anos 1970–1990 — alta procura de modernização de instalações elétricas e canalização.' },
+      { name: 'Valadares e Madalena', context: 'Freguesias balneares com moradias unifamiliares expostas à maresia e turismo balnear sazonal — manutenção pré-época estival muito procurada em maio/junho.' },
+      { name: 'Canidelo', context: 'Junto à foz do Douro, mistura zona piscatória antiga (Afurada) e bairros residenciais modernos — duplicidade de necessidades técnicas conforme a tipologia.' },
+      { name: 'Oliveira do Douro', context: 'Zona residencial em forte crescimento com novos condomínios e moradias — procura de eletricistas para instalações de carregamento de viaturas elétricas e domótica.' },
+    ],
+    localEconomy: 'Caves do vinho do Porto (Santa Marinha) — Croft, Sandeman, Taylor, Fonseca, Graham\'s, Cálem. Turismo ribeirinho com teleférico Gaia–Serra do Pilar. Estação de metro Santo Ovídio (hub norte–sul). Comércio retalho (Gaia Shopping, Arrábida Shopping). Polo industrial em Olival e Avintes.',
+    landmarks: [
+      'Caves do Vinho do Porto (Santa Marinha)',
+      'Mosteiro da Serra do Pilar (Património UNESCO conjunto com Porto)',
+      'Ponte Luís I sobre o Douro',
+      'Jardim do Morro e Teleférico de Gaia',
+      'Praia da Aguda e Praia de Valadares',
+      'Cais de Gaia (Avenida Diogo Leite)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Vila Nova de Gaia com experiência em instalações de moradias balneares (Canidelo, Madalena, Valadares), em edifícios históricos da Ribeira de Gaia e em alojamentos locais turísticos junto às caves. Certificação RECE e conhecimento das normas técnicas adequadas a ambientes salinos.',
+        localCases: [
+          'Instalação de quadro elétrico estanque (IP65) numa moradia em Madalena, a 200 m da praia, com proteção reforçada contra maresia.',
+          'Reparação de quadro de alojamento local em Santa Marinha após sobrecarga durante ocupação turística estival.',
+          'Instalação de carregador de viatura elétrica em residência de Oliveira do Douro com adaptação do quadro existente.',
+          'Substituição completa da rede elétrica num apartamento de Mafamude após sinistro de incêndio, com certificação RECE.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Vila Nova de Gaia disponíveis para urgências em moradias balneares (Valadares, Madalena, Aguda), apartamentos do centro de Mafamude e alojamentos locais da Ribeira. Experiência com canalizações de zonas turísticas com alta rotatividade de utilização.',
+        localCases: [
+          'Reparação de fuga de água com câmara endoscópica numa moradia em Canidelo, evitando demolição de azulejos antigos.',
+          'Substituição de termoacumulador num apartamento de Vilar do Paraíso com reposição imediata da água quente.',
+          'Desentupimento de saneamento numa cave em Santa Marinha junto às caves de vinho do Porto, com cuidado redobrado para não afetar adegas vizinhas.',
+          'Instalação de filtro descalcificador numa moradia em São Félix da Marinha contra calcário da rede pública.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Vila Nova de Gaia especializados em fachadas costeiras com proteção anti-maresia (Madalena, Valadares, Canidelo), restauro de fachadas históricas da Ribeira de Gaia em granito e tijoleira, e pintura interior anti-bolor em apartamentos da zona central. Tintas microporosas resistentes ao clima atlântico.',
+        localCases: [
+          'Pintura completa de fachada de moradia em Valadares com primário antimaresia e duas demãos de tinta acrílica reforçada.',
+          'Restauro da pintura de uma casa em Santa Marinha com técnica tradicional adaptada ao granito e aos azulejos exteriores.',
+          'Pintura interior de um apartamento de alojamento local em Mafamude com tintas anti-bolor após queixas de hóspedes sobre humidade.',
+          'Tratamento e pintura de varanda em Canidelo após oxidação severa do ferro pela exposição à brisa atlântica.',
+        ],
+      },
+    },
   },
   {
     slug: 'braga',

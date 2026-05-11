@@ -195,9 +195,18 @@ export default async function RootLayout({
   const headerStore = await headers()
   const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
 
+  // Pro SEO 2026 : BCP 47 régionalisé sur <html lang> pour cohérence avec
+  // hreflang (pt-PT vs pt, fr-FR vs fr). Cible explicitement Portugal (pas
+  // Brésil) et France (pas Québec/Canada/Belgique). en/nl/es restent
+  // génériques (un marché par locale).
+  // Source : https://www.rfc-editor.org/info/bcp47
+  const htmlLang =
+    locale === 'pt' ? 'pt-PT' :
+    locale === 'fr' ? 'fr-FR' :
+    locale
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={htmlLang} suppressHydrationWarning>
       <head>
         <meta name="csrf-protection" content="same-origin" />
         <meta name="theme-color" content="#FFD600" />
