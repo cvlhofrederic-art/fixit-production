@@ -138,7 +138,6 @@ const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
 const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
 const MaxExpertSection = d(() => import('@/components/syndic-dashboard/pages/MaxExpertSection'))
-const FixyPanel = d(() => import('@/components/syndic-dashboard/pages/FixyPanel'))
 const PDFGenerationModal = d(() => import('@/components/syndic-dashboard/misc/PDFGenerationModal'))
 
 // ─── Web Speech API types (not in standard TS lib — no @types/dom-speech-recognition) ──
@@ -399,7 +398,7 @@ export default function SyndicDashboard() {
   const [maxTab, setMaxTab] = useState<'chat' | 'conformite' | 'documents'>('chat')
   const [maxFavorites, setMaxFavorites] = useState<string[]>([])
   const [maxSelectedImmeuble, setMaxSelectedImmeuble] = useState<string>('all')
-  const [fixyPanelOpen, setFixyPanelOpen] = useState(false)
+  // fixyPanelOpen supprimé (FixyPanel legacy retiré)
   // ── Token admin isolé par onglet (résout le conflit de session multi-comptes) ──
   const adminSessionRef = useRef<{ access_token: string; refresh_token: string; expires_at: number } | null>(null)
 
@@ -2693,7 +2692,6 @@ export default function SyndicDashboard() {
               setMaxSelectedImmeuble={setMaxSelectedImmeuble}
               maxEndRef={maxEndRef}
               sendMaxMessage={sendMaxMessage}
-              setFixyPanelOpen={setFixyPanelOpen}
               setMaxMessages={setMaxMessages}
               immeubles={immeubles}
               userId={user?.id}
@@ -3118,35 +3116,7 @@ export default function SyndicDashboard() {
         </div>
       )}
 
-      {/* ─── Fixy — Assistant d'Action (panneau flottant) ─── */}
-      <FixyPanel
-        user={user}
-        fixyPanelOpen={fixyPanelOpen}
-        setFixyPanelOpen={setFixyPanelOpen}
-        iaMessages={iaMessages}
-        setIaMessages={setIaMessages}
-        iaInput={iaInput}
-        setIaInput={setIaInput}
-        iaLoading={iaLoading}
-        iaPendingAction={iaPendingAction}
-        iaEndRef={iaEndRef}
-        iaVoiceActive={iaVoiceActive}
-        iaVoiceSupported={iaVoiceSupported}
-        iaSpeechEnabled={iaSpeechEnabled}
-        iaSpeaking={iaSpeaking}
-        iaVoiceDuration={iaVoiceDuration}
-        iaVoiceInterim={iaVoiceInterim}
-        iaVoiceHelp={iaVoiceHelp}
-        setIaVoiceHelp={setIaVoiceHelp}
-        iaVoiceConfidence={iaVoiceConfidence}
-        sendIaMessage={sendIaMessage}
-        handleConfirmIaAction={handleConfirmIaAction}
-        handleCancelIaAction={handleCancelIaAction}
-        speakResponse={speakResponse}
-        startVoiceRecognition={startVoiceRecognition}
-        toggleSpeechEnabled={toggleSpeechEnabled}
-        stopVoiceRecognition={stopVoiceRecognition}
-      />
+      {/* FixyPanel legacy supprimé (Plan D Task 3) */}
 
       {/* ── Signature Modal ── */}
       {showSignatureModal && (
