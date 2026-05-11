@@ -1,11 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { callGroqWithRetry } from '@/lib/groq'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
-import type { EmailClassification } from '../classify/route'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
 import { getDecryptedToken, setEncryptedToken } from '@/lib/oauth/tokens'
+import { processIncomingEmail } from '@/lib/syndic/alfredo-pipeline'
+import { loadClientContext } from '@/lib/syndic/alfredo-load-client-context'
+import { classifyEmailWithGroq } from '@/lib/syndic/alfredo-classify'
+import { generateDraftReply } from '@/lib/syndic/alfredo-draft'
+import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 
 export const maxDuration = 60
 
@@ -86,81 +89,6 @@ function extractBody(payload: Record<string, any>): string {
   }
 
   return ''
-}
-
-// ── Classification IA via Groq (avec retry 429 + fallback) ──────────────────
-async function classifyEmail(from: string, subject: string, body: string): Promise<EmailClassification> {
-  const SYSTEM_PROMPT = `Tu es Max, assistant IA expert en gestion de copropriété pour Vitfix Pro.
-Analyse cet email reçu par un syndic et retourne UNIQUEMENT un objet JSON valide, sans markdown.
-
-Format JSON strict :
-{
-  "urgence": "haute" | "moyenne" | "basse",
-  "type": "signalement_panne" | "demande_devis" | "reclamation" | "ag" | "facturation" | "resiliation" | "information" | "autre",
-  "resume": "Résumé clair en 1 phrase (15 mots max)",
-  "immeuble_detecte": "Nom immeuble si mentionné ou null",
-  "locataire_detecte": "Prénom Nom expéditeur/résident concerné ou null",
-  "actions_suggerees": ["Action 1", "Action 2"],
-  "reponse_suggeree": "Brouillon réponse professionnelle 2-3 phrases ou null"
-}
-
-Urgence haute : fuite, inondation, incendie, panne ascenseur bloqué, coupure gaz/électricité, odeur gaz, sécurité.
-Urgence moyenne : réclamation, panne non bloquante, devis urgent, problème en cours.
-Urgence basse : information, AG planifiée, document admin, devis futur.`
-
-  if (!process.env.GROQ_API_KEY) return getFallback(subject, body)
-
-  try {
-    const data = await callGroqWithRetry({
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `De : ${from}\nObjet : ${subject}\nCorps :\n${body.substring(0, 600)}` },
-      ],
-      temperature: 0.1,
-      max_tokens: 500,
-      response_format: { type: 'json_object' },
-    }, { fallbackModel: 'llama-3.1-8b-instant' })
-
-    const rawContent = data.choices?.[0]?.message?.content || '{}'
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(rawContent)
-    } catch (parseErr) {
-      logger.error('[email-agent] JSON.parse failed on AI response:', rawContent.substring(0, 200), parseErr)
-      return getFallback(subject, body)
-    }
-
-    return {
-      urgence: (['haute', 'moyenne', 'basse'] as const).includes(parsed.urgence as 'haute' | 'moyenne' | 'basse') ? (parsed.urgence as 'haute' | 'moyenne' | 'basse') : 'basse',
-      type: (['signalement_panne', 'demande_devis', 'reclamation', 'ag', 'facturation', 'resiliation', 'information', 'autre'] as const).includes(parsed.type as 'autre') ? (parsed.type as 'autre') : 'autre',
-      resume: (parsed.resume as string) || subject.substring(0, 80),
-      immeuble_detecte: (parsed.immeuble_detecte as string) || null,
-      locataire_detecte: (parsed.locataire_detecte as string) || null,
-      actions_suggerees: Array.isArray(parsed.actions_suggerees) ? (parsed.actions_suggerees as string[]).slice(0, 3) : ['Répondre à l\'expéditeur'],
-      reponse_suggeree: (parsed.reponse_suggeree as string) || null,
-    }
-  } catch (classifyErr) {
-    logger.error('[email-agent] classifyEmail error for subject:', subject.substring(0, 60), classifyErr)
-    return getFallback(subject, body)
-  }
-}
-
-function getFallback(subject: string, body: string): EmailClassification {
-  const text = (subject + ' ' + body).toLowerCase()
-  const isUrgent = ['fuite', 'inondation', 'incendie', 'panne', 'bloqué', 'coupure', 'gaz', 'urgent'].some(k => text.includes(k))
-  const isMoyen = ['réclamation', 'plainte', 'problème', 'devis'].some(k => text.includes(k))
-  return {
-    urgence: isUrgent ? 'haute' : isMoyen ? 'moyenne' : 'basse',
-    type: ['fuite', 'panne', 'dégât'].some(k => text.includes(k)) ? 'signalement_panne' :
-          ['ag', 'assemblée', 'convocation'].some(k => text.includes(k)) ? 'ag' :
-          ['facture', 'paiement'].some(k => text.includes(k)) ? 'facturation' : 'autre',
-    resume: subject.substring(0, 80),
-    immeuble_detecte: null,
-    locataire_detecte: null,
-    actions_suggerees: ['Répondre à l\'expéditeur', 'Archiver'],
-    reponse_suggeree: null,
-  }
 }
 
 // ── Route principale : appelée par Vercel Cron ou manuellement ────────────────
@@ -266,45 +194,58 @@ export async function POST(request: NextRequest) {
         let newCount = 0
 
         for (const msg of messages) {
-          // Vérifier si déjà analysé
-          const { data: existing } = await supabaseAdmin
-            .from('syndic_emails_analysed')
-            .select('id')
-            .eq('syndic_id', sid)
-            .eq('gmail_message_id', msg.id)
-            .single()
-
-          if (existing) continue // Déjà traité
-
           const headers = extractHeaders(msg.payload?.headers || [])
           const bodyText = extractBody(msg.payload)
           const receivedAt = new Date(parseInt(msg.internalDate)).toISOString()
 
-          // 4. Classifier via Groq IA
-          const classification = await classifyEmail(headers.from, headers.subject, bodyText)
-
-          // 5. Stocker dans Supabase
-          await supabaseAdmin.from('syndic_emails_analysed').insert({
-            syndic_id: sid,
-            gmail_message_id: msg.id,
-            gmail_thread_id: msg.threadId,
-            from_email: headers.from,
-            from_name: headers.from.replace(/<.*>/, '').trim(),
-            to_email: headers.to,
-            subject: headers.subject || '(sans objet)',
-            body_preview: bodyText.substring(0, 500),
-            received_at: receivedAt,
-            urgence: classification.urgence,
-            type_demande: classification.type,
-            resume_ia: classification.resume,
-            immeuble_detecte: classification.immeuble_detecte,
-            locataire_detecte: classification.locataire_detecte,
-            actions_suggerees: JSON.stringify(classification.actions_suggerees),
-            reponse_suggeree: classification.reponse_suggeree,
-            statut: 'nouveau',
+          // 4. Pipeline Alfredo : classify + context + auto-draft + upsert
+          const pipelineResult = await processIncomingEmail({
+            syndicId: sid,
+            syndicRole: 'syndic',
+            locale: 'fr',
+            email: {
+              from: headers.from,
+              subject: headers.subject || '(sans objet)',
+              body_text: bodyText,
+              gmail_message_id: msg.id,
+              received_at: receivedAt,
+            },
+            classifyFn: classifyEmailWithGroq,
+            loadContextFn: (p) => loadClientContext(supabaseAdmin, p),
+            draftFn: async (input) => {
+              const { sanitized, tokenMap } = sanitizeContextForLLM(input.client_context)
+              const raw = await generateDraftReply(
+                { ...input, client_context: sanitized as typeof input.client_context },
+                input.locale,
+              )
+              return {
+                ...raw,
+                subject_suggested:
+                  resolveSanitizedToken(raw.subject_suggested, tokenMap) ?? raw.subject_suggested,
+                body_text:
+                  resolveSanitizedToken(raw.body_text, tokenMap) ?? raw.body_text,
+                body_html:
+                  resolveSanitizedToken(raw.body_html, tokenMap) ?? raw.body_html,
+              }
+            },
+            insertFn: async (row) => {
+              const res = await supabaseAdmin
+                .from('syndic_emails_analysed')
+                .upsert(
+                  { ...row, gmail_thread_id: msg.threadId },
+                  { onConflict: 'syndic_id,gmail_message_id' },
+                )
+                .select('id')
+                .single()
+              return { data: res.data ? { id: res.data.id } : null, error: res.error }
+            },
           })
 
-          newCount++
+          if (pipelineResult.status === 'error') {
+            logger.error(`[email-agent/poll] Pipeline error for msg ${msg.id}:`, pipelineResult.error)
+          } else {
+            newCount++
+          }
         }
 
         results.push({ syndic_id: sid, emails_processed: messages.length, new_emails: newCount })
