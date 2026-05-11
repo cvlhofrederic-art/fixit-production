@@ -20,7 +20,7 @@ CREATE TABLE syndic_ai_conversations (
   agent_id text NOT NULL CHECK (agent_id IN ('fixy','max','lea','alfredo')),
   locale text NOT NULL CHECK (locale IN ('fr','pt')),
   title text NOT NULL DEFAULT 'Nouvelle conversation',
-  immeuble_id uuid REFERENCES immeubles(id) ON DELETE SET NULL,
+  immeuble_id uuid REFERENCES syndic_immeubles(id) ON DELETE SET NULL,
   message_count int NOT NULL DEFAULT 0,
   last_message_preview text,
   created_at timestamptz NOT NULL DEFAULT now(),
