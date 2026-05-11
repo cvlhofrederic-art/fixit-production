@@ -38,17 +38,13 @@ module.exports = {
       },
     },
     assert: {
-      // Seuils globaux par défaut.
-      assertions: {
-        'categories:performance': ['error', { minScore: 0.80 }],
-        'categories:accessibility': ['error', { minScore: 0.90 }],
-        'categories:seo': ['error', { minScore: 0.90 }],
-        'categories:best-practices': ['error', { minScore: 0.85 }],
-      },
-      // Exceptions per-URL pour pages massives (1500+ lignes client) en
-      // attente de refactor perf (lazy load, code splitting, hydration).
-      // TODO(perf): ramener au seuil global après refactoring.
+      // @lhci/cli 0.14.x impose : assertions OU assertMatrix, pas les deux.
+      // → Tout dans assertMatrix avec catch-all final pour les seuils globaux.
+      // Lighthouse CI applique la PREMIÈRE règle qui matche, donc exceptions d'abord.
       assertMatrix: [
+        // Exceptions per-URL pour pages massives (1500+ lignes client) en
+        // attente de refactor perf (lazy load, code splitting, hydration).
+        // TODO(perf): ramener au seuil global après refactoring.
         {
           matchingUrlPattern: '/(fr/recherche|pt/pesquisar)/?$',
           assertions: {
@@ -63,6 +59,16 @@ module.exports = {
           assertions: {
             'categories:performance':   ['error', { minScore: 0.75 }],
             'categories:accessibility': ['error', { minScore: 0.85 }],
+            'categories:seo':           ['error', { minScore: 0.90 }],
+            'categories:best-practices':['error', { minScore: 0.85 }],
+          },
+        },
+        // Catch-all (seuils globaux par défaut).
+        {
+          matchingUrlPattern: '.*',
+          assertions: {
+            'categories:performance':   ['error', { minScore: 0.80 }],
+            'categories:accessibility': ['error', { minScore: 0.90 }],
             'categories:seo':           ['error', { minScore: 0.90 }],
             'categories:best-practices':['error', { minScore: 0.85 }],
           },
