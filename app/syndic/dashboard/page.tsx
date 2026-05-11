@@ -2412,7 +2412,7 @@ export default function SyndicDashboard() {
     { id: 'pontuacao_saude', emoji: '🏥', label: 'Pontuação Saúde', category: 'ferramentas_pt' },
     { id: 'orcamento_anual_ia', emoji: '🤖', label: 'Orçamento IA', category: 'ferramentas_pt' },
     { id: 'contacto_proativo_ia', emoji: '📡', label: 'Contacto Proativo', category: 'ferramentas_pt' },
-    { id: 'ocorrencias_ia', emoji: '🤖', label: 'Ocorrências IA', category: 'ferramentas_pt' },
+    { id: 'ocorrencias_ia', emoji: '🤖', label: 'Ocorrências (Classificador)', category: 'ferramentas_pt' },
     { id: 'gestao_seguros', emoji: '🛡️', label: 'Gestão Seguros', category: 'ferramentas_pt' },
     { id: 'checklists_ia', emoji: '📋', label: 'Checklists IA', category: 'ferramentas_pt' },
     { id: 'processamentos_lote', emoji: '⚙️', label: 'Processamentos Lote', category: 'ferramentas_pt' },
