@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { buildLeaSystemPromptFR } from '@/lib/syndic/prompts/lea/system-prompt-fr'
+import { buildLeaSystemPromptPT } from '@/lib/syndic/prompts/lea/system-prompt-pt'
+import type { LeaPromptContext } from '@/lib/syndic/prompts/lea/system-prompt-fr'
 
 export const maxDuration = 30
 
@@ -31,6 +34,8 @@ interface LeaContext {
   user_name?: string
 }
 
+// ── LEGACY: Ces fonctions sont conservées pour référence. La logique active est dans
+// lib/syndic/prompts/lea/system-prompt-{fr,pt}.ts (Task 26). Ne pas supprimer avant validation.
 function buildSystemPrompt(ctx: LeaContext): string {
   const today = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -582,7 +587,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, syndic_context = {}, conversation_history = [], locale } = body
+    const { message, syndic_context = {}, conversation_history = [], locale, stream } = body
 
     const isPt = locale === 'pt'
 
@@ -601,7 +606,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const systemPrompt = isPt ? buildPtSystemPrompt(syndic_context) : buildSystemPrompt(syndic_context)
+    // ── LEGACY: buildSystemPrompt / buildPtSystemPrompt (inline ci-dessus) — remplacées par modules dédiés
+    const systemPrompt = isPt
+      ? buildLeaSystemPromptPT(syndic_context as LeaPromptContext)
+      : buildLeaSystemPromptFR(syndic_context as LeaPromptContext)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
@@ -613,6 +621,31 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
+    // ── Mode streaming SSE ──
+    if (stream) {
+      try {
+        const sseStream = await callGroqStreaming({
+          messages,
+          temperature: 0.15,
+          max_tokens: 4000,
+        })
+        return new Response(sseStream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        })
+      } catch (err) {
+        logger.error('[lea-comptable] Streaming error:', err)
+        return NextResponse.json({
+          response: generateFallback(message, syndic_context, isPt),
+          fallback: true,
+        })
+      }
+    }
+
+    // ── Mode classique ──
     let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
     try {
       groqData = await callGroqWithRetry({
