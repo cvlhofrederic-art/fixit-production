@@ -50,4 +50,8 @@ describe('Migration agents_ia_foundation.sql', () => {
     expect(sql).toMatch(/CREATE TRIGGER trg_update_conv_on_message/)
     expect(sql).toMatch(/CREATE OR REPLACE FUNCTION update_conv_metadata/)
   })
+
+  it('fonction update_conv_metadata avec SET search_path = public (sécurité SECURITY DEFINER)', () => {
+    expect(sql).toMatch(/LANGUAGE plpgsql SECURITY DEFINER SET search_path = public/)
+  })
 })

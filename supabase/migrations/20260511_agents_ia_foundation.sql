@@ -107,7 +107,7 @@ BEGIN
     WHERE id = NEW.conversation_id;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_update_conv_on_message
   AFTER INSERT ON syndic_ai_messages
