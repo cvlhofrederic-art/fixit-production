@@ -1,7 +1,7 @@
 // components/syndic-dashboard/agents-ia/configs.ts
-import type { AgentConfig } from '@/lib/syndic/agent-types'
+import type { AgentConfig, AgentId } from '@/lib/syndic/agent-types'
 
-export const AGENT_CONFIGS: Record<string, AgentConfig> = {
+export const AGENT_CONFIGS: Record<AgentId, AgentConfig> = {
   fixy: {
     id: 'fixy',
     displayName: { fr: 'Fixy', pt: 'Fixy' },

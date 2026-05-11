@@ -1,7 +1,7 @@
 // components/syndic-dashboard/agents-ia/AgentChatPage.tsx
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import type { User } from '@supabase/supabase-js'
 import type { AgentConfig, Message, ToolCall } from '@/lib/syndic/agent-types'
@@ -36,7 +36,13 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const messagesRef = useRef<Message[]>([])
   const [voiceEnabled, setVoiceEnabled] = useState(false)
+
+  // Ref synchronisé pour éviter la stale closure dans handleSend
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   const stream = useAgentStream(agentConfig)
   const {
@@ -117,12 +123,12 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
         body: JSON.stringify({ role: 'user', content: text }),
       })
 
-      // Appel agent
+      // Appel agent (messagesRef.current évite la stale closure lors d'envois rapides successifs)
       try {
         const result = await stream.send({
           conversationId: conv.id,
           message: text,
-          history: messages,
+          history: messagesRef.current,
           locale: conv.locale,
         })
 
@@ -151,18 +157,11 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
         }
         setMessages(prev => [...prev, assistantMsg])
 
-        await fetch(`/api/syndic/conversations/${conv.id}/messages`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            role: 'assistant',
-            content: result.content,
-            tool_calls: toolCalls,
-          }),
-        })
+        // Note : la persistance du message assistant est à la charge de l'agent endpoint (Plan A.next).
+        // Le client ne peut insérer que role:'user' — voir app/api/syndic/conversations/[id]/messages/route.ts
 
-        // Auto-rename si 1er échange
-        if (messages.length === 0 && conv.title === 'Nouvelle conversation') {
+        // Auto-rename si 1er échange (utilise messagesRef pour éviter stale closure)
+        if (messagesRef.current.length === 0 && conv.title === 'Nouvelle conversation') {
           const newTitle = text.slice(0, 60)
           await updateConversation(conv.id, { title: newTitle })
         }
@@ -174,7 +173,6 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
       activeConv,
       agentConfig,
       createConversation,
-      messages,
       requestConfirm,
       stream,
       uiLocale,
