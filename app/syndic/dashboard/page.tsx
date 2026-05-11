@@ -130,6 +130,9 @@ const InfractionsSection = d(() => import('@/components/syndic-dashboard/legal/I
 const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashboard/financial/ReconciliationBancaireSection'))
 const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
 const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
+const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/FixyAgentPage'))
+const MaxAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/MaxAgentPage'))
+const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
 // ── Extracted layout + misc components ──
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
 const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
@@ -2324,6 +2327,7 @@ export default function SyndicDashboard() {
 
   // ── Catégories sidebar ──
   const SIDEBAR_CATEGORIES = [
+    { key: 'agents_ia', label: locale === 'pt' ? 'Agentes IA' : 'Agents IA' },
     { key: 'gestion', label: locale === 'pt' ? 'Gestão' : 'Gestion' },
     { key: 'patrimoine', label: locale === 'pt' ? 'Património' : 'Patrimoine' },
     { key: 'technique', label: locale === 'pt' ? 'Técnico' : 'Technique' },
@@ -2430,6 +2434,10 @@ export default function SyndicDashboard() {
     { id: 'carregamento_ve', emoji: '⚡', label: 'Carregamento VE', category: 'ferramentas_pt' },
     { id: 'monitorizacao_consumos', emoji: '📈', label: 'Monitorização', category: 'ferramentas_pt' },
     { id: 'arquivo_digital', emoji: '🗄️', label: 'Arquivo Digital', category: 'ferramentas_pt' },
+    // ── AGENTS IA ──
+    { id: 'fixy_agent' as const, emoji: '🤖', label: 'Fixy', category: 'agents_ia' },
+    { id: 'max_agent' as const, emoji: '🎓', label: 'Max', category: 'agents_ia' },
+    { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
     { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
@@ -2697,6 +2705,11 @@ export default function SyndicDashboard() {
               setShowPdfModal={setShowPdfModal}
             />
           )}
+
+          {/* ── AGENTS IA ── */}
+          {page === 'fixy_agent' && user && <FixyAgentPage user={user} />}
+          {page === 'max_agent' && user && <MaxAgentPage user={user} />}
+          {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
 
           {/* ── MON ÉQUIPE ── */}
           {page === 'compta_copro' && user && <ComptaCoproSection user={user} userRole={userRole} immeubles={immeubles} />}
