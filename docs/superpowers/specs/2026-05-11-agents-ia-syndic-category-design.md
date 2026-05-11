@@ -246,37 +246,182 @@ CREATE POLICY syndic_own_alfredo_learning ON syndic_alfredo_learning
 
 **Tools sensibles** (ex: `send_response`, `create_mission`, `update_mission`) ont un check explicite `if (!ALLOWED_TOOLS_BY_ROLE[role].includes(toolName)) return 403`.
 
-### 3.6. Alfredo — Contexte client + Brouillons adaptés
+### 3.6. Alfredo — Mode proactif : auto-draft à l'arrivée du mail
 
-C'est le point fonctionnel le plus enrichi (demande utilisateur explicite). Trois nouveaux tools côté `/api/syndic/alfredo-chat` :
+**Comportement attendu (demande utilisateur explicite) :**
+
+```
+                ┌──────────────────────────────────────────────────────────┐
+                │  Email arrive sur la boîte connectée                     │
+                └────────────────────────┬─────────────────────────────────┘
+                                         │ Gmail Push (Pub/Sub) → webhook
+                                         ▼
+                ┌──────────────────────────────────────────────────────────┐
+                │  /api/email-agent/webhook                                │
+                │  → poll ciblé sur le syndic concerné                     │
+                │  → pour chaque nouvel email :                            │
+                │     1. classify_email (urgence, type, immeuble, copro)   │
+                │     2. load_client_context (toutes les données métier)   │
+                │     3. draft_reply (brouillon adapté, tone auto)         │
+                │     4. INSERT syndic_emails_analysed avec :              │
+                │          draft_status = 'pending_review'                 │
+                │          draft_body_html, draft_body_text, draft_subject │
+                │          draft_meta { confidence, tone, missing_info }   │
+                └────────────────────────┬─────────────────────────────────┘
+                                         │ Supabase Realtime broadcast
+                                         ▼
+                ┌──────────────────────────────────────────────────────────┐
+                │  UI utilisateur (n'importe quelle page du dashboard)     │
+                │  → Toast notification : "📧 Nouvel email — brouillon prêt"│
+                │  → Badge incrémenté sur l'item Alfredo dans la sidebar   │
+                │  → Click sur la notif OU sur l'item Alfredo              │
+                └────────────────────────┬─────────────────────────────────┘
+                                         ▼
+                ┌──────────────────────────────────────────────────────────┐
+                │  Page Alfredo (AgentChatPage en mode "Inbox proactif")   │
+                │                                                          │
+                │  ┌─ Sidebar gauche ─┐  ┌─ Vue centrale ──────────────┐  │
+                │  │ 📬 Inbox (3)     │  │ De : marie.dupont@…         │  │
+                │  │  • Mme Dupont 🟠 │  │ Objet : Fuite salle de bain │  │
+                │  │  • M. Costa  🟢 │  │                              │  │
+                │  │  • Notaire   🔴 │  │ ─── Email reçu ───           │  │
+                │  │                  │  │ Bonjour, …                  │  │
+                │  │ 💬 Conversations │  │                              │  │
+                │  │  • Discussion 1  │  │ ─── 📝 Brouillon Alfredo ───│  │
+                │  │  • Discussion 2  │  │ [éditable inline]            │  │
+                │  └──────────────────┘  │                              │  │
+                │                        │ [Envoyer] [Modifier] [Skip] │  │
+                │                        │                              │  │
+                │                        │ Contexte utilisé (collapse):│  │
+                │                        │ • Lot B12 — 250/10000èmes   │  │
+                │                        │ • 2 missions ouvertes        │  │
+                │                        │ • À jour des charges         │  │
+                │                        └──────────────────────────────┘  │
+                └──────────────────────────────────────────────────────────┘
+```
+
+**Deux modes d'utilisation d'Alfredo dans la même page :**
+
+1. **Mode Inbox proactif** (par défaut à l'ouverture) — liste des emails en attente de review avec leur brouillon prêt. Vue dominante au quotidien.
+2. **Mode chat conversationnel** — accessible via onglet « Discussions », pour les questions ad hoc à Alfredo (« montre-moi tous les mails de Mme Dupont des 3 derniers mois », « rédige une relance amiable pour tous les impayés > 3 mois »).
+
+**Notification cross-pages** : un hook `useAlfredoNotifications()` souscrit en Supabase Realtime à `syndic_emails_analysed` filtré par `syndic_id = auth.uid() AND draft_status = 'pending_review' AND inserted_after = session_start`. Toast Sonner + mise à jour du badge sidebar en temps réel. Cliquable → `navigateTo('alfredo_agent')`.
+
+**Migration du schéma `syndic_emails_analysed`** (existant, ajout de colonnes) :
+```sql
+ALTER TABLE syndic_emails_analysed
+  ADD COLUMN draft_subject text,
+  ADD COLUMN draft_body_html text,
+  ADD COLUMN draft_body_text text,
+  ADD COLUMN draft_status text DEFAULT 'pending_review'
+    CHECK (draft_status IN ('pending_review','approved','sent','edited_sent','skipped','expired')),
+  ADD COLUMN draft_meta jsonb,
+  ADD COLUMN draft_generated_at timestamptz,
+  ADD COLUMN draft_reviewed_at timestamptz,
+  ADD COLUMN draft_reviewed_by uuid REFERENCES auth.users(id);
+
+CREATE INDEX idx_emails_pending_alfredo
+  ON syndic_emails_analysed(syndic_id, draft_generated_at DESC)
+  WHERE draft_status = 'pending_review';
+```
+
+**Workflow de validation utilisateur :**
+- **Envoyer** → `/api/email-agent/send-response` (existant) + `draft_status = 'sent'`
+- **Modifier puis envoyer** → tracking de la diff dans `syndic_alfredo_learning` + `draft_status = 'edited_sent'`
+- **Skip** (ignorer, garder le mail non répondu en inbox classique) → `draft_status = 'skipped'`
+- Au-delà de 30 jours sans review → `draft_status = 'expired'` (cron quotidien)
+
+### 3.6.bis. Tools Alfredo (accès données métier étendu)
+
+Tous les tools listés ci-dessous sont disponibles côté `/api/syndic/alfredo-chat` (mode conversationnel) **et** invoqués automatiquement par la pipeline webhook (mode proactif).
 
 #### `load_client_context(email_address: string)`
-Charge en parallèle :
-- **Historique emails** : tous les `syndic_emails_analysed` du même expéditeur (max 20 derniers, ordre antéchronologique)
-- **Identification copro** : lookup dans `coproprios` par email → récupère lot, immeuble, tantièmes, statut bailleur/occupant
-- **Missions liées** : `syndic_missions` filtrées par coproprio.id ou immeuble.id mentionné dans les emails passés
-- **Statut paiements** : `syndic_appels_charges` + `syndic_impayes` du coproprio
-- **Signalements ouverts** : `syndic_ocorrencias` / `syndic_sinistres` actifs
-- **Documents partagés** : `syndic_documents` envoyés à ce coproprio
+Charge en parallèle (Promise.all, requêtes scopées RLS `syndic_id = auth.uid()`) **toutes les données métier nécessaires** à une réponse contextualisée :
+
+**Identification**
+- `coproprios` : email → lot, immeuble, tantièmes, statut bailleur/occupant, date d'achat, IBAN (token only)
+- `syndic_artisans` : si l'expéditeur est un artisan, ses missions passées
+- `syndic_locataires` : si locataire, le bailleur associé
+
+**Historique conversationnel**
+- `syndic_emails_analysed` : 20 derniers mails du même expéditeur, antéchronologique
+- `syndic_messages` : échanges sur le canal interne (chat copro)
+- `syndic_documents` : documents envoyés/reçus de ce contact
+
+**État du dossier copro**
+- `syndic_missions` : missions ouvertes/closes filtrées par coproprio_id ou immeuble_id mentionné
+- `syndic_planning` : RDV passés et futurs (interventions artisan dans le lot)
+- `syndic_devis` : devis en cours pour le copro
+- `syndic_factures` : factures émises au coproprio (12 derniers mois)
+
+**Financier**
+- `syndic_appels_charges` : appels du copro (3 derniers exercices)
+- `syndic_impayes` : impayés actifs + ancienneté
+- `syndic_recouvrement` : procédures de recouvrement en cours
+
+**Sinistres / signalements**
+- `syndic_sinistres` : sinistres ouverts ou clos < 6 mois
+- `syndic_ocorrencias` : signalements (PT) — actifs ou récents
+- `syndic_alertes` : alertes en cours sur l'immeuble
+
+**Contexte immeuble**
+- `syndic_immeubles` : nom, adresse, nb lots, syndic principal/secondaire
+- `syndic_carnet_entretien` : interventions récentes parties communes
+- `syndic_pppt` : plan pluriannuel travaux en cours
+- `syndic_ag` : AG passées (max 2 dernières) + votes pertinents
+
+**Filtrage RBAC** : selon le rôle du syndic appelant, certaines sources sont omises (un `syndic_juriste` n'aura pas `syndic_appels_charges` détaillés, un `syndic_tech` n'aura pas `syndic_impayes`). Matrice définie dans `lib/syndic/alfredo-data-access-policy.ts`.
 
 Retour structuré, sanitizé (sans PII brute envoyée au LLM — voir §3.7) :
 ```ts
 type ClientContext = {
-  client_token: string                    // mapping interne pour rappel ultérieur
-  copro_status: 'identified' | 'unknown'
-  lot?: { ref_anonymized: string; tantièmes: number; statut: 'occupant'|'bailleur' }
-  immeuble?: { ref_anonymized: string; ville: string }
+  client_token: string                          // mapping interne pour rappel ultérieur
+  copro_status: 'identified' | 'unknown' | 'artisan' | 'locataire'
+
+  // Identification
+  identity?: {
+    role: 'coproprietaire' | 'locataire' | 'artisan' | 'tiers'
+    lot_ref_anonymized?: string
+    tantiemes?: number
+    statut?: 'occupant' | 'bailleur'
+    anciennete_mois?: number
+  }
+  immeuble?: { ref_anonymized: string; ville: string; nb_lots: number }
+
+  // Historique conversationnel
   history_summary: {
     total_emails: number
-    last_topics: string[]                 // résumé Groq des sujets
-    sentiment_drift: 'positif'|'neutre'|'tendu'
+    last_topics: string[]                       // résumé Groq des sujets
+    sentiment_drift: 'positif' | 'neutre' | 'tendu'
+    last_resolved_topics: string[]
   }
+  recent_interactions: { date: string; subject: string; channel: string; resolution: string }[]
+
+  // État dossier
   open_items: {
-    missions: { id: string; titre: string; statut: string }[]
-    impayes: { montant: number; depuis: string }[]
-    sinistres: { id: string; titre: string; statut: string }[]
+    missions: { id: string; titre: string; statut: string; artisan_token?: string }[]
+    devis_en_cours: { ref_anonymized: string; montant: number; statut: string }[]
+    sinistres: { id: string; titre: string; statut: string; depuis: string }[]
+    signalements: { id: string; titre: string; priorite: string }[]
   }
-  recent_interactions: { date: string; subject: string; resolution: string }[]
+
+  // Financier (omis selon RBAC)
+  financial?: {
+    statut_paiement: 'a_jour' | 'en_retard' | 'en_recouvrement'
+    impayes: { montant: number; depuis: string; nature: string }[]
+    derniers_appels: { exercice: string; montant: number; paye: boolean }[]
+  }
+
+  // Contexte immeuble
+  immeuble_context?: {
+    travaux_en_cours: { ref_anonymized: string; titre: string; statut: string }[]
+    derniere_ag?: { date: string; resolutions_concernant: string[] }
+    alertes_actives: { titre: string; severite: string }[]
+  }
+
+  // Méta
+  missing_info_hints: string[]                  // ex: "Aucune correspondance copro pour cet email"
+  rbac_omitted_fields: string[]                 // transparence pour debug
 }
 ```
 
@@ -290,7 +435,15 @@ Construit un prompt enrichi :
 Le brouillon est **toujours** présenté à l'utilisateur pour validation (jamais d'envoi automatique). L'utilisateur peut éditer puis envoyer via `send_response` (qui existe déjà côté `/api/email-agent/send-response`).
 
 #### `learn_from_correction(draft_id, original_draft, user_final_version)`
-Enregistre la différence entre brouillon proposé et version envoyée dans une nouvelle table `syndic_alfredo_learning` (pour future fine-tuning ou few-shot adaptatif).
+Enregistre la différence entre brouillon proposé et version envoyée dans la table `syndic_alfredo_learning` (cf. §3.4) pour future fine-tuning ou few-shot adaptatif. Calcule un `diff_score` (Levenshtein normalisé), classifie le type de correction (`tone | factual | structural | minor_typo`).
+
+#### `regenerate_draft(email_id, instructions?: string)`
+Permet à l'utilisateur de demander un nouveau brouillon avec des consignes spécifiques (« plus ferme », « ajoute le rappel d'AG », « en portugais »). Réutilise le `ClientContext` cached (TTL 5 min).
+
+#### Tools conversationnels (mode chat)
+- `search_emails(query: string, filters?: { from?, since?, until?, has_attachment? })` — recherche fulltext dans les emails analysés
+- `bulk_action(filter, action: 'draft_reply' | 'archive' | 'flag_priority')` — par exemple « rédige un brouillon de relance amiable pour tous les impayés > 3 mois »
+- `summarize_inbox(period: 'today' | 'week' | 'month')` — résumé exécutif des emails reçus + actions prises
 
 ### 3.7. Sanitization PII
 
@@ -365,11 +518,11 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 
 ## 4. Plan de rollout chunké
 
-13 chunks, mergeables séparément. Chunks 6 et 7 (sécurité) peuvent partir avant si on les détecte critiques en pré-déploiement.
+15 chunks, mergeables séparément. Chunks 6 et 7 (sécurité) peuvent partir avant si on les détecte critiques en pré-déploiement.
 
 | # | Chunk | Description | Tests requis | Dépend de | Risque |
 |---|---|---|---|---|---|
-| 0 | DB migrations | `syndic_ai_conversations`, `syndic_ai_messages`, `syndic_ai_audit` + RLS | Tests RLS (anon ne voit rien, user voit ses propres rows) | — | 🟢 |
+| 0 | DB migrations agents IA | `syndic_ai_conversations`, `syndic_ai_messages`, `syndic_ai_audit`, `syndic_alfredo_learning` + RLS | Tests RLS (anon ne voit rien, user voit ses propres rows) | — | 🟢 |
 | 1 | Composant `<AgentChatPage>` + hooks | UI partagée, mock backend pour iso | Vitest unit + Playwright iso | 0 | 🟢 |
 | 2 | Sidebar catégorie `agents_ia` | `SIDEBAR_CATEGORIES` + 4 navItems + types Page + RBAC | E2E Playwright (rôles différents voient bien les bons agents) | 1 | 🟢 |
 | 3 | **Fixy** branché | Réutilise endpoint existant, ajoute `search_dossier`, `classer_document`, `find_email_thread` (TDD) | Tests tools + E2E parcours secrétaire | 1, 2 | 🟡 |
@@ -377,13 +530,16 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 | 5 | **Léa** branchée | Ajoute streaming + voix, garde scope strict | E2E parcours comptable | 1, 2 | 🟢 |
 | 6 | **Sanitization PII** | `lib/ai/sanitize-context.ts` + intégration prompts Fixy/Max/Léa | TDD couverture > 95% | — | 🟡 sécu |
 | 7 | **Encryption tokens OAuth** | Migration pgcrypto + Vault + wrapper `lib/oauth/tokens.ts` + script backfill | Tests round-trip, rotation | — | 🔴 sécu |
-| 8 | **Alfredo chat wrapper** | `/api/syndic/alfredo-chat` + tools `load_client_context`, `draft_reply`, `learn_from_correction` (TDD) | Tests tools + E2E avec emails mock | 1, 2, 6, 7 | 🟡 |
-| 9 | **Webhook Gmail Push** | Pub/Sub watch + endpoint webhook + cron renouvellement | Tests signature, déduplication | 7, 8 | 🟡 |
-| 10 | **Langfuse instrumentation** | Wrap des 4 endpoints | Vérif manuelle traces Langfuse | 3, 4, 5, 8 | 🟢 |
-| 11 | **Suppression legacy** | Bulle FixyPanel + AideSection + audit Copro-AI (suppression si orphelin confirmé) | Vérif que rien ne casse | 3 | 🟢 |
-| 12 | **Tests E2E parcours** | Un parcours Playwright par agent | — | 3-9 | 🟢 |
+| 8 | **Migration `syndic_emails_analysed`** | Ajout colonnes `draft_*` + index `idx_emails_pending_alfredo` | Tests Supabase migration up/down | — | 🟢 |
+| 9 | **`lib/syndic/alfredo-data-access-policy.ts`** | Matrice RBAC des sources de données + helper `loadClientContext()` (TDD) | Tests par rôle (filtrage attendu) | 6 | 🟡 |
+| 10 | **Pipeline auto-draft** | `/api/email-agent/webhook` (Gmail Pub/Sub) → poll ciblé → classify + load_client_context + draft_reply → INSERT avec `draft_status=pending_review` | Tests signature webhook, déduplication, dry-run draft | 6, 7, 8, 9 | 🔴 |
+| 11 | **UI Inbox proactif Alfredo** | Mode dual (Inbox + Chat) dans `<AgentChatPage>`, `useAlfredoNotifications()` (Supabase Realtime), toast + badge sidebar, vue review/edit/send | E2E parcours réception → notif → validation | 1, 2, 10 | 🟡 |
+| 12 | **Alfredo chat conversationnel** | `/api/syndic/alfredo-chat` + tools `search_emails`, `bulk_action`, `summarize_inbox`, `regenerate_draft`, `learn_from_correction` | Tests tools | 9, 11 | 🟡 |
+| 13 | **Langfuse instrumentation** | Wrap des 4 endpoints + pipeline webhook | Vérif manuelle traces Langfuse | 3, 4, 5, 10, 12 | 🟢 |
+| 14 | **Suppression legacy + cleanup** | Bulle FixyPanel + AideSection + audit Copro-AI (suppression si orphelin confirmé) + rename Ocorrências IA | Vérif que rien ne casse | 3 | 🟢 |
+| 15 | **Tests E2E parcours complets** | Un parcours Playwright par agent + parcours Alfredo bout-en-bout (mock email → drafted → reviewed → sent) | — | 3-12 | 🟢 |
 
-**Estimation cumulée :** ~2-3 semaines temps-équipe, livrable PR par PR.
+**Estimation cumulée :** ~3 semaines temps-équipe, livrable PR par PR.
 
 ## 5. Décisions par défaut (révisables si feedback)
 
@@ -437,12 +593,14 @@ Tests obligatoires : round-trip encrypt → decrypt, rotation de clé, gestion d
 
 ## 9. Ordre d'exécution recommandé
 
-1. **Chunks 0 → 2** (DB + UI + sidebar) en série, en plan mode après writing-plans
-2. **Chunks 3, 4, 5 en parallèle** (3 agents indépendants une fois le composant prêt) via subagent-driven-development
-3. **Chunks 6, 7 en parallèle** (sanitization + encryption indépendants)
-4. **Chunk 8** (Alfredo) après 6, 7
-5. **Chunk 9** (webhook) après 8
-6. **Chunks 10, 11, 12 en parallèle** (observabilité, cleanup, E2E)
+1. **Chunks 0 → 2** (DB + UI partagée + sidebar) en série, en plan mode après writing-plans
+2. **Chunks 3, 4, 5 en parallèle** (Fixy / Max / Léa indépendants une fois le composant prêt) via subagent-driven-development
+3. **Chunks 6, 7, 8 en parallèle** (sanitization PII + encryption OAuth + migration colonnes drafts — tous indépendants)
+4. **Chunk 9** (`alfredo-data-access-policy`) après 6
+5. **Chunk 10** (pipeline auto-draft webhook) — chunk pivot, après 6, 7, 8, 9
+6. **Chunk 11** (UI Inbox proactif) après 10
+7. **Chunk 12** (chat conversationnel Alfredo) après 9 et 11
+8. **Chunks 13, 14, 15 en parallèle** (observabilité, cleanup, E2E)
 
 ## 10. Prochaine étape
 
