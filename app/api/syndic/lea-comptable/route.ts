@@ -3,6 +3,7 @@ import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { traceAgent } from '@/lib/langfuse'
 import { buildLeaSystemPromptFR } from '@/lib/syndic/prompts/lea/system-prompt-fr'
 import { buildLeaSystemPromptPT } from '@/lib/syndic/prompts/lea/system-prompt-pt'
 import type { LeaPromptContext } from '@/lib/syndic/prompts/lea/system-prompt-fr'
@@ -717,11 +718,19 @@ export async function POST(request: NextRequest) {
     // ── Mode classique ──
     let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
     try {
-      groqData = await callGroqWithRetry({
-        messages,
-        temperature: 0.15,
-        max_tokens: 4000,
-      })
+      groqData = await traceAgent(
+        {
+          agent_id: 'lea',
+          user_id: user.id,
+          conversation_id: body.conversation_id,
+          prompt: message,
+        },
+        () => callGroqWithRetry({
+          messages,
+          temperature: 0.15,
+          max_tokens: 4000,
+        }),
+      )
     } catch (err) {
       logger.error('Groq Léa error:', err)
       return NextResponse.json({

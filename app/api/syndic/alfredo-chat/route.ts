@@ -6,6 +6,7 @@ import { isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { callGroqWithRetry } from '@/lib/groq'
+import { traceAgent } from '@/lib/langfuse'
 import { buildAlfredoSystemPromptFR } from '@/lib/syndic/prompts/alfredo/system-prompt-fr'
 import { buildAlfredoSystemPromptPT } from '@/lib/syndic/prompts/alfredo/system-prompt-pt'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
@@ -87,12 +88,20 @@ export async function POST(req: NextRequest) {
   ]
 
   try {
-    const groqResponse = await callGroqWithRetry({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.4,
-      max_tokens: 1500,
-    })
+    const groqResponse = await traceAgent(
+      {
+        agent_id: 'alfredo',
+        user_id: user.id,
+        conversation_id: parsed.data.conversation_id,
+        prompt: parsed.data.message,
+      },
+      () => callGroqWithRetry({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.4,
+        max_tokens: 1500,
+      }),
+    )
     const rawContent = groqResponse.choices?.[0]?.message?.content ?? ''
     const resolvedContent = resolveSanitizedToken(rawContent, tokenMap) ?? rawContent
     return NextResponse.json({ content: resolvedContent })

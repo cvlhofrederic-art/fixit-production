@@ -3,6 +3,7 @@ import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { traceAgent } from '@/lib/langfuse'
 import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/prompts/fixy/system-prompt-fr'
 import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt-pt'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -554,11 +555,19 @@ export async function POST(request: NextRequest) {
 
     let groqData: GroqResponse
     try {
-      groqData = await callGroqWithRetry({
-        messages,
-        temperature: 0.25,
-        max_tokens: 4000,
-      })
+      groqData = await traceAgent(
+        {
+          agent_id: 'fixy',
+          user_id: user.id,
+          conversation_id: body.conversation_id,
+          prompt: message,
+        },
+        () => callGroqWithRetry({
+          messages,
+          temperature: 0.25,
+          max_tokens: 4000,
+        }),
+      )
     } catch (err) {
       logger.error('Groq Fixy error:', err)
       return NextResponse.json({

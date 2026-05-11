@@ -3,6 +3,7 @@ import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, callGroqStreaming, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { traceAgent } from '@/lib/langfuse'
 import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
 import { buildMaxSystemPromptFR } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { buildMaxSystemPromptPT } from '@/lib/syndic/prompts/max/system-prompt-pt'
@@ -433,11 +434,19 @@ export async function POST(request: NextRequest) {
     // ── Mode classique (rétrocompatibilité) ──
     let groqData: GroqResponse
     try {
-      groqData = await callGroqWithRetry({
-        messages,
-        temperature: 0.4,
-        max_tokens: 4000,
-      })
+      groqData = await traceAgent(
+        {
+          agent_id: 'max',
+          user_id: user.id,
+          conversation_id: rawBody.conversation_id,
+          prompt: message,
+        },
+        () => callGroqWithRetry({
+          messages,
+          temperature: 0.4,
+          max_tokens: 4000,
+        }),
+      )
     } catch (err) {
       logger.error('Groq Max error:', err)
       return NextResponse.json({
