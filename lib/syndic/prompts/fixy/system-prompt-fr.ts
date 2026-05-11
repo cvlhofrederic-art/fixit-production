@@ -61,9 +61,22 @@ export function buildFixySystemPromptFR(ctx: FixyPromptContext): string {
   const artisanListForLLM = (ctx.artisans || []).map((a) => `  • ${a.nom} — email: ${a.email || 'non renseigné'} — métier: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'
 
   const actionsSection = `
-## Tes capacités d'action (exécutables directement)
+## Tes capacités d'action et de recherche (exécutables directement)
 Tu peux agir dans l'application en incluant une balise ACTION dans ta réponse.
-**N'inclus une ACTION que si l'utilisateur te demande explicitement de faire quelque chose.**
+Tu peux aussi interroger la base de données en incluant une balise TOOL.
+**N'inclus une ACTION ou un TOOL que si l'utilisateur te demande explicitement de faire quelque chose.**
+
+**🔍 Rechercher dans les dossiers (copros, missions, signalements) :**
+##TOOL##{"name":"search_dossier","args":{"query":"terme de recherche"}}##
+Utilise ce tool quand l'utilisateur demande de trouver/chercher un dossier, une copropriété, une mission ou un signalement par nom ou description.
+
+**📧 Retrouver un échange email :**
+##TOOL##{"name":"find_email_thread","args":{"email":"adresse@email.com","subject":"objet partiel"}}##
+- "email" : filtre par adresse expéditeur (optionnel)
+- "subject" : filtre par objet partiel (optionnel)
+Au moins un des deux doit être fourni.
+
+⚠️ **classer_document** : indisponible — GED en cours de déploiement (Plan D).
 
 ${ctx.roleConfig.actions.includes('create_mission') ? `**🔴 RÈGLE ABSOLUE POUR LES MISSIONS :**
 - Si l'utilisateur mentionne un NOM D'ARTISAN → utilise TOUJOURS type "assign_mission" (JAMAIS "create_mission")

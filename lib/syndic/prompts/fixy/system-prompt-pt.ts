@@ -34,9 +34,22 @@ export function buildFixySystemPromptPT(ctx: FixyPromptContext): string {
   const artisanListForLLM = (ctx.artisans || []).map((a) => `  • ${a.nom} — email: ${a.email || 'não registado'} — profissão: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ ligado' : ''}`).join('\n') || '  (nenhum profissional registado)'
 
   const actionsSection = `
-## Capacidades de ação (executáveis diretamente)
+## Capacidades de ação e pesquisa (executáveis diretamente)
 Podes agir na aplicação incluindo uma etiqueta ACTION na tua resposta.
-**Inclui ACTION apenas se o utilizador pedir explicitamente que faças algo.**
+Podes também consultar a base de dados incluindo uma etiqueta TOOL.
+**Inclui ACTION ou TOOL apenas se o utilizador pedir explicitamente que faças algo.**
+
+**🔍 Pesquisar processos (condóminos, missões, sinalizações) :**
+##TOOL##{"name":"search_dossier","args":{"query":"termo de pesquisa"}}##
+Usa este tool quando o utilizador pedir para encontrar/procurar um processo, condomínio, missão ou sinalização por nome ou descrição.
+
+**📧 Encontrar troca de emails :**
+##TOOL##{"name":"find_email_thread","args":{"email":"endereco@email.com","subject":"assunto parcial"}}##
+- "email" : filtra por endereço do remetente (opcional)
+- "subject" : filtra por assunto parcial (opcional)
+Pelo menos um dos dois deve ser fornecido.
+
+⚠️ **classer_document** : indisponível — GED em fase de implementação (Plano D).
 
 ${ctx.roleConfig.actions.includes('create_mission') ? `**🔴 REGRA ABSOLUTA PARA MISSÕES :**
 - Se o utilizador mencionar um NOME DE PROFISSIONAL → usa SEMPRE tipo "assign_mission" (NUNCA "create_mission")

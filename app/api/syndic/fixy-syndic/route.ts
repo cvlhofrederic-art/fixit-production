@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
 import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/prompts/fixy/system-prompt-fr'
 import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt-pt'
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 export const maxDuration = 30
 
@@ -67,7 +68,73 @@ interface AlerteSummary { urgence?: string; message: string }
 interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
 interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
 
-// LEGACY — supprimer après validation Plan A
+// ── Tool helpers — search_dossier + find_email_thread ────────────────────────
+
+export interface SearchDossierResult {
+  coproprios: Array<{ id: string; nom?: string; immeuble?: string }>
+  missions: Array<{ id: string; immeuble: string; type: string; description: string; statut: string }>
+  signalements: Array<{ id: string; immeuble_nom?: string; type_intervention?: string; statut?: string }>
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase client polymorphe
+export async function execSearchDossier(client: any, cabinetId: string | null, query: string): Promise<SearchDossierResult> {
+  const trimmed = query.trim()
+  if (!trimmed || !cabinetId) {
+    return { coproprios: [], missions: [], signalements: [] }
+  }
+
+  const term = `%${trimmed}%`
+
+  const [coproRes, missionRes, signalRes] = await Promise.all([
+    client
+      .from('syndic_coproprios')
+      .select('id, nom, immeuble')
+      .eq('cabinet_id', cabinetId)
+      .or(`nom.ilike.${term},immeuble.ilike.${term}`)
+      .limit(10),
+    client
+      .from('syndic_missions')
+      .select('id, immeuble, type, description, statut')
+      .eq('cabinet_id', cabinetId)
+      .or(`immeuble.ilike.${term},description.ilike.${term},type.ilike.${term}`)
+      .limit(10),
+    client
+      .from('syndic_signalements')
+      .select('id, immeuble_nom, type_intervention, statut')
+      .eq('cabinet_id', cabinetId)
+      .or(`immeuble_nom.ilike.${term},type_intervention.ilike.${term}`)
+      .limit(10),
+  ])
+
+  return {
+    coproprios: coproRes.data ?? [],
+    missions: missionRes.data ?? [],
+    signalements: signalRes.data ?? [],
+  }
+}
+
+export interface FindEmailThreadResult {
+  emails: Array<{ id: string; from_email?: string; subject?: string; received_at?: string; resume_ia?: string; statut?: string }>
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase client polymorphe
+export async function execFindEmailThread(client: any, syndicId: string, criteria: { email?: string; subject?: string }): Promise<FindEmailThreadResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- builder Supabase chainable
+  let q: any = client
+    .from('syndic_emails_analysed')
+    .select('id, from_email, subject, received_at, resume_ia, statut')
+    .eq('syndic_id', syndicId)
+    .order('received_at', { ascending: false })
+    .limit(20)
+
+  if (criteria.email) q = q.ilike('from_email', `%${criteria.email}%`)
+  if (criteria.subject) q = q.ilike('subject', `%${criteria.subject}%`)
+
+  const { data } = await q
+  return { emails: data ?? [] }
+}
+
+// ── LEGACY — supprimer après validation Plan A
 // Cette fonction est dépréciée. Le handler POST utilise désormais
 // buildFixySystemPromptFR / buildFixySystemPromptPT depuis lib/syndic/prompts/fixy/.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
@@ -496,6 +563,60 @@ export async function POST(request: NextRequest) {
       })
     }
     let response: string = groqData.choices?.[0]?.message?.content || (locale === 'pt' ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
+
+    // ── Tool-calling loop — search_dossier + find_email_thread ───────────────
+    // Si le LLM émet un ##TOOL##...## dans sa réponse, exécuter la query DB
+    // puis réinjecter les résultats pour un second appel Groq.
+    const toolMatch = response.match(/##TOOL##([\s\S]*?)##/)
+    if (toolMatch) {
+      try {
+        const toolCall = JSON.parse(toolMatch[1]) as { name: string; args: Record<string, string> }
+        const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+        let toolResult: string
+
+        if (toolCall.name === 'search_dossier') {
+          const result = await execSearchDossier(supabaseAdmin, cabinetId, toolCall.args?.query ?? '')
+          toolResult = JSON.stringify(result, null, 2)
+        } else if (toolCall.name === 'find_email_thread') {
+          const result = await execFindEmailThread(supabaseAdmin, user.id, {
+            email: toolCall.args?.email,
+            subject: toolCall.args?.subject,
+          })
+          toolResult = JSON.stringify(result, null, 2)
+        } else {
+          toolResult = JSON.stringify({ error: 'tool inconnu' })
+        }
+
+        // Second appel Groq avec les résultats du tool injectés
+        const messagesWithToolResult = [
+          ...messages,
+          { role: 'assistant' as const, content: response },
+          {
+            role: 'user' as const,
+            content: `Résultats du tool ${toolCall.name} :\n\`\`\`json\n${toolResult}\n\`\`\`\n\nUtilise ces données pour répondre à la question initiale.`,
+          },
+        ]
+        try {
+          const groqData2 = await callGroqWithRetry({
+            messages: messagesWithToolResult,
+            temperature: 0.25,
+            max_tokens: 4000,
+          })
+          const response2 = groqData2.choices?.[0]?.message?.content
+          if (response2) {
+            response = response2.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+          } else {
+            response = response.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+          }
+        } catch (err2) {
+          logger.error('Groq Fixy tool-loop error:', err2)
+          response = response.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+        }
+      } catch {
+        // Ignore les tool calls malformés, supprimer la balise de la réponse
+        response = response.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+      }
+    }
 
     // Extraire l'action si présente
     let action: Record<string, unknown> | null = null
