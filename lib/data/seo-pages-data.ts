@@ -105,6 +105,60 @@ export const CITIES: CityData[] = [
     lng: -8.1503,
     freguesias: ['Marco', 'Alpendorada', 'Várzea', 'Soalhães', 'Tabuado', 'Vila Boa do Bispo', 'Penha Longa', 'Constance', 'Fornos', 'Paredes de Viadores', 'Sande', 'Manhuncelos', 'Rio de Galinhas', 'Bem Viver', 'Avessadas', 'Banho e Carvalhosa', 'Freixo', 'Toutosa', 'Rosém'],
     nearby: ['penafiel', 'amarante', 'baiao'],
+    specialty: 'Capital do concelho do Marco de Canaveses, integrado na sub-região do Tâmega e Sousa, com cerca de 53 mil habitantes. Conhecido pelos seus monumentos românicos da Rota do Românico (Igreja do Salvador de Tabuado, Igreja de Santa Maria de Sobretâmega) e pela Igreja paroquial de Santa Maria do Marco, projetada por Álvaro Siza Vieira (1990–1996) — um marco internacional da arquitetura sacra contemporânea. Atravessado pelo rio Tâmega e pelos vales encaixados que descem do Marão.',
+    climateChallenges: [
+      'Humidade dos vales do Tâmega que retém condensação em moradias antigas de granito, sobretudo orientadas a norte e nordeste',
+      'Inverno frio e prolongado (temperaturas médias 4–9 °C em janeiro) com riscos de gelo nas tubagens exteriores não isoladas em zonas altas (Soalhães, Tabuado)',
+      'Casas centenárias em granito da Rota do Românico que exigem técnicas tradicionais para restauro de fachadas e impermeabilização de paredes em pedra aparente',
+      'Captações de água próprias (poços e furos) em freguesias rurais que exigem manutenção sazonal de bombas e sistemas de tratamento independentes da rede pública',
+      'Quintas e propriedades agrícolas com instalações elétricas mistas (habitação + anexos rurais) que precisam de quadros independentes e proteções específicas',
+    ],
+    notableFreguesias: [
+      { name: 'Marco (sede)', context: 'Centro administrativo e comercial do concelho, com edifícios de habitação coletiva recentes e estabelecimentos comerciais. Procura constante de serviços de manutenção urbana, modernização elétrica e reparações em apartamentos T2/T3.' },
+      { name: 'Alpendorada, Várzea e Torrão', context: 'União de freguesias ribeirinhas do Douro/Tâmega, com moradias antigas, quintas e adegas tradicionais. Forte procura de canalizadores para sistemas de rega e tubagens em ambiente rural.' },
+      { name: 'Soalhães', context: 'Freguesia com Igreja Românica de Soalhães (Monumento Nacional) — exigência de técnicas de restauro especializadas para obras junto a património classificado.' },
+      { name: 'Vila Boa do Bispo', context: 'Antiga sede de freguesia com Mosteiro de Vila Boa do Bispo (Rota do Românico). Mistura habitação rural antiga e novos lotes residenciais — duplicidade de necessidades técnicas.' },
+      { name: 'Constance e Tuías', context: 'Zona industrial do concelho — instalações fabris com necessidades trifásicas, ventilação industrial e canalizações de alta pressão distintas das habitações.' },
+    ],
+    localEconomy: 'Indústria do mobiliário e madeira (Marco integra o eixo Paredes–Penafiel–Marco), agricultura (vinho verde, kiwi, milho), Rota do Românico para turismo cultural. A4 Porto–Vila Real e linha ferroviária do Douro atravessam o concelho. Sede regional de várias empresas técnicas e comerciais da sub-região.',
+    landmarks: [
+      'Igreja paroquial de Santa Maria do Marco (Álvaro Siza Vieira, 1996)',
+      'Igreja Românica do Salvador de Tabuado (Monumento Nacional)',
+      'Igreja Românica de Santa Maria de Sobretâmega',
+      'Mosteiro de Vila Boa do Bispo (Rota do Românico)',
+      'Casa-Museu de Camilo Castelo Branco em Seide (Famalicão, fronteira)',
+      'Vale do Tâmega e Serra do Marão (paisagens protegidas)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas no Marco de Canaveses com conhecimento profundo das particularidades das instalações rurais (poços, anexos agrícolas, portões automatizados), modernização de instalações em moradias centenárias de granito e ligações industriais para fábricas de mobiliário da zona de Constance. Certificação RECE e cumprimento das exigências da DGEG e da Câmara Municipal para obras junto a património classificado.',
+        localCases: [
+          'Instalação de quadro trifásico numa pequena unidade de mobiliário em Constance, com proteção contra picos de tensão típicos da zona industrial.',
+          'Modernização da rede elétrica de uma moradia antiga em Soalhães, mantendo a estética compatível com a Rota do Românico.',
+          'Reparação de bomba submersa em furo artesiano numa propriedade agrícola em Penha Longa após avaria por corte de energia.',
+          'Substituição de quadro elétrico inundado por infiltração em cave de moradia em Tabuado, com instalação de diferencial reforçado.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores no Marco de Canaveses disponíveis 7 dias por semana, com experiência em sistemas de rega para quintas e adegas das freguesias ribeirinhas, canalizações antigas em chumbo de casas centenárias, e captações próprias (poços, furos) em freguesias rurais sem rede pública completa.',
+        localCases: [
+          'Reparação de fuga numa cave de moradia centenária em Marco com identificação por câmara endoscópica, evitando abertura de paredes em granito original.',
+          'Instalação de sistema de filtragem para água de poço numa moradia rural em Vila Boa do Bispo, com testes de qualidade bacteriológica.',
+          'Substituição de tubagem em chumbo por multicamada certificado numa casa antiga em Alpendorada, com licenças específicas para obra em zona histórica.',
+          'Desentupimento de fossa séptica numa quinta em Soalhães sem rede municipal de saneamento, com inspeção da fossa antes da limpeza.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores no Marco de Canaveses especializados em fachadas de moradias antigas em granito, restauro de pintura tradicional em zonas de património românico (Tabuado, Soalhães, Vila Boa do Bispo), e pintura interior anti-bolor em casas com humidade ascensional típica dos vales do Tâmega.',
+        localCases: [
+          'Pintura de fachada de moradia em Várzea com tratamento prévio do granito e tinta microporosa que respeita a respiração do material.',
+          'Restauro da pintura interior de uma casa antiga em Soalhães após infiltrações pela laje, com tratamento anti-fungos.',
+          'Pintura completa de apartamento no centro do Marco com cores neutras para fins de arrendamento estudantil/jovem ativo.',
+          'Pintura de portão de ferro forjado numa moradia em Tabuado após oxidação por humidade dos vales.',
+        ],
+      },
+    },
   },
   {
     slug: 'penafiel',
@@ -115,6 +169,59 @@ export const CITIES: CityData[] = [
     lng: -8.2847,
     freguesias: ['Penafiel', 'Paço de Sousa', 'Bustelo', 'Croca', 'Guilhufe', 'Luzim', 'Oldrões', 'Peroselo', 'Recezinhos', 'Rio de Moinhos', 'Sebolido', 'Valpedre', 'Fonte Arcada', 'Eja', 'Galegos', 'Lagares', 'Rans'],
     nearby: ['marco-de-canaveses', 'paredes', 'lousada'],
+    specialty: 'Cidade do distrito do Porto e sede do concelho com 72 mil habitantes, capital histórica da sub-região do Tâmega e Sousa. Reconhecida pelas Termas de São Vicente (águas minerais sulfúreas), pelo Mosteiro de Paço de Sousa (Panteão dos Sousões, Monumento Nacional) e por integrar a Rota do Românico. Sede da Quinta da Aveleda — referência do vinho verde DOC Sub-Região do Sousa.',
+    climateChallenges: [
+      'Humidade dos vales do rio Sousa que retém condensação nas paredes interiores de moradias mal ventiladas, sobretudo nas freguesias ribeirinhas (Paço de Sousa, Eja, Rio de Moinhos)',
+      'Inverno frio com temperaturas médias 5–9 °C em janeiro e nevoeiros densos que aceleram a deterioração de fachadas pintadas com tintas inadequadas',
+      'Casas antigas em granito da Rota do Românico em Paço de Sousa que exigem técnicas tradicionais de impermeabilização e tratamento da pedra',
+      'Captações próprias (furos e poços) frequentes nas freguesias rurais que obrigam a manutenção especializada de bombas e sistemas de filtragem distintos da rede pública',
+      'Quintas vinhateiras com adegas tradicionais que necessitam manutenção sazonal pré-vindima (setembro–outubro) para canalizações, depósitos e sistemas de climatização',
+    ],
+    notableFreguesias: [
+      { name: 'Penafiel (sede)', context: 'Centro urbano com edifícios de habitação coletiva recentes, comércio e serviços. Procura típica de manutenção urbana e modernização de apartamentos.' },
+      { name: 'Paço de Sousa', context: 'Freguesia com Mosteiro românico (Monumento Nacional, Panteão dos Sousões). Moradias antigas em granito que exigem técnicas de restauro especializadas e licenças junto a património classificado.' },
+      { name: 'Termas de São Vicente', context: 'Zona termal com hotéis e alojamentos turísticos, instalações sanitárias com águas sulfúreas que exigem materiais resistentes específicos para canalizações.' },
+      { name: 'Bustelo e Lagares', context: 'Zonas rurais e vinhateiras (Aveleda) com quintas tradicionais — necessidades técnicas mistas (habitação + adega + equipamento agrícola).' },
+      { name: 'Rio de Moinhos', context: 'Freguesia industrial e residencial em crescimento, com novos lotes e moradias unifamiliares que procuram instalações elétricas modernas e domótica.' },
+    ],
+    localEconomy: 'Vinho verde DOC do Sousa (Quinta da Aveleda, líder mundial), termalismo (Termas de São Vicente), agroindústria, mobiliário (eixo Paredes–Penafiel), turismo de natureza e religioso (Rota do Românico). A4 Porto–Vila Real e A41 (Concordância Norte) facilitam acessos.',
+    landmarks: [
+      'Mosteiro de Paço de Sousa (Panteão dos Sousões, Monumento Nacional)',
+      'Termas de São Vicente (águas sulfúreas)',
+      'Igreja de São Pedro de Cête (Rota do Românico)',
+      'Quinta da Aveleda (visita e provas de vinho verde)',
+      'Castelo de Penafiel (sítio arqueológico)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Penafiel com experiência em instalações rurais (poços, quintas vinhateiras, adegas), modernização de moradias antigas em granito e instalações de hotéis/alojamentos das Termas de São Vicente. Cumprimento das exigências de instalações húmidas em ambiente termal.',
+        localCases: [
+          'Modernização do quadro elétrico de uma adega vinhateira em Bustelo com instalação trifásica para prensas e bombas.',
+          'Instalação de iluminação anti-corrosão em zonas termais de São Vicente com proteção contra vapores sulfúricos.',
+          'Reparação de quadro elétrico inundado por enxurrada num apartamento de Rio de Moinhos com instalação de diferencial reforçado.',
+          'Instalação de carregador de viatura elétrica numa moradia recente de Guilhufe com adaptação do quadro existente.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Penafiel disponíveis para urgências em moradias rurais (captação por furo + rede pública), apartamentos urbanos, adegas vinhateiras e instalações termais com águas sulfúreas que exigem tubagens resistentes a corrosão química.',
+        localCases: [
+          'Substituição de tubagem em chumbo numa casa antiga em Paço de Sousa por tubo multicamada certificado, com licenças para zona de Rota do Românico.',
+          'Instalação de filtro descalcificador numa moradia rural em Lagares contra calcário do furo artesiano.',
+          'Reparação de fuga em sistema termal numa unidade hoteleira de São Vicente com tubagens em PPR resistentes a águas sulfúreas.',
+          'Desentupimento de saneamento numa adega em Bustelo após acumulação de sedimentos pós-vindima.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Penafiel especializados em fachadas de moradias em granito (vales do Sousa), restauro de pintura tradicional em zonas de património românico (Paço de Sousa), e pintura interior anti-bolor em casas com humidade ascensional típica dos vales.',
+        localCases: [
+          'Pintura de fachada de moradia em Eja com tratamento prévio do granito e tinta microporosa.',
+          'Restauro de pintura interior de casa antiga em Paço de Sousa após infiltrações sazonais.',
+          'Pintura completa de unidade hoteleira em Termas de São Vicente com tintas resistentes à humidade termal.',
+          'Pintura de adega vinhateira em Croca com tratamento anti-fungos das paredes antes da temporada de vindima.',
+        ],
+      },
+    },
   },
   {
     slug: 'amarante',
@@ -125,6 +232,60 @@ export const CITIES: CityData[] = [
     lng: -8.0831,
     freguesias: ['Amarante', 'Vila Meã', 'Fridão', 'Gatão', 'Gondar', 'Jazente', 'Lomba', 'Louredo', 'Mancelos', 'Padronelo', 'Real', 'Salvador do Monte', 'Travanca', 'Vila Chã do Marão', 'Olo', 'Telões', 'Candemil'],
     nearby: ['marco-de-canaveses', 'felgueiras', 'baiao'],
+    specialty: 'Cidade histórica do distrito do Porto na sub-região do Tâmega e Sousa, atravessada pelo rio Tâmega e marcada pela emblemática Ponte de São Gonçalo (séc. XVIII). Conhecida pelo Museu Amadeo de Souza-Cardoso (referência da arte moderna portuguesa), pelo doce conventual e pela Serra do Marão como pano de fundo. Reúne património românico, gastronomia tradicional e turismo de natureza no Parque Natural do Alvão (limítrofe).',
+    climateChallenges: [
+      'Clima continental temperado de transição com invernos frios (temperaturas médias 3–8 °C em janeiro) e episódios de neve nas zonas altas do Marão (Vila Chã do Marão), com risco de congelamento de tubagens exteriores',
+      'Humidade dos vales do Tâmega que provoca condensação severa em moradias mal isoladas, sobretudo nas fachadas voltadas a norte',
+      'Nevoeiros densos no inverno que aceleram a deterioração de tintas e fachadas, sobretudo nas zonas baixas junto ao rio',
+      'Casas centenárias em granito do centro histórico que exigem técnicas tradicionais de restauro de fachadas e impermeabilização compatíveis com a estética da Ponte de São Gonçalo',
+      'Quintas rurais com vinhas e olivais nas freguesias da Serra do Marão que exigem instalações elétricas com proteção contra picos de tensão (zonas afastadas da rede principal)',
+    ],
+    notableFreguesias: [
+      { name: 'Amarante (centro histórico)', context: 'Núcleo turístico em torno da Ponte de São Gonçalo, Igreja de São Gonçalo e Museu Amadeo de Souza-Cardoso. Alojamentos locais turísticos com necessidades constantes de manutenção, edifícios antigos com licenças específicas para obras.' },
+      { name: 'Vila Meã', context: 'Maior freguesia em população, com forte presença industrial (mobiliário, têxtil) e habitação coletiva — necessidades técnicas mistas residenciais e comerciais.' },
+      { name: 'Fridão', context: 'Freguesia rural junto à barragem do Tâmega — moradias unifamiliares e propriedades rurais com sistemas de rega próprios e captações independentes.' },
+      { name: 'Mancelos', context: 'Freguesia com Igreja Românica de São Martinho de Mancelos (Monumento Nacional, Rota do Românico). Casas antigas em granito que precisam de restauro especializado.' },
+      { name: 'Vila Chã do Marão', context: 'Zona alta junto à Serra do Marão (acima dos 800m), com invernos rigorosos e instalações que exigem proteção térmica reforçada contra geadas e neve sazonal.' },
+    ],
+    localEconomy: 'Turismo cultural e gastronómico (doces conventuais, restaurantes do centro histórico), vinho verde DOC do Tâmega, indústria do mobiliário em Vila Meã, agricultura de montanha (Marão), turismo de natureza (Parque Natural do Alvão limítrofe). A4 Porto–Vila Real atravessa o concelho.',
+    landmarks: [
+      'Ponte de São Gonçalo sobre o rio Tâmega (séc. XVIII)',
+      'Igreja e Convento de São Gonçalo (Monumento Nacional)',
+      'Museu Amadeo de Souza-Cardoso (arte moderna portuguesa)',
+      'Igreja Românica de São Martinho de Mancelos (Rota do Românico)',
+      'Serra do Marão e Parque Natural do Alvão (acessos pelo concelho)',
+      'Casa-Museu Teixeira de Pascoaes em Gatão',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Amarante com experiência em instalações de alojamentos locais turísticos do centro histórico, modernização de moradias antigas em granito (Mancelos, Padronelo), e instalações em zonas altas (Vila Chã do Marão) com proteção contra picos de tensão e geadas. Certificação RECE e cumprimento das exigências da Câmara para obras junto à Ponte de São Gonçalo.',
+        localCases: [
+          'Substituição de quadro elétrico num alojamento local do centro histórico após sobrecarga durante temporada turística.',
+          'Instalação de quadro estanque (IP65) numa moradia em Vila Chã do Marão com proteção contra geadas e descargas atmosféricas.',
+          'Modernização da rede elétrica de uma casa antiga em Mancelos com licenças para zona da Rota do Românico.',
+          'Reparação de portão automatizado numa quinta em Fridão após avaria por humidade prolongada.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Amarante disponíveis para urgências em moradias do centro histórico, quintas com captação própria (Fridão, Telões), alojamentos locais turísticos e instalações afetadas por geadas em zonas altas do Marão.',
+        localCases: [
+          'Reparação de tubagem rebentada por geada numa moradia em Vila Chã do Marão, com substituição por tubagem PEX isolada termicamente.',
+          'Instalação de termoacumulador num apartamento de Vila Meã com substituição da rede de água quente antiga.',
+          'Desentupimento de saneamento num restaurante do centro histórico após acumulação de gorduras, sem afetar o serviço diário.',
+          'Manutenção sazonal de sistema de rega numa quinta em Gondar antes da primavera.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Amarante especializados em fachadas em granito do centro histórico, restauro de pintura tradicional em zonas de património românico (Mancelos), e pintura interior anti-bolor em casas afetadas pela humidade dos vales do Tâmega.',
+        localCases: [
+          'Pintura de fachada de moradia em Gatão com tratamento prévio do granito e tinta microporosa.',
+          'Restauro da pintura de uma casa antiga em Mancelos com técnica tradicional autorizada pela Direção-Geral do Património Cultural.',
+          'Pintura interior de alojamento local no centro histórico com tintas anti-bolor após queixas de hóspedes sobre humidade.',
+          'Pintura de portão em ferro forjado numa moradia em Fridão após oxidação severa pela humidade ribeirinha.',
+        ],
+      },
+    },
   },
   {
     slug: 'baiao',
@@ -135,6 +296,58 @@ export const CITIES: CityData[] = [
     lng: -8.0350,
     freguesias: ['Baião', 'Ancede', 'Campelo', 'Frende', 'Gove', 'Loivos do Monte', 'Mesquinhata', 'Ovil', 'Ribadouro', 'Santa Cruz do Douro', 'Santa Marinha do Zêzere', 'Teixeira', 'Tresouras', 'Valadares', 'Viariz'],
     nearby: ['marco-de-canaveses', 'amarante'],
+    specialty: 'Concelho rural do distrito do Porto na margem norte do Douro vinhateiro, com cerca de 20 mil habitantes. Reconhecido pelos seus monumentos românicos (Mosteiro de Ancede), pela produção de vinho verde DOC do Sub-Região do Sousa e por integrar o Alto Douro Vinhateiro (Património Mundial UNESCO em parte das freguesias ribeirinhas). Paisagem dominada por vinhedos em socalcos, montanhas do Marão a norte e vales encaixados.',
+    climateChallenges: [
+      'Microclima variável entre as zonas ribeirinhas do Douro (Mediterrânico, verão quente) e as freguesias altas do Marão (continental, inverno rigoroso) — soluções técnicas distintas por freguesia',
+      'Inverno frio com nevoeiros densos nos vales que aceleram a oxidação de portões e gradeamentos exteriores',
+      'Vinhas em socalcos com sistemas de rega gravitacional que exigem canalizadores especializados para captações de cota alta e baixa',
+      'Casas vinhateiras antigas em xisto e granito que exigem técnicas tradicionais de restauro de fachadas, distintas das soluções para construção moderna',
+      'Adegas tradicionais com necessidades de climatização sazonal e canalizações para vinificação, manutenção pré-vindima (setembro) essencial',
+    ],
+    notableFreguesias: [
+      { name: 'Baião (sede)', context: 'Centro urbano e administrativo, com edifícios de habitação coletiva e estabelecimentos comerciais. Procura típica de manutenção urbana.' },
+      { name: 'Ancede e Ribadouro', context: 'Freguesias junto ao Douro com Mosteiro de Ancede (Rota do Românico, antigo Convento Beneditino). Vinhas em socalcos, casas vinhateiras tradicionais que exigem restauro especializado.' },
+      { name: 'Santa Marinha do Zêzere', context: 'Freguesia rural ribeirinha do Douro, parte do Alto Douro Vinhateiro UNESCO. Adegas familiares com necessidades técnicas específicas para vinificação.' },
+      { name: 'Teixeira', context: 'Zona alta do concelho junto à Serra de Aboboreira, com microclima frio e instalações que exigem proteção térmica reforçada.' },
+    ],
+    localEconomy: 'Vinho verde DOC do Sousa e Vinho do Douro (em zonas UNESCO), turismo de natureza (Serra do Marão, Aboboreira), gastronomia tradicional (Anho à Padeiro), agricultura. Acesso pelo IP4/A4 e linha férrea do Douro (estação de Mosteirô).',
+    landmarks: [
+      'Mosteiro de Ancede (Rota do Românico)',
+      'Igreja Românica de Santo André de Ancede',
+      'Pelourinho de Baião (Monumento Nacional)',
+      'Alto Douro Vinhateiro (Património UNESCO, em parte do concelho)',
+      'Serra de Aboboreira (arqueologia megalítica)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Baião com experiência em instalações rurais (adegas, vinhas com sistemas de rega), modernização de moradias em xisto e granito, e proteção contra picos de tensão em zonas altas (Teixeira, Mesquinhata) afastadas da rede principal.',
+        localCases: [
+          'Instalação trifásica para prensas de vinificação numa adega familiar em Santa Marinha do Zêzere.',
+          'Reparação de quadro elétrico inundado por nevoeiro denso numa moradia em Teixeira.',
+          'Modernização da rede elétrica de casa vinhateira em Ancede com licenças para zona da Rota do Românico.',
+          'Instalação de iluminação exterior em socalcos de vinha em Ribadouro com cabos enterrados protegidos.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Baião disponíveis para urgências em moradias rurais (captação por poço/furo), adegas vinhateiras com tubagens dedicadas à vinificação e sistemas de rega gravitacional em vinhas de socalcos.',
+        localCases: [
+          'Reparação de fuga em sistema de rega gravitacional numa vinha em Ribadouro antes da época de irrigação.',
+          'Substituição de tubagem em chumbo numa casa centenária em Ancede por multicamada certificado.',
+          'Instalação de bomba de pressão para abastecimento de adega em Santa Marinha do Zêzere com baixa pressão de rede.',
+          'Manutenção sazonal de tubagens de vinificação pré-vindima numa quinta em Frende.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Baião especializados em fachadas em xisto e granito de casas vinhateiras tradicionais, restauro de pintura em zonas de património românico (Ancede), e pintura interior anti-humidade em casas afetadas pelos nevoeiros dos vales.',
+        localCases: [
+          'Pintura de fachada de adega em Santa Marinha do Zêzere com tintas microporosas adequadas a paredes de xisto.',
+          'Restauro de pintura tradicional de casa antiga em Ancede compatível com a Rota do Românico.',
+          'Pintura interior de moradia em Teixeira após infiltrações pela laje, com tratamento anti-fungos.',
+          'Pintura de portão de ferro forjado numa quinta em Frende após oxidação prolongada.',
+        ],
+      },
+    },
   },
   {
     slug: 'felgueiras',
@@ -145,6 +358,58 @@ export const CITIES: CityData[] = [
     lng: -8.1979,
     freguesias: ['Felgueiras', 'Margaride', 'Lixa', 'Barrosas', 'Borba de Godim', 'Idães', 'Jugueiros', 'Moure', 'Pinheiro', 'Regilde', 'Refontoura', 'Revinhade', 'Sendim', 'Torrados', 'Varziela', 'Vila Cova da Lixa', 'Vila Fria', 'Vila Verde'],
     nearby: ['amarante', 'lousada', 'penafiel'],
+    specialty: 'Cidade do distrito do Porto na sub-região do Tâmega e Sousa, com cerca de 58 mil habitantes. Reconhecida internacionalmente como capital portuguesa do calçado de qualidade (mais de 250 fábricas concentradas no concelho) e pelo seu património românico (Mosteiro de Pombeiro, Igreja de Sousa). Atravessada pelo rio Sousa, com vinhas verdes DOC.',
+    climateChallenges: [
+      'Humidade dos vales do Sousa que provoca condensação em armazéns industriais e instalações fabris mal ventiladas — pintura industrial com tratamento anti-bolor essencial',
+      'Inverno frio (médias 5–9 °C em janeiro) com nevoeiros que aceleram a oxidação de portões e equipamentos exteriores em zonas industriais',
+      'Fábricas de calçado com necessidades técnicas específicas (instalações trifásicas para máquinas, ventilação industrial, exaustão de COV) distintas das habitações',
+      'Casas antigas em granito do centro histórico e Rota do Românico que exigem técnicas tradicionais de restauro',
+      'Sistemas de aquecimento central a gasóleo frequentes em moradias dos anos 1970–1990 que precisam de manutenção sazonal pré-inverno',
+    ],
+    notableFreguesias: [
+      { name: 'Felgueiras (sede) e Margaride', context: 'Centro urbano com edifícios de habitação coletiva, comércio e serviços. Maior densidade demográfica do concelho.' },
+      { name: 'Lixa, Vila Cova da Lixa e Borba de Godim', context: 'Zona industrial do calçado com fábricas concentradas — necessidades técnicas trifásicas, ventilação industrial e canalizações de alta pressão.' },
+      { name: 'Pombeiro de Ribavizela', context: 'Freguesia com Mosteiro de Pombeiro (Monumento Nacional, Rota do Românico). Casas antigas em granito com restauro especializado.' },
+      { name: 'Idães e Refontoura', context: 'Zonas rurais com vinhas e quintas tradicionais, captações próprias e adegas familiares.' },
+    ],
+    localEconomy: 'Indústria do calçado (Felgueiras é a capital portuguesa do calçado, com presença internacional — Lemon Jelly, Felmini, etc.), vinho verde DOC do Sousa, indústria têxtil, mobiliário. A11 Braga–Penafiel atravessa o concelho.',
+    landmarks: [
+      'Mosteiro de Pombeiro (Monumento Nacional, Rota do Românico)',
+      'Igreja Românica de Sousa (Rota do Românico)',
+      'Solar dos Magalhães (centro histórico)',
+      'Santuário de Nossa Senhora da Lapa',
+      'Polo Industrial do Calçado (Lixa/Vila Cova)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Felgueiras com experiência reconhecida em instalações industriais de fábricas de calçado (Lixa, Vila Cova da Lixa, Borba de Godim) — quadros trifásicos, ventilação industrial, sistemas de extração de COV — e modernização de moradias residenciais. Certificação RECE e cumprimento das normas técnicas para ambientes industriais.',
+        localCases: [
+          'Instalação trifásica completa numa unidade de calçado em Lixa com proteção contra arranque de motores.',
+          'Modernização de quadro elétrico de armazém industrial em Borba de Godim após inundação por chuvas intensas.',
+          'Reparação de sistema de exaustão de COV numa fábrica em Vila Cova da Lixa para cumprimento das normas de saúde ocupacional.',
+          'Instalação de iluminação LED em armazém industrial com redução do consumo energético de 40%.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Felgueiras com experiência em instalações industriais (fábricas de calçado, sistemas de tratamento de águas residuais) e em moradias residenciais com aquecimento central a gasóleo típico dos anos 1970–1990.',
+        localCases: [
+          'Manutenção de sistema de aquecimento central a gasóleo numa moradia em Margaride pré-inverno.',
+          'Reparação de canalização industrial de alta pressão numa fábrica de calçado em Lixa após avaria.',
+          'Instalação de termoacumulador num apartamento de Felgueiras centro com substituição da rede antiga.',
+          'Desentupimento de saneamento industrial num armazém em Vila Cova da Lixa.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Felgueiras especializados em pintura industrial para fábricas de calçado (tintas resistentes a COV, sinalização de segurança), fachadas residenciais e restauro de pintura tradicional em zonas de Rota do Românico (Pombeiro).',
+        localCases: [
+          'Pintura industrial de armazém em Lixa com tintas resistentes a vapores químicos do calçado.',
+          'Pintura de sinalização de segurança e zonas de circulação numa fábrica em Borba de Godim.',
+          'Restauro de pintura tradicional de casa antiga em Pombeiro compatível com a Rota do Românico.',
+          'Pintura completa de moradia em Margaride com tratamento anti-fungos das paredes orientadas a norte.',
+        ],
+      },
+    },
   },
   {
     slug: 'lousada',
@@ -216,6 +481,57 @@ export const CITIES: CityData[] = [
     lng: -8.3886,
     freguesias: ['Paços de Ferreira', 'Carvalhosa', 'Eiriz', 'Ferreira', 'Figueiró', 'Frazão', 'Lamoso', 'Meixomil', 'Modelos', 'Penamaior', 'Raimonda', 'Sanfins de Ferreira', 'Seroa'],
     nearby: ['lousada', 'penafiel', 'paredes'],
+    specialty: 'Cidade do distrito do Porto, conhecida como capital do móvel (Capital do Móvel de Portugal). Concelho com forte presença de empresas de fabrico e exportação de mobiliário (mais de 400 unidades industriais), com showrooms internacionalmente reconhecidos. Sede do Citadel Sanfins (importante sítio arqueológico castreja do séc. II a.C., Monumento Nacional).',
+    climateChallenges: [
+      'Humidade dos vales que afeta armazéns industriais com risco de bolor em zonas de stock de madeira não tratada',
+      'Naves industriais com grandes superfícies que exigem pintura técnica e impermeabilização de coberturas em chapa metálica sujeita a corrosão',
+      'Instalações fabris com necessidades trifásicas para máquinas de carpintaria (serras, plainas, lixadoras) e sistemas de aspiração centralizada de pó de madeira',
+      'Showrooms e lojas comerciais com necessidades de iluminação cuidada e climatização (controlo de humidade para mobiliário em exposição)',
+      'Casas residenciais antigas em granito (Sanfins, Figueiró) que exigem técnicas de restauro tradicionais',
+    ],
+    notableFreguesias: [
+      { name: 'Paços de Ferreira (sede) e Carvalhosa', context: 'Centro urbano e administrativo com showrooms de mobiliário e comércio. Maior densidade demográfica.' },
+      { name: 'Frazão e Modelos', context: 'Zonas industriais com elevada concentração de unidades de mobiliário — instalações trifásicas e ventilação industrial específicas.' },
+      { name: 'Sanfins de Ferreira', context: 'Freguesia com Citadel Sanfins (Monumento Nacional, sítio arqueológico castreja) — obras junto a património com licenças específicas.' },
+      { name: 'Figueiró e Lamoso', context: 'Zonas rurais e residenciais em crescimento, com novos lotes e moradias unifamiliares.' },
+    ],
+    localEconomy: 'Indústria do mobiliário (Capital do Móvel) — exportação para EU, EUA, Médio Oriente. Carpintaria, marcenaria, design de interiores. A41 Concordância Norte e A42 (Porto–Lordelo) facilitam acessos logísticos.',
+    landmarks: [
+      'Citadel de Sanfins (Monumento Nacional, séc. II a.C.)',
+      'Mosteiro de Ferreira (Rota do Românico)',
+      'Câmara Municipal de Paços de Ferreira (edifício histórico)',
+      'Polo industrial do Móvel (showrooms internacionais)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Paços de Ferreira com experiência em instalações industriais de fábricas de mobiliário (Frazão, Modelos) — quadros trifásicos, sistemas de aspiração centralizada de pó, iluminação de showrooms — e modernização de habitações residenciais. Cumprimento das normas de segurança industrial para ambientes com poeiras inflamáveis (madeira).',
+        localCases: [
+          'Instalação trifásica completa numa unidade de carpintaria em Frazão com proteção contra arranque de motores.',
+          'Sistema de aspiração centralizada de pó numa fábrica de mobiliário em Modelos com classificação ATEX.',
+          'Iluminação técnica de showroom de mobiliário no centro de Paços com regulação de intensidade para diferentes ambientes de exposição.',
+          'Modernização de quadro elétrico de moradia antiga em Sanfins com licenças para zona arqueológica.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Paços de Ferreira disponíveis para instalações industriais (fábricas de mobiliário, sistemas de pintura industrial), apartamentos urbanos e moradias rurais com captações próprias.',
+        localCases: [
+          'Reparação de canalização de água industrial numa fábrica em Frazão após avaria em sistema de pintura.',
+          'Manutenção de sistema de tratamento de águas residuais numa unidade industrial em Modelos.',
+          'Instalação de termoacumulador num apartamento de Paços centro.',
+          'Desentupimento de saneamento numa moradia em Figueiró com inspeção por câmara.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Paços de Ferreira especializados em pintura industrial de fábricas e armazéns de mobiliário (tintas resistentes a desgaste, sinalização de segurança), restauro de fachadas em zonas históricas, e pintura de showrooms com acabamentos premium.',
+        localCases: [
+          'Pintura industrial completa de armazém de mobiliário em Frazão com tintas resistentes a impactos.',
+          'Pintura de showroom em Paços centro com técnicas de acabamento sem marcas para destacar mobiliário em exposição.',
+          'Restauro de pintura tradicional de casa antiga em Sanfins compatível com zona arqueológica.',
+          'Sinalização de segurança industrial numa fábrica em Modelos com tintas refletoras.',
+        ],
+      },
+    },
   },
   {
     slug: 'paredes',
@@ -226,6 +542,57 @@ export const CITIES: CityData[] = [
     lng: -8.3310,
     freguesias: ['Paredes', 'Baltar', 'Beire', 'Besteiros', 'Bitarães', 'Campo', 'Cete', 'Cristelo', 'Duas Igrejas', 'Gandra', 'Lordelo', 'Louredo', 'Mouriz', 'Parada de Todeia', 'Rebordosa', 'Recarei', 'Sobreira', 'Sobrosa', 'Vandoma', 'Vila Cova de Carros', 'Vilela'],
     nearby: ['penafiel', 'pacos-de-ferreira', 'lousada'],
+    specialty: 'Cidade do distrito do Porto integrada na sub-região do Tâmega e Sousa, com cerca de 87 mil habitantes. Junto com Paços de Ferreira e Lousada, forma o triângulo do mobiliário do norte de Portugal. Reconhecida pela Igreja Românica de Cete (Mosteiro de Salvador de Cete), pelo património industrial e por uma forte tradição de carpintaria e marcenaria.',
+    climateChallenges: [
+      'Humidade dos vales do Sousa que afeta armazéns industriais de madeira e mobiliário com risco de bolor em stock',
+      'Inverno frio com nevoeiros densos que aceleram a oxidação de portões metálicos em zonas industriais',
+      'Naves industriais com cobertura em chapa metálica que exigem manutenção periódica de impermeabilização e tratamento anticorrosivo',
+      'Casas residenciais antigas em granito do centro histórico que exigem técnicas de restauro tradicionais',
+      'Sistemas de aspiração centralizada de pó de madeira em fábricas — manutenção elétrica especializada com normas ATEX',
+    ],
+    notableFreguesias: [
+      { name: 'Paredes (sede) e Castelões de Cepeda', context: 'Centro urbano e administrativo, com forte densidade comercial e habitação coletiva.' },
+      { name: 'Rebordosa e Gandra', context: 'Zonas industriais com forte presença de fábricas de mobiliário e marcenarias — instalações trifásicas e ventilação industrial específicas.' },
+      { name: 'Cete', context: 'Freguesia com Mosteiro de Salvador de Cete (Monumento Nacional, Rota do Românico). Casas antigas que exigem restauro especializado.' },
+      { name: 'Lordelo e Vilela', context: 'Zonas residenciais em crescimento com novos condomínios e moradias unifamiliares — procura de instalações elétricas modernas e domótica.' },
+    ],
+    localEconomy: 'Indústria do mobiliário (triângulo Paredes–Paços de Ferreira–Lousada), carpintaria, marcenaria, têxtil. A4 Porto–Vila Real e A41 Concordância Norte atravessam o concelho. Maior parque empresarial do Tâmega e Sousa.',
+    landmarks: [
+      'Mosteiro de Salvador de Cete (Monumento Nacional, Rota do Românico)',
+      'Igreja Românica de Vilela (Rota do Românico)',
+      'Solar de Lordelo (centro histórico)',
+      'Parque Empresarial de Paredes',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Paredes com experiência reconhecida em instalações industriais de fábricas de mobiliário (Rebordosa, Gandra) — quadros trifásicos, sistemas de aspiração ATEX, iluminação técnica — e modernização de habitações residenciais (Lordelo, Vilela). Certificação RECE e cumprimento das normas para ambientes com poeiras inflamáveis.',
+        localCases: [
+          'Instalação trifásica numa fábrica de mobiliário em Rebordosa com sistema de aspiração centralizada ATEX.',
+          'Modernização do quadro elétrico de moradia em Vilela com instalação de carregador de viatura elétrica.',
+          'Reparação de iluminação de armazém em Gandra após sinistro com substituição de luminárias estanques.',
+          'Modernização da rede elétrica de casa antiga em Cete com licenças para zona da Rota do Românico.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Paredes disponíveis para instalações industriais (fábricas de mobiliário, sistemas de pintura), apartamentos urbanos do centro, moradias residenciais e adegas familiares nas zonas rurais.',
+        localCases: [
+          'Reparação de canalização industrial numa fábrica em Gandra após avaria em sistema de pintura.',
+          'Substituição de tubagem em chumbo numa casa antiga em Cete por multicamada certificado.',
+          'Instalação de termoacumulador num apartamento de Paredes centro.',
+          'Manutenção de sistema de aquecimento central a gasóleo numa moradia em Lordelo pré-inverno.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Paredes especializados em pintura industrial de fábricas e armazéns de mobiliário, fachadas residenciais e restauro de pintura tradicional em zonas de Rota do Românico (Cete, Vilela).',
+        localCases: [
+          'Pintura industrial de armazém de mobiliário em Rebordosa com tintas resistentes a impactos e desgaste.',
+          'Restauro de pintura tradicional de casa antiga em Cete compatível com a Rota do Românico.',
+          'Pintura completa de moradia em Lordelo com tratamento anti-fungos das paredes orientadas a norte.',
+          'Pintura de portão em ferro forjado numa casa antiga em Vilela após oxidação prolongada.',
+        ],
+      },
+    },
   },
   {
     slug: 'porto',
@@ -364,6 +731,60 @@ export const CITIES: CityData[] = [
     lng: -8.4200,
     freguesias: ['Braga', 'Adaúfe', 'Aveleda', 'Cabreiros', 'Celeirós', 'Crespos', 'Dume', 'Escudeiros', 'Figueiredo', 'Fraião', 'Gualtar', 'Guimarães de S. Torcato', 'Lamas', 'Lomar', 'Long', 'Maximinos', 'Merelim (S. Paio)', 'Merelim (S. Pedro)', 'Mire de Tibães', 'Morreira', 'Nogueira', 'Nogueiró', 'Palmeira', 'Priscos', 'Real', 'Ruilhe', 'S. Lázaro', 'S. Vítor', 'Sequeira', 'Sobreposta', 'Tadim', 'Tebosa', 'This'],
     nearby: ['guimaraes', 'barcelos', 'famalicao'],
+    specialty: 'Capital de distrito e arquidiocese, terceira maior cidade de Portugal continental com cerca de 193 mil habitantes. Cidade romana fundada em 16 a.C. (Bracara Augusta), reconhecida como capital religiosa do país (Sé de Braga é a mais antiga catedral em Portugal). Centro universitário (Universidade do Minho, 20 000 estudantes) que dinamiza fortemente o mercado de arrendamento. Sede de várias multinacionais tecnológicas (Bosch Car Multimedia, APTIV). Conhecida pelas suas festas de São João (junho) e pelas suas igrejas barrocas (Bom Jesus do Monte).',
+    climateChallenges: [
+      'Humidade do Vale do Cávado (média 80 % anual) que provoca condensação severa em apartamentos de habitação coletiva mal ventilados — sobretudo em São Vítor, São Lázaro e Maximinos',
+      'Edifícios históricos barrocos do centro (Sé, São Vicente, Maximinos) que exigem técnicas de restauro tradicionais autorizadas pela Direção-Geral do Património Cultural',
+      'Apartamentos de alojamento estudantil com alta rotatividade (Gualtar, polo universitário) que necessitam de manutenção frequente de canalizações, instalações elétricas e pintura entre arrendamentos',
+      'Inverno chuvoso (média 1 400 mm/ano) com sobrecarga de telhados em granito antigos que exigem impermeabilização periódica',
+      'Maresia indirecta (a 30 km da costa) que afeta gradeamentos e portões metálicos em moradias das freguesias norte (Adaúfe, Palmeira)',
+    ],
+    notableFreguesias: [
+      { name: 'Braga (sé, São João do Souto e São Lázaro)', context: 'Centro histórico UNESCO com Sé Catedral, edifícios barrocos protegidos e alojamentos locais turísticos. Obras com licenças específicas, técnicas tradicionais para fachadas em granito.' },
+      { name: 'Gualtar', context: 'Polo universitário com Universidade do Minho — forte concentração de alojamento estudantil. Procura constante de canalizadores, eletricistas e pintores para manutenção entre arrendamentos.' },
+      { name: 'Maximinos', context: 'Freguesia histórica com Igreja de São Vicente, mistura habitação antiga e nova. Forte procura de modernização de instalações pré-1980.' },
+      { name: 'Adaúfe e Palmeira', context: 'Freguesias rurais do norte do concelho, com moradias unifamiliares e quintas — necessidades técnicas mistas residenciais e agrícolas.' },
+      { name: 'Real, Dume e Semelhe', context: 'Zona universitária e residencial moderna com novos lotes e moradias — procura de instalações elétricas com domótica e carregadores de viatura elétrica.' },
+    ],
+    localEconomy: 'Universidade do Minho (Gualtar), polo tecnológico (Bosch Car Multimedia, APTIV, BSE — uma das maiores fábricas tecnológicas de Portugal em Braga), turismo religioso (Bom Jesus do Monte, Sameiro), comércio retalho (BragaParque, NorteShopping vizinho em Senhora da Hora), serviços. A3 Porto–Valença e A11 atravessam o concelho.',
+    landmarks: [
+      'Sé Catedral de Braga (Monumento Nacional, séc. XI — a mais antiga em Portugal)',
+      'Santuário do Bom Jesus do Monte (Património Mundial UNESCO 2019)',
+      'Santuário do Sameiro',
+      'Mosteiro de Tibães (Mire de Tibães)',
+      'Termas Romanas (vestígios de Bracara Augusta)',
+      'Universidade do Minho (campus Gualtar)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas em Braga com experiência em instalações de alojamentos estudantis universitários (Gualtar, Real), modernização de quadros elétricos em edifícios barrocos do centro histórico UNESCO, e instalações tecnológicas (carregadores VE, domótica) em moradias modernas das freguesias residenciais. Cumprimento das normas para zonas históricas e certificação RECE da DGEG.',
+        localCases: [
+          'Substituição de quadro elétrico num alojamento estudantil em Gualtar após sobrecarga típica de início de ano letivo.',
+          'Modernização da rede elétrica de apartamento no centro histórico de Braga com licenças para zona UNESCO.',
+          'Instalação de carregador de viatura elétrica numa moradia em Real com adaptação trifásica.',
+          'Reparação de iluminação exterior numa rua histórica em São Vicente com luminárias compatíveis com regulamento UNESCO.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores em Braga disponíveis 7 dias por semana, com conhecimento das particularidades das canalizações em chumbo de edifícios históricos do centro, alta rotatividade de instalações em alojamento estudantil (Gualtar) e necessidades técnicas modernas em zonas residenciais novas.',
+        localCases: [
+          'Substituição completa de canalização em chumbo num apartamento histórico do centro de Braga por tubo multicamada certificado.',
+          'Manutenção urgente de canalizações de alojamento estudantil em Gualtar com problemas pós-arrendamento.',
+          'Reparação de fuga de água com câmara endoscópica numa moradia em Maximinos, evitando demolição de azulejos antigos.',
+          'Instalação de termoacumulador num apartamento de São Lázaro com substituição da rede de água quente.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores em Braga especializados em fachadas em granito do centro histórico UNESCO, restauro de pintura tradicional em edifícios barrocos (Sé, São Vicente), pintura de alojamento estudantil universitário (manutenção rápida entre arrendamentos) e pintura interior anti-humidade em apartamentos do Vale do Cávado.',
+        localCases: [
+          'Restauro de fachada barroca em São João do Souto com tintas microporosas autorizadas pela DGPC.',
+          'Pintura completa de apartamento estudantil em Gualtar entre arrendamentos com técnica de secagem rápida.',
+          'Pintura de moradia em Real com tratamento anti-fungos das paredes orientadas a norte.',
+          'Restauro de pintura interior de casa antiga em Maximinos após infiltrações da laje.',
+        ],
+      },
+    },
   },
   {
     slug: 'maia',
@@ -374,6 +795,59 @@ export const CITIES: CityData[] = [
     lng: -8.6205,
     freguesias: ['Águas Santas', 'Avioso (Santa Maria)', 'Avioso (S. Pedro)', 'Barca', 'Castêlo da Maia', 'Folgosa', 'Gueifães', 'Maia', 'Milheiroços', 'Moreira', 'Nogueira', 'Pedrouços', 'S. Pedro Fins', 'Silva Escura', 'Vermoim', 'Vila Nova da Telha'],
     nearby: ['porto', 'matosinhos', 'valongo'],
+    specialty: 'Cidade do Grande Porto com cerca de 135 mil habitantes, sede do principal Aeroporto Internacional do Norte de Portugal (Francisco Sá Carneiro, em Vila Nova da Telha/Moreira). Pólo industrial e logístico de referência (Maia BusinessPark, polo aeronáutico), com forte presença de multinacionais. Atravessada pela A3 Porto–Valença, A4 Porto–Vila Real e VRI/A41, sendo um nó rodoviário fundamental.',
+    climateChallenges: [
+      'Maresia atlântica indirecta (a 8 km do oceano) que ainda afeta portões metálicos e gradeamentos em moradias das freguesias oeste (Vermoim, Vila Nova da Telha)',
+      'Edifícios de habitação coletiva dos anos 1970–1990 com instalações elétricas e canalizações que necessitam de modernização — quadros sem diferencial, tubagens em chumbo, sistemas de aquecimento central a gasóleo',
+      'Zonas industriais (Maia BusinessPark, polos logísticos junto ao aeroporto) com necessidades técnicas pesadas — quadros trifásicos, sistemas de exaustão industrial, iluminação de armazéns',
+      'Ruído aeroportuário em Moreira e Vila Nova da Telha que requer pintura técnica anti-ruído e isolamento acústico cuidado em moradias próximas',
+      'Forte densidade habitacional no centro da Maia que cria pressão sobre redes de saneamento antigas — desentupimentos frequentes em apartamentos',
+    ],
+    notableFreguesias: [
+      { name: 'Maia (sede) e Castêlo da Maia', context: 'Centro urbano administrativo e comercial, com forte densidade de habitação coletiva. Procura constante de manutenção de apartamentos.' },
+      { name: 'Águas Santas', context: 'Freguesia residencial densa em forte transformação, com edifícios antigos em reabilitação. Procura de modernização de instalações pré-1980.' },
+      { name: 'Moreira e Vila Nova da Telha', context: 'Zona aeroportuária com hotéis, residências de pessoal de cabine e instalações logísticas. Pintura anti-ruído e isolamento acústico essenciais.' },
+      { name: 'Vermoim', context: 'Polo industrial Maia BusinessPark com fábricas e armazéns logísticos — instalações trifásicas, ventilação industrial.' },
+      { name: 'Folgosa e Silva Escura', context: 'Zonas mais rurais do concelho com moradias unifamiliares e algumas quintas — necessidades mistas.' },
+    ],
+    localEconomy: 'Aeroporto Francisco Sá Carneiro (em Moreira), Maia BusinessPark (polo logístico), polo aeronáutico (TAP Air Portugal MRO), comércio retalho (NorteShopping), indústria têxtil e alimentar. Hub logístico do Norte de Portugal devido à interseção de A3, A4, A41 e proximidade do Porto de Leixões.',
+    landmarks: [
+      'Aeroporto Francisco Sá Carneiro (Moreira/Vila Nova da Telha)',
+      'Mosteiro de Vairão (limítrofe Vila do Conde)',
+      'Igreja Românica de Águas Santas (Rota do Românico)',
+      'Maia BusinessPark (polo industrial)',
+      'Forum Maia (centro cultural)',
+    ],
+    contentUpdatedAt: '2026-05-11',
+    serviceCityOverrides: {
+      'eletricista': {
+        intro: 'Eletricistas na Maia com experiência reconhecida em instalações industriais e logísticas (Maia BusinessPark, polo aeronáutico), modernização de apartamentos dos anos 1970–1990 (Águas Santas, Castêlo da Maia), e instalações em zonas aeroportuárias com normas técnicas específicas. Certificação RECE e cumprimento das normas para ambientes industriais e logísticos.',
+        localCases: [
+          'Instalação trifásica completa numa unidade logística no Maia BusinessPark com proteção contra arranque de motores de empilhadores.',
+          'Modernização do quadro elétrico de apartamento em Águas Santas com instalação de diferencial e proteções modernas.',
+          'Instalação de carregador de viatura elétrica numa moradia em Castêlo da Maia.',
+          'Reparação de iluminação de armazém em Vermoim após inundação por chuvas intensas.',
+        ],
+      },
+      'canalizador': {
+        intro: 'Canalizadores na Maia disponíveis para urgências em apartamentos densos do centro, instalações industriais do BusinessPark e moradias residenciais. Conhecimento das particularidades das redes de saneamento antigas do centro urbano.',
+        localCases: [
+          'Desentupimento de saneamento numa coluna de apartamentos em Águas Santas com inspeção por câmara.',
+          'Substituição de canalização industrial numa unidade logística em Vermoim após avaria.',
+          'Manutenção de sistema de aquecimento central a gasóleo numa moradia em Castêlo da Maia pré-inverno.',
+          'Reparação de fuga em sistema sanitário num hotel em Moreira (zona aeroportuária) sem interrupção do serviço aos hóspedes.',
+        ],
+      },
+      'pintor': {
+        intro: 'Pintores na Maia especializados em pintura industrial de armazéns logísticos do BusinessPark, pintura anti-ruído em moradias da zona aeroportuária (Moreira, Vila Nova da Telha), e modernização de apartamentos residenciais do centro urbano.',
+        localCases: [
+          'Pintura industrial completa de armazém logístico em Vermoim com tintas resistentes a desgaste e sinalização de segurança.',
+          'Pintura anti-ruído de moradia em Moreira com isolamento acústico das paredes voltadas ao aeroporto.',
+          'Pintura completa de apartamento em Maia centro com cores neutras para fins de arrendamento.',
+          'Pintura de fachada de moradia em Castêlo da Maia com tratamento prévio de fungos e tinta microporosa.',
+        ],
+      },
+    },
   },
 
   // ============================================================
