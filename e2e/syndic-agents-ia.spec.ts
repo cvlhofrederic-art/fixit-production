@@ -104,3 +104,33 @@ test.describe('Syndic Agents IA — parcours complet (Task 27)', () => {
     ).toBeVisible()
   })
 })
+
+test.describe('Alfredo proactive (Plan C)', () => {
+  test.skip(!SHOULD_RUN, 'Requires Plan C deployed + Gmail connected test account')
+
+  test('Alfredo apparaît dans la sidebar agents_ia', async ({ page }) => {
+    await page.goto('/syndic/dashboard?test_role=syndic_admin')
+    await expect(page.getByRole('button', { name: /Alfredo/i })).toBeVisible()
+  })
+
+  test('click Alfredo ouvre mode Inbox par défaut', async ({ page }) => {
+    await page.goto('/syndic/dashboard?test_role=syndic_admin')
+    await page.getByRole('button', { name: /Alfredo/i }).click()
+    await expect(page.getByRole('button', { name: /^📬 Inbox$/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^💬 (Discussion|Conversa)$/i })).toBeVisible()
+  })
+
+  test('toggle vers mode Discussion ouvre le chat', async ({ page }) => {
+    await page.goto('/syndic/dashboard?test_role=syndic_admin')
+    await page.getByRole('button', { name: /Alfredo/i }).click()
+    await page.getByRole('button', { name: /💬 (Discussion|Conversa)/i }).click()
+    await expect(page.getByPlaceholder(/Tape ou parle|Escreva ou fale/i)).toBeVisible()
+  })
+
+  test('mode Inbox affiche "Aucun brouillon en attente" si vide', async ({ page }) => {
+    await page.goto('/syndic/dashboard?test_role=syndic_admin')
+    await page.getByRole('button', { name: /Alfredo/i }).click()
+    // Inbox active par défaut
+    await expect(page.getByText(/Aucun brouillon en attente|Sem rascunhos pendentes/i)).toBeVisible()
+  })
+})
