@@ -44,6 +44,7 @@ interface SpeechRecognition extends EventTarget {
   abort(): void
 }
 
+// eslint-disable-next-line no-var -- ambient type declaration requires `var`
 declare var SpeechRecognition: {
   prototype: SpeechRecognition
   new (): SpeechRecognition
