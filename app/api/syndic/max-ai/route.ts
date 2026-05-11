@@ -4,6 +4,9 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { callGroqWithRetry, callGroqStreaming, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
+import { buildMaxSystemPromptFR } from '@/lib/syndic/prompts/max/system-prompt-fr'
+import { buildMaxSystemPromptPT } from '@/lib/syndic/prompts/max/system-prompt-pt'
+import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
 
 export const maxDuration = 30
 
@@ -60,6 +63,8 @@ interface EcheanceSummary { immeuble: string; label: string; dateEcheance: strin
 interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
 interface CopropriSummary { prenom?: string; nom?: string; immeuble: string; batiment?: string; etage?: string; porte?: string; email?: string; telephone?: string; locataire?: string }
 
+// ── LEGACY: Ces fonctions sont conservées pour référence. La logique active est dans
+// lib/syndic/prompts/max/system-prompt-{fr,pt}.ts (Tasks 25). Ne pas supprimer avant validation.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
 function buildContextBlock(ctx: Record<string, any>, userRole: string, isPt: boolean): string {
   const loc = isPt ? 'pt-PT' : 'fr-FR'
@@ -308,9 +313,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // ── LEGACY: buildFrSystemPrompt / buildPtSystemPrompt (inline ci-dessous) — remplacées par les modules dédiés
     const systemPrompt = isPt
-      ? buildPtSystemPrompt(syndic_context, userRole)
-      : buildFrSystemPrompt(syndic_context, userRole)
+      ? buildMaxSystemPromptPT(syndic_context as MaxPromptContext, userRole)
+      : buildMaxSystemPromptFR(syndic_context as MaxPromptContext, userRole)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
