@@ -88,8 +88,11 @@ function deepSanitize<T>(
   }
   if (visited.has(value as object)) return value
   visited.add(value as object)
-  const out: Record<string, unknown> = {}
+  const out: Record<string, unknown> = Object.create(null)
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    // Garde anti-prototype-pollution : refuser les clés dangereuses au cas
+    // où l'objet en entrée aurait été construit avec hasOwnProperty('__proto__').
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue
     out[k] = deepSanitize(v, tokenMap, valueToToken, salt, visited, depth + 1)
   }
   return out as unknown as T
