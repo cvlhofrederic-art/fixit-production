@@ -7,6 +7,7 @@ import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
 import { buildMaxSystemPromptFR } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { buildMaxSystemPromptPT } from '@/lib/syndic/prompts/max/system-prompt-pt'
 import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
+import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 
 export const maxDuration = 30
 
@@ -313,10 +314,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
+    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(syndic_context as MaxPromptContext)
+
     // ── LEGACY: buildFrSystemPrompt / buildPtSystemPrompt (inline ci-dessous) — remplacées par les modules dédiés
     const systemPrompt = isPt
-      ? buildMaxSystemPromptPT(syndic_context as MaxPromptContext, userRole)
-      : buildMaxSystemPromptFR(syndic_context as MaxPromptContext, userRole)
+      ? buildMaxSystemPromptPT(sanitizedCtx, userRole)
+      : buildMaxSystemPromptFR(sanitizedCtx, userRole)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
@@ -331,12 +335,86 @@ export async function POST(request: NextRequest) {
     // ── Mode streaming SSE ──
     if (stream) {
       try {
-        const sseStream = await callGroqStreaming({
+        const rawStream = await callGroqStreaming({
           messages,
           temperature: 0.4,
           max_tokens: 4000,
         })
-        return new Response(sseStream, {
+
+        // Envelopper le stream pour résoudre les tokens PII dans chaque chunk SSE.
+        // Buffering pour éviter les tokens coupés entre deux chunks (ex: `<email:abc` / `12345>`).
+        const encoder = new TextEncoder()
+        const decoder = new TextDecoder()
+        let chunkBuffer = ''
+
+        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            const text = decoder.decode(chunk, { stream: true })
+            // Chaque chunk peut contenir plusieurs lignes SSE
+            const lines = text.split('\n')
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed.startsWith('data: ')) {
+                // Lignes vides ou autres — passer telles quelles
+                controller.enqueue(encoder.encode(line + '\n'))
+                continue
+              }
+              const payload = trimmed.slice(6)
+              if (payload === '[DONE]') {
+                // Flush le buffer résiduel avant [DONE]
+                if (chunkBuffer) {
+                  const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+                  chunkBuffer = ''
+                }
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+                continue
+              }
+              try {
+                const json = JSON.parse(payload)
+                const delta: string | undefined = json.text
+                if (delta === undefined) {
+                  // Chunk sans texte (ex: métadonnées) — passer tel quel
+                  controller.enqueue(encoder.encode(line + '\n'))
+                  continue
+                }
+                chunkBuffer += delta
+                // Détection d'un token en cours de formation (ouvert mais pas encore fermé)
+                const lastOpen = chunkBuffer.lastIndexOf('<')
+                const lastClose = chunkBuffer.lastIndexOf('>')
+                if (lastOpen > lastClose) {
+                  // Token potentiellement coupé : flush jusqu'au '<' et garder la suite
+                  const toFlush = chunkBuffer.slice(0, lastOpen)
+                  chunkBuffer = chunkBuffer.slice(lastOpen)
+                  if (toFlush) {
+                    const resolved = resolveSanitizedToken(toFlush, tokenMap) ?? toFlush
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+                  }
+                } else {
+                  // Pas de token en cours — flush tout
+                  const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+                  chunkBuffer = ''
+                }
+              } catch {
+                // Chunk JSON malformé — passer tel quel
+                controller.enqueue(encoder.encode(line + '\n'))
+              }
+            }
+          },
+          flush(controller) {
+            // Flush final au cas où le stream se termine sans [DONE]
+            if (chunkBuffer) {
+              const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
+              chunkBuffer = ''
+            }
+          },
+        })
+
+        rawStream.pipeTo(writable).catch(() => { /* stream annulé côté client — ignorer */ })
+
+        return new Response(readable, {
           headers: {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -372,7 +450,9 @@ export async function POST(request: NextRequest) {
       ? 'Não consegui gerar uma resposta. Tente novamente.'
       : 'Je n\'ai pas pu générer une réponse. Réessayez.'
 
-    const response: string = groqData.choices?.[0]?.message?.content || fallbackMsg
+    const rawResponse: string = groqData.choices?.[0]?.message?.content || fallbackMsg
+    // Résoudre les tokens PII dans la réponse finale
+    const response = resolveSanitizedToken(rawResponse, tokenMap) ?? rawResponse
 
     return NextResponse.json({ response, role: userRole })
 
