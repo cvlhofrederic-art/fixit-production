@@ -30,6 +30,7 @@ import {
 import { mapLegalFormToCode, titleCaseAddress } from '@/lib/devis-utils'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
+import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
   mulMoney,
   sumMoney,
@@ -1526,6 +1527,9 @@ export default function DevisFactureFormBTP({
         companyPhone, companyEmail,
         tvaEnabled, tvaNumber: tvaNumber || '', companyAPE: companyAPE || '',
         insuranceName: insuranceName || '', insuranceNumber: insuranceNumber || '', insuranceCoverage: insuranceCoverage || '', insuranceType,
+        decennaleEligibility: getDecennaleEligibility(
+          ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
+        ),
         mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: detectedClientType === 'particulier',
         clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType: detectedClientType,
         interventionAddress: interventionAddress || '', interventionBatiment: interventionBatiment || '', interventionEtage: interventionEtage || '',
@@ -2735,7 +2739,20 @@ export default function DevisFactureFormBTP({
               <div className="ico">🛡️</div>
               <div className="txt">
                 <div className="ttl">Garanties légales applicables (mention automatique sur le PDF)</div>
-                <div className="sub">Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · Garantie légale de conformité (art. L. 217-3 C. conso.) · Garantie des vices cachés (art. 1641 C. civ.).</div>
+                <div className="sub">
+                  {(() => {
+                    const elig = getDecennaleEligibility(
+                      ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
+                    )
+                    if (elig === 'never') {
+                      return "Prestation de service hors champ d'application de l'art. 1792 C. civ. (garanties 1792 réservées aux ouvrages de construction). Responsabilité contractuelle de droit commun (art. 1231-1 C. civ.) · Garantie des vices cachés (art. 1641 C. civ.) sur les biens fournis."
+                    }
+                    if (elig === 'conditional') {
+                      return "Garanties 1792 applicables uniquement si l'intervention constitue un ouvrage : parfait achèvement (1 an, art. 1792-6) · biennale (2 ans, art. 1792-3) · décennale (10 ans, art. 1792). Sinon : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.)."
+                    }
+                    return 'Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · Garantie légale de conformité (art. L. 217-3 C. conso.) · Garantie des vices cachés (art. 1641 C. civ.).'
+                  })()}
+                </div>
               </div>
             </div>
           </div>
@@ -2977,11 +2994,27 @@ export default function DevisFactureFormBTP({
               )}
 
               {/* ═══ 8. GARANTIES LÉGALES BTP ═══ */}
-              {locale === 'pt' ? (
-                <>GARANTIAS LEGAIS : garantia de defeitos de construção (5 anos, art. 1225.º do Código Civil Português). Garantia legal de conformidade (Lei n.º 24/96). Garantia de vícios ocultos (art. 913.º do Código Civil).<br /><br /></>
-              ) : (
-                <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
-              )}
+              {(() => {
+                const elig = getDecennaleEligibility(
+                  ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
+                )
+                if (locale === 'pt') {
+                  if (elig === 'never') {
+                    return <>GARANTIAS : prestação de serviços fora do âmbito do art. 1225.º do Código Civil. Responsabilidade contratual de direito comum (art. 798.º) · Garantia de vícios ocultos (art. 913.º).<br /><br /></>
+                  }
+                  if (elig === 'conditional') {
+                    return <>GARANTIAS : garantia de defeitos de construção (art. 1225.º, 5 anos) aplicável apenas em caso de execução de obra. Para prestações de manutenção : responsabilidade contratual de direito comum (art. 798.º).<br /><br /></>
+                  }
+                  return <>GARANTIAS LEGAIS : garantia de defeitos de construção (5 anos, art. 1225.º do Código Civil Português). Garantia legal de conformidade (Lei n.º 24/96). Garantia de vícios ocultos (art. 913.º do Código Civil).<br /><br /></>
+                }
+                if (elig === 'never') {
+                  return <>PRESTATION DE SERVICE : hors champ d&apos;application de l&apos;art. 1792 C. civ. (garanties réservées aux ouvrages de construction). Responsabilité contractuelle de droit commun (art. 1231-1 C. civ.) · Garantie des vices cachés (art. 1641 C. civ.) applicable aux biens fournis.<br /><br /></>
+                }
+                if (elig === 'conditional') {
+                  return <>GARANTIES LÉGALES : applicables uniquement aux travaux constituant un ouvrage (art. 1792 C. civ.) — parfait achèvement (1 an, art. 1792-6), biennale (2 ans, art. 1792-3), décennale (10 ans, art. 1792). Prestations d&apos;entretien : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.).<br /><br /></>
+                }
+                return <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
+              })()}
 
               {/* ═══ 9. GESTION DES DÉCHETS — obligatoire BTP France depuis 01/07/2021 (loi AGEC) ═══ */}
               {locale !== 'pt' && docType === 'devis' && (
