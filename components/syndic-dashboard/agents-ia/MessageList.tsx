@@ -80,6 +80,7 @@ export default function MessageList({
                 fontSize: 14,
                 lineHeight: 1.55,
               }}
+              // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- contenu sanitizé via safeMarkdownToHTML (lib/sanitize.ts) avant injection
               dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(m.content) }}
             />
             {m.role === 'assistant' && crossAgentReferrals.length > 0 && onSendToAgent && (
@@ -137,6 +138,7 @@ export default function MessageList({
               fontSize: 14,
               lineHeight: 1.55,
             }}
+            // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- contenu sanitizé via safeMarkdownToHTML (lib/sanitize.ts) avant injection
             dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(streamingPartial) }}
           />
         </div>

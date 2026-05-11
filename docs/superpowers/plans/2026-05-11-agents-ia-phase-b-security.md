@@ -700,8 +700,8 @@ describe('OAuth tokens encryption wrapper', () => {
 
       await setEncryptedToken(mockClient, {
         syndic_id: 's1',
-        access_token: 'ya29.A0...',
-        refresh_token: '1//0g...',
+        access_token: 'mock-access-token',
+        refresh_token: 'mock-refresh-token',
         expires_at: new Date(Date.now() + 3600_000).toISOString(),
       })
 
@@ -709,15 +709,15 @@ describe('OAuth tokens encryption wrapper', () => {
         'set_encrypted_oauth_token',
         expect.objectContaining({
           p_syndic_id: 's1',
-          p_access_token: 'ya29.A0...',
-          p_refresh_token: '1//0g...',
+          p_access_token: 'mock-access-token',
+          p_refresh_token: 'mock-refresh-token',
         })
       )
     })
 
     it('getDecryptedToken appelle pgp_sym_decrypt via RPC', async () => {
       const rpcMock = vi.fn().mockResolvedValue({
-        data: { access_token: 'ya29.A0...', refresh_token: '1//0g...', expires_at: '2026-05-12T00:00:00Z' },
+        data: { access_token: 'mock-access-token', refresh_token: 'mock-refresh-token', expires_at: '2026-05-12T00:00:00Z' },
         error: null,
       })
       mockClient = { rpc: rpcMock }
@@ -728,7 +728,7 @@ describe('OAuth tokens encryption wrapper', () => {
         'get_decrypted_oauth_token',
         expect.objectContaining({ p_syndic_id: 's1' }),
       )
-      expect(result?.access_token).toBe('ya29.A0...')
+      expect(result?.access_token).toBe('mock-access-token')
     })
 
     it('getDecryptedToken retourne null si syndic inconnu', async () => {

@@ -50,8 +50,8 @@ describe('OAuth tokens encryption wrapper', () => {
       const { setEncryptedToken } = await import('@/lib/oauth/tokens')
       await setEncryptedToken(mockClient, {
         syndic_id: 's1',
-        access_token: 'ya29.A0...',
-        refresh_token: '1//0g...',
+        access_token: 'mock-access-token',
+        refresh_token: 'mock-refresh-token',
         expires_at: new Date(Date.now() + 3600_000).toISOString(),
       })
 
@@ -68,8 +68,8 @@ describe('OAuth tokens encryption wrapper', () => {
         'set_encrypted_oauth_token',
         expect.objectContaining({
           p_syndic_id: 's1',
-          p_access_token: 'ya29.A0...',
-          p_refresh_token: '1//0g...',
+          p_access_token: 'mock-access-token',
+          p_refresh_token: 'mock-refresh-token',
         }),
       )
     })
@@ -111,8 +111,8 @@ describe('OAuth tokens encryption wrapper', () => {
         .mockResolvedValueOnce({ data: null, error: null })
         .mockResolvedValueOnce({
           data: [{
-            access_token: 'ya29.A0...',
-            refresh_token: '1//0g...',
+            access_token: 'mock-access-token',
+            refresh_token: 'mock-refresh-token',
             expires_at: '2026-05-12T00:00:00Z',
           }],
           error: null,
@@ -121,8 +121,8 @@ describe('OAuth tokens encryption wrapper', () => {
 
       const { getDecryptedToken } = await import('@/lib/oauth/tokens')
       const result = await getDecryptedToken(mockClient, 's1')
-      expect(result?.access_token).toBe('ya29.A0...')
-      expect(result?.refresh_token).toBe('1//0g...')
+      expect(result?.access_token).toBe('mock-access-token')
+      expect(result?.refresh_token).toBe('mock-refresh-token')
     })
   })
 })

@@ -6,7 +6,9 @@
  * Cf. spec §3.7.
  */
 
-const EMAIL_RE = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g
+// Regex local part bounded à 64 chars + domain labels séparés par dots explicites
+// pour éviter le ReDoS quadratique de `[a-zA-Z0-9.-]+\.` (chevauchement classe + littéral).
+const EMAIL_RE = /([a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9-]{1,63}(?:\.[a-zA-Z0-9-]{1,63}){0,8}\.[a-zA-Z]{2,24})/g
 const IBAN_RE =
   /\b([A-Z]{2}[0-9]{2}(?:(?:\s[A-Z0-9]{4}){2,7}(?:\s[A-Z0-9]{1,3})?|[A-Z0-9]{11,30}))\b/g
 const PHONE_FR_RE = /(?:\+33|0033|0)[\s.-]?[1-9](?:[\s.-]?\d{2}){4}/g
@@ -100,7 +102,12 @@ export function sanitizeContextForLLM<T>(
   void options // placeholder pour évolution future (keepFirstName)
   const tokenMap = new Map<string, string>()
   const valueToToken = new Map<string, string>()
-  const salt = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  // Salt cryptographique via Web Crypto (cross-runtime : Node / Workers / browser).
+  // Le salt n'est utilisé que pour la déduplication des tokens dans une session ;
+  // il ne quitte jamais le serveur (tokenMap reste local).
+  const saltBytes = new Uint8Array(12)
+  crypto.getRandomValues(saltBytes)
+  const salt = `${Date.now()}-${Array.from(saltBytes, (b) => b.toString(16).padStart(2, '0')).join('')}`
   const sanitized = deepSanitize(data, tokenMap, valueToToken, salt, new WeakSet(), 0)
   return { sanitized, tokenMap }
 }
