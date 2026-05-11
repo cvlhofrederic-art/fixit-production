@@ -8,6 +8,7 @@ import { buildLeaSystemPromptFR } from '@/lib/syndic/prompts/lea/system-prompt-f
 import { buildLeaSystemPromptPT } from '@/lib/syndic/prompts/lea/system-prompt-pt'
 import type { LeaPromptContext } from '@/lib/syndic/prompts/lea/system-prompt-fr'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
+import { wrapGroqStreamWithPIIResolution, SSE_HEADERS } from '@/lib/syndic/agent-sse-stream'
 
 export const maxDuration = 30
 
@@ -131,77 +132,10 @@ export async function POST(request: NextRequest) {
           max_tokens: 4000,
         })
 
-        // Envelopper le stream pour résoudre les tokens PII dans chaque chunk SSE.
-        // Buffering pour éviter les tokens coupés entre deux chunks (ex: `<email:abc` / `12345>`).
-        const encoder = new TextEncoder()
-        const decoder = new TextDecoder()
-        let chunkBuffer = ''
+        // Enveloppe le stream Groq pour résoudre les tokens PII (helper partagé Plan B).
+        const readable = wrapGroqStreamWithPIIResolution(rawStream, tokenMap)
 
-        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
-          transform(chunk, controller) {
-            const text = decoder.decode(chunk, { stream: true })
-            const lines = text.split('\n')
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed.startsWith('data: ')) {
-                controller.enqueue(encoder.encode(line + '\n'))
-                continue
-              }
-              const payload = trimmed.slice(6)
-              if (payload === '[DONE]') {
-                if (chunkBuffer) {
-                  const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
-                  chunkBuffer = ''
-                }
-                controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-                continue
-              }
-              try {
-                const json = JSON.parse(payload)
-                const delta: string | undefined = json.text
-                if (delta === undefined) {
-                  controller.enqueue(encoder.encode(line + '\n'))
-                  continue
-                }
-                chunkBuffer += delta
-                const lastOpen = chunkBuffer.lastIndexOf('<')
-                const lastClose = chunkBuffer.lastIndexOf('>')
-                if (lastOpen > lastClose) {
-                  const toFlush = chunkBuffer.slice(0, lastOpen)
-                  chunkBuffer = chunkBuffer.slice(lastOpen)
-                  if (toFlush) {
-                    const resolved = resolveSanitizedToken(toFlush, tokenMap) ?? toFlush
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
-                  }
-                } else {
-                  const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
-                  chunkBuffer = ''
-                }
-              } catch {
-                controller.enqueue(encoder.encode(line + '\n'))
-              }
-            }
-          },
-          flush(controller) {
-            if (chunkBuffer) {
-              const resolved = resolveSanitizedToken(chunkBuffer, tokenMap) ?? chunkBuffer
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: resolved })}\n\n`))
-              chunkBuffer = ''
-            }
-          },
-        })
-
-        rawStream.pipeTo(writable).catch(() => { /* stream annulé côté client — ignorer */ })
-
-        return new Response(readable, {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-        })
+        return new Response(readable, { headers: SSE_HEADERS })
       } catch (err) {
         logger.error('[lea-comptable] Streaming error:', err)
         return NextResponse.json({
