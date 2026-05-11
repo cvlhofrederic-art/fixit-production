@@ -5,6 +5,7 @@ import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId, refreshGmailA
 import type { EmailClassification } from '../classify/route'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
+import { getDecryptedToken, setEncryptedToken } from '@/lib/oauth/tokens'
 
 export const maxDuration = 60
 
@@ -205,24 +206,50 @@ export async function POST(request: NextRequest) {
 
     for (const sid of syndicIds) {
       try {
-        // 1. Récupérer les tokens OAuth du syndic
-        const { data: tokenRow } = await supabaseAdmin
-          .from('syndic_oauth_tokens')
-          .select('*')
-          .eq('syndic_id', sid)
-          .single()
+        // 1. Récupérer les tokens OAuth du syndic (encrypted en priorité, fallback plain)
+        let accessToken: string | null = null
+        let refreshToken: string | null = null
+        let expiresAt: string | null = null
 
-        if (!tokenRow) continue
+        const encrypted = await getDecryptedToken(supabaseAdmin, sid).catch(() => null)
+        if (encrypted) {
+          accessToken = encrypted.access_token
+          refreshToken = encrypted.refresh_token
+          expiresAt = encrypted.expires_at
+        } else {
+          // Fallback à la version plain (rows pas encore backfillées)
+          const { data: plain } = await supabaseAdmin
+            .from('syndic_oauth_tokens')
+            .select('access_token, refresh_token, token_expiry')
+            .eq('syndic_id', sid)
+            .single()
+          if (plain) {
+            accessToken = plain.access_token
+            refreshToken = plain.refresh_token
+            expiresAt = plain.token_expiry
+          }
+        }
 
-        let accessToken = tokenRow.access_token
+        if (!accessToken || !refreshToken) continue
 
         // 2. Rafraîchir le token si expiré (avec 5min de marge)
-        const isExpired = new Date(tokenRow.token_expiry) < new Date(Date.now() + 5 * 60 * 1000)
-        if (isExpired && tokenRow.refresh_token) {
-          const refreshed = await refreshGmailAccessToken(tokenRow.refresh_token)
+        const isExpired = expiresAt ? new Date(expiresAt) < new Date(Date.now() + 5 * 60 * 1000) : true
+        if (isExpired && refreshToken) {
+          const refreshed = await refreshGmailAccessToken(refreshToken)
           if (refreshed) {
             accessToken = refreshed.access_token
             const newExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+            // Dual-write : encrypted + plain
+            try {
+              await setEncryptedToken(supabaseAdmin, {
+                syndic_id: sid,
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                expires_at: newExpiry,
+              })
+            } catch (encErr) {
+              logger.error(`[email-agent/poll] setEncryptedToken failed for ${sid}:`, encErr)
+            }
             await supabaseAdmin
               .from('syndic_oauth_tokens')
               .update({ access_token: accessToken, token_expiry: newExpiry, updated_at: new Date().toISOString() })
