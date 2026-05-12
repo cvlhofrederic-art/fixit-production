@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { formatSiegeAddress } from '@/lib/sirene-address'
 
 // Map nature_juridique codes to labels
 const NATURE_JURIDIQUE_MAP: Record<string, string> = {
@@ -188,16 +189,7 @@ export async function GET(request: NextRequest) {
       legalForm: legalFormLabel,
       nafCode: entreprise.activite_principale || '',
       nafLabel: nafLabel,
-      address: entreprise.siege ? (() => {
-        const adresse = entreprise.siege.adresse || ''
-        const cp = entreprise.siege.code_postal || ''
-        const ville = entreprise.siege.libelle_commune || ''
-        // Avoid duplicating postal code if it's already in the address
-        if (adresse.includes(cp)) {
-          return adresse
-        }
-        return [adresse, `${cp} ${ville}`].filter(Boolean).join(', ')
-      })() : '',
+      address: formatSiegeAddress(entreprise.siege),
       city: entreprise.siege?.libelle_commune || '',
       postalCode: entreprise.siege?.code_postal || '',
       phone: userMeta.phone || artisan.phone || '',
