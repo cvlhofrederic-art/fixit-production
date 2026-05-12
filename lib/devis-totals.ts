@@ -39,8 +39,18 @@ interface DocumentWithLines {
   [key: string]: any
 }
 
-const lineHT = (l: ProductLineLike): number =>
-  (l.totalHT ?? l.total_ht ?? l.total ?? 0)
+// Garde nullish : si la ligne est null/undefined (localStorage corrompu après
+// un flow Facturer interrompu), on traite comme 0 au lieu de throw
+// `Cannot read properties of null`.
+const lineHT = (l: ProductLineLike | null | undefined): number => {
+  if (!l || typeof l !== 'object') return 0
+  return (l.totalHT ?? l.total_ht ?? l.total ?? 0)
+}
+
+const safeLines = (arr: unknown): ProductLineLike[] => {
+  if (!Array.isArray(arr)) return []
+  return arr.filter((l): l is ProductLineLike => l !== null && typeof l === 'object')
+}
 
 /**
  * Total HT en euros (décimaux). Couvre les 4 sources de lignes possibles.
@@ -57,14 +67,19 @@ const lineHT = (l: ProductLineLike): number =>
  *   est stockée dans `lines` (pas `laborLines`).
  */
 export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
-  if (!doc) return 0
-  const laborRaw = (doc.laborLines || []) as ProductLineLike[]
-  const lines = (doc.lines || []) as ProductLineLike[]
-  const material = (doc.materialLines || []) as ProductLineLike[]
-  const frais = (doc.fraisLines || []) as ProductLineLike[]
-  const fraisAnnexes = (doc.fraisAnnexes || []) as ProductLineLike[]
-  const customLines = (doc.customTables || []).flatMap(t => t.lines || [])
-  // labor : laborLines explicite si présent, sinon lines (legacy + BTP buildPayload)
+  if (!doc || typeof doc !== 'object') return 0
+  const laborRaw = safeLines(doc.laborLines)
+  const lines = safeLines(doc.lines)
+  const material = safeLines(doc.materialLines)
+  const frais = safeLines(doc.fraisLines)
+  const fraisAnnexes = safeLines(doc.fraisAnnexes)
+  // customTables peut contenir des entrées null (corruption localStorage).
+  // On filtre les tables invalides AVANT d'accéder à `.lines` pour éviter
+  // un TypeError fatal côté FacturesSection / Pipeline rendering.
+  const customTablesRaw = Array.isArray(doc.customTables) ? doc.customTables : []
+  const customLines = customTablesRaw
+    .filter((t): t is { lines?: ProductLineLike[] } => t !== null && typeof t === 'object')
+    .flatMap(t => safeLines(t.lines))
   const labor = laborRaw.length > 0 ? laborRaw : lines
   return sumMoney([
     ...labor.map(lineHT),
