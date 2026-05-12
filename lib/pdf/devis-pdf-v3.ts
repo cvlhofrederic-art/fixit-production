@@ -1195,7 +1195,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFillColor(COLOR_BG_GRAY)
   pdf.rect(totBoxX, y, totBoxW, totH, 'F')
   pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const totalLabel = showTva ? (locale === 'pt' ? 'TOTAL TTC' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
+  const totalLabel = showTva ? 'TOTAL TTC' : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
   pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
   pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
 

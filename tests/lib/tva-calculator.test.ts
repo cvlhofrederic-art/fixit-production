@@ -195,7 +195,7 @@ describe('computeTva — edge cases', () => {
     const result = computeTva({
       regime: 'classique',
       lines: [
-        { totalHT: NaN, tvaRate: 20 },
+        { totalHT: Number.NaN, tvaRate: 20 },
         { totalHT: 100, tvaRate: 20 },
       ],
     })
