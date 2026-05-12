@@ -216,6 +216,15 @@ export default function DevisFactureForm({
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
   const [materialLines, setMaterialLines] = useState<ProductLine[]>(initialData?.materialLines || [])
   const [fraisAnnexes, setFraisAnnexes] = useState<FraisAnnexeItem[]>(initialData?.fraisAnnexes ?? [])
+  // Tables custom (parité BTP V3) — sections ajoutables par l'artisan, identifiées
+  // par un id+name+category. Persistées dans raw_data au save, donc pas de migration DB.
+  const [customTables, setCustomTables] = useState<import('@/lib/devis-types').CustomTable[]>(
+    Array.isArray(initialData?.customTables) ? (initialData!.customTables as import('@/lib/devis-types').CustomTable[]) : []
+  )
+  // Modal "+ Ajouter une table" — local state pour ne pas polluer le scope global.
+  const [newCustomTableModal, setNewCustomTableModal] = useState<{ open: boolean; name: string; category: 'labor' | 'material' | 'frais' }>({
+    open: false, name: '', category: 'labor',
+  })
   const [chantierId, setChantierId] = useState<string>(initialData?.chantierId ?? '')
   const [editingDescLineId, setEditingDescLineId] = useState<number | null>(null)
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
@@ -717,6 +726,78 @@ export default function DevisFactureForm({
 
   const totalFraisAnnexesHT = fraisAnnexes.reduce((sum, item) => sum + item.total_ht, 0)
 
+  // ─── CustomTables helpers (parité BTP V3) ──────────────────────────────
+  // Pattern copié de DevisFactureFormBTP.tsx, simplifié pour V2 artisan :
+  // les tables custom ont id + name + category (labor/material/frais) + lines.
+  // Aucune logique TVA spécifique — la TVA des lignes custom suit le toggle
+  // 293 B global comme les lignes principales.
+  const addCustomTable = (name: string, category: 'labor' | 'material' | 'frais') => {
+    const cleanName = (name || '').trim()
+    if (!cleanName) return
+    setCustomTables(prev => [...prev, {
+      id: `custom_${Date.now()}`,
+      name: cleanName,
+      category,
+      lines: [{
+        id: Date.now() + 1,
+        description: '',
+        qty: 1,
+        unit: 'u',
+        priceHT: 0,
+        tvaRate: defaultTvaRate,
+        totalHT: 0,
+      }],
+    }])
+  }
+  const updateCustomTableName = (tableId: string, name: string) => {
+    setCustomTables(prev => prev.map(t => t.id === tableId ? { ...t, name } : t))
+  }
+  const removeCustomTable = (tableId: string) => {
+    setCustomTables(prev => prev.filter(t => t.id !== tableId))
+  }
+  const addCustomLine = (tableId: string) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      return {
+        ...t,
+        lines: [...t.lines, {
+          id: Date.now(),
+          description: '',
+          qty: 1,
+          unit: 'u',
+          priceHT: 0,
+          tvaRate: defaultTvaRate,
+          totalHT: 0,
+        }],
+      }
+    }))
+  }
+  const updateCustomLine = (tableId: string, lineId: number, field: keyof ProductLine, value: string | number) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      return {
+        ...t,
+        lines: t.lines.map(line => {
+          if (line.id !== lineId) return line
+          const updated = { ...line, [field]: value }
+          updated.totalHT = mulMoney(updated.qty || 0, updated.priceHT || 0)
+          return updated
+        }),
+      }
+    }))
+  }
+  const removeCustomLine = (tableId: string, lineId: number) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      return { ...t, lines: t.lines.filter(l => l.id !== lineId) }
+    }))
+  }
+  // Sous-total HT des tables custom — utilisé dans le calcul global des acomptes.
+  const totalCustomTablesHT = customTables.reduce(
+    (sum, t) => sum + t.lines.reduce((s, l) => s + (l.totalHT || 0), 0),
+    0,
+  )
+
   // Déduire une unité par défaut à partir du nom du service/motif
   const getDefaultUnitByServiceName = (name: string): string => {
     const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -1000,7 +1081,7 @@ export default function DevisFactureForm({
   // observé sur 30+ lignes (cf. audit 03/05/2026).
   const totalMaterialsHT = sumMoney(materialLines.map(l => l.totalHT || 0))
   const subtotalHT = round2(
-    sumMoney(lines.map(l => l.totalHT || 0)) + totalMaterialsHT + totalFraisAnnexesHT,
+    sumMoney(lines.map(l => l.totalHT || 0)) + totalMaterialsHT + totalFraisAnnexesHT + totalCustomTablesHT,
   )
   // Ventilation TVA par taux (arrondie par taux après agrégation des bases —
   // garantit l'invariant subtotalHT + Σ TVA = totalTTC à 0,01 € près).
@@ -1015,11 +1096,12 @@ export default function DevisFactureForm({
     lines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0))
     materialLines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0))
     fraisAnnexes.forEach(f => acc(f.total_ht || 0, f.tva_applicable || 0))
+    customTables.forEach(t => t.lines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0)))
     map.forEach((v, taux) => { v.amount = mulMoney(v.base, taux / 100) })
     return Array.from(map.entries())
       .map(([rate, { base, amount }]) => ({ rate, base, amount }))
       .sort((a, b) => b.rate - a.rate)
-  }, [lines, materialLines, fraisAnnexes, tvaEnabled])
+  }, [lines, materialLines, fraisAnnexes, customTables, tvaEnabled])
   const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
   const totalTTC = round2(subtotalHT + totalTVA)
   // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
@@ -1277,6 +1359,9 @@ export default function DevisFactureForm({
       // (sinon acomptes sous-calculés). Voir audit MOY-9.
       materialLines,
       fraisAnnexes,
+      // Tables custom (parité BTP V3) — passées au builder pour inclure leurs
+      // lignes dans le total + générer leurs sections dans le PDF V2.
+      customTables,
       // Ventilation TVA pré-calculée (single source of truth) — V2 affichera
       // le détail multi-taux quand auto-entrepreneur en TVA.
       tvaBreakdown: tvaEnabled ? tvaBreakdown : undefined,
@@ -1813,6 +1898,7 @@ export default function DevisFactureForm({
     lines,
     materialLines,
     fraisAnnexes,
+    customTables: customTables.length > 0 ? customTables : undefined,
     chantierId: chantierId || undefined,
     etapes: lines.some(l => l.etapes?.length) ? lines.flatMap(l => l.etapes || []) : undefined,
     notes,
@@ -2625,14 +2711,34 @@ export default function DevisFactureForm({
                                         </div>
                                       </div>
                                     )}
-                                    {/* Étapes — petit bloc gris sous la description (par ligne) */}
-                                    {(line.etapes && line.etapes.length > 0) && (
+                                    {/* lineDetail — description complémentaire multi-ligne (parité BTP V3) */}
+                                    {line.description.trim() && (
+                                      <textarea
+                                        value={line.lineDetail || ''}
+                                        onChange={(e) => updateLine(line.id, 'lineDetail', e.target.value)}
+                                        placeholder="Détail complémentaire (optionnel — apparaît sous le titre dans le PDF)"
+                                        rows={2}
+                                        style={{
+                                          width: '100%', marginTop: 4, padding: '4px 8px',
+                                          fontSize: 11, fontStyle: 'italic', color: '#6b7280',
+                                          background: '#fafafa', border: '1px solid #e5e7eb',
+                                          borderRadius: 4, fontFamily: 'inherit', resize: 'vertical',
+                                          minHeight: 28,
+                                        }}
+                                      />
+                                    )}
+                                    {/* Étapes — petit bloc gris sous la description (par ligne).
+                                        Avant la PR de parité BTP : ce bloc apparaissait uniquement quand
+                                        line.etapes.length > 0, donc impossible d'ajouter la 1ère étape sans
+                                        passer par un motif catalogue avec template. Maintenant il s'affiche
+                                        dès qu'une description est saisie pour donner accès au bouton "+ étape". */}
+                                    {line.description.trim() && (
                                       <div style={{
                                         marginTop: 4, padding: '4px 8px',
                                         background: '#f3f4f6', border: '1px solid #e5e7eb',
                                         borderRadius: 4, fontSize: 11, color: '#6b7280', lineHeight: 1.6,
                                       }}>
-                                        {[...line.etapes].sort((a, b) => a.ordre - b.ordre).map((et, i) => (
+                                        {(line.etapes || []).length > 0 && [...(line.etapes || [])].sort((a, b) => a.ordre - b.ordre).map((et, i) => (
                                           <div key={et.id} style={{ display: 'flex', gap: 3, alignItems: 'baseline' }}>
                                             <span style={{ color: '#9ca3af', minWidth: 14 }}>{i+1}.</span>
                                             <input
@@ -2644,10 +2750,16 @@ export default function DevisFactureForm({
                                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, color: '#d1d5db', padding: 0 }}>✕</button>
                                           </div>
                                         ))}
-                                        <button onClick={() => {
-                                          const newId = `etape_manual_${Date.now()}`
-                                          setLines(prev => prev.map(ln => ln.id !== line.id ? ln : { ...ln, etapes: [...(ln.etapes || []), { id: newId, ordre: (ln.etapes || []).length + 1, designation: '' }] }))
-                                        }} style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 0' }}>+ étape</button>
+                                        <button
+                                          disabled={(line.etapes || []).length >= 15}
+                                          onClick={() => {
+                                            if ((line.etapes || []).length >= 15) return
+                                            const newId = `etape_manual_${Date.now()}`
+                                            setLines(prev => prev.map(ln => ln.id !== line.id ? ln : { ...ln, etapes: [...(ln.etapes || []), { id: newId, ordre: (ln.etapes || []).length + 1, designation: '' }] }))
+                                          }}
+                                          style={{ fontSize: 10, color: (line.etapes || []).length >= 15 ? '#9ca3af' : '#3B82F6', background: 'none', border: 'none', cursor: (line.etapes || []).length >= 15 ? 'not-allowed' : 'pointer', padding: '2px 0 0' }}
+                                          title={(line.etapes || []).length >= 15 ? 'Maximum 15 étapes par ligne' : 'Ajouter une étape'}
+                                        >+ étape{(line.etapes || []).length > 0 ? ` (${(line.etapes || []).length}/15)` : ''}</button>
                                       </div>
                                     )}
                                   </div>
@@ -3018,6 +3130,232 @@ export default function DevisFactureForm({
                 )}
               </div>
             </div>
+
+            {/* ─── Section: Tables custom (parité BTP V3) ──────────────────
+                 Permet à l'artisan de créer des blocs de prestations supplé-
+                 mentaires renommables, en plus de la table principale, des
+                 matériaux et des frais annexes. Chaque table est sauvegardée
+                 dans raw_data au save (cf. CustomTable dans lib/devis-types.ts).
+                 Le PDF V2 les rend comme des sections distinctes avec leur
+                 nom personnalisé (cf. devis-generator-v2 SECTION_LABELS).
+            */}
+            {customTables.map((tbl) => {
+              const tableTotalHT = sumMoney(tbl.lines.map(l => l.totalHT || 0))
+              const catEmoji = tbl.category === 'material' ? '🧱' : tbl.category === 'frais' ? '🚚' : '🔧'
+              return (
+                <div key={tbl.id} className="v22-card">
+                  <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <span style={{ fontSize: 16 }}>{catEmoji}</span>
+                      <input
+                        type="text"
+                        value={tbl.name}
+                        onChange={(e) => updateCustomTableName(tbl.id, e.target.value)}
+                        title="Cliquez pour renommer cette table"
+                        style={{
+                          flex: 1, fontSize: 14, fontWeight: 700,
+                          background: 'transparent', border: '1px dashed transparent',
+                          borderRadius: 4, padding: '4px 8px',
+                          color: 'var(--v22-text)', fontFamily: 'inherit',
+                        }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--v22-border)' }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (tbl.lines.some(l => l.description.trim() || l.priceHT > 0)) {
+                          if (!confirm(`Supprimer définitivement la table « ${tbl.name} » et ses ${tbl.lines.length} ligne(s) ?`)) return
+                        }
+                        removeCustomTable(tbl.id)
+                      }}
+                      className="v22-btn v22-btn-danger v22-btn-sm"
+                      title="Supprimer cette table"
+                    >🗑️ Supprimer</button>
+                  </div>
+                  <div className="v22-card-body">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8' }}>Désignation</th>
+                          <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 60 }}>Qté</th>
+                          <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 80 }}>Unité</th>
+                          <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 90 }}>Prix HT</th>
+                          {tvaEnabled && <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 60 }}>TVA %</th>}
+                          <th style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 100 }}>Total HT</th>
+                          <th style={{ width: 40, borderBottom: '2px solid #E8E8E8' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tbl.lines.map(line => (
+                          <tr key={line.id}>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                value={line.description}
+                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'description', e.target.value)}
+                                placeholder="Désignation de la prestation…"
+                                className="v22-form-input"
+                                style={{ fontSize: 12 }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="number" inputMode="decimal" step="0.01"
+                                value={line.qty === 0 ? '' : line.qty}
+                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'qty', parseDecimalInput(e.target.value))}
+                                placeholder="0"
+                                className="v22-form-input"
+                                style={{ fontSize: 12, textAlign: 'center' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <select
+                                value={line.unit}
+                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'unit', e.target.value)}
+                                className="v22-form-input"
+                                style={{ fontSize: 12 }}
+                              >
+                                {UNITES_DEVIS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                              </select>
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="number" inputMode="decimal" step="0.01"
+                                value={line.priceHT === 0 ? '' : line.priceHT}
+                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'priceHT', parseDecimalInput(e.target.value))}
+                                placeholder="0"
+                                className="v22-form-input"
+                                style={{ fontSize: 12, textAlign: 'right' }}
+                              />
+                            </td>
+                            {tvaEnabled && (
+                              <td style={{ padding: '6px 4px' }}>
+                                <select
+                                  value={line.tvaRate}
+                                  onChange={(e) => updateCustomLine(tbl.id, line.id, 'tvaRate', parseFloat(e.target.value))}
+                                  className="v22-form-input"
+                                  style={{ fontSize: 12 }}
+                                >
+                                  {[0, 5.5, 10, 20].map(r => <option key={r} value={r}>{r}%</option>)}
+                                </select>
+                              </td>
+                            )}
+                            <td style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600, fontSize: 13 }}>
+                              {formatPrice(line.totalHT)}
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <button
+                                onClick={() => removeCustomLine(tbl.id, line.id)}
+                                className="v22-btn v22-btn-danger v22-btn-sm"
+                                style={{ width: '100%' }}
+                                title="Supprimer la ligne"
+                              >✕</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={tvaEnabled ? 5 : 4} style={{ textAlign: 'right', fontWeight: 600, fontSize: 12, padding: '8px', color: 'var(--v22-text-mid)' }}>
+                            Sous-total HT
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, padding: '8px' }}>
+                            {formatPrice(tableTotalHT)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        onClick={() => addCustomLine(tbl.id)}
+                        className="v22-btn v22-btn-secondary v22-btn-sm"
+                        style={{ fontSize: 11 }}
+                      >+ Ajouter une ligne</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* + Ajouter une table — bouton qui ouvre la modal de création */}
+            <div className="v22-card" style={{ padding: 12 }}>
+              <button
+                onClick={() => setNewCustomTableModal({ open: true, name: '', category: 'labor' })}
+                className="v22-btn v22-btn-secondary"
+                style={{ width: '100%', fontSize: 13, padding: '10px 16px', border: '1px dashed var(--v22-border)' }}
+                title="Créer une nouvelle table de prestations (corps d'état, sous-traitant, autres dépenses, etc.)"
+              >+ Ajouter une table de prestations</button>
+            </div>
+
+            {/* Modal "+ Ajouter une table" — pattern pro 2026, replace window.prompt */}
+            {newCustomTableModal.open && (
+              <div
+                onClick={() => setNewCustomTableModal({ open: false, name: '', category: 'labor' })}
+                style={{
+                  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  zIndex: 1000,
+                }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    background: '#fff', borderRadius: 8, padding: 24, width: 420, maxWidth: '90vw',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  <h3 style={{ margin: 0, marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Nouvelle table de prestations</h3>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--v22-text-mid)' }}>Nom de la table</label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newCustomTableModal.name}
+                      onChange={(e) => setNewCustomTableModal(s => ({ ...s, name: e.target.value }))}
+                      placeholder="Ex : DEPENSES PARC COROT (0F25-602G), Corps d'état plomberie, Sous-traitance électricité…"
+                      className="v22-form-input"
+                      style={{ fontSize: 13 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newCustomTableModal.name.trim()) {
+                          addCustomTable(newCustomTableModal.name, newCustomTableModal.category)
+                          setNewCustomTableModal({ open: false, name: '', category: 'labor' })
+                        }
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--v22-text-mid)' }}>Catégorie (pour l'affichage)</label>
+                    <select
+                      value={newCustomTableModal.category}
+                      onChange={(e) => setNewCustomTableModal(s => ({ ...s, category: e.target.value as 'labor' | 'material' | 'frais' }))}
+                      className="v22-form-input"
+                      style={{ fontSize: 13 }}
+                    >
+                      <option value="labor">🔧 Main d'œuvre / prestations</option>
+                      <option value="material">🧱 Matériaux / fournitures</option>
+                      <option value="frais">🚚 Frais annexes / déplacements</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button
+                      onClick={() => setNewCustomTableModal({ open: false, name: '', category: 'labor' })}
+                      className="v22-btn v22-btn-secondary"
+                    >Annuler</button>
+                    <button
+                      onClick={() => {
+                        if (!newCustomTableModal.name.trim()) return
+                        addCustomTable(newCustomTableModal.name, newCustomTableModal.category)
+                        setNewCustomTableModal({ open: false, name: '', category: 'labor' })
+                      }}
+                      disabled={!newCustomTableModal.name.trim()}
+                      className="v22-btn v22-btn-primary"
+                    >Créer la table</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ─── Section: Acomptes & Paiement échelonné (Devis only) ─── */}
             {docType === 'devis' && (
