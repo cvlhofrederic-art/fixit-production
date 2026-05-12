@@ -1179,6 +1179,22 @@ export const devisSyncSchema = z.object({
     materialLines: z.array(z.unknown()).optional(),
     fraisLines: z.array(z.unknown()).optional(),
     fraisAnnexes: z.array(z.unknown()).optional(),
+    // Régime TVA — par doc (distinct de settings_btp.regime_tva qui désigne
+    // le régime fiscal de la société). Trois valeurs légales :
+    //   classique           : TVA collectée par taux (assujetti normal)
+    //   franchise_293b      : CGI art. 293 B (abrogé 1er sept 2026)
+    //   autoliquidation_btp : CGI art. 283, 2 nonies (sous-traitance BTP)
+    regimeTva: z.enum(['classique', 'franchise_293b', 'autoliquidation_btp']).optional(),
+    clientType: z.enum(['particulier', 'professionnel']).optional(),
+    clientSiren: z.string().max(20).optional(),
+    tvaIntraEmetteur: z.string().max(50).optional(),
+    tvaIntraPreneur: z.string().max(50).optional(),
+    // Avoir : si rempli, ce doc est un avoir sur la facture référencée.
+    avoirDeFactureId: z.union([
+      z.string().uuid('avoirDeFactureId doit être un UUID valide'),
+      z.literal(''),
+      z.null(),
+    ]).optional(),
   }).passthrough(),
 })
 
