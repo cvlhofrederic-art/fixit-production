@@ -1380,13 +1380,33 @@ export default function DevisFactureFormBTP({
     }
     setSaving(true)
     try {
-      const payload = { ...buildPayload(), status: 'brouillon', savedAt: new Date().toISOString() }
-      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
-      const filtered = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
-      filtered.push(payload)
-      localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
+      // Statut effectif :
+      //   - Nouveau doc (jamais émis)        → 'brouillon'
+      //   - Doc déjà émis (envoye/signe/...) → conserve le statut courant
+      //     pour éviter le rejet 409 "Invalid status transition" côté sync API
+      //     (transitions descendantes interdites par doc-status-transition).
+      //     Le user "modifie" un devis envoyé sans le rétrograder en brouillon.
+      const existingStatus = (initialData as { status?: string } | undefined)?.status
+      const isExistingEmitted = existingStatus && existingStatus !== 'brouillon' && existingStatus !== 'draft'
+      const effectiveStatus = isExistingEmitted ? existingStatus : 'brouillon'
+
+      const payload = { ...buildPayload(), status: effectiveStatus, savedAt: new Date().toISOString() }
+
+      if (isExistingEmitted) {
+        // Mise à jour d'un devis déjà émis : écrit dans `fixit_documents_<id>`
+        // (pas dans drafts) pour rester cohérent avec la liste affichée.
+        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+        const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+        filtered.push(payload)
+        localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
+      } else {
+        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
+        const filtered = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+        filtered.push(payload)
+        localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
+      }
       syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
-      toast.success('Brouillon enregistré')
+      toast.success(isExistingEmitted ? 'Devis mis à jour' : 'Brouillon enregistré')
       onSave?.(payload as never)
     } catch (err) {
       console.error('[DevisBTP] saveDraft failed', err)
