@@ -479,12 +479,27 @@ export default function DevisFactureFormBTP({
       : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
   // Lignes matériaux (section séparée)
+  //
+  // Bug fix 2026-05-12 : avant, ces 2 useState ignoraient `initialData` et
+  // partaient toujours sur un placeholder vide. Symptôme reporté : "quand
+  // j'enregistre le devis et que je le rouvre, la table matériaux et frais
+  // annexes qui étaient remplis disparaissent". Résultat en cascade : si
+  // l'utilisateur cliquait Aperçu après réouverture, le PDF V3 ne voyait que
+  // des lignes vides → section "Frais annexes" absente du PDF, identique pour
+  // matériaux. Fix : hydrater depuis `initialData.materialLines` /
+  // `.fraisLines` au mount (même pattern que `lines` ligne 476).
+  const _initialMaterial = (initialData as { materialLines?: ProductLine[] } | undefined)?.materialLines
+  const _initialFrais = (initialData as { fraisLines?: ProductLine[] } | undefined)?.fraisLines
   const [materialLines, setMaterialLines] = useState<ProductLine[]>(
-    [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+    Array.isArray(_initialMaterial) && _initialMaterial.length > 0
+      ? _initialMaterial
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
   // Lignes frais annexes (déplacements, etc.)
   const [fraisLines, setFraisLines] = useState<ProductLine[]>(
-    [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+    Array.isArray(_initialFrais) && _initialFrais.length > 0
+      ? _initialFrais
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
 
   // Tables BTP : noms personnalisables, désactivation douce et tables custom additionnelles.
@@ -1495,6 +1510,26 @@ export default function DevisFactureFormBTP({
         : []
       const validCustom = customTables.flatMap(t => (t.lines || []).filter(l => (l.description || '').trim()))
       const validLines = [...validLabor, ...validMaterials, ...validFrais, ...validCustom]
+
+      // Diagnostic Sentry — capture la forme des sections envoyées au PDF V3
+      // pour identifier les bugs "section manquante" en prod sans PII des lignes.
+      // Niveau breadcrumb : visible uniquement quand un autre event (toast erreur)
+      // est capturé. Empêche le spam Sentry sur génération normale.
+      Sentry.addBreadcrumb({
+        category: 'pdf-v3',
+        level: 'info',
+        message: 'generatePdf sections',
+        data: {
+          action,
+          laborCount: validLabor.length,
+          materialCount: validMaterials.length,
+          fraisCount: validFrais.length,
+          customCount: validCustom.length,
+          materialEnabled: materialLinesEnabled,
+          fraisEnabled: fraisLinesEnabled,
+          customTablesNames: customTables.map(t => t.name).slice(0, 10),
+        },
+      })
       // Source unique de vérité : `totaux` useMemo (ligne 592+) calcule
       // déjà subtotalHT, ventilation TVA et TTC avec les helpers money.ts
       // (arrondi BOFiP, sans drift IEEE 754). Plus de recalcul ad-hoc ici
