@@ -1,6 +1,7 @@
 'use client'
 
 import React, { Component, type ReactNode } from 'react'
+import * as Sentry from '@sentry/nextjs'
 
 interface Props {
   children: ReactNode
@@ -13,11 +14,6 @@ interface State {
   error: Error | null
 }
 
-/**
- * Error Boundary pour les sections de dashboard.
- * Si une section crashe, seule cette section affiche une erreur,
- * le reste du dashboard continue de fonctionner.
- */
 export class SectionErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
@@ -29,7 +25,22 @@ export class SectionErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Avant : `console.error` uniquement → aucun signal Sentry, diagnostic
+    // aveugle quand la section crashe en prod. On capture maintenant la
+    // stack trace + le componentStack + un tag section pour pouvoir filtrer
+    // (cf. plan magical-mapping-karp Phase 1).
+    const section = this.props.fallbackTitle || 'unknown-section'
     console.error('[SectionErrorBoundary] Crash capturé:', error.message, errorInfo.componentStack)
+    Sentry.captureException(error, {
+      tags: {
+        feature: 'section-error-boundary',
+        section,
+        locale: this.props.locale || 'fr',
+      },
+      extra: {
+        componentStack: errorInfo.componentStack,
+      },
+    })
   }
 
   render() {
@@ -40,8 +51,9 @@ export class SectionErrorBoundary extends Component<Props, State> {
         : 'Erreur dans cette section'
       const message = locale === 'en' ? 'An unexpected error occurred. The rest of the application is working normally.'
         : locale === 'pt' ? 'Ocorreu um erro inesperado. O resto da aplicação funciona normalmente.'
-        : 'Une erreur inattendue est survenue. Le reste de l\u0027application fonctionne normalement.'
+        : "Une erreur inattendue est survenue. Le reste de l'application fonctionne normalement."
       const retryLabel = locale === 'en' ? 'Retry' : locale === 'pt' ? 'Tentar novamente' : 'Réessayer'
+      const detailLabel = locale === 'en' ? 'Technical detail' : locale === 'pt' ? 'Detalhe técnico' : 'Détail technique'
 
       return (
         <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-center">
@@ -58,10 +70,13 @@ export class SectionErrorBoundary extends Component<Props, State> {
           >
             {retryLabel}
           </button>
-          {process.env.NODE_ENV === 'development' && this.state.error && (
-            <pre className="mt-4 p-3 bg-red-100 rounded text-left text-xs text-red-700 overflow-auto max-h-32">
-              {this.state.error.message}
-            </pre>
+          {this.state.error && (
+            <details className="mt-4 text-left">
+              <summary className="text-xs text-red-700 cursor-pointer select-none">{detailLabel}</summary>
+              <pre className="mt-2 p-3 bg-red-100 rounded text-xs text-red-700 overflow-auto max-h-40 whitespace-pre-wrap">
+                {this.state.error.message}
+              </pre>
+            </details>
           )}
         </div>
       )
