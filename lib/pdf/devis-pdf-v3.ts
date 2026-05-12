@@ -137,7 +137,15 @@ export interface PdfV3Input {
   // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI) : quand le
   // pro est sous-traitant, il NE collecte PAS la TVA — le donneur d'ordre
   // l'autoliquide. Mention obligatoire sur le devis/facture.
+  // [LEGACY] Conservé pour rétro-compat ; la source de vérité est désormais
+  // `regimeTva` ci-dessous.
   autoliquidationBTP?: boolean
+  // Régime TVA au niveau document — source unique de vérité pour les mentions
+  // légales et le calcul des totaux. Voir lib/tva-calculator.ts.
+  //   classique           : TVA collectée par taux
+  //   franchise_293b      : franchise en base, CGI art. 293 B (abrogé 1er sept 2026)
+  //   autoliquidation_btp : sous-traitance BTP, CGI art. 283, 2 nonies
+  regimeTva?: 'classique' | 'franchise_293b' | 'autoliquidation_btp'
 
   // Acomptes
   acomptesEnabled: boolean
@@ -314,7 +322,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP,
+    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP, regimeTva,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -322,6 +330,24 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ptFiscalData,
     svgToImageDataUrl, fetchFreshLogo,
   } = sanitizedInput
+
+  // ─── Régime TVA effectif ───
+  // Source unique de vérité : `regimeTva` (nouveau champ). Fallback rétro-compat :
+  // `autoliquidationBTP` (legacy flag) → 'autoliquidation_btp', `!tvaEnabled` →
+  // 'franchise_293b'. Par défaut 'classique'.
+  const effectiveRegime: 'classique' | 'franchise_293b' | 'autoliquidation_btp' =
+    regimeTva
+      ?? (autoliquidationBTP ? 'autoliquidation_btp' : (tvaEnabled ? 'classique' : 'franchise_293b'))
+  // showTva : true uniquement en régime classique. En franchise/autoliquidation,
+  // pas de colonne TVA dans les lignes, pas de breakdown, total = HT.
+  const showTva = effectiveRegime === 'classique' && tvaEnabled
+  // Mention légale obligatoire selon régime (PT garde le wording portugais).
+  const regimeLegalMention: string | null =
+    effectiveRegime === 'franchise_293b'
+      ? (locale === 'pt' ? 'IVA não aplicável, art. 53.º CIVA' : 'TVA non applicable, article 293 B du CGI')
+      : effectiveRegime === 'autoliquidation_btp'
+        ? 'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.'
+        : null
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
@@ -739,8 +765,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += dateBoxH + 4
 
   // ═══ 6. TABLEAU PRESTATIONS (autoTable) ═══
+  // Colonne TVA affichée uniquement en régime classique. En autoliquidation BTP
+  // ou franchise 293 B, la colonne disparaît (calcul de TVA non pertinent —
+  // BOFiP BOI-TVA-DECLA-30-20 §50, mention « Autoliquidation » obligatoire).
   const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
-  const tableHead = tvaEnabled
+  const tableHead = showTva
     ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
     : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
@@ -757,7 +786,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // vide en bas de page. rowPageBreak:'avoid' continue à protéger chaque sub-row
   // individuelle (étape jamais coupée au milieu de son texte).
   type RowKind = 'parent' | 'desc' | 'etape'
-  const colCount = tvaEnabled ? 6 : 5
+  const colCount = showTva ? 6 : 5
   const emptyCols = (text: string): string[] => {
     const r = Array(colCount).fill('')
     r[0] = text
@@ -788,7 +817,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
       // 1. Row parent (motif + colonnes prix complètes)
       const parentRow: any[] = [title, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
-      if (tvaEnabled) parentRow.push(`${l.tvaRate}%`)
+      if (showTva) parentRow.push(`${l.tvaRate}%`)
       parentRow.push(localeFormats.currencyFormat(l.totalHT))
       rows.push(parentRow)
       rowKinds.push('parent')
@@ -849,7 +878,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     2: { cellWidth: contentW * 0.08, halign: 'center' },
     3: { cellWidth: contentW * 0.19, halign: 'center' },
   }
-  if (tvaEnabled) {
+  if (showTva) {
     colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
     colStyles[5] = { cellWidth: contentW * 0.21, halign: 'right' }
   } else {
@@ -862,7 +891,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     2: { halign: 'center' },
     3: { halign: 'center' },
   }
-  if (tvaEnabled) {
+  if (showTva) {
     headColStyles[4] = { halign: 'center' }
     headColStyles[5] = { halign: 'right' }
   } else {
@@ -937,7 +966,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
           data.cell.styles.halign = headColStyles[data.column.index].halign
         }
         if (data.section === 'body') {
-          const lastCol = tvaEnabled ? 5 : 4
+          const lastCol = showTva ? 5 : 4
           const kind: RowKind | undefined = rowKinds?.[data.row.index]
           // Style des sub-rows (description et étapes) : police plus petite,
           // padding compact, indentation à gauche pour bien distinguer la
@@ -1055,7 +1084,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Pre-calcul du nombre de taux TVA distincts pour estimer la hauteur du bloc
   // totaux et éviter qu'il déborde sur les mentions légales / le footer (bug
   // visible : TOTAL TTC clippé en bas de page sur devis multi-sections).
-  const tvaRatesPreview = tvaEnabled
+  const tvaRatesPreview = showTva
     ? new Set(
         (sections.length > 0 ? sections.flatMap(s => s.rows) : lines)
           .filter(l => l.description.trim() && l.tvaRate > 0)
@@ -1077,13 +1106,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
   pdf.rect(mL, y, contentW, stH, 'FD')
 
-  if (!tvaEnabled) {
+  // Mention légale courte dans la barre sous-total : selon régime, on indique
+  // l'absence de TVA et la base réglementaire (franchise 293 B vs autoliquidation
+  // 283-2 nonies). En régime classique, rien.
+  if (regimeLegalMention) {
     pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-    pdf.text(locale === 'pt' ? 'IVA não aplicável, art. 53.º CIVA' : 'TVA non applicable, art. 293 B CGI', mL + boxPadX, y + stH / 2 + 1)
+    pdf.text(regimeLegalMention, mL + boxPadX, y + stH / 2 + 1)
   }
 
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  const stLabel = tvaEnabled ? (locale === 'pt' ? 'Subtotal HT' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
+  const stLabel = showTva ? (locale === 'pt' ? 'Subtotal HT' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
   pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
@@ -1095,7 +1127,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // bases). Élimine le drift form ↔ PDF observé sur 50+ lignes.
   // Fallback : si pas de tvaBreakdown fourni (legacy callers), on recalcule
   // avec la même logique d'arrondi par taux.
-  if (tvaEnabled) {
+  if (showTva) {
     let breakdown: Array<{ rate: number; base: number; amount: number }> = []
     if (tvaBreakdownInput && tvaBreakdownInput.length > 0) {
       breakdown = tvaBreakdownInput
@@ -1153,7 +1185,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Le TOTAL affiché DÉDUIT effectivement la remise — sinon le client lit
   // "Remise -500€" puis "TOTAL 12 500€" alors qu'il devrait payer 12 000€
   // (bug audit 03/05/2026 finding CRITIQUE #6 + ÉLEVÉ).
-  const totalRaw = tvaEnabled ? totalTTC : subtotalHT
+  const totalRaw = showTva ? totalTTC : subtotalHT
   const totalVal = Math.max(0, Math.round((totalRaw - discountAmount) * 100) / 100)
   const totBoxX = boxX_dest
   const totBoxW = destBoxW
@@ -1162,7 +1194,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFillColor(COLOR_BG_GRAY)
   pdf.rect(totBoxX, y, totBoxW, totH, 'F')
   pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const totalLabel = tvaEnabled ? (locale === 'pt' ? 'TOTAL TTC' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
+  const totalLabel = showTva ? (locale === 'pt' ? 'TOTAL TTC' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
   pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
   pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
 
@@ -1328,7 +1360,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // hauteur du bloc CONDITIONS. La page-break a déjà été checkée plus haut
     // pour l'ensemble des deux colonnes.
     if (validAcomptes.length > 0) {
-      const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
+      const acompteTotal = showTva ? totalTTC : subtotalHT
       const acY = condStartY + sigBoxH + 4
       pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
       pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
@@ -1460,19 +1492,23 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companySiret) legal1 += ` SIRET : ${companySiret}.`
   if (companyAPE) legal1 += ` APE : ${companyAPE}.`
 
-  // 2. TVA / IVA
-  if (!tvaEnabled) {
+  // 2. Mention TVA / IVA — pilotée par le régime effectif (source unique de
+  // vérité : lib/tva-calculator.ts). La mention est OBLIGATOIRE pour que la
+  // facture soit conforme (sinon requalification + amende 50 % des droits).
+  if (effectiveRegime === 'franchise_293b') {
     legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
+  } else if (effectiveRegime === 'autoliquidation_btp') {
+    // En autoliquidation BTP, le sous-traitant DOIT être assujetti — donc le
+    // numéro intracom est requis et apposé en plus de la mention 283-2 nonies.
+    if (tvaNumber) {
+      legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
+    }
+    if (locale !== 'pt') {
+      legal1 += ' Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le donneur d\'ordre.'
+    }
   } else if (tvaNumber) {
+    // Régime classique
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
-  }
-
-  // 2bis. Autoliquidation BTP sous-traitance (art. 283, 2 nonies CGI) — quand
-  // le pro BTP est sous-traitant, le donneur d'ordre autoliquide la TVA.
-  // La mention est OBLIGATOIRE pour que la facture soit conforme (sinon
-  // requalification + amende 50% des droits).
-  if (autoliquidationBTP && locale !== 'pt') {
-    legal1 += ' Autoliquidation par le preneur — TVA due par le donneur d\'ordre (art. 283, 2 nonies CGI).'
   }
 
   // TVA taux réduit (remplace CERFA supprimé fév. 2025 par mention simplifiée
@@ -1480,7 +1516,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // 3 critères BOI-TVA-LIQ-30-20-90 + engagement signature client.
   // Itère sur les sections rendues (sections.flatMap) pour BTP multi-sections,
   // pas sur `lines` legacy qui peut être incomplet.
-  if (tvaEnabled && locale !== 'pt') {
+  if (showTva && locale !== 'pt') {
     const allRenderedLines = (input.laborLines && input.laborLines.length > 0)
       || (input.materialLines && input.materialLines.length > 0)
       || (input.fraisLines && input.fraisLines.length > 0)
@@ -1875,6 +1911,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     && docType === 'facture'
     && locale === 'fr'
     && tvaEnabled
+    && effectiveRegime === 'classique'  // CII reverse-charge mapping non implémenté V1 — skip XML en autoliquidation
     && clientType === 'professionnel'
 
   let outputBytes: Uint8Array | null = null

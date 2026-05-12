@@ -41,6 +41,12 @@ import {
   assertInvoiceInvariant,
 } from '@/lib/money'
 import { isValidSiret } from '@/lib/validation'
+import {
+  computeTva,
+  validateRegime,
+  REGIME_ERROR_MESSAGES,
+  type TvaRegime,
+} from '@/lib/tva-calculator'
 import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
@@ -436,14 +442,27 @@ export default function DevisFactureFormBTP({
 
   // TVA
   const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
-  // Autoliquidation BTP sous-traitance (art. 283, 2 nonies CGI) : quand le
-  // pro BTP est SOUS-TRAITANT d'une autre entreprise principale, il NE
-  // collecte PAS la TVA — le donneur d'ordre l'autoliquide. Mention obligatoire
-  // sur le devis/facture. Quand actif, force tva à 0% sur toutes les lignes
-  // et ajoute la mention au PDF.
-  const [autoliquidationBTP, setAutoliquidationBTP] = useState<boolean>(
-    Boolean((initialData as { autoliquidationBTP?: boolean })?.autoliquidationBTP),
-  )
+  // Régime TVA appliqué au document — source unique de vérité.
+  //   classique           : assujetti normal, TVA collectée par taux
+  //   autoliquidation_btp : sous-traitance BTP (CGI art. 283, 2 nonies)
+  //                         La TVA est due par le donneur d'ordre. Mention obligatoire,
+  //                         lignes forcées à 0 %, total = HT.
+  //   franchise_293b      : franchise en base (CGI art. 293 B). Non exposé côté BTP
+  //                         pour V1 (rare pour BTP pros, CA > seuil), mais supporté
+  //                         par le module si jamais activé via initialData.
+  // Migration douce : si initialData a l'ancien flag boolean `autoliquidationBTP`,
+  // on convertit en régime.
+  const [regimeTva, setRegimeTva] = useState<TvaRegime>(() => {
+    const initData = initialData as { regimeTva?: TvaRegime; autoliquidationBTP?: boolean }
+    if (initData?.regimeTva && ['classique', 'franchise_293b', 'autoliquidation_btp'].includes(initData.regimeTva)) {
+      return initData.regimeTva
+    }
+    if (initData?.autoliquidationBTP) return 'autoliquidation_btp'
+    return 'classique'
+  })
+  // Dérivé pour rétro-compat avec le PDF V3 (lib/pdf/devis-pdf-v3.ts utilise
+  // `autoliquidationBTP` comme flag, on garde ce nom dans le payload).
+  const autoliquidationBTP = regimeTva === 'autoliquidation_btp'
 
   // Client
   const [clientType, setClientType] = useState<'particulier' | 'professionnel'>(
@@ -833,56 +852,41 @@ export default function DevisFactureFormBTP({
     const remise = 0 // pas de remise globale dans la maquette V1
     const totalHT = round2(subTotalBrut - remise)
 
-    // Ventilation TVA par taux — arrondi par taux après agrégation des bases,
-    // pour garantir l'invariant subtotalHT + Σ TVA = TTC à 0,01 € près.
-    type TvaEntry = { rate: number; base: number; amount: number }
-    const tvaMap = new Map<number, { base: number; amount: number }>()
-    if (tvaEnabled) {
-      allLines.forEach((l) => {
-        const ht = mulMoney(l.qty || 0, l.priceHT || 0)
-        const taux = l.tvaRate || 0
-        const cur = tvaMap.get(taux) || { base: 0, amount: 0 }
-        // Base = somme HT par taux (arrondi à chaque ajout pour éviter drift)
-        cur.base = round2(cur.base + ht)
-        tvaMap.set(taux, cur)
-      })
-      // Calcul du montant TVA = round(base × taux/100) UNE FOIS par taux,
-      // pas par ligne. Évite que sum(round(ht × tx)) ≠ round(sum(ht) × tx).
-      tvaMap.forEach((v, taux) => {
-        v.amount = mulMoney(v.base, taux / 100)
-      })
-    }
-    const tvaBreakdown: TvaEntry[] = Array.from(tvaMap.entries())
-      .map(([rate, { base, amount }]) => ({ rate, base, amount }))
-      .sort((a, b) => b.rate - a.rate)
-    // tvaEntries conservé pour rétro-compat affichage existant (label/montant).
+    // Source unique de vérité : lib/tva-calculator.ts
+    // En franchise/autoliquidation, la TVA est forcée à 0 (override silencieux
+    // des tvaRate ligne par ligne) et le total est égal au HT. Les mentions
+    // légales et le label de total final ("TOTAL NET" vs "TOTAL TTC") sont
+    // également décidés par computeTva().
+    const tva = computeTva({
+      regime: regimeTva,
+      lines: allLines.map(l => ({
+        totalHT: mulMoney(l.qty || 0, l.priceHT || 0),
+        tvaRate: l.tvaRate || 0,
+      })),
+    })
+    const tvaBreakdown = tva.breakdown
     const tvaEntries = tvaBreakdown.map(b => [b.rate, b.amount] as [number, number])
-    const totalTva = sumMoney(tvaBreakdown.map(b => b.amount))
-    const totalTTC = round2(totalHT + totalTva)
+    const totalTva = tva.totalTVA
+    const totalTTC = tva.totalTTC
 
-    // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
-    // Sans ce check actif en prod, un PDF avec totaux incohérents passerait
-    // inaperçu jusqu'à un audit Bercy ou une contestation client.
-    // Niveau warning (non-bloquant) : on ne casse pas le rendu, on alerte.
-    if (tvaEnabled) {
+    // Invariant fiscal — log Sentry si drift > 0,01 € (régime classique uniquement,
+    // les autres régimes ont totalTva=0 par définition).
+    if (regimeTva === 'classique' && !tva.invariantOk) {
       const inv = assertInvoiceInvariant(totalHT, totalTva, totalTTC)
-      if (!inv.ok) {
-        if (process.env.NODE_ENV !== 'production') {
-          // eslint-disable-next-line no-console
-          console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
-        }
-        // Sentry capture (silent en prod, ne bloque pas le render)
-        try {
-          Sentry.captureMessage('invoice-invariant-broken-btp', {
-            level: 'warning',
-            extra: { totalHT, totalTva, totalTTC, delta: inv.delta, tvaBreakdownCount: tvaBreakdown.length },
-          })
-        } catch { /* Sentry indisponible — pas bloquant */ }
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
       }
+      try {
+        Sentry.captureMessage('invoice-invariant-broken-btp', {
+          level: 'warning',
+          extra: { totalHT, totalTva, totalTTC, delta: inv.delta, tvaBreakdownCount: tvaBreakdown.length },
+        })
+      } catch { /* Sentry indisponible — pas bloquant */ }
     }
 
     return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC }
-  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, tvaEnabled])
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva])
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -1308,8 +1312,17 @@ export default function DevisFactureFormBTP({
       penaltyRate,
       recoveryFee,
       escompte,
-      // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI)
+      // Régime TVA — source unique de vérité pour le PDF et la sync DB
+      regimeTva,
+      // Rétro-compat : flag boolean utilisé par PDF V3 (devis-pdf-v3.ts)
       autoliquidationBTP,
+      // SIREN du donneur d'ordre (extrait du SIRET, 9 premiers chiffres) —
+      // requis pour la mention autoliquidation. Persisté pour ré-affichage
+      // dans la liste factures et export CA3 ultérieur.
+      clientSiren: (clientSiret || '').replace(/\s/g, '').slice(0, 9) || undefined,
+      // N° TVA intracommunautaire émetteur (snapshot) — obligatoire pour
+      // autoliquidation BTP.
+      tvaIntraEmetteur: tvaNumber || undefined,
       // RIB & coordonnées bancaires — verrouillés au moment de l'émission.
       // Sans persistance, le téléchargement depuis la liste devis ne disposait
       // pas de l'IBAN (form fetch /api/artisan-payment-info au montage, mais le
@@ -1331,10 +1344,34 @@ export default function DevisFactureFormBTP({
     lines, materialLines, fraisLines,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
-    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP,
+    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva,
     profileIban, profileBic,
     notes,
   ])
+
+  /* ──────── Validation régime TVA (garde-fous légaux) ──────── */
+  // Hard blocks avant émission : empêche les configurations interdites
+  // qui exposeraient à une redevabilité indue (art. 283-3 CGI).
+  const regimeValidationErrors = useMemo(() => {
+    return validateRegime({
+      regime: regimeTva,
+      // Inferred — pour V1 BTP on traite comme assujetti normal. Si jamais le
+      // settings_btp.regime_tva = franchise est fetched plus tard, on l'aligne.
+      issuerRegime: 'assujetti_normal',
+      clientType,
+      clientSiren: (clientSiret || '').replace(/\s/g, '').slice(0, 9),
+      emitterTvaIntra: tvaNumber,
+    })
+  }, [regimeTva, clientType, clientSiret, tvaNumber])
+
+  const blockSaveOnRegimeErrors = useCallback((): boolean => {
+    if (regimeValidationErrors.length === 0) return false
+    // On affiche TOUTES les erreurs pour que l'utilisateur corrige en une fois.
+    regimeValidationErrors.forEach(err => {
+      toast.error(REGIME_ERROR_MESSAGES[err])
+    })
+    return true
+  }, [regimeValidationErrors])
 
   const saveDraft = () => {
     if (!artisan?.id) {
@@ -1365,6 +1402,9 @@ export default function DevisFactureFormBTP({
     if (![...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
       toast.error('Ajoutez au moins une prestation ou un matériau chiffré'); return
     }
+    // Hard block : régime TVA incohérent (autoliquidation B2C, SIREN absent, etc.)
+    // Bloque l'émission pour éviter une redevabilité indue (art. 283-3 CGI).
+    if (blockSaveOnRegimeErrors()) return
     setSaving(true)
     try {
       const payload = { ...buildPayload(), status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
@@ -1662,8 +1702,13 @@ export default function DevisFactureFormBTP({
         totalTTC: tvaEnabled ? totalTTCcalc : totalNet,
         // Ventilation TVA pré-calculée — le PDF V3 ne recalcule plus, élimine
         // le drift form ↔ PDF observé sur 50+ lignes.
-        tvaBreakdown: tvaEnabled ? totaux.tvaBreakdown : undefined,
-        // Autoliquidation BTP sous-traitance — mention obligatoire au PDF
+        // computeTva() retourne breakdown=[] en franchise/autoliquidation,
+        // donc on transmet de la même manière (undefined si pas de breakdown).
+        tvaBreakdown: totaux.tvaBreakdown.length > 0 ? totaux.tvaBreakdown : undefined,
+        // Régime TVA — source de vérité pour les mentions PDF (PDF V3 lit ce
+        // champ pour conditionner mention 293 B / 283-2 nonies et label total).
+        regimeTva,
+        // Rétro-compat : flag boolean lu par PDF V3 actuellement.
         autoliquidationBTP,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
@@ -1996,6 +2041,84 @@ export default function DevisFactureFormBTP({
             <div className="dv-row col1">
               <div className="dv-fg"><label>N° TVA intracommunautaire</label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
             </div>
+
+            {/* Régime TVA — par document. Surcharge silencieuse des taux par
+                ligne en franchise/autoliquidation. Mentions légales gérées par
+                lib/tva-calculator.ts. */}
+            <div className="dv-row col1" style={{ marginTop: 4 }}>
+              <div className="dv-fg">
+                <label>Régime TVA du document <span className="req">*</span></label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                  {[
+                    { value: 'classique' as const, label: 'TVA classique', sub: 'Assujetti normal' },
+                    { value: 'autoliquidation_btp' as const, label: 'Autoliquidation BTP', sub: 'Sous-traitance, art. 283, 2 nonies CGI' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setRegimeTva(opt.value)}
+                      style={{
+                        flex: 1,
+                        minWidth: 180,
+                        padding: '10px 12px',
+                        border: `1px solid ${regimeTva === opt.value ? '#1a1a1a' : '#E0E0E0'}`,
+                        borderRadius: 8,
+                        background: regimeTva === opt.value ? '#1a1a1a' : '#fff',
+                        color: regimeTva === opt.value ? '#fff' : '#333',
+                        fontSize: 12,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 2 }}>{opt.label}</div>
+                      <div style={{ fontSize: 10, opacity: 0.7 }}>{opt.sub}</div>
+                    </button>
+                  ))}
+                </div>
+                {regimeTva === 'autoliquidation_btp' && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '10px 12px',
+                      background: '#FFF8E1',
+                      border: '1px solid #FFD54F',
+                      borderRadius: 8,
+                      fontSize: 11,
+                      color: '#5D4037',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <strong>Mode autoliquidation activé.</strong> La TVA n&apos;est pas collectée par votre société —
+                    elle est due par le donneur d&apos;ordre. Les taux TVA des lignes sont ignorés au PDF,
+                    le total apparaît comme &laquo;&nbsp;TOTAL NET&nbsp;&raquo; avec la mention obligatoire
+                    «&nbsp;Autoliquidation — Article 283, 2 nonies du CGI&nbsp;».
+                    <br />
+                    <strong>Conditions :</strong> client professionnel, SIRET renseigné, votre N° TVA intracom renseigné.
+                  </div>
+                )}
+                {regimeValidationErrors.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: '8px 12px',
+                      background: '#FFEBEE',
+                      border: '1px solid #EF5350',
+                      borderRadius: 8,
+                      fontSize: 11,
+                      color: '#B71C1C',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {regimeValidationErrors.map(err => (
+                      <div key={err}>• {REGIME_ERROR_MESSAGES[err]}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="dv-row">
               <div className="dv-fg"><label>Téléphone <span className="req">*</span></label><input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} /></div>
               <div className="dv-fg"><label>Email <span className="req">*</span></label><input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} /></div>
