@@ -1979,7 +1979,24 @@ export default function DevisFactureFormBTP({
           <span className="devis-top-title">
             {docType === 'devis' ? 'Devis' : 'Facture proforma'}
           </span>
-          <span className="dv-doc-num" style={{ alignSelf: 'flex-start' }}>{docNumber}</span>
+          <input
+            type="text"
+            className="dv-doc-num"
+            value={docNumber}
+            onChange={(e) => setDocNumber(e.target.value.trim().toUpperCase())}
+            style={{
+              alignSelf: 'flex-start',
+              border: '1px dashed #bbb',
+              padding: '4px 8px',
+              borderRadius: 4,
+              background: '#fafafa',
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              minWidth: 180,
+            }}
+            spellCheck={false}
+            aria-label="Numéro du document (éditable pour saisie rétroactive)"
+          />
         </div>
         <div className="devis-top-right">
           <span className="dv-doc-type-switch" role="tablist">
