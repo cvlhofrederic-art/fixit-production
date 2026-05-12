@@ -107,6 +107,22 @@ export const FRAIS_ANNEXES_UNITES = [
   { value: 'heure', label: 'Heure' },
 ] as const
 
+// CustomTable — sections de prestations additionnelles renommables/masquables.
+// Parité avec le système BTP V3 : permet à un artisan EI de créer plusieurs
+// blocs de prestations (ex. "DEPENSES PARC COROT (0F25-602G)") groupés par
+// catégorie sémantique (labor / material / frais) ou neutres.
+//
+// Le rendu PDF V2 utilise mode_affichage='sections' pour grouper les lignes
+// par section (cf. lib/pdf/devis-generator-v2.ts). Le label affiché est
+// `customTable.name` ; la category sert juste à choisir une icône/couleur côté
+// UI et à grouper les sous-totaux dans le résumé.
+export interface CustomTable {
+  id: string
+  name: string
+  category?: 'labor' | 'material' | 'frais'
+  lines: ProductLine[]
+}
+
 export interface DevisFactureData {
   id?: string
   docType: 'devis' | 'facture'
@@ -162,6 +178,9 @@ export interface DevisFactureData {
   lines: ProductLine[]
   materialLines?: ProductLine[]
   fraisAnnexes: FraisAnnexeItem[]
+  // Tables additionnelles (parité BTP V3) — sections nommables ajoutées
+  // dynamiquement par l'artisan, persistées dans raw_data (pas de migration DB).
+  customTables?: CustomTable[]
   ordreDeService?: string
   chantierId?: string
   // Étapes d'intervention (descriptif pour le client)

@@ -69,6 +69,10 @@ export interface DevisGeneratorInput {
   // après dépassement du seuil 293 B peut avoir 5,5/10/20%). Si vide ou
   // non fourni, V2 ignore (mode legacy single-rate).
   tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
+  // Labels personnalisés pour les sections dynamiques (parité BTP V3 customTables).
+  // Clés au format `custom_<tableId>` ou `labor` → label affiché. Merge avec
+  // SECTION_LABELS au moment du rendu.
+  customSectionLabels?: Record<string, string>
 }
 
 export interface LigneDevis {
@@ -77,7 +81,9 @@ export interface LigneDevis {
   unite: string
   prix_unitaire: number
   total: number
-  section?: 'main_oeuvre' | 'materiaux' | 'deplacement' | 'location' | null
+  // Section markers : sections statiques (main_oeuvre, materiaux…) ou dynamiques
+  // (`custom_<id>`, `labor`) pour les tables custom de l'artisan V2 (parité BTP).
+  section?: 'main_oeuvre' | 'materiaux' | 'deplacement' | 'location' | 'labor' | string | null
   etapes?: EtapeIntervention[]  // étapes rattachées à CETTE ligne
 }
 
@@ -203,6 +209,9 @@ const SECTION_LABELS: Record<string, string> = {
   materiaux: 'MATÉRIAUX',
   deplacement: 'DÉPLACEMENT',
   location: 'LOCATION',
+  // Parité BTP V3 — label par défaut pour les lignes principales quand le mode
+  // 'sections' est activé par la présence de customTables côté artisan V2.
+  labor: "PRESTATIONS",
 }
 
 // ─── Main export ─────────────────────────────────────────────
@@ -643,7 +652,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     for (const [section, lines] of Object.entries(grouped)) {
       checkPageBreak(headerH + minRowH * lines.length + 12)
       pdf.setFont(FONT, 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
-      pdf.text(SECTION_LABELS[section] || section.toUpperCase(), ML, y + 4)
+      // Label custom passé par le caller (parité BTP V3 customTables) → fallback
+      // sur SECTION_LABELS figés → fallback sur la clé en majuscules.
+      const customLabel = input.customSectionLabels?.[section]
+      pdf.text(customLabel || SECTION_LABELS[section] || section.toUpperCase(), ML, y + 4)
       y += 7
       drawTableHeader()
       let st = 0
