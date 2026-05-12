@@ -16,6 +16,7 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 
 interface SavedDevis {
   id?: string
@@ -38,6 +39,11 @@ interface SavedDevis {
   companyEmail?: string
   tvaEnabled?: boolean
   tvaNumber?: string
+  // Régime TVA appliqué au document — source de vérité pour les mentions et totaux
+  // (cf. lib/tva-calculator.ts). Si absent, on infère via `autoliquidationBTP`
+  // (legacy flag) ou `tvaEnabled` (franchise quand false).
+  regimeTva?: TvaRegime
+  autoliquidationBTP?: boolean
   companyAPE?: string
   insuranceType?: 'rc_pro' | 'decennale' | 'both'
   insuranceName?: string
@@ -288,22 +294,26 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
   const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false
-  // Ventilation TVA : on agrège par taux puis on arrondit (BOFiP §50).
-  const tvaMap = new Map<number, { base: number; amount: number }>()
-  if (tvaEnabled) {
-    sourceLines.filter(l => (l.description || '').trim()).forEach(l => {
-      const cur = tvaMap.get(l.tvaRate || 0) || { base: 0, amount: 0 }
-      cur.base = round2(cur.base + (l.totalHT || 0))
-      tvaMap.set(l.tvaRate || 0, cur)
-    })
-    tvaMap.forEach((v, rate) => { v.amount = round2(v.base * rate / 100) })
-  }
-  const tvaBreakdown = Array.from(tvaMap.entries())
-    .map(([rate, { base, amount }]) => ({ rate, base, amount }))
-    .filter(b => b.rate > 0)
-    .sort((a, b) => b.rate - a.rate)
-  const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
-  const totalTTC = tvaEnabled ? round2(subtotalHT + totalTVA) : subtotalHT
+
+  // Régime TVA effectif — source unique de vérité (lib/tva-calculator.ts).
+  // Le flag explicite `regimeTva` (form V3 actuel) prime ; fallback rétro-compat :
+  // `autoliquidationBTP=true` → 'autoliquidation_btp' ; `tvaEnabled=false` →
+  // 'franchise_293b' ; sinon 'classique'. Sans ce fix, le bouton « Télécharger »
+  // ignorait silencieusement le régime persisté et rendait toujours TVA classique.
+  const effectiveRegime: TvaRegime =
+    doc.regimeTva
+      ?? (doc.autoliquidationBTP
+        ? 'autoliquidation_btp'
+        : (tvaEnabled ? 'classique' : 'franchise_293b'))
+  const tva = computeTva({
+    regime: effectiveRegime,
+    lines: sourceLines
+      .filter(l => (l.description || '').trim())
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    locale: locale === 'pt' ? 'pt' : 'fr',
+  })
+  const tvaBreakdown = tva.breakdown
+  const totalTTC = tva.totalTTC
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
@@ -415,7 +425,13 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     customTables: customTables.length > 0 ? customTables : undefined,
     subtotalHT,
     totalTTC,
-    tvaBreakdown: tvaEnabled && tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
+    // Breakdown vide en franchise/autoliquidation (computeTva force []),
+    // donc undefined dans le PDF (pas de ligne TVA détail).
+    tvaBreakdown: tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
+    // Régime + flag legacy passés au PDF V3 pour piloter mentions, colonnes
+    // et label total. PDF V3 priorise `regimeTva` sur `autoliquidationBTP`.
+    regimeTva: effectiveRegime,
+    autoliquidationBTP: effectiveRegime === 'autoliquidation_btp',
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],
