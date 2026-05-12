@@ -9,6 +9,7 @@
 import type { ProductLine, DevisAcompte, SignatureData } from '@/lib/devis-types'
 import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-utils'
 import type { Locale } from '@/lib/i18n/config'
+import { getMentionLegale } from '@/lib/tva-calculator'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -341,13 +342,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // showTva : true uniquement en régime classique. En franchise/autoliquidation,
   // pas de colonne TVA dans les lignes, pas de breakdown, total = HT.
   const showTva = effectiveRegime === 'classique' && tvaEnabled
-  // Mention légale obligatoire selon régime (PT garde le wording portugais).
-  const regimeLegalMention: string | null =
-    effectiveRegime === 'franchise_293b'
-      ? (locale === 'pt' ? 'IVA não aplicável, art. 53.º CIVA' : 'TVA non applicable, article 293 B du CGI')
-      : effectiveRegime === 'autoliquidation_btp'
-        ? 'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.'
-        : null
+  // Mention légale obligatoire — source unique : lib/tva-calculator.ts (locale-aware).
+  // FR : art. 293 B CGI / art. 283, 2 nonies CGI
+  // PT : art. 53.º CIVA / art. 2.º n.º 1 al. j) CIVA (inversão do sujeito passivo)
+  const regimeLegalMention: string | null = getMentionLegale(
+    effectiveRegime,
+    locale === 'pt' ? 'pt' : 'fr',
+  )
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
@@ -1492,20 +1493,25 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companySiret) legal1 += ` SIRET : ${companySiret}.`
   if (companyAPE) legal1 += ` APE : ${companyAPE}.`
 
-  // 2. Mention TVA / IVA — pilotée par le régime effectif (source unique de
-  // vérité : lib/tva-calculator.ts). La mention est OBLIGATOIRE pour que la
-  // facture soit conforme (sinon requalification + amende 50 % des droits).
-  if (effectiveRegime === 'franchise_293b') {
-    legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
-  } else if (effectiveRegime === 'autoliquidation_btp') {
-    // En autoliquidation BTP, le sous-traitant DOIT être assujetti — donc le
-    // numéro intracom est requis et apposé en plus de la mention 283-2 nonies.
+  // 2. Mention TVA / IVA — pilotée par le régime effectif et locale-aware
+  // (source unique : lib/tva-calculator.ts/getMentionLegale). La mention est
+  // OBLIGATOIRE pour que la facture soit conforme (FR : requalification +
+  // amende 50 % des droits ; PT : sanção prévia ao abrigo do RGIT).
+  //
+  //   FR : art. 293 B CGI / art. 283, 2 nonies CGI
+  //   PT : art. 53.º CIVA / art. 2.º n.º 1 al. j) CIVA (inversão do sujeito passivo)
+  const localeForMention = locale === 'pt' ? 'pt' : 'fr'
+  if (effectiveRegime === 'autoliquidation_btp') {
+    // En autoliquidation, le prestataire DOIT être assujetti — donc le numéro
+    // intracom est requis et apposé en plus de la mention légale du régime.
     if (tvaNumber) {
       legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
     }
-    if (locale !== 'pt') {
-      legal1 += ' Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le donneur d\'ordre.'
-    }
+    const mention = getMentionLegale('autoliquidation_btp', localeForMention)
+    if (mention) legal1 += ` ${mention}`
+  } else if (effectiveRegime === 'franchise_293b') {
+    const mention = getMentionLegale('franchise_293b', localeForMention)
+    if (mention) legal1 += ` ${mention}`
   } else if (tvaNumber) {
     // Régime classique
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
