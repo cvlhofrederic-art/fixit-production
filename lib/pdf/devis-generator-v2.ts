@@ -190,15 +190,37 @@ function titleCaseAddress(addr: string): string {
 }
 
 /**
- * FIX #3: Sépare une adresse en {rue, ville} en extrayant le code postal.
+ * Sépare une adresse en {rue, ville} en extrayant le code postal.
  * "BATIMENT B RES L AURORE 13600 LA CIOTAT" → { rue: "Bât. B Rés. L'Aurore", ville: "13600 La Ciotat" }
+ *
+ * Défense en profondeur (12/05/2026) : certains profils artisan ont
+ * `company_address` contenant la ville+code postal DEUX FOIS (artefact
+ * parsing KBIS/SIRENE initial qui auto-concatène puis duplique). Sans
+ * dé-duplication, le PDF V2 affichait "Ville : 13830 Roquefort, 13830
+ * Roquefort". On dédoublonne en gardant uniquement la 1ère occurrence
+ * unique d'une partie ville.
  */
 function splitAddress(addr: string): { rue: string; ville: string } | null {
   if (!addr) return null
   const norm = titleCaseAddress(addr)
   const match = norm.match(/^(.+?)\s*,?\s*(\d{5})\s+(.+)$/)
   if (match) {
-    return { rue: match[1].replace(/,\s*$/, '').trim(), ville: `${match[2]} ${match[3].trim()}` }
+    // Dé-duplication ville : si "Ville1, Ville2" sont identiques après norm,
+    // ne garder qu'une seule occurrence (cf. bug data profile_artisan).
+    const villeRaw = match[3].trim()
+    const parts = villeRaw.split(/\s*,\s*/).map(p => p.trim()).filter(Boolean)
+    // Dédoublonne aussi sur le code postal en préfixe de la 2e partie
+    const dedup: string[] = []
+    for (const p of parts) {
+      const normalized = p.replace(/\d{5}\s+/, '').toLowerCase().trim()
+      const baseNorm = (match[2] + ' ' + parts[0].replace(/\d{5}\s+/, '')).toLowerCase().trim()
+      if (dedup.length === 0) { dedup.push(p); continue }
+      // Si ce segment normalisé est déjà couvert par le premier, skip
+      if (normalized === parts[0].replace(/\d{5}\s+/, '').toLowerCase() || p.toLowerCase() === baseNorm) continue
+      dedup.push(p)
+    }
+    const villeDedup = dedup.join(', ')
+    return { rue: match[1].replace(/,\s*$/, '').trim(), ville: `${match[2]} ${villeDedup}` }
   }
   // Pas de code postal trouvé — renvoyer tel quel
   return { rue: norm, ville: '' }
@@ -221,30 +243,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-  // ── Embed Liberation Sans TTF for full Unicode support (€, ², °, accents) ──
-  try {
-    const [regularRes, boldRes] = await Promise.all([
-      fetch('/fonts/LiberationSans-Regular.ttf'),
-      fetch('/fonts/LiberationSans-Bold.ttf'),
-    ])
-    if (regularRes.ok && boldRes.ok) {
-      const [regularBuf, boldBuf] = await Promise.all([regularRes.arrayBuffer(), boldRes.arrayBuffer()])
-      const toBase64 = (buf: ArrayBuffer) => {
-        const bytes = new Uint8Array(buf)
-        let binary = ''
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-        return btoa(binary)
-      }
-      pdf.addFileToVFS('LiberationSans-Regular.ttf', toBase64(regularBuf))
-      pdf.addFont('LiberationSans-Regular.ttf', 'LiberationSans', 'normal')
-      pdf.addFileToVFS('LiberationSans-Bold.ttf', toBase64(boldBuf))
-      pdf.addFont('LiberationSans-Bold.ttf', 'LiberationSans', 'bold')
-      pdf.setFont('LiberationSans', 'normal')
-    }
-  } catch { /* fallback to helvetica */ }
-
-  // Use loaded font or fallback
-  const FONT = pdf.getFontList()['LiberationSans'] ? 'LiberationSans' : 'helvetica'
+  // Helvetica seul (WinAnsi 1252) — couvre tout le français standard :
+  // €(0x80), ²(0xB2), °(0xB0), —(0x97), accents Latin-1 (éèàùçÉ...).
+  //
+  // Historique : la PR #103 (audit conformité 2026) avait embarqué Liberation
+  // Sans TTF par précaution Unicode. Mais ça change le kerning + métriques
+  // typographiques par rapport au rendu legacy → utilisateurs voient le PDF
+  // « différent ». User feedback (12/05/2026) demande rendu visuel identique
+  // à l'OLD. Helvetica WinAnsi suffit pour le périmètre FR/PT actuel.
+  //
+  // Si on a besoin de CJK / cyrillique / caractères hors Latin-1 plus tard,
+  // réactiver Liberation Sans (ou Noto Sans) avec embedded loader.
+  const FONT = 'helvetica'
 
   const pageW = pdf.internal.pageSize.getWidth()   // 210
   const pageH = pdf.internal.pageSize.getHeight()   // 297
