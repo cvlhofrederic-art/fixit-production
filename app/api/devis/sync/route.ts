@@ -5,6 +5,8 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, devisSyncSchema, canTransition } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { computeDocumentTotalHtCents } from '@/lib/devis-totals'
+import { computeTva, type TvaRegime, type TvaLineInput } from '@/lib/tva-calculator'
+import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
 
@@ -140,6 +142,21 @@ export async function POST(request: NextRequest) {
       ? docRec.fraisAnnexes
       : (docRec.fraisLines as unknown[]) || []
 
+  // 4bis. Régime TVA + calcul officiel (corrige bug antérieur total_tax_cents=0).
+  // computeTva() force totalTVA=0 et totalTTC=totalHT en régime franchise/autoliq.
+  // En classique, agrège la TVA par taux à partir des lignes (BOFiP §50).
+  const regimeTva: TvaRegime =
+    (docRec.regimeTva as TvaRegime) ?? 'classique'
+  const tvaLines: TvaLineInput[] = items
+    .filter((l): l is Record<string, unknown> => l != null && typeof l === 'object')
+    .map(l => ({
+      totalHT: Number(l.totalHT ?? l.total_ht ?? l.total ?? 0),
+      tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0),
+    }))
+  const tva = computeTva({ regime: regimeTva, lines: tvaLines })
+  const totalTaxCents = toCents(tva.totalTVA)
+  const totalTtcCents = toCents(tva.totalTTC)
+
   const incomingStatus = mapStatus((docRec.status as string) || '', table)
 
   // 4bis. Transition guard (FR-V1) — empêche les retours en arrière interdits
@@ -208,15 +225,25 @@ export async function POST(request: NextRequest) {
     client_email: (docRec.clientEmail as string) || null,
     chantier_id: (docRec.chantierId as string) || null,
     total_ht_cents: totalHtCents,
-    // total_tax_cents / total_ttc_cents : best-effort. La source de verite
-    // pour la TVA est dans raw_data.fraisAnnexes — utilise ces valeurs si
-    // tu as besoin du detail TTC, total_*_cents sert juste aux stats sommaires.
-    total_tax_cents: 0,
-    total_ttc_cents: totalHtCents,
+    // Calculé par computeTva() selon le régime — source unique de vérité
+    // (cf. lib/tva-calculator.ts). En franchise/autoliquidation : tax=0, ttc=ht.
+    // En classique : agrégation par taux (BOFiP §50).
+    total_tax_cents: totalTaxCents,
+    total_ttc_cents: totalTtcCents,
+    regime_tva: regimeTva,
+    client_type: (docRec.clientType as string) || null,
+    client_siren: (docRec.clientSiren as string) || null,
+    tva_intra_emetteur: (docRec.tvaIntraEmetteur as string) || null,
+    tva_intra_preneur: (docRec.tvaIntraPreneur as string) || null,
     frais_annexes: fraisAnnexes,
     items,
     status: incomingStatus,
     raw_data: doc,
+  }
+
+  // Avoir : référence à la facture corrigée (factures uniquement, pas sur devis)
+  if (table === 'factures' && docRec.avoirDeFactureId) {
+    payload.avoir_de_facture_id = docRec.avoirDeFactureId
   }
 
   // 4ter. Hash chain (FR-V1.1) — calcul si :
@@ -236,8 +263,8 @@ export async function POST(request: NextRequest) {
         artisan_user_id: user.id,
         client_name: (docRec.clientName as string) || '',
         total_ht_cents: totalHtCents,
-        total_tax_cents: 0,
-        total_ttc_cents: totalHtCents,
+        total_tax_cents: totalTaxCents,
+        total_ttc_cents: totalTtcCents,
         items,
         signed_at: new Date().toISOString(),
       }
@@ -284,6 +311,29 @@ export async function POST(request: NextRequest) {
   if (result.error && /column .*raw_data.* does not exist/i.test(result.error.message || '')) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { raw_data: _omit, ...legacy } = payload
+    result = await tryUpsert(legacy)
+  }
+
+  // Fallback si les colonnes régime TVA (migration 20260514) ne sont pas
+  // encore appliquées en prod. On strip les nouveaux champs et on retente
+  // pour ne pas bloquer le sync. Sentry capture le cas pour suivi.
+  if (
+    result.error &&
+    /column .*(regime_tva|client_type|client_siren|tva_intra_emetteur|tva_intra_preneur|avoir_de_facture_id).* does not exist/i.test(
+      result.error.message || '',
+    )
+  ) {
+    Sentry.captureMessage('Migration 20260514_tva_regime_facturation non appliquée — sync en mode legacy', {
+      level: 'warning',
+      tags: { agent_type: 'devis-sync', stage: 'tva-regime-fallback', table },
+    })
+    const legacy = { ...payload }
+    delete legacy.regime_tva
+    delete legacy.client_type
+    delete legacy.client_siren
+    delete legacy.tva_intra_emetteur
+    delete legacy.tva_intra_preneur
+    delete legacy.avoir_de_facture_id
     result = await tryUpsert(legacy)
   }
 
