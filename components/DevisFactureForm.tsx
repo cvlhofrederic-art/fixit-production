@@ -1372,12 +1372,15 @@ export default function DevisFactureForm({
 
   // ─── TEST PDF V2 (parallel generator, rollback-safe) ───
   const handleTestPdfV2 = async () => {
-    // Bloquer si assurance RC Pro manquante (art. L243-2 C. assurances)
+    // Soft warning si assurance RC Pro manquante (art. L243-2 C. assurances).
+    // Avant : bloquait dur avec return. User feedback (12/05/2026) : Aperçu/
+    // Télécharger doivent rester disponibles même infos incomplètes — le PDF
+    // sera juste non-conforme jusqu'à régularisation du profil.
     if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
-      toast.error(locale === 'pt'
-        ? 'Seguro profissional obrigatório. Preencha o nome e número da apólice antes de gerar o PDF.'
-        : 'Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
-      return
+      toast.warning(locale === 'pt'
+        ? 'Seguro RC Pro em falta — PDF gerado sem esta menção (a regularizar via Meu perfil para conformidade).'
+        : 'Assurance RC Pro absente — PDF généré sans cette mention (à régulariser via Mon profil pour conformité art. L243-2 C. assurances).',
+        { duration: 6000 })
     }
     // Bloquer si acomptes activés mais total != 100%
     if (acomptesEnabled && acomptes.length > 0) {
@@ -1420,11 +1423,12 @@ export default function DevisFactureForm({
   }
 
   const handlePreviewPdf = async () => {
+    // Soft warning si assurance RC Pro manquante (cf. handleTestPdfV2).
     if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
-      toast.error(locale === 'pt'
-        ? 'Seguro profissional obrigatório. Preencha o nome e número da apólice antes de gerar o PDF.'
-        : 'Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
-      return
+      toast.warning(locale === 'pt'
+        ? 'Seguro RC Pro em falta — aperçu gerado sem esta menção (a regularizar via Meu perfil).'
+        : 'Assurance RC Pro absente — aperçu généré sans cette mention (à régulariser via Mon profil pour conformité).',
+        { duration: 6000 })
     }
     // Bloquer si acomptes activés mais total != 100%
     if (acomptesEnabled && acomptes.length > 0) {
@@ -1492,10 +1496,10 @@ export default function DevisFactureForm({
   // ─── FACTUR-X EXPORT (facturation électronique 2026) ───
   const handleExportFacturX = async () => {
     if (docType !== 'facture' || locale !== 'fr') return
-    // Bloquer si assurance RC Pro manquante (art. L243-2 C. assurances)
+    // Soft warning si assurance RC Pro manquante (cf. handleTestPdfV2).
     if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
-      toast.error('Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
-      return
+      toast.warning('Assurance RC Pro absente — Factur-X généré sans cette mention (à régulariser via Mon profil pour conformité art. L243-2 C. assurances).',
+        { duration: 6000 })
     }
     setFacturxLoading(true)
     try {
