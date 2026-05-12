@@ -995,19 +995,28 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   type RenderedSection = { name: string; rows: ProductLine[] }
   const sections: RenderedSection[] = []
 
-  if (laborLines && laborLines.some(l => l.description.trim())) {
-    sections.push({ name: linesName || defaultLaborLabel, rows: laborLines })
+  // Helper : une ligne est "remplie" si sa description (après trim) est non-vide.
+  // Nullish-safe : si `l` ou `l.description` est manquant (cas localStorage
+  // corrompu ou migration partielle), on ne throw pas — on considère la
+  // ligne comme vide. Avant ce guard, une ligne {description: undefined}
+  // faisait throw `l.description.trim is not a function` → PDF en erreur
+  // OU section silencieusement ignorée selon le path.
+  const hasFilled = (arr: ProductLine[] | undefined): boolean =>
+    Array.isArray(arr) && arr.some(l => l && typeof l.description === 'string' && l.description.trim().length > 0)
+
+  if (hasFilled(laborLines)) {
+    sections.push({ name: linesName || defaultLaborLabel, rows: laborLines as ProductLine[] })
   }
-  if (materialLinesEnabled !== false && materialLines && materialLines.some(l => l.description.trim())) {
-    sections.push({ name: materialLinesName || defaultMaterialLabel, rows: materialLines })
+  if (materialLinesEnabled !== false && hasFilled(materialLines)) {
+    sections.push({ name: materialLinesName || defaultMaterialLabel, rows: materialLines as ProductLine[] })
   }
-  if (fraisLinesEnabled !== false && fraisLines && fraisLines.some(l => l.description.trim())) {
-    sections.push({ name: fraisLinesName || defaultFraisLabel, rows: fraisLines })
+  if (fraisLinesEnabled !== false && hasFilled(fraisLines)) {
+    sections.push({ name: fraisLinesName || defaultFraisLabel, rows: fraisLines as ProductLine[] })
   }
   if (customTables && customTables.length > 0) {
     for (const ct of customTables) {
-      if (ct.lines && ct.lines.some(l => l.description.trim())) {
-        sections.push({ name: ct.name || 'Section', rows: ct.lines })
+      if (ct && hasFilled(ct.lines)) {
+        sections.push({ name: ct.name || 'Section', rows: ct.lines as ProductLine[] })
       }
     }
   }
