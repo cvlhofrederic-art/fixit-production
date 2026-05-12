@@ -2046,8 +2046,10 @@ export default function DevisFactureFormBTP({
                 ligne en franchise/autoliquidation. Mentions légales gérées par
                 lib/tva-calculator.ts. */}
             <div className="dv-row col1" style={{ marginTop: 4 }}>
-              <div className="dv-fg">
-                <label>Régime TVA du document <span className="req">*</span></label>
+              <div className="dv-fg" role="group" aria-labelledby="regime-tva-label">
+                <span id="regime-tva-label" style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#666', marginBottom: 4 }}>
+                  Régime TVA du document <span className="req">*</span>
+                </span>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                   {[
                     { value: 'classique' as const, label: 'TVA classique', sub: 'Assujetti normal' },
