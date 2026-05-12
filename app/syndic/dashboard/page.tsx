@@ -130,11 +130,14 @@ const InfractionsSection = d(() => import('@/components/syndic-dashboard/legal/I
 const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashboard/financial/ReconciliationBancaireSection'))
 const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
 const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
+const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/FixyAgentPage'))
+const MaxAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/MaxAgentPage'))
+const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
+const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/AlfredoAgentPage'))
 // ── Extracted layout + misc components ──
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
 const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
 const MaxExpertSection = d(() => import('@/components/syndic-dashboard/pages/MaxExpertSection'))
-const FixyPanel = d(() => import('@/components/syndic-dashboard/pages/FixyPanel'))
 const PDFGenerationModal = d(() => import('@/components/syndic-dashboard/misc/PDFGenerationModal'))
 
 // ─── Web Speech API types (not in standard TS lib — no @types/dom-speech-recognition) ──
@@ -395,7 +398,7 @@ export default function SyndicDashboard() {
   const [maxTab, setMaxTab] = useState<'chat' | 'conformite' | 'documents'>('chat')
   const [maxFavorites, setMaxFavorites] = useState<string[]>([])
   const [maxSelectedImmeuble, setMaxSelectedImmeuble] = useState<string>('all')
-  const [fixyPanelOpen, setFixyPanelOpen] = useState(false)
+  // fixyPanelOpen supprimé (FixyPanel legacy retiré)
   // ── Token admin isolé par onglet (résout le conflit de session multi-comptes) ──
   const adminSessionRef = useRef<{ access_token: string; refresh_token: string; expires_at: number } | null>(null)
 
@@ -2324,6 +2327,7 @@ export default function SyndicDashboard() {
 
   // ── Catégories sidebar ──
   const SIDEBAR_CATEGORIES = [
+    { key: 'agents_ia', label: locale === 'pt' ? 'Agentes IA' : 'Agents IA' },
     { key: 'gestion', label: locale === 'pt' ? 'Gestão' : 'Gestion' },
     { key: 'patrimoine', label: locale === 'pt' ? 'Património' : 'Patrimoine' },
     { key: 'technique', label: locale === 'pt' ? 'Técnico' : 'Technique' },
@@ -2408,7 +2412,7 @@ export default function SyndicDashboard() {
     { id: 'pontuacao_saude', emoji: '🏥', label: 'Pontuação Saúde', category: 'ferramentas_pt' },
     { id: 'orcamento_anual_ia', emoji: '🤖', label: 'Orçamento IA', category: 'ferramentas_pt' },
     { id: 'contacto_proativo_ia', emoji: '📡', label: 'Contacto Proativo', category: 'ferramentas_pt' },
-    { id: 'ocorrencias_ia', emoji: '🤖', label: 'Ocorrências IA', category: 'ferramentas_pt' },
+    { id: 'ocorrencias_ia', emoji: '🤖', label: 'Ocorrências (Classificador)', category: 'ferramentas_pt' },
     { id: 'gestao_seguros', emoji: '🛡️', label: 'Gestão Seguros', category: 'ferramentas_pt' },
     { id: 'checklists_ia', emoji: '📋', label: 'Checklists IA', category: 'ferramentas_pt' },
     { id: 'processamentos_lote', emoji: '⚙️', label: 'Processamentos Lote', category: 'ferramentas_pt' },
@@ -2430,6 +2434,11 @@ export default function SyndicDashboard() {
     { id: 'carregamento_ve', emoji: '⚡', label: 'Carregamento VE', category: 'ferramentas_pt' },
     { id: 'monitorizacao_consumos', emoji: '📈', label: 'Monitorização', category: 'ferramentas_pt' },
     { id: 'arquivo_digital', emoji: '🗄️', label: 'Arquivo Digital', category: 'ferramentas_pt' },
+    // ── AGENTS IA ──
+    { id: 'fixy_agent' as const, emoji: '🤖', label: 'Fixy', category: 'agents_ia' },
+    { id: 'max_agent' as const, emoji: '🎓', label: 'Max', category: 'agents_ia' },
+    { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
+    { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
     { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
@@ -2683,7 +2692,6 @@ export default function SyndicDashboard() {
               setMaxSelectedImmeuble={setMaxSelectedImmeuble}
               maxEndRef={maxEndRef}
               sendMaxMessage={sendMaxMessage}
-              setFixyPanelOpen={setFixyPanelOpen}
               setMaxMessages={setMaxMessages}
               immeubles={immeubles}
               userId={user?.id}
@@ -2697,6 +2705,12 @@ export default function SyndicDashboard() {
               setShowPdfModal={setShowPdfModal}
             />
           )}
+
+          {/* ── AGENTS IA ── */}
+          {page === 'fixy_agent' && user && <FixyAgentPage user={user} />}
+          {page === 'max_agent' && user && <MaxAgentPage user={user} />}
+          {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
+          {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}
 
           {/* ── MON ÉQUIPE ── */}
           {page === 'compta_copro' && user && <ComptaCoproSection user={user} userRole={userRole} immeubles={immeubles} />}
@@ -3102,35 +3116,7 @@ export default function SyndicDashboard() {
         </div>
       )}
 
-      {/* ─── Fixy — Assistant d'Action (panneau flottant) ─── */}
-      <FixyPanel
-        user={user}
-        fixyPanelOpen={fixyPanelOpen}
-        setFixyPanelOpen={setFixyPanelOpen}
-        iaMessages={iaMessages}
-        setIaMessages={setIaMessages}
-        iaInput={iaInput}
-        setIaInput={setIaInput}
-        iaLoading={iaLoading}
-        iaPendingAction={iaPendingAction}
-        iaEndRef={iaEndRef}
-        iaVoiceActive={iaVoiceActive}
-        iaVoiceSupported={iaVoiceSupported}
-        iaSpeechEnabled={iaSpeechEnabled}
-        iaSpeaking={iaSpeaking}
-        iaVoiceDuration={iaVoiceDuration}
-        iaVoiceInterim={iaVoiceInterim}
-        iaVoiceHelp={iaVoiceHelp}
-        setIaVoiceHelp={setIaVoiceHelp}
-        iaVoiceConfidence={iaVoiceConfidence}
-        sendIaMessage={sendIaMessage}
-        handleConfirmIaAction={handleConfirmIaAction}
-        handleCancelIaAction={handleCancelIaAction}
-        speakResponse={speakResponse}
-        startVoiceRecognition={startVoiceRecognition}
-        toggleSpeechEnabled={toggleSpeechEnabled}
-        stopVoiceRecognition={stopVoiceRecognition}
-      />
+      {/* FixyPanel legacy supprimé (Plan D Task 3) */}
 
       {/* ── Signature Modal ── */}
       {showSignatureModal && (

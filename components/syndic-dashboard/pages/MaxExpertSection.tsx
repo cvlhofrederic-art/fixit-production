@@ -48,7 +48,6 @@ interface MaxExpertSectionProps {
   setMaxSelectedImmeuble: (v: string) => void
   maxEndRef: React.RefObject<HTMLDivElement>
   sendMaxMessage: (msg?: string) => void
-  setFixyPanelOpen: (open: boolean) => void
   setMaxMessages: (msgs: MaxMessage[]) => void
   immeubles: Immeuble[]
   userId?: string
@@ -81,7 +80,6 @@ export default function MaxExpertSection({
   setMaxSelectedImmeuble,
   maxEndRef,
   sendMaxMessage,
-  setFixyPanelOpen,
   setMaxMessages,
   immeubles,
   userId,
@@ -212,11 +210,6 @@ export default function MaxExpertSection({
                           style={{ fontSize: 11, color: 'var(--sd-ink-3)', background: 'transparent', border: '1px solid var(--sd-border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
                           title={locale === 'pt' ? 'Copiar' : 'Copier'}
                         >📋 {locale === 'pt' ? 'Copiar' : 'Copier'}</button>
-                        <button
-                          onClick={() => { setFixyPanelOpen(true); }}
-                          style={{ fontSize: 11, color: 'var(--sd-gold)', background: 'transparent', border: '1px solid var(--sd-gold)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
-                          title={locale === 'pt' ? 'Enviar ao Fixy para executar' : 'Envoyer à Fixy pour exécuter'}
-                        >🤖 {locale === 'pt' ? 'Fixy →' : 'Fixy →'}</button>
                         {docData && (
                           <button
                             onClick={() => {
@@ -412,10 +405,6 @@ export default function MaxExpertSection({
                           onClick={() => { setMaxTab('chat'); sendMaxMessage(locale === 'pt' ? `Analisa o problema: ${check.label}. ${check.detail}` : `Analyse le problème : ${check.label}. ${check.detail}`) }}
                           style={{ fontSize: 11, color: 'var(--sd-navy)', background: 'var(--sd-cream)', border: '1px solid var(--sd-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
                         >🎓 {locale === 'pt' ? 'Perguntar ao Max' : 'Demander à Max'}</button>
-                        <button
-                          onClick={() => setFixyPanelOpen(true)}
-                          style={{ fontSize: 11, color: 'var(--sd-gold)', background: 'var(--sd-gold-dim)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
-                        >🤖 {locale === 'pt' ? 'Fixy → ação' : 'Fixy → action'}</button>
                       </div>
                     )}
                   </div>

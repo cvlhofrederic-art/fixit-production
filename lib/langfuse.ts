@@ -53,7 +53,7 @@ interface GenerationParams {
  * Crée une trace pour un appel agent IA.
  * Si Langfuse n'est pas configuré, retourne un no-op.
  */
-export function traceAgent(params: TraceParams) {
+export function createAgentTrace(params: TraceParams) {
   const langfuse = getLangfuse();
   if (!langfuse) {
     return {
@@ -114,6 +114,62 @@ export type SimulateurV2TracePayload = {
   spreadPercent?: number
   latencyMs: number
   error?: string
+}
+
+// ── traceAgent générique (Plan D) ────────────────────────────────────────────
+
+import type { AgentId } from './syndic/agent-types'
+
+export interface TraceAgentParams {
+  agent_id: AgentId | string
+  conversation_id?: string
+  user_id: string
+  prompt?: string
+  response?: string
+  tools_called?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export async function traceAgent<T>(
+  params: TraceAgentParams,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now()
+  let success = false
+  let result: T | undefined
+  let error: unknown = null
+  try {
+    result = await fn()
+    success = true
+    return result
+  } catch (e) {
+    error = e
+    throw e
+  } finally {
+    const latency_ms = Date.now() - start
+    try {
+      const lf = getLangfuse()
+      if (lf) {
+        const t = lf.trace({
+          name: `agent:${params.agent_id}`,
+          userId: params.user_id,
+          sessionId: params.conversation_id,
+          input: params.prompt,
+          output: params.response,
+          metadata: {
+            ...params.metadata,
+            latency_ms,
+            success,
+            error: error instanceof Error ? error.message : undefined,
+            tools_called: params.tools_called,
+          },
+        })
+        t.update({ output: { status: success ? 'completed' : 'error' } })
+      }
+    } catch {
+      // Ne jamais bloquer le path utilisateur sur une erreur Langfuse
+    }
+  }
 }
 
 export function traceSimulateurV2(payload: SimulateurV2TracePayload): void {
