@@ -4,6 +4,7 @@ import {
   MENTIONS_LEGALES,
   computeTva,
   validateRegime,
+  getMentionLegale,
   type TvaRegime,
 } from '@/lib/tva-calculator'
 
@@ -279,6 +280,58 @@ describe('validateRegime — guards on regime switch', () => {
       issuerRegime: 'franchise_base',
     })
     expect(errs).toEqual([])
+  })
+})
+
+describe('getMentionLegale — locale-aware mentions', () => {
+  it('FR franchise renders art. 293 B CGI wording', () => {
+    expect(getMentionLegale('franchise_293b', 'fr')).toBe('TVA non applicable, article 293 B du CGI.')
+  })
+
+  it('PT franchise renders art. 53.º CIVA wording', () => {
+    expect(getMentionLegale('franchise_293b', 'pt')).toBe('IVA não aplicável, artigo 53.º do CIVA.')
+  })
+
+  it('FR autoliquidation renders art. 283, 2 nonies CGI wording', () => {
+    expect(getMentionLegale('autoliquidation_btp', 'fr')).toBe(
+      'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+    )
+  })
+
+  it('PT autoliquidation renders art. 2.º n.º 1 al. j) CIVA wording (inversão do sujeito passivo)', () => {
+    expect(getMentionLegale('autoliquidation_btp', 'pt')).toBe(
+      'IVA - autoliquidação, alínea j) do n.º 1 do artigo 2.º do CIVA.',
+    )
+  })
+
+  it('classique never has a mention regardless of locale', () => {
+    expect(getMentionLegale('classique', 'fr')).toBeNull()
+    expect(getMentionLegale('classique', 'pt')).toBeNull()
+  })
+
+  it('defaults to FR when locale omitted', () => {
+    expect(getMentionLegale('autoliquidation_btp')).toBe(
+      'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+    )
+  })
+})
+
+describe('computeTva — locale support', () => {
+  it('returns PT mention when locale=pt', () => {
+    const result = computeTva({
+      regime: 'autoliquidation_btp',
+      lines: [{ totalHT: 1000, tvaRate: 23 }],
+      locale: 'pt',
+    })
+    expect(result.mention).toBe('IVA - autoliquidação, alínea j) do n.º 1 do artigo 2.º do CIVA.')
+  })
+
+  it('returns FR mention when locale=fr or omitted', () => {
+    const result = computeTva({
+      regime: 'autoliquidation_btp',
+      lines: [{ totalHT: 1000, tvaRate: 20 }],
+    })
+    expect(result.mention).toBe('Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.')
   })
 })
 

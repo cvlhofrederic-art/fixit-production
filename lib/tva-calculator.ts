@@ -28,18 +28,51 @@ export const TVA_REGIMES = ['classique', 'franchise_293b', 'autoliquidation_btp'
 
 export type TvaRegime = typeof TVA_REGIMES[number]
 
+export type TvaLocale = 'fr' | 'pt'
+
 /**
- * Mentions légales obligatoires à apposer sur la facture selon le régime.
- * Wording conforme au CGI et au BOFiP (vérifié 2026-05-12) :
- *   - art. 293 B : "TVA non applicable, article 293 B du CGI."
- *   - art. 283, 2 nonies : mention "Autoliquidation" obligatoire (BOFiP),
- *     wording étendu retenu pour rigueur juridique (citation article + obligation preneur)
+ * Mentions légales obligatoires à apposer sur la facture selon le régime et la locale.
+ *
+ * Wording conforme aux sources officielles (vérifié 2026-05-12) :
+ *
+ * **France (locale='fr') :**
+ *   - art. 293 B CGI         : "TVA non applicable, article 293 B du CGI."
+ *   - art. 283, 2 nonies CGI : "Autoliquidation — Article 283, 2 nonies du CGI..."
+ *     (BOFiP impose au minimum "Autoliquidation" — wording étendu retenu pour rigueur)
+ *
+ * **Portugal (locale='pt') :**
+ *   - art. 53.º CIVA                       : "IVA não aplicável, artigo 53.º do CIVA."
+ *   - art. 2.º n.º 1 al. j) CIVA           : "IVA - autoliquidação..." (forme courte
+ *     obligatoire selon Portal das Finanças, wording étendu cite l'article)
+ *
+ * Note : `franchise_293b` est un nom français mais le code couvre aussi son équivalent PT
+ * (art. 53.º CIVA = régime de isenção). Idem `autoliquidation_btp` ↔ inversão do sujeito
+ * passivo. Renommer l'enum imposerait une migration DB ; on garde le nom FR et on adapte
+ * juste le wording rendu.
  */
-export const MENTIONS_LEGALES: Record<TvaRegime, string | null> = {
-  classique: null,
-  franchise_293b: 'TVA non applicable, article 293 B du CGI.',
-  autoliquidation_btp: 'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+const MENTIONS_BY_LOCALE: Record<TvaLocale, Record<TvaRegime, string | null>> = {
+  fr: {
+    classique: null,
+    franchise_293b: 'TVA non applicable, article 293 B du CGI.',
+    autoliquidation_btp: 'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+  },
+  pt: {
+    classique: null,
+    franchise_293b: 'IVA não aplicável, artigo 53.º do CIVA.',
+    autoliquidation_btp: 'IVA - autoliquidação, alínea j) do n.º 1 do artigo 2.º do CIVA.',
+  },
 }
+
+/** Retourne la mention légale officielle pour le régime + locale. */
+export function getMentionLegale(regime: TvaRegime, locale: TvaLocale = 'fr'): string | null {
+  return MENTIONS_BY_LOCALE[locale][regime]
+}
+
+/**
+ * Rétro-compat : alias de MENTIONS_BY_LOCALE.fr pour les callers existants
+ * qui ne sont pas locale-aware. Préférer getMentionLegale() pour le nouveau code.
+ */
+export const MENTIONS_LEGALES: Record<TvaRegime, string | null> = MENTIONS_BY_LOCALE.fr
 
 export interface TvaLineInput {
   totalHT: number
@@ -69,9 +102,11 @@ export interface TvaComputation {
 export interface ComputeTvaOptions {
   regime: TvaRegime
   lines: TvaLineInput[]
+  /** Locale pour les mentions légales — 'fr' (défaut) ou 'pt'. */
+  locale?: TvaLocale
 }
 
-export function computeTva({ regime, lines }: ComputeTvaOptions): TvaComputation {
+export function computeTva({ regime, lines, locale = 'fr' }: ComputeTvaOptions): TvaComputation {
   const safeLines: TvaLineInput[] = (lines || [])
     .filter(l => l && Number.isFinite(l.totalHT))
     .map(l => ({ totalHT: l.totalHT, tvaRate: Number.isFinite(l.tvaRate) ? l.tvaRate : 0 }))
@@ -86,7 +121,7 @@ export function computeTva({ regime, lines }: ComputeTvaOptions): TvaComputation
       totalTVA: 0,
       totalTTC: totalHT,
       totalLabel: 'TOTAL NET',
-      mention: MENTIONS_LEGALES[regime],
+      mention: getMentionLegale(regime, locale),
       showsTvaBreakdown: false,
       invariantOk: true,
       requiresClientSiren: regime === 'autoliquidation_btp',
