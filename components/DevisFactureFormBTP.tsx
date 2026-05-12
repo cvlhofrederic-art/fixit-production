@@ -183,6 +183,50 @@ const fmtQty = (n: number | null | undefined): string => {
 }
 
 /**
+ * Input contrôlé qui tolère la saisie en cours d'une virgule décimale FR.
+ *
+ * Problème résolu : un input contrôlé `value={fmt(parse(typed))}` reformate
+ * à chaque frappe, ce qui supprime la virgule trailing au moment où
+ * l'utilisateur la tape (ex. "90," → parse=90 → fmt="90" → comma stripped).
+ * L'utilisateur "n'arrive plus à écrire la virgule".
+ *
+ * Solution : tant que l'input a le focus, on garde l'**input brut** tel que
+ * l'utilisateur l'a tapé dans un état local (raw). On parse en parallèle
+ * pour maintenir la réactivité (totaux, TVA, etc.) mais sans réécrire le
+ * champ. Au blur, on libère le buffer et le champ reprend le rendu formaté.
+ *
+ * Compat clavier FR : type="text" + inputMode="decimal" → numpad mobile +
+ * saisie virgule autorisée par le navigateur.
+ */
+function DecimalInput(props: {
+  value: number
+  onChangeNumber: (n: number) => void
+  format: (n: number) => string
+  parse: (s: string) => number
+  placeholder?: string
+  style?: React.CSSProperties
+  title?: string
+  disabled?: boolean
+}) {
+  const { value, onChangeNumber, format, parse, ...rest } = props
+  const [raw, setRaw] = React.useState<string | null>(null)
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      {...rest}
+      value={raw ?? format(value)}
+      onFocus={() => setRaw(format(value))}
+      onChange={(e) => {
+        setRaw(e.target.value)
+        onChangeNumber(parse(e.target.value))
+      }}
+      onBlur={() => setRaw(null)}
+    />
+  )
+}
+
+/**
  * Génère un numéro de document local-only (DERNIER recours).
  *
  * Préfixe DEV-/FACT-/AV- selon docType. Compatible avec la séquence serveur
@@ -2278,32 +2322,29 @@ export default function DevisFactureFormBTP({
                           </div>
                         )}
                       </td>
-                      <td><input type="text" inputMode="decimal" placeholder="0" value={fmtQty(l.qty)} onChange={(e) => updateLine(l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
+                      <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateLine(l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="text" inputMode="decimal" placeholder="0,00" value={fmtN4(l.priceHT)} onChange={(e) => updateLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input type="text" inputMode="decimal" value={fmtN(lineHT)} placeholder="0,00"
-                        onChange={(e) => {
-                          const v = parseDecimalInput(e.target.value)
-                          const q = l.qty || 1
-                          updateLine(l.id, { priceHT: v / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineHT}
+                        onChangeNumber={(v) => { const q = l.qty || 1; updateLine(l.id, { priceHT: v / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
-                      <td style={{ textAlign: 'right' }}><input type="text" inputMode="decimal" value={fmtN(lineTTC)} placeholder="0,00"
-                        onChange={(e) => {
-                          const v = parseDecimalInput(e.target.value)
-                          const ht = v / (1 + (l.tvaRate || 0) / 100)
-                          const q = l.qty || 1
-                          updateLine(l.id, { priceHT: ht / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineTTC}
+                        onChangeNumber={(v) => { const ht = v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateLine(l.id, { priceHT: ht / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
                     </tr>
@@ -2394,32 +2435,29 @@ export default function DevisFactureFormBTP({
                           )}
                         </div>
                       </td>
-                      <td><input type="text" inputMode="decimal" placeholder="0" value={fmtQty(l.qty)} onChange={(e) => updateMaterialLine(l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
+                      <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateMaterialLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="text" inputMode="decimal" placeholder="0,00" value={fmtN4(l.priceHT)} onChange={(e) => updateMaterialLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input type="text" inputMode="decimal" value={fmtN(lineHT)} placeholder="0,00"
-                        onChange={(e) => {
-                          const v = parseDecimalInput(e.target.value)
-                          const q = l.qty || 1
-                          updateMaterialLine(l.id, { priceHT: v / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineHT}
+                        onChangeNumber={(v) => { const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: v / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
-                      <td style={{ textAlign: 'right' }}><input type="text" inputMode="decimal" value={fmtN(lineTTC)} placeholder="0,00"
-                        onChange={(e) => {
-                          const v = parseDecimalInput(e.target.value)
-                          const ht = v / (1 + (l.tvaRate || 0) / 100)
-                          const q = l.qty || 1
-                          updateMaterialLine(l.id, { priceHT: ht / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineTTC}
+                        onChangeNumber={(v) => { const ht = v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: ht / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeMaterialLine(l.id)}>✕</button></td>
                     </tr>
@@ -2502,32 +2540,29 @@ export default function DevisFactureFormBTP({
                           maxLength={200}
                           onChange={(e) => updateFraisLine(l.id, { description: e.target.value })} />
                       </td>
-                      <td><input type="text" inputMode="decimal" placeholder="0" value={fmtQty(l.qty)} onChange={(e) => updateFraisLine(l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
+                      <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateFraisLine(l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateFraisLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="text" inputMode="decimal" placeholder="0,00" value={fmtN4(l.priceHT)} onChange={(e) => updateFraisLine(l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateFraisLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
                         <select value={l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input type="text" inputMode="decimal" value={fmtN(lineHT)} placeholder="0,00"
-                        onChange={(e) => {
-                          const v = parseDecimalInput(e.target.value)
-                          const q = l.qty || 1
-                          updateFraisLine(l.id, { priceHT: v / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineHT}
+                        onChangeNumber={(v) => { const q = l.qty || 1; updateFraisLine(l.id, { priceHT: v / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
-                      <td style={{ textAlign: 'right' }}><input type="text" inputMode="decimal" value={fmtN(lineTTC)} placeholder="0,00"
-                        onChange={(e) => {
-                          const v = parseDecimalInput(e.target.value)
-                          const ht = v / (1 + (l.tvaRate || 0) / 100)
-                          const q = l.qty || 1
-                          updateFraisLine(l.id, { priceHT: ht / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineTTC}
+                        onChangeNumber={(v) => { const ht = v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateFraisLine(l.id, { priceHT: ht / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeFraisLine(l.id)}>✕</button></td>
                     </tr>
@@ -2639,13 +2674,13 @@ export default function DevisFactureFormBTP({
                             </div>
                           )}
                         </td>
-                        <td><input type="text" inputMode="decimal" placeholder="0" value={fmtQty(l.qty)} onChange={(e) => updateCustomLine(tbl.id, l.id, { qty: parseDecimalInput(e.target.value) })} /></td>
+                        <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
                         <td>
                           <select value={l.unit} onChange={(e) => updateCustomLine(tbl.id, l.id, { unit: e.target.value })}>
                             {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                           </select>
                         </td>
-                        <td><input type="text" inputMode="decimal" placeholder="0,00" value={fmtN4(l.priceHT)} onChange={(e) => updateCustomLine(tbl.id, l.id, { priceHT: parseDecimalInput4(e.target.value) })} title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                        <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                         <td>
                           <select value={l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
