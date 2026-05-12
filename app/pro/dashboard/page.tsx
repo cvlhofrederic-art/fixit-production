@@ -492,6 +492,10 @@ function DashboardPage() {
     setShowFactureConvModal(false)
     if (!devis) return
     const newId = Date.now().toString()
+    // docNumber temporaire visible jusqu'au save (où next_doc_number RPC
+    // attribue le vrai numéro F-AAAA-NNN). Évite les rows sans clé d'identité
+    // dans la liste factures (cf. plan magical-mapping-karp Phase 3).
+    const tempDocNumber = `BR-${newId}`
     // Pré-enregistre immédiatement une facture brouillon dans localStorage
     // pour qu'elle apparaisse dans la liste même si l'utilisateur ferme
     // le formulaire sans valider l'envoi.
@@ -503,22 +507,41 @@ function DashboardPage() {
           ...rest
         } = devis as Record<string, unknown>
         const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled === true
+        // Préserve explicitement les sections BTP (cf. règle artisan-vs-btp) :
+        // si le devis source en a, on les copie ; sinon valeurs par défaut sûres
+        // pour que FacturesSection / computeDocumentTotalHT ne tombent jamais
+        // sur des `undefined` qui propagent dans les forms.
+        const srcLines = Array.isArray((rest as { lines?: unknown }).lines) ? (rest as { lines?: unknown[] }).lines!.filter(Boolean) : []
+        const srcMaterial = Array.isArray((rest as { materialLines?: unknown }).materialLines) ? (rest as { materialLines?: unknown[] }).materialLines!.filter(Boolean) : []
+        const srcFrais = Array.isArray((rest as { fraisLines?: unknown }).fraisLines) ? (rest as { fraisLines?: unknown[] }).fraisLines!.filter(Boolean) : []
+        const srcCustom = Array.isArray((rest as { customTables?: unknown }).customTables)
+          ? (rest as { customTables?: unknown[] }).customTables!.filter((t): t is object => t !== null && typeof t === 'object')
+          : []
         const draftFacture = {
           ...rest,
           id: newId,
+          docNumber: tempDocNumber,
           docType: 'facture',
           status: 'brouillon',
           savedAt: new Date().toISOString(),
+          lines: srcLines,
+          materialLines: srcMaterial,
+          fraisLines: srcFrais,
+          customTables: srcCustom,
           acomptesEnabled: srcAcomptesEnabled,
           acomptes: srcAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
         }
         const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
         drafts.push(draftFacture)
         localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(drafts))
-        setSavedDocuments([
-          ...JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]'),
-          ...drafts,
-        ] as typeof savedDocuments)
+        const persisted = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+        // Purge auto : on filtre toute entrée corrompue (non-objet, ou sans
+        // docNumber et sans id) avant de rafraîchir le state — évite que
+        // FacturesSection re-render avec un null hérité d'un flow antérieur.
+        const isValidDoc = (d: unknown): d is Record<string, unknown> =>
+          d !== null && typeof d === 'object' && (Boolean((d as { docNumber?: unknown }).docNumber) || Boolean((d as { id?: unknown }).id))
+        const merged = [...persisted, ...drafts].filter(isValidDoc)
+        setSavedDocuments(merged as typeof savedDocuments)
       }
     } catch (err) {
       console.warn('[ConvertDevisToFacture] Pré-enregistrement échoué:', err)

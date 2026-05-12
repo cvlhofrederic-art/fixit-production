@@ -71,13 +71,18 @@ export default function FacturesSection({
     })
 
   if (showFactureForm) {
-    // Pixel-perfect cohérence avec DevisSection : BTP (pro_societe) utilise
-    // DevisFactureFormBTP avec split MAIN D'ŒUVRE / MATÉRIAUX / FRAIS ANNEXES.
-    // Les autres rôles restent sur l'ancien DevisFactureForm (une seule table).
+    // Garde docType : si convertingDevis arrive avec docType='devis' (bug
+    // d'aiguillage entre Devis et Facture), on l'ignore en initialData pour
+    // éviter un crash d'init dans DevisFactureFormBTP (cf. plan magical-
+    // mapping-karp Phase 3). Le form ouvre alors un brouillon facture vierge.
+    const safeInitial =
+      convertingDevis && (convertingDevis as { docType?: string }).docType === 'facture'
+        ? convertingDevis
+        : null
     if (orgRole === 'pro_societe') {
       return (
         <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="facture"
-          initialData={convertingDevis as any}
+          initialData={safeInitial as any}
           onBack={() => { setShowFactureForm(false); setConvertingDevis(null); refreshDocuments() }}
           onSave={() => { setConvertingDevis(null); refreshDocuments() }}
         />
@@ -85,7 +90,7 @@ export default function FacturesSection({
     }
     return (
       <DevisFactureForm artisan={artisan} services={services} bookings={bookings} initialDocType="facture"
-        initialData={convertingDevis as Partial<DevisFactureData> | undefined}
+        initialData={safeInitial as Partial<DevisFactureData> | undefined}
         onBack={() => { setShowFactureForm(false); setConvertingDevis(null); refreshDocuments() }}
         onSave={() => { setConvertingDevis(null); refreshDocuments() }}
       />
@@ -384,9 +389,13 @@ function FacturesSectionV5({
               const totalHT = computeDocumentTotalHT(doc)
               // Respecte la franchise TVA (art. 293 B) : si tvaEnabled === false,
               // le total TTC = HT (pas de TVA). Sinon, calcul par ligne selon tvaRate.
+              // filter(Boolean) garde contre les lignes null/undefined (localStorage
+              // corrompu après flow Facturer interrompu, cf. plan Phase 3).
               const tvaEnabled = (doc as { tvaEnabled?: boolean }).tvaEnabled !== false
+              const safeLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
               const totalTTC = tvaEnabled
-                ? (doc.lines || []).reduce((s: number, l) => {
+                ? safeLines.reduce((s: number, l) => {
+                    if (!l || typeof l !== 'object') return s
                     const ht = (l.totalHT as number) || 0
                     const rate = ((l as { tvaRate?: number }).tvaRate as number) ?? 20
                     return s + ht * (1 + rate / 100)
