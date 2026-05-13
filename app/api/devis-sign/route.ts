@@ -61,6 +61,42 @@ export async function POST(request: NextRequest) {
     const docNumber = devisMsg.metadata?.docNumber || 'N/A'
     const totalStr = devisMsg.metadata?.totalStr || ''
 
+    // Garde-fou L.111-1 C. conso. : un devis signé doit comporter un délai
+    // d'exécution ET une date de prestation. Sans ces 2 informations, le devis
+    // est juridiquement fragile en cas de litige sur pénalités de retard ou
+    // refus d'exécution (Cass. 1re civ., 22 oct. 2014 n°13-23.346).
+    // Source des champs : metadata du devis_sent (rempli par le form artisan)
+    // OU raw_data du devis en DB (fallback si metadata incomplète).
+    let exec = devisMsg.metadata?.executionDelay
+      || (devisMsg.metadata?.executionDelayDays ? String(devisMsg.metadata.executionDelayDays) : '')
+    let prestation = devisMsg.metadata?.prestationDate || ''
+    if (!exec || !prestation) {
+      // Fallback : on regarde le devis en DB via docNumber
+      try {
+        const { data: dbDevis } = await supabaseAdmin
+          .from('devis')
+          .select('raw_data')
+          .eq('numero', docNumber)
+          .limit(1)
+          .maybeSingle()
+        const raw = (dbDevis?.raw_data ?? {}) as Record<string, unknown>
+        exec = exec || (raw.executionDelay as string)
+          || (raw.executionDelayDays ? String(raw.executionDelayDays) : '')
+        prestation = prestation || (raw.prestationDate as string) || ''
+      } catch {
+        // Pas bloquant — on évalue avec ce qu'on a
+      }
+    }
+    if (!exec?.trim() || !prestation?.trim()) {
+      return NextResponse.json({
+        error: 'Devis incomplet — délai d\'exécution et date de prestation sont obligatoires avant signature (art. L.111-1 C. conso.).',
+        missing: {
+          executionDelay: !exec?.trim(),
+          prestationDate: !prestation?.trim(),
+        },
+      }, { status: 422 })
+    }
+
     // 1. Mettre à jour le message original (marquer comme signé)
     // ATOMIC : la condition .not('metadata->signed', 'is', null) empêche le double-clic
     // Si un 2e appel arrive entre temps, le WHERE ne matchera pas → 0 rows updated
