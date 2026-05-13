@@ -137,7 +137,12 @@ export default function DevisSection({
     )
   }
 
-  const devisDocs = savedDocuments.filter(d => d.docType === 'devis')
+  // Filtre les devis annulés de la liste active (statut 'cancelled' DB EN
+   // ou 'annule' localStorage FR). Le record reste en DB pour audit légal
+   // (art. L123-22 C. com., conservation 10 ans) mais disparaît du flux actif.
+  const devisDocs = savedDocuments.filter(d =>
+    d.docType === 'devis' && d.status !== 'cancelled' && d.status !== 'annule'
+  )
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only
@@ -399,6 +404,7 @@ function DevisSectionV5({
     .sort((a, b) => getDocSeq(a) - getDocSeq(b))
 
   const getV5Badge = (doc: DevisDocument) => {
+    if (doc.status === 'cancelled' || doc.status === 'annule') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Anulado' : 'Annulé' }
     if (doc.status === 'accepte' || doc.status === 'accepted') return { cls: 'v5-badge v5-badge-green', label: locale === 'pt' ? 'Aceite' : 'Accepté' }
     if (doc.status === 'refuse' || doc.status === 'rejected') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Recusado' : 'Refusé' }
     if (doc.status === 'envoye' || doc.status === 'sent') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
