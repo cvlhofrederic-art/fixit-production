@@ -83,6 +83,9 @@ export interface DevisGeneratorInput {
 
 export interface LigneDevis {
   designation: string
+  /** Description complémentaire libre saisie par l'utilisateur (entre titre et
+   *  étapes). Rendue en gris 8pt sous le titre. Parité avec V3 BTP. */
+  lineDetail?: string
   quantite: number
   unite: string
   prix_unitaire: number
@@ -589,7 +592,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     const cleaned = cleanDescription(line.designation)
     const nlParts = cleaned.split('\n')
     const title = nlParts[0]
-    const detail = nlParts.slice(1).join('\n').trim()
+    // detail = continuation du titre (legacy : description multi-ligne via \n
+    // dans designation). Concaténé avec lineDetail (champ libre dédié, parité
+    // V3 BTP) pour rendu unifié sous le titre.
+    const inlineDetail = nlParts.slice(1).join('\n').trim()
+    const lineDetailText = (line.lineDetail || '').trim()
+    const detail = [inlineDetail, lineDetailText].filter(Boolean).join('\n')
 
     // Mesurer les hauteurs nécessaires — largeur = de x=62pt à la colonne QTÉ
     const desigTextW = tColWidths.designation - (ptToMm(62) - ML) - 2

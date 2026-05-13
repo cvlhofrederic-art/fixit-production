@@ -178,6 +178,7 @@ export function buildV2Input(
       // Lignes principales (labor) — section null/'labor' selon mode
       ...lines.filter(l => l.description.trim()).map(l => ({
         designation: l.description,
+        lineDetail: l.lineDetail || undefined,
         quantite: l.qty,
         unite: l.unit || 'u',
         prix_unitaire: l.priceHT,
@@ -193,6 +194,7 @@ export function buildV2Input(
       // personnalisé de la table comme titre de section.
       ...validCustomTables.flatMap(tbl => tbl.lines.map(l => ({
         designation: l.description,
+        lineDetail: l.lineDetail || undefined,
         quantite: l.qty,
         unite: l.unit || 'u',
         prix_unitaire: l.priceHT,
