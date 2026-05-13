@@ -224,8 +224,12 @@ export default function DevisFactureForm({
     if (!artisan?.id) return
     setClientDbLoading(true)
     try {
-      // Fetch auth clients from API
-      const res = await fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
+      // Fetch auth clients from API (Bearer requis cf. route.ts:13 getAuthUser)
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
+      const res = await fetch(`/api/artisan-clients?artisan_id=${artisan.id}`, { headers: authHeader })
       const data = await res.json()
       const authClients = (data.clients || []).map((c: Record<string, unknown>) => ({ ...c, source: 'auth' }))
       // Fetch manual clients from localStorage
@@ -1672,9 +1676,11 @@ export default function DevisFactureForm({
           notes,
         },
       }
+      // Bearer requis (cf. /api/facturx/generate/route.ts getAuthUser)
+      const facturxHeaders = await getAuthHeaders()
       const res = await fetch('/api/facturx/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...facturxHeaders },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
