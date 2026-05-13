@@ -223,7 +223,17 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || '',
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : pour une facture
+    // brouillon, la date d'émission au PDF doit être MAX(génération, prestation),
+    // jamais le docDate hérité du devis. Une facture déjà émise (sentAt présent)
+    // garde sa date historique pour l'archivage probant (arrêté 22 mars 2017).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType !== 'facture' || sentAt) return doc.docDate || today
+      const prestation = String(doc.prestationDate || '').slice(0, 10)
+      return today >= prestation ? today : prestation
+    })(),
     docValidity: doc.docValidity || 30,
     executionDelay: delayStr,
     // prestationDate : si vide → reste vide → V3 affiche « À convenir ».

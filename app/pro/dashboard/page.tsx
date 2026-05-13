@@ -504,6 +504,7 @@ function DashboardPage() {
         const {
           id: _id, docNumber: _dn, docType: _dt, status: _st,
           savedAt: _sa, sentAt: _se, signatureData: _sig,
+          docDate: _dd,
           ...rest
         } = devis as Record<string, unknown>
         const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled === true
@@ -517,11 +518,19 @@ function DashboardPage() {
         const srcCustom = Array.isArray((rest as { customTables?: unknown }).customTables)
           ? (rest as { customTables?: unknown[] }).customTables!.filter((t): t is object => t !== null && typeof t === 'object')
           : []
+        // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : la facture ne
+        // peut hériter du docDate du devis. Règle : MAX(génération, prestation).
+        // Génération = aujourd'hui ; prestation = date saisie sur le devis (vide → ''
+        // qui est lexicographiquement < toute date YYYY-MM-DD, donc neutre).
+        const today = new Date().toISOString().split('T')[0]
+        const prestation = String((rest as { prestationDate?: string }).prestationDate || '').slice(0, 10)
+        const factureDocDate = today >= prestation ? today : prestation
         const draftFacture = {
           ...rest,
           id: newId,
           docNumber: tempDocNumber,
           docType: 'facture',
+          docDate: factureDocDate,
           status: 'brouillon',
           savedAt: new Date().toISOString(),
           lines: srcLines,

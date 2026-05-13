@@ -200,7 +200,19 @@ export default function DevisFactureForm({
 
   const isProClient = clientSiret.trim().length > 0 || ['syndic', 'professionnel', 'societe', 'conciergerie', 'agence_immobiliere', 'promoteur', 'architecte', 'collectivite', 'association', 'artisan_sous_traitant'].includes(clientType)
 
-  const [docDate, setDocDate] = useState(initialData?.docDate || today)
+  // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : une facture brouillon
+  // (issue d'une conversion devis → facture) ne peut hériter du docDate du
+  // devis. Règle : MAX(génération, prestation). On préserve la date d'origine
+  // pour les factures déjà émises (sentAt présent) — historisation comptable.
+  const initialDocDate = (() => {
+    const sentAt = (initialData as { sentAt?: string } | undefined)?.sentAt
+    if (initialData?.docType !== 'facture' || sentAt) {
+      return initialData?.docDate || today
+    }
+    const prestation = String(initialData?.prestationDate || '').slice(0, 10)
+    return today >= prestation ? today : prestation
+  })()
+  const [docDate, setDocDate] = useState(initialDocDate)
   const [docValidity, setDocValidity] = useState(initialData?.docValidity || 30)
   const [prestationDate, setPrestationDate] = useState(initialData?.prestationDate || '')
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
