@@ -194,6 +194,7 @@ export function useBookings(
       savedAt: _sa,
       sentAt: _se,
       signatureData: _sig,
+      docDate: _dd,
       ...rest
     } = devis as Record<string, unknown>
     // Cohérence devis → facture : si acomptes désactivés sur devis (ou non
@@ -201,10 +202,16 @@ export function useBookings(
     // de bloquer la validation (total acomptes != 100 %).
     const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled
     const inheritedAcomptesEnabled = srcAcomptesEnabled === true
+    // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : la facture ne peut
+    // hériter du docDate du devis. Règle : MAX(génération, prestation).
+    const today = new Date().toISOString().split('T')[0]
+    const prestation = String((rest as { prestationDate?: string }).prestationDate || '').slice(0, 10)
+    const factureDocDate = today >= prestation ? today : prestation
     setConvertingDevis({
       ...rest,
       id: overrideId,
       docType: 'facture',
+      docDate: factureDocDate,
       acomptesEnabled: inheritedAcomptesEnabled,
       acomptes: inheritedAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
     })
