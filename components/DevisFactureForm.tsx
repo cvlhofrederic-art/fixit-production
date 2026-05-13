@@ -49,6 +49,73 @@ import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 
 // ═══════════════════════════════════════════════
+// HELPERS — saisie décimale FR + input buffered (parité BTP)
+// ═══════════════════════════════════════════════
+
+// Format quantité : "1", "1,5", '' si 0/null (compat clavier FR + mobile).
+const fmtQty = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  return n.toString().replace('.', ',')
+}
+// Format prix HT : 2 décimales virgule FR, '' si 0.
+const fmtN = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  return n.toFixed(2).replace('.', ',')
+}
+// Format prix unitaire 4 décimales (étude de prix, parité BTP).
+const fmtN4 = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  const fixed = n.toFixed(4).replace(/\.?0+$/, '')
+  return fixed.replace('.', ',')
+}
+
+/**
+ * Input contrôlé qui tolère la saisie en cours d'une virgule/point décimal.
+ *
+ * Bug fix V2 : avant, l'input rendait `value={qty === 0 ? '' : qty}` et
+ * appelait parseDecimalInput sur chaque keystroke. Conséquence : taper
+ * "1.5" ou "1,5" mangeait le séparateur intermédiaire ("1." → parseFloat
+ * → 1 → re-render value=1 → "." perdu). Résultat : la case paraissait
+ * impossible à éditer pour des décimales.
+ *
+ * Solution (parité BTP) : on garde un buffer local `raw` pendant l'édition
+ * (entre focus et blur). Le state numérique est mis à jour en parallèle
+ * via `parse` pour la réactivité des totaux, mais l'input n'est pas réécrit
+ * tant que l'utilisateur tape. Au blur, le buffer est libéré et le champ
+ * reprend le rendu formaté.
+ */
+function DecimalInput(props: {
+  value: number
+  onChangeNumber: (n: number) => void
+  format: (n: number) => string
+  parse: (s: string) => number
+  placeholder?: string
+  style?: React.CSSProperties
+  title?: string
+  disabled?: boolean
+  className?: string
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+}) {
+  const { value, onChangeNumber, format, parse, onFocus, onBlur, ...rest } = props
+  const [raw, setRaw] = useState<string | null>(null)
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      {...rest}
+      value={raw ?? format(value)}
+      onFocus={(e) => { setRaw(format(value)); e.target.select(); onFocus?.(e) }}
+      onChange={(e) => {
+        setRaw(e.target.value)
+        onChangeNumber(parse(e.target.value))
+      }}
+      onBlur={(e) => { setRaw(null); onBlur?.(e) }}
+    />
+  )
+}
+
+// ═══════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════
 
@@ -2888,19 +2955,16 @@ export default function DevisFactureForm({
                             )}
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              step="0.01"
-                              value={line.qty === 0 ? '' : line.qty}
-                              onChange={(e) => updateLine(line.id, 'qty', parseDecimalInput(e.target.value))}
-                              onFocus={(e) => e.target.select()}
+                            <DecimalInput
+                              value={line.qty || 0}
+                              onChangeNumber={(n) => updateLine(line.id, 'qty', n)}
+                              format={fmtQty}
+                              parse={parseDecimalInput}
                               onBlur={(e) => {
                                 // Au blur, forcer minimum > 0 (accepte décimales)
                                 const v = parseDecimalInput(e.target.value)
                                 if (!v || v <= 0) updateLine(line.id, 'qty', 1)
                               }}
-                              min={0}
                               className="v22-form-input"
                               style={{ textAlign: 'center' }}
                             />
@@ -2941,12 +3005,11 @@ export default function DevisFactureForm({
                             </div>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <input
-                              type="number"
-                              value={line.priceHT === 0 ? '' : line.priceHT}
-                              onChange={(e) => updateLine(line.id, 'priceHT', parseDecimalInput4(e.target.value))}
-                              onFocus={(e) => e.target.select()}
-                              step="0.0001"
+                            <DecimalInput
+                              value={line.priceHT || 0}
+                              onChangeNumber={(n) => updateLine(line.id, 'priceHT', n)}
+                              format={fmtN4}
+                              parse={parseDecimalInput4}
                               className="v22-form-input"
                               title="Prix unitaire HT — jusqu'à 4 décimales (norme étude de prix)"
                             />
@@ -2977,17 +3040,15 @@ export default function DevisFactureForm({
                             </select>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <input
-                              type="number"
-                              value={line.totalHT === 0 ? '' : line.totalHT}
-                              onChange={(e) => {
-                                const newTotal = parseDecimalInput(e.target.value)
+                            <DecimalInput
+                              value={line.totalHT || 0}
+                              onChangeNumber={(newTotal) => {
                                 const qty = line.qty > 0 ? line.qty : 1
                                 const newPrice = newTotal / qty
                                 setLines(prev => prev.map(l => l.id !== line.id ? l : { ...l, priceHT: newPrice, totalHT: newTotal }))
                               }}
-                              onFocus={(e) => e.target.select()}
-                              step="0.01"
+                              format={fmtN}
+                              parse={parseDecimalInput}
                               className="v22-form-input"
                             />
                           </td>
@@ -3062,11 +3123,11 @@ export default function DevisFactureForm({
                         {materialLines.map((line) => (
                           <tr key={line.id}>
                             <td><input type="text" className="v22-input" placeholder={locale === 'pt' ? 'Ex: Cimento, areia...' : 'Ex : Ciment, sable...'} value={line.description} onChange={(e) => updateMaterialLine(line.id, 'description', e.target.value)} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
+                            <td><DecimalInput value={line.qty || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'qty', n)} format={fmtQty} parse={parseDecimalInput} className="v22-input" style={{ textAlign: 'center' }} /></td>
                             <td><input type="text" className="v22-input" value={line.unit} onChange={(e) => updateMaterialLine(line.id, 'unit', e.target.value)} style={{ textAlign: 'center' }} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.0001" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput4(e.target.value))} style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
+                            <td><DecimalInput value={line.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'priceHT', n)} format={fmtN4} parse={parseDecimalInput4} className="v22-input" style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
                             {tvaEnabled && (
-                              <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
+                              <td><DecimalInput value={line.tvaRate || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'tvaRate', n)} format={fmtQty} parse={parseDecimalInput} className="v22-input" style={{ textAlign: 'center' }} /></td>
                             )}
                             <td style={{ textAlign: 'right', fontWeight: 600 }}>{line.totalHT.toFixed(2)}</td>
                             <td>
@@ -3137,13 +3198,11 @@ export default function DevisFactureForm({
                               </select>
                             </td>
                             <td>
-                              <input
-                                type="number"
-                                value={item.quantite || ''}
-                                onChange={(e) => updateFraisAnnexe(item.id, 'quantite', parseDecimalInput(e.target.value))}
-                                onFocus={(e) => e.target.select()}
-                                min={0}
-                                step="0.01"
+                              <DecimalInput
+                                value={item.quantite || 0}
+                                onChangeNumber={(n) => updateFraisAnnexe(item.id, 'quantite', n)}
+                                format={fmtQty}
+                                parse={parseDecimalInput}
                                 className="v22-form-input"
                               />
                             </td>
@@ -3159,13 +3218,11 @@ export default function DevisFactureForm({
                               </select>
                             </td>
                             <td>
-                              <input
-                                type="number"
-                                value={item.prix_unitaire_ht || ''}
-                                onChange={(e) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', parseDecimalInput(e.target.value))}
-                                onFocus={(e) => e.target.select()}
-                                min={0}
-                                step="0.01"
+                              <DecimalInput
+                                value={item.prix_unitaire_ht || 0}
+                                onChangeNumber={(n) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', n)}
+                                format={fmtN}
+                                parse={parseDecimalInput}
                                 className="v22-form-input"
                               />
                             </td>
@@ -3295,10 +3352,11 @@ export default function DevisFactureForm({
                               />
                             </td>
                             <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="number" inputMode="decimal" step="0.01"
-                                value={line.qty === 0 ? '' : line.qty}
-                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'qty', parseDecimalInput(e.target.value))}
+                              <DecimalInput
+                                value={line.qty || 0}
+                                onChangeNumber={(n) => updateCustomLine(tbl.id, line.id, 'qty', n)}
+                                format={fmtQty}
+                                parse={parseDecimalInput}
                                 placeholder="0"
                                 className="v22-form-input"
                                 style={{ fontSize: 12, textAlign: 'center' }}
@@ -3315,10 +3373,11 @@ export default function DevisFactureForm({
                               </select>
                             </td>
                             <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="number" inputMode="decimal" step="0.01"
-                                value={line.priceHT === 0 ? '' : line.priceHT}
-                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'priceHT', parseDecimalInput(e.target.value))}
+                              <DecimalInput
+                                value={line.priceHT || 0}
+                                onChangeNumber={(n) => updateCustomLine(tbl.id, line.id, 'priceHT', n)}
+                                format={fmtN4}
+                                parse={parseDecimalInput4}
                                 placeholder="0"
                                 className="v22-form-input"
                                 style={{ fontSize: 12, textAlign: 'right' }}
