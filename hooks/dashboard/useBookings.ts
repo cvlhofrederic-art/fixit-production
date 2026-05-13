@@ -202,11 +202,11 @@ export function useBookings(
     // de bloquer la validation (total acomptes != 100 %).
     const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled
     const inheritedAcomptesEnabled = srcAcomptesEnabled === true
-    // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : la facture ne peut
-    // hériter du docDate du devis. Règle : MAX(génération, prestation).
-    const today = new Date().toISOString().split('T')[0]
-    const prestation = String((rest as { prestationDate?: string }).prestationDate || '').slice(0, 10)
-    const factureDocDate = today >= prestation ? today : prestation
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : la
+    // facture ne peut hériter du docDate du devis. La date d'émission est la
+    // date de génération (today), conformément à l'art. 289 CGI et à la
+    // pratique pro (Henrri, EBP, Pennylane, Sage).
+    const factureDocDate = new Date().toISOString().split('T')[0]
     setConvertingDevis({
       ...rest,
       id: overrideId,

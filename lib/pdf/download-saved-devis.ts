@@ -223,16 +223,16 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || '',
-    // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : pour une facture
-    // brouillon, la date d'émission au PDF doit être MAX(génération, prestation),
-    // jamais le docDate hérité du devis. Une facture déjà émise (sentAt présent)
-    // garde sa date historique pour l'archivage probant (arrêté 22 mars 2017).
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today), jamais le docDate hérité du devis. Aligné art. 289 CGI + pratique
+    // Henrri/EBP/Pennylane/Sage. Une facture déjà émise (sentAt présent) garde
+    // sa date historique pour l'archivage probant (arrêté 22 mars 2017).
     docDate: (() => {
       const today = new Date().toISOString().split('T')[0]
       const sentAt = (doc as { sentAt?: string }).sentAt
-      if (doc.docType !== 'facture' || sentAt) return doc.docDate || today
-      const prestation = String(doc.prestationDate || '').slice(0, 10)
-      return today >= prestation ? today : prestation
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
     })(),
     docValidity: doc.docValidity || 30,
     executionDelay: delayStr,
