@@ -340,8 +340,16 @@ function FacturesSectionV5({
     .sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime())
 
   const getV5Badge = (doc: PersistedDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.factures.emise') }
-    if (doc.status === 'payee') return { cls: 'v5-badge v5-badge-green', label: t('proDash.factures.payee') }
+    // Accepte les statuts FR (localStorage) ET EN (DB Supabase).
+    // Sans `pending`, les factures rechargées depuis la DB tombaient
+    // toutes en « Brouillon » alors qu'elles étaient bien émises.
+    const status = doc.status
+    if (status === 'envoye' || status === 'pending') {
+      return { cls: 'v5-badge v5-badge-blue', label: t('proDash.factures.emise') }
+    }
+    if (status === 'payee' || status === 'paid') {
+      return { cls: 'v5-badge v5-badge-green', label: t('proDash.factures.payee') }
+    }
     return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.factures.brouillon') }
   }
 
@@ -430,7 +438,7 @@ function FacturesSectionV5({
                   <td><span className={badge.cls}>{badge.label}</span></td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                      {doc.status !== 'envoye' && (
+                      {doc.status !== 'envoye' && doc.status !== 'pending' && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
                           const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -463,7 +471,7 @@ function FacturesSectionV5({
                           {t('proDash.factures.envoyerEmail')}
                         </button>
                       )}
-                      {orgRole === 'artisan' && (
+                      {(orgRole === 'artisan' || orgRole === 'pro_societe') && (
                         <button className="v5-btn v5-btn-sm" title={t('proDash.factures.telechargerPDF')} onClick={async e => {
                           e.stopPropagation()
                           try {
@@ -477,7 +485,7 @@ function FacturesSectionV5({
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
                                 rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                               } : null,
-                              useBtpDesign: false,
+                              useBtpDesign: orgRole === 'pro_societe',
                             })
                           } catch (err) {
                             console.error('[Facture] download failed', err)
