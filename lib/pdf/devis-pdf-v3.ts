@@ -6,10 +6,12 @@
  * All data is passed via the PdfV3Input interface.
  */
 
-import type { ProductLine, DevisAcompte, SignatureData } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, SignatureData, DechetsChantierInfo } from '@/lib/devis-types'
 import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-utils'
 import type { Locale } from '@/lib/i18n/config'
 import { getMentionLegale } from '@/lib/tva-calculator'
+import { computeFrTvaIntra } from '@/lib/tva-intra'
+import { computeAcomptesAmounts } from '@/lib/money'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -76,6 +78,16 @@ export interface PdfV3Input {
   companyEmail: string
   tvaEnabled: boolean
   tvaNumber: string
+  /** N° TVA intra du preneur (donneur d'ordre). Obligatoire en autoliquidation
+   *  BTP (art. 242 nonies A I-3° annexe II CGI). Auto-calculé depuis le SIRET
+   *  client si non fourni. */
+  tvaIntraPreneur?: string
+  /** Informations gestion déchets — art. D.541-45-1 C. env. (loi AGEC). */
+  dechetsChantier?: DechetsChantierInfo
+  /** Référence marché principal (autoliquidation BTP, loi 75-1334) — facultatif. */
+  marchePrincipalRef?: string
+  /** Maître d'ouvrage final (nom + adresse) — caractérisation sous-traitance. */
+  maitreOuvrageFinal?: string
   insuranceName: string
   insuranceNumber: string
   insuranceCoverage: string
@@ -256,6 +268,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyAPE: _s(input.companyAPE),
     companyCapital: _s(input.companyCapital),
     tvaNumber: _s(input.tvaNumber),
+    tvaIntraPreneur: input.tvaIntraPreneur ? _s(input.tvaIntraPreneur) : undefined,
+    marchePrincipalRef: input.marchePrincipalRef ? _s(input.marchePrincipalRef) : undefined,
+    maitreOuvrageFinal: input.maitreOuvrageFinal ? _s(input.maitreOuvrageFinal) : undefined,
+    dechetsChantier: input.dechetsChantier ? {
+      nature: input.dechetsChantier.nature ? _s(input.dechetsChantier.nature) : undefined,
+      quantiteEstimee: input.dechetsChantier.quantiteEstimee ? _s(input.dechetsChantier.quantiteEstimee) : undefined,
+      unite: input.dechetsChantier.unite ? _s(input.dechetsChantier.unite) : undefined,
+      installationNom: input.dechetsChantier.installationNom ? _s(input.dechetsChantier.installationNom) : undefined,
+      installationAdresse: input.dechetsChantier.installationAdresse ? _s(input.dechetsChantier.installationAdresse) : undefined,
+      modalitesTri: input.dechetsChantier.modalitesTri ? _s(input.dechetsChantier.modalitesTri) : undefined,
+      coutGestion: input.dechetsChantier.coutGestion ? _s(input.dechetsChantier.coutGestion) : undefined,
+    } : undefined,
     // Assurance / médiateur (insuranceType est un enum strict, pas user-typable)
     insuranceName: _s(input.insuranceName),
     insuranceNumber: _s(input.insuranceNumber),
@@ -314,7 +338,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     prestationDate, executionDelay,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
-    tvaEnabled, tvaNumber,
+    tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     decennaleEligibility,
     mediatorName, mediatorUrl, isHorsEtablissement,
@@ -750,6 +774,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+  // Autoliquidation BTP : n° TVA intra du preneur OBLIGATOIRE sur la facture
+  // (art. 242 nonies A I-3° annexe II CGI). Champ saisi explicitement sinon
+  // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
+  if (effectiveRegime === 'autoliquidation_btp') {
+    const tvaIntraDest = tvaIntraPreneur || computeFrTvaIntra(clientSiret)
+    if (tvaIntraDest) {
+      pdf.text(`TVA Intra. : ${tvaIntraDest}`, destTx, dy3); dy3 += ptToMm(14)
+    }
+  }
 
   y = boxStartY + boxH + 4
 
@@ -1392,6 +1425,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // pour l'ensemble des deux colonnes.
     if (validAcomptes.length > 0) {
       const acompteTotal = showTva ? totalTTC : subtotalHT
+      // Calcul des montants via helper computeAcomptesAmounts (lib/money.ts) :
+      // si Σ pourcentages === 100 %, le dernier acompte absorbe le résidu
+      // d'arrondi pour garantir Σ montants === total au centime près
+      // (convention comptable EBP/Sage/Henrri). Sans ça, l'écart de 0,01 €
+      // observé sur DEV-2026-002 (50+30+20 % de 733,33 € = 733,34 €) restait.
+      const acompteAmounts = computeAcomptesAmounts(
+        acompteTotal,
+        validAcomptes.map(ac => ({ pourcentage: ac.pourcentage })),
+      )
       const acY = condStartY + sigBoxH + 4
       pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
       pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
@@ -1399,15 +1441,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, acY + 5)
       let ay = acY + 12
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      for (const ac of validAcomptes) {
-        const montant = acompteTotal * ac.pourcentage / 100
+      validAcomptes.forEach((ac, idx) => {
+        const montant = acompteAmounts[idx] ?? 0
         const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
         pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
         pdf.setFont('helvetica', 'bold')
         pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
         pdf.setFont('helvetica', 'normal')
         ay += ptToMm(13)
-      }
+      })
     }
 
     // y final = bas le plus bas des deux colonnes + marge
@@ -1539,6 +1581,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
     const mention = getMentionLegale('autoliquidation_btp', localeForMention)
     if (mention) legal1 += ` ${mention}`
+    // Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975).
+    // L'autoliquidation BTP n'est valide qu'en cadre de sous-traitance avec
+    // un donneur d'ordre assujetti à la TVA et un marché principal identifié.
+    // En cas de contrôle fiscal, ces mentions caractérisent la sous-traitance
+    // et sécurisent l'autoliquidation.
+    if (locale !== 'pt' && clientName) {
+      legal1 += ` Cadre de sous-traitance (loi n° 75-1334 du 31/12/1975) : prestation réalisée en sous-traitance pour le compte de ${clientName}.`
+      if (marchePrincipalRef) {
+        legal1 += ` Marché principal : ${marchePrincipalRef}.`
+      }
+      const mo = maitreOuvrageFinal || interventionAddress
+      if (mo) {
+        legal1 += ` Maître d'ouvrage final / lieu d'exécution : ${mo}.`
+      }
+    }
   } else if (effectiveRegime === 'franchise_293b') {
     const mention = getMentionLegale('franchise_293b', localeForMention)
     if (mention) legal1 += ` ${mention}`
@@ -1675,13 +1732,32 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement).
-  // Le décret 2020-1817 (art. R.541-12-2 C. env.) s'applique aux devis de
-  // construction, rénovation, démolition et jardinage. Il ne s'applique
-  // pas aux prestations de service pure sans déchets de chantier
-  // (nettoyage, déménagement, diagnostic…) — on saute la mention pour
-  // `decennaleEligibility === 'never'` qui marque ces métiers.
+  // Le décret 2020-1817 (art. D.541-45-1 C. env.) impose 4 infos précises
+  // dans le devis : nature, quantité estimée, installation collecte, modalités
+  // de tri (+ coût). Si l'utilisateur a renseigné le bloc dechetsChantier,
+  // on émet la mention structurée conforme. Sinon fallback mention courte
+  // L.541-21-2-1 (acceptable mais moins défensif au contrôle).
+  // S'applique aux devis construction/rénovation/démolition/jardinage —
+  // pas aux prestations service pures (decennaleEligibility === 'never').
   if (locale !== 'pt' && decennaleEligibility !== 'never') {
-    legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
+    const d = dechetsChantier
+    const hasDetails = d && (d.nature || d.quantiteEstimee || d.installationNom || d.modalitesTri)
+    if (hasDetails) {
+      const qty = d!.quantiteEstimee && d!.unite
+        ? `${d!.quantiteEstimee} ${d!.unite}`
+        : (d!.quantiteEstimee || (d!.unite || 'non estimée'))
+      const installation = d!.installationNom
+        ? (d!.installationAdresse ? `${d!.installationNom}, ${d!.installationAdresse}` : d!.installationNom)
+        : 'à définir avant intervention'
+      legal3 += ' Gestion des déchets de chantier (loi AGEC, art. D.541-45-1 C. env.) :'
+      legal3 += ` nature : ${d!.nature || 'inertes et non dangereux non inertes'} ; `
+      legal3 += `quantité estimée : ${qty} ; `
+      legal3 += `installation de collecte/traitement : ${installation} ; `
+      legal3 += `modalités de tri : ${d!.modalitesTri || 'tri sélectif sur chantier'} ; `
+      legal3 += `coût : ${d!.coutGestion || 'inclus dans la prestation'}.`
+    } else {
+      legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
+    }
   }
 
   const legal4 = locale === 'pt'
