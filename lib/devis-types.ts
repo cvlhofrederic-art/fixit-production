@@ -3,6 +3,29 @@
 // Extracted from components/DevisFactureForm.tsx
 // ═══════════════════════════════════════════════
 
+// ── Gestion des déchets de chantier (loi AGEC, décret 2020-1817) ──
+// Art. D.541-45-1 C. env. : 4 infos obligatoires dans le devis BTP :
+//   1. Nature des déchets (inertes / non dangereux non inertes / dangereux)
+//   2. Estimation des quantités
+//   3. Nom + adresse de l'installation de collecte/traitement
+//   4. Modalités de tri sur chantier (+ coût, qui peut rester "inclus")
+export interface DechetsChantierInfo {
+  /** Ex. « Inertes (gravats, terres) et non dangereux non inertes (bois, plastique) ». */
+  nature?: string
+  /** Estimation quantitative — chiffre seul, ex. « 2.5 ». */
+  quantiteEstimee?: string
+  /** Unité de mesure — ex. m³, kg, L, t. */
+  unite?: string
+  /** Raison sociale de l'installation de collecte/traitement. */
+  installationNom?: string
+  /** Adresse complète de l'installation. */
+  installationAdresse?: string
+  /** Modalités de tri pratiquées sur le chantier. */
+  modalitesTri?: string
+  /** Coût de gestion — peut rester « Inclus dans la prestation ». */
+  coutGestion?: string
+}
+
 // ── Signature types ──
 export interface SignatureData {
   svg_data: string

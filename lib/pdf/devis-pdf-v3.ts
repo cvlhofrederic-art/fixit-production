@@ -6,7 +6,7 @@
  * All data is passed via the PdfV3Input interface.
  */
 
-import type { ProductLine, DevisAcompte, SignatureData } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, SignatureData, DechetsChantierInfo } from '@/lib/devis-types'
 import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-utils'
 import type { Locale } from '@/lib/i18n/config'
 import { getMentionLegale } from '@/lib/tva-calculator'
@@ -81,6 +81,8 @@ export interface PdfV3Input {
    *  BTP (art. 242 nonies A I-3° annexe II CGI). Auto-calculé depuis le SIRET
    *  client si non fourni. */
   tvaIntraPreneur?: string
+  /** Informations gestion déchets — art. D.541-45-1 C. env. (loi AGEC). */
+  dechetsChantier?: DechetsChantierInfo
   insuranceName: string
   insuranceNumber: string
   insuranceCoverage: string
@@ -262,6 +264,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyCapital: _s(input.companyCapital),
     tvaNumber: _s(input.tvaNumber),
     tvaIntraPreneur: input.tvaIntraPreneur ? _s(input.tvaIntraPreneur) : undefined,
+    dechetsChantier: input.dechetsChantier ? {
+      nature: input.dechetsChantier.nature ? _s(input.dechetsChantier.nature) : undefined,
+      quantiteEstimee: input.dechetsChantier.quantiteEstimee ? _s(input.dechetsChantier.quantiteEstimee) : undefined,
+      unite: input.dechetsChantier.unite ? _s(input.dechetsChantier.unite) : undefined,
+      installationNom: input.dechetsChantier.installationNom ? _s(input.dechetsChantier.installationNom) : undefined,
+      installationAdresse: input.dechetsChantier.installationAdresse ? _s(input.dechetsChantier.installationAdresse) : undefined,
+      modalitesTri: input.dechetsChantier.modalitesTri ? _s(input.dechetsChantier.modalitesTri) : undefined,
+      coutGestion: input.dechetsChantier.coutGestion ? _s(input.dechetsChantier.coutGestion) : undefined,
+    } : undefined,
     // Assurance / médiateur (insuranceType est un enum strict, pas user-typable)
     insuranceName: _s(input.insuranceName),
     insuranceNumber: _s(input.insuranceNumber),
@@ -320,7 +331,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     prestationDate, executionDelay,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
-    tvaEnabled, tvaNumber, tvaIntraPreneur,
+    tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     decennaleEligibility,
     mediatorName, mediatorUrl, isHorsEtablissement,
@@ -1690,13 +1701,32 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement).
-  // Le décret 2020-1817 (art. R.541-12-2 C. env.) s'applique aux devis de
-  // construction, rénovation, démolition et jardinage. Il ne s'applique
-  // pas aux prestations de service pure sans déchets de chantier
-  // (nettoyage, déménagement, diagnostic…) — on saute la mention pour
-  // `decennaleEligibility === 'never'` qui marque ces métiers.
+  // Le décret 2020-1817 (art. D.541-45-1 C. env.) impose 4 infos précises
+  // dans le devis : nature, quantité estimée, installation collecte, modalités
+  // de tri (+ coût). Si l'utilisateur a renseigné le bloc dechetsChantier,
+  // on émet la mention structurée conforme. Sinon fallback mention courte
+  // L.541-21-2-1 (acceptable mais moins défensif au contrôle).
+  // S'applique aux devis construction/rénovation/démolition/jardinage —
+  // pas aux prestations service pures (decennaleEligibility === 'never').
   if (locale !== 'pt' && decennaleEligibility !== 'never') {
-    legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
+    const d = dechetsChantier
+    const hasDetails = d && (d.nature || d.quantiteEstimee || d.installationNom || d.modalitesTri)
+    if (hasDetails) {
+      const qty = d!.quantiteEstimee && d!.unite
+        ? `${d!.quantiteEstimee} ${d!.unite}`
+        : (d!.quantiteEstimee || (d!.unite || 'non estimée'))
+      const installation = d!.installationNom
+        ? (d!.installationAdresse ? `${d!.installationNom}, ${d!.installationAdresse}` : d!.installationNom)
+        : 'à définir avant intervention'
+      legal3 += ' Gestion des déchets de chantier (loi AGEC, art. D.541-45-1 C. env.) :'
+      legal3 += ` nature : ${d!.nature || 'inertes et non dangereux non inertes'} ; `
+      legal3 += `quantité estimée : ${qty} ; `
+      legal3 += `installation de collecte/traitement : ${installation} ; `
+      legal3 += `modalités de tri : ${d!.modalitesTri || 'tri sélectif sur chantier'} ; `
+      legal3 += `coût : ${d!.coutGestion || 'inclus dans la prestation'}.`
+    } else {
+      legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
+    }
   }
 
   const legal4 = locale === 'pt'
