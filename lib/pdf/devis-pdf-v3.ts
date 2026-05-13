@@ -12,6 +12,7 @@ import type { Locale } from '@/lib/i18n/config'
 import { getMentionLegale } from '@/lib/tva-calculator'
 import { computeFrTvaIntra } from '@/lib/tva-intra'
 import { computeAcomptesAmounts } from '@/lib/money'
+import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -437,27 +438,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
    *      numérique, sinon affiche le texte tel quel
    * Sans ce helper, `new Date("Comptant à réception")` retourne « Invalid Date ».
    */
-  const formatPaymentDueDate = (raw: string): string => {
-    if (!raw) return '---'
-    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (isoMatch) {
-      const d = new Date(raw)
-      if (!isNaN(d.getTime())) return d.toLocaleDateString(dateLocaleStr)
-    }
-    const numericMatch = raw.match(/^\s*(\d+)/)
-    if (numericMatch) {
-      const days = parseInt(numericMatch[1], 10)
-      if (Number.isFinite(days) && days > 0 && days <= 365 && docDate) {
-        const base = new Date(docDate)
-        if (!isNaN(base.getTime())) {
-          base.setDate(base.getDate() + days)
-          return base.toLocaleDateString(dateLocaleStr)
-        }
-      }
-    }
-    // Texte libre non parseable ("Comptant à réception") → affiche tel quel
-    return raw
-  }
+  // Helper partagé V2 + V3 — parse "X jours" / "X jours fin de mois" /
+  // "Comptant à réception" / date ISO. Aligné art. L441-10 C. com.
+  const formatPaymentDueDate = (raw: string): string =>
+    sharedFormatPaymentDueDate(raw, docDate, dateLocaleStr)
 
   const drawHLine = (x1: number, yPos: number, x2: number, color = COLOR_BORDER, width = 0.18) => {
     pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
