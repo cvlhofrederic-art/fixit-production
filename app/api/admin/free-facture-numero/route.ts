@@ -36,13 +36,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid numero (expected FACT-YYYY-NNN)' }, { status: 400 })
   }
 
-  // Cible : facture cancelled appartenant au caller
+  // Cible : facture appartenant au caller, encore en phase test (cancelled
+  // OU pending — non encore payée ni envoyée formellement). Bloque les états
+  // post-paiement pour éviter toute fraude comptable.
+  const ALLOWED_STATUSES = ['cancelled', 'pending', 'brouillon']
   const { data: target, error: fetchErr } = await supabaseAdmin
     .from('factures')
     .select('id, numero, status, cancelled_at, artisan_user_id')
     .eq('numero', numero)
     .eq('artisan_user_id', user.id)
-    .eq('status', 'cancelled')
+    .in('status', ALLOWED_STATUSES)
     .maybeSingle()
 
   if (fetchErr) {
@@ -50,10 +53,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
   }
   if (!target) {
-    return NextResponse.json({ error: 'No cancelled facture matching numero/owner' }, { status: 404 })
+    return NextResponse.json({ error: 'No matching facture (must be cancelled/pending/brouillon)' }, { status: 404 })
   }
 
-  const epoch = target.cancelled_at ? Math.floor(new Date(target.cancelled_at).getTime() / 1000) : Math.floor(Date.now() / 1000)
+  const epoch = target.cancelled_at
+    ? Math.floor(new Date(target.cancelled_at).getTime() / 1000)
+    : Math.floor(Date.now() / 1000)
   const newNumero = `${numero}-VOID-${epoch}`
 
   const { error: updErr } = await supabaseAdmin
