@@ -84,6 +84,10 @@ export interface PdfV3Input {
   tvaIntraPreneur?: string
   /** Informations gestion déchets — art. D.541-45-1 C. env. (loi AGEC). */
   dechetsChantier?: DechetsChantierInfo
+  /** Référence marché principal (autoliquidation BTP, loi 75-1334) — facultatif. */
+  marchePrincipalRef?: string
+  /** Maître d'ouvrage final (nom + adresse) — caractérisation sous-traitance. */
+  maitreOuvrageFinal?: string
   insuranceName: string
   insuranceNumber: string
   insuranceCoverage: string
@@ -265,6 +269,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyCapital: _s(input.companyCapital),
     tvaNumber: _s(input.tvaNumber),
     tvaIntraPreneur: input.tvaIntraPreneur ? _s(input.tvaIntraPreneur) : undefined,
+    marchePrincipalRef: input.marchePrincipalRef ? _s(input.marchePrincipalRef) : undefined,
+    maitreOuvrageFinal: input.maitreOuvrageFinal ? _s(input.maitreOuvrageFinal) : undefined,
     dechetsChantier: input.dechetsChantier ? {
       nature: input.dechetsChantier.nature ? _s(input.dechetsChantier.nature) : undefined,
       quantiteEstimee: input.dechetsChantier.quantiteEstimee ? _s(input.dechetsChantier.quantiteEstimee) : undefined,
@@ -332,7 +338,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     prestationDate, executionDelay,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
-    tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier,
+    tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     decennaleEligibility,
     mediatorName, mediatorUrl, isHorsEtablissement,
@@ -1575,6 +1581,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
     const mention = getMentionLegale('autoliquidation_btp', localeForMention)
     if (mention) legal1 += ` ${mention}`
+    // Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975).
+    // L'autoliquidation BTP n'est valide qu'en cadre de sous-traitance avec
+    // un donneur d'ordre assujetti à la TVA et un marché principal identifié.
+    // En cas de contrôle fiscal, ces mentions caractérisent la sous-traitance
+    // et sécurisent l'autoliquidation.
+    if (locale !== 'pt' && clientName) {
+      legal1 += ` Cadre de sous-traitance (loi n° 75-1334 du 31/12/1975) : prestation réalisée en sous-traitance pour le compte de ${clientName}.`
+      if (marchePrincipalRef) {
+        legal1 += ` Marché principal : ${marchePrincipalRef}.`
+      }
+      const mo = maitreOuvrageFinal || interventionAddress
+      if (mo) {
+        legal1 += ` Maître d'ouvrage final / lieu d'exécution : ${mo}.`
+      }
+    }
   } else if (effectiveRegime === 'franchise_293b') {
     const mention = getMentionLegale('franchise_293b', localeForMention)
     if (mention) legal1 += ` ${mention}`

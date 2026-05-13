@@ -654,6 +654,16 @@ export default function DevisFactureFormBTP({
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '')
 
+  // Caractérisation sous-traitance — affichés uniquement en autoliquidation BTP
+  // (loi n° 75-1334 du 31/12/1975). Facultatifs mais recommandés pour
+  // sécuriser le devis en cas de contrôle fiscal.
+  const [marchePrincipalRef, setMarchePrincipalRef] = useState<string>(
+    ((initialData as { marchePrincipalRef?: string })?.marchePrincipalRef) || '',
+  )
+  const [maitreOuvrageFinal, setMaitreOuvrageFinal] = useState<string>(
+    ((initialData as { maitreOuvrageFinal?: string })?.maitreOuvrageFinal) || '',
+  )
+
   // Gestion des déchets de chantier (loi AGEC, décret 2020-1817).
   // Art. D.541-45-1 C. env. impose 4 infos précises dans le devis BTP.
   // Pré-rempli avec defaults raisonnables — utilisateur affine selon chantier.
@@ -1347,6 +1357,9 @@ export default function DevisFactureFormBTP({
       clientSiren: (clientSiret || '').replace(/\s/g, '').slice(0, 9) || undefined,
       // Gestion des déchets (loi AGEC art. D.541-45-1 C. env.)
       dechetsChantier,
+      // Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975)
+      marchePrincipalRef,
+      maitreOuvrageFinal,
       // N° TVA intracommunautaire émetteur (snapshot) — obligatoire pour
       // autoliquidation BTP.
       tvaIntraEmetteur: tvaNumber || undefined,
@@ -1373,7 +1386,7 @@ export default function DevisFactureFormBTP({
     acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva,
     profileIban, profileBic,
-    notes, dechetsChantier,
+    notes, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
   ])
 
   /* ──────── Validation régime TVA (garde-fous légaux) ──────── */
@@ -1764,6 +1777,10 @@ export default function DevisFactureFormBTP({
         // Loi AGEC — gestion des déchets (D.541-45-1 C. env.). PDF V3 émet
         // mention structurée si au moins un champ rempli, sinon mention courte.
         dechetsChantier,
+        // Caractérisation sous-traitance — PDF V3 ajoute un bloc dans legal1
+        // uniquement quand regimeTva === 'autoliquidation_btp'. Facultatifs.
+        marchePrincipalRef,
+        maitreOuvrageFinal,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
@@ -2174,6 +2191,41 @@ export default function DevisFactureFormBTP({
                 )}
               </div>
             </div>
+
+            {/* Cadre sous-traitance — caractérisation visible uniquement en autoliquidation BTP.
+                Loi n° 75-1334 + sécurisation contrôle fiscal. Facultatifs mais recommandés. */}
+            {regimeTva === 'autoliquidation_btp' && (
+              <div className="dv-row col1" style={{ marginTop: 4 }}>
+                <div className="dv-fg">
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    Cadre de sous-traitance <span style={{ color: '#888', fontWeight: 400, fontSize: 11 }}>(facultatif, recommandé)</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="dv-fg">
+                      <label style={{ fontSize: 11 }}>Référence marché principal</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Marché 2025-DRAC-007 / Contrat n°..."
+                        value={marchePrincipalRef}
+                        onChange={e => setMarchePrincipalRef(e.target.value)}
+                      />
+                    </div>
+                    <div className="dv-fg">
+                      <label style={{ fontSize: 11 }}>Maître d&apos;ouvrage final (nom + adresse)</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Mairie de Marseille, 13002"
+                        value={maitreOuvrageFinal}
+                        onChange={e => setMaitreOuvrageFinal(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>
+                    Ces informations caractérisent la sous-traitance (loi n° 75-1334) et apparaissent sur le devis. Le donneur d&apos;ordre est automatiquement renseigné depuis le client. Si laissé vide, le PDF utilise l&apos;adresse d&apos;intervention comme maître d&apos;ouvrage final.
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="dv-row">
               <div className="dv-fg"><label>Téléphone <span className="req">*</span></label><input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} /></div>

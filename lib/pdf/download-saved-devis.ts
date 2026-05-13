@@ -56,6 +56,9 @@ interface SavedDevis {
     modalitesTri?: string
     coutGestion?: string
   }
+  /** Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975) — autoliq BTP. */
+  marchePrincipalRef?: string
+  maitreOuvrageFinal?: string
   companyAPE?: string
   insuranceType?: 'rc_pro' | 'decennale' | 'both'
   insuranceName?: string
@@ -446,6 +449,8 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     autoliquidationBTP: effectiveRegime === 'autoliquidation_btp',
     tvaIntraPreneur: doc.tvaIntraPreneur || undefined,
     dechetsChantier: doc.dechetsChantier || undefined,
+    marchePrincipalRef: doc.marchePrincipalRef || undefined,
+    maitreOuvrageFinal: doc.maitreOuvrageFinal || undefined,
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],
