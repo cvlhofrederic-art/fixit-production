@@ -52,6 +52,12 @@ export interface DevisGeneratorInput {
     delai_execution: string
     date_prestation: Date | null
     docType?: 'devis' | 'facture'
+    /** Sous-type facture (méthode pro 2026). Affiche un label explicite sous le
+     *  numéro pour les types "acompte" et "situation" (mentions légalement
+     *  requises, art. 289 CGI + BOFIP-TVA-DECLA-30-10-20). */
+    factureSubType?: 'standard' | 'acompte' | 'situation'
+    situationNumber?: number
+    situationAvancement?: number
   }
   mode_affichage: 'bloc' | 'sections'
   lignes: LigneDevis[]
@@ -346,6 +352,21 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   y += ptToMm(20)
   pdf.setFont(FONT, 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text(input.devis.numero, pageW / 2, y, { align: 'center' })
+
+  // Label sous-type facture (méthode pro 2026) — mention légalement requise
+  // pour acompte / situation (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).
+  // Standard et devis : aucun label additionnel.
+  const isPt = input.locale === 'pt'
+  const subTypeLabel = input.devis.docType === 'facture' && input.devis.factureSubType && input.devis.factureSubType !== 'standard'
+    ? input.devis.factureSubType === 'acompte'
+      ? (isPt ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE')
+      : `${isPt ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${input.devis.situationNumber ? ` N° ${input.devis.situationNumber}` : ''}${input.devis.situationAvancement != null ? ` — ${input.devis.situationAvancement}%` : ''}`
+    : null
+  if (subTypeLabel) {
+    y += ptToMm(12)
+    pdf.setFont(FONT, 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
+    pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
+  }
 
   y += ptToMm(12)
   pdf.setFillColor(COLOR.ACCENT)

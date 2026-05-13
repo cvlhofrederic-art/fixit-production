@@ -481,31 +481,33 @@ function DashboardPage() {
   // ── Devis → Facture : confirmation modal + deferred navigation ──
   const [showFactureConvModal, setShowFactureConvModal] = useState(false)
   const pendingConvDevisRef = useRef<Record<string, unknown> | null>(null)
+  // Sous-type pré-sélectionné si l'utilisateur choisit "acompte" via le
+  // garde-fou (prestation > today). Le form garde la possibilité de changer.
+  const pendingFactureSubTypeRef = useRef<'standard' | 'acompte' | 'situation' | null>(null)
 
   const handleConvertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
-    // Garde-fou pro : la facture standard doit être émise APRÈS la prestation
+    // Garde-fou pro 2026 : facture standard = émission après prestation
     // (art. 289 CGI + BOFIP-TVA-DECLA-30-20-10-40). Avant prestation, le bon
-    // type est facture d'acompte ou facture de situation (BTP). On bloque la
-    // conversion silencieuse sur prestation future et on laisse l'utilisateur
-    // confirmer en connaissance de cause.
+    // type est facture d'acompte (versement reçu) ou facture de situation
+    // (BTP, avancement). On suggère le type adapté.
     const todayStr = new Date().toISOString().split('T')[0]
     const prestationStr = String((devis as { prestationDate?: string }).prestationDate || '').slice(0, 10)
     if (prestationStr && prestationStr > todayStr) {
       const fmtDate = (s: string) => new Date(s).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')
       const msg = locale === 'pt'
         ? `⚠️ A prestação está prevista para ${fmtDate(prestationStr)}.\n\n`
-          + `Uma fatura padrão não pode ser emitida antes da prestação (art. 289 CGI). `
-          + `Antes da prestação, use:\n`
-          + `  • uma fatura de adiantamento (pagamento recebido)\n`
-          + `  • uma fatura de situação (BTP, avanço de obra)\n\n`
-          + `Continuar mesmo assim como fatura padrão?`
+          + `Uma fatura padrão não pode ser emitida antes da prestação (art. 289 CGI).\n\n`
+          + `OK = Criar uma FATURA DE ADIANTAMENTO (versão correta antes da prestação)\n`
+          + `Cancelar = Não converter`
         : `⚠️ La prestation est prévue le ${fmtDate(prestationStr)}.\n\n`
-          + `Une facture standard ne peut être émise avant la prestation (art. 289 CGI). `
-          + `Avant prestation, le type correct est :\n`
-          + `  • Facture d'acompte (versement reçu)\n`
-          + `  • Facture de situation (BTP, avancement de chantier)\n\n`
-          + `Continuer quand même en facture standard ?`
+          + `Une facture standard ne peut être émise avant la prestation (art. 289 CGI).\n\n`
+          + `OK = Créer une FACTURE D'ACOMPTE (type correct avant prestation)\n`
+          + `Annuler = Ne pas convertir`
       if (!window.confirm(msg)) return
+      // Suggest acompte sub-type — the form lets the user change it
+      pendingFactureSubTypeRef.current = 'acompte'
+    } else {
+      pendingFactureSubTypeRef.current = null
     }
     pendingConvDevisRef.current = devis
     setShowFactureConvModal(true)
@@ -548,12 +550,16 @@ function DashboardPage() {
         // pratique des SaaS comptables (Henrri, EBP, Pennylane, Sage). Le cas
         // prestation > today est intercepté en amont par handleConvertDevisToFacture.
         const factureDocDate = new Date().toISOString().split('T')[0]
+        // Sous-type pré-sélectionné par le garde-fou (acompte si prestation
+        // future, standard sinon). Le form garde la possibilité de changer.
+        const suggestedSubType = pendingFactureSubTypeRef.current || 'standard'
         const draftFacture = {
           ...rest,
           id: newId,
           docNumber: tempDocNumber,
           docType: 'facture',
           docDate: factureDocDate,
+          factureSubType: suggestedSubType,
           status: 'brouillon',
           savedAt: new Date().toISOString(),
           lines: srcLines,
@@ -581,8 +587,9 @@ function DashboardPage() {
     // Navigate first (this resets showFactureForm to false), then re-open form
     navigateTo('factures')
     setTimeout(() => {
-      convertDevisToFacture(devis, newId)
+      convertDevisToFacture(devis, newId, pendingFactureSubTypeRef.current)
       pendingConvDevisRef.current = null
+      pendingFactureSubTypeRef.current = null
     }, 60)
   }, [convertDevisToFacture, navigateTo, artisan?.id, setSavedDocuments])
 

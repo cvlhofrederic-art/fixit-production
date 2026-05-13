@@ -185,7 +185,11 @@ export function useBookings(
     return devisData
   }, [services, isPt])
 
-  const convertDevisToFacture = useCallback((devis: Record<string, unknown>, overrideId?: string) => {
+  const convertDevisToFacture = useCallback((
+    devis: Record<string, unknown>,
+    overrideId?: string,
+    suggestedSubType?: 'standard' | 'acompte' | 'situation' | null,
+  ) => {
     const {
       id: _id,
       docNumber: _dn,
@@ -212,6 +216,8 @@ export function useBookings(
       id: overrideId,
       docType: 'facture',
       docDate: factureDocDate,
+      // Sous-type suggéré par le garde-fou prestation future (méthode pro 2026)
+      factureSubType: suggestedSubType || 'standard',
       acomptesEnabled: inheritedAcomptesEnabled,
       acomptes: inheritedAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
     })

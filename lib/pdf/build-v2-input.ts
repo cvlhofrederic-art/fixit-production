@@ -51,6 +51,10 @@ export interface BuildV2InputParams {
   docValidity: number
   executionDelay: string
   prestationDate: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
+  factureSubType?: 'standard' | 'acompte' | 'situation'
+  situationNumber?: number
+  situationAvancement?: number
 
   // Lines
   lines: ProductLine[]
@@ -93,6 +97,7 @@ export function buildV2Input(
     clientName, clientSiret, clientAddress, clientPhone, clientEmail,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
+    factureSubType, situationNumber, situationAvancement,
     lines, materialLines, fraisAnnexes, customTables, tvaBreakdown,
     acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     isHorsEtablissement,
@@ -161,6 +166,9 @@ export function buildV2Input(
       delai_execution: executionDelay || 'À convenir',
       date_prestation: prestationDate ? new Date(prestationDate) : null,
       docType,
+      factureSubType,
+      situationNumber,
+      situationAvancement,
     },
     // mode_affichage : passe en 'sections' s'il y a des tables custom non vides
     // → le PDF V2 groupe les lignes par section (cf. devis-generator-v2.ts).
