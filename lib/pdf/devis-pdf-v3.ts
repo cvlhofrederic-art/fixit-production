@@ -11,6 +11,7 @@ import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-
 import type { Locale } from '@/lib/i18n/config'
 import { getMentionLegale } from '@/lib/tva-calculator'
 import { computeFrTvaIntra } from '@/lib/tva-intra'
+import { computeAcomptesAmounts } from '@/lib/money'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -1418,6 +1419,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // pour l'ensemble des deux colonnes.
     if (validAcomptes.length > 0) {
       const acompteTotal = showTva ? totalTTC : subtotalHT
+      // Calcul des montants via helper computeAcomptesAmounts (lib/money.ts) :
+      // si Σ pourcentages === 100 %, le dernier acompte absorbe le résidu
+      // d'arrondi pour garantir Σ montants === total au centime près
+      // (convention comptable EBP/Sage/Henrri). Sans ça, l'écart de 0,01 €
+      // observé sur DEV-2026-002 (50+30+20 % de 733,33 € = 733,34 €) restait.
+      const acompteAmounts = computeAcomptesAmounts(
+        acompteTotal,
+        validAcomptes.map(ac => ({ pourcentage: ac.pourcentage })),
+      )
       const acY = condStartY + sigBoxH + 4
       pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
       pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
@@ -1425,15 +1435,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, acY + 5)
       let ay = acY + 12
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      for (const ac of validAcomptes) {
-        const montant = acompteTotal * ac.pourcentage / 100
+      validAcomptes.forEach((ac, idx) => {
+        const montant = acompteAmounts[idx] ?? 0
         const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
         pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
         pdf.setFont('helvetica', 'bold')
         pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
         pdf.setFont('helvetica', 'normal')
         ay += ptToMm(13)
-      }
+      })
     }
 
     // y final = bas le plus bas des deux colonnes + marge
