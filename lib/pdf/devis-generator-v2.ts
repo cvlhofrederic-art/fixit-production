@@ -11,6 +11,7 @@
  */
 
 import { sumMoney, round2 } from '@/lib/money'
+import { computeEcheanceDate } from '@/lib/pdf/payment-due'
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -58,6 +59,13 @@ export interface DevisGeneratorInput {
     factureSubType?: 'standard' | 'acompte' | 'situation'
     situationNumber?: number
     situationAvancement?: number
+    /** Source unique de vérité pour la date d'échéance facture (art. L441-10
+     *  C. com.). Trois formats supportés via lib/pdf/payment-due.ts :
+     *   - ISO date (YYYY-MM-DD) → override manuel direct
+     *   - "X jours [fin de mois]" → emission + X (+ snap fin de mois)
+     *   - "Comptant à réception" → emission (J0)
+     *  Si null/vide → fallback validite_jours (30 par défaut). */
+    paymentDue?: string | null
   }
   mode_affichage: 'bloc' | 'sections'
   lignes: LigneDevis[]
@@ -526,9 +534,19 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.rect(ML, y, contentW, dateBoxH, 'FD')
 
   const isFactureHdr = input.devis.docType === 'facture'
-  // Date d'échéance facture : date_emission + validite_jours (fallback 30)
-  const echeanceDate = new Date(input.devis.date_emission)
-  echeanceDate.setDate(echeanceDate.getDate() + (input.devis.validite_jours || 30))
+  // Date d'échéance facture : source unique = input.devis.paymentDue
+  // (helper partagé V2+V3, aligné art. L441-10 C. com.). Pour les devis,
+  // garde le sens "validité" via validite_jours (durée pendant laquelle
+  // l'offre commerciale tient — sémantique différente du délai de paiement).
+  const echeanceDate = isFactureHdr
+    ? computeEcheanceDate(input.devis.date_emission, input.devis.paymentDue ?? null, {
+        fallbackDays: input.devis.validite_jours || 30,
+      })
+    : (() => {
+        const d = new Date(input.devis.date_emission)
+        d.setDate(d.getDate() + (input.devis.validite_jours || 30))
+        return d
+      })()
   const dateCols = isFactureHdr
     ? [
         { label: "DATE D'ÉMISSION", value: formatDate(input.devis.date_emission) },

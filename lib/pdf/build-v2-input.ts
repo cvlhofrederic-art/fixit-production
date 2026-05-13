@@ -30,6 +30,11 @@ export interface BuildV2InputParams {
   tvaEnabled: boolean
   paymentMode: string
   paymentCondition: string
+  /** Date d'échéance facture saisie manuellement par l'utilisateur (ISO
+   *  YYYY-MM-DD). Sert d'override sur paymentCondition. Si vide, le PDF
+   *  parse paymentCondition (ex: "60 jours") pour calculer l'échéance.
+   *  Source unique de vérité : lib/pdf/payment-due.ts. */
+  paymentDue?: string | null
 
   // Client
   clientName: string
@@ -93,7 +98,7 @@ export function buildV2Input(
     logoUrl, companyName, artisanCompanyName, companySiret,
     artisanRm, companyAddress, companyPhone, companyEmail, artisanRcPro,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
-    tvaEnabled, paymentMode, paymentCondition,
+    tvaEnabled, paymentMode, paymentCondition, paymentDue,
     clientName, clientSiret, clientAddress, clientPhone, clientEmail,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
@@ -169,6 +174,11 @@ export function buildV2Input(
       factureSubType,
       situationNumber,
       situationAvancement,
+      // Échéance facture (art. L441-10 C. com.) : on priorise paymentDue
+      // (date ISO override manuel) puis paymentCondition (texte dropdown,
+      // "60 jours date facture" etc.). Le helper computeEcheanceDate gère
+      // les 3 formats. Pour devis, ignoré (utilise validite_jours).
+      paymentDue: paymentDue || paymentCondition || null,
     },
     // mode_affichage : passe en 'sections' s'il y a des tables custom non vides
     // → le PDF V2 groupe les lignes par section (cf. devis-generator-v2.ts).
