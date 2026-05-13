@@ -25,11 +25,23 @@ export async function POST(request: NextRequest) {
 
   if (!(await checkRateLimit(`purge_void_${user.id}`, 3, 60_000))) return rateLimitResponse()
 
-  // List avant suppression
+  // Test SaaS : autorise un user authentifié à purger les VOID des comptes
+  // test connus (Frédéric Carvalho EI + Sud Travaux SAS — mêmes acteurs
+  // physiques sur 2 entités juridiques distinctes). L'endpoint sera retiré
+  // juste après usage (commit suivant).
+  const TEST_ARTISANS = [
+    '920b7d34-5d20-4fe4-b2c0-14eb0fe51ab9', // cvlho.frederic@gmail.com (EI)
+    'c0f138e6-1725-406e-a631-03e1b72acfe4', // sudtravaux13650@hotmail.com (SAS)
+  ]
+  if (!TEST_ARTISANS.includes(user.id)) {
+    return NextResponse.json({ error: 'Not a test artisan account' }, { status: 403 })
+  }
+
+  // List avant suppression — toutes les VOID rows des 2 comptes test
   const { data: targets, error: fetchErr } = await supabaseAdmin
     .from('factures')
-    .select('id, numero, status')
-    .eq('artisan_user_id', user.id)
+    .select('id, numero, status, artisan_user_id')
+    .in('artisan_user_id', TEST_ARTISANS)
     .like('numero', '%-VOID-%')
 
   if (fetchErr) {
@@ -46,7 +58,7 @@ export async function POST(request: NextRequest) {
     .from('factures')
     .delete()
     .in('id', ids)
-    .eq('artisan_user_id', user.id)
+    .in('artisan_user_id', TEST_ARTISANS)
 
   if (delErr) {
     logger.error(`[purge-void] delete failed:`, delErr.message)
