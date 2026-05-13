@@ -46,6 +46,16 @@ interface SavedDevis {
   autoliquidationBTP?: boolean
   /** N° TVA intra du preneur (override manuel). Sinon PDF V3 calcule auto. */
   tvaIntraPreneur?: string
+  /** Infos gestion déchets (loi AGEC, art. D.541-45-1 C. env.). */
+  dechetsChantier?: {
+    nature?: string
+    quantiteEstimee?: string
+    unite?: string
+    installationNom?: string
+    installationAdresse?: string
+    modalitesTri?: string
+    coutGestion?: string
+  }
   companyAPE?: string
   insuranceType?: 'rc_pro' | 'decennale' | 'both'
   insuranceName?: string
@@ -435,6 +445,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     regimeTva: effectiveRegime,
     autoliquidationBTP: effectiveRegime === 'autoliquidation_btp',
     tvaIntraPreneur: doc.tvaIntraPreneur || undefined,
+    dechetsChantier: doc.dechetsChantier || undefined,
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],
