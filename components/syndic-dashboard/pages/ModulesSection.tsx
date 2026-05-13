@@ -55,7 +55,7 @@ export default function ModulesSection({
   const GROUPS = locale === 'pt' ? [
     {
       title: '📋 Gestão Corrente',
-      keys: ['missions', 'canal', 'planning', 'facturation', 'emails', 'ia'],
+      keys: ['missions', 'canal', 'planning', 'facturation', 'emails', 'ia', 'urgences', 'historique_immeuble'],
     },
     {
       title: '🔧 Terreno & Intervenções',
@@ -71,16 +71,20 @@ export default function ModulesSection({
     },
     {
       title: '🏠 Gestão Condóminos',
-      keys: ['portal_condomino', 'quadro_avisos', 'enquetes', 'reserva_espacos', 'ocorrencias', 'whatsapp_condominos'],
+      keys: ['portal_condomino', 'quadro_avisos', 'enquetes', 'reserva_espacos', 'ocorrencias', 'whatsapp_condominos', 'chatbot_whatsapp', 'dashboard_condomino_rt', 'qrcode_fracao'],
     },
     {
       title: '🔧 Ferramentas PT',
-      keys: ['relatorio_gestao', 'preparador_assembleia', 'plano_manutencao', 'vistoria_tecnica', 'votacao_online', 'atas_ia', 'pagamentos_digitais', 'mapa_quotas', 'orcamentos_obras', 'cobranca_judicial', 'carregamento_ve', 'monitorizacao_consumos', 'arquivo_digital'],
+      keys: ['relatorio_gestao', 'preparador_assembleia', 'plano_manutencao', 'vistoria_tecnica', 'votacao_online', 'atas_ia', 'pagamentos_digitais', 'mapa_quotas', 'orcamentos_obras', 'cobranca_judicial', 'carregamento_ve', 'monitorizacao_consumos', 'arquivo_digital', 'assinatura_cmd', 'comparador_energia', 'dashboard_multi_immeubles', 'efatura_at', 'gestao_seguros', 'marketplace_artisans', 'pontuacao_saude', 'reconciliation_bancaire', 'benchmarking', 'infractions'],
+    },
+    {
+      title: '🤖 Agentes IA',
+      keys: ['fixy_agent', 'max_agent', 'lea_agent', 'alfredo_agent', 'orcamento_anual_ia', 'contacto_proativo_ia', 'ocorrencias_ia', 'checklists_ia', 'predicao_manutencao', 'processamentos_lote', 'ag_live_digital'],
     },
   ] : [
     {
       title: '📋 Gestion courante',
-      keys: ['missions', 'canal', 'planning', 'facturation', 'emails', 'ia'],
+      keys: ['missions', 'canal', 'planning', 'facturation', 'emails', 'ia', 'urgences', 'historique_immeuble'],
     },
     {
       title: '🔧 Terrain & Interventions',
@@ -92,15 +96,19 @@ export default function ModulesSection({
     },
     {
       title: '⚖️ Réglementaire',
-      keys: ['reglementaire', 'rapport', 'echéances', 'pppt', 'dpe_collectif', 'visite_technique'],
+      keys: ['reglementaire', 'rapport', 'echéances', 'pppt', 'dpe_collectif', 'visite_technique', 'infractions'],
     },
     {
       title: '🏠 Gestion Copropriétaires',
-      keys: ['extranet_enrichi', 'panneau_affichage', 'sondages_fr', 'reservation_espaces_fr', 'signalements_fr', 'communication_demat'],
+      keys: ['extranet_enrichi', 'panneau_affichage', 'sondages_fr', 'reservation_espaces_fr', 'signalements_fr', 'communication_demat', 'chatbot_whatsapp'],
     },
     {
       title: '🔧 Outils FR',
-      keys: ['vote_correspondance', 'pv_assemblee_ia', 'saisie_ia_factures', 'appels_fonds', 'mise_en_concurrence', 'recouvrement_enrichi_fr', 'irve_bornes', 'suivi_energetique_fr', 'ged_certifiee'],
+      keys: ['vote_correspondance', 'pv_assemblee_ia', 'saisie_ia_factures', 'appels_fonds', 'mise_en_concurrence', 'recouvrement_enrichi_fr', 'irve_bornes', 'suivi_energetique_fr', 'ged_certifiee', 'reconciliation_bancaire', 'benchmarking'],
+    },
+    {
+      title: '🤖 Agents IA',
+      keys: ['fixy_agent', 'max_agent', 'lea_agent', 'alfredo_agent'],
     },
   ]
 

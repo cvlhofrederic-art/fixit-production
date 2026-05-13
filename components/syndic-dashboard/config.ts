@@ -144,7 +144,7 @@ export const SYNDIC_MODULES = [
     label: 'Alfredo',
     icon: '📧',
     description: 'Gestionnaire emails IA',
-    default: false,
+    default: true,
   },
 ] as const
 
