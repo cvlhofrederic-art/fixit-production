@@ -10,6 +10,7 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 
@@ -387,20 +388,38 @@ function FacturesSectionV5({
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
               const totalHT = computeDocumentTotalHT(doc)
-              // Respecte la franchise TVA (art. 293 B) : si tvaEnabled === false,
-              // le total TTC = HT (pas de TVA). Sinon, calcul par ligne selon tvaRate.
-              // filter(Boolean) garde contre les lignes null/undefined (localStorage
+              // Respecte les 3 régimes TVA (cf. lib/tva-calculator.ts) :
+              //   - classique           : TTC = HT + TVA par taux
+              //   - franchise_293b      : TTC = HT (pas de TVA, art. 293 B CGI)
+              //   - autoliquidation_btp : TTC = HT (TVA due par le preneur, art. 283-2 nonies)
+              // Fallback rétro-compat : si regimeTva absent, dérive depuis
+              // autoliquidationBTP (legacy flag) ou tvaEnabled (franchise quand false).
+              // filter(Boolean) protège contre les lignes null/undefined (localStorage
               // corrompu après flow Facturer interrompu, cf. plan Phase 3).
-              const tvaEnabled = (doc as { tvaEnabled?: boolean }).tvaEnabled !== false
+              const docRec = doc as {
+                regimeTva?: TvaRegime
+                regime_tva?: TvaRegime
+                autoliquidationBTP?: boolean
+                tvaEnabled?: boolean
+              }
+              const tvaEnabled = docRec.tvaEnabled !== false
+              const effectiveRegime: TvaRegime =
+                docRec.regimeTva
+                ?? docRec.regime_tva
+                ?? (docRec.autoliquidationBTP
+                  ? 'autoliquidation_btp'
+                  : (tvaEnabled ? 'classique' : 'franchise_293b'))
               const safeLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
-              const totalTTC = tvaEnabled
-                ? safeLines.reduce((s: number, l) => {
-                    if (!l || typeof l !== 'object') return s
-                    const ht = (l.totalHT as number) || 0
-                    const rate = ((l as { tvaRate?: number }).tvaRate as number) ?? 20
-                    return s + ht * (1 + rate / 100)
-                  }, 0)
-                : totalHT
+              const tva = computeTva({
+                regime: effectiveRegime,
+                lines: safeLines
+                  .filter((l): l is { totalHT?: number; tvaRate?: number } => l !== null && typeof l === 'object')
+                  .map(l => ({
+                    totalHT: (l.totalHT as number) || 0,
+                    tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
+                  })),
+              })
+              const totalTTC = tva.totalTTC
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
