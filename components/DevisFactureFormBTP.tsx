@@ -1125,9 +1125,14 @@ export default function DevisFactureFormBTP({
         })
       }
 
+      // Bearer requis (cf. /api/supplier-invoice-scan/route.ts getAuthUser)
+      const { data: { session } } = await supabase.auth.getSession()
+      const scanAuthHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
       const res = await fetch('/api/supplier-invoice-scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...scanAuthHeader },
         body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType }),
       })
 
