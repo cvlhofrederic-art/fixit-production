@@ -44,6 +44,7 @@ import {
 } from '@/lib/devis-utils'
 import { toast } from 'sonner'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
+import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
@@ -392,6 +393,28 @@ export default function DevisFactureForm({
       setAvailableRapports(rapports)
     } catch (e) { console.warn('[DevisFactureForm] Failed to load rapports:', e); setAvailableRapports([]) }
   }, [artisan?.id])
+
+  // Sync paymentCondition → paymentDue pour les factures (source unique de
+  // vérité, art. L441-10 C. com.). Évite la contradiction texte/date
+  // signalée par l'audit : "Paiement à 60 jours" affiché mais date à +30j.
+  // Le helper gère "X jours", "X jours fin de mois", "Comptant à réception".
+  // Pour devis : pas de sync (l'échéance n'est pas pertinente pour un devis).
+  useEffect(() => {
+    if (docType !== 'facture') return
+    if (!docDate) return
+    const days = parsePaymentDelayDays(paymentCondition)
+    // Ne sync que si paymentCondition est parseable ("X jours") ou immédiat.
+    // Texte libre non-parseable → ne touche pas paymentDue (l'user peut le
+    // saisir manuellement).
+    const lower = (paymentCondition || '').toLowerCase()
+    const isImmediate = /comptant|r[ée]ception|pronto|imm[ée]diat/i.test(lower)
+    if (days == null && !isImmediate) return
+    const emission = new Date(docDate)
+    if (isNaN(emission.getTime())) return
+    const newDue = computeEcheanceDate(emission, paymentCondition, { fallbackDays: 30 })
+    const newDueIso = newDue.toISOString().split('T')[0]
+    if (newDueIso !== paymentDue) setPaymentDue(newDueIso)
+  }, [paymentCondition, docDate, docType, paymentDue])
 
   // Load available photos from API
   useEffect(() => {
@@ -1436,7 +1459,7 @@ export default function DevisFactureForm({
       artisanRcPro: artisan?.rc_pro as string | null,
       insuranceName: overrides.insName, insuranceNumber: overrides.insNumber,
       insuranceCoverage: overrides.insCoverage, insuranceType: overrides.insType,
-      tvaEnabled, paymentMode, paymentCondition,
+      tvaEnabled, paymentMode, paymentCondition, paymentDue,
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
