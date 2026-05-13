@@ -10,6 +10,7 @@ import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
+import { supabase } from '@/lib/supabase'
 
 interface DevisLine {
   totalHT?: number
@@ -429,9 +430,18 @@ function DevisSectionV5({
       reason = r.trim().length >= 5 ? r.trim() : undefined
     }
     try {
+      // Bearer token requis par /api/devis-status (cf. lib/auth-helpers.ts
+      // getAuthUser → 401 sans Authorization header). Sans ça, le passage
+      // Accepté/Refusé du devis échouait systématiquement en prod côté
+      // artisan ET BTP (DevisSection partagé). Même pattern que la PR #184
+      // pour /api/document-cancel.
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
       const res = await fetch('/api/devis-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ numero: doc.docNumber, newStatus, reason }),
       })
       const data = await res.json()
