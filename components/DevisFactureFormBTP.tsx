@@ -1730,6 +1730,10 @@ export default function DevisFactureFormBTP({
         regimeTva,
         // Rétro-compat : flag boolean lu par PDF V3 actuellement.
         autoliquidationBTP,
+        // TVA intra du preneur — affichée dans bloc DESTINATAIRE en autoliq
+        // (art. 242 nonies A I-3° annexe II CGI). Si non saisi explicitement,
+        // PDF V3 calcule auto depuis SIRET FR.
+        tvaIntraPreneur: ((initialData as { tvaIntraPreneur?: string })?.tvaIntraPreneur) || undefined,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,

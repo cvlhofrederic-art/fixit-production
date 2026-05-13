@@ -44,6 +44,8 @@ interface SavedDevis {
   // (legacy flag) ou `tvaEnabled` (franchise quand false).
   regimeTva?: TvaRegime
   autoliquidationBTP?: boolean
+  /** N° TVA intra du preneur (override manuel). Sinon PDF V3 calcule auto. */
+  tvaIntraPreneur?: string
   companyAPE?: string
   insuranceType?: 'rc_pro' | 'decennale' | 'both'
   insuranceName?: string
@@ -432,6 +434,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     // et label total. PDF V3 priorise `regimeTva` sur `autoliquidationBTP`.
     regimeTva: effectiveRegime,
     autoliquidationBTP: effectiveRegime === 'autoliquidation_btp',
+    tvaIntraPreneur: doc.tvaIntraPreneur || undefined,
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],
