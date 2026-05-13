@@ -98,7 +98,12 @@ export default function FacturesSection({
     )
   }
 
-  const factureDocs = savedDocuments.filter(d => d.docType === 'facture')
+  // Filtre les factures annulées de la liste active (statut 'cancelled' DB EN
+   // ou 'annule' localStorage FR). Le record reste en DB pour audit légal
+   // (art. L123-22 C. com., conservation 10 ans) mais disparaît du flux actif.
+  const factureDocs = savedDocuments.filter(d =>
+    d.docType === 'facture' && d.status !== 'cancelled' && d.status !== 'annule'
+  )
 
   const getStatusTag = (doc: PersistedDocument, isOverdue: boolean) => {
     if (isOverdue && doc.status !== 'envoye') return { cls: 'v22-tag v22-tag-red', label: t('proDash.factures.echue') }
@@ -344,6 +349,9 @@ function FacturesSectionV5({
     // Sans `pending`, les factures rechargées depuis la DB tombaient
     // toutes en « Brouillon » alors qu'elles étaient bien émises.
     const status = doc.status
+    if (status === 'cancelled' || status === 'annule') {
+      return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Anulada' : 'Annulée' }
+    }
     if (status === 'envoye' || status === 'pending') {
       return { cls: 'v5-badge v5-badge-blue', label: t('proDash.factures.emise') }
     }
