@@ -394,6 +394,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const ptToMm = (pt: number) => pt / 2.835
 
+  /**
+   * Résout une date d'échéance de paiement depuis 3 formats possibles :
+   *   1) ISO ("2026-06-15") — utilisée telle quelle
+   *   2) Nombre de jours ("30", "60") — additionné à docDate
+   *   3) Texte libre ("Comptant à réception", "30 jours") — extrait préfixe
+   *      numérique, sinon affiche le texte tel quel
+   * Sans ce helper, `new Date("Comptant à réception")` retourne « Invalid Date ».
+   */
+  const formatPaymentDueDate = (raw: string): string => {
+    if (!raw) return '---'
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (isoMatch) {
+      const d = new Date(raw)
+      if (!isNaN(d.getTime())) return d.toLocaleDateString(dateLocaleStr)
+    }
+    const numericMatch = raw.match(/^\s*(\d+)/)
+    if (numericMatch) {
+      const days = parseInt(numericMatch[1], 10)
+      if (Number.isFinite(days) && days > 0 && days <= 365 && docDate) {
+        const base = new Date(docDate)
+        if (!isNaN(base.getTime())) {
+          base.setDate(base.getDate() + days)
+          return base.toLocaleDateString(dateLocaleStr)
+        }
+      }
+    }
+    // Texte libre non parseable ("Comptant à réception") → affiche tel quel
+    return raw
+  }
+
   const drawHLine = (x1: number, yPos: number, x2: number, color = COLOR_BORDER, width = 0.18) => {
     pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
   }
@@ -742,7 +772,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     : [
         { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
         { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : (locale === 'pt' ? 'A combinar' : 'À convenir') },
-        { label: locale === 'pt' ? 'VENCIMENTO' : 'ÉCHÉANCE', value: paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---' },
+        { label: locale === 'pt' ? 'VENCIMENTO' : 'ÉCHÉANCE', value: formatPaymentDueDate(paymentDue) },
         { label: locale === 'pt' ? 'MODO PAGAMENTO' : 'MODE RÈGLEMENT', value: paymentMode || '---' },
       ]
 
@@ -1388,7 +1418,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const payLines: string[] = []
     if (paymentCondition) payLines.push(paymentCondition)
     if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
-    if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', new Date(paymentDue).toLocaleDateString(dateLocaleStr)))
+    if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', formatPaymentDueDate(paymentDue)))
     if (iban) payLines.push(bic ? t('devis.pdf.ibanBicLabel').replace('{iban}', iban).replace('{bic}', bic) : t('devis.pdf.ibanLabel').replace('{iban}', iban))
     payLines.push(t('devis.pdf.latePenalties'))
     if (discount) payLines.push(t('devis.pdf.earlyDiscountYes').replace('{discount}', discount))
@@ -1574,36 +1604,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       : 'Devis gratuit (art. L.111-1 C. conso.). Pour les prestations de dépannage, réparation et entretien : arrêté du 24 janvier 2017.'
   } else {
     // Facture — date d'échéance précise OBLIGATOIRE B2B (art. L.441-9 4° C. com.)
-    // `paymentDue` peut arriver dans 3 formats selon le caller :
-    //   1) Date ISO ("2026-06-15") — utilisée directement
-    //   2) Nombre de jours en string ("30") — additionné à docDate
-    //   3) Texte libre ("30 jours", "Comptant", "À réception") — parsé en
-    //      nombre via parseInt (extrait le préfixe numérique) ou fallback 30
-    // Hotfix audit 04/05/2026 BUG-2 : avant, parseInt('2026-06-15')
-    // retournait 2026 → mention "échéance dans 2026 jours" = 17/11/2031.
-    let dueDateStr = '---'
-    const isoMatch = (paymentDue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (isoMatch) {
-      // Format ISO date — utiliser tel quel
-      const dueAbs = new Date(paymentDue)
-      if (!isNaN(dueAbs.getTime())) {
-        dueDateStr = dueAbs.toLocaleDateString(dateLocaleStr)
-      }
-    } else {
-      // Texte libre / nombre de jours — parseInt extrait le préfixe numérique
-      const numericMatch = (paymentDue || '').match(/^\s*(\d+)/)
-      const paymentDelayDays = numericMatch ? parseInt(numericMatch[1], 10) : 30
-      const safeDelayDays = Number.isFinite(paymentDelayDays) && paymentDelayDays > 0 && paymentDelayDays <= 365
-        ? paymentDelayDays : 30
-      const computedDue = new Date(docDate)
-      if (!isNaN(computedDue.getTime())) {
-        computedDue.setDate(computedDue.getDate() + safeDelayDays)
-        dueDateStr = computedDue.toLocaleDateString(dateLocaleStr)
-      } else if (paymentDue) {
-        // Fallback affiche le texte libre tel quel ("Comptant", "À réception")
-        dueDateStr = paymentDue
-      }
-    }
+    // Utilise le helper `formatPaymentDueDate` (3 formats supportés : ISO, jours,
+    // texte libre). Évite les « Invalid Date » sur saisies type "Comptant à réception".
+    const dueDateStr = formatPaymentDueDate(paymentDue)
     if (locale === 'pt') {
       legal2 = `Condições de pagamento : vencimento ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
     } else {
