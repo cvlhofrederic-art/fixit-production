@@ -483,9 +483,33 @@ function DashboardPage() {
   const pendingConvDevisRef = useRef<Record<string, unknown> | null>(null)
 
   const handleConvertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
+    // Garde-fou pro : la facture standard doit être émise APRÈS la prestation
+    // (art. 289 CGI + BOFIP-TVA-DECLA-30-20-10-40). Avant prestation, le bon
+    // type est facture d'acompte ou facture de situation (BTP). On bloque la
+    // conversion silencieuse sur prestation future et on laisse l'utilisateur
+    // confirmer en connaissance de cause.
+    const todayStr = new Date().toISOString().split('T')[0]
+    const prestationStr = String((devis as { prestationDate?: string }).prestationDate || '').slice(0, 10)
+    if (prestationStr && prestationStr > todayStr) {
+      const fmtDate = (s: string) => new Date(s).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')
+      const msg = locale === 'pt'
+        ? `⚠️ A prestação está prevista para ${fmtDate(prestationStr)}.\n\n`
+          + `Uma fatura padrão não pode ser emitida antes da prestação (art. 289 CGI). `
+          + `Antes da prestação, use:\n`
+          + `  • uma fatura de adiantamento (pagamento recebido)\n`
+          + `  • uma fatura de situação (BTP, avanço de obra)\n\n`
+          + `Continuar mesmo assim como fatura padrão?`
+        : `⚠️ La prestation est prévue le ${fmtDate(prestationStr)}.\n\n`
+          + `Une facture standard ne peut être émise avant la prestation (art. 289 CGI). `
+          + `Avant prestation, le type correct est :\n`
+          + `  • Facture d'acompte (versement reçu)\n`
+          + `  • Facture de situation (BTP, avancement de chantier)\n\n`
+          + `Continuer quand même en facture standard ?`
+      if (!window.confirm(msg)) return
+    }
     pendingConvDevisRef.current = devis
     setShowFactureConvModal(true)
-  }, [])
+  }, [locale])
 
   const handleGoToConvertedFacture = useCallback(() => {
     const devis = pendingConvDevisRef.current
@@ -518,13 +542,12 @@ function DashboardPage() {
         const srcCustom = Array.isArray((rest as { customTables?: unknown }).customTables)
           ? (rest as { customTables?: unknown[] }).customTables!.filter((t): t is object => t !== null && typeof t === 'object')
           : []
-        // Antidatage interdit (art. 1737 CGI, pénalité 50 %) : la facture ne
-        // peut hériter du docDate du devis. Règle : MAX(génération, prestation).
-        // Génération = aujourd'hui ; prestation = date saisie sur le devis (vide → ''
-        // qui est lexicographiquement < toute date YYYY-MM-DD, donc neutre).
-        const today = new Date().toISOString().split('T')[0]
-        const prestation = String((rest as { prestationDate?: string }).prestationDate || '').slice(0, 10)
-        const factureDocDate = today >= prestation ? today : prestation
+        // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : la
+        // facture ne peut hériter du docDate du devis. La date d'émission est
+        // la date de génération (today), conformément à l'art. 289 CGI et à la
+        // pratique des SaaS comptables (Henrri, EBP, Pennylane, Sage). Le cas
+        // prestation > today est intercepté en amont par handleConvertDevisToFacture.
+        const factureDocDate = new Date().toISOString().split('T')[0]
         const draftFacture = {
           ...rest,
           id: newId,
