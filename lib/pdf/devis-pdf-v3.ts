@@ -10,6 +10,7 @@ import type { ProductLine, DevisAcompte, SignatureData } from '@/lib/devis-types
 import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-utils'
 import type { Locale } from '@/lib/i18n/config'
 import { getMentionLegale } from '@/lib/tva-calculator'
+import { computeFrTvaIntra } from '@/lib/tva-intra'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -76,6 +77,10 @@ export interface PdfV3Input {
   companyEmail: string
   tvaEnabled: boolean
   tvaNumber: string
+  /** N° TVA intra du preneur (donneur d'ordre). Obligatoire en autoliquidation
+   *  BTP (art. 242 nonies A I-3° annexe II CGI). Auto-calculé depuis le SIRET
+   *  client si non fourni. */
+  tvaIntraPreneur?: string
   insuranceName: string
   insuranceNumber: string
   insuranceCoverage: string
@@ -256,6 +261,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyAPE: _s(input.companyAPE),
     companyCapital: _s(input.companyCapital),
     tvaNumber: _s(input.tvaNumber),
+    tvaIntraPreneur: input.tvaIntraPreneur ? _s(input.tvaIntraPreneur) : undefined,
     // Assurance / médiateur (insuranceType est un enum strict, pas user-typable)
     insuranceName: _s(input.insuranceName),
     insuranceNumber: _s(input.insuranceNumber),
@@ -314,7 +320,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     prestationDate, executionDelay,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
-    tvaEnabled, tvaNumber,
+    tvaEnabled, tvaNumber, tvaIntraPreneur,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     decennaleEligibility,
     mediatorName, mediatorUrl, isHorsEtablissement,
@@ -750,6 +756,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
   if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+  // Autoliquidation BTP : n° TVA intra du preneur OBLIGATOIRE sur la facture
+  // (art. 242 nonies A I-3° annexe II CGI). Champ saisi explicitement sinon
+  // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
+  if (effectiveRegime === 'autoliquidation_btp') {
+    const tvaIntraDest = tvaIntraPreneur || computeFrTvaIntra(clientSiret)
+    if (tvaIntraDest) {
+      pdf.text(`TVA Intra. : ${tvaIntraDest}`, destTx, dy3); dy3 += ptToMm(14)
+    }
+  }
 
   y = boxStartY + boxH + 4
 
