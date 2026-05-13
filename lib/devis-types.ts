@@ -190,6 +190,19 @@ export interface DevisFactureData {
   executionDelay: string
   executionDelayDays: number
   executionDelayType: 'ouvres' | 'calendaires'
+  // Sous-type facture (méthode pro 2026) — distingue les trois cas légaux :
+  //  - 'standard' : facture finale émise après prestation (art. 289 CGI)
+  //  - 'acompte'  : facture d'acompte émise à l'encaissement, avant prestation
+  //                 (TVA exigible à l'encaissement depuis 01/01/2023)
+  //  - 'situation': facture de situation BTP (chantier long, avancement)
+  // Sur docType='devis', toujours undefined. Numérotation FACT- partagée pour
+  // toutes les factures (séquence chronologique unique par artisan, conforme
+  // Bpifrance / art. 242 nonies A annexe II CGI).
+  factureSubType?: 'standard' | 'acompte' | 'situation'
+  /** Numéro de situation pour facture de situation BTP (1, 2, 3...) */
+  situationNumber?: number
+  /** Pourcentage d'avancement pour facture de situation BTP (0-100) */
+  situationAvancement?: number
   // Payment (facture only)
   paymentMode: string
   paymentDue: string

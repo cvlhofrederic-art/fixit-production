@@ -66,6 +66,16 @@ export interface PdfV3Input {
   docValidity: number
   prestationDate: string
   executionDelay: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
+   *  Pilote le titre du PDF et les mentions légales :
+   *    - 'standard' (défaut) : facture finale après prestation
+   *    - 'acompte'           : versement avant prestation (TVA exigible à l'encaissement)
+   *    - 'situation'         : facturation à l'avancement (BTP chantier long) */
+  factureSubType?: 'standard' | 'acompte' | 'situation'
+  /** N° de situation BTP (1, 2, 3...) — affiché dans le titre si fourni. */
+  situationNumber?: number
+  /** Pourcentage d'avancement (0-100) — affiché en mention si fourni. */
+  situationAvancement?: number
 
   // Company
   companyStatus: string
@@ -336,6 +346,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     locale, localeFormats, t,
     docType, docNumber, docTitle, docDate, docValidity,
     prestationDate, executionDelay,
+    factureSubType, situationNumber, situationAvancement,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
@@ -562,6 +573,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
   pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
   y += 3
+
+  // Label sous-type facture (méthode pro 2026) — mention légalement requise
+  // pour acompte / situation (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).
+  // Standard et devis : aucun label additionnel.
+  const subTypeLabel = docType === 'facture' && factureSubType && factureSubType !== 'standard'
+    ? factureSubType === 'acompte'
+      ? (locale === 'pt' ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE')
+      : `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
+    : null
+  if (subTypeLabel) {
+    y += 2
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
+    y += 3
+  }
 
   // ── PT Proforma watermark (PT-V1) ──
   // Si on émet en mode PT et qu'on n'a PAS de ptFiscalData (cas par défaut

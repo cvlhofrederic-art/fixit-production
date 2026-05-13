@@ -216,6 +216,15 @@ export default function DevisFactureForm({
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<'ouvres' | 'calendaires'>(initialData?.executionDelayType || 'ouvres')
+  // Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
+  // 'standard' = après prestation (cas général)
+  // 'acompte'  = versement avant prestation (TVA exigible à l'encaissement)
+  // 'situation' = facturation à l'avancement (BTP chantier long)
+  const [factureSubType, setFactureSubType] = useState<'standard' | 'acompte' | 'situation'>(
+    (initialData?.factureSubType as 'standard' | 'acompte' | 'situation' | undefined) || 'standard'
+  )
+  const [situationNumber, setSituationNumber] = useState<number | undefined>(initialData?.situationNumber)
+  const [situationAvancement, setSituationAvancement] = useState<number | undefined>(initialData?.situationAvancement)
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || t('devis.paymentModeOptions.transfer'))
   const [paymentDue, setPaymentDue] = useState(initialData?.paymentDue || dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
@@ -1364,6 +1373,8 @@ export default function DevisFactureForm({
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
+      // Sous-type facture (méthode pro 2026) — pilote titre PDF et mentions
+      factureSubType, situationNumber, situationAvancement,
       lines,
       // Matériaux + frais annexes : passés au builder pour totalNet correct
       // (sinon acomptes sous-calculés). Voir audit MOY-9.
@@ -1548,6 +1559,9 @@ export default function DevisFactureForm({
           executionDelay,
           executionDelayDays,
           executionDelayType,
+          factureSubType,
+          situationNumber,
+          situationAvancement,
           paymentMode,
           paymentDue,
           paymentCondition,
@@ -1619,6 +1633,7 @@ export default function DevisFactureForm({
         locale, localeFormats, t,
         docType, docNumber: docNumberRef.current || docNumber, docTitle, docDate, docValidity,
         prestationDate, executionDelay,
+        factureSubType, situationNumber, situationAvancement,
         companyStatus, companyName, companySiret, companyAddress,
         companyRCS, companyCapital, companyPhone, companyEmail,
         tvaEnabled, tvaNumber, companyAPE: '',
@@ -1903,6 +1918,9 @@ export default function DevisFactureForm({
     executionDelay,
     executionDelayDays: typeof executionDelayDays === 'number' ? executionDelayDays : 0,
     executionDelayType,
+    factureSubType,
+    situationNumber,
+    situationAvancement,
     paymentMode,
     paymentDue,
     paymentCondition,
@@ -2536,6 +2554,69 @@ export default function DevisFactureForm({
                 <span className="v22-card-title">{t('devis.docInfoSection')}</span>
               </div>
               <div className="v22-card-body">
+                {/* Sous-type facture (méthode pro 2026) — visible uniquement
+                    en mode facture. Trois cas légalement distincts :
+                    standard / acompte / situation BTP. */}
+                {docType === 'facture' && (
+                  <div className="v22-form-group" style={{ marginBottom: 12 }}>
+                    <label className="v22-form-label">{t('devis.factureSubTypeLabel')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                      {(['standard', 'acompte', 'situation'] as const).map((st) => {
+                        const labelKey = st === 'standard' ? 'factureSubTypeStandard' : st === 'acompte' ? 'factureSubTypeAcompte' : 'factureSubTypeSituation'
+                        const hintKey = st === 'standard' ? 'factureSubTypeStandardHint' : st === 'acompte' ? 'factureSubTypeAcompteHint' : 'factureSubTypeSituationHint'
+                        const isActive = factureSubType === st
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setFactureSubType(st)}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: `1.5px solid ${isActive ? 'var(--v22-yellow, #FFC107)' : 'var(--v22-border, #E0E0E0)'}`,
+                              background: isActive ? 'rgba(255, 193, 7, 0.08)' : '#fff',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              fontSize: 12,
+                              fontWeight: isActive ? 700 : 500,
+                              color: isActive ? '#111' : '#444',
+                            }}
+                          >
+                            <div style={{ marginBottom: 3 }}>{t(`devis.${labelKey}`)}</div>
+                            <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--v22-text-muted, #999)', lineHeight: 1.35 }}>{t(`devis.${hintKey}`)}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {factureSubType === 'situation' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                        <div>
+                          <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>{t('devis.situationNumberLabel')}</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={situationNumber ?? ''}
+                            onChange={(e) => setSituationNumber(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                            placeholder={t('devis.situationNumberPlaceholder')}
+                            className={normalFieldClass}
+                          />
+                        </div>
+                        <div>
+                          <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>{t('devis.situationAvancementLabel')}</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={situationAvancement ?? ''}
+                            onChange={(e) => setSituationAvancement(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            placeholder={t('devis.situationAvancementPlaceholder')}
+                            className={normalFieldClass}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
                     <label className="v22-form-label">{t('devis.issueDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
