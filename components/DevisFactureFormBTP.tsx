@@ -654,6 +654,41 @@ export default function DevisFactureFormBTP({
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '')
 
+  // Caractérisation sous-traitance — affichés uniquement en autoliquidation BTP
+  // (loi n° 75-1334 du 31/12/1975). Facultatifs mais recommandés pour
+  // sécuriser le devis en cas de contrôle fiscal.
+  const [marchePrincipalRef, setMarchePrincipalRef] = useState<string>(
+    ((initialData as { marchePrincipalRef?: string })?.marchePrincipalRef) || '',
+  )
+  const [maitreOuvrageFinal, setMaitreOuvrageFinal] = useState<string>(
+    ((initialData as { maitreOuvrageFinal?: string })?.maitreOuvrageFinal) || '',
+  )
+
+  // Gestion des déchets de chantier (loi AGEC, décret 2020-1817).
+  // Art. D.541-45-1 C. env. impose 4 infos précises dans le devis BTP.
+  // Pré-rempli avec defaults raisonnables — utilisateur affine selon chantier.
+  const [dechetsChantier, setDechetsChantier] = useState<{
+    nature: string
+    quantiteEstimee: string
+    unite: string
+    installationNom: string
+    installationAdresse: string
+    modalitesTri: string
+    coutGestion: string
+  }>(() => {
+    const init = (initialData as { dechetsChantier?: Record<string, string> })?.dechetsChantier || {}
+    return {
+      nature: init.nature || 'Inertes et non dangereux non inertes',
+      quantiteEstimee: init.quantiteEstimee || '',
+      unite: init.unite || 'm³',
+      installationNom: init.installationNom || '',
+      installationAdresse: init.installationAdresse || '',
+      modalitesTri: init.modalitesTri || 'Tri sélectif sur chantier (dangereux séparés des inertes et non dangereux)',
+      coutGestion: init.coutGestion || 'Inclus dans la prestation',
+    }
+  })
+  const [dechetsExpanded, setDechetsExpanded] = useState<boolean>(false)
+
   // Rapport d'intervention joint
   const [attachedRapportId, setAttachedRapportId] = useState<string | null>(null)
   const [availableRapports, setAvailableRapports] = useState<Record<string, unknown>[]>([])
@@ -1320,6 +1355,11 @@ export default function DevisFactureFormBTP({
       // requis pour la mention autoliquidation. Persisté pour ré-affichage
       // dans la liste factures et export CA3 ultérieur.
       clientSiren: (clientSiret || '').replace(/\s/g, '').slice(0, 9) || undefined,
+      // Gestion des déchets (loi AGEC art. D.541-45-1 C. env.)
+      dechetsChantier,
+      // Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975)
+      marchePrincipalRef,
+      maitreOuvrageFinal,
       // N° TVA intracommunautaire émetteur (snapshot) — obligatoire pour
       // autoliquidation BTP.
       tvaIntraEmetteur: tvaNumber || undefined,
@@ -1346,7 +1386,7 @@ export default function DevisFactureFormBTP({
     acomptesEnabled, acomptes,
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva,
     profileIban, profileBic,
-    notes,
+    notes, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
   ])
 
   /* ──────── Validation régime TVA (garde-fous légaux) ──────── */
@@ -1730,6 +1770,17 @@ export default function DevisFactureFormBTP({
         regimeTva,
         // Rétro-compat : flag boolean lu par PDF V3 actuellement.
         autoliquidationBTP,
+        // TVA intra du preneur — affichée dans bloc DESTINATAIRE en autoliq
+        // (art. 242 nonies A I-3° annexe II CGI). Si non saisi explicitement,
+        // PDF V3 calcule auto depuis SIRET FR.
+        tvaIntraPreneur: ((initialData as { tvaIntraPreneur?: string })?.tvaIntraPreneur) || undefined,
+        // Loi AGEC — gestion des déchets (D.541-45-1 C. env.). PDF V3 émet
+        // mention structurée si au moins un champ rempli, sinon mention courte.
+        dechetsChantier,
+        // Caractérisation sous-traitance — PDF V3 ajoute un bloc dans legal1
+        // uniquement quand regimeTva === 'autoliquidation_btp'. Facultatifs.
+        marchePrincipalRef,
+        maitreOuvrageFinal,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
@@ -2140,6 +2191,41 @@ export default function DevisFactureFormBTP({
                 )}
               </div>
             </div>
+
+            {/* Cadre sous-traitance — caractérisation visible uniquement en autoliquidation BTP.
+                Loi n° 75-1334 + sécurisation contrôle fiscal. Facultatifs mais recommandés. */}
+            {regimeTva === 'autoliquidation_btp' && (
+              <div className="dv-row col1" style={{ marginTop: 4 }}>
+                <div className="dv-fg">
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    Cadre de sous-traitance <span style={{ color: '#888', fontWeight: 400, fontSize: 11 }}>(facultatif, recommandé)</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="dv-fg">
+                      <label style={{ fontSize: 11 }}>Référence marché principal</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Marché 2025-DRAC-007 / Contrat n°..."
+                        value={marchePrincipalRef}
+                        onChange={e => setMarchePrincipalRef(e.target.value)}
+                      />
+                    </div>
+                    <div className="dv-fg">
+                      <label style={{ fontSize: 11 }}>Maître d&apos;ouvrage final (nom + adresse)</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Mairie de Marseille, 13002"
+                        value={maitreOuvrageFinal}
+                        onChange={e => setMaitreOuvrageFinal(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>
+                    Ces informations caractérisent la sous-traitance (loi n° 75-1334) et apparaissent sur le devis. Le donneur d&apos;ordre est automatiquement renseigné depuis le client. Si laissé vide, le PDF utilise l&apos;adresse d&apos;intervention comme maître d&apos;ouvrage final.
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="dv-row">
               <div className="dv-fg"><label>Téléphone <span className="req">*</span></label><input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} /></div>
@@ -3048,6 +3134,96 @@ export default function DevisFactureFormBTP({
               </>
             ) : (
               <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.</div>
+            )}
+          </div>
+
+          {/* 12bis. GESTION DES DÉCHETS DE CHANTIER (Loi AGEC, art. D.541-45-1 C. env.) */}
+          <div className="dv-section">
+            <div
+              className="dv-section-t"
+              style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              onClick={() => setDechetsExpanded(prev => !prev)}
+            >
+              <span>GESTION DES DÉCHETS DE CHANTIER</span>
+              <span style={{ fontSize: 12, color: '#888' }}>{dechetsExpanded ? '▲ Réduire' : '▼ Détails'}</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
+              Loi AGEC — décret n°2020-1817, art. D.541-45-1 C. env. Mention obligatoire sur devis BTP (rénovation, construction, démolition, jardinage). Pré-remplie avec valeurs raisonnables, ajustez selon le chantier.
+            </div>
+            {dechetsExpanded && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Nature des déchets <span className="req">*</span></label>
+                  <select
+                    value={dechetsChantier.nature}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, nature: e.target.value })}
+                  >
+                    <option value="Inertes (gravats, terres, béton)">Inertes (gravats, terres, béton)</option>
+                    <option value="Non dangereux non inertes (bois, plastiques, métaux)">Non dangereux non inertes (bois, plastiques, métaux)</option>
+                    <option value="Inertes et non dangereux non inertes">Inertes et non dangereux non inertes (mixte)</option>
+                    <option value="Dangereux (peintures, solvants, amiante)">Dangereux (peintures, solvants, amiante)</option>
+                    <option value="Inertes, non dangereux non inertes et dangereux">Mixte complet (inertes + non dangereux + dangereux)</option>
+                  </select>
+                </div>
+                <div className="dv-fg">
+                  <label>Quantité estimée <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Ex : 2.5"
+                    value={dechetsChantier.quantiteEstimee}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, quantiteEstimee: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg">
+                  <label>Unité <span className="req">*</span></label>
+                  <select
+                    value={dechetsChantier.unite}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, unite: e.target.value })}
+                  >
+                    <option value="m³">m³</option>
+                    <option value="kg">kg</option>
+                    <option value="t">t (tonnes)</option>
+                    <option value="L">L</option>
+                    <option value="benne">benne</option>
+                    <option value="big bag">big bag</option>
+                  </select>
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Installation de collecte/traitement (nom) <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Ex : Déchetterie SUEZ Marseille Nord"
+                    value={dechetsChantier.installationNom}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, installationNom: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Adresse installation</label>
+                  <input
+                    type="text"
+                    placeholder="Ex : 12 chemin des Hauteurs, 13014 Marseille"
+                    value={dechetsChantier.installationAdresse}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, installationAdresse: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Modalités de tri sur chantier</label>
+                  <input
+                    type="text"
+                    value={dechetsChantier.modalitesTri}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, modalitesTri: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Coût de gestion</label>
+                  <input
+                    type="text"
+                    value={dechetsChantier.coutGestion}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, coutGestion: e.target.value })}
+                    placeholder="Inclus dans la prestation OU 150 € HT"
+                  />
+                </div>
+              </div>
             )}
           </div>
 
