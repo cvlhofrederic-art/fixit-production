@@ -49,6 +49,73 @@ import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 
 // ═══════════════════════════════════════════════
+// HELPERS — saisie décimale FR + input buffered (parité BTP)
+// ═══════════════════════════════════════════════
+
+// Format quantité : "1", "1,5", '' si 0/null (compat clavier FR + mobile).
+const fmtQty = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  return n.toString().replace('.', ',')
+}
+// Format prix HT : 2 décimales virgule FR, '' si 0.
+const fmtN = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  return n.toFixed(2).replace('.', ',')
+}
+// Format prix unitaire 4 décimales (étude de prix, parité BTP).
+const fmtN4 = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  const fixed = n.toFixed(4).replace(/\.?0+$/, '')
+  return fixed.replace('.', ',')
+}
+
+/**
+ * Input contrôlé qui tolère la saisie en cours d'une virgule/point décimal.
+ *
+ * Bug fix V2 : avant, l'input rendait `value={qty === 0 ? '' : qty}` et
+ * appelait parseDecimalInput sur chaque keystroke. Conséquence : taper
+ * "1.5" ou "1,5" mangeait le séparateur intermédiaire ("1." → parseFloat
+ * → 1 → re-render value=1 → "." perdu). Résultat : la case paraissait
+ * impossible à éditer pour des décimales.
+ *
+ * Solution (parité BTP) : on garde un buffer local `raw` pendant l'édition
+ * (entre focus et blur). Le state numérique est mis à jour en parallèle
+ * via `parse` pour la réactivité des totaux, mais l'input n'est pas réécrit
+ * tant que l'utilisateur tape. Au blur, le buffer est libéré et le champ
+ * reprend le rendu formaté.
+ */
+function DecimalInput(props: {
+  value: number
+  onChangeNumber: (n: number) => void
+  format: (n: number) => string
+  parse: (s: string) => number
+  placeholder?: string
+  style?: React.CSSProperties
+  title?: string
+  disabled?: boolean
+  className?: string
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+}) {
+  const { value, onChangeNumber, format, parse, onFocus, onBlur, ...rest } = props
+  const [raw, setRaw] = useState<string | null>(null)
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      {...rest}
+      value={raw ?? format(value)}
+      onFocus={(e) => { setRaw(format(value)); e.target.select(); onFocus?.(e) }}
+      onChange={(e) => {
+        setRaw(e.target.value)
+        onChangeNumber(parse(e.target.value))
+      }}
+      onBlur={(e) => { setRaw(null); onBlur?.(e) }}
+    />
+  )
+}
+
+// ═══════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════
 
@@ -200,12 +267,31 @@ export default function DevisFactureForm({
 
   const isProClient = clientSiret.trim().length > 0 || ['syndic', 'professionnel', 'societe', 'conciergerie', 'agence_immobiliere', 'promoteur', 'architecte', 'collectivite', 'association', 'artisan_sous_traitant'].includes(clientType)
 
-  const [docDate, setDocDate] = useState(initialData?.docDate || today)
+  // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : une facture
+  // brouillon (issue d'une conversion devis → facture) ne peut hériter du
+  // docDate du devis. Date d'émission = today (art. 289 CGI, pratique Henrri/
+  // EBP/Pennylane). Préserve la date d'origine pour les factures déjà émises
+  // (sentAt présent) — historisation comptable (arrêté 22 mars 2017).
+  const initialDocDate = (() => {
+    const sentAt = (initialData as { sentAt?: string } | undefined)?.sentAt
+    if (initialData?.docType === 'facture' && !sentAt) return today
+    return initialData?.docDate || today
+  })()
+  const [docDate, setDocDate] = useState(initialDocDate)
   const [docValidity, setDocValidity] = useState(initialData?.docValidity || 30)
   const [prestationDate, setPrestationDate] = useState(initialData?.prestationDate || '')
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<'ouvres' | 'calendaires'>(initialData?.executionDelayType || 'ouvres')
+  // Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
+  // 'standard' = après prestation (cas général)
+  // 'acompte'  = versement avant prestation (TVA exigible à l'encaissement)
+  // 'situation' = facturation à l'avancement (BTP chantier long)
+  const [factureSubType, setFactureSubType] = useState<'standard' | 'acompte' | 'situation'>(
+    (initialData?.factureSubType as 'standard' | 'acompte' | 'situation' | undefined) || 'standard'
+  )
+  const [situationNumber, setSituationNumber] = useState<number | undefined>(initialData?.situationNumber)
+  const [situationAvancement, setSituationAvancement] = useState<number | undefined>(initialData?.situationAvancement)
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || t('devis.paymentModeOptions.transfer'))
   const [paymentDue, setPaymentDue] = useState(initialData?.paymentDue || dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
@@ -1354,6 +1440,8 @@ export default function DevisFactureForm({
       clientName, clientSiret, clientAddress, clientPhone, clientEmail,
       interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
       docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
+      // Sous-type facture (méthode pro 2026) — pilote titre PDF et mentions
+      factureSubType, situationNumber, situationAvancement,
       lines,
       // Matériaux + frais annexes : passés au builder pour totalNet correct
       // (sinon acomptes sous-calculés). Voir audit MOY-9.
@@ -1538,6 +1626,9 @@ export default function DevisFactureForm({
           executionDelay,
           executionDelayDays,
           executionDelayType,
+          factureSubType,
+          situationNumber,
+          situationAvancement,
           paymentMode,
           paymentDue,
           paymentCondition,
@@ -1609,6 +1700,7 @@ export default function DevisFactureForm({
         locale, localeFormats, t,
         docType, docNumber: docNumberRef.current || docNumber, docTitle, docDate, docValidity,
         prestationDate, executionDelay,
+        factureSubType, situationNumber, situationAvancement,
         companyStatus, companyName, companySiret, companyAddress,
         companyRCS, companyCapital, companyPhone, companyEmail,
         tvaEnabled, tvaNumber, companyAPE: '',
@@ -1893,6 +1985,9 @@ export default function DevisFactureForm({
     executionDelay,
     executionDelayDays: typeof executionDelayDays === 'number' ? executionDelayDays : 0,
     executionDelayType,
+    factureSubType,
+    situationNumber,
+    situationAvancement,
     paymentMode,
     paymentDue,
     paymentCondition,
@@ -2526,6 +2621,69 @@ export default function DevisFactureForm({
                 <span className="v22-card-title">{t('devis.docInfoSection')}</span>
               </div>
               <div className="v22-card-body">
+                {/* Sous-type facture (méthode pro 2026) — visible uniquement
+                    en mode facture. Trois cas légalement distincts :
+                    standard / acompte / situation BTP. */}
+                {docType === 'facture' && (
+                  <div className="v22-form-group" style={{ marginBottom: 12 }}>
+                    <label className="v22-form-label">{t('devis.factureSubTypeLabel')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                      {(['standard', 'acompte', 'situation'] as const).map((st) => {
+                        const labelKey = st === 'standard' ? 'factureSubTypeStandard' : st === 'acompte' ? 'factureSubTypeAcompte' : 'factureSubTypeSituation'
+                        const hintKey = st === 'standard' ? 'factureSubTypeStandardHint' : st === 'acompte' ? 'factureSubTypeAcompteHint' : 'factureSubTypeSituationHint'
+                        const isActive = factureSubType === st
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setFactureSubType(st)}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: `1.5px solid ${isActive ? 'var(--v22-yellow, #FFC107)' : 'var(--v22-border, #E0E0E0)'}`,
+                              background: isActive ? 'rgba(255, 193, 7, 0.08)' : '#fff',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              fontSize: 12,
+                              fontWeight: isActive ? 700 : 500,
+                              color: isActive ? '#111' : '#444',
+                            }}
+                          >
+                            <div style={{ marginBottom: 3 }}>{t(`devis.${labelKey}`)}</div>
+                            <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--v22-text-muted, #999)', lineHeight: 1.35 }}>{t(`devis.${hintKey}`)}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {factureSubType === 'situation' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                        <div>
+                          <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>{t('devis.situationNumberLabel')}</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={situationNumber ?? ''}
+                            onChange={(e) => setSituationNumber(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                            placeholder={t('devis.situationNumberPlaceholder')}
+                            className={normalFieldClass}
+                          />
+                        </div>
+                        <div>
+                          <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>{t('devis.situationAvancementLabel')}</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={situationAvancement ?? ''}
+                            onChange={(e) => setSituationAvancement(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            placeholder={t('devis.situationAvancementPlaceholder')}
+                            className={normalFieldClass}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
                     <label className="v22-form-label">{t('devis.issueDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
@@ -2797,19 +2955,16 @@ export default function DevisFactureForm({
                             )}
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              step="0.01"
-                              value={line.qty === 0 ? '' : line.qty}
-                              onChange={(e) => updateLine(line.id, 'qty', parseDecimalInput(e.target.value))}
-                              onFocus={(e) => e.target.select()}
+                            <DecimalInput
+                              value={line.qty || 0}
+                              onChangeNumber={(n) => updateLine(line.id, 'qty', n)}
+                              format={fmtQty}
+                              parse={parseDecimalInput}
                               onBlur={(e) => {
                                 // Au blur, forcer minimum > 0 (accepte décimales)
                                 const v = parseDecimalInput(e.target.value)
                                 if (!v || v <= 0) updateLine(line.id, 'qty', 1)
                               }}
-                              min={0}
                               className="v22-form-input"
                               style={{ textAlign: 'center' }}
                             />
@@ -2850,12 +3005,11 @@ export default function DevisFactureForm({
                             </div>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <input
-                              type="number"
-                              value={line.priceHT === 0 ? '' : line.priceHT}
-                              onChange={(e) => updateLine(line.id, 'priceHT', parseDecimalInput4(e.target.value))}
-                              onFocus={(e) => e.target.select()}
-                              step="0.0001"
+                            <DecimalInput
+                              value={line.priceHT || 0}
+                              onChangeNumber={(n) => updateLine(line.id, 'priceHT', n)}
+                              format={fmtN4}
+                              parse={parseDecimalInput4}
                               className="v22-form-input"
                               title="Prix unitaire HT — jusqu'à 4 décimales (norme étude de prix)"
                             />
@@ -2886,17 +3040,15 @@ export default function DevisFactureForm({
                             </select>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <input
-                              type="number"
-                              value={line.totalHT === 0 ? '' : line.totalHT}
-                              onChange={(e) => {
-                                const newTotal = parseDecimalInput(e.target.value)
+                            <DecimalInput
+                              value={line.totalHT || 0}
+                              onChangeNumber={(newTotal) => {
                                 const qty = line.qty > 0 ? line.qty : 1
                                 const newPrice = newTotal / qty
                                 setLines(prev => prev.map(l => l.id !== line.id ? l : { ...l, priceHT: newPrice, totalHT: newTotal }))
                               }}
-                              onFocus={(e) => e.target.select()}
-                              step="0.01"
+                              format={fmtN}
+                              parse={parseDecimalInput}
                               className="v22-form-input"
                             />
                           </td>
@@ -2971,11 +3123,11 @@ export default function DevisFactureForm({
                         {materialLines.map((line) => (
                           <tr key={line.id}>
                             <td><input type="text" className="v22-input" placeholder={locale === 'pt' ? 'Ex: Cimento, areia...' : 'Ex : Ciment, sable...'} value={line.description} onChange={(e) => updateMaterialLine(line.id, 'description', e.target.value)} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.01" value={line.qty || ''} onChange={(e) => updateMaterialLine(line.id, 'qty', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
+                            <td><DecimalInput value={line.qty || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'qty', n)} format={fmtQty} parse={parseDecimalInput} className="v22-input" style={{ textAlign: 'center' }} /></td>
                             <td><input type="text" className="v22-input" value={line.unit} onChange={(e) => updateMaterialLine(line.id, 'unit', e.target.value)} style={{ textAlign: 'center' }} /></td>
-                            <td><input type="number" className="v22-input" min={0} step="0.0001" value={line.priceHT || ''} onChange={(e) => updateMaterialLine(line.id, 'priceHT', parseDecimalInput4(e.target.value))} style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
+                            <td><DecimalInput value={line.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'priceHT', n)} format={fmtN4} parse={parseDecimalInput4} className="v22-input" style={{ textAlign: 'right' }} title="Prix unitaire HT — jusqu'à 4 décimales" /></td>
                             {tvaEnabled && (
-                              <td><input type="number" className="v22-input" min={0} max={100} step={0.1} value={line.tvaRate} onChange={(e) => updateMaterialLine(line.id, 'tvaRate', parseDecimalInput(e.target.value))} style={{ textAlign: 'center' }} /></td>
+                              <td><DecimalInput value={line.tvaRate || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'tvaRate', n)} format={fmtQty} parse={parseDecimalInput} className="v22-input" style={{ textAlign: 'center' }} /></td>
                             )}
                             <td style={{ textAlign: 'right', fontWeight: 600 }}>{line.totalHT.toFixed(2)}</td>
                             <td>
@@ -3046,13 +3198,11 @@ export default function DevisFactureForm({
                               </select>
                             </td>
                             <td>
-                              <input
-                                type="number"
-                                value={item.quantite || ''}
-                                onChange={(e) => updateFraisAnnexe(item.id, 'quantite', parseDecimalInput(e.target.value))}
-                                onFocus={(e) => e.target.select()}
-                                min={0}
-                                step="0.01"
+                              <DecimalInput
+                                value={item.quantite || 0}
+                                onChangeNumber={(n) => updateFraisAnnexe(item.id, 'quantite', n)}
+                                format={fmtQty}
+                                parse={parseDecimalInput}
                                 className="v22-form-input"
                               />
                             </td>
@@ -3068,13 +3218,11 @@ export default function DevisFactureForm({
                               </select>
                             </td>
                             <td>
-                              <input
-                                type="number"
-                                value={item.prix_unitaire_ht || ''}
-                                onChange={(e) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', parseDecimalInput(e.target.value))}
-                                onFocus={(e) => e.target.select()}
-                                min={0}
-                                step="0.01"
+                              <DecimalInput
+                                value={item.prix_unitaire_ht || 0}
+                                onChangeNumber={(n) => updateFraisAnnexe(item.id, 'prix_unitaire_ht', n)}
+                                format={fmtN}
+                                parse={parseDecimalInput}
                                 className="v22-form-input"
                               />
                             </td>
@@ -3204,10 +3352,11 @@ export default function DevisFactureForm({
                               />
                             </td>
                             <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="number" inputMode="decimal" step="0.01"
-                                value={line.qty === 0 ? '' : line.qty}
-                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'qty', parseDecimalInput(e.target.value))}
+                              <DecimalInput
+                                value={line.qty || 0}
+                                onChangeNumber={(n) => updateCustomLine(tbl.id, line.id, 'qty', n)}
+                                format={fmtQty}
+                                parse={parseDecimalInput}
                                 placeholder="0"
                                 className="v22-form-input"
                                 style={{ fontSize: 12, textAlign: 'center' }}
@@ -3224,10 +3373,11 @@ export default function DevisFactureForm({
                               </select>
                             </td>
                             <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="number" inputMode="decimal" step="0.01"
-                                value={line.priceHT === 0 ? '' : line.priceHT}
-                                onChange={(e) => updateCustomLine(tbl.id, line.id, 'priceHT', parseDecimalInput(e.target.value))}
+                              <DecimalInput
+                                value={line.priceHT || 0}
+                                onChangeNumber={(n) => updateCustomLine(tbl.id, line.id, 'priceHT', n)}
+                                format={fmtN4}
+                                parse={parseDecimalInput4}
                                 placeholder="0"
                                 className="v22-form-input"
                                 style={{ fontSize: 12, textAlign: 'right' }}

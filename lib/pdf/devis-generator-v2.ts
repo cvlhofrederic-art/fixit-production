@@ -52,6 +52,12 @@ export interface DevisGeneratorInput {
     delai_execution: string
     date_prestation: Date | null
     docType?: 'devis' | 'facture'
+    /** Sous-type facture (méthode pro 2026). Affiche un label explicite sous le
+     *  numéro pour les types "acompte" et "situation" (mentions légalement
+     *  requises, art. 289 CGI + BOFIP-TVA-DECLA-30-10-20). */
+    factureSubType?: 'standard' | 'acompte' | 'situation'
+    situationNumber?: number
+    situationAvancement?: number
   }
   mode_affichage: 'bloc' | 'sections'
   lignes: LigneDevis[]
@@ -77,6 +83,9 @@ export interface DevisGeneratorInput {
 
 export interface LigneDevis {
   designation: string
+  /** Description complémentaire libre saisie par l'utilisateur (entre titre et
+   *  étapes). Rendue en gris 8pt sous le titre. Parité avec V3 BTP. */
+  lineDetail?: string
   quantite: number
   unite: string
   prix_unitaire: number
@@ -347,6 +356,21 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFont(FONT, 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text(input.devis.numero, pageW / 2, y, { align: 'center' })
 
+  // Label sous-type facture (méthode pro 2026) — mention légalement requise
+  // pour acompte / situation (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).
+  // Standard et devis : aucun label additionnel.
+  const isPt = input.locale === 'pt'
+  const subTypeLabel = input.devis.docType === 'facture' && input.devis.factureSubType && input.devis.factureSubType !== 'standard'
+    ? input.devis.factureSubType === 'acompte'
+      ? (isPt ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE')
+      : `${isPt ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${input.devis.situationNumber ? ` N° ${input.devis.situationNumber}` : ''}${input.devis.situationAvancement != null ? ` — ${input.devis.situationAvancement}%` : ''}`
+    : null
+  if (subTypeLabel) {
+    y += ptToMm(12)
+    pdf.setFont(FONT, 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
+    pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
+  }
+
   y += ptToMm(12)
   pdf.setFillColor(COLOR.ACCENT)
   pdf.rect(ML, y, contentW, ptToMm(3), 'F')
@@ -568,7 +592,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     const cleaned = cleanDescription(line.designation)
     const nlParts = cleaned.split('\n')
     const title = nlParts[0]
-    const detail = nlParts.slice(1).join('\n').trim()
+    // detail = continuation du titre (legacy : description multi-ligne via \n
+    // dans designation). Concaténé avec lineDetail (champ libre dédié, parité
+    // V3 BTP) pour rendu unifié sous le titre.
+    const inlineDetail = nlParts.slice(1).join('\n').trim()
+    const lineDetailText = (line.lineDetail || '').trim()
+    const detail = [inlineDetail, lineDetailText].filter(Boolean).join('\n')
 
     // Mesurer les hauteurs nécessaires — largeur = de x=62pt à la colonne QTÉ
     const desigTextW = tColWidths.designation - (ptToMm(62) - ML) - 2

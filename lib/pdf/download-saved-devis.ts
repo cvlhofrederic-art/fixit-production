@@ -26,6 +26,10 @@ interface SavedDevis {
   docDate?: string
   docValidity?: number
   prestationDate?: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
+  factureSubType?: 'standard' | 'acompte' | 'situation'
+  situationNumber?: number
+  situationAvancement?: number
   executionDelay?: string
   executionDelayDays?: number
   executionDelayType?: string
@@ -223,13 +227,27 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || '',
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today), jamais le docDate hérité du devis. Aligné art. 289 CGI + pratique
+    // Henrri/EBP/Pennylane/Sage. Une facture déjà émise (sentAt présent) garde
+    // sa date historique pour l'archivage probant (arrêté 22 mars 2017).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
+    })(),
     docValidity: doc.docValidity || 30,
     executionDelay: delayStr,
     // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
     // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
     // la date d'émission dans la case DATE PRESTATION.
     prestationDate: doc.prestationDate || '',
+    // Sous-type facture (méthode pro 2026) — pilote le label PDF
+    factureSubType: doc.factureSubType,
+    situationNumber: doc.situationNumber,
+    situationAvancement: doc.situationAvancement,
 
     // Lines
     lines: mergedLines,
@@ -378,7 +396,17 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || `${doc.docType === 'facture' ? 'Facture' : 'Devis'} ${doc.docNumber || ''}`,
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today). Aligné art. 289 CGI + pratique Henrri/EBP/Pennylane/Sage.
+    // Une facture déjà émise (sentAt) garde sa date historique (arrêté
+    // 22 mars 2017 — archivage probant).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
+    })(),
     docValidity: doc.docValidity || 30,
     // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
     // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
@@ -386,6 +414,10 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     // la liste devis (path BTP). PR #108 avait fixé le path V2 (ligne 204) mais
     // raté ce path V3. Symptôme : preview = « À convenir » ✓, download = date ✗.
     prestationDate: doc.prestationDate || '',
+    // Sous-type facture (méthode pro 2026) — pilote le label PDF V3
+    factureSubType: doc.factureSubType,
+    situationNumber: doc.situationNumber,
+    situationAvancement: doc.situationAvancement,
     executionDelay: delayStr,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',

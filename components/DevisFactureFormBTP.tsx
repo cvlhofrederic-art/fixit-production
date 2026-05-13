@@ -515,10 +515,33 @@ export default function DevisFactureFormBTP({
   const [ordreDeService, setOrdreDeService] = useState(initialData?.ordreDeService || '')
 
   // Document
-  const [docDate, setDocDate] = useState(initialData?.docDate || today)
+  // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : une facture
+  // brouillon (issue d'une conversion devis → facture) ne peut hériter du
+  // docDate du devis. Date d'émission = today (art. 289 CGI + pratique Henrri/
+  // EBP/Pennylane/Sage). Préserve la date d'origine pour les factures déjà
+  // émises (sentAt présent) — historisation comptable (arrêté 22 mars 2017).
+  const initialBtpDocDate = (() => {
+    const sentAt = (initialData as { sentAt?: string } | undefined)?.sentAt
+    if (initialData?.docType === 'facture' && !sentAt) return today
+    return initialData?.docDate || today
+  })()
+  const [docDate, setDocDate] = useState(initialBtpDocDate)
   const [docValidity, setDocValidity] = useState<number>(initialData?.docValidity || 30)
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<string>(initialData?.executionDelayType || 'ouvres')
+  // Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
+  // 'standard' = après prestation (cas général)
+  // 'acompte'  = versement avant prestation (TVA exigible à l'encaissement)
+  // 'situation' = facturation à l'avancement (BTP chantier long)
+  const [factureSubType, setFactureSubType] = useState<'standard' | 'acompte' | 'situation'>(
+    ((initialData as { factureSubType?: 'standard' | 'acompte' | 'situation' } | undefined)?.factureSubType) || 'standard'
+  )
+  const [situationNumber, setSituationNumber] = useState<number | undefined>(
+    (initialData as { situationNumber?: number } | undefined)?.situationNumber
+  )
+  const [situationAvancement, setSituationAvancement] = useState<number | undefined>(
+    (initialData as { situationAvancement?: number } | undefined)?.situationAvancement
+  )
   // Date de prestation = jour effectif des travaux (différente de la date d'émission
   // qui est la date de rédaction du devis). Optionnelle : si vide, le PDF affiche
   // "À convenir" (même logique que executionDelay vide).
@@ -1285,6 +1308,9 @@ export default function DevisFactureFormBTP({
       executionDelayDays,
       executionDelayType,
       prestationDate,
+      factureSubType,
+      situationNumber,
+      situationAvancement,
       // Entreprise
       companyStatus: statutJuridique,
       companyName,
@@ -1726,6 +1752,8 @@ export default function DevisFactureFormBTP({
         // logique dans devis-pdf-v3.ts ligne 577 et 581).
         prestationDate: prestationDate || '',
         executionDelay: delayStr,
+        // Sous-type facture (méthode pro 2026) — pilote label PDF
+        factureSubType, situationNumber, situationAvancement,
         companyStatus: statusCode,
         companyName, companySiret, companyAddress, companyRCS: companyRCS || '', companyCapital: companyCapital || '',
         companyPhone, companyEmail,
@@ -2408,6 +2436,70 @@ export default function DevisFactureFormBTP({
           {/* 6. INFORMATIONS DOCUMENT */}
           <div className="dv-section">
             <div className="dv-section-t">INFORMATIONS DOCUMENT</div>
+            {/* Sous-type facture (méthode pro 2026) — visible uniquement
+                en mode facture. Trois cas légalement distincts :
+                standard / acompte / situation BTP. */}
+            {docType === 'facture' && (
+              <div className="dv-fg" style={{ marginBottom: '.85rem' }}>
+                <label>Type de facture <span className="req">*</span></label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  {(['standard', 'acompte', 'situation'] as const).map((st) => {
+                    const labels = {
+                      standard: { title: 'Facture standard', hint: 'Émise après prestation (cas général, art. 289 CGI)' },
+                      acompte: { title: 'Facture d’acompte', hint: 'Versement reçu avant prestation — TVA exigible à l’encaissement' },
+                      situation: { title: 'Facture de situation', hint: 'BTP chantier long — facturation à l’avancement' },
+                    }
+                    const isActive = factureSubType === st
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setFactureSubType(st)}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          border: `1.5px solid ${isActive ? 'var(--primary-yellow, #FFC107)' : '#E0E0E0'}`,
+                          background: isActive ? 'rgba(255, 193, 7, 0.08)' : '#fff',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          fontSize: 12,
+                          fontWeight: isActive ? 700 : 500,
+                          color: isActive ? '#111' : '#444',
+                        }}
+                      >
+                        <div style={{ marginBottom: 3 }}>{labels[st].title}</div>
+                        <div style={{ fontSize: 10, fontWeight: 400, color: '#999', lineHeight: 1.35 }}>{labels[st].hint}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                {factureSubType === 'situation' && (
+                  <div className="dv-row" style={{ marginTop: 10 }}>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>N° de situation</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={situationNumber ?? ''}
+                        onChange={(e) => setSituationNumber(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        placeholder="Ex : 1, 2, 3…"
+                      />
+                    </div>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>Avancement (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={situationAvancement ?? ''}
+                        onChange={(e) => setSituationAvancement(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        placeholder="Ex : 30"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="dv-row">
               <div className="dv-fg"><label>Date d&apos;émission <span className="req">*</span></label><input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} /></div>
               <div className="dv-fg"><label>Validité (jours) <span className="req">*</span></label><input type="number" value={docValidity} min={1} onChange={(e) => setDocValidity(parseInt(e.target.value) || 30)} /></div>
