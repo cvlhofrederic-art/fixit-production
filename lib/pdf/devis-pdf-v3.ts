@@ -1484,14 +1484,19 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
     payLines.push(t('devis.pdf.contestationClause'))
 
-    const condStartY = y
-    let measureY = condStartY + 10
+    // Pré-mesure AVANT le rect : si le bloc CONDITIONS déborde sous la marge
+    // bottom (pageH - 15), checkPageBreak saute en page suivante. Sinon le
+    // rect + texte se superposent au footer "Page X/Y" (régression observée
+    // FACT-2026-002 : ligne contestationClause poussait sous le footer).
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal')
+    let measuredH = 10
     payLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, contentW - 8)
-      measureY += wrapped.length * ptToMm(13) + 0.5
+      measuredH += wrapped.length * ptToMm(13) + 0.5
     })
-    const condH = Math.max(measureY - condStartY + 2, 20)
+    const condH = Math.max(measuredH + 2, 20)
+    checkPageBreak(condH + 4)
+    const condStartY = y
 
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
     pdf.rect(mL, condStartY, contentW, condH, 'FD')
