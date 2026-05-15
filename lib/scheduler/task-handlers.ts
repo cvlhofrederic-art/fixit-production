@@ -400,29 +400,96 @@ async function remind_echeance_legale(ctx: HandlerCtx): Promise<HandlerResult> {
   }
 }
 
-// ── 7. backup_docs (placeholder MVP) ──────────────────────────────────────────
+// ── 7. backup_docs — export JSON consolidé + Supabase Storage ─────────────────
 async function backup_docs(ctx: HandlerCtx): Promise<HandlerResult> {
-  // MVP : log + email confirmation. Vrai ZIP archive = post-MVP.
-  const { automation } = ctx
+  const { automation, supabase } = ctx
   const p = automation.params
-  const to = (p.notify_email as string) ?? ''
-  if (to) {
-    try {
-      await sendEmail({
-        to,
-        subject:
-          automation.locale === 'pt' ? 'Backup mensal preparado' : 'Backup mensuel préparé',
-        html: '<p>Backup automatique programmé. Téléchargement disponible dans le dashboard.</p>',
-      })
-    } catch {
-      // non-critical
+  const notifyEmail = (p.notify_email as string) ?? ''
+  const cabinetId = automation.cabinet_id
+
+  // 1. Récupérer les données du cabinet
+  const [immeubles, missions, copros, alertes, automations] = await Promise.all([
+    (supabase as any).from('syndic_immeubles').select('*').eq('cabinet_id', cabinetId).limit(500),
+    (supabase as any).from('syndic_missions').select('*').eq('cabinet_id', cabinetId).limit(1000),
+    (supabase as any).from('syndic_coproprios').select('*').eq('cabinet_id', cabinetId).limit(1000),
+    (supabase as any).from('syndic_alertes').select('*').eq('cabinet_id', cabinetId).limit(500),
+    (supabase as any).from('syndic_automations').select('*').eq('cabinet_id', cabinetId).limit(100),
+  ])
+
+  // 2. Consolider en un objet JSON
+  const backup = {
+    exported_at: new Date().toISOString(),
+    cabinet_id: cabinetId,
+    counts: {
+      immeubles: ((immeubles.data ?? []) as unknown[]).length,
+      missions: ((missions.data ?? []) as unknown[]).length,
+      copros: ((copros.data ?? []) as unknown[]).length,
+      alertes: ((alertes.data ?? []) as unknown[]).length,
+      automations: ((automations.data ?? []) as unknown[]).length,
+    },
+    data: {
+      immeubles: immeubles.data ?? [],
+      missions: missions.data ?? [],
+      copros: copros.data ?? [],
+      alertes: alertes.data ?? [],
+      automations: automations.data ?? [],
+    },
+  }
+
+  // 3. Upload dans Supabase Storage bucket "cabinet-backups"
+  const filename = `backup_${cabinetId.slice(0, 8)}_${new Date().toISOString().slice(0, 10)}.json`
+  const filepath = `${cabinetId}/${filename}`
+  const fileContent = JSON.stringify(backup, null, 2)
+
+  const { error: uploadErr } = await (supabase as any)
+    .storage
+    .from('cabinet-backups')
+    .upload(filepath, new Blob([fileContent], { type: 'application/json' }), { upsert: true })
+
+  if (uploadErr) {
+    logger.warn('[backup] upload failed', { error: (uploadErr as Error).message ?? uploadErr })
+    return {
+      status: 'failed',
+      emails_sent: 0,
+      docs_generated: 0,
+      error_message: `upload_failed: ${(uploadErr as Error).message ?? 'unknown'}`,
     }
   }
+
+  // 4. Email avec URL signée 7 jours
+  let emailsSent = 0
+  if (notifyEmail) {
+    try {
+      const { data: signed } = await (supabase as any)
+        .storage
+        .from('cabinet-backups')
+        .createSignedUrl(filepath, 60 * 60 * 24 * 7)
+      const url = (signed as { signedUrl?: string })?.signedUrl ?? '(URL non disponible)'
+      await sendEmail({
+        to: notifyEmail,
+        subject:
+          automation.locale === 'pt' ? 'Backup mensal preparado' : 'Backup mensuel préparé',
+        html: `
+          <p>${automation.locale === 'pt' ? 'O seu backup mensal está pronto.' : 'Votre backup mensuel est prêt.'}</p>
+          <ul>
+            <li>${backup.counts.immeubles} ${automation.locale === 'pt' ? 'edifícios' : 'immeubles'}</li>
+            <li>${backup.counts.missions} missions</li>
+            <li>${backup.counts.copros} ${automation.locale === 'pt' ? 'condóminos' : 'copropriétaires'}</li>
+          </ul>
+          <p><a href="${url}">${automation.locale === 'pt' ? 'Descarregar' : 'Télécharger'} (valable 7 jours)</a></p>
+        `,
+      })
+      emailsSent = 1
+    } catch (err) {
+      logger.warn('[backup] email send failed', { error: String(err) })
+    }
+  }
+
   return {
     status: 'success',
-    emails_sent: to ? 1 : 0,
-    docs_generated: 0,
-    result_meta: { placeholder: true },
+    emails_sent: emailsSent,
+    docs_generated: 1,
+    result_meta: { filepath, size: fileContent.length, counts: backup.counts },
   }
 }
 
