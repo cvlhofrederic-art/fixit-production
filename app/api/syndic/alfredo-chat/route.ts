@@ -10,7 +10,8 @@ import { traceAgent } from '@/lib/langfuse'
 import { buildAlfredoSystemPromptFR } from '@/lib/syndic/prompts/alfredo/system-prompt-fr'
 import { buildAlfredoSystemPromptPT } from '@/lib/syndic/prompts/alfredo/system-prompt-pt'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
-import type { SyndicRole } from '@/lib/syndic/agent-types'
+import { searchEmails, regenerateDraft, bulkAction, summarizeInbox } from '@/lib/syndic/alfredo-chat-tools'
+import type { SyndicRole, Locale } from '@/lib/syndic/agent-types'
 import type { AlfredoChatContext } from '@/lib/syndic/prompts/alfredo/system-prompt-fr'
 
 const BodySchema = z.object({
@@ -27,6 +28,52 @@ const BodySchema = z.object({
     .optional(),
   locale: z.enum(['fr', 'pt']).optional(),
 })
+
+// ── Tool dispatch helpers ─────────────────────────────────────────────────────
+
+function extractToolCall(
+  text: string,
+): { name: string; args: Record<string, unknown> } | null {
+  const re = /##TOOL##\s*(\{[\s\S]*?\})\s*##/
+  const match = text.match(re)
+  if (!match) return null
+  try {
+    const parsed = JSON.parse(match[1]) as { name?: string; args?: Record<string, unknown> }
+    if (typeof parsed.name === 'string') {
+      return { name: parsed.name, args: parsed.args ?? {} }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+async function executeChatTool(
+  toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  args: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  user: any,
+  syndicRole: SyndicRole,
+  locale: Locale,
+): Promise<unknown> {
+  switch (toolName) {
+    case 'search_emails':
+      return searchEmails(client, user, args)
+    case 'regenerate_draft':
+      return regenerateDraft(client, user, { ...args, syndicRole, locale })
+    case 'bulk_action':
+      return bulkAction(client, user, { ...args, syndicRole, locale })
+    case 'summarize_inbox':
+      return summarizeInbox(client, user, args)
+    default:
+      return { error: `unknown_tool: ${toolName}` }
+  }
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
@@ -49,7 +96,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const locale = parsed.data.locale ?? 'fr'
+  const locale = (parsed.data.locale ?? 'fr') as Locale
 
   const { data: countsData } = await supabase
     .from('syndic_emails_analysed')
@@ -95,14 +142,61 @@ export async function POST(req: NextRequest) {
         conversation_id: parsed.data.conversation_id,
         prompt: parsed.data.message,
       },
-      () => callGroqWithRetry({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.4,
-        max_tokens: 1500,
-      }),
+      () =>
+        callGroqWithRetry({
+          model: 'llama-3.3-70b-versatile',
+          messages,
+          temperature: 0.4,
+          max_tokens: 1500,
+        }),
     )
     const rawContent = groqResponse.choices?.[0]?.message?.content ?? ''
+
+    // Check if the LLM wants to invoke a tool
+    const toolCall = extractToolCall(rawContent)
+    if (toolCall) {
+      let toolResult: unknown
+      try {
+        toolResult = await executeChatTool(
+          toolCall.name,
+          toolCall.args,
+          supabase,
+          user,
+          userRole,
+          locale,
+        )
+      } catch (toolErr) {
+        logger.error('alfredo-chat tool execution error', {
+          tool: toolCall.name,
+          error: toolErr instanceof Error ? toolErr.message : String(toolErr),
+          user_id: user.id,
+        })
+        toolResult = { error: 'tool_execution_failed' }
+      }
+
+      // Second Groq turn — reformulate the tool result for the user
+      const followUpMessages = [
+        ...messages,
+        { role: 'assistant' as const, content: rawContent },
+        {
+          role: 'system' as const,
+          content: `Résultat de l'outil ${toolCall.name} :\n\n${JSON.stringify(toolResult, null, 2)}\n\nReformule cette information pour l'utilisateur en ${locale === 'pt' ? 'portugais européen' : 'français'}. Sois concis et professionnel.`,
+        },
+      ]
+
+      const followUpResponse = await callGroqWithRetry({
+        model: 'llama-3.3-70b-versatile',
+        messages: followUpMessages,
+        temperature: 0.4,
+        max_tokens: 1500,
+      })
+
+      const followUpContent = followUpResponse.choices?.[0]?.message?.content ?? rawContent
+      const resolvedFinal = resolveSanitizedToken(followUpContent, tokenMap) ?? followUpContent
+      return NextResponse.json({ content: resolvedFinal, tool_used: toolCall.name })
+    }
+
+    // No tool — return direct response
     const resolvedContent = resolveSanitizedToken(rawContent, tokenMap) ?? rawContent
     return NextResponse.json({ content: resolvedContent })
   } catch (err) {

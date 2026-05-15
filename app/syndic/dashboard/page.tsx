@@ -134,6 +134,7 @@ const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pa
 const MaxAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/MaxAgentPage'))
 const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
 const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/AlfredoAgentPage'))
+import { useAlfredoNotifications } from '@/components/syndic-dashboard/agents-ia/hooks/useAlfredoNotifications'
 // ── Extracted layout + misc components ──
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
 const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
@@ -304,6 +305,15 @@ export default function SyndicDashboard() {
   const [customAllowedPages, setCustomAllowedPages] = useState<string[] | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Badge "N nouveaux" sur Alfredo dans la sidebar — Supabase Realtime sur draft_status=pending_review
+  const { pendingCount: alfredoPendingCount } = useAlfredoNotifications(
+    user?.id ?? null,
+    (event) => {
+      // Toast notification quand nouveau brouillon arrive
+      toast.info(`📧 ${locale === 'pt' ? 'Novo rascunho Alfredo' : 'Nouveau brouillon Alfredo'} — ${event.subject?.slice(0, 60) ?? event.from_email}`)
+    },
+  )
   // ── Données persistées en localStorage (clé par user.id, chargées après auth) ──
   const [immeubles, setImmeubles] = useState<Immeuble[]>([])
   const [artisans, setArtisans] = useState<Artisan[]>(ARTISANS_DEMO)
@@ -2438,7 +2448,7 @@ export default function SyndicDashboard() {
     { id: 'fixy_agent' as const, emoji: '🤖', label: 'Fixy', category: 'agents_ia' },
     { id: 'max_agent' as const, emoji: '🎓', label: 'Max', category: 'agents_ia' },
     { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
-    { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', category: 'agents_ia' },
+    { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', badge: alfredoPendingCount > 0 ? alfredoPendingCount : undefined, category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
     { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
