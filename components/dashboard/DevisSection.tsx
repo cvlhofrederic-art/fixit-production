@@ -6,6 +6,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
+import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
@@ -106,17 +107,33 @@ export default function DevisSection({
     setSavedDocuments([...docs, ...drafts])
   }
 
-  const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
+  const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
+
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc: _handleRemoveDocRaw, handleCancelled } =
     useDocumentCancel<DevisDocument>({
       artisanId: artisan?.id,
       docType: 'devis',
       isSameDoc,
       setSavedDocuments,
-      confirmDraftDelete: (doc) => {
-        const label = doc.docNumber || (doc.clientName as string | undefined) || ''
-        return confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)
-      },
+      // Pré-validé : le modal stylé en amont fait office de confirm() humain.
+      confirmDraftDelete: () => true,
     })
+
+  // Wrapper : pour les brouillons on ouvre un modal stylé (vs `confirm()` natif
+  // moche). Pour les docs émis, le hook gère déjà son propre DocumentCancelModal.
+  const handleRemoveDoc = (doc: DevisDocument) => {
+    if (isDocDraftStatus(doc.status, 'devis')) {
+      setPendingDraftDelete(doc)
+      return
+    }
+    _handleRemoveDocRaw(doc)
+  }
+
+  const confirmPendingDraftDelete = () => {
+    if (!pendingDraftDelete) return
+    _handleRemoveDocRaw(pendingDraftDelete)
+    setPendingDraftDelete(null)
+  }
 
   if (showDevisForm) {
     if (orgRole === 'pro_societe') {
@@ -174,6 +191,17 @@ export default function DevisSection({
             onClose={() => setCancellingDoc(null)}
           />
         )}
+        <ConfirmDraftDeleteDialog
+          open={!!pendingDraftDelete}
+          docType="devis"
+          label={
+            pendingDraftDelete?.docNumber ||
+            (pendingDraftDelete?.clientName as string | undefined) ||
+            (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+          }
+          onConfirm={confirmPendingDraftDelete}
+          onClose={() => setPendingDraftDelete(null)}
+        />
       </>
     )
   }
@@ -365,6 +393,17 @@ export default function DevisSection({
           onClose={() => setCancellingDoc(null)}
         />
       )}
+      <ConfirmDraftDeleteDialog
+        open={!!pendingDraftDelete}
+        docType="devis"
+        label={
+          pendingDraftDelete?.docNumber ||
+          (pendingDraftDelete?.clientName as string | undefined) ||
+          (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+        }
+        onConfirm={confirmPendingDraftDelete}
+        onClose={() => setPendingDraftDelete(null)}
+      />
     </div>
   )
 }

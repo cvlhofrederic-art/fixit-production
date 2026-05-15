@@ -6,6 +6,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
+import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
@@ -62,19 +63,32 @@ export default function FacturesSection({
     setSavedDocuments([...docs, ...drafts])
   }
 
-  const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
+  const [pendingDraftDelete, setPendingDraftDelete] = useState<PersistedDocument | null>(null)
+
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc: _handleRemoveDocRaw, handleCancelled } =
     useDocumentCancel<PersistedDocument>({
       artisanId: artisan?.id,
       docType: 'facture',
       setSavedDocuments,
-      confirmDraftDelete: (doc) => {
-        const label =
-          doc.docNumber ||
-          doc.clientName ||
-          (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
-        return confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${label} ?`)
-      },
+      // Pré-validé : le modal stylé en amont fait office de confirm() humain.
+      confirmDraftDelete: () => true,
     })
+
+  // Wrapper : pour les brouillons on ouvre un modal stylé (vs `confirm()` natif
+  // moche). Pour les docs émis, le hook gère déjà son propre DocumentCancelModal.
+  const handleRemoveDoc = (doc: PersistedDocument) => {
+    if (isDocDraftStatus(doc.status, 'facture')) {
+      setPendingDraftDelete(doc)
+      return
+    }
+    _handleRemoveDocRaw(doc)
+  }
+
+  const confirmPendingDraftDelete = () => {
+    if (!pendingDraftDelete) return
+    _handleRemoveDocRaw(pendingDraftDelete)
+    setPendingDraftDelete(null)
+  }
 
   if (showFactureForm) {
     // Garde docType : si convertingDevis arrive avec docType='devis' (bug
@@ -145,6 +159,17 @@ export default function FacturesSection({
             onClose={() => setCancellingDoc(null)}
           />
         )}
+        <ConfirmDraftDeleteDialog
+          open={!!pendingDraftDelete}
+          docType="facture"
+          label={
+            pendingDraftDelete?.docNumber ||
+            pendingDraftDelete?.clientName ||
+            (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+          }
+          onConfirm={confirmPendingDraftDelete}
+          onClose={() => setPendingDraftDelete(null)}
+        />
       </>
     )
   }
@@ -311,6 +336,17 @@ export default function FacturesSection({
           onClose={() => setCancellingDoc(null)}
         />
       )}
+      <ConfirmDraftDeleteDialog
+        open={!!pendingDraftDelete}
+        docType="facture"
+        label={
+          pendingDraftDelete?.docNumber ||
+          pendingDraftDelete?.clientName ||
+          (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+        }
+        onConfirm={confirmPendingDraftDelete}
+        onClose={() => setPendingDraftDelete(null)}
+      />
     </div>
   )
 }
