@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     let result
     try {
       result = await executeTaskHandler({
-        automation: automation as Parameters<typeof executeTaskHandler>[0]['automation'],
+        automation: automation as unknown as Parameters<typeof executeTaskHandler>[0]['automation'],
         supabase: supabaseAdmin as Parameters<typeof executeTaskHandler>[0]['supabase'],
         runId: (run as { id: string }).id,
       })
@@ -79,11 +79,14 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', (run as { id: string }).id)
 
-    // 5. Update automation : last_run_at, run_count, next_run_at
+    // 5. Update automation : last_run_at, run_count, next_run_at, failure_count
     const cronEval = evaluateCron(automation.cron_expr as string, {
       timezone: automation.timezone as string,
       currentDate: now,
     })
+    const newFailureCount =
+      result.status === 'failed' ? ((automation.failure_count as number) ?? 0) + 1 : 0
+
     await supabaseAdmin
       .from('syndic_automations')
       .update({
@@ -92,12 +95,39 @@ export async function POST(req: NextRequest) {
         last_run_message: result.error_message ?? null,
         next_run_at: cronEval.next.toISOString(),
         run_count: ((automation.run_count as number) ?? 0) + 1,
-        failure_count:
-          result.status === 'failed'
-            ? ((automation.failure_count as number) ?? 0) + 1
-            : automation.failure_count,
+        failure_count: newFailureCount,
       })
       .eq('id', automation.id)
+
+    // 6. Notification si 3 échecs consécutifs
+    if (result.status === 'failed' && newFailureCount === 3) {
+      try {
+        const { data: adminUser } = await supabaseAdmin.auth.admin.getUserById(
+          automation.cabinet_id as string,
+        )
+        const email = adminUser?.user?.email
+        if (email) {
+          const { sendEmail } = await import('@/lib/email')
+          await sendEmail({
+            to: email,
+            subject: '⚠️ Tempo — Automatisation en échec (3 fois consécutives)',
+            html: `
+              <p>Une de vos automatisations Vitfix a échoué <strong>3 fois consécutives</strong>.</p>
+              <ul>
+                <li><strong>Nom</strong> : ${String(automation.name ?? '')}</li>
+                <li><strong>Type</strong> : ${String(automation.task_type ?? '')}</li>
+                <li><strong>Cron</strong> : <code>${String(automation.cron_expr ?? '')}</code></li>
+                <li><strong>Dernière erreur</strong> : ${result.error_message ?? 'inconnue'}</li>
+              </ul>
+              <p>Connectez-vous à votre dashboard pour diagnostiquer ou mettre en pause.</p>
+              <p><a href="https://vitfix.io/syndic/dashboard?page=automation_agent">Ouvrir Tempo</a></p>
+            `,
+          })
+        }
+      } catch (err) {
+        logger.warn('[cron] failure notification send failed', { error: String(err) })
+      }
+    }
 
     results.push({
       automation_id: automation.id as string,
