@@ -199,10 +199,22 @@ export async function POST(request: NextRequest) {
     const userRole = getUserRole(user) || 'syndic'
 
     const body = await request.json()
-    const { message, syndic_context = {}, conversation_history = [], locale } = body
+    const { message, syndic_context: clientContext = {}, conversation_history = [], locale } = body
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'message requis' }, { status: 400 })
+    }
+
+    // Hydrater le contexte depuis la DB (le client envoie souvent un objet vide ou partiel)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- contexte dynamique mixte
+    let syndic_context: Record<string, any> = clientContext
+    try {
+      const { loadFixyContext } = await import('@/lib/syndic/fixy-context-loader')
+      const hydrated = await loadFixyContext(supabaseAdmin, user)
+      // Le client peut surcharger l'hydratation si conflit (ex : vue en cours)
+      syndic_context = { ...hydrated, ...clientContext }
+    } catch (err) {
+      console.warn('[fixy] context hydration failed, using client context only:', err)
     }
 
     // Ajouter le rôle dans le contexte

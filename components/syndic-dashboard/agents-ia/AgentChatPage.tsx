@@ -139,7 +139,33 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
           const descriptor = agentConfig.toolDescriptors.find(t => t.name === tc.tool_name)
           if (descriptor?.requiresConfirmation) {
             const confirmed = await requestConfirm(tc)
-            tc.status = confirmed ? 'confirmed' : 'cancelled'
+            if (!confirmed) {
+              tc.status = 'cancelled'
+            } else {
+              tc.status = 'confirmed'
+              // Exécuter l'action côté serveur pour les actions Fixy destructives
+              if (agentConfig.id === 'fixy') {
+                try {
+                  const execRes = await fetch('/api/syndic/fixy-syndic/execute-action', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({
+                      action: { type: tc.tool_name, args: tc.arguments },
+                      conversation_id: conv.id,
+                    }),
+                  })
+                  if (execRes.ok) {
+                    tc.status = 'executed'
+                  } else {
+                    tc.status = 'error'
+                    console.error('[fixy/execute-action] failed', await execRes.text())
+                  }
+                } catch (execErr) {
+                  tc.status = 'error'
+                  console.error('[fixy/execute-action] error', execErr)
+                }
+              }
+            }
           } else {
             tc.status = 'executed'
           }
