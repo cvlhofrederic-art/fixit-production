@@ -274,4 +274,60 @@ export const AGENT_CONFIGS: Record<AgentId, AgentConfig> = {
     allowedRoles: ['syndic', 'syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste'],
     crossAgentReferrals: ['fixy', 'max', 'lea'],
   },
+
+  tempo: {
+    id: 'tempo',
+    displayName: { fr: 'Tempo', pt: 'Tempo' },
+    tagline: {
+      fr: 'Automatisations & tâches récurrentes',
+      pt: 'Automatizações & tarefas recorrentes',
+    },
+    avatarEmoji: '⏱️',
+    accentColor: 'violet',
+    endpoint: '/api/syndic/tempo-ai',
+    streaming: false,
+    voice: false,
+    suggestedPrompts: {
+      fr: [
+        'Envoie chaque 1er trimestre les appels de charges',
+        'Liste mes automatisations actives',
+        'Programme une relance amiable pour les impayés > 30 jours',
+        'Quel bilan des exécutions ce mois ?',
+      ],
+      pt: [
+        'Envia em cada 1.º trimestre as chamadas de quotas',
+        'Lista as minhas automatizações ativas',
+        'Programa um lembrete para dívidas > 30 dias',
+        'Qual o balanço das execuções este mês?',
+      ],
+    },
+    toolDescriptors: [
+      {
+        name: 'create_automation',
+        label: { fr: 'Créer une automatisation', pt: 'Criar uma automatização' },
+        description: {
+          fr: 'Programme une tâche récurrente (cron + délégation agent + params).',
+          pt: 'Programa uma tarefa recorrente (cron + delegação agente + params).',
+        },
+        requiresConfirmation: true,
+        allowedRoles: ['syndic', 'syndic_admin', 'syndic_gestionnaire', 'syndic_secretaire'],
+      },
+      {
+        name: 'pause_automation',
+        label: { fr: 'Mettre en pause', pt: 'Pausar' },
+        description: { fr: 'Suspend une automatisation active.', pt: 'Suspende uma automatização ativa.' },
+        requiresConfirmation: false,
+        allowedRoles: ['syndic', 'syndic_admin', 'syndic_gestionnaire', 'syndic_secretaire'],
+      },
+      {
+        name: 'delete_automation',
+        label: { fr: 'Supprimer', pt: 'Eliminar' },
+        description: { fr: 'Archive définitivement une automatisation.', pt: 'Arquiva definitivamente uma automatização.' },
+        requiresConfirmation: true,
+        allowedRoles: ['syndic', 'syndic_admin', 'syndic_gestionnaire'],
+      },
+    ],
+    allowedRoles: ['syndic', 'syndic_admin', 'syndic_gestionnaire', 'syndic_secretaire', 'syndic_comptable'],
+    crossAgentReferrals: ['fixy', 'lea', 'max', 'alfredo'],
+  },
 }
