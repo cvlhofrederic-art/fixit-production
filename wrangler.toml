@@ -52,6 +52,9 @@ crons = [
   "30 7 * * *",
   # Email agent poll — daily 8 AM UTC (must be batched < 30s)
   "0 8 * * *",
+  # Tempo automations — every 5 min (via GitHub Actions, see .github/workflows/run-automations.yml)
+  # Note: Cloudflare Workers scheduled min granularity = 1 min. GitHub Actions min = 5 min.
+  # The actual trigger is handled by GitHub Actions cron to avoid hitting Worker CPU limits.
 ]
 
 # ── Queue Bindings ─────────────────────────────────────��─────────────────────
