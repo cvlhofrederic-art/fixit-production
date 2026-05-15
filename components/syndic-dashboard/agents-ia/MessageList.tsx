@@ -20,6 +20,7 @@ const AGENT_LABELS: Record<AgentId, { fr: string; pt: string }> = {
   max: { fr: 'Max', pt: 'Max' },
   lea: { fr: 'Léa', pt: 'Léa' },
   alfredo: { fr: 'Alfredo', pt: 'Alfredo' },
+  tempo: { fr: 'Tempo', pt: 'Tempo' },
 }
 
 export default function MessageList({

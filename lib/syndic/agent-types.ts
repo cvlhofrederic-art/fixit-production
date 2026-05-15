@@ -1,6 +1,6 @@
 // lib/syndic/agent-types.ts
 
-export type AgentId = 'fixy' | 'max' | 'lea' | 'alfredo'
+export type AgentId = 'fixy' | 'max' | 'lea' | 'alfredo' | 'tempo'
 
 export type SyndicRole =
   | 'syndic'
