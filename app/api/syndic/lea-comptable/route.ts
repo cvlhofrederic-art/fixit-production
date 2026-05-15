@@ -9,6 +9,8 @@ import { buildLeaSystemPromptPT } from '@/lib/syndic/prompts/lea/system-prompt-p
 import type { LeaPromptContext } from '@/lib/syndic/prompts/lea/system-prompt-fr'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { wrapGroqStreamWithPIIResolution, SSE_HEADERS } from '@/lib/syndic/agent-sse-stream'
+import { supabaseAdmin } from '@/lib/supabase-server'
+import { loadLeaContext } from '@/lib/syndic/lea-context-loader'
 
 export const maxDuration = 30
 
@@ -87,9 +89,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, syndic_context = {}, conversation_history = [], locale, stream } = body
+    const { message, syndic_context: clientContext = {}, conversation_history = [], locale, stream } = body
 
     const isPt = locale === 'pt'
+
+    // Hydrater le contexte depuis la DB (supabaseAdmin bypass RLS, cohérent avec fixy-syndic)
+    let syndic_context: Record<string, unknown> = clientContext
+    try {
+      const hydrated = await loadLeaContext(supabaseAdmin, user)
+      syndic_context = { ...hydrated, ...clientContext }
+    } catch (err) {
+      logger.warn('[lea] context hydration failed, using client context:', err)
+    }
 
     if (!message?.trim()) {
       return NextResponse.json({ error: isPt ? 'mensagem obrigatória' : 'message requis' }, { status: 400 })
