@@ -134,6 +134,7 @@ const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pa
 const MaxAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/MaxAgentPage'))
 const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
 const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/AlfredoAgentPage'))
+const TempoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/TempoAgentPage'))
 import { useAlfredoNotifications } from '@/components/syndic-dashboard/agents-ia/hooks/useAlfredoNotifications'
 // ── Extracted layout + misc components ──
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
@@ -2449,6 +2450,7 @@ export default function SyndicDashboard() {
     { id: 'max_agent' as const, emoji: '🎓', label: 'Max', category: 'agents_ia' },
     { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
     { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', badge: alfredoPendingCount > 0 ? alfredoPendingCount : undefined, category: 'agents_ia' },
+    { id: 'automation_agent' as const, emoji: '🔄', label: locale === 'pt' ? 'Automações' : 'Automatisations', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
     { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
@@ -2721,6 +2723,7 @@ export default function SyndicDashboard() {
           {page === 'max_agent' && user && <MaxAgentPage user={user} />}
           {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
           {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}
+          {page === 'automation_agent' && user && <TempoAgentPage user={user} />}
 
           {/* ── MON ÉQUIPE ── */}
           {page === 'compta_copro' && user && <ComptaCoproSection user={user} userRole={userRole} immeubles={immeubles} />}

@@ -13,75 +13,15 @@ import { callGroqWithRetry } from '@/lib/groq'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { evaluateCron } from '@/lib/scheduler/cron-evaluator'
 import { traceAgent } from '@/lib/langfuse'
+import { buildTempoSystemPromptFR } from '@/lib/syndic/prompts/tempo/system-prompt-fr'
+import { buildTempoSystemPromptPT } from '@/lib/syndic/prompts/tempo/system-prompt-pt'
+import type { SyndicRole } from '@/lib/syndic/agent-types'
 
 const BodySchema = z.object({
   message: z.string().min(1).max(4000),
   conversation_history: z.array(z.any()).optional(),
   locale: z.enum(['fr', 'pt']).optional(),
 })
-
-// ── System prompts ────────────────────────────────────────────────────────────
-
-const SYSTEM_PROMPT_FR = `Tu es Tempo ⏱️, l'agent IA orchestrateur d'automatisations du syndic Vitfix.
-Ton rôle : aider l'utilisateur à programmer des tâches récurrentes (envois, génération docs, rappels).
-
-CAPACITÉS — task_types disponibles :
-- send_email_template : email avec template + recipients
-- send_appel_charges : Léa génère contenu + envoi aux copropriétaires (params: immeuble_id)
-- send_relance_impaye : Léa rédige relance + envoi pour impayés > N jours (params: threshold_days)
-- send_convocation_ag : Max génère convocation AG officielle (params: immeuble_id, ag_date, agenda, recipients)
-- generate_monthly_report : Léa compile rapport mensuel (params: recipients)
-- remind_echeance_legale : DPE/ascenseur/gaz (params: type, expiration, recipients)
-- backup_docs : archive zip mensuelle (params: notify_email)
-
-PATTERN D'INVOCATION TOOLS :
-Quand tu veux créer/modifier une automatisation, réponds avec :
-##TOOL##{"name":"<tool_name>","args":{...}}##
-
-Tools disponibles :
-- create_automation : { name, task_type, cron_expr, params, locale, timezone? }
-- list_automations : { status? }
-- pause_automation : { automation_id }
-- resume_automation : { automation_id }
-- delete_automation : { automation_id }
-- dry_run : { automation_id }
-- analyze_runs : { automation_id, period: 'week'|'month'|'all' }
-
-EXEMPLES :
-- "Envoie chaque 1er trimestre les appels de charges pour Belle Vue"
-  → ##TOOL##{"name":"create_automation","args":{"name":"Appels trimestriels Belle Vue","task_type":"send_appel_charges","cron_expr":"0 9 1 1,4,7,10 *","params":{"immeuble_id":"<id-Belle-Vue>"},"locale":"fr"}}##
-- "Liste mes automatisations actives"
-  → ##TOOL##{"name":"list_automations","args":{"status":"active"}}##
-- "Mets en pause l'automatisation X"
-  → ##TOOL##{"name":"pause_automation","args":{"automation_id":"<id>"}}##
-
-RÈGLES :
-1. Explique en français ce que tu vas faire AVANT le bloc ##TOOL##.
-2. Si une info manque (cron, immeuble, recipients), demande clarification plutôt qu'inventer.
-3. Pour cron expressions, utilise format standard 5 champs (m h dom mon dow).
-4. Confirme TOUJOURS avec l'utilisateur avant create/delete (pas d'exécution automatique).
-
-Sans tool, réponds normalement.`
-
-const SYSTEM_PROMPT_PT = `És o Tempo ⏱️, o agente IA orquestrador de automatizações do síndico Vitfix.
-O teu papel: ajudar o utilizador a programar tarefas recorrentes (envios, geração de documentos, lembretes).
-
-CAPACIDADES — task_types disponíveis :
-- send_email_template : email com template + destinatários
-- send_appel_charges : Léa gera conteúdo + envio aos condóminos (params: immeuble_id)
-- send_relance_impaye : Léa redige cobrança + envio para dívidas > N dias (params: threshold_days)
-- send_convocation_ag : Max gera convocatória de AG oficial (params: immeuble_id, ag_date, agenda, recipients)
-- generate_monthly_report : Léa compila relatório mensal (params: recipients)
-- remind_echeance_legale : DPE/elevador/gás (params: type, expiration, recipients)
-- backup_docs : arquivo zip mensal (params: notify_email)
-
-PADRÃO DE INVOCAÇÃO DE TOOLS :
-##TOOL##{"name":"<tool_name>","args":{...}}##
-
-REGRAS :
-1. Explica em português o que vais fazer ANTES do bloco ##TOOL##.
-2. Se faltam informações (cron, imóvel, destinatários), pede esclarecimento.
-3. Confirma SEMPRE com o utilizador antes de criar/eliminar.`
 
 // ── Tool extraction ───────────────────────────────────────────────────────────
 
@@ -265,9 +205,15 @@ export async function POST(req: NextRequest) {
   }
   const { sanitized, tokenMap } = sanitizeContextForLLM(ctxRaw)
 
+  const userRole = (user.user_metadata?.role as SyndicRole) ?? 'syndic'
+  const promptCtx = {
+    role: userRole,
+    immeubles: ctxRaw.immeubles,
+    active_automations_count: ctxRaw.active_automations_count,
+  }
   const systemPrompt =
-    (locale === 'pt' ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR) +
-    `\n\nCONTEXTE :\n${JSON.stringify(sanitized, null, 2)}`
+    (locale === 'pt' ? buildTempoSystemPromptPT(promptCtx) : buildTempoSystemPromptFR(promptCtx)) +
+    `\n\nCONTEXTE SANITISÉ :\n${JSON.stringify(sanitized, null, 2)}`
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
