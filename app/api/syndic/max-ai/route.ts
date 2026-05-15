@@ -10,6 +10,8 @@ import { buildMaxSystemPromptPT } from '@/lib/syndic/prompts/max/system-prompt-p
 import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { wrapGroqStreamWithPIIResolution, SSE_HEADERS } from '@/lib/syndic/agent-sse-stream'
+import { resolveLegalToolCalls } from '@/lib/syndic/max-legal-rag'
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 export const maxDuration = 30
 
@@ -173,6 +175,10 @@ export async function POST(request: NextRequest) {
         })
 
         // Enveloppe le stream Groq pour résoudre les tokens PII (helper partagé Plan B).
+        // TODO (Plan H — streaming) : la résolution des tags ##TOOL##cite_legal_source##
+        // n'est PAS appliquée en mode streaming. Le mode classique (non-streaming) reste
+        // le primary path pour les questions juridiques de Max. Si l'utilisateur active
+        // stream + pose une question juridique, les tags apparaîtront tels quels.
         const readable = wrapGroqStreamWithPIIResolution(rawStream, tokenMap)
 
         return new Response(readable, { headers: SSE_HEADERS })
@@ -214,8 +220,19 @@ export async function POST(request: NextRequest) {
       : 'Je n\'ai pas pu générer une réponse. Réessayez.'
 
     const rawResponse: string = groqData.choices?.[0]?.message?.content || fallbackMsg
-    // Résoudre les tokens PII dans la réponse finale
-    const response = resolveSanitizedToken(rawResponse, tokenMap) ?? rawResponse
+    // 1) Résoudre les tags ##TOOL##cite_legal_source## via le corpus juridique RAG.
+    //    La locale détermine strictement la table interrogée (FR vs PT, jamais croisée).
+    const ragLanguage: 'fr' | 'pt' = isPt ? 'pt' : 'fr'
+    let augmented = rawResponse
+    try {
+      augmented = await resolveLegalToolCalls(supabaseAdmin, rawResponse, ragLanguage)
+    } catch (ragErr) {
+      logger.warn('[max-ai] RAG resolution failed, returning raw response', {
+        error: ragErr instanceof Error ? ragErr.message : String(ragErr),
+      })
+    }
+    // 2) Résoudre les tokens PII dans la réponse finale (après l'insertion des citations)
+    const response = resolveSanitizedToken(augmented, tokenMap) ?? augmented
 
     return NextResponse.json({ response, role: userRole })
 
