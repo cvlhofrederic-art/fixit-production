@@ -67,8 +67,13 @@ export default function FacturesSection({
       artisanId: artisan?.id,
       docType: 'facture',
       setSavedDocuments,
-      confirmDraftDelete: (doc) =>
-        confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`),
+      confirmDraftDelete: (doc) => {
+        const label =
+          doc.docNumber ||
+          doc.clientName ||
+          (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+        return confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${label} ?`)
+      },
     })
 
   if (showFactureForm) {
