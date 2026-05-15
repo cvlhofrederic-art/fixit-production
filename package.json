@@ -25,7 +25,8 @@
     "scan:all": "npm run scan:secrets && npm run scan:deps && npm run scan:code",
     "scan:lighthouse": "lhci autorun",
     "analyze": "ANALYZE=true next build",
-    "build:cloudflare": "npx @opennextjs/cloudflare build"
+    "build:cloudflare": "npx @opennextjs/cloudflare build",
+    "seed:legal-corpus": "tsx scripts/seed-max-legal-corpus.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
