@@ -31,12 +31,14 @@ export function useAgentStream(agentConfig: AgentConfig) {
           'content-type': 'application/json',
           ...(agentConfig.streaming ? { 'accept': 'text/event-stream' } : {}),
         },
+        // Le contrat des routes /api/syndic/{fixy-syndic,max-ai,lea-comptable} attend
+        // `conversation_history` + `syndic_context` (cf. routes existantes avant Plan A).
         body: JSON.stringify({
           conversation_id: params.conversationId,
           message: params.message,
-          history: params.history.slice(-60),
+          conversation_history: params.history.slice(-60).map(m => ({ role: m.role, content: m.content })),
           locale: params.locale,
-          context: params.context ?? {},
+          syndic_context: params.context ?? {},
         }),
         signal: ac.signal,
       })
@@ -51,9 +53,12 @@ export function useAgentStream(agentConfig: AgentConfig) {
         return result
       }
 
-      const json = await res.json() as { content: string; tool_calls?: unknown[] }
-      setState({ pending: false, partial: json.content, error: null })
-      return json
+      // Les routes renvoient `{ response, action?, role? }` (pas `content`).
+      const json = await res.json() as { response?: string; content?: string; action?: unknown; tool_calls?: unknown[] }
+      const content = json.response ?? json.content ?? ''
+      const tool_calls = json.tool_calls ?? (json.action ? [json.action] : undefined)
+      setState({ pending: false, partial: content, error: null })
+      return { content, tool_calls }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'unknown'
       setState(s => ({ ...s, pending: false, error: message }))
@@ -89,10 +94,13 @@ async function readSSE(res: Response, onChunk: (s: string) => void): Promise<{ c
       const payload = line.slice(6).trim()
       if (payload === '[DONE]') continue
       try {
-        const data = JSON.parse(payload) as { delta?: string; tool_calls?: unknown[] }
-        if (data.delta) {
-          full += data.delta
-          onChunk(data.delta)
+        // Le helper `wrapGroqStreamWithPIIResolution` émet `{text}`,
+        // les anciens streams Groq utilisent parfois `{delta}` ou `{content}`.
+        const data = JSON.parse(payload) as { text?: string; delta?: string; content?: string; tool_calls?: unknown[] }
+        const chunk = data.text ?? data.delta ?? data.content
+        if (chunk) {
+          full += chunk
+          onChunk(chunk)
         }
         if (data.tool_calls) toolCalls = data.tool_calls
       } catch {

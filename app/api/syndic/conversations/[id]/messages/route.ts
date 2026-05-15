@@ -6,9 +6,16 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { isSyndicRole } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 
-// Seul 'user' autorisé côté client ; assistant/system/tool insérés côté serveur uniquement
+// `user` / `assistant` / `tool` autorisés depuis le client (le frontend persiste
+// la réponse de l'agent après réception). `system` reste serveur-only pour éviter
+// l'injection de prompts. L'ownership de la conversation est vérifié par RLS +
+// check explicite ci-dessous (defense in depth).
+//
+// TODO post-MVP : déplacer la persistance de `role: 'assistant'` côté agent
+// endpoint pour éviter qu'un client malveillant puisse fabriquer des réponses
+// LLM qui prompt-injectent les tours suivants.
 const AddMessageSchema = z.object({
-  role: z.enum(['user']),
+  role: z.enum(['user', 'assistant', 'tool']),
   content: z.string().min(1).max(32000),
   tool_calls: z.array(z.unknown()).nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
