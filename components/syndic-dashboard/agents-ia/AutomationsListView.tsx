@@ -19,7 +19,7 @@ interface Automation {
 }
 
 const TASK_TYPE_LABELS: Record<string, { fr: string; pt: string; emoji: string }> = {
-  send_email_template: { fr: 'Email templated', pt: 'Email templated', emoji: '📧' },
+  send_email_template: { fr: 'Modèle email', pt: 'Modelo de email', emoji: '📧' },
   send_appel_charges: { fr: 'Appel de charges', pt: 'Chamada de quotas', emoji: '💶' },
   send_relance_impaye: { fr: 'Relance impayé', pt: 'Cobrança dívida', emoji: '⚠️' },
   send_convocation_ag: { fr: 'Convocation AG', pt: 'Convocatória AG', emoji: '📋' },
@@ -107,7 +107,7 @@ export default function AutomationsListView({ locale }: Props) {
   }
 
   return (
-    <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
+    <div style={{ padding: 24, height: '100%', overflowY: 'auto', color: 'var(--sd-text)' }}>
       <div
         style={{
           display: 'flex',
@@ -134,7 +134,9 @@ export default function AutomationsListView({ locale }: Props) {
       </div>
 
       {loading ? (
-        <div style={{ padding: 24, color: 'rgba(0,0,0,0.5)' }}>Chargement...</div>
+        <div style={{ padding: 24, color: 'var(--sd-text-3)' }}>
+          {locale === 'pt' ? 'A carregar...' : 'Chargement...'}
+        </div>
       ) : automations.length === 0 ? (
         <div
           style={{
@@ -142,7 +144,8 @@ export default function AutomationsListView({ locale }: Props) {
             textAlign: 'center',
             background: 'var(--sd-bg-2)',
             borderRadius: 12,
-            color: 'rgba(0,0,0,0.5)',
+            color: 'var(--sd-text-3)',
+            border: '1px solid var(--sd-border-dark)',
           }}
         >
           {labels.empty}
@@ -166,7 +169,7 @@ export default function AutomationsListView({ locale }: Props) {
                 ? '#22c55e'
                 : a.status === 'paused'
                   ? '#f59e0b'
-                  : 'rgba(0,0,0,0.4)'
+                  : 'var(--sd-text-3)'
             return (
               <div
                 key={a.id}
@@ -174,7 +177,8 @@ export default function AutomationsListView({ locale }: Props) {
                   padding: 16,
                   background: 'var(--sd-bg-2)',
                   borderRadius: 12,
-                  border: '1px solid var(--sd-border)',
+                  border: '1px solid var(--sd-border-dark)',
+                  color: 'var(--sd-text)',
                 }}
               >
                 <div
@@ -188,8 +192,10 @@ export default function AutomationsListView({ locale }: Props) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ fontSize: 24 }}>{meta.emoji}</div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{a.name}</div>
-                      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--sd-text)' }}>
+                        {a.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--sd-text-2)' }}>
                         {locale === 'pt' ? meta.pt : meta.fr} •{' '}
                         <code>{a.cron_expr}</code>
                       </div>
@@ -210,7 +216,7 @@ export default function AutomationsListView({ locale }: Props) {
                 </div>
 
                 {a.description && (
-                  <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, color: 'var(--sd-text-2)', marginBottom: 8 }}>
                     {a.description}
                   </div>
                 )}
@@ -220,7 +226,7 @@ export default function AutomationsListView({ locale }: Props) {
                     display: 'flex',
                     gap: 16,
                     fontSize: 12,
-                    color: 'rgba(0,0,0,0.55)',
+                    color: 'var(--sd-text-2)',
                     marginBottom: 10,
                   }}
                 >
@@ -287,9 +293,9 @@ function btnStyle(variant?: 'danger'): React.CSSProperties {
     padding: '6px 12px',
     fontSize: 12,
     borderRadius: 6,
-    background: variant === 'danger' ? 'transparent' : 'var(--sd-bg)',
-    color: variant === 'danger' ? '#ef4444' : 'inherit',
-    border: '1px solid var(--sd-border)',
+    background: variant === 'danger' ? 'transparent' : 'var(--sd-bg-3)',
+    color: variant === 'danger' ? '#ff6b6b' : 'var(--sd-text)',
+    border: '1px solid var(--sd-border-dark)',
     cursor: 'pointer',
   }
 }
@@ -380,15 +386,18 @@ function CreateAutomationModal({ locale, onClose, onCreated }: CreateModalProps)
       <div
         style={{
           background: 'var(--sd-bg)',
+          border: '1px solid var(--sd-border-dark)',
           borderRadius: 12,
           padding: 24,
           width: 'min(600px, 90vw)',
           maxHeight: '90vh',
           overflowY: 'auto',
+          color: 'var(--sd-text)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
         }}
       >
-        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>
-          + {locale === 'pt' ? 'Nova automatização' : 'Nouvelle automatisation'}
+        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--sd-text)' }}>
+          {locale === 'pt' ? 'Nova automatização' : 'Nouvelle automatisation'}
         </h3>
 
         <label style={{ display: 'block', marginBottom: 12 }}>
@@ -431,7 +440,7 @@ function CreateAutomationModal({ locale, onClose, onCreated }: CreateModalProps)
           />
         </label>
 
-        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: 'var(--sd-text-3)', marginBottom: 12 }}>
           {labels.presets}:{' '}
           <button onClick={() => setCron('0 9 * * *')} style={presetBtn()}>
             {labels.daily}
@@ -463,8 +472,9 @@ function CreateAutomationModal({ locale, onClose, onCreated }: CreateModalProps)
           <div
             style={{
               padding: 8,
-              background: '#fee',
-              color: '#c33',
+              background: 'rgba(192,57,43,0.15)',
+              color: '#ff8a7a',
+              border: '1px solid rgba(192,57,43,0.4)',
               borderRadius: 6,
               marginBottom: 12,
               fontSize: 13,
@@ -503,21 +513,25 @@ function CreateAutomationModal({ locale, onClose, onCreated }: CreateModalProps)
 function inputStyle(): React.CSSProperties {
   return {
     width: '100%',
-    padding: 8,
+    padding: '10px 12px',
     fontSize: 14,
-    border: '1px solid var(--sd-border)',
-    borderRadius: 6,
+    background: 'var(--sd-bg-2)',
+    color: 'var(--sd-text)',
+    border: '1px solid var(--sd-border-dark)',
+    borderRadius: 8,
+    outline: 'none',
   }
 }
 
 function presetBtn(): React.CSSProperties {
   return {
     margin: '0 4px',
-    padding: '2px 8px',
+    padding: '4px 10px',
     fontSize: 11,
-    background: 'var(--sd-bg-2)',
-    border: '1px solid var(--sd-border)',
-    borderRadius: 4,
+    background: 'var(--sd-bg-3)',
+    color: 'var(--sd-text-2)',
+    border: '1px solid var(--sd-border-dark)',
+    borderRadius: 6,
     cursor: 'pointer',
   }
 }

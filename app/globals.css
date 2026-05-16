@@ -1070,6 +1070,13 @@
   --sd-amber-soft:  #FEF5E4;
   --sd-teal:        #1A7A6E;
   --sd-teal-soft:   #E6F4F2;
+  /* Couches dark theme pour panneaux agents-ia (Tempo, Alfredo, Max, Léa, Fixy) */
+  --sd-bg:          #0D1B2E;
+  --sd-bg-2:        #152338;
+  --sd-bg-3:        #1E3050;
+  --sd-text:        #F7F4EE;
+  --sd-text-2:      rgba(247,244,238,0.7);
+  --sd-text-3:      rgba(247,244,238,0.5);
 }
 
 /* Utilitaires typographiques pour le dashboard syndic */
