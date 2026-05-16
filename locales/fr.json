@@ -953,7 +953,9 @@
       "syndic_tech": "Gestionnaire Technique",
       "syndic_secretaire": "Secrétaire",
       "syndic_gestionnaire": "Gestionnaire Copropriété",
-      "syndic_comptable": "Comptable"
+      "syndic_comptable": "Comptable",
+      "syndic_juriste": "Juriste",
+      "super_admin": "Super Admin"
     },
     "accueil": {
       "managedBuildings": "Immeubles gérés",

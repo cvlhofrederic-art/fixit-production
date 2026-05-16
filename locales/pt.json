@@ -953,7 +953,9 @@
       "syndic_tech": "Gestor Técnico",
       "syndic_secretaire": "Secretário(a)",
       "syndic_gestionnaire": "Gestor de Condomínio",
-      "syndic_comptable": "Contabilista"
+      "syndic_comptable": "Contabilista",
+      "syndic_juriste": "Jurista",
+      "super_admin": "Super Admin"
     },
     "accueil": {
       "managedBuildings": "Edifícios geridos",
