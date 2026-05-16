@@ -22,6 +22,12 @@ interface PlanningSectionProps {
   immeubles: Immeuble[]
   userRole: string
   getAdminToken: () => Promise<string>
+  // Le modal de création d'événement est rendu par le dashboard parent (page.tsx).
+  // Cette callback notifie le parent qu'il faut sélectionner un jour + ouvrir le modal.
+  // Sans elle, les clics sur "+ Adicionar" et sur les jours du calendrier ne
+  // produisaient aucun effet visible (le state local du composant était mis à
+  // jour mais le modal n'était jamais rendu ici).
+  onOpenPlanningModal: (dateStr: string) => void
 }
 
 export default function PlanningSection({
@@ -34,22 +40,15 @@ export default function PlanningSection({
   immeubles,
   userRole,
   getAdminToken,
+  onOpenPlanningModal,
 }: PlanningSectionProps) {
   // ── Internal state (only used by planning) ──
   const [planningDate, setPlanningDate] = useState(new Date())
-  const [showPlanningModal, setShowPlanningModal] = useState(false)
-  const [selectedPlanningDay, setSelectedPlanningDay] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [planningViewFilter, setPlanningViewFilter] = useState('tous')
-  const [planningNeedsMigration, setPlanningNeedsMigration] = useState(false)
-  const [planningEventForm, setPlanningEventForm] = useState({
-    titre: '',
-    type: 'visite' as PlanningEvent['type'],
-    heure: '09:00',
-    dureeMin: 60,
-    assigneA: '',
-    description: '',
-  })
+  // Banner migration : à câbler ultérieurement via prop si besoin. Aujourd'hui
+  // la table existe (cf. logs Supabase) donc inactif.
+  const planningNeedsMigration = false
 
   // ── Derived values ──
   const planningYear = planningDate.getFullYear()
@@ -123,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-gray-900 capitalize">Planning — {planningMonthLabel}</h2>
             <button
-              onClick={() => { setSelectedPlanningDay(new Date().toISOString().slice(0,10)); setShowPlanningModal(true) }}
+              onClick={() => onOpenPlanningModal(new Date().toISOString().slice(0, 10))}
               className="flex items-center gap-1 text-xs bg-[#0D1B2E] hover:bg-[#152338] text-white px-3 py-1.5 rounded-lg transition font-medium"
             >
               + {locale === 'pt' ? 'Adicionar' : 'Ajouter'}
@@ -178,7 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
             return (
               <div
                 key={day}
-                onClick={() => { setSelectedPlanningDay(dateStr); setPlanningEventForm(f => ({ ...f, heure: '09:00' })); setShowPlanningModal(true) }}
+                onClick={() => onOpenPlanningModal(dateStr)}
                 className={`min-h-20 p-1 rounded-lg border text-xs cursor-pointer transition group relative ${isToday ? 'border-[#C9A84C] bg-[#F7F4EE]' : 'border-gray-100 hover:border-[#C9A84C] hover:bg-[#F7F4EE]/40'}`}
               >
                 <div className="flex items-center justify-between mb-1">

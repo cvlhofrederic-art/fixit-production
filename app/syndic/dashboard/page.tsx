@@ -2650,6 +2650,11 @@ export default function SyndicDashboard() {
               teamMembers={teamMembers} locale={locale} t={t}
               user={user} immeubles={immeubles} userRole={userRole}
               getAdminToken={getAdminToken}
+              onOpenPlanningModal={(dateStr: string) => {
+                setSelectedPlanningDay(dateStr)
+                setPlanningEventForm((f) => ({ ...f, heure: '09:00' }))
+                setShowPlanningModal(true)
+              }}
             />
           )}
 
