@@ -8,9 +8,10 @@ import { logger } from '@/lib/logger'
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 // ── Analyseur Devis/Factures Syndic — Expert Juridique & Prix du Marché ──────
-// Pipeline : Analyse + Extraction + SIRET + Scoring (4 étapes)
+// Pipeline : Analyse + Extraction + Vérification entreprise + Scoring (4 étapes)
+// FR et PT ont des cadres juridiques + prix + obligations totalement distincts.
 
-const SYSTEM_PROMPT = `Tu es un expert en marchés publics, droit de la copropriété et prix du marché des travaux du bâtiment en France. Tu travailles pour un cabinet de syndic professionnel.
+const SYSTEM_PROMPT_FR = `Tu es un expert en marchés publics, droit de la copropriété et prix du marché des travaux du bâtiment EN FRANCE. Tu travailles pour un cabinet de syndic professionnel français.
 
 Ton rôle est d'analyser des devis et factures de travaux pour :
 
@@ -33,7 +34,7 @@ Vérifier la présence des mentions obligatoires selon la loi française :
 - Délai de rétractation (14 jours pour particuliers, non applicable en copropriété mais à signaler)
 - Pour copropriété : référence au mandat syndic si demandé par le syndic
 
-**2. ANALYSE DES PRIX & BENCHMARK MARCHÉ 2024-2025**
+**2. ANALYSE DES PRIX & BENCHMARK MARCHÉ FRANCE 2024-2025**
 
 PLOMBERIE :
 - Débouchage simple : 80-200€ HT, Fuite robinet : 60-150€ HT
@@ -76,7 +77,7 @@ MAÇONNERIE :
 - Prix excessif (> 30%) → facturation abusive
 - Mentions manquantes → devis non valide juridiquement
 - Pas de RC Pro → risque en cas de sinistre
-- Garantie décennale absente pour gros travaux → risque majeur
+- Garantie décennale absente pour gros travaux → risque majeur (loi Spinetta 1978)
 - TVA incorrecte → sur-facturation
 - Conditions abusives (acompte > 30%)
 
@@ -101,8 +102,8 @@ MAÇONNERIE :
 
 ## 💰 ANALYSE DES PRIX
 
-| Prestation | Prix demandé | Prix marché | Écart | Verdict |
-|-----------|-------------|------------|-------|---------|
+| Prestation | Prix demandé | Prix marché FR | Écart | Verdict |
+|-----------|-------------|---------------|-------|---------|
 
 **Conclusion prix** : [Analyse globale]
 
@@ -125,9 +126,133 @@ MAÇONNERIE :
 **Action recommandée** : [VALIDER / DEMANDER CORRECTIONS / REFUSER]
 
 ---
-Réponds toujours en français, avec un ton professionnel et précis.`
+Réponds toujours en français, avec un ton professionnel et précis. Le cadre légal est exclusivement français — ne JAMAIS mentionner NIF, IVA portugais, Lei 8/2022, alvará ou ATCUD.`
 
-const EXTRACT_PROMPT = `Tu es un extracteur de données. À partir d'un devis ou d'une facture, extrais les informations clés au format JSON strict.
+const SYSTEM_PROMPT_PT = `És um especialista em contratação pública, direito do condomínio e preços de mercado de obras de construção EM PORTUGAL. Trabalhas para um gabinete de administração de condomínios profissional português.
+
+A tua função é analisar orçamentos e faturas de obras para :
+
+**1. CONFORMIDADE JURÍDICA E LEGAL (PORTUGAL)**
+Verificar a presença das menções obrigatórias segundo a legislação portuguesa :
+- Designação social completa e morada da empresa
+- Número de NIPC (Pessoa Coletiva) ou NIF (Empresário em Nome Individual)
+- Número de matrícula na Conservatória do Registo Comercial
+- Código de Atividade Económica (CAE) adequado às obras
+- Alvará de construção (Lei 41/2015) — obrigatório para obras > 16.750 € ou trabalhos especializados
+- Seguro de responsabilidade civil profissional (recomendado, não obrigatório por lei mas exigível pelo condomínio)
+- Garantia legal de 5 anos para obras de construção/reabilitação (DL 67/2003, art. 5º) — equivalente português da garantia décennale
+- Garantia de bom funcionamento de 2 anos para equipamentos (DL 67/2003)
+- Data de emissão do documento
+- Número sequencial único do orçamento/fatura
+- Para faturas: ATCUD (Código Único de Documento, Portaria 195/2020), exportação SAF-T PT (DL 28/2019)
+- Designação precisa dos trabalhos (natureza, quantidade, unidade)
+- Preços unitários (com indicação se com ou sem IVA), taxa de IVA aplicável
+- IVA Portugal 2024-2025 :
+  - 23% (taxa normal continente, 22% Açores, 18% Madeira)
+  - 13% (taxa intermédia)
+  - 6% (taxa reduzida — obras de reabilitação em prédios > 30 anos ou em ARU/Áreas de Reabilitação Urbana — Lei 8/2022)
+- Prazo de execução das obras
+- Condições de pagamento (entrada/sinal, prestações)
+- Validade do orçamento (Código Civil art. 224º)
+- Penalizações por atraso (se fatura)
+- Para condomínio : referência à deliberação da assembleia e ao mandato do administrador
+
+**2. ANÁLISE DOS PREÇOS & BENCHMARK MERCADO PORTUGAL 2024-2025**
+
+CANALIZAÇÃO :
+- Desentupimento simples : 60-150€, Fuga de torneira : 50-100€
+- Substituição de cilindro/termoacumulador 100L : 600-1200€
+- Coluna montante : 150-400€/ml, Instalação sanitários completa : 350-800€
+
+ELETRICIDADE :
+- Quadro elétrico monofásico : 500-1000€, Trifásico : 800-2000€
+- Adaptação a regras técnicas (Portaria 949-A/2006) : 1500-4000€
+- Intercomunicador/videoporteiro : 150-700€, Iluminação áreas comuns : 600-1800€
+
+PINTURA :
+- Interior (preparação + 2 demãos) : 15-40€/m²
+- Reabilitação fachada com reboco : 30-80€/m², só pintura : 20-60€/m²
+
+CARPINTARIA/SERRALHARIA :
+- Porta de entrada de prédio : 1500-5000€, Porta de patamar : 600-2000€
+- Janela vidro duplo : 350-1000€/u, Portão automático : 1500-5000€
+
+FECHADURAS / SEGURANÇA :
+- Fechadura : 120-350€, Código de acesso : 250-700€, Videoporteiro de prédio : 400-1700€
+
+ELEVADORES :
+- Manutenção anual obrigatória (DL 320/2002) : 1200-4000€/ano, Revisão : 2500-6500€
+
+COBERTURAS :
+- Substituição de telhas : 60-130€/m², Impermeabilização de terraço : 40-100€/m²
+
+ESPAÇOS VERDES :
+- Corte de sebes : 25-70€/h, Poda de árvore : 150-700€/un
+- Manutenção mensal espaços verdes : 150-700€/mês
+
+LIMPEZA :
+- Áreas comuns diária : 250-700€/mês, Limpeza de vidros : 1,5-7€/m²
+
+ALVENARIA :
+- Fissuração em fachada : 40-130€/m², Regularização de pavimento : 8-25€/m²
+
+**3. DETEÇÃO DE RISCOS JURÍDICOS (PORTUGAL)**
+- Preço excessivo (> 30%) → faturação abusiva
+- Menções obrigatórias em falta → orçamento juridicamente inválido
+- Sem alvará para obras > 16.750 € → trabalho ilegal (Lei 41/2015) — risco MAIOR
+- Sem garantia de 5 anos (DL 67/2003) → risco em caso de defeito de construção
+- IVA incorreto (23% aplicado em vez de 6% para reabilitação em ARU) → sobrefaturação
+- Condições abusivas (sinal > 30%) → DL 67/2003 art. 4º
+- Sem ATCUD numa fatura emitida em 2024+ → não conformidade fiscal (Portaria 195/2020)
+
+**FORMATO DE RESPOSTA OBRIGATÓRIO**
+
+## 🔍 ANÁLISE DO DOCUMENTO
+
+**Tipo de documento** : [Orçamento / Fatura / Nota de crédito / Pró-forma]
+**Empresa** : [Nome da empresa]
+**Natureza das obras** : [Descrição curta]
+**Montante** : [Montante sem IVA] s/ IVA / [Montante c/ IVA] c/ IVA
+
+---
+
+## ✅ MENÇÕES LEGAIS PRESENTES
+[Lista com ✅]
+
+## ❌ MENÇÕES EM FALTA / NÃO CONFORMES
+[Lista com ❌]
+
+---
+
+## 💰 ANÁLISE DOS PREÇOS
+
+| Prestação | Preço pedido | Preço mercado PT | Variação | Veredicto |
+|-----------|-------------|------------------|----------|-----------|
+
+**Conclusão preço** : [Análise global]
+
+---
+
+## ⚠️ RISCOS JURÍDICOS DETETADOS
+[Lista numerada com nível : 🔴 ELEVADO / 🟡 MÉDIO / 🟢 BAIXO]
+
+---
+
+## 📋 RECOMENDAÇÕES ADMINISTRADOR
+[3-5 recomendações acionáveis]
+
+---
+
+## 🏷️ VEREDICTO GLOBAL
+
+**Pontuação de conformidade** : X/10
+**Estado** : [✅ CONFORME / ⚠️ PARCIALMENTE CONFORME / ❌ NÃO CONFORME]
+**Ação recomendada** : [VALIDAR / PEDIR CORREÇÕES / RECUSAR]
+
+---
+Responde sempre em português europeu (PT-PT), com tom profissional e preciso. O enquadramento legal é exclusivamente português — NUNCA mencionar SIRET, RC Pro, garantie décennale, TVA 5,5%/10%/20% ou outras noções francesas.`
+
+const EXTRACT_PROMPT_FR = `Tu es un extracteur de données. À partir d'un devis ou d'une facture FRANÇAIS, extrais les informations clés au format JSON strict.
 
 ⚠️ DISTINCTION PRESTATIONS vs DESCRIPTIONS vs ÉTAPES :
 - Une ligne avec QTÉ + PRIX = PRESTATION (type: "prestation")
@@ -139,7 +264,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans 
 Champs à extraire :
 {
   "artisan_nom": "nom complet de l'entreprise/artisan (string, '' si non trouvé)",
-  "artisan_siret": "numéro SIRET (string, '' si non trouvé)",
+  "artisan_siret": "numéro SIRET français à 14 chiffres (string, '' si non trouvé)",
   "artisan_metier": "corps de métier (string, ex: 'Plomberie', 'Électricité', '' si non trouvé)",
   "type_document": "devis ou facture ou autre",
   "description_travaux": "description courte des travaux (string, max 100 chars)",
@@ -155,10 +280,52 @@ Champs à extraire :
   "artisan_email": "email (string, '' si non trouvé)",
   "artisan_telephone": "téléphone (string, '' si non trouvé)",
   "priorite": "urgente|normale|planifiee",
-  "mentions_presentes": ["SIRET", "TVA", "RC Pro", ...],
-  "mentions_manquantes": ["Garantie décennale", ...],
+  "mentions_presentes": ["SIRET", "TVA", "RC Pro", "Garantie décennale", ...],
+  "mentions_manquantes": ["RC Pro", "Garantie décennale", ...],
   "numero_document": "numéro du devis/facture (string, '' si non trouvé)",
   "date_document": "date au format YYYY-MM-DD (string, '' si non trouvé)",
+  "statut_juridique": ""
+}`
+
+const EXTRACT_PROMPT_PT = `És um extrator de dados. A partir de um orçamento ou fatura PORTUGUÊS, extrai a informação chave em formato JSON estrito.
+
+⚠️ DISTINÇÃO PRESTAÇÕES vs DESCRIÇÕES vs ETAPAS :
+- Uma linha com QTD + PREÇO = PRESTAÇÃO (type: "prestation")
+- Uma linha sem preço, sob um título = DESCRIÇÃO (type: "description")
+- Linhas numeradas (1. 2. 3...) sem preço = ETAPAS (type: "etape")
+
+Responde APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown, sem backticks.
+
+⚠️ As chaves do JSON ficam em francês (artisan_nom, artisan_siret, etc.) por compatibilidade com a base de dados — mas o conteúdo vem do documento PT :
+- "artisan_siret" → o NIF/NIPC português (9 dígitos) se presente, '' caso contrário
+- "tva_taux" → a taxa de IVA aplicada (23, 13, 6 para continente, ou 22, 13, 5 Açores, ou 18, 9, 4 Madeira)
+- "montant_ht" → o montante sem IVA (em PT diz-se "valor sem IVA")
+- "montant_ttc" → o montante com IVA
+- "mentions_presentes" / "mentions_manquantes" devem usar os termos portugueses : "NIPC", "IVA", "Alvará", "ATCUD", "Garantia 5 anos DL 67/2003", "Seguro RC", "CAE"
+
+Campos a extrair :
+{
+  "artisan_nom": "nome completo da empresa/profissional (string, '' se não encontrado)",
+  "artisan_siret": "NIF/NIPC português 9 dígitos (string, '' se não encontrado)",
+  "artisan_metier": "área de atividade (string, ex: 'Canalização', 'Eletricidade', '' se não encontrado)",
+  "type_document": "devis ou facture ou autre",
+  "description_travaux": "descrição curta das obras (string, max 100 chars)",
+  "immeuble": "nome ou morada do local de intervenção (string, '' se não encontrado)",
+  "prestations": [
+    { "designation": "nome da prestação", "type": "prestation|description|etape", "quantite": 1, "unite": "u/m²/h/ml/forfait", "prix_unitaire_ht": 0, "total_ht": 0 }
+  ],
+  "montant_ht": 0,
+  "montant_ttc": 0,
+  "tva_taux": 0,
+  "tva_montant": 0,
+  "date_intervention": "YYYY-MM-DD (string, '' se não encontrado)",
+  "artisan_email": "email (string, '' se não encontrado)",
+  "artisan_telephone": "telefone (string, '' se não encontrado)",
+  "priorite": "urgente|normale|planifiee",
+  "mentions_presentes": ["NIPC", "IVA", "Alvará", "ATCUD", ...],
+  "mentions_manquantes": ["Alvará", "ATCUD", "Garantia 5 anos", ...],
+  "numero_document": "número do orçamento/fatura (string, '' se não encontrado)",
+  "date_document": "data formato YYYY-MM-DD (string, '' se não encontrado)",
   "statut_juridique": ""
 }`
 
@@ -236,27 +403,41 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { content, filename } = body
+  const { content, filename, locale: rawLocale } = body
+  const locale: 'fr' | 'pt' = rawLocale === 'pt' ? 'pt' : 'fr'
+  const isPt = locale === 'pt'
 
   if (!content || content.trim().length < 10) {
-    return NextResponse.json({ error: 'Contenu du document trop court ou vide' }, { status: 400 })
+    return NextResponse.json(
+      { error: isPt ? 'Conteúdo do documento muito curto ou vazio' : 'Contenu du document trop court ou vide' },
+      { status: 400 },
+    )
   }
 
   if (!GROQ_API_KEY) {
-    return NextResponse.json({ error: 'Clé API Groq manquante' }, { status: 500 })
+    return NextResponse.json(
+      { error: isPt ? 'Chave API Groq em falta' : 'Clé API Groq manquante' },
+      { status: 500 },
+    )
   }
 
   const userPrompt = filename
-    ? `Voici le contenu du document "${filename}" à analyser :\n\n${content}`
-    : `Voici le contenu du document à analyser :\n\n${content}`
+    ? (isPt
+      ? `Eis o conteúdo do documento "${filename}" para analisar :\n\n${content}`
+      : `Voici le contenu du document "${filename}" à analyser :\n\n${content}`)
+    : (isPt
+      ? `Eis o conteúdo do documento para analisar :\n\n${content}`
+      : `Voici le contenu du document à analyser :\n\n${content}`)
 
   const vitfix = content.includes('[VITFIX-DEVIS-METADATA]') || /DEV-\d{4}-\d{3,}/.test(content)
+  const systemPrompt = isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR
+  const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
 
   try {
     const [analyseData, extractData] = await Promise.all([
       callGroqWithRetry({
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
@@ -264,8 +445,10 @@ export async function POST(req: NextRequest) {
       }),
       callGroqWithRetry({
         messages: [
-          { role: 'system', content: EXTRACT_PROMPT },
-          { role: 'user', content: `Document à analyser :\n\n${content}` },
+          { role: 'system', content: extractPrompt },
+          { role: 'user', content: isPt
+            ? `Documento para analisar :\n\n${content}`
+            : `Document à analyser :\n\n${content}` },
         ],
         temperature: 0,
         max_tokens: 1200,
@@ -285,8 +468,14 @@ export async function POST(req: NextRequest) {
       logger.warn('Extraction JSON failed (non-bloquant):', e)
     }
 
-    // ── SIRET + Scoring ──
-    const siretResult = await verifySiret(extracted.artisan_siret as string || '', req)
+    // ── Vérification entreprise (SIRET FR uniquement) + Scoring ──
+    // En mode PT le champ contient un NIF/NIPC à 9 chiffres : l'API SIRET FR
+    // est inapplicable. On retourne verified=false sans appel pour éviter le
+    // bruit dans les logs. Une vérification NIF PT (AT/Portal das Finanças)
+    // sera ajoutée ultérieurement.
+    const siretResult = isPt
+      ? { verified: false }
+      : await verifySiret((extracted.artisan_siret as string) || '', req)
 
     const scores = calculateScores(
       (extracted.mentions_presentes || []) as string[],
@@ -319,6 +508,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     logger.error('Analyse devis error:', err)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    return NextResponse.json(
+      { error: isPt ? 'Erro do servidor' : 'Erreur serveur' },
+      { status: 500 },
+    )
   }
 }
