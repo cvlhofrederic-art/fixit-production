@@ -214,8 +214,26 @@ export default function AgentChatPage({ agentConfig, user, onNavigate }: Props) 
         }
         setMessages(prev => [...prev, assistantMsg])
 
-        // Note : la persistance du message assistant est à la charge de l'agent endpoint (Plan A.next).
-        // Le client ne peut insérer que role:'user' — voir app/api/syndic/conversations/[id]/messages/route.ts
+        // Persister la réponse de l'agent en DB. Sans cette POST, on ne voit
+        // plus que ses propres messages en rechargeant la conversation —
+        // la route /api/syndic/conversations/[id]/messages accepte
+        // role:'assistant' (cf. AddMessageSchema enum), c'est bien le rôle
+        // du client de l'envoyer puisque l'agent endpoint ne le fait pas.
+        // Fire-and-forget : si l'écriture échoue le user voit quand même
+        // la réponse dans sa session courante.
+        if (result.content) {
+          void fetch(`/api/syndic/conversations/${conv.id}/messages`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: result.content,
+              tool_calls: toolCalls ?? undefined,
+            }),
+          }).catch((err) => {
+            console.error('[agent] persist assistant message failed', err)
+          })
+        }
 
         // Auto-rename si 1er échange (utilise messagesRef pour éviter stale closure)
         if (messagesRef.current.length === 0 && conv.title === 'Nouvelle conversation') {
