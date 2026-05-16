@@ -84,7 +84,7 @@ const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: str
 
 interface ImmeubleSummary { nom: string; ville: string; nbLots: number; budgetAnnuel?: number; depensesAnnee?: number; pctBudget: number | string }
 interface ArtisanSummary { nom: string; metier?: string; statut: string; rcProValide: boolean; rcProExpiration?: string; note: number; vitfixCertifie?: boolean; email?: string; artisan_user_id?: string }
-interface MissionSummary { priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
+interface MissionSummary { id?: string; priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
 interface AlerteSummary { urgence?: string; message: string }
 interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
 interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }

@@ -135,46 +135,65 @@ export default function AgentChatPage({ agentConfig, user, onNavigate }: Props) 
           locale: conv.locale,
         })
 
-        // Si tool call destructif, demande confirmation
+        // Pipeline tool-call :
+        //   1. Si requiresConfirmation → demander confirmation utilisateur
+        //   2. Si action Fixy DB-mutating → POST /execute-action avec Bearer
+        //   3. Si action 'navigate' → appeler onNavigate(page) côté UI
+        // requiresConfirmation contrôle l'UI de confirmation, pas l'exécution
+        // serveur — sans cette séparation, create_alert (non confirmé) ne
+        // déclenchait jamais l'insertion DB.
+        const FIXY_SERVER_EXEC_ACTIONS = new Set([
+          'create_mission', 'assign_mission', 'update_mission',
+          'create_alert', 'send_message', 'create_document', 'create_event',
+        ])
         let toolCalls: ToolCall[] | null = null
         if (result.tool_calls && Array.isArray(result.tool_calls) && result.tool_calls.length > 0) {
           const tc = result.tool_calls[0] as ToolCall
           const descriptor = agentConfig.toolDescriptors.find(t => t.name === tc.tool_name)
-          if (descriptor?.requiresConfirmation) {
-            const confirmed = await requestConfirm(tc)
-            if (!confirmed) {
-              tc.status = 'cancelled'
-            } else {
-              tc.status = 'confirmed'
-              // Exécuter l'action côté serveur pour les actions Fixy destructives
-              if (agentConfig.id === 'fixy') {
-                try {
-                  const execRes = await fetch('/api/syndic/fixy-syndic/execute-action', {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                      action: { type: tc.tool_name, args: tc.arguments },
-                      conversation_id: conv.id,
-                    }),
-                  })
-                  if (execRes.ok) {
-                    tc.status = 'executed'
-                  } else {
-                    tc.status = 'error'
-                    console.error('[fixy/execute-action] failed', await execRes.text())
-                  }
-                } catch (execErr) {
-                  tc.status = 'error'
-                  console.error('[fixy/execute-action] error', execErr)
-                }
+          const needsConfirm = descriptor?.requiresConfirmation === true
+          const needsServerExec = agentConfig.id === 'fixy' && FIXY_SERVER_EXEC_ACTIONS.has(tc.tool_name)
+
+          let proceed = true
+          if (needsConfirm) {
+            proceed = await requestConfirm(tc)
+            if (!proceed) tc.status = 'cancelled'
+            else tc.status = 'confirmed'
+          }
+
+          if (proceed && needsServerExec) {
+            try {
+              // execute-action exige Authorization: Bearer (getAuthUser).
+              const { supabase } = await import('@/lib/supabase')
+              const { data: { session } } = await supabase.auth.getSession()
+              const accessToken = session?.access_token
+              const execRes = await fetch('/api/syndic/fixy-syndic/execute-action', {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/json',
+                  ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+                },
+                body: JSON.stringify({
+                  action: { type: tc.tool_name, args: tc.arguments },
+                  conversation_id: conv.id,
+                }),
+              })
+              if (execRes.ok) {
+                tc.status = 'executed'
+              } else {
+                tc.status = 'error'
+                console.error('[fixy/execute-action] failed', execRes.status, await execRes.text())
               }
+            } catch (execErr) {
+              tc.status = 'error'
+              console.error('[fixy/execute-action] error', execErr)
             }
-          } else {
+          } else if (proceed) {
+            // Action UI-only (navigate) ou agent non-Fixy : marquer comme exécuté
+            // sans appel serveur. Le routeur d'action UI prend le relais ci-dessous.
             tc.status = 'executed'
           }
-          // Navigation : exécuter le changement de page côté dashboard parent.
-          // `navigate` est non-destructif (requiresConfirmation:false) → tombe
-          // dans le else ci-dessus avec status='executed'.
+
+          // Navigation : déclenche le changement de page côté dashboard parent.
           if (tc.tool_name === 'navigate' && tc.status === 'executed' && onNavigate) {
             const targetPage = typeof tc.arguments?.page === 'string'
               ? tc.arguments.page

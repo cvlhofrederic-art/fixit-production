@@ -60,6 +60,10 @@ export async function POST(req: NextRequest) {
       case 'create_mission': {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- args dynamiques LLM
         const a = args as any
+        // ⚠️ Le champ `type` du JSON ##ACTION## est consommé comme discriminator
+        // côté useAgentStream, donc args.type est undefined ici. Le LLM doit
+        // émettre `type_travaux` pour le type d'intervention.
+        const missionType = a.type_travaux ?? a.type ?? a.titre ?? 'Intervention'
         const { data, error } = await supabaseAdmin
           .from('syndic_missions')
           .insert({
@@ -68,10 +72,11 @@ export async function POST(req: NextRequest) {
             // col 'artisan' est TEXT dans 001_syndic_tables ; 'artisan_id' UUID ajouté en 055
             artisan: a.artisan ?? null,
             artisan_id: a.artisan_id ?? null,
-            type: a.type ?? a.titre ?? 'Intervention',
+            type: String(missionType).slice(0, 100),
             description: a.description ?? '',
             priorite: a.priorite ?? 'normale',
             statut: 'en_attente',
+            date_intervention: a.date_intervention ?? null,
             batiment: a.batiment ?? null,
             etage: a.etage ?? null,
             num_lot: a.num_lot ?? null,
@@ -88,28 +93,70 @@ export async function POST(req: NextRequest) {
       case 'assign_mission': {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- args dynamiques LLM
         const a = args as any
-        if (!a.mission_id) {
-          return NextResponse.json({ error: 'missing_mission_id' }, { status: 400 })
+        // Sémantique alignée sur le prompt : "Mission AVEC artisan" → crée une
+        // nouvelle mission directement assignée (statut en_cours), pas un update
+        // d'une mission existante (le LLM ne connaît pas les UUIDs internes).
+        // L'ancien comportement (update via mission_id) reste accessible si le
+        // LLM fournit explicitement un mission_id.
+        if (a.mission_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- updates dynamiques
+          const updates: any = { statut: 'en_cours' }
+          if (a.artisan_id) updates.artisan_id = a.artisan_id
+          else if (a.artisan) updates.artisan = a.artisan
+          else return NextResponse.json({ error: 'missing_artisan_or_artisan_id' }, { status: 400 })
+          if (a.date_intervention) updates.date_intervention = a.date_intervention
+          const { data, error } = await supabaseAdmin
+            .from('syndic_missions')
+            .update(updates)
+            .eq('id', a.mission_id)
+            .eq('cabinet_id', cabinetId)
+            .select()
+            .single()
+          if (error) throw error
+          return NextResponse.json({ ok: true, mission: data })
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- updates dynamiques
-        const updates: any = { statut: 'en_cours' }
-        // artisan_id si UUID fourni, artisan (TEXT) sinon
-        if (a.artisan_id) {
-          updates.artisan_id = a.artisan_id
-        } else if (a.artisan) {
-          updates.artisan = a.artisan
-        } else {
+
+        // Pas de mission_id → création + assignation directe
+        if (!a.artisan && !a.artisan_id) {
           return NextResponse.json({ error: 'missing_artisan_or_artisan_id' }, { status: 400 })
         }
+        // Résolution artisan_id depuis email si possible (table profiles_artisan)
+        let resolvedArtisanId: string | null = a.artisan_id ?? null
+        if (!resolvedArtisanId && a.artisan_email) {
+          try {
+            const { data: artisanRow } = await supabaseAdmin
+              .from('profiles_artisan')
+              .select('id')
+              .eq('email', String(a.artisan_email).toLowerCase())
+              .maybeSingle()
+            if (artisanRow?.id) resolvedArtisanId = artisanRow.id
+          } catch {
+            // ignore — on garde l'artisan TEXT
+          }
+        }
+        const missionType = a.type_travaux ?? a.type ?? a.titre ?? 'Intervention'
+        // Pas de colonne `notes` dans syndic_missions → concatène à description
+        // pour ne pas perdre l'info dictée par l'utilisateur.
+        const baseDesc = String(a.description ?? '').trim()
+        const noteSuffix = a.notes ? `\n\nNotes : ${String(a.notes).trim()}` : ''
+        const fullDescription = `${baseDesc}${noteSuffix}`.slice(0, 5000)
         const { data, error } = await supabaseAdmin
           .from('syndic_missions')
-          .update(updates)
-          .eq('id', a.mission_id)
-          .eq('cabinet_id', cabinetId)
+          .insert({
+            cabinet_id: cabinetId,
+            immeuble: a.immeuble ?? null,
+            artisan: a.artisan ?? null,
+            artisan_id: resolvedArtisanId,
+            type: String(missionType).slice(0, 100),
+            description: fullDescription,
+            priorite: a.priorite ?? 'normale',
+            statut: 'en_cours',
+            date_intervention: a.date_intervention ?? null,
+          })
           .select()
           .single()
         if (error) throw error
-        return NextResponse.json({ ok: true, mission: data })
+        return NextResponse.json({ ok: true, mission_id: data.id, assigned_artisan_id: resolvedArtisanId })
       }
 
       case 'update_mission': {
@@ -143,12 +190,22 @@ export async function POST(req: NextRequest) {
         const a = args as any
         // Tenter syndic_alertes en premier (migration 20260515), fallback syndic_notifications
         let alertId: string | undefined
+        // Mapping urgence (prompt FR) / urgencia (PT) → severity (DB).
+        // Sans ce mapping, severity tombait toujours sur 'normal' car le LLM
+        // émet `urgence`, pas `severity`.
+        const urgenceMap: Record<string, string> = {
+          haute: 'high', high: 'high', urgente: 'high', urgent: 'high', alta: 'high',
+          moyenne: 'normal', normal: 'normal', média: 'normal', media: 'normal',
+          basse: 'low', low: 'low', baixa: 'low',
+        }
+        const rawSeverity = a.severity ?? a.urgence ?? a.urgencia ?? 'normal'
+        const severity = urgenceMap[String(rawSeverity).toLowerCase()] ?? 'normal'
         const alertPayload = {
           cabinet_id: cabinetId,
           immeuble_id: a.immeuble_id ?? null,
           titre: a.titre ?? (a.message as string | undefined)?.slice(0, 80) ?? 'Alerte',
           message: a.message ?? a.description ?? null,
-          severity: a.severity ?? 'normal',
+          severity,
           created_by: user.id,
         }
 
@@ -228,12 +285,16 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'invalid_date_format' }, { status: 400 })
         }
         const heure = a.heure && /^\d{2}:\d{2}$/.test(String(a.heure)) ? a.heure : '09:00'
+        // La catégorie d'événement vit dans `category` (le champ `type` est réservé
+        // au discriminator d'action ##ACTION##type## et a déjà été extrait en amont).
+        const rawCategory = a.category ?? a.event_type ?? a.type
+        const category = rawCategory ? String(rawCategory).slice(0, 50) : 'autre'
         const { data, error } = await supabaseAdmin
           .from('syndic_planning_events')
           .insert({
             cabinet_id: cabinetId,
             titre: String(a.titre).slice(0, 200),
-            type: a.type ? String(a.type).slice(0, 50) : 'autre',
+            type: category,
             date: a.date,
             heure,
             duree_min: Number.isFinite(Number(a.dureeMin ?? a.duree_min)) ? Number(a.dureeMin ?? a.duree_min) : 60,
