@@ -4,7 +4,7 @@ import type { SyndicRole } from '@/lib/syndic/agent-types'
 // Interfaces de données cabinet (miroir des types définis dans route.ts)
 export interface ImmeubleSummary { nom: string; ville: string; nbLots: number; budgetAnnuel?: number; depensesAnnee?: number; pctBudget: number | string }
 export interface ArtisanSummary { nom: string; metier?: string; statut: string; rcProValide: boolean; rcProExpiration?: string; note: number; vitfixCertifie?: boolean; email?: string; artisan_user_id?: string }
-export interface MissionSummary { priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
+export interface MissionSummary { id?: string; priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
 export interface AlerteSummary { urgence?: string; message: string }
 export interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
 export interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
@@ -41,7 +41,7 @@ export function buildFixySystemPromptFR(ctx: FixyPromptContext): string {
   ).join('\n')
 
   const missionsStr = (ctx.missions || []).map((m) =>
-    `  • [${m.priorite?.toUpperCase()}] ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — Statut: ${m.statut}${m.dateIntervention ? ` — Intervention: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — Devis: ${m.montantDevis?.toLocaleString(fmtLocale)}€` : ''}`
+    `  • [${m.priorite?.toUpperCase()}] (id:${m.id ?? '?'}) ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — Statut: ${m.statut}${m.dateIntervention ? ` — Intervention: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — Devis: ${m.montantDevis?.toLocaleString(fmtLocale)}€` : ''}`
   ).join('\n')
 
   const alertesStr = (ctx.alertes || []).map((a) =>
@@ -121,27 +121,32 @@ ${ctx.roleConfig.actions.includes('create_alert') ? `**Créer une alerte** :
 ${ctx.roleConfig.actions.includes('update_mission') ? `**Mettre à jour une mission** :
 ##ACTION##{"type":"update_mission","mission_id":"id","statut":"en_cours|terminee|annulee"}##
 ` : ''}
-${ctx.roleConfig.actions.includes('send_message') ? `**Envoyer un message à un artisan** :
-##ACTION##{"type":"send_message","artisan":"nom artisan","content":"message"}##
+${ctx.roleConfig.actions.includes('send_message') ? `**Envoyer un email à un artisan** :
+##ACTION##{"type":"send_message","to":"email@artisan.fr","subject":"objet du mail","body":"corps du message en texte simple"}##
+- "to" : adresse email exacte (à chercher dans la liste des artisans ci-dessous, n'invente jamais une adresse)
+- "subject" : objet court (max 100 caractères)
+- "body" : corps du message en texte simple, les sauts de ligne sont préservés
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_document') ? `**Créer un document** :
 ##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vous dans l'agenda** :
-##ACTION##{"type":"create_event","titre":"objet du RDV","type":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","description":"détails (optionnel)"}##
+##ACTION##{"type":"create_event","titre":"objet du RDV","category":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","description":"détails (optionnel)"}##
+
+⚠️ **Ne JAMAIS répéter la clé "type" dans la balise** : "type" est réservé au nom de l'action (create_event). La catégorie de l'événement va dans "category".
 
 - "titre" et "date" sont obligatoires.
 - "date" : **UTILISE OBLIGATOIREMENT** la table de conversion des dates ci-dessus, ne calcule jamais toi-même.
 - "heure" : format 24h "HH:MM" (par défaut 09:00 si non précisée).
 - "dureeMin" : durée en minutes (par défaut 60).
-- "type" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne.
+- "category" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne, "autre" sinon.
 
 Exemples :
 "Mets un rendez-vous demain à 14h avec Mme Dupont pour visite parc corot" →
-##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Parc Corot","type":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Parc Corot"}##
+##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Parc Corot","category":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Parc Corot"}##
 
 "Programme l'AG du 5 juin à 18h" →
-##ACTION##{"type":"create_event","titre":"Assemblée Générale","type":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
+##ACTION##{"type":"create_event","titre":"Assemblée Générale","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
 ` : ''}`
 
   return `Tu es **Fixy ${ctx.roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${ctx.roleConfig.name}.

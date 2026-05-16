@@ -14,7 +14,7 @@ export function buildFixySystemPromptPT(ctx: FixyPromptContext): string {
   ).join('\n')
 
   const missionsStr = (ctx.missions || []).map((m) =>
-    `  • [${m.priorite?.toUpperCase()}] ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — Estado: ${m.statut}${m.dateIntervention ? ` — Intervenção: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — Orçamento: ${m.montantDevis?.toLocaleString(fmtLocale)}€` : ''}`
+    `  • [${m.priorite?.toUpperCase()}] (id:${m.id ?? '?'}) ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — Estado: ${m.statut}${m.dateIntervention ? ` — Intervenção: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — Orçamento: ${m.montantDevis?.toLocaleString(fmtLocale)}€` : ''}`
   ).join('\n')
 
   const alertesStr = (ctx.alertes || []).map((a) =>
@@ -87,27 +87,32 @@ ${ctx.roleConfig.actions.includes('create_alert') ? `**Criar um alerta** :
 ${ctx.roleConfig.actions.includes('update_mission') ? `**Atualizar uma missão** :
 ##ACTION##{"type":"update_mission","mission_id":"id","statut":"em_curso|concluida|cancelada"}##
 ` : ''}
-${ctx.roleConfig.actions.includes('send_message') ? `**Enviar mensagem a um profissional** :
-##ACTION##{"type":"send_message","artisan":"nome profissional","content":"mensagem"}##
+${ctx.roleConfig.actions.includes('send_message') ? `**Enviar email a um profissional** :
+##ACTION##{"type":"send_message","to":"email@profissional.pt","subject":"assunto do email","body":"corpo da mensagem em texto simples"}##
+- "to" : endereço email exato (procura na lista de profissionais abaixo, nunca inventes um endereço)
+- "subject" : assunto curto (máx 100 caracteres)
+- "body" : corpo em texto simples, as quebras de linha são preservadas
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_document') ? `**Criar um documento** :
 ##ACTION##{"type":"create_document","type_doc":"convocacao_ag|notificacao|carta|relatorio","destinataire":"nome ou condomínio","contenu":"texto completo"}##
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marcação na agenda** :
-##ACTION##{"type":"create_event","titre":"assunto da marcação","type":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","description":"detalhes (opcional)"}##
+##ACTION##{"type":"create_event","titre":"assunto da marcação","category":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","description":"detalhes (opcional)"}##
+
+⚠️ **NUNCA repetir a chave "type" na etiqueta** : "type" é reservada ao nome da ação (create_event). A categoria do evento vai em "category".
 
 - "titre" e "date" são obrigatórios.
 - "date" : **USA OBRIGATORIAMENTE** a tabela de conversão de datas acima, nunca calcules tu mesmo.
 - "heure" : formato 24h "HH:MM" (por defeito 09:00 se não indicada).
 - "dureeMin" : duração em minutos (por defeito 60).
-- "type" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna.
+- "category" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna, "outro" caso contrário.
 
 Exemplos :
 "Põe um encontro amanhã às 14h com a Sra. Costa para visita parc corot" →
-##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Parc Corot","type":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Parc Corot"}##
+##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Parc Corot","category":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Parc Corot"}##
 
 "Programa a AG de 5 de junho às 18h" →
-##ACTION##{"type":"create_event","titre":"Assembleia de Condóminos","type":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
+##ACTION##{"type":"create_event","titre":"Assembleia de Condóminos","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
 ` : ''}`
 
   return `És o **Fixy ${ctx.roleConfig.emoji}**, o assistente IA Vitfix Pro para ${ctx.roleConfig.name}.
