@@ -2719,7 +2719,9 @@ export default function SyndicDashboard() {
           )}
 
           {/* ── AGENTS IA ── */}
-          {page === 'fixy_agent' && user && <FixyAgentPage user={user} />}
+          {page === 'fixy_agent' && user && (
+            <FixyAgentPage user={user} onNavigate={(p: string) => setPage(p as Page)} />
+          )}
           {page === 'max_agent' && user && <MaxAgentPage user={user} />}
           {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
           {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}

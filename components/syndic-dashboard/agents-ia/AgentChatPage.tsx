@@ -22,9 +22,12 @@ interface UserWithProfile extends User {
 interface Props {
   agentConfig: AgentConfig
   user: UserWithProfile
+  // Callback déclenché quand l'agent émet une action `navigate` (Fixy uniquement
+  // à ce jour). Permet au dashboard parent de changer de page sans recharger.
+  onNavigate?: (page: string) => void
 }
 
-export default function AgentChatPage({ agentConfig, user }: Props) {
+export default function AgentChatPage({ agentConfig, user, onNavigate }: Props) {
   const uiLocale = useLocale()
   const {
     conversations,
@@ -169,6 +172,15 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
           } else {
             tc.status = 'executed'
           }
+          // Navigation : exécuter le changement de page côté dashboard parent.
+          // `navigate` est non-destructif (requiresConfirmation:false) → tombe
+          // dans le else ci-dessus avec status='executed'.
+          if (tc.tool_name === 'navigate' && tc.status === 'executed' && onNavigate) {
+            const targetPage = typeof tc.arguments?.page === 'string'
+              ? tc.arguments.page
+              : null
+            if (targetPage) onNavigate(targetPage)
+          }
           toolCalls = [tc]
         }
 
@@ -199,6 +211,7 @@ export default function AgentChatPage({ agentConfig, user }: Props) {
       activeConv,
       agentConfig,
       createConversation,
+      onNavigate,
       requestConfirm,
       stream,
       uiLocale,
