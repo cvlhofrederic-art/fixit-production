@@ -393,6 +393,19 @@ export default function SyndicDashboard() {
   const iaVoiceDurationRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const iaTranscriptRef = useRef('')
 
+  // ── Filtre des tags ##TOOL##{...}## du RAG juridique en streaming ──────────
+  // Le mode SSE de /api/syndic/max-ai n'applique PAS resolveLegalToolCalls
+  // (TODO côté serveur, max-ai/route.ts:178). On retire les tags bruts du
+  // texte affiché. Gère aussi le tag partiel (encore en cours de stream) en
+  // tronquant à l'ouverture `##TOOL##` non encore fermée.
+  const stripMaxToolTags = (text: string): string => {
+    if (!text) return text
+    let cleaned = text.replace(/##TOOL##\s*\{[\s\S]*?\}\s*##/g, '')
+    const lastOpen = cleaned.lastIndexOf('##TOOL##')
+    if (lastOpen >= 0) cleaned = cleaned.slice(0, lastOpen)
+    return cleaned
+  }
+
   // ── Max — Expert-Conseil (lecture seule) ───────────────────────────────────
   const maxInitialMsg = locale === 'pt'
     ? 'Olá! Sou o **Max** 🎓, o vosso consultor especialista IA.\n\nEspecializado em **direito do condomínio** português, regulamentação técnica, gestão de artesãos e contabilidade.\n\nPara **executar uma ação** (criar missão, navegar...), utilizem o **Fixy** 🤖 (bolha amarela no canto inferior direito).\n\nQue questão posso esclarecer?'
@@ -2265,15 +2278,14 @@ export default function SyndicDashboard() {
         body: JSON.stringify({
           message: userMsg,
           syndic_context: ctx,
-          conversation_history: maxMessages.map(m => ({ role: m.role, content: m.content })),
+          // Cap historique à 50 (limite du schema syndicMaxAiSchema)
+          conversation_history: maxMessages.slice(-50).map(m => ({ role: m.role, content: m.content })),
           locale,
-          // ⚠️ Streaming désactivé volontairement : en mode SSE, la résolution
-          // des tags ##TOOL##cite_legal_source##…## (RAG juridique Plan H)
-          // n'est pas appliquée (cf. TODO dans max-ai/route.ts ligne 178). Les
-          // tags apparaîtraient bruts dans le chat. En mode classique la
-          // résolution est faite côté serveur (resolveLegalToolCalls) avant
-          // renvoi. Trade-off : 1-3 s de latence vs citations propres.
-          stream: false,
+          // Streaming SSE pour le UX progressif. Les tags ##TOOL##...## du
+          // RAG juridique ne sont pas résolus en streaming (TODO côté serveur),
+          // ils sont donc filtrés côté client ci-dessous pour ne pas polluer
+          // l'affichage. Trade-off : pas de citations enrichies mais texte propre.
+          stream: true,
         }),
       })
 
@@ -2305,10 +2317,13 @@ export default function SyndicDashboard() {
               const json = JSON.parse(payload)
               if (json.text) {
                 fullText += json.text
-                const currentText = fullText
+                // Filtre les tags ##TOOL##{...}## (RAG juridique non résolu en
+                // streaming) avant affichage : tag complet retiré, tag partiel
+                // en cours de stream masqué via lastIndexOf jusqu'à fermeture.
+                const cleaned = stripMaxToolTags(fullText)
                 setMaxMessages(prev => {
                   const updated = [...prev]
-                  updated[updated.length - 1] = { role: 'assistant', content: currentText }
+                  updated[updated.length - 1] = { role: 'assistant', content: cleaned }
                   return updated
                 })
                 maxEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -2317,19 +2332,20 @@ export default function SyndicDashboard() {
           }
         }
 
-        // Save final to localStorage + DB
+        // Save final to localStorage + DB (texte nettoyé des tags TOOL)
         if (fullText) {
+          const cleanedFinal = stripMaxToolTags(fullText)
           setMaxMessages(prev => {
             const updated = [...prev]
-            updated[updated.length - 1] = { role: 'assistant', content: fullText }
+            updated[updated.length - 1] = { role: 'assistant', content: cleanedFinal }
             try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60))) } catch {}
             return updated
           })
-          if (maxConvId) {
+          if (maxConvId && cleanedFinal) {
             void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ role: 'assistant', content: fullText }),
+              body: JSON.stringify({ role: 'assistant', content: cleanedFinal }),
             }).catch(() => { /* tolérance offline */ })
           }
         }
