@@ -1,10 +1,33 @@
 'use client'
 
-import React from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
+
+// ── Web Speech API : typage minimal ─────────────────────────────────────
+// La SpeechRecognition n'est pas dans les types DOM standard. On déclare
+// un shape suffisant pour Chrome/Safari/Edge.
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((event: { results: { length: number; [i: number]: { isFinal: boolean; [j: number]: { transcript: string } } } }) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+}
+interface WindowWithSpeech extends Window {
+  SpeechRecognition?: { new (): SpeechRecognitionLike }
+  webkitSpeechRecognition?: { new (): SpeechRecognitionLike }
+}
+function getSpeechRecognitionCtor(): { new (): SpeechRecognitionLike } | undefined {
+  if (typeof window === 'undefined') return undefined
+  const w = window as WindowWithSpeech
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition
+}
 
 interface ConformiteCheck {
   id: string
@@ -94,6 +117,79 @@ export default function MaxExpertSection({
 }: MaxExpertSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
+
+  // ── Saisie vocale Web Speech API ───────────────────────────────────────
+  // Bouton micro à côté du send. Pendant l'écoute, le transcript final est
+  // injecté dans maxInput puis envoyé automatiquement après arrêt (parité
+  // avec AiChatBot artisan).
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const voicePendingSubmitRef = useRef(false)
+
+  useEffect(() => {
+    setVoiceSupported(!!getSpeechRecognitionCtor())
+  }, [])
+
+  const stopVoice = useCallback(() => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch { /* déjà arrêté */ }
+      recognitionRef.current = null
+    }
+    setIsRecording(false)
+  }, [])
+
+  const startVoice = useCallback(() => {
+    const Ctor = getSpeechRecognitionCtor()
+    if (!Ctor) return
+    const recognition = new Ctor()
+    recognition.lang = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event) => {
+      let finalTranscript = ''
+      let interimTranscript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        const r = event.results[i]
+        if (r.isFinal) finalTranscript += r[0].transcript
+        else interimTranscript += r[0].transcript
+      }
+      const full = (finalTranscript + interimTranscript).trim()
+      if (full) setMaxInput(full)
+    }
+    recognition.onerror = () => {
+      setIsRecording(false)
+      recognitionRef.current = null
+    }
+    recognition.onend = () => {
+      setIsRecording(false)
+      recognitionRef.current = null
+      // Auto-envoi après arrêt si on a un transcript non vide
+      if (voicePendingSubmitRef.current) {
+        voicePendingSubmitRef.current = false
+        setTimeout(() => sendMaxMessage(), 400)
+      }
+    }
+
+    try {
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsRecording(true)
+    } catch { /* déjà en écoute, ignore */ }
+  }, [locale, setMaxInput, sendMaxMessage])
+
+  const handleVoiceToggle = useCallback(() => {
+    if (isRecording) {
+      voicePendingSubmitRef.current = true
+      stopVoice()
+    } else {
+      startVoice()
+    }
+  }, [isRecording, startVoice, stopVoice])
+
+  // Cleanup au démontage
+  useEffect(() => () => stopVoice(), [stopVoice])
 
   return (
     <div className="sd-mx-zone">
@@ -335,6 +431,30 @@ export default function MaxExpertSection({
                   disabled={maxLoading}
                   onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 150) + 'px'; }}
                 />
+                {voiceSupported && (
+                  <button
+                    type="button"
+                    onClick={handleVoiceToggle}
+                    disabled={maxLoading}
+                    title={isRecording
+                      ? (locale === 'pt' ? 'Parar gravação' : 'Arrêter la dictée')
+                      : (locale === 'pt' ? 'Ditar pergunta' : 'Dicter la question')}
+                    aria-label={isRecording
+                      ? (locale === 'pt' ? 'Parar gravação' : 'Arrêter la dictée')
+                      : (locale === 'pt' ? 'Ditar pergunta' : 'Dicter la question')}
+                    style={{
+                      width: 38, height: 38, marginRight: 6, borderRadius: 8,
+                      border: '1px solid var(--sd-border)',
+                      background: isRecording ? '#e74c3c' : 'var(--sd-bg-2)',
+                      color: isRecording ? '#fff' : 'var(--sd-navy)',
+                      cursor: maxLoading ? 'not-allowed' : 'pointer',
+                      fontSize: 16, opacity: maxLoading ? 0.5 : 1,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    {isRecording ? '⏹' : '🎤'}
+                  </button>
+                )}
                 <button
                   className="sd-mx-compose-send"
                   onClick={() => sendMaxMessage()}

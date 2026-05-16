@@ -131,7 +131,7 @@ const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashbo
 const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
 const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
 const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/FixyAgentPage'))
-const MaxAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/MaxAgentPage'))
+// MaxAgentPage retiré : unifié avec Max Expert (cf. page === 'ia' qui rend MaxExpertSection).
 const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
 const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/AlfredoAgentPage'))
 const TempoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/TempoAgentPage'))
@@ -400,6 +400,12 @@ export default function SyndicDashboard() {
   const [maxMessages, setMaxMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
     { role: 'assistant', content: maxInitialMsg }
   ])
+  // ID de la conversation Max persistée en DB (syndic_ai_conversations).
+  // Hydraté au mount via GET /api/syndic/conversations?agent_id=max — créé
+  // si absent. Tous les messages user/assistant sont POSTés vers
+  // /api/syndic/conversations/[id]/messages pour permettre la persistance
+  // entre sessions (vs l'ancien localStorage volatile).
+  const [maxConvId, setMaxConvId] = useState<string | null>(null)
   const [maxInput, setMaxInput] = useState('')
   const [maxLoading, setMaxLoading] = useState(false)
   const maxEndRef = useRef<HTMLDivElement>(null)
@@ -457,20 +463,72 @@ export default function SyndicDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [notifPanelOpen])
 
-  // ── Load persisted Max conversations & favorites ──
+  // ── Load persisted Max conversation (DB-first, localStorage en fallback) ──
+  // Hydrate les messages Max depuis syndic_ai_conversations + syndic_ai_messages.
+  // Si aucune conversation n'existe, une nouvelle est créée (locale courante).
+  // En cas d'erreur DB, fallback gracieux sur le cache localStorage.
   useEffect(() => {
     if (!user?.id) return
-    try {
-      const saved = localStorage.getItem(`fixit_max_history_${user.id}`)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) setMaxMessages(parsed)
+    let cancelled = false
+    void (async () => {
+      try {
+        // 1. Cherche la conversation Max la plus récente
+        const listRes = await fetch('/api/syndic/conversations?agent_id=max')
+        if (cancelled) return
+        if (listRes.ok) {
+          const json = await listRes.json() as { conversations?: Array<{ id: string; locale?: string }> }
+          let convId = json.conversations?.[0]?.id ?? null
+
+          if (!convId) {
+            // 2. Aucune conversation : en créer une
+            const createRes = await fetch('/api/syndic/conversations', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ agent_id: 'max', locale, title: 'Max — Consultor' }),
+            })
+            if (cancelled) return
+            if (createRes.ok) {
+              const created = await createRes.json() as { conversation?: { id: string } }
+              convId = created.conversation?.id ?? null
+            }
+          }
+
+          if (convId) {
+            setMaxConvId(convId)
+            // 3. Hydrate les messages
+            const msgsRes = await fetch(`/api/syndic/conversations/${convId}/messages`)
+            if (cancelled) return
+            if (msgsRes.ok) {
+              const msgsJson = await msgsRes.json() as { messages?: Array<{ role: string; content: string }> }
+              const dbMessages = (msgsJson.messages ?? [])
+                .filter((m) => m.role === 'user' || m.role === 'assistant')
+                .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+              if (dbMessages.length > 0) {
+                setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
+                return
+              }
+            }
+          }
+        }
+      } catch {
+        // Erreur DB → fallback localStorage ci-dessous
       }
-    } catch {}
+      if (cancelled) return
+      // Fallback : ancien cache localStorage si la DB est indisponible
+      try {
+        const saved = localStorage.getItem(`fixit_max_history_${user.id}`)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed) && parsed.length > 0) setMaxMessages(parsed)
+        }
+      } catch {}
+    })()
+
     try {
       const favs = localStorage.getItem(`fixit_max_favorites_${user.id}`)
       if (favs) setMaxFavorites(JSON.parse(favs))
     } catch {}
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
@@ -2181,11 +2239,18 @@ export default function SyndicDashboard() {
     setMaxInput('')
     setMaxMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setMaxLoading(true)
-    // Save to localStorage for persistence
+    // Cache local + persistance DB (fire-and-forget : si échec on garde la session courante)
     try {
       const updated = [...maxMessages, { role: 'user' as const, content: userMsg }]
       localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60)))
     } catch {}
+    if (maxConvId) {
+      void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: 'user', content: userMsg }),
+      }).catch(() => { /* tolérance offline */ })
+    }
     try {
       const maxToken = await getAdminToken()
       // Build context — optionally filtered by immeuble
@@ -2246,7 +2311,7 @@ export default function SyndicDashboard() {
           }
         }
 
-        // Save final to localStorage
+        // Save final to localStorage + DB
         if (fullText) {
           setMaxMessages(prev => {
             const updated = [...prev]
@@ -2254,6 +2319,13 @@ export default function SyndicDashboard() {
             try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60))) } catch {}
             return updated
           })
+          if (maxConvId) {
+            void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ role: 'assistant', content: fullText }),
+            }).catch(() => { /* tolérance offline */ })
+          }
         }
       } else {
         // Fallback non-streaming
@@ -2264,6 +2336,13 @@ export default function SyndicDashboard() {
           try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(newMsgs.slice(-60))) } catch {}
           return newMsgs
         })
+        if (maxConvId && assistantMsg) {
+          void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ role: 'assistant', content: assistantMsg }),
+          }).catch(() => { /* tolérance offline */ })
+        }
         setMaxLoading(false)
       }
     } catch {
@@ -2447,13 +2526,14 @@ export default function SyndicDashboard() {
     { id: 'arquivo_digital', emoji: '🗄️', label: 'Arquivo Digital', category: 'ferramentas_pt' },
     // ── AGENTS IA ──
     { id: 'fixy_agent' as const, emoji: '🤖', label: 'Fixy', category: 'agents_ia' },
-    { id: 'max_agent' as const, emoji: '🎓', label: 'Max', category: 'agents_ia' },
+    // Max Expert (id 'ia') unifie maintenant l'ancien et le nouveau Max — déplacé
+    // dans la catégorie Agents IA et le bouton legacy 'max_agent' a été supprimé.
+    { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'agents_ia' },
     { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
     { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', badge: alfredoPendingCount > 0 ? alfredoPendingCount : undefined, category: 'agents_ia' },
     { id: 'automation_agent' as const, emoji: '🔄', label: locale === 'pt' ? 'Automações' : 'Automatisations', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
-    { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
     // ── COMPTE ──
     { id: 'equipe', emoji: '👤', label: t('syndicDash.sidebar.myTeam'), category: 'gestion' },
     { id: 'modules', emoji: '🧩', label: t('syndicDash.sidebar.myModules'), category: 'compte' },
@@ -2727,7 +2807,7 @@ export default function SyndicDashboard() {
           {page === 'fixy_agent' && user && (
             <FixyAgentPage user={user} onNavigate={(p: string) => setPage(p as Page)} />
           )}
-          {page === 'max_agent' && user && <MaxAgentPage user={user} />}
+          {/* max_agent retiré : Max Expert (page === 'ia') prend désormais sa place */}
           {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
           {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}
           {page === 'automation_agent' && user && <TempoAgentPage user={user} />}
