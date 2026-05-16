@@ -2267,7 +2267,13 @@ export default function SyndicDashboard() {
           syndic_context: ctx,
           conversation_history: maxMessages.map(m => ({ role: m.role, content: m.content })),
           locale,
-          stream: true,
+          // ⚠️ Streaming désactivé volontairement : en mode SSE, la résolution
+          // des tags ##TOOL##cite_legal_source##…## (RAG juridique Plan H)
+          // n'est pas appliquée (cf. TODO dans max-ai/route.ts ligne 178). Les
+          // tags apparaîtraient bruts dans le chat. En mode classique la
+          // résolution est faite côté serveur (resolveLegalToolCalls) avant
+          // renvoi. Trade-off : 1-3 s de latence vs citations propres.
+          stream: false,
         }),
       })
 
