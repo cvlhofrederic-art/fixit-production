@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useVoiceInput } from './hooks/useVoiceInput'
 import type { Locale } from '@/lib/syndic/agent-types'
 
@@ -20,6 +20,7 @@ export default function MessageInput({
   placeholder,
 }: Props) {
   const [text, setText] = useState('')
+  const [voicePendingSend, setVoicePendingSend] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { supported, listening, start, stop } = useVoiceInput({
@@ -35,6 +36,28 @@ export default function MessageInput({
     onSend(trimmed)
     setText('')
   }
+
+  const handleStop = () => {
+    stop()
+    setVoicePendingSend(true)
+  }
+
+  // Auto-submit après arrêt de la dictée (parité avec AiChatBot artisan)
+  useEffect(() => {
+    if (!voicePendingSend || listening) return
+    setVoicePendingSend(false)
+    const timer = setTimeout(() => {
+      setText(prev => {
+        const trimmed = prev.trim()
+        if (trimmed && !disabled) {
+          onSend(trimmed)
+          return ''
+        }
+        return prev
+      })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [voicePendingSend, listening, disabled, onSend])
 
   const placeholderText = placeholder
     ? locale === 'pt' ? placeholder.pt : placeholder.fr
@@ -76,7 +99,7 @@ export default function MessageInput({
         />
         {voiceEnabled && supported && (
           <button
-            onClick={() => (listening ? stop() : start())}
+            onClick={() => (listening ? handleStop() : start())}
             aria-label={listening ? (locale === 'pt' ? 'Parar voz' : 'Stopper voix') : (locale === 'pt' ? 'Iniciar voz' : 'Démarrer voix')}
             style={{
               width: 44,
