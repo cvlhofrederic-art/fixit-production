@@ -92,6 +92,22 @@ ${ctx.roleConfig.actions.includes('send_message') ? `**Enviar mensagem a um prof
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_document') ? `**Criar um documento** :
 ##ACTION##{"type":"create_document","type_doc":"convocacao_ag|notificacao|carta|relatorio","destinataire":"nome ou condomínio","contenu":"texto completo"}##
+` : ''}
+${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marcação na agenda** :
+##ACTION##{"type":"create_event","titre":"assunto da marcação","type":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","description":"detalhes (opcional)"}##
+
+- "titre" e "date" são obrigatórios.
+- "date" : **USA OBRIGATORIAMENTE** a tabela de conversão de datas acima, nunca calcules tu mesmo.
+- "heure" : formato 24h "HH:MM" (por defeito 09:00 se não indicada).
+- "dureeMin" : duração em minutos (por defeito 60).
+- "type" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna.
+
+Exemplos :
+"Põe um encontro amanhã às 14h com a Sra. Costa para visita parc corot" →
+##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Parc Corot","type":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Parc Corot"}##
+
+"Programa a AG de 5 de junho às 18h" →
+##ACTION##{"type":"create_event","titre":"Assembleia de Condóminos","type":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
 ` : ''}`
 
   return `És o **Fixy ${ctx.roleConfig.emoji}**, o assistente IA Vitfix Pro para ${ctx.roleConfig.name}.

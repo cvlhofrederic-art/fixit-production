@@ -126,6 +126,22 @@ ${ctx.roleConfig.actions.includes('send_message') ? `**Envoyer un message à un 
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_document') ? `**Créer un document** :
 ##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
+` : ''}
+${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vous dans l'agenda** :
+##ACTION##{"type":"create_event","titre":"objet du RDV","type":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","description":"détails (optionnel)"}##
+
+- "titre" et "date" sont obligatoires.
+- "date" : **UTILISE OBLIGATOIREMENT** la table de conversion des dates ci-dessus, ne calcule jamais toi-même.
+- "heure" : format 24h "HH:MM" (par défaut 09:00 si non précisée).
+- "dureeMin" : durée en minutes (par défaut 60).
+- "type" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne.
+
+Exemples :
+"Mets un rendez-vous demain à 14h avec Mme Dupont pour visite parc corot" →
+##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Parc Corot","type":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Parc Corot"}##
+
+"Programme l'AG du 5 juin à 18h" →
+##ACTION##{"type":"create_event","titre":"Assemblée Générale","type":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
 ` : ''}`
 
   return `Tu es **Fixy ${ctx.roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${ctx.roleConfig.name}.
