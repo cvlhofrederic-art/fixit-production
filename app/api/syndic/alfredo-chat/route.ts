@@ -17,6 +17,18 @@ import type { AlfredoChatContext } from '@/lib/syndic/prompts/alfredo/system-pro
 const BodySchema = z.object({
   conversation_id: z.string().uuid().optional(),
   message: z.string().min(1).max(4000),
+  // Renommé `history` → `conversation_history` pour aligner avec le hook frontend
+  // `useAgentStream` (cf. components/syndic-dashboard/agents-ia/hooks/useAgentStream.ts).
+  // Un alias `history` reste accepté pour ne pas casser d'éventuels clients existants.
+  conversation_history: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant', 'system', 'tool']),
+        content: z.string(),
+      }),
+    )
+    .max(60)
+    .optional(),
   history: z
     .array(
       z.object({
@@ -27,6 +39,7 @@ const BodySchema = z.object({
     .max(60)
     .optional(),
   locale: z.enum(['fr', 'pt']).optional(),
+  syndic_context: z.record(z.string(), z.unknown()).optional(),
 })
 
 // ── Tool dispatch helpers ─────────────────────────────────────────────────────
@@ -130,7 +143,7 @@ export async function POST(req: NextRequest) {
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
-    ...(parsed.data.history ?? []),
+    ...(parsed.data.conversation_history ?? parsed.data.history ?? []),
     { role: 'user' as const, content: parsed.data.message },
   ]
 
