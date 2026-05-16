@@ -8,6 +8,7 @@ import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/pr
 import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt-pt'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
+import { ROLE_PAGES, SYNDIC_MODULES } from '@/components/syndic-dashboard/config'
 
 export const maxDuration = 30
 
@@ -17,7 +18,25 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Capacités : contexte complet cabinet + actions directes + mémoire + multi-rôles
 
-// Labels et contexte par rôle
+// ── Résolution dynamique des pages accessibles par rôle + locale ────────────
+// La source de vérité est `ROLE_PAGES` (composants/syndic-dashboard/config.ts).
+// On filtre par locale pour ne pas exposer à Fixy des pages FR-only quand il
+// répond en PT (et inversement). Les modules sans champ `locale` sont bilingues.
+const MODULE_LOCALE = new Map<string, 'fr' | 'pt' | undefined>(
+  SYNDIC_MODULES.map(m => [m.key, (m as { locale?: 'fr' | 'pt' }).locale]),
+)
+
+function getPagesForRoleAndLocale(role: string, locale: 'fr' | 'pt'): string[] {
+  const allowed = ROLE_PAGES[role] || ROLE_PAGES['syndic']
+  return allowed.filter(p => {
+    const moduleLocale = MODULE_LOCALE.get(p)
+    return !moduleLocale || moduleLocale === locale
+  })
+}
+
+// Labels et contexte par rôle. `pages` est ignoré ici (résolu dynamiquement
+// par getPagesForRoleAndLocale au moment de la requête) — conservé pour le
+// typage et la rétrocompatibilité du shape FixyPromptContext.
 const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: string; pages: string[]; actions: string[] }> = {
   syndic: {
     name: 'Administrateur Cabinet',
@@ -268,7 +287,12 @@ export async function POST(request: NextRequest) {
       dateMapping.push(`  - "semaine prochaine" = lundi ${nextWeekMonday.toISOString().split('T')[0]}`)
     }
 
-    const roleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
+    // Résoudre les pages dynamiquement (ROLE_PAGES × locale × rôle) plutôt que
+    // la liste figée de ROLE_CONFIGS — Fixy connaît ainsi les ~85 modules réels
+    // du dashboard, filtrés par locale.
+    const baseRoleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
+    const dynamicPages = getPagesForRoleAndLocale(userRole, resolvedLocale)
+    const roleConfig = { ...baseRoleConfig, pages: dynamicPages }
 
     // Assembler le FixyPromptContext pour les nouvelles fonctions
     const promptCtx: FixyPromptContext = {

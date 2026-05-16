@@ -65,7 +65,25 @@ export function useAgentStream(agentConfig: AgentConfig) {
       // Les routes renvoient `{ response, action?, role? }` (pas `content`).
       const json = await res.json() as { response?: string; content?: string; action?: unknown; tool_calls?: unknown[] }
       const content = json.response ?? json.content ?? ''
-      const tool_calls = json.tool_calls ?? (json.action ? [json.action] : undefined)
+      // Normalisation : les routes Fixy/Léa/etc. émettent `action: { type, ...args }`.
+      // AgentChatPage attend la forme canonique ToolCall `{ tool_name, arguments }` —
+      // sans cette conversion, descriptor lookup échoue et les actions ne sont jamais
+      // POSTées vers /execute-action.
+      let tool_calls = json.tool_calls
+      if ((!tool_calls || tool_calls.length === 0) && json.action && typeof json.action === 'object') {
+        const action = json.action as Record<string, unknown> & { type?: unknown; tool_name?: unknown }
+        if (action.tool_name && action.arguments) {
+          // Déjà au format ToolCall — laisser tel quel
+          tool_calls = [action as unknown]
+        } else {
+          const rawType = action.type ?? action.tool_name
+          if (rawType) {
+            const { type: _t, tool_name: _tn, ...rest } = action
+            void _t; void _tn
+            tool_calls = [{ tool_name: String(rawType), arguments: rest, status: 'pending' }]
+          }
+        }
+      }
       setState({ pending: false, partial: content, error: null })
       return { content, tool_calls }
     } catch (err) {
