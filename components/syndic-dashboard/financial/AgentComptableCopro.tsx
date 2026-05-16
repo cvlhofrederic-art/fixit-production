@@ -109,13 +109,14 @@ export default function AgentComptableCopro({
           message: userMsg.content,
           syndic_context: buildLeaContext(),
           conversation_history: messages.map(m => ({ role: m.role, content: m.content })),
+          locale,
         }),
       })
       const data = await res.json()
-      const reply = data.response || data.reply || 'Désolé, une erreur est survenue.'
+      const reply = data.response || data.reply || (locale === 'pt' ? 'Desculpe, ocorreu um erro.' : 'Désolé, une erreur est survenue.')
       setMessages(prev => [...prev, { role: 'assistant', content: reply }])
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Erreur de connexion à l\'IA.' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: locale === 'pt' ? '❌ Erro de ligação à IA.' : '❌ Erreur de connexion à l\'IA.' }])
     } finally {
       setLoading(false)
     }

@@ -161,7 +161,7 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ content: docText, filename }),
+        body: JSON.stringify({ content: docText, filename, locale }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Erreur lors de l\'analyse'); return }
