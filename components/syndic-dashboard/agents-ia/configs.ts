@@ -101,6 +101,16 @@ export const AGENT_CONFIGS: Record<AgentId, AgentConfig> = {
         requiresConfirmation: false,
         allowedRoles: ['syndic', 'syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste'],
       },
+      {
+        name: 'create_event',
+        label: { fr: 'Créer un rendez-vous', pt: 'Criar marcação' },
+        description: {
+          fr: "Ajoute un événement (rendez-vous, AG, visite) dans l'agenda du cabinet.",
+          pt: 'Adiciona um evento (marcação, AG, visita) na agenda do gabinete.',
+        },
+        requiresConfirmation: true,
+        allowedRoles: ['syndic', 'syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire'],
+      },
       // classer_document différé Plan D — table syndic_documents non encore créée
       {
         name: 'find_email_thread',

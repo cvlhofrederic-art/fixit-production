@@ -20,6 +20,7 @@ const ExecuteActionSchema = z.object({
       'create_alert',
       'send_message',
       'create_document',
+      'create_event',
     ]),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arguments variant selon l'action
     args: z.record(z.string(), z.unknown()),
@@ -215,6 +216,42 @@ export async function POST(req: NextRequest) {
           deferred: true,
           message: 'Document généré côté client',
         })
+      }
+
+      case 'create_event': {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- args dynamiques LLM
+        const a = args as any
+        if (!a.titre || !a.date) {
+          return NextResponse.json({ error: 'missing_titre_or_date' }, { status: 400 })
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(a.date))) {
+          return NextResponse.json({ error: 'invalid_date_format' }, { status: 400 })
+        }
+        const heure = a.heure && /^\d{2}:\d{2}$/.test(String(a.heure)) ? a.heure : '09:00'
+        const { data, error } = await supabaseAdmin
+          .from('syndic_planning_events')
+          .insert({
+            cabinet_id: cabinetId,
+            titre: String(a.titre).slice(0, 200),
+            type: a.type ? String(a.type).slice(0, 50) : 'autre',
+            date: a.date,
+            heure,
+            duree_min: Number.isFinite(Number(a.dureeMin ?? a.duree_min)) ? Number(a.dureeMin ?? a.duree_min) : 60,
+            assigne_a: a.assigneA ?? a.assigne_a ?? '',
+            assigne_role: a.assigneRole ?? a.assigne_role ?? '',
+            description: a.description ?? '',
+            cree_par: user.email ?? '',
+            statut: 'planifie',
+          })
+          .select()
+          .single()
+        if (error) {
+          if (error.code === '42P01') {
+            return NextResponse.json({ error: 'needsMigration' }, { status: 503 })
+          }
+          throw error
+        }
+        return NextResponse.json({ ok: true, event_id: data.id })
       }
 
       default:
