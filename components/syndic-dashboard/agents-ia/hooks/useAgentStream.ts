@@ -25,18 +25,27 @@ export function useAgentStream(agentConfig: AgentConfig) {
     abortRef.current = ac
 
     try {
+      // Récupère l'access_token de la session Supabase pour authentifier l'appel.
+      // Les routes Fixy/Max/Léa utilisent `getAuthUser` qui exige `Authorization: Bearer`.
+      // Sans header → 401 silencieux → pas de réponse côté UI.
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
       const res = await fetch(agentConfig.endpoint, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
+          ...(accessToken ? { 'authorization': `Bearer ${accessToken}` } : {}),
           ...(agentConfig.streaming ? { 'accept': 'text/event-stream' } : {}),
         },
         // Le contrat des routes /api/syndic/{fixy-syndic,max-ai,lea-comptable} attend
-        // `conversation_history` + `syndic_context` (cf. routes existantes avant Plan A).
+        // `conversation_history` + `syndic_context`. Cap à 50 pour rester sous la limite Zod
+        // de `syndicMaxAiSchema` (cf. `lib/validation.ts:768`).
         body: JSON.stringify({
           conversation_id: params.conversationId,
           message: params.message,
-          conversation_history: params.history.slice(-60).map(m => ({ role: m.role, content: m.content })),
+          conversation_history: params.history.slice(-50).map(m => ({ role: m.role, content: m.content })),
           locale: params.locale,
           syndic_context: params.context ?? {},
         }),
