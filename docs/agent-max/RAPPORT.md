@@ -210,28 +210,48 @@ Réponse de Max prod **post-déploiement v1.1** :
 - Le TOC chunk est en base ✅
 - L'isolation par locale (`language = 'pt'`) respectée ✅
 
-**Cause probable du `groq_unreachable`** (par ordre de probabilité) :
+**Cause-racine confirmée empiriquement** (via console.groq.com Logs sous session utilisateur) :
 
-1. **Quota Groq dépassé** — les smoke tests + ingestion + history de 86 messages aujourd'hui ont consommé l'allocation. Vérifier https://console.groq.com.
-2. **`GROQ_API_KEY` rotée** récemment (cf. mémoire `S921/S924/S925` sur la rotation des clés API Cloudflare Workers) — clé devenue invalide.
-3. **Modèle Llama 3.3 70B momentanément hors-ligne** côté Groq.
-4. **Prompt v1.1 trop volumineux** — peu probable mais à mesurer : 14 sections XML + TOC (~500 tokens) + 6 chunks injectés + history limitée à 12 messages ≈ 8-12K tokens. Llama 3.3 70B accepte 128K mais Groq peut limiter à 8K dans certains plans.
+> **`429 rate_limit_exceeded`** systématique sur `llama-3.3-70b-versatile` ET `llama-3.1-8b-instant` (HyDE), API key « Vitfix Prod 2026-04-24 ». Tous les logs récents (21:00-21:03 UTC) montrent 0 input/output tokens — les requêtes sont rejetées **avant** traitement par le rate limiter Groq.
+
+Compte Groq actuel : **free tier** (bouton « Upgrade to Dev Plan » visible). Le free tier limite typiquement :
+- Llama 3.3 70B : ~30 RPM (vs 1K RPM en Dev Plan)
+- Llama 3.1 8B : idem
+- TPM ~250K
+
+L'historique de 86 messages Max + l'ingestion via worker (qui ne consomme pas Groq mais BGE-M3 Cloudflare AI) + mes 3 smoke tests récents + le pipeline post-deploy ont saturé la fenêtre roulante RPM.
+
+Token Usage 30 jours : 377.3K (Up 21% from previous 30 days). Total Spend $0.10 — non-bloquant côté facturation, mais **rate limit RPM persiste sur free tier**.
 
 ### 2.6 Action immédiate pour réactiver Max
 
+**Le rate limit Groq se reset automatiquement** sur une fenêtre roulante (généralement 1 minute pour RPM). Trois options par ordre de durabilité :
+
+**Option A (immédiate, gratuite) — Attendre 1-2 minutes** sans appel à Max, puis retester :
+
 ```bash
-# 1. Vérifier la clé Groq en place côté Worker
-wrangler secret list
-
-# 2. Tester directement Groq avec la clé
-GROQ_KEY=<récupéré localement>
-curl -s -H "Authorization: Bearer $GROQ_KEY" https://api.groq.com/openai/v1/models | head -c 200
-
-# 3. Si quota/clé KO → rotation + wrangler secret put GROQ_API_KEY
-wrangler secret put GROQ_API_KEY  # paste new key
-
-# 4. Re-test : la même question doit cette fois remonter des chunks DL 320/2002
+# Après ~2 minutes :
+curl -X POST https://vitfix.io/api/syndic/max-ai \
+  -H "Authorization: Bearer <JWT user syndic>" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Quem é responsável pelo contrato de manutenção do ascensor?","locale":"pt"}'
+# Attendu : citations non-vides avec font_id sur DL 320/2002
 ```
+
+**Option B (recommandée pour usage cabinet) — Upgrader vers Dev Plan** :
+- https://console.groq.com/settings/billing
+- Free → Dev Plan : 1K RPM (au lieu de ~30 RPM), 300K TPM, $0.59/1M tokens input + $0.79 output
+- Pay-as-you-go, pas d'engagement. Le projet a consommé $0.10 en 30 jours → coût marginal négligeable pour le cabinet.
+
+**Option C (alternative) — Backup vers un autre modèle** :
+- Le code `lib/groq.ts` supporte déjà un fallback Llama 3.1 8B Instant (rate limit plus haut)
+- Ajouter un fallback `openai/gpt-oss-120b` (1K RPM même en preview, $0.15/1M tokens) dans `callGroqWithRetry`
+
+Une fois le rate limit levé, l'attente raisonnable est :
+- Catégorie `03-matiere-couverte` → **passera à ≥ 85%** (les chunks existent désormais)
+- Catégorie `01-comparison-numerique` → idem (le `<tratamento_de_valores>` v1.1 force la comparaison chiffrée)
+- Catégorie `02-controle-perimetre` → idem (le `<controlo_de_ambito>` v1.1 liste les hors-périmètre)
+- Catégorie `04-citation-verbatim` → idem (le `<regime_de_citacao>` v1.1 + validateur anti-auto-cert)
 
 Une fois Groq de nouveau joignable, l'attente raisonnable est :
 - Catégorie `03-matiere-couverte` → **passera à ≥ 85%** (les chunks existent désormais)
