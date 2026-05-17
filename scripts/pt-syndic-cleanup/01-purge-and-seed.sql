@@ -1,163 +1,83 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- Nettoyage + seed PT cohérent pour le super admin syndic
 -- cabinet_id : 389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4
+-- Exécuté en prod via Supabase SQL Editor le 2026-05-17 — Success
 -- ════════════════════════════════════════════════════════════════════════════
--- À exécuter dans Supabase SQL Editor (prod).
--- Idempotent : peut être relancé, supprime/réinsère ce qui est marqué 'pt-demo-v1'.
+-- Idempotence : DELETE par artisan IN (Bruno, Diogo, Tiago) sur les 4 immeubles PT
+-- Le canal_interne (table syndic_messages) ne peut pas être seedé via DB direct :
+-- check constraint syndic_messages_message_type_check n'accepte que
+-- text|rapport|proof_of_work|devis|photo. Les "demandes résidents" du canal
+-- s'affichent en fait via les missions avec demandeur_role='copro'.
 
 BEGIN;
 
--- ─── 1. PURGE missions FR contaminées (Lepore Sebastien / La Sauvagère / Espaces verts) ──
+-- ─── 1. PURGE missions FR contaminées ────────────────────────────────────────
 DELETE FROM syndic_missions
 WHERE cabinet_id = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-  AND (
-    artisan = 'Lepore Sebastien'
-    OR immeuble ILIKE 'La Sauvag%'
-    OR type = 'Espaces verts'
-  );
+  AND (artisan = 'Lepore Sebastien' OR immeuble ILIKE 'La Sauvag%' OR type = 'Espaces verts');
 
--- ─── 2. PURGE seed démo PT antérieur (relances) ──
+-- ─── 2. PURGE seed antérieur (relances) ──────────────────────────────────────
 DELETE FROM syndic_missions
 WHERE cabinet_id = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-  AND demandeur_role = 'pt-demo-v1';
+  AND artisan IN ('Bruno Tavares', 'Diogo Pereira', 'Tiago Mendes')
+  AND immeuble IN ('Edifício Atlântico', 'Condomínio Boavista Center', 'Residencial Cedofeita', 'Edifício Foz Douro');
 
-DELETE FROM syndic_messages
-WHERE cabinet_id = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-  AND message_type = 'canal_interne'
-  AND sender_role LIKE '%|pt-demo-v1';
-
--- ─── 3. INSERT nouvelles missions PT cohérentes ─────────────────────────────
--- Assignées à Bruno Tavares (Gestor Técnico) + Diogo Pereira / Tiago Mendes (Técnicos)
--- Sur les 4 immeubles PT cohérents : Atlântico / Boavista Center / Cedofeita / Foz Douro
-
+-- ─── 3. INSERT missions internes + demandes résidents ────────────────────────
 INSERT INTO syndic_missions
   (cabinet_id, immeuble, artisan, type, description, priorite, statut,
    date_creation, date_intervention, batiment, etage, num_lot, locataire,
-   telephone_locataire, demandeur_nom, demandeur_role, est_partie_commune, zone_signalee)
+   telephone_locataire, demandeur_nom, demandeur_role, demandeur_email, est_partie_commune, zone_signalee)
 VALUES
   -- Bruno Tavares (Gestor Técnico) — pilotage technique
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Edifício Atlântico', 'Bruno Tavares', 'Vistoria técnica',
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Edifício Atlântico','Bruno Tavares','Vistoria técnica',
    'Vistoria trimestral das partes comuns — verificação extintores, sinalética e iluminação de emergência piso 0 e 1.',
-   'normale', 'en_cours',
-   CURRENT_DATE - INTERVAL '5 days', CURRENT_DATE + INTERVAL '2 days',
-   'A', 'R/C', NULL, NULL, NULL,
-   'Administração', 'pt-demo-v1', TRUE, 'Partes comuns'),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Condomínio Boavista Center', 'Bruno Tavares', 'Coordenação de obras',
+   'normale','en_cours',CURRENT_DATE - INTERVAL '5 days',CURRENT_DATE + INTERVAL '2 days',
+   'A','R/C',NULL,NULL,NULL,'Administração','syndic_admin',NULL,TRUE,'Partes comuns'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Condomínio Boavista Center','Bruno Tavares','Coordenação de obras',
    'Acompanhamento da impermeabilização da cobertura — supervisão diária dos trabalhos do prestador externo.',
-   'normale', 'en_cours',
-   CURRENT_DATE - INTERVAL '12 days', CURRENT_DATE + INTERVAL '3 days',
-   NULL, 'Cobertura', NULL, NULL, NULL,
-   'Administração', 'pt-demo-v1', TRUE, 'Cobertura'),
+   'normale','en_cours',CURRENT_DATE - INTERVAL '12 days',CURRENT_DATE + INTERVAL '3 days',
+   NULL,'Cobertura',NULL,NULL,NULL,'Administração','syndic_admin',NULL,TRUE,'Cobertura'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Residencial Cedofeita','Bruno Tavares','Inspeção técnica',
+   'Verificação periódica do sistema de gás das partes comuns — relatório para o seguro do condomínio.',
+   'normale','terminee',CURRENT_DATE - INTERVAL '40 days',CURRENT_DATE - INTERVAL '35 days',
+   NULL,NULL,NULL,NULL,NULL,'Administração','syndic_admin',NULL,TRUE,'Instalação de gás'),
 
   -- Diogo Pereira (Técnico) — petites réparations
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Condomínio Boavista Center', 'Diogo Pereira', 'Pequenas reparações',
-   'Substituição de 4 lâmpadas LED na garagem + ajuste da fechadura da porta de acesso à zona técnica.',
-   'normale', 'en_attente',
-   CURRENT_DATE - INTERVAL '2 days', CURRENT_DATE + INTERVAL '1 day',
-   NULL, '-1', NULL, NULL, NULL,
-   'Administração', 'pt-demo-v1', TRUE, 'Garagem'),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Edifício Atlântico', 'Diogo Pereira', 'Manutenção corrente',
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Condomínio Boavista Center','Diogo Pereira','Pequenas reparações',
+   'Substituição de 4 lâmpadas LED na garagem + ajuste da fechadura da porta de acesso à zona técnica. Reportado pela condómina Joana Ribeiro.',
+   'normale','en_attente',CURRENT_DATE - INTERVAL '2 days',CURRENT_DATE + INTERVAL '1 day',
+   NULL,'-1',NULL,NULL,NULL,'Joana Ribeiro','copro','joana.ribeiro@boavista-cdom.pt',TRUE,'Garagem'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Edifício Atlântico','Diogo Pereira','Manutenção corrente',
    'Aperto de parafusos do corrimão da escada principal + lubrificação da fechadura da porta de entrada.',
-   'normale', 'terminee',
-   CURRENT_DATE - INTERVAL '20 days', CURRENT_DATE - INTERVAL '18 days',
-   'A', 'Todos', NULL, NULL, NULL,
-   'Administração', 'pt-demo-v1', TRUE, 'Escadas e entrada'),
+   'normale','terminee',CURRENT_DATE - INTERVAL '20 days',CURRENT_DATE - INTERVAL '18 days',
+   'A','Todos',NULL,NULL,NULL,'Administração','syndic_admin',NULL,TRUE,'Escadas e entrada'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Edifício Atlântico','Diogo Pereira','Pequenas reparações',
+   'URGENTE — verificação de infiltração reportada pelo condómino do 3.º Dto: humidade visível no tecto da casa de banho. Possível fuga do andar superior.',
+   'urgente','en_cours',CURRENT_DATE - INTERVAL '1 day',CURRENT_DATE,
+   'A','3.º','Dto','André Marques','961 555 123','André Marques','copro','andre.marques@atlantico-cdom.pt',FALSE,'Fração 3.º Dto'),
 
   -- Tiago Mendes (Técnico) — petites réparations
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Residencial Cedofeita', 'Tiago Mendes', 'Manutenção corrente',
-   'Reparação de campainha avariada no R/C esquerdo + colocação de batente em falta na porta do hall.',
-   'normale', 'en_attente',
-   CURRENT_DATE - INTERVAL '3 days', CURRENT_DATE + INTERVAL '4 days',
-   'A', 'R/C', 'Esq', 'Maria Costa', '917 234 567',
-   'Maria Costa', 'pt-demo-v1', FALSE, 'Fração R/C Esq'),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Edifício Foz Douro', 'Tiago Mendes', 'Pequenas reparações',
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Residencial Cedofeita','Tiago Mendes','Manutenção corrente',
+   'Reparação de campainha avariada no R/C esquerdo + colocação de batente em falta na porta do hall. Pedido pela Maria Costa.',
+   'normale','en_attente',CURRENT_DATE - INTERVAL '3 days',CURRENT_DATE + INTERVAL '4 days',
+   'A','R/C','Esq','Maria Costa','917 234 567','Maria Costa','copro','maria.costa@cedofeita-cdom.pt',FALSE,'Fração R/C Esq'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Edifício Foz Douro','Tiago Mendes','Pequenas reparações',
    'Pintura de retoque na zona da entrada + substituição da iluminação avariada no corredor do 2.º andar.',
-   'normale', 'en_cours',
-   CURRENT_DATE - INTERVAL '7 days', CURRENT_DATE - INTERVAL '1 day',
-   NULL, '2.º', NULL, NULL, NULL,
-   'Administração', 'pt-demo-v1', TRUE, 'Entrada e 2.º andar'),
+   'normale','en_cours',CURRENT_DATE - INTERVAL '7 days',CURRENT_DATE - INTERVAL '1 day',
+   NULL,'2.º',NULL,NULL,NULL,'Administração','syndic_admin',NULL,TRUE,'Entrada e 2.º andar'),
 
-  -- Mission terminée Bruno (auditoria légère gás)
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Residencial Cedofeita', 'Bruno Tavares', 'Inspeção técnica',
-   'Verificação periódica do sistema de gás das partes comuns — relatório para o seguro do condomínio.',
-   'normale', 'terminee',
-   CURRENT_DATE - INTERVAL '40 days', CURRENT_DATE - INTERVAL '35 days',
-   NULL, NULL, NULL, NULL, NULL,
-   'Administração', 'pt-demo-v1', TRUE, 'Instalação de gás'),
-
-  -- Mission urgente Diogo (fuga reportée par condómino)
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Edifício Atlântico', 'Diogo Pereira', 'Pequenas reparações',
-   'Verificação de infiltração reportada pelo condómino do 3.º Dto — humidade visível no tecto da casa de banho.',
-   'urgente', 'en_cours',
-   CURRENT_DATE - INTERVAL '1 day', CURRENT_DATE,
-   'A', '3.º', 'Dto', 'André Marques', '961 555 123',
-   'André Marques', 'pt-demo-v1', FALSE, 'Fração 3.º Dto');
-
--- ─── 4. INSERT messages canal_interne — demandes d'intervention de condóminos ──
--- Sender_role suffixe 'pt-demo-v1' pour repérage / idempotence
--- Le content est un JSON sérialisé du CanalInterneMsg complet (cf. front parsing)
-
-INSERT INTO syndic_messages
-  (cabinet_id, sender_id, sender_role, content, message_type, read_at)
-VALUES
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Maria Costa|pt-demo-v1',
-   '{"contenu":"Olá, no R/C Esq do Cedofeita a campainha deixou de funcionar e a porta do hall já não fecha bem. Podem mandar alguém?","de":"Maria Costa","deRole":"condomino","type":"message","date":"' || (NOW() - INTERVAL '3 days')::text || '","lu":false}',
-   'canal_interne', NULL),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'André Marques|pt-demo-v1',
-   '{"contenu":"URGENTE — tenho uma mancha de humidade no tecto da casa de banho do 3.º Dto do Atlântico. Pode ser fuga do andar de cima. Agradeço intervenção rápida.","de":"André Marques","deRole":"condomino","type":"message","date":"' || (NOW() - INTERVAL '1 day')::text || '","lu":false}',
-   'canal_interne', NULL),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Joana Ribeiro|pt-demo-v1',
-   '{"contenu":"Bom dia, as lâmpadas da garagem do Boavista Center estão fundidas há uma semana. É perigoso entrar de noite.","de":"Joana Ribeiro","deRole":"condomino","type":"message","date":"' || (NOW() - INTERVAL '6 days')::text || '","lu":false}',
-   'canal_interne', NULL),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Paulo Fernandes|pt-demo-v1',
-   '{"contenu":"O portão automático da garagem do Foz Douro tem fechado muito devagar. Acho que precisa de revisão.","de":"Paulo Fernandes","deRole":"condomino","type":"message","date":"' || (NOW() - INTERVAL '8 days')::text || '","lu":true}',
-   'canal_interne', NOW() - INTERVAL '7 days'),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Inês Silva|pt-demo-v1',
-   '{"contenu":"A iluminação do corredor do 2.º do Foz Douro pisca constantemente. Já faz dois dias.","de":"Inês Silva","deRole":"condomino","type":"message","date":"' || (NOW() - INTERVAL '4 days')::text || '","lu":true}',
-   'canal_interne', NOW() - INTERVAL '3 days'),
-
-  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
-   'Rui Mendes|pt-demo-v1',
-   '{"contenu":"Há uma fissura nova no muro lateral do Cedofeita, lado norte. Pode pedir-se a alguém para vir ver?","de":"Rui Mendes","deRole":"condomino","type":"message","date":"' || (NOW() - INTERVAL '10 days')::text || '","lu":true}',
-   'canal_interne', NOW() - INTERVAL '9 days');
+  -- Demandes condóminos sans assignation — affichées dans tab "Residentes"
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Edifício Foz Douro',NULL,'Manutenção corrente',
+   'Portão automático da garagem fecha muito devagar — pode precisar de revisão do motor.',
+   'normale','en_attente',CURRENT_DATE - INTERVAL '8 days',NULL,
+   NULL,'-1',NULL,NULL,NULL,'Paulo Fernandes','copro','paulo.fernandes@foz-cdom.pt',TRUE,'Garagem'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Edifício Foz Douro',NULL,'Eletricidade',
+   'Iluminação do corredor do 2.º pisca constantemente há dois dias.',
+   'normale','en_attente',CURRENT_DATE - INTERVAL '4 days',NULL,
+   NULL,'2.º',NULL,NULL,NULL,'Inês Silva','copro','ines.silva@foz-cdom.pt',TRUE,'Corredor 2.º andar'),
+  ('389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4','Residencial Cedofeita',NULL,'Construção',
+   'Fissura nova no muro lateral do edifício, lado norte. Visível desde há cerca de uma semana.',
+   'normale','en_attente',CURRENT_DATE - INTERVAL '10 days',NULL,
+   NULL,'Exterior',NULL,NULL,NULL,'Rui Mendes','copro','rui.mendes@cedofeita-cdom.pt',TRUE,'Muro lateral norte');
 
 COMMIT;
-
--- ════════════════════════════════════════════════════════════════════════════
--- Vérifications post-exécution :
---   SELECT artisan, immeuble, type, statut FROM syndic_missions
---     WHERE cabinet_id = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
---     ORDER BY date_creation DESC;
---
---   SELECT sender_role, substring(content, 1, 80) AS preview
---     FROM syndic_messages
---     WHERE cabinet_id = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
---       AND message_type = 'canal_interne'
---     ORDER BY created_at DESC;
--- ════════════════════════════════════════════════════════════════════════════
