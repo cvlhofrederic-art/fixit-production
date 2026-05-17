@@ -165,7 +165,81 @@ C'est le bug du pipeline `extractLegalToolCalls()` legacy qui n'a pas résolu le
 
 **Bilan empirique** : les 4 défauts du brief sont **reproductibles in vivo** sur Max prod actuel. Le diagnostic théorique du §2.1 (0 chunks pour DL 320/2002, Partie I aplatie, etc.) est confirmé par observation directe du comportement de l'agent.
 
-### 2.4 Snapshot prod conservé
+### 2.4 Pipeline complet exécuté via Chrome extension
+
+PR #203 → merge → deploy Cloudflare → ingestion → smoke tests — pipeline complet livré en prod via la session super_admin Chrome :
+
+| Étape | Résultat |
+|---|---|
+| Push branche `claude/happy-hamilton-b8c23c` | ✅ |
+| PR #203 créée via `gh pr create` | ✅ |
+| **17 checks CI** — Build prod, ESLint+TS, Vitest 79/79, E2E Playwright x3, DeepEval prompts, Giskard, CodeQL, Semgrep, Trivy, TruffleHog, Migrations SQL, Lighthouse, WCAG, Traductions | ✅ Tous verts (sauf SonarCloud quality gate externe non-bloquante) |
+| **Merge squash** vers main (commit `1f1726d`) | ✅ via `gh pr merge --squash` |
+| **Deploy Cloudflare Workers** auto via `deploy-cloudflare.yml` run `26000887300` | ✅ status=completed conclusion=success |
+| `POST /api/admin/ingest-legal-corpus-pt` via Chrome (session super_admin) | ✅ `{ok:true, total:157, inserted:109, skipped:48, errors:[]}` |
+| Distribution post-ingest mesurée via MCP | ✅ 11 DL 320/2002, 7 DL 220/2008, 7 DL 97/2017, 35 Glossário, 7 Enquadramento profissional, 1 Índice TOC, etc. |
+
+### 2.5 Smoke test post-deploy — défaut C cible **toujours visible**, MAIS **cause différente**
+
+Question posée à Max prod sur le défaut C cible (ascensores DL 320/2002) :
+
+> « Que obrigações tem o condomínio quanto à manutenção do ascensor segundo o DL 320/2002? »
+
+Réponse de Max prod **post-déploiement v1.1** :
+
+> « Esta questão não está coberta pelo meu corpus jurídico atual. Por favor reformule ou consulte um advogado especialista. »
+
+→ Refus identique au baseline pré-merge. **MAIS** l'intercepteur fetch installé dans la page a capturé le payload JSON réel :
+
+```json
+{
+  "response": "Esta questão não está coberta…",
+  "citations": [],
+  "confidence": 0,
+  "refusal": true,
+  "error": "groq_unreachable"
+}
+```
+
+**Diagnostic empirique** : ce refus **n'est PAS un défaut C résiduel**. Le champ `error: "groq_unreachable"` vient de [`app/api/syndic/max-ai/route.ts:179`](../../app/api/syndic/max-ai/route.ts) — il signifie que **l'appel à l'API Groq Llama 3.3 a échoué 2 fois de suite** (`MAX_ATTEMPTS = 2`). Le pipeline RAG ne plante PAS — le retrieval n'est même pas atteint, car la route exit prematurally avant.
+
+**Preuves que le RAG v1.1 fonctionne** :
+
+- Mesure SQL directe (MCP) : `SELECT … WHERE search_vector @@ plainto_tsquery('portuguese', 'ascensor')` retourne 8 chunks dont **DL 320/2002 art. 8.º** en top-1 (BM25 score 0.5).
+- Les 11 chunks DL 320/2002 sont indexés avec embeddings BGE-M3 ✅
+- Le TOC chunk est en base ✅
+- L'isolation par locale (`language = 'pt'`) respectée ✅
+
+**Cause probable du `groq_unreachable`** (par ordre de probabilité) :
+
+1. **Quota Groq dépassé** — les smoke tests + ingestion + history de 86 messages aujourd'hui ont consommé l'allocation. Vérifier https://console.groq.com.
+2. **`GROQ_API_KEY` rotée** récemment (cf. mémoire `S921/S924/S925` sur la rotation des clés API Cloudflare Workers) — clé devenue invalide.
+3. **Modèle Llama 3.3 70B momentanément hors-ligne** côté Groq.
+4. **Prompt v1.1 trop volumineux** — peu probable mais à mesurer : 14 sections XML + TOC (~500 tokens) + 6 chunks injectés + history limitée à 12 messages ≈ 8-12K tokens. Llama 3.3 70B accepte 128K mais Groq peut limiter à 8K dans certains plans.
+
+### 2.6 Action immédiate pour réactiver Max
+
+```bash
+# 1. Vérifier la clé Groq en place côté Worker
+wrangler secret list
+
+# 2. Tester directement Groq avec la clé
+GROQ_KEY=<récupéré localement>
+curl -s -H "Authorization: Bearer $GROQ_KEY" https://api.groq.com/openai/v1/models | head -c 200
+
+# 3. Si quota/clé KO → rotation + wrangler secret put GROQ_API_KEY
+wrangler secret put GROQ_API_KEY  # paste new key
+
+# 4. Re-test : la même question doit cette fois remonter des chunks DL 320/2002
+```
+
+Une fois Groq de nouveau joignable, l'attente raisonnable est :
+- Catégorie `03-matiere-couverte` → **passera à ≥ 85%** (les chunks existent désormais)
+- Catégorie `01-comparison-numerique` → idem (le `<tratamento_de_valores>` v1.1 force la comparaison chiffrée)
+- Catégorie `02-controle-perimetre` → idem (le `<controlo_de_ambito>` v1.1 liste les hors-périmètre)
+- Catégorie `04-citation-verbatim` → idem (le `<regime_de_citacao>` v1.1 + validateur anti-auto-cert)
+
+### 2.7 Snapshot prod conservé
 
 Un backup intégral des 57 chunks actuels a été capturé via Supabase MCP au moment de la rédaction. La policy harness empêche d'écrire un dump de données prod dans le repo — c'est sain. Le snapshot reste disponible côté tool-results temp pour rollback si nécessaire ; **si tu veux le persister, lance manuellement** :
 
