@@ -101,6 +101,12 @@ export async function POST(request: NextRequest) {
 
     const userRole = getUserRole(user) || 'syndic'
 
+    // Tag d'observabilité pour les évals : le header X-Eval-Run-Id permet de
+    // filtrer les traces Langfuse appartenant à une passe d'évaluation
+    // particulière (cf. docs/agent-max/evals/). En production normale, header
+    // absent → tag null, traces dans le flux habituel.
+    const evalRunId = request.headers.get('x-eval-run-id') || null
+
     const rawBody = await request.json()
     const v = validateBody(syndicMaxAiSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
@@ -191,6 +197,13 @@ export async function POST(request: NextRequest) {
             user_id: user.id,
             conversation_id: rawBody.conversation_id,
             prompt: message,
+            metadata: {
+              locale: ragLanguage,
+              chunks_found: chunks.length,
+              hyde_used: !!hydeQuery,
+              attempt,
+              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+            },
           },
           () => callGroqWithRetry({
             messages,
@@ -275,6 +288,11 @@ export async function POST(request: NextRequest) {
         chunks_found: chunks.length,
         chunks_cited: validated.citations.length,
         hyde_used: !!hydeQuery,
+        // Identifiants des chunks effectivement injectés au LLM — utile pour
+        // le replay côté évals (cf. docs/agent-max/evals/run-evals.ts) et le
+        // debug Langfuse. Pas de fuite PII (les ids sont des uuid v4).
+        chunk_ids: chunks.map((c) => c.id),
+        ...(evalRunId ? { eval_run_id: evalRunId } : {}),
       },
     })
   } catch (err: unknown) {
