@@ -20,6 +20,35 @@ export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
+// Cache module-level de l'índice (TOC) du corpus PT. Lu une fois au cold-start
+// du Worker, invalidation au prochain redéploiement (durée de vie de l'isolate).
+// Stratégie hybride Anthropic : la TOC est pré-chargée dans le system prompt,
+// pas récupérée via retrieval — le chunk parent_path='__TOC__' est exclu du RPC.
+let _cachedTocPt: string | null = null
+
+async function loadTocPt(): Promise<string | null> {
+  if (_cachedTocPt !== null) return _cachedTocPt
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('syndic_legal_corpus_pt')
+      .select('content')
+      .eq('parent_path', '__TOC__')
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      logger.warn('[max-ai] TOC load failed (non-bloquant)', { error: error.message })
+      return null
+    }
+    _cachedTocPt = (data?.content as string) ?? null
+    return _cachedTocPt
+  } catch (err) {
+    logger.warn('[max-ai] TOC load exception (non-bloquant)', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
+  }
+}
+
 // ── Max — Consultor juridique strict (Plan 2026) ────────────────────────────
 // Pipeline anti-hallucination :
 //  1. Embed la question + HyDE rewrite (LLM rapide)
@@ -122,10 +151,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 3. Construction du prompt strict avec chunks injectés ──
+    // Pré-chargement de l'índice (TOC) pour la stratégie hybride Anthropic :
+    // Max sait toujours quelles matières la base couvre avant de répondre.
+    const tocContent = isPt ? await loadTocPt() : null
     const systemPrompt = buildMaxStrictSystemPrompt({
       chunks,
       locale: ragLanguage,
       userRole,
+      tocContent: tocContent ?? undefined,
     })
 
     // Historique conversation (limité) — sans le contexte syndic (anti-hallu)
