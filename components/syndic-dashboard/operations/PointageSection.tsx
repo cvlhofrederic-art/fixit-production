@@ -316,19 +316,19 @@ export default function PointageSection({ immeubles, user, onUpdateImmeuble }: {
                       className="sd-pt-field-input"
                       value=""
                       readOnly
-                      placeholder="En cours..."
+                      placeholder={locale === 'pt' ? 'Em curso...' : 'En cours...'}
                     />
                   </div>
                 </div>
 
                 <div className="sd-pt-form-field">
                   <label className="sd-pt-field-label">
-                    Notes de visite{' '}
-                    <span style={{ color: 'var(--sd-ink-3)', fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(optionnel)</span>
+                    {locale === 'pt' ? 'Notas de visita' : 'Notes de visite'}{' '}
+                    <span style={{ color: 'var(--sd-ink-3)', fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>{locale === 'pt' ? '(opcional)' : '(optionnel)'}</span>
                   </label>
                   <textarea
                     className="sd-pt-field-textarea"
-                    placeholder="Observations, travaux constatés, remarques…"
+                    placeholder={locale === 'pt' ? 'Observações, trabalhos verificados, notas…' : 'Observations, travaux constatés, remarques…'}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                   />
