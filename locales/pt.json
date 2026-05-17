@@ -1010,7 +1010,16 @@
       "yes": "Sim",
       "workingCapitalFund": "Fundo de maneio",
       "viewRegulationText": "Ver o texto do regulamento",
-      "addRegulation": "Adicionar o regulamento de condomínio"
+      "addRegulation": "Adicionar o regulamento de condomínio",
+      "managedBuildings": "Edifícios geridos",
+      "activePortfolio": "Carteira ativa",
+      "totalLots": "Frações totais",
+      "totalFractions": "Total de frações",
+      "activeInterventions": "Intervenções ativas",
+      "ongoing": "Em curso",
+      "missingDocs": "Documentos em falta",
+      "regulationsToAdd": "Regulamentos a adicionar",
+      "managePortfolio": "Gere a sua carteira imobiliária"
     },
     "missions": {
       "title": "Ordens de serviço",
