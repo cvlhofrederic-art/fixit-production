@@ -48,10 +48,11 @@ export default function ArtisansPageSection({
       const res = await fetch('/api/syndic/artisans', {
         headers: { Authorization: `Bearer ${token}` }
       })
+      let mapped: Artisan[] = []
       if (res.ok) {
         const data = await res.json()
         if (data.artisans && data.artisans.length > 0) {
-          const mapped: Artisan[] = data.artisans.map((a: Artisan) => ({
+          mapped = data.artisans.map((a: Artisan) => ({
             ...a,
             nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
             rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -59,10 +60,31 @@ export default function ArtisansPageSection({
             nbInterventions: a.nb_interventions ?? a.nbInterventions ?? 0,
             vitfixCertifie: a.vitfix_certifie ?? a.vitfixCertifie ?? false,
           }))
-          setArtisans(mapped)
         }
-        setArtisansLoaded(true)
       }
+
+      // ── Démo PT : merge profissionais portugais depuis localStorage seed ──
+      // Permet de montrer les 6 prestadores PT (canalizador, eletricista, etc.)
+      // en plus des vrais artisans Supabase.
+      if (locale === 'pt' && typeof window !== 'undefined') {
+        try {
+          const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+          const uid = session?.user?.id
+          if (uid) {
+            const seeded = localStorage.getItem(`fixit_artisans_pt_${uid}`)
+            if (seeded) {
+              const seedArtisans = JSON.parse(seeded) as Artisan[]
+              // Anti-doublons : on garde ceux du seed qui ne sont pas déjà dans mapped (par id)
+              const existingIds = new Set(mapped.map(a => a.id))
+              const newOnes = seedArtisans.filter(a => !existingIds.has(a.id))
+              mapped = [...mapped, ...newOnes]
+            }
+          }
+        } catch { /* silencieux */ }
+      }
+
+      if (mapped.length > 0) setArtisans(mapped)
+      setArtisansLoaded(true)
     } catch { /* silencieux */ }
   }
 
