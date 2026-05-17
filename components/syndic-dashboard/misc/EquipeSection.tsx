@@ -152,9 +152,35 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await res.json()
-      setMembers(data.members || [])
+      const apiMembers: TeamMember[] = data.members || []
+
+      // Fallback démo PT : si locale='pt' et API ne renvoie pas de colaboradores,
+      // utiliser le seed localStorage (set démo investisseur).
+      if (locale === 'pt' && apiMembers.length === 0 && session?.user?.id) {
+        try {
+          const seeded = localStorage.getItem(`fixit_team_pt_demo_${session.user.id}`)
+          if (seeded) {
+            const parsed = JSON.parse(seeded) as TeamMember[]
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setMembers(parsed)
+              return
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      setMembers(apiMembers)
     } catch (e) {
       console.error(e)
+      // Fallback démo PT en cas d'erreur API
+      if (locale === 'pt') {
+        try {
+          const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+          if (session?.user?.id) {
+            const seeded = localStorage.getItem(`fixit_team_pt_demo_${session.user.id}`)
+            if (seeded) setMembers(JSON.parse(seeded) as TeamMember[])
+          }
+        } catch { /* ignore */ }
+      }
     } finally {
       setLoading(false)
     }
