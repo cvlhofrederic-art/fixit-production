@@ -12,11 +12,29 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createHash } from 'node:crypto'
 import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
+import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { embedBatch, formatVectorLiteral } from '@/lib/syndic/embed'
 import { decodeCorpusMd } from '@/lib/syndic/legal-corpus-pt-md'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { logger } from '@/lib/logger'
+
+// Auth dual-path : Bearer header OU cookies SSR. Permet d'appeler la route
+// depuis curl avec token OU depuis la session navigateur du super_admin.
+async function authenticateSuperAdmin(request: NextRequest) {
+  // Path 1 : Bearer header (script/CI)
+  const bearerUser = await getAuthUser(request)
+  if (bearerUser && isSuperAdmin(bearerUser)) return bearerUser
+  // Path 2 : cookies SSR (navigateur logged in)
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user && isSuperAdmin(user)) return user
+  } catch {
+    // ignore
+  }
+  return null
+}
 
 export const maxDuration = 30
 
@@ -210,8 +228,8 @@ function buildHypotheticalQuestion(c: ParsedChunk): string {
 // Route POST — ingestion idempotente
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
-  const user = await getAuthUser(request)
-  if (!user || !isSuperAdmin(user)) {
+  const user = await authenticateSuperAdmin(request)
+  if (!user) {
     return NextResponse.json({ error: 'super_admin_required' }, { status: 403 })
   }
 
@@ -304,8 +322,8 @@ export async function POST(request: NextRequest) {
 
 // Handler GET pour vérifier la couverture (audit + monitoring)
 export async function GET(request: NextRequest) {
-  const user = await getAuthUser(request)
-  if (!user || !isSuperAdmin(user)) {
+  const user = await authenticateSuperAdmin(request)
+  if (!user) {
     return NextResponse.json({ error: 'super_admin_required' }, { status: 403 })
   }
   const { count } = await supabaseAdmin
