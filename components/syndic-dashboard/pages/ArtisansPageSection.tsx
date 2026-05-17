@@ -206,12 +206,12 @@ export default function ArtisansPageSection({
               <button
                 onClick={() => { setArtisansLoaded(false) }}
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1"
-                title={locale === 'pt' ? 'Atualizar a conformidade a partir da carteira do artesão' : 'Rafraîchir la conformité depuis le wallet artisan'}
+                title={locale === 'pt' ? 'Atualizar a conformidade a partir da carteira do profissional' : 'Rafraîchir la conformité depuis le wallet artisan'}
               >
                 🔄 {locale === 'pt' ? 'Sincro conformidade' : 'Synchro conformité'}
               </button>
               <button onClick={() => { setShowModalArtisan(true); setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }); setArtisanSearchResult(null); setArtisanError(''); setArtisanSuccess(''); }} className="bg-[#0D1B2E] hover:bg-[#152338] text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
-                + {locale === 'pt' ? 'Adicionar um artesão' : 'Ajouter un artisan'}
+                + {locale === 'pt' ? 'Adicionar um profissional' : 'Ajouter un artisan'}
               </button>
             </div>
           </div>
@@ -250,13 +250,13 @@ export default function ArtisansPageSection({
                     <div>📧 {a.email}</div>
                     <div>📋 {nbInterv} {locale === 'pt' ? 'intervenções' : 'interventions'}</div>
                     <div className={`${rcOk ? 'text-green-600' : 'text-red-500 font-semibold'}`}>
-                      {rcOk ? (locale === 'pt' ? '✅ RC Pro válido' : '✅ RC Pro valide') : (locale === 'pt' ? '❌ RC Pro em falta' : '❌ RC Pro manquante')}
+                      {rcOk ? (locale === 'pt' ? '✅ Seguro RC válido' : '✅ RC Pro valide') : (locale === 'pt' ? '❌ Seguro RC em falta' : '❌ RC Pro manquante')}
                     </div>
                   </div>
                   {/* ── RC Pro status ── */}
                   {rcOk && rcExp && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 mb-2 flex items-center gap-2">
-                      <span>📄 {locale === 'pt' ? `RC Pro válido até ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro valide jusqu'au ${new Date(rcExp).toLocaleDateString('fr-FR')}`}</span>
+                      <span>📄 {locale === 'pt' ? `Seguro RC válido até ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro valide jusqu'au ${new Date(rcExp).toLocaleDateString('fr-FR')}`}</span>
                       {new Date(rcExp) < new Date(Date.now() + 60 * 86400000) && (
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{locale === 'pt' ? 'Expira em breve' : 'Expire bientôt'}</span>
                       )}
@@ -264,12 +264,12 @@ export default function ArtisansPageSection({
                   )}
                   {!rcOk && rcExp && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-2">
-                      ⚠️ {locale === 'pt' ? `RC Pro expirado a ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro expirée le ${new Date(rcExp).toLocaleDateString('fr-FR')}`}
+                      ⚠️ {locale === 'pt' ? `Seguro RC expirado a ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro expirée le ${new Date(rcExp).toLocaleDateString('fr-FR')}`}
                     </div>
                   )}
                   {!rcOk && !rcExp && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 mb-2">
-                      💡 {locale === 'pt' ? 'O profissional deve carregar o seu RC Pro no Wallet de Conformidade' : 'L\'artisan doit uploader sa RC Pro dans son Wallet Conformité'}
+                      💡 {locale === 'pt' ? 'O profissional deve carregar o seu Seguro RC no Wallet de Conformidade' : 'L\'artisan doit uploader sa RC Pro dans son Wallet Conformité'}
                     </div>
                   )}
                   {/* ── Décennale status ── */}
@@ -305,7 +305,7 @@ export default function ArtisansPageSection({
                     <button
                       onClick={() => handleDeleteArtisan(a.id, a.nom)}
                       className="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 py-1.5 px-2 rounded-lg transition"
-                      title={locale === 'pt' ? 'Remover este artesão do gabinete' : 'Retirer cet artisan du cabinet'}
+                      title={locale === 'pt' ? 'Remover este profissional do gabinete' : 'Retirer cet artisan du cabinet'}
                     >
                       🗑️
                     </button>
@@ -402,7 +402,7 @@ export default function ArtisansPageSection({
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">🔧 {locale === 'pt' ? 'Adicionar um artesão' : 'Ajouter un artisan'}</h2>
+                <h2 className="text-xl font-bold text-gray-900">🔧 {locale === 'pt' ? 'Adicionar um profissional' : 'Ajouter un artisan'}</h2>
                 <button onClick={() => setShowModalArtisan(false)} aria-label={t('syndicDash.common.close')} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
               </div>
 
@@ -415,7 +415,7 @@ export default function ArtisansPageSection({
                 <div className="space-y-4">
                   {/* Étape 1 : email */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Email do artesão *' : 'Email de l\'artisan *'}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Email do profissional *' : 'Email de l\'artisan *'}</label>
                     <div className="flex gap-2">
                       <input
                         type="email"
@@ -435,8 +435,8 @@ export default function ArtisansPageSection({
                     {artisanSearchResult && (
                       <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-blue-50 border border-blue-200 text-blue-800' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
                         {artisanSearchResult.found
-                          ? <>✅ {locale === 'pt' ? 'Conta Vitfix encontrada' : 'Compte Vitfix trouvé'} — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? (locale === 'pt' ? 'artesão certificado' : 'artisan certifié') : artisanSearchResult.role})<br/><span className="text-xs">{locale === 'pt' ? 'Será sincronizado com o seu gabinete.' : 'Il sera synchronisé avec votre cabinet.'}</span></>
-                          : <>{locale === 'pt' ? '⚠️ Nenhuma conta Vitfix. Pode criar uma conta de artesão ou adicioná-lo sem conta.' : '⚠️ Aucun compte Vitfix. Vous pouvez créer un compte artisan ou l\'ajouter sans compte.'}</>
+                          ? <>✅ {locale === 'pt' ? 'Conta Vitfix encontrada' : 'Compte Vitfix trouvé'} — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? (locale === 'pt' ? 'profissional certificado' : 'artisan certifié') : artisanSearchResult.role})<br/><span className="text-xs">{locale === 'pt' ? 'Será sincronizado com o seu gabinete.' : 'Il sera synchronisé avec votre cabinet.'}</span></>
+                          : <>{locale === 'pt' ? '⚠️ Nenhuma conta Vitfix. Pode criar uma conta de profissional ou adicioná-lo sem conta.' : '⚠️ Aucun compte Vitfix. Vous pouvez créer un compte artisan ou l\'ajouter sans compte.'}</>
                         }
                       </div>
                     )}
@@ -506,7 +506,7 @@ export default function ArtisansPageSection({
                           disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
                           className="w-full px-4 py-2 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
                         >
-                          {artisanSubmitting ? (locale === 'pt' ? 'Criação...' : 'Création...') : (locale === 'pt' ? '+ Criar a conta artesão' : '+ Créer le compte artisan')}
+                          {artisanSubmitting ? (locale === 'pt' ? 'A criar...' : 'Création...') : (locale === 'pt' ? '+ Criar perfil de profissional' : '+ Créer le compte artisan')}
                         </button>
                         <button
                           onClick={() => handleAddArtisan(false)}
@@ -522,7 +522,7 @@ export default function ArtisansPageSection({
                         disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
                         className="flex-1 px-4 py-2 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
                       >
-                        {artisanSubmitting ? (locale === 'pt' ? 'A adicionar...' : 'Ajout...') : (locale === 'pt' ? '+ Adicionar o artesão' : '+ Ajouter l\'artisan')}
+                        {artisanSubmitting ? (locale === 'pt' ? 'A adicionar...' : 'Ajout...') : (locale === 'pt' ? '+ Adicionar o profissional' : '+ Ajouter l\'artisan')}
                       </button>
                     )}
                   </div>
