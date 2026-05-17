@@ -11,7 +11,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { createHash } from 'node:crypto'
-import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { embedBatch, formatVectorLiteral } from '@/lib/syndic/embed'
@@ -24,12 +24,12 @@ import { logger } from '@/lib/logger'
 async function authenticateSuperAdmin(request: NextRequest) {
   // Path 1 : Bearer header (script/CI)
   const bearerUser = await getAuthUser(request)
-  if (bearerUser && isSuperAdmin(bearerUser)) return bearerUser
+  if (bearerUser && isSyndicRole(bearerUser)) return bearerUser
   // Path 2 : cookies SSR (navigateur logged in)
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (user && isSuperAdmin(user)) return user
+    if (user && isSyndicRole(user)) return user
   } catch {
     // ignore
   }
