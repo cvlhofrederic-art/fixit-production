@@ -199,7 +199,7 @@ export default function ArtisansPageSection({
           <div className="flex items-center justify-between">
             <p className="text-gray-500 text-sm">
               {locale === 'pt'
-                ? <>{artisans.length} profissionais registados · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certificados Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro válidos · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Decenais válidos</>
+                ? <>{artisans.length} prestadores registados · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certificados Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} com Seguro RC válido · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} com garantia decenal</>
                 : <>{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro valides · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Décennales valides</>}
             </p>
             <div className="flex gap-2">

@@ -9,7 +9,7 @@
 // Cohérence : NIF 9 chiffres, NIPC, IVA 23%, dates récentes alignées,
 // liens entre entités (mission ↔ artisan ↔ edifício ↔ condómino).
 
-import type { Mission, Immeuble, Artisan, Alerte, PlanningEvent, Coproprio, CanalInterneMsg, GEDDocument, EcheanceReglementaire } from '@/components/syndic-dashboard/types'
+import type { Mission, Immeuble, Artisan, Alerte, PlanningEvent, Coproprio, CanalInterneMsg, GEDDocument, EcheanceReglementaire, TeamMember } from '@/components/syndic-dashboard/types'
 
 // ─── Edifícios (4) ──────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ export const SEED_PT_EDIFICIOS: Immeuble[] = [
     nbLots: 12,
     anneeConstruction: 2008,
     typeImmeuble: 'Residencial',
-    gestionnaire: 'Cabinet Vitfix Pro',
+    gestionnaire: 'Gabinete Vitfix Portugal',
     prochainControle: '2026-09-15',
     nbInterventions: 8,
     budgetAnnuel: 48000,
@@ -43,7 +43,7 @@ export const SEED_PT_EDIFICIOS: Immeuble[] = [
     nbLots: 8,
     anneeConstruction: 2015,
     typeImmeuble: 'Misto (Hab. + Comércio)',
-    gestionnaire: 'Cabinet Vitfix Pro',
+    gestionnaire: 'Gabinete Vitfix Portugal',
     prochainControle: '2026-06-30',
     nbInterventions: 4,
     budgetAnnuel: 36000,
@@ -63,7 +63,7 @@ export const SEED_PT_EDIFICIOS: Immeuble[] = [
     nbLots: 10,
     anneeConstruction: 1998,
     typeImmeuble: 'Residencial',
-    gestionnaire: 'Cabinet Vitfix Pro',
+    gestionnaire: 'Gabinete Vitfix Portugal',
     prochainControle: '2026-04-22',
     nbInterventions: 11,
     budgetAnnuel: 42000,
@@ -83,7 +83,7 @@ export const SEED_PT_EDIFICIOS: Immeuble[] = [
     nbLots: 10,
     anneeConstruction: 2020,
     typeImmeuble: 'Residencial Premium',
-    gestionnaire: 'Cabinet Vitfix Pro',
+    gestionnaire: 'Gabinete Vitfix Portugal',
     prochainControle: '2027-01-10',
     nbInterventions: 2,
     budgetAnnuel: 62000,
@@ -96,7 +96,76 @@ export const SEED_PT_EDIFICIOS: Immeuble[] = [
   },
 ]
 
-// ─── Profissionais (6) ───────────────────────────────────────────────────────
+// ─── Colaboradores internos do gabinete (5) ──────────────────────────────────
+// IMPORTANT : distinction PT-PT entre "Prestadores de Serviços" (externes ci-dessous)
+// et "Colaboradores" du gabinete (équipe interne ci-dessous).
+
+export const SEED_PT_COLABORADORES: TeamMember[] = [
+  {
+    id: 'pt-team-001',
+    email: 'admin@gabinete-vitfix.pt',
+    full_name: 'Helena Carvalho',
+    role: 'syndic_admin',
+    invite_token: null,
+    invite_sent_at: '2024-09-01T08:00:00Z',
+    accepted_at: '2024-09-01T10:30:00Z',
+    is_active: true,
+    created_at: '2024-09-01T08:00:00Z',
+    custom_modules: null,
+  },
+  {
+    id: 'pt-team-002',
+    email: 'gestor.tecnico@gabinete-vitfix.pt',
+    full_name: 'Bruno Tavares',
+    role: 'syndic_tech',
+    invite_token: null,
+    invite_sent_at: '2024-10-15T09:00:00Z',
+    accepted_at: '2024-10-16T14:20:00Z',
+    is_active: true,
+    created_at: '2024-10-15T09:00:00Z',
+    custom_modules: null,
+  },
+  {
+    id: 'pt-team-003',
+    email: 'secretaria@gabinete-vitfix.pt',
+    full_name: 'Margarida Sousa',
+    role: 'syndic_secretaire',
+    invite_token: null,
+    invite_sent_at: '2024-11-02T11:00:00Z',
+    accepted_at: '2024-11-02T16:45:00Z',
+    is_active: true,
+    created_at: '2024-11-02T11:00:00Z',
+    custom_modules: null,
+  },
+  {
+    id: 'pt-team-004',
+    email: 'contabilidade@gabinete-vitfix.pt',
+    full_name: 'Ricardo Almeida',
+    role: 'syndic_comptable',
+    invite_token: null,
+    invite_sent_at: '2024-11-20T08:30:00Z',
+    accepted_at: '2024-11-21T09:15:00Z',
+    is_active: true,
+    created_at: '2024-11-20T08:30:00Z',
+    custom_modules: null,
+  },
+  {
+    id: 'pt-team-005',
+    email: 'juridico@gabinete-vitfix.pt',
+    full_name: 'Inês Monteiro',
+    role: 'syndic_juriste',
+    invite_token: null,
+    invite_sent_at: '2025-01-10T10:00:00Z',
+    accepted_at: '2025-01-11T11:30:00Z',
+    is_active: true,
+    created_at: '2025-01-10T10:00:00Z',
+    custom_modules: null,
+  },
+]
+
+// ─── Prestadores de Serviços externos (6) ────────────────────────────────────
+// Profissionais externos qui executam intervenções nos edifícios geridos.
+// NÃO são colaboradores do gabinete síndico (ver SEED_PT_COLABORADORES acima).
 
 export const SEED_PT_PROFISSIONAIS: Artisan[] = [
   {
@@ -217,9 +286,20 @@ const FLOORS = ['R/C', '1.º', '2.º', '3.º']
 const SIDES = ['Esq.', 'Dto.', 'Frt.']
 
 function genNif(seed: number): string {
-  // NIF démo réaliste (9 chiffres, commence par 1, 2 ou 5 pour personne singular)
-  const base = (123456789 + seed * 17).toString().padStart(9, '0').slice(0, 9)
-  return base[0] === '0' ? '2' + base.slice(1) : base
+  // NIF démo réaliste : 9 chiffres, premier digit ∈ {1,2,5} pour personne singular PT
+  // Évite NIF commençant par 0. Séquence pseudo-aléatoire mais stable par seed.
+  const prefixes = ['1', '2', '5']
+  const prefix = prefixes[seed % 3]
+  const rest = ((seed * 7919 + 31337) % 100000000).toString().padStart(8, '0')
+  return `${prefix}${rest}`
+}
+
+function genPhone(seed: number, prefix: '91' | '92' | '93'): string {
+  // Format PT : 9X XXX XX XX
+  const second = (seed * 13 + 200) % 900 + 100
+  const third = (seed * 17 + 300) % 90 + 10
+  const fourth = (seed * 23 + 400) % 90 + 10
+  return `${prefix}${seed % 8 + 2} ${second} ${third} ${fourth}`
 }
 
 function genCondomino(idx: number, edificio: Immeuble, fracIdx: number): Coproprio {
@@ -228,7 +308,9 @@ function genCondomino(idx: number, edificio: Immeuble, fracIdx: number): Copropr
   const floor = FLOORS[fracIdx % FLOORS.length]
   const side = SIDES[Math.floor(fracIdx / FLOORS.length) % SIDES.length]
   const numeroPorte = `Fração ${String.fromCharCode(65 + fracIdx)} — ${floor} ${side}`
-  const estOccupe = idx % 3 === 0
+  const estOccupe = idx % 3 !== 0  // 67% occupé par proprio, 33% loué (plus réaliste pour démo)
+  const nif = genNif(idx + 1)
+  const emailSafe = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ç/g, 'c')
   return {
     id: `pt-cond-${idx.toString().padStart(3, '0')}`,
     immeuble: edificio.nom,
@@ -237,16 +319,16 @@ function genCondomino(idx: number, edificio: Immeuble, fracIdx: number): Copropr
     numeroPorte,
     nomProprietaire: lastName,
     prenomProprietaire: firstName,
-    emailProprietaire: `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(/[áéíóú]/g, c => 'aeiou'['áéíóú'.indexOf(c)])}@mail.pt`,
-    telephoneProprietaire: `91${(2 + idx % 8)} ${(100 + idx * 7) % 900 + 100} ${(200 + idx * 11) % 900 + 100}`,
+    emailProprietaire: `${emailSafe}@mail.pt`,
+    telephoneProprietaire: genPhone(idx, '91'),
     ...(estOccupe ? {} : {
       nomLocataire: PT_LAST_NAMES[(idx * 13) % PT_LAST_NAMES.length],
       prenomLocataire: PT_FIRST_NAMES[(idx * 5 + 3) % PT_FIRST_NAMES.length],
-      emailLocataire: `inquilino${idx}@mail.pt`,
-      telephoneLocataire: `92${(1 + idx % 9)} ${(300 + idx * 9) % 900 + 100} ${(400 + idx * 13) % 900 + 100}`,
+      emailLocataire: `inquilino.${idx + 1}@mail.pt`,
+      telephoneLocataire: genPhone(idx, '92'),
     }),
     estOccupe,
-    notes: idx % 7 === 0 ? `NIF: ${genNif(idx)}` : undefined,
+    notes: `NIF: ${nif}`,
   }
 }
 
@@ -612,7 +694,8 @@ export const SEED_PT_ECHEANCES: EcheanceReglementaire[] = [
 
 // ─── API publique : seedSyndicPtDemoIfEmpty ──────────────────────────────────
 
-const SEED_VERSION = 'pt-v1'
+const SEED_VERSION = 'pt-v2'
+const LEGACY_VERSIONS = ['pt-v1']
 
 interface SeedResult {
   seeded: boolean
@@ -624,6 +707,7 @@ export const SYNDIC_PT_DEMO_DATA = {
   imoveis: SEED_PT_EDIFICIOS,
   condominos: SEED_PT_CONDOMINOS,
   profissionais: SEED_PT_PROFISSIONAIS,
+  colaboradores: SEED_PT_COLABORADORES,
   missoes: SEED_PT_MISSOES,
   alertas: SEED_PT_ALERTAS,
   eventos: SEED_PT_EVENTOS,
@@ -632,14 +716,51 @@ export const SYNDIC_PT_DEMO_DATA = {
   echeances: SEED_PT_ECHEANCES,
 }
 
+/** Liste exhaustive des clés localStorage utilisées par le seed PT. */
+const SEED_PT_KEYS = (uid: string) => [
+  `fixit_syndic_immeubles_${uid}`,
+  `fixit_syndic_missions_${uid}`,
+  `fixit_copros_${uid}`,
+  `fixit_planning_events_${uid}`,
+  `fixit_canal_interne_${uid}`,
+  `fixit_ged_${uid}`,
+  `fixit_cal_regl_${uid}`,
+  `fixit_artisans_pt_${uid}`,
+  `fixit_alertes_${uid}`,
+  `fixit_team_pt_demo_${uid}`,
+  `fixit_syndic_batiments_${uid}`,
+]
+
+function detectIsSeedData(parsed: unknown): boolean {
+  // Vérifie si les données existantes sont un seed PT (commence par 'pt-')
+  if (!Array.isArray(parsed) || parsed.length === 0) return false
+  const first = parsed[0] as { id?: unknown }
+  return typeof first?.id === 'string' && (first.id as string).startsWith('pt-')
+}
+
+function writeSeed(userId: string): void {
+  localStorage.setItem(`fixit_syndic_immeubles_${userId}`, JSON.stringify(SEED_PT_EDIFICIOS))
+  localStorage.setItem(`fixit_syndic_missions_${userId}`, JSON.stringify(SEED_PT_MISSOES))
+  localStorage.setItem(`fixit_copros_${userId}`, JSON.stringify(SEED_PT_CONDOMINOS))
+  localStorage.setItem(`fixit_planning_events_${userId}`, JSON.stringify(SEED_PT_EVENTOS))
+  localStorage.setItem(`fixit_canal_interne_${userId}`, JSON.stringify(SEED_PT_CANAL))
+  localStorage.setItem(`fixit_ged_${userId}`, JSON.stringify(SEED_PT_DOCUMENTOS))
+  localStorage.setItem(`fixit_cal_regl_${userId}`, JSON.stringify(SEED_PT_ECHEANCES))
+  localStorage.setItem(`fixit_artisans_pt_${userId}`, JSON.stringify(SEED_PT_PROFISSIONAIS))
+  localStorage.setItem(`fixit_alertes_${userId}`, JSON.stringify(SEED_PT_ALERTAS))
+  localStorage.setItem(`fixit_team_pt_demo_${userId}`, JSON.stringify(SEED_PT_COLABORADORES))
+  // Liste des bâtiments connus (utilisé par le formulaire mission)
+  const batiments = SEED_PT_EDIFICIOS.map(e => e.nom)
+  localStorage.setItem(`fixit_syndic_batiments_${userId}`, JSON.stringify(batiments))
+}
+
 /**
  * Injecte le set démo PT dans localStorage si :
  * - locale est 'pt'
- * - le flag fixit_seed_pt_v1_${uid} n'existe pas (seed jamais fait)
- * - les états existants sont vides ou minimaux
+ * - le flag fixit_seed_pt-v2_${uid} n'existe pas
+ * - les états existants sont vides OU contiennent une ancienne version du seed (auto-migration)
  *
- * Idempotent : appeler plusieurs fois ne réinjecte pas.
- * Retourne le résultat pour permettre au caller de re-hydrater les states.
+ * Idempotent : appeler plusieurs fois ne réinjecte pas une fois la v2 marquée.
  */
 export function seedSyndicPtDemoIfEmpty(userId: string, locale: string): SeedResult {
   if (typeof window === 'undefined') return { seeded: false, reason: 'ssr' }
@@ -649,33 +770,34 @@ export function seedSyndicPtDemoIfEmpty(userId: string, locale: string): SeedRes
   const flagKey = `fixit_seed_${SEED_VERSION}_${userId}`
   if (localStorage.getItem(flagKey)) return { seeded: false, reason: 'already-seeded' }
 
-  // Vérification minimale : si l'utilisateur a déjà des données réelles, skip
-  const existingImmeubles = localStorage.getItem(`fixit_syndic_immeubles_${userId}`)
-  if (existingImmeubles) {
-    try {
-      const parsed = JSON.parse(existingImmeubles)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        localStorage.setItem(flagKey, '1')
-        return { seeded: false, reason: 'user-has-data' }
-      }
-    } catch {}
+  // Auto-migration depuis anciennes versions : si l'utilisateur a un flag d'une
+  // ancienne version (pt-v1, etc.), on purge silencieusement et re-seed en v2.
+  const hasLegacy = LEGACY_VERSIONS.some(v => localStorage.getItem(`fixit_seed_${v}_${userId}`))
+
+  // Vérification : si l'utilisateur a des données qui ne sont PAS un seed
+  // (= vraies données métier), on skip pour ne pas écraser.
+  if (!hasLegacy) {
+    const existingImmeubles = localStorage.getItem(`fixit_syndic_immeubles_${userId}`)
+    if (existingImmeubles) {
+      try {
+        const parsed = JSON.parse(existingImmeubles)
+        if (Array.isArray(parsed) && parsed.length > 0 && !detectIsSeedData(parsed)) {
+          // Données réelles présentes — marquer le flag pour ne plus essayer
+          localStorage.setItem(flagKey, '1')
+          return { seeded: false, reason: 'user-has-data' }
+        }
+      } catch { /* ignore */ }
+    }
   }
 
   try {
-    localStorage.setItem(`fixit_syndic_immeubles_${userId}`, JSON.stringify(SEED_PT_EDIFICIOS))
-    localStorage.setItem(`fixit_syndic_missions_${userId}`, JSON.stringify(SEED_PT_MISSOES))
-    localStorage.setItem(`fixit_copros_${userId}`, JSON.stringify(SEED_PT_CONDOMINOS))
-    localStorage.setItem(`fixit_planning_events_${userId}`, JSON.stringify(SEED_PT_EVENTOS))
-    localStorage.setItem(`fixit_canal_interne_${userId}`, JSON.stringify(SEED_PT_CANAL))
-    localStorage.setItem(`fixit_ged_${userId}`, JSON.stringify(SEED_PT_DOCUMENTOS))
-    localStorage.setItem(`fixit_cal_regl_${userId}`, JSON.stringify(SEED_PT_ECHEANCES))
-    localStorage.setItem(`fixit_artisans_pt_${userId}`, JSON.stringify(SEED_PT_PROFISSIONAIS))
-    localStorage.setItem(`fixit_alertes_${userId}`, JSON.stringify(SEED_PT_ALERTAS))
+    // Purge des anciennes données seed (migration v1 → v2)
+    if (hasLegacy) {
+      SEED_PT_KEYS(userId).forEach(k => localStorage.removeItem(k))
+      LEGACY_VERSIONS.forEach(v => localStorage.removeItem(`fixit_seed_${v}_${userId}`))
+    }
 
-    // Liste des bâtiments connus (utilisé par le formulaire mission)
-    const batiments = SEED_PT_EDIFICIOS.map(e => e.nom)
-    localStorage.setItem(`fixit_syndic_batiments_${userId}`, JSON.stringify(batiments))
-
+    writeSeed(userId)
     localStorage.setItem(flagKey, '1')
     return { seeded: true, data: SYNDIC_PT_DEMO_DATA }
   } catch (e) {
@@ -685,11 +807,21 @@ export function seedSyndicPtDemoIfEmpty(userId: string, locale: string): SeedRes
 }
 
 /**
- * Force le re-seed (utilisé par un bouton "Réinitialiser démo")
+ * Force le re-seed (utilisé par un bouton "Reiniciar demonstração")
+ * Purge toutes les clés seed et réinjecte. Reload conseillé après.
  */
 export function forceSeedSyndicPt(userId: string): SeedResult {
   if (typeof window === 'undefined') return { seeded: false, reason: 'ssr' }
-  const flagKey = `fixit_seed_${SEED_VERSION}_${userId}`
-  localStorage.removeItem(flagKey)
-  return seedSyndicPtDemoIfEmpty(userId, 'pt')
+  // Purge intégrale des anciennes versions + courante
+  SEED_PT_KEYS(userId).forEach(k => localStorage.removeItem(k))
+  ;[...LEGACY_VERSIONS, SEED_VERSION].forEach(v => localStorage.removeItem(`fixit_seed_${v}_${userId}`))
+  // Re-seed
+  try {
+    writeSeed(userId)
+    localStorage.setItem(`fixit_seed_${SEED_VERSION}_${userId}`, '1')
+    return { seeded: true, data: SYNDIC_PT_DEMO_DATA }
+  } catch (e) {
+    console.warn('[force-seed-syndic-pt] failed:', e)
+    return { seeded: false, reason: 'localStorage-error' }
+  }
 }
