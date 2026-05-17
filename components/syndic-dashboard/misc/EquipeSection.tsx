@@ -541,6 +541,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
           {[
             { role: 'syndic_admin', descKey: 'syndicDash.equipe.roleDesc.admin' },
             { role: 'syndic_tech', descKey: 'syndicDash.equipe.roleDesc.tech' },
+            { role: 'syndic_technicien', descKey: 'syndicDash.equipe.roleDesc.technicien' },
             { role: 'syndic_secretaire', descKey: 'syndicDash.equipe.roleDesc.secretary' },
             { role: 'syndic_gestionnaire', descKey: 'syndicDash.equipe.roleDesc.manager' },
             { role: 'syndic_comptable', descKey: 'syndicDash.equipe.roleDesc.accountant' },
