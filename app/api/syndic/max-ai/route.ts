@@ -1,118 +1,63 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry, callGroqStreaming, type GroqResponse } from '@/lib/groq'
+import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
 import { traceAgent } from '@/lib/langfuse'
 import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
-import { buildMaxSystemPromptFR } from '@/lib/syndic/prompts/max/system-prompt-fr'
-import { buildMaxSystemPromptPT } from '@/lib/syndic/prompts/max/system-prompt-pt'
-import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
-import { wrapGroqStreamWithPIIResolution, SSE_HEADERS } from '@/lib/syndic/agent-sse-stream'
-import { resolveLegalToolCalls } from '@/lib/syndic/max-legal-rag'
+import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { retrieveLegalChunks } from '@/lib/syndic/max-legal-rag'
+import {
+  buildMaxStrictSystemPrompt,
+  buildHyDEPrompt,
+  getRefusalMessage,
+} from '@/lib/syndic/max-strict-prompt'
+import { validateMaxResponse, type MaxValidatedCitation } from '@/lib/syndic/max-validate'
 
 export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
-// ── Max — Expert-Conseil IA Syndic (lecture seule, pas d'actions) ─────────────
-// Modèle : llama-3.3-70b-versatile (Groq)
-// Rôle : conseiller expert copropriété, réglementation, comptabilité, contentieux
+// ── Max — Consultor juridique strict (Plan 2026) ────────────────────────────
+// Pipeline anti-hallucination :
+//  1. Embed la question + HyDE rewrite (LLM rapide)
+//  2. Hybrid search PT (vector + BM25 RRF) sur syndic_legal_corpus_pt
+//  3. Rerank cross-encoder + MMR diversité
+//  4. Si 0 chunks pertinents → refus formaté (corpus gap)
+//  5. Prompt strict + JSON mode + tool calling structuré
+//  6. Validation post-gen : chunk_id existence + quote literal + coverage + cross-locale
+//  7. Retry une fois si validation échoue, sinon refusal de secours
+//
+// Réponse : { response: string, citations: Citation[], confidence, refusal }
 
-const ROLE_CONFIGS: Record<string, { name: string; namePt: string; emoji: string; expertise: string; expertisePt: string }> = {
-  syndic: {
-    name: 'Administrateur Cabinet', namePt: 'Administrador do Gabinete',
-    emoji: '🏢',
-    expertise: 'Administration complète du cabinet, gestion financière, juridique, équipe, artisans, copropriétaires',
-    expertisePt: 'Administração completa do gabinete, gestão financeira, jurídica, equipa, artesãos, condóminos',
-  },
-  syndic_admin: {
-    name: 'Administrateur Cabinet', namePt: 'Administrador do Gabinete',
-    emoji: '👑',
-    expertise: 'Administration complète du cabinet, gestion financière, juridique, équipe, artisans, copropriétaires',
-    expertisePt: 'Administração completa do gabinete, gestão financeira, jurídica, equipa, artesãos, condóminos',
-  },
-  syndic_tech: {
-    name: 'Gestionnaire Technique', namePt: 'Gestor Técnico',
-    emoji: '🔧',
-    expertise: 'Interventions techniques, artisans, missions, suivi travaux, comptabilité technique, analyse devis/factures, réglementation BTP',
-    expertisePt: 'Intervenções técnicas, artesãos, missões, acompanhamento de obras, contabilidade técnica, análise orçamentos/faturas, regulamentação construção',
-  },
-  syndic_secretaire: {
-    name: 'Secrétaire', namePt: 'Secretário(a)',
-    emoji: '📋',
-    expertise: 'Correspondances, emails, copropriétaires, convocations AG, documents administratifs',
-    expertisePt: 'Correspondências, emails, condóminos, convocatórias AG, documentos administrativos',
-  },
-  syndic_gestionnaire: {
-    name: 'Gestionnaire Copropriété', namePt: 'Gestor de Condomínio',
-    emoji: '🏘️',
-    expertise: 'Gestion copropriétés, immeubles, réglementaire, assemblées générales, contentieux, facturation',
-    expertisePt: 'Gestão de condomínios, edifícios, regulamentação, assembleias gerais, contencioso, faturação',
-  },
-  syndic_comptable: {
-    name: 'Comptable', namePt: 'Contabilista',
-    emoji: '💶',
-    expertise: 'Comptabilité syndic, budgets prévisionnels, appels de charges, factures, rapports financiers, impayés',
-    expertisePt: 'Contabilidade condomínio, orçamentos previsionais, quotas, faturas, relatórios financeiros, dívidas',
-  },
+// ─────────────────────────────────────────────────────────────────────────────
+// HyDE rewriter — appel Groq très court (~500ms) pour générer une réponse
+// hypothétique qu'on embed pour augmenter le recall du retrieval.
+// ─────────────────────────────────────────────────────────────────────────────
+async function generateHyDE(query: string, locale: 'fr' | 'pt'): Promise<string | null> {
+  try {
+    const data = await callGroqWithRetry({
+      messages: [
+        { role: 'user', content: buildHyDEPrompt(query, locale) },
+      ],
+      temperature: 0.2,
+      max_tokens: 300,
+      model: 'llama-3.1-8b-instant', // petit modèle rapide pour HyDE
+    })
+    return data.choices?.[0]?.message?.content?.trim() ?? null
+  } catch (err) {
+    logger.warn('[max-ai] HyDE generation failed (non-bloquant)', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
+  }
 }
 
-interface ImmeubleSummary { nom: string; ville: string; nbLots: number; budgetAnnuel?: number; depensesAnnee?: number; pctBudget: number | string }
-interface ArtisanSummary { nom: string; metier: string; statut: string; rcProValide: boolean; rcProExpiration?: string; note: number; vitfixCertifie?: boolean }
-interface MissionSummary { priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
-interface AlerteSummary { urgence?: string; message: string }
-interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
-interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
-interface CopropriSummary { prenom?: string; nom?: string; immeuble: string; batiment?: string; etage?: string; porte?: string; email?: string; telephone?: string; locataire?: string }
-
-// ── Fallback sans API Groq ────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
-function generateFallback(message: string, ctx: Record<string, any>, userRole: string, isPt: boolean): string {
-  const msg = message.toLowerCase()
-  const stats = ctx.stats || {}
-  const roleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
-  const roleName = isPt ? roleConfig.namePt : roleConfig.name
-
-  if (msg.includes('alerta') || msg.includes('alerte') || msg.includes('urgent')) {
-    const alerts = (ctx.alertes as AlerteSummary[] || []).filter((a) => a.urgence === 'haute')
-    if (alerts.length === 0) return isPt ? '✅ **Nenhum alerta urgente** de momento.' : '✅ **Aucune alerte urgente** en ce moment.'
-    return `🔴 **${alerts.length} ${isPt ? 'alerta(s) urgente(s)' : 'alerte(s) urgente(s)'} :**\n\n${alerts.map((a) => `- ${a.message}`).join('\n')}`
-  }
-
-  if (msg.includes('budget') || msg.includes('orçamento') || msg.includes('dépense') || msg.includes('despesa') || msg.includes('finance') || msg.includes('finanç')) {
-    const loc = isPt ? 'pt-PT' : 'fr-FR'
-    const pct = stats.totalBudget > 0 ? Math.round(stats.totalDepenses / stats.totalBudget * 100) : 0
-    return isPt
-      ? `💶 **Orçamento global** : ${stats.totalDepenses?.toLocaleString(loc)}€ / ${stats.totalBudget?.toLocaleString(loc)}€ (**${pct}% consumido**)\n\n${pct > 80 ? '⚠️ Atenção: orçamento próximo do limite.' : '✅ Orçamento dentro dos limites.'}`
-      : `💶 **Budget global** : ${stats.totalDepenses?.toLocaleString(loc)}€ / ${stats.totalBudget?.toLocaleString(loc)}€ (**${pct}% consommé**)\n\n${pct > 80 ? '⚠️ Attention : budget proche de l\'épuisement.' : '✅ Budget dans les limites.'}`
-  }
-
-  if (msg.includes('mission') || msg.includes('missão') || msg.includes('intervenção')) {
-    return isPt
-      ? `📋 **Missões** : ${ctx.missions?.length || 0} no total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions as MissionSummary[] || []).slice(0, 3).map((m) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
-      : `📋 **Missions** : ${ctx.missions?.length || 0} au total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions as MissionSummary[] || []).slice(0, 3).map((m) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
-  }
-
-  if (msg.includes('artisan') || msg.includes('artesão') || msg.includes('rc pro')) {
-    const expired = (ctx.artisans as ArtisanSummary[] || []).filter((a) => !a.rcProValide)
-    return expired.length > 0
-      ? isPt
-        ? `⚠️ **${expired.length} artesão(s) com RC Pro expirado :**\n\n${expired.map((a) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Ação necessária: suspender até renovação.`
-        : `⚠️ **${expired.length} artisan(s) avec RC Pro expirée :**\n\n${expired.map((a) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Action requise : suspendre jusqu'au renouvellement.`
-      : isPt
-        ? `✅ Todos os artesãos têm **RC Pro válido**.`
-        : `✅ Tous les artisans ont une **RC Pro valide**.`
-  }
-
-  return isPt
-    ? `🎓 **Max — Consultor Especialista ${roleName}**\n\nSou o vosso consultor especialista IA. Configure a chave GROQ_API_KEY para ativar a IA completa.\n\nPosso aconselhar-vos sobre:\n- Direito do condomínio (Código Civil, Lei 8/2022)\n- Regulamentação técnica (SCE, RGEU, SCIE)\n- Gestão de artesãos\n- Contabilidade condomínio\n- Contencioso e procedimentos`
-    : `🎓 **Max — Expert-Conseil ${roleName}**\n\nJe suis votre expert-conseil IA. Configurez la clé GROQ_API_KEY pour activer l'IA complète.\n\nJe peux vous conseiller sur :\n- Le droit de la copropriété\n- La réglementation technique\n- La gestion des artisans\n- La comptabilité syndic\n- Les contentieux et procédures`
-}
-
-// ── Route principale ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Route principale
+// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request)
@@ -130,34 +75,67 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.json()
     const v = validateBody(syndicMaxAiSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- syndic_context has dynamic shape
+    const { message, conversation_history = [], locale } = v.data
+    const ragLanguage: 'fr' | 'pt' = locale === 'pt' ? 'pt' : 'fr'
+    const isPt = ragLanguage === 'pt'
+
+    // Le contexte syndic est utilisé uniquement pour la sanitization PII.
+    // Le nouveau pipeline strict n'injecte PAS les stats/missions/etc. dans le
+    // prompt de Max — uniquement les chunks juridiques retrievés. Cela évite
+    // les hallucinations basées sur du contexte hors-sujet.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const syndic_context = (v.data.syndic_context || {}) as Record<string, any>
-    const { message, conversation_history = [], locale, stream } = v.data
-
-    const isPt = locale === 'pt'
-
-    syndic_context.user_role = userRole
-    syndic_context.user_name = user.user_metadata?.full_name || user.email
-
-    const limitedHistory = Array.isArray(conversation_history) ? conversation_history.slice(-40) : []
+    const { tokenMap } = sanitizeContextForLLM(syndic_context as MaxPromptContext)
 
     if (!GROQ_API_KEY) {
+      // Cas pathologique : la clé Groq n'est pas configurée côté Worker.
+      // On retourne un refusal explicite (pas un fallback marketing).
       return NextResponse.json({
-        response: generateFallback(message, syndic_context, userRole, isPt),
-        fallback: true,
+        response: getRefusalMessage(ragLanguage),
+        citations: [],
+        confidence: 0,
+        refusal: true,
+        error: 'groq_api_key_missing',
       })
     }
 
-    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
-    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(syndic_context as MaxPromptContext)
+    // ── 1. Retrieval multi-étapes : HyDE + Hybrid + Rerank + MMR ──
+    const hydeQuery = await generateHyDE(message, ragLanguage)
+    const chunks = await retrieveLegalChunks(supabaseAdmin, message, ragLanguage, {
+      hydeQuery: hydeQuery ?? undefined,
+    })
 
-    const systemPrompt = isPt
-      ? buildMaxSystemPromptPT(sanitizedCtx, userRole)
-      : buildMaxSystemPromptFR(sanitizedCtx, userRole)
+    // ── 2. Aucun chunk pertinent → refus formaté (corpus gap) ──
+    if (chunks.length === 0) {
+      logger.info('[max-ai] corpus gap — returning refusal', {
+        query: message.slice(0, 80),
+        language: ragLanguage,
+        hyde_used: !!hydeQuery,
+      })
+      return NextResponse.json({
+        response: getRefusalMessage(ragLanguage),
+        citations: [],
+        confidence: 0,
+        refusal: true,
+        retrieval: { chunks_found: 0, hyde_used: !!hydeQuery },
+      })
+    }
 
+    // ── 3. Construction du prompt strict avec chunks injectés ──
+    const systemPrompt = buildMaxStrictSystemPrompt({
+      chunks,
+      locale: ragLanguage,
+      userRole,
+    })
+
+    // Historique conversation (limité) — sans le contexte syndic (anti-hallu)
+    const limitedHistory = Array.isArray(conversation_history) ? conversation_history.slice(-12) : []
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
-      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+      .map((m: { role: string; content: string }) => ({
+        role: m.role,
+        content: String(m.content).substring(0, 2000),
+      }))
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -165,80 +143,120 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    // ── Mode streaming SSE ──
-    if (stream) {
+    // ── 4. Appel Groq avec JSON mode strict ──
+    let groqData: GroqResponse
+    let validated: ReturnType<typeof validateMaxResponse> | null = null
+    let attempt = 0
+    const MAX_ATTEMPTS = 2
+
+    while (attempt < MAX_ATTEMPTS) {
+      attempt++
       try {
-        const rawStream = await callGroqStreaming({
-          messages,
-          temperature: 0.4,
-          max_tokens: 4000,
-        })
-
-        // Enveloppe le stream Groq pour résoudre les tokens PII (helper partagé Plan B).
-        // TODO (Plan H — streaming) : la résolution des tags ##TOOL##cite_legal_source##
-        // n'est PAS appliquée en mode streaming. Le mode classique (non-streaming) reste
-        // le primary path pour les questions juridiques de Max. Si l'utilisateur active
-        // stream + pose une question juridique, les tags apparaîtront tels quels.
-        const readable = wrapGroqStreamWithPIIResolution(rawStream, tokenMap)
-
-        return new Response(readable, { headers: SSE_HEADERS })
+        groqData = await traceAgent(
+          {
+            agent_id: 'max',
+            user_id: user.id,
+            conversation_id: rawBody.conversation_id,
+            prompt: message,
+          },
+          () => callGroqWithRetry({
+            messages,
+            temperature: 0.1,
+            max_tokens: 3500,
+            response_format: { type: 'json_object' },
+          }),
+        )
       } catch (err) {
-        logger.error('[max-ai] Streaming error:', err)
-        return NextResponse.json({
-          response: generateFallback(message, syndic_context, userRole, isPt),
-          fallback: true,
+        logger.error('[max-ai] Groq call failed', {
+          error: err instanceof Error ? err.message : String(err),
+          attempt,
         })
+        if (attempt >= MAX_ATTEMPTS) {
+          return NextResponse.json({
+            response: getRefusalMessage(ragLanguage),
+            citations: [],
+            confidence: 0,
+            refusal: true,
+            error: 'groq_unreachable',
+          })
+        }
+        continue
+      }
+
+      const rawJson = groqData.choices?.[0]?.message?.content ?? ''
+      validated = validateMaxResponse(rawJson, chunks, ragLanguage)
+
+      if (validated.ok) {
+        break
+      }
+      // Si validation échoue, on retry avec un message d'erreur pour le LLM
+      logger.warn('[max-ai] validation failed, retrying', {
+        attempt,
+        reasons: validated.reasons.slice(0, 3),
+      })
+      if (attempt < MAX_ATTEMPTS) {
+        messages.push(
+          { role: 'assistant', content: rawJson },
+          {
+            role: 'user',
+            content: isPt
+              ? `A tua resposta foi rejeitada pelo sistema de validação porque: ${validated.reasons.join('; ')}. Reformula respeitando ESTRITAMENTE as fontes [FONT-X] e o formato JSON.`
+              : `Ta réponse a été rejetée par le système de validation car : ${validated.reasons.join('; ')}. Reformule en respectant STRICTEMENT les sources [FONT-X] et le format JSON.`,
+          },
+        )
       }
     }
 
-    // ── Mode classique (rétrocompatibilité) ──
-    let groqData: GroqResponse
-    try {
-      groqData = await traceAgent(
-        {
-          agent_id: 'max',
-          user_id: user.id,
-          conversation_id: rawBody.conversation_id,
-          prompt: message,
-        },
-        () => callGroqWithRetry({
-          messages,
-          temperature: 0.4,
-          max_tokens: 4000,
-        }),
-      )
-    } catch (err) {
-      logger.error('Groq Max error:', err)
+    // ── 5. Si validation finale échoue → refus de secours ──
+    if (!validated || !validated.ok) {
+      logger.error('[max-ai] validation failed after retries — refusing', {
+        reasons: validated?.reasons ?? ['unknown'],
+      })
       return NextResponse.json({
-        response: generateFallback(message, syndic_context, userRole, isPt),
-        fallback: true,
+        response: getRefusalMessage(ragLanguage),
+        citations: [],
+        confidence: 0,
+        refusal: true,
+        error: 'validation_failed',
+        debug: process.env.NODE_ENV === 'development' ? validated?.reasons : undefined,
       })
     }
 
-    const fallbackMsg = isPt
-      ? 'Não consegui gerar uma resposta. Tente novamente.'
-      : 'Je n\'ai pas pu générer une réponse. Réessayez.'
+    // ── 6. Résolution finale des tokens PII (sécurité défense en profondeur) ──
+    const finalAnswer = resolveSanitizedToken(validated.answer, tokenMap) ?? validated.answer
 
-    const rawResponse: string = groqData.choices?.[0]?.message?.content || fallbackMsg
-    // 1) Résoudre les tags ##TOOL##cite_legal_source## via le corpus juridique RAG.
-    //    La locale détermine strictement la table interrogée (FR vs PT, jamais croisée).
-    const ragLanguage: 'fr' | 'pt' = isPt ? 'pt' : 'fr'
-    let augmented = rawResponse
-    try {
-      augmented = await resolveLegalToolCalls(supabaseAdmin, rawResponse, ragLanguage)
-    } catch (ragErr) {
-      logger.warn('[max-ai] RAG resolution failed, returning raw response', {
-        error: ragErr instanceof Error ? ragErr.message : String(ragErr),
-      })
-    }
-    // 2) Résoudre les tokens PII dans la réponse finale (après l'insertion des citations)
-    const response = resolveSanitizedToken(augmented, tokenMap) ?? augmented
+    // ── 7. Calcul confidence (moyenne des rerankScore des chunks utilisés) ──
+    const usedFontIds = new Set(validated.citations.map((c) => c.font_id))
+    const usedChunks = chunks.filter((c, i) => usedFontIds.has(`FONT-${i + 1}`))
+    const confidence = usedChunks.length > 0
+      ? usedChunks.reduce((s, c) => s + c.score, 0) / usedChunks.length
+      : 0
 
-    return NextResponse.json({ response, role: userRole })
-
+    return NextResponse.json({
+      response: finalAnswer,
+      citations: validated.citations,
+      confidence: Number(confidence.toFixed(3)),
+      refusal: validated.refusal,
+      role: userRole,
+      retrieval: {
+        chunks_found: chunks.length,
+        chunks_cited: validated.citations.length,
+        hyde_used: !!hydeQuery,
+      },
+    })
   } catch (err: unknown) {
-    logger.error('[max-ai] Error:', err)
-    const errMsg = 'Internal server error'
-    return NextResponse.json({ error: errMsg }, { status: 500 })
+    logger.error('[max-ai] unexpected error', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return NextResponse.json({
+      response: getRefusalMessage('pt'),
+      citations: [],
+      confidence: 0,
+      refusal: true,
+      error: 'internal_error',
+    }, { status: 500 })
   }
 }
+
+// Suppress unused export warning for MaxValidatedCitation (used by frontend)
+export type { MaxValidatedCitation }
