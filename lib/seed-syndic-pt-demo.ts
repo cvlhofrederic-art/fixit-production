@@ -756,8 +756,8 @@ export const SEED_PT_ECHEANCES: EcheanceReglementaire[] = [
 
 // ─── API publique : seedSyndicPtDemoIfEmpty ──────────────────────────────────
 
-const SEED_VERSION = 'pt-v3'
-const LEGACY_VERSIONS = ['pt-v1', 'pt-v2']
+const SEED_VERSION = 'pt-v4'
+const LEGACY_VERSIONS = ['pt-v1', 'pt-v2', 'pt-v3']
 
 interface SeedResult {
   seeded: boolean
