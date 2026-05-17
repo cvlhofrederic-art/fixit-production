@@ -12,7 +12,7 @@
 
 2. **Consolidação.** O Código Civil (Parte B) está consolidado integrando o Decreto-Lei n.º 267/94, o Decreto-Lei n.º 116/2008, a Lei n.º 32/2012, a Lei n.º 8/2022 e o Decreto-Lei n.º 10/2024 — a última alteração ao capítulo da propriedade horizontal. O Decreto-Lei n.º 268/94 (Parte C) reproduz a republicação oficial anexa à Lei n.º 8/2022.
 
-3. **Verificação.** O conteúdo foi auditado contra a versão consolidada do Diário da República Eletrónico (DRE) e contra a publicação oficial dos diplomas no DRE. Na auditoria final (maio de 2026), todos os artigos das Partes B, C, D, E e F foram confrontados com fonte oficial e apresentam o selo **✅ DRE** — texto confirmado contra fonte oficial do Diário da República. Não resta nenhum artigo por confrontar. O estado global consta da secção «Estado de verificação».
+3. **Verificação.** O conteúdo foi auditado contra a versão consolidada do Diário da República Eletrónico (DRE) e contra a publicação oficial dos diplomas no DRE. Os artigos das Partes B, C, D, E e F foram confrontados com fonte oficial e apresentam o selo **✅ DRE** — texto confirmado contra fonte oficial do Diário da República. Na Parte I, os diplomas da legislação conexa foram igualmente confrontados com fonte oficial do DRE, incluindo a grelha das categorias de risco da SCIE (Quadro I do Anexo III do DL 220/2008), confrontada com o texto da publicação original no Diário da República de 12 de novembro de 2008. Todos os diplomas e quadros integrados foram confrontados com fonte oficial do Diário da República. O estado global consta da secção «Estado de verificação».
 
 4. **URL oficiais.** A ligação para a versão consolidada oficial é indicada no início de cada Parte e junto de cada diploma da Parte I. Dentro de cada página consolidada do DRE, cada artigo é diretamente navegável. As ligações não foram inseridas artigo a artigo para evitar identificadores fabricados.
 
@@ -493,6 +493,36 @@ Código do Notariado aprovado pelo Decreto-Lei n.º 207/95, de 14 de agosto. O a
 
 # PARTE F — QUADRO PROCESSUAL DA COBRANÇA DE DÍVIDAS DE CONDOMÍNIO
 
+## F.0 — Personalidade judiciária do condomínio (artigo 12.º do CPC)
+
+Antes de tratar dos títulos executivos e da tramitação, importa fixar o fundamento que permite ao condomínio agir e ser demandado em juízo: a sua **personalidade judiciária**.
+
+O condomínio resultante da propriedade horizontal **não é uma pessoa coletiva** — é um conjunto de condóminos e a organização que administra as partes comuns. Apesar disso, a lei reconhece-lhe **personalidade judiciária**, isto é, a suscetibilidade de ser parte numa ação judicial. O fundamento está nos **artigos 11.º e 12.º do Código de Processo Civil** (aprovado pela Lei n.º 41/2013, de 26 de junho). `✅ DRE — texto verbatim:`
+
+**Fonte oficial (versão consolidada):** https://diariodarepublica.pt/dr/legislacao-consolidada/lei/2013-34580575
+
+> **Artigo 11.º — Conceito e medida da personalidade judiciária**
+> 1 - A personalidade judiciária consiste na suscetibilidade de ser parte.
+> 2 - Quem tiver personalidade jurídica tem igualmente personalidade judiciária.
+
+A regra geral do artigo 11.º é, pois, simples: a personalidade judiciária é a aptidão para ser parte num processo, e acompanha automaticamente a personalidade jurídica. O artigo 12.º vem **estender** essa aptidão a entidades que *não têm* personalidade jurídica — entre as quais o condomínio:
+
+> **Artigo 12.º — Extensão da personalidade judiciária**
+> Têm ainda personalidade judiciária:
+> a) A herança jacente e os patrimónios autónomos semelhantes cujo titular não estiver determinado;
+> b) As associações sem personalidade jurídica e as comissões especiais;
+> c) As sociedades civis;
+> d) As sociedades comerciais, até à data do registo definitivo do contrato pelo qual se constituem, nos termos do artigo 5.º do Código das Sociedades Comerciais;
+> e) O condomínio resultante da propriedade horizontal, relativamente às ações que se inserem no âmbito dos poderes do administrador;
+> f) Os navios, nos casos previstos em legislação especial.
+
+**Leitura — uma personalidade judiciária limitada.** A alínea e) reconhece a personalidade judiciária do condomínio, mas circunscreve-a: o condomínio só pode ser autor ou réu **«relativamente às ações que se inserem no âmbito dos poderes do administrador»**. Não se trata, portanto, de uma capacidade processual geral, mas de uma capacidade delimitada pelo perímetro de competências do administrador (definidas no artigo 1436.º do Código Civil — ver Parte H).
+
+**Articulação:**
+- É este artigo 12.º, alínea e), que torna possível a ação executiva para cobrança de quotas tratada nas secções seguintes: o condomínio pode figurar como exequente porque tem personalidade judiciária para as ações abrangidas pelos poderes do administrador, entre as quais a cobrança de contribuições em dívida.
+- Quem **representa** o condomínio em juízo é o **administrador** (artigo 1437.º do Código Civil — ver F.3 e Parte H). Personalidade judiciária (ser parte) e representação (quem age em nome da parte) são noções distintas e complementares.
+- Fora do âmbito dos poderes do administrador, a ação tende a ter de ser proposta por ou contra os condóminos individualmente considerados; a delimitação concreta é uma questão jurídica a apreciar caso a caso.
+
 ## F.1 — A ata como título executivo
 
 O mecanismo central da cobrança de quotas em dívida é o reconhecimento de **força executiva à ata** da assembleia. Isto dispensa o condomínio de uma ação declarativa prévia, permitindo recorrer diretamente à execução.
@@ -598,48 +628,415 @@ Diplomas que não integram o núcleo da propriedade horizontal mas relevam para 
 
 ## I.1 — Urbanismo e o fim do RGEU
 
-- **RJUE — Decreto-Lei n.º 555/99, de 16 de dezembro.** Regime Jurídico da Urbanização e Edificação, profundamente revisto pelo **Decreto-Lei n.º 10/2024, de 8 de janeiro** (Simplex urbanístico). Fonte: https://diariodarepublica.pt (versão consolidada).
-- **RGEU — Decreto-Lei n.º 38382/1951 — REVOGADO.** Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/1951-120610500
-  - O Regulamento Geral das Edificações Urbanas, em vigor desde 1951, foi **revogado pelo Decreto-Lei n.º 10/2024, de 8 de janeiro, com efeitos a partir de 1 de junho de 2026** (artigo 25.º, n.º 1). Diversos artigos do RGEU já tinham sido revogados antes, com efeitos a 1 de janeiro de 2024, pelo artigo 24.º do mesmo diploma (entre outros, os artigos 2.º, 3.º, 3.º-A, 5.º, 6.º, 7.º, 8.º, 12.º, 13.º, 45.º a 47.º, 51.º e 52.º).
-  - **Regime de substituição.** O quadro técnico da construção transita para o futuro **Código da Construção** (em desenvolvimento, destinado a consolidar a regulamentação técnica dispersa). Enquanto o Código da Construção não entrar em vigor, e nos termos do artigo 25.º, n.º 2, do Decreto-Lei n.º 10/2024, **as regras de ordem técnica para a preparação dos projetos das edificações urbanas são definidas pelas ordens profissionais competentes** (designadamente a Ordem dos Engenheiros e a Ordem dos Arquitectos).
-  - **Nota para o agente de IA:** qualquer resposta deve tratar o RGEU como **revogado** desde 1 de junho de 2026. Para projetos submetidos a partir dessa data aplicam-se as normas técnicas das ordens profissionais, até à entrada em vigor do Código da Construção. Edificações licenciadas ao abrigo do RGEU mantêm a sua situação jurídica constituída.
+Esta secção trata do enquadramento urbanístico na medida em que releva para o condomínio — em especial o fim do RGEU, regulamento técnico que vigorou desde 1951. O texto entre aspas é verbatim.
 
-## I.2 — Segurança contra incêndio em edifícios (SCIE)
+### I.1.1 — O quadro: RJUE e a revisão de 2024
 
-- **Decreto-Lei n.º 220/2008, de 12 de novembro** — regime jurídico da SCIE. Em vigor; última alteração: 2021-01-29. Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2008-72828985
-- **Portaria n.º 1532/2008, de 29 de dezembro** — Regulamento Técnico de SCIE. Em vigor; última alteração: 2020-06-02 (Portaria n.º 135/2020). Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/portaria/2008-135056016
-- **Disposição relevante para o condomínio — artigo 6.º, n.º 3, do DL 220/2008:** durante todo o ciclo de vida dos edifícios destinados a habitação (utilização-tipo I), a manutenção das condições de segurança contra incêndio e a implementação das medidas de autoproteção das partes comuns são **da responsabilidade do condomínio**.
-- As medidas de autoproteção (procedimentos/planos de prevenção e de emergência, registo de segurança, formação, simulacros) constam do artigo 21.º do DL 220/2008 e do regulamento técnico.
+- **RJUE — Decreto-Lei n.º 555/99, de 16 de dezembro.** Regime Jurídico da Urbanização e Edificação. Foi profundamente revisto pelo **Decreto-Lei n.º 10/2024, de 8 de janeiro** («Simplex urbanístico»). Fonte oficial: https://diariodarepublica.pt (versão consolidada).
+- **RGEU — Regulamento Geral das Edificações Urbanas, Decreto-Lei n.º 38382/1951.** Regulamento técnico da construção. Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/1951-120610500
 
-## I.3 — Ascensores e equipamentos afins
+### I.1.2 — A revogação do RGEU (Decreto-Lei n.º 10/2024) `✅ DRE`
 
-- **Decreto-Lei n.º 320/2002, de 28 de dezembro** — manutenção e inspeção de ascensores, monta-cargas, escadas mecânicas e tapetes rolantes. Em vigor; última alteração: 2013-08-27. Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2002-864542780
-- **Disposições relevantes:** o proprietário de uma instalação em serviço (no caso das partes comuns, o condomínio) é **obrigado a celebrar contrato de manutenção com uma EMA** — Empresa de Manutenção de Ascensores (artigo 4.º). A EMA assume a responsabilidade civil e criminal por acidentes devidos a deficiente manutenção, sendo o proprietário **solidariamente responsável** (artigo 3.º).
+A revogação do RGEU operou-se em dois tempos, nos artigos 24.º e 25.º do Decreto-Lei n.º 10/2024:
 
-## I.4 — Instalações de gás
+**1.º tempo — revogações parciais (artigo 24.º).** O artigo 24.º revogou de imediato diversos artigos do RGEU — designadamente, conforme a alínea a) verbatim, «os artigos 2.º, 3.º, 3.º-A, 5.º, 6.º, 7.º, 8.º, 12.º, 13.º, 45.º, 46.º, 47.º, 51.º e 52.º, os § únicos dos artigos 58.º e 63.º, o artigo 70.º, o n.º 1 do artigo 84.º, o § único do artigo 108.º e os artigos 123.º e 127.º do RGEU». O mesmo artigo 24.º revogou também várias normas do próprio RJUE e de outros diplomas urbanísticos.
 
-- **Decreto-Lei n.º 97/2017, de 10 de agosto** — regime das instalações de gases combustíveis em edifícios. Em vigor; última alteração em 2023; retificado pela Declaração de Retificação n.º 34/2017. Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2017-107987283
-- **Disposição relevante para o condomínio — artigo 20.º, n.º 3, alínea a):** a responsabilidade pelo pedido e pelos encargos da manutenção das instalações de gás é, regra geral, do proprietário ou usufrutuário, **exceto quando as intervenções sejam realizadas nas partes comuns de um condomínio ou propriedade horizontal, caso em que é da responsabilidade do condomínio**.
+**2.º tempo — revogação total do RGEU (artigo 25.º).** O artigo 25.º dispõe, verbatim:
+> **Artigo 25.º — Revogação do Regulamento Geral das Edificações Urbanas**
+> 1 - O RGEU é revogado com efeitos reportados a 1 de junho de 2026.
+> 2 - Até 1 de junho de 2026, no âmbito do desenvolvimento do Código da Construção, as ordens profissionais competentes definem as regras de ordem técnica que considerem adequadas para a preparação dos projetos relativos às edificações urbanas.
 
-## I.5 — Pontos de carregamento de veículos elétricos (regime refundido em 2025-2026)
+**Calendário de entrada em vigor (artigo 26.º).** O Decreto-Lei n.º 10/2024 entrou globalmente em vigor a **4 de março de 2024**, com várias exceções de datas escalonadas. Para o que aqui releva, o artigo 26.º, alínea c), confirma que **as alterações ao RGEU entraram em vigor a 1 de janeiro de 2024** — ou seja, as revogações parciais do artigo 24.º produziram efeitos nessa data, ao passo que a revogação total do RGEU só opera a 1 de junho de 2026 (artigo 25.º). O mesmo artigo 26.º, alínea e), fixa também a 1 de janeiro de 2024 a entrada em vigor da alteração ao artigo 1422.º e do aditamento do artigo 1422.º-B do Código Civil (ver Parte B).
 
-> **Atualização importante.** O regime da mobilidade elétrica foi **totalmente refundido**. O Decreto-Lei n.º 39/2010 foi **revogado**. O quadro em vigor em junho de 2026 é o seguinte:
+### I.1.3 — Regime de substituição
 
-- **Decreto-Lei n.º 93/2025, de 14 de agosto** — estabelece o **regime jurídico da mobilidade elétrica**, alinhado com o Regulamento (UE) 2023/1804 (AFIR). Diário da República n.º 156/2025, Série I, de 14 de agosto de 2025. **Revoga o Decreto-Lei n.º 39/2010.** Fonte oficial: https://diariodarepublica.pt (versão consolidada) e legislação setorial da DGEG em https://www.dgeg.gov.pt/pt/areas-setoriais/energia/energia-eletrica/mobilidade-eletrica/legislacao-aplicavel-e-despachos-dgeg/
-- **Portaria n.º 128/2026/1, de 26 de março** — estabelece as **potências mínimas e as regras técnicas** aplicáveis à instalação e ao funcionamento dos pontos de carregamento, concretizando o artigo 22.º do Decreto-Lei n.º 93/2025. Em vigor desde **27 de março de 2026**. Potência mínima de **3680 VA por ponto de conexão**.
+Com a revogação total do RGEU a **1 de junho de 2026**, o quadro técnico da construção destina-se a transitar para o futuro **Código da Construção** (em desenvolvimento, com o objetivo de consolidar a regulamentação técnica dispersa). Enquanto o Código da Construção não estiver concluído, e nos termos do artigo 25.º, n.º 2, **as regras de ordem técnica para a preparação dos projetos das edificações urbanas são definidas pelas ordens profissionais competentes** (designadamente a Ordem dos Engenheiros e a Ordem dos Arquitectos).
 
-**Disposições relevantes para o condomínio:**
-- **Artigo 22.º do DL 93/2025** — as operações urbanísticas de construção de edifícios em regime de propriedade horizontal, ou de outros imóveis com lugares de estacionamento, devem incluir **infraestrutura elétrica adequada** para o carregamento de veículos elétricos (a infraestrutura não inclui os pontos de carregamento nem as tomadas). Os custos de infraestruturação dessas operações são suportados pela **entidade promotora**.
-- **Artigo 23.º do DL 93/2025** — é admitida a instalação, **por qualquer condómino e a expensas do próprio**, de pontos de carregamento para uso exclusivo ou partilhado nos estacionamentos de edifícios já existentes, cumpridos os requisitos técnicos definidos em portaria. Quando a instalação seja efetuada ou passe por **parte comum** (mesmo que afeta ao uso exclusivo do condómino), carece de **comunicação escrita prévia à administração do condomínio, com pelo menos 30 dias de antecedência**; a oposição da administração só pode assentar em fundamentos legalmente previstos.
-- **Artigo 16.º do DL 93/2025** — as instalações de carregamento estão sujeitas a **inspeção inicial e a inspeções periódicas quinquenais**.
+### I.1.4 — Síntese para o administrador de condomínio
 
-> **Nota — dúvida anterior resolvida.** Versões anteriores deste documento remetiam para o Decreto-Lei n.º 101-D/2020 e assinalavam uma incoerência quanto ao Decreto-Lei n.º 39/2010. Essa dúvida está **resolvida**: o regime aplicável aos pontos de carregamento é agora o Decreto-Lei n.º 93/2025 (e a Portaria n.º 128/2026/1), e o Decreto-Lei n.º 39/2010 foi revogado. O Decreto-Lei n.º 101-D/2020 mantém-se em vigor enquanto regime da certificação energética dos edifícios, mas não é já o regime específico do carregamento de veículos elétricos.
+A partir de **1 de junho de 2026**, o RGEU deve ser tratado como **revogado**. Para projetos de edificação submetidos a partir dessa data, aplicam-se as regras técnicas definidas pelas ordens profissionais, até à entrada em vigor do Código da Construção. As edificações licenciadas ao abrigo do RGEU **mantêm a sua situação jurídica constituída** — a revogação não tem efeito retroativo sobre licenças já emitidas. Para questões de obras em partes comuns sujeitas a controlo urbanístico, o regime de procedimento é o do RJUE (Decreto-Lei n.º 555/99).
 
-## I.6 — Outros diplomas
+### I.1.5 — A propriedade horizontal no RJUE (artigo 66.º)
 
-- **Alojamento local — Decreto-Lei n.º 128/2014, de 29 de agosto.** Em vigor; sofreu várias alterações, sendo a refundição mais recente operada pelo **Decreto-Lei n.º 76/2024, de 23 de outubro** (que republicou o diploma e reviu medidas do pacote «Mais Habitação»). Última alteração registada no DRE: 2024-12-10. Regime sujeito a alterações frequentes — consultar imperativamente a versão consolidada. Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2014-56917875
-- **Ruído — Regulamento Geral do Ruído, Decreto-Lei n.º 9/2007, de 17 de janeiro.** Período de silêncio noturno, em regra entre as 23h00 e as 7h00. Fonte: https://diariodarepublica.pt (versão consolidada).
-- **Proteção de dados — RGPD (Regulamento (UE) 2016/679) e Lei n.º 58/2019, de 8 de agosto.** Relevante para o tratamento dos dados dos condóminos e para a videovigilância das partes comuns.
+O RJUE (Decreto-Lei n.º 555/99) é um regime de procedimento urbanístico e, em regra, não trata do condomínio. Contém, no entanto, **um artigo expressamente dedicado à propriedade horizontal** — o artigo 66.º —, que releva para a fase de utilização do edifício. `✅ DRE`
+
+**Fonte oficial:** https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/1999-34567875 (versão consolidada)
+
+> **Artigo 66.º — Propriedade horizontal**
+> 1 - No caso de edifícios constituídos em regime de propriedade horizontal, a comunicação dos elementos referidos no n.º 1 do artigo 63.º pode ter por objeto o edifício na sua totalidade ou cada uma das suas frações autónomas.
+> 2 - Pode existir oposição à utilização quando as partes comuns dos edifícios em que se integram não estejam em condições de serem utilizadas.
+> 3 - Caso o interessado não tenha ainda requerido a certificação pela câmara municipal de que o edifício satisfaz os requisitos legais para a sua constituição em regime de propriedade horizontal, tal pedido pode acompanhar a comunicação a que se refere o n.º 1 do artigo 63.º
+> 4 - O disposto nos n.os 2 e 3 é aplicável, com as necessárias adaptações, aos edifícios compostos por unidades susceptíveis de utilização independente que não estejam sujeitos ao regime da propriedade horizontal.
+
+**Leitura para o condomínio.**
+- O n.º 1 permite que a comunicação de utilização (a chamada autorização de utilização, regulada no artigo 63.º do RJUE) tenha por objeto o edifício inteiro **ou** cada fração autónoma — flexibilidade útil quando as frações são concluídas ou utilizadas em momentos diferentes.
+- O n.º 2 prevê que a câmara municipal possa **opor-se à utilização enquanto as partes comuns não estiverem em condições de serem utilizadas** — ou seja, o estado das partes comuns condiciona a autorização de utilização.
+- O n.º 3 articula o pedido de utilização com o pedido de **certificação camarária de que o edifício reúne os requisitos para a constituição em propriedade horizontal** — certificação que o artigo 1417.º do Código Civil (ver Parte B) pressupõe.
+- Este artigo foi alterado pelo Decreto-Lei n.º 10/2024, com efeitos a partir de 4 de março de 2024.
+
+## I.2 — Segurança contra incêndio em edifícios (SCIE) (Decreto-Lei n.º 220/2008)
+
+**Decreto-Lei n.º 220/2008, de 12 de novembro** — estabelece o regime jurídico da segurança contra incêndio em edifícios (SCIE). Em vigor; **última alteração: Decreto-Lei n.º 9/2021, de 29 de janeiro**. `✅ DRE`
+**Fonte oficial (versão consolidada):** https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2008-72828985
+
+**Portaria n.º 1532/2008, de 29 de dezembro** — Regulamento Técnico de SCIE (condições técnicas gerais e específicas). Em vigor; última alteração: 2020-06-02 (Portaria n.º 135/2020). Fonte oficial: https://diariodarepublica.pt/dr/legislacao-consolidada/portaria/2008-135056016
+
+> Esta secção sintetiza as disposições do DL 220/2008 relevantes para a gestão de um condomínio de habitação. O texto entre aspas é verbatim da versão consolidada do DRE. Não se reproduz o articulado integral (40 artigos e 6 anexos), por conter matéria técnica de construção sem interesse para a administração de condomínios.
+
+### I.2.1 — A quem incumbe a segurança contra incêndio (artigo 6.º)
+
+- Durante todo o ciclo de vida dos edifícios destinados a habitação (**utilização-tipo I**), a manutenção das condições de segurança contra risco de incêndio e a implementação das medidas de autoproteção **são da responsabilidade dos respetivos proprietários, com exceção das partes comuns na propriedade horizontal, que são da responsabilidade do condomínio** (artigo 6.º, n.º 3).
+- A entidade responsável designa um **delegado de segurança** para executar as medidas de autoproteção, agindo este em representação daquela (artigo 20.º).
+
+### I.2.2 — Classificação do edifício: utilização-tipo e categoria de risco (artigos 8.º, 10.º, 12.º e 13.º)
+
+- Um edifício ou parte de edifício destinado a habitação é **utilização-tipo I «habitacionais»**, incluindo os espaços comuns de acessos e as áreas não residenciais reservadas ao uso exclusivo dos residentes (artigo 8.º, n.º 1, alínea a).
+- Cada utilização-tipo é classificada numa de **quatro categorias de risco** — 1.ª (risco reduzido), 2.ª (moderado), 3.ª (elevado), 4.ª (muito elevado) (artigo 12.º, n.º 1).
+- Para a utilização-tipo I, os fatores de risco são a **altura da utilização-tipo** e o **número de pisos ocupados abaixo do plano de referência** (artigo 12.º, n.º 2, alínea a). É atribuída a categoria imediatamente superior sempre que um dos valores é excedido (artigo 13.º, n.º 2).
+- Os interiores de cada fração (fogo) não são classificados como locais de risco; nos edifícios de habitação, o regime aplica-se às **partes comuns** (artigo 3.º, n.º 4, e artigo 10.º, n.º 1).
+
+**Grelha das categorias de risco da utilização-tipo I (habitação) — Anexo III, Quadro I:** `✅ DRE`
+
+| Categoria de risco | Altura da utilização-tipo I | N.º de pisos ocupados pela UT I abaixo do plano de referência |
+|---|---|---|
+| **1.ª** — risco reduzido | ≤ 9 m | ≤ 1 |
+| **2.ª** — risco moderado | ≤ 28 m | ≤ 3 |
+| **3.ª** — risco elevado | ≤ 50 m | ≤ 5 |
+| **4.ª** — risco muito elevado | > 50 m | > 5 |
+
+> **Fonte e selo desta grelha.** Esta grelha corresponde ao **Quadro I do Anexo III do Decreto-Lei n.º 220/2008**, «Categorias de risco da utilização-tipo I "Habitacionais"». Foi confrontada com o texto da publicação oficial do diploma no Diário da República, 1.ª série, n.º 220, de 12 de novembro de 2008 (pág. 7919), onde o Anexo III consta em texto. Os quatro valores de altura e de número de pisos abaixo do plano de referência correspondem verbatim a essa fonte. O Quadro I do Anexo III não foi alterado pelas modificações posteriores ao DL 220/2008. Selo: `✅ DRE`.
+>
+> **Leitura prática:** a maioria dos prédios de habitação correntes (até 28 m de altura) classifica-se na **1.ª ou 2.ª categoria de risco**.
+
+### I.2.3 — Medidas de autoproteção (artigos 21.º e 22.º)
+
+As medidas de autoproteção, durante a utilização do edifício, compreendem (artigo 21.º, n.º 1): medidas preventivas (procedimentos ou planos de prevenção); medidas de intervenção em caso de incêndio (procedimentos ou planos de emergência interno); **registo de segurança** (relatórios de vistoria/inspeção e registo das ações de manutenção e ocorrências); **formação** em SCIE; e **simulacros**.
+
+> **Isenção essencial para os condomínios de habitação (artigo 22.º, n.º 1).** As medidas de autoproteção aplicam-se a todos os edifícios «**com exceção dos edifícios e recintos da utilização-tipo I, da 1.ª e 2.ª categorias de risco**». Ou seja: um prédio de habitação até 28 m de altura está, em regra, **dispensado da obrigação de medidas de autoproteção**. A responsabilidade do condomínio pela segurança das partes comuns (I.2.1) mantém-se sempre; mas a obrigação formal de implementar e submeter medidas de autoproteção só existe para os prédios de habitação de 3.ª e 4.ª categoria de risco (acima de 28 m).
+
+Quando exigíveis, as medidas de autoproteção são sujeitas a parecer da ANEPC, ou do município quanto à 1.ª categoria de risco (artigo 21.º, n.º 2).
+
+### I.2.4 — Inspeções (artigo 19.º)
+
+As inspeções regulares são obrigatórias, com periodicidade de **6 anos** (1.ª categoria), **5 anos** (2.ª), **4 anos** (3.ª) e **3 anos** (4.ª) (artigo 19.º, n.º 4).
+
+> **Isenção (artigo 19.º, n.º 5).** Estão dispensados de inspeção regular «os edifícios ou recintos e suas frações das utilizações-tipo I, II, III, VI, VII, VIII, IX, X, XI e XII da 1.ª categoria de risco e os edifícios de utilização exclusiva da utilização-tipo I da 2.ª categoria de risco». Conjugado com a grelha de I.2.2, isto significa que o prédio de habitação corrente — utilização-tipo I de 1.ª categoria, ou prédio exclusivamente habitacional de 2.ª categoria — não está, em regra, sujeito a inspeção SCIE periódica obrigatória.
+
+Para a 1.ª categoria de risco, a competência de inspeção é do **município**; para as restantes, da ANEPC ou de entidade por ela credenciada (artigo 19.º, n.os 1 e 2).
+
+### I.2.5 — Contraordenações (artigo 25.º)
+
+A inexistência de medidas de autoproteção quando exigíveis, a inexistência de registos de segurança, a obstrução de caminhos de evacuação ou de meios de combate a incêndio, ou a deficiente manutenção dos equipamentos de SCIE constituem **contraordenação económica grave**; outras infrações (sinalização, iluminação de emergência, plantas de emergência) são **contraordenação económica leve** (artigo 25.º, n.os 1 e 2).
+
+> **Nota sobre os montantes.** Desde a alteração pelo Decreto-Lei n.º 9/2021, o artigo 25.º **deixou de fixar montantes de coima em euros**: as infrações são qualificadas como graves ou leves e punidas nos termos do **Regime Jurídico das Contraordenações Económicas (RJCE)**, aprovado em anexo ao DL 9/2021. Os montantes constam do RJCE, não deste diploma. A redação do artigo 25.º resultante do DL 9/2021 está **em vigor a partir de 28 de julho de 2021**. A instrução e decisão competem à ANEPC (ou ao município, quanto à 1.ª categoria de risco) — artigo 27.º.
+
+### I.2.6 — Síntese para o administrador de condomínio
+
+Para um prédio de habitação corrente (utilização-tipo I, 1.ª ou 2.ª categoria de risco, até 28 m de altura): o condomínio é **responsável pela segurança contra incêndio das partes comuns** (artigo 6.º, n.º 3), mas está, em regra, **dispensado da obrigação formal de medidas de autoproteção** (artigo 22.º, n.º 1) e de **inspeção SCIE periódica** (artigo 19.º, n.º 5). Para prédios de habitação de 3.ª ou 4.ª categoria (acima de 28 m), aplicam-se as medidas de autoproteção e as inspeções regulares. As condições técnicas concretas (sinalização, iluminação de emergência, extintores, etc.) constam do Regulamento Técnico aprovado pela Portaria n.º 1532/2008.
+
+## I.3 — Ascensores e equipamentos afins (Decreto-Lei n.º 320/2002)
+
+**Decreto-Lei n.º 320/2002, de 28 de dezembro** — estabelece o regime de manutenção e inspeção de ascensores, monta-cargas, escadas mecânicas e tapetes rolantes, após a sua entrada em serviço. Em vigor; **última alteração: Lei n.º 65/2013, de 27 de agosto**. `✅ DRE`
+**Fonte oficial (versão consolidada):** https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2002-864542780
+
+> Esta secção sintetiza as disposições do Decreto-Lei n.º 320/2002 relevantes para a gestão de um condomínio. O texto entre aspas é verbatim da versão consolidada do DRE. Não se reproduz o articulado integral (29 artigos e 5 anexos), por conter matéria técnica sem interesse para a administração de condomínios (designadamente o Anexo III, lista de componentes).
+
+### I.3.1 — Conceitos (artigo 2.º)
+
+- **EMA** — Empresa de Manutenção de Ascensores: a entidade que efetua e é responsável pela manutenção das instalações.
+- **EI** — Entidade Inspectora: a empresa habilitada a efetuar inspeções, inquéritos, peritagens, relatórios e pareceres.
+
+> **Nota terminológica.** O texto legal usa «EMA» e «EI». A Direção-Geral de Energia e Geologia (DGEG), nas suas comunicações administrativas, usa por vezes «EMIE» (entidades de manutenção de instalações de elevação) e «EIIE»; trata-se das mesmas entidades, sob designação administrativa diferente. Em contexto jurídico vale a terminologia legal: EMA e EI.
+
+### I.3.2 — Obrigação de manutenção (artigos 3.º e 4.º)
+
+- O proprietário de uma instalação em serviço — no caso das partes comuns de um edifício, o **condomínio** — é **obrigado a celebrar um contrato de manutenção com uma EMA** (artigo 4.º, n.º 1).
+- A manutenção é assegurada por uma EMA, que assume a **responsabilidade criminal e civil** pelos acidentes causados por deficiente manutenção ou incumprimento das normas. O **proprietário é responsável solidariamente** (artigo 3.º, n.os 1 e 2).
+- A EMA deve **informar por escrito o proprietário das reparações necessárias** (artigo 3.º, n.º 4).
+- **Risco grave:** caso seja detetada situação de grave risco para o funcionamento da instalação, a EMA deve proceder à sua **imediata imobilização**, dando conhecimento por escrito ao proprietário e à câmara municipal **no prazo de 48 horas** (artigo 3.º, n.º 5).
+- Na cabina do ascensor devem estar afixados, de forma visível, a identificação da EMA, os seus contactos e o tipo de contrato de manutenção (artigo 5.º, n.º 3).
+
+### I.3.3 — Tipos de contrato de manutenção (artigo 5.º e Anexo II)
+
+- **Contrato de manutenção simples** — destina-se a manter a instalação em boas condições de segurança e funcionamento, **sem incluir substituição ou reparação de componentes**. Duração mínima de **um ano**. O plano de manutenção é, em regra, **mensal**. Inclui, nos ascensores, limpeza anual do poço/caixa/casa das máquinas, inspeção semestral dos cabos e verificação semestral dos pára-quedas, e serviço permanente de desencarceramento de pessoas.
+- **Contrato de manutenção completa** — inclui os serviços do contrato simples **e** a reparação ou substituição de peças e componentes deteriorados pelo funcionamento normal. Duração de **cinco anos**, renovável, salvo outro prazo acordado por escrito.
+- Os trabalhos não cobertos pelo contrato são comunicados ao proprietário pela EMA; no contrato simples são executados por uma EMA, no contrato completo só após acordo do proprietário.
+
+### I.3.4 — Inspeções periódicas: periodicidade (artigo 8.º)
+
+As instalações estão sujeitas a inspeção periódica obrigatória, com a seguinte periodicidade (artigo 8.º, n.º 1):
+
+| Tipo de instalação | Periodicidade |
+|---|---|
+| Ascensor em edifício **comercial ou de serviços** aberto ao público | **2 anos** |
+| Ascensor em edifício **misto** (habitação + comércio/serviços) | **4 anos** |
+| Ascensor em edifício **habitacional com mais de 32 fogos ou mais de 8 pisos** | **4 anos** |
+| Ascensor em edifício **habitacional** não incluído no caso anterior | **6 anos** |
+| Ascensor em estabelecimento industrial / casos não previstos | **6 anos** |
+| Escadas mecânicas e tapetes rolantes | **2 anos** |
+| Monta-cargas | **6 anos** |
+
+**Regra importante (artigo 8.º, n.º 3):** decorridas **duas inspeções periódicas**, a periodicidade passa a ser **bienal** (de 2 em 2 anos), sem prejuízo de prazo menor que já resulte da tabela. Não se contam, para o tipo de edifício, os estabelecimentos comerciais situados ao nível do acesso principal (artigo 8.º, n.º 2).
+
+> **Quem requer a inspeção (Anexo V).** A inspeção periódica é **requerida por escrito pela EMA** à câmara municipal, no prazo legal. Compete à EMA enviar ao proprietário os elementos necessários ao pagamento da taxa; o **proprietário (condomínio) suporta a taxa** de inspeção. A inspeção é efetuada no prazo máximo de 60 dias a contar da entrega dos documentos. Se a instalação apresentar deficiências que afetem a segurança de pessoas, são impostas cláusulas a cumprir num prazo máximo de **30 dias**, findo o qual deve ser pedida **reinspeção**.
+
+### I.3.5 — Competência das câmaras municipais (artigos 7.º e 26.º)
+
+Compete às **câmaras municipais**: efetuar as inspeções periódicas e reinspeções, as inspeções extraordinárias, realizar inquéritos a acidentes, e fiscalizar o cumprimento do diploma. Os utilizadores podem participar à câmara o deficiente funcionamento ou a falta de segurança de uma instalação, podendo a câmara determinar inspeção extraordinária (artigo 8.º, n.º 6).
+
+### I.3.6 — Selagem das instalações (artigo 11.º)
+
+Sempre que uma instalação **não ofereça as necessárias condições de segurança**, compete à câmara municipal proceder à sua **selagem**. Após selada, a instalação não pode voltar a funcionar sem inspeção prévia que verifique as condições de segurança, e sem a prévia reparação das deficiências sob responsabilidade de uma EMA (artigo 11.º, n.os 1 a 3).
+
+### I.3.7 — Acidentes (artigo 9.º)
+
+As EMA e os proprietários são obrigados a **participar à câmara municipal todos os acidentes** ocorridos nas instalações, no prazo máximo de **3 dias** (comunicação imediata se houver vítimas mortais). Havendo mortes, ferimentos graves ou prejuízos materiais importantes, a instalação deve ser **imobilizada e selada** até inspeção e elaboração de relatório técnico.
+
+### I.3.8 — Repartição dos encargos (artigo 24.º)
+
+O artigo 24.º qualifica as obras nos ascensores como benfeitorias **necessárias** (as de manutenção) ou **úteis** (as de beneficiação) e dispõe expressamente, no n.º 3, que os encargos com essas obras **são suportados nos termos da legislação aplicável, nomeadamente do regime da propriedade horizontal**. Aplica-se, pois, o artigo 1424.º, n.º 4, do Código Civil: nas despesas dos ascensores **só participam os condóminos cujas frações por eles possam ser servidas** (ver Parte B).
+
+### I.3.9 — Contraordenações (artigo 13.º)
+
+A título de exemplo, e entre outras, constituem contraordenação punível com coima:
+- o **funcionamento de um ascensor sem contrato de manutenção** (artigo 4.º): coima de **€ 1000 a € 5000**;
+- o não requerimento de inspeção nos prazos legais: coima de **€ 250 a € 5000**;
+- a falta de presença do técnico responsável no ato da inspeção: coima de **€ 250 a € 1000**.
+No caso de **pessoa singular**, o montante máximo da coima é de **€ 3750** (artigo 13.º, n.º 4). A competência para instaurar o processo e aplicar a coima pertence ao presidente da câmara municipal (nos casos das alíneas a, b e c do artigo 13.º, n.º 1) ou ao diretor-geral da Energia nas restantes situações (artigo 14.º).
+
+### I.3.10 — Notas de vigência
+
+- **Disposições revogadas pela Lei n.º 65/2013:** os artigos 6.º e 10.º e os Anexos I (Estatuto das EMA) e IV (Estatuto das EI). Foi a deslegalização das condições de acesso às profissões; **as entidades EMA e EI mantêm-se**, e todo o regime de manutenção e inspeção continua a assentar nelas.
+- **Remissão desatualizada — atenção.** O artigo 13.º, n.º 3, do DL 320/2002 remete, quanto à imobilização das instalações, para o «artigo 162.º do Regulamento Geral das Edificações Urbanas». Sendo o **RGEU revogado com efeitos a 1 de junho de 2026** (ver I.1), esta remissão deixou de ter norma de destino em vigor; a remissão deve considerar-se prejudicada enquanto não for atualizada pelo legislador.
+- **Vigilância legislativa.** A DGEG anunciou a preparação de um **novo regime destinado a substituir o Decreto-Lei n.º 320/2002**. À data desta base esse novo diploma não consta como publicado; a sua eventual entrada em vigor deve ser verificada.
+
+## I.4 — Instalações de gás (Decreto-Lei n.º 97/2017)
+
+**Decreto-Lei n.º 97/2017, de 10 de agosto** — estabelece o regime das instalações de gases combustíveis em edifícios e dos aparelhos que aquelas abastecem. Em vigor; **última alteração: Decreto-Lei n.º 11/2023, de 10 de fevereiro**; retificado pela Declaração de Retificação n.º 34/2017, de 9 de outubro. `✅ DRE`
+**Fonte oficial (versão consolidada):** https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2017-107987283
+
+> Esta secção sintetiza as disposições do DL 97/2017 relevantes para a gestão de um condomínio. O texto entre aspas é verbatim da versão consolidada do DRE. Não se reproduz o articulado integral (37 artigos), por conter matéria técnica sem interesse para a administração de condomínios.
+
+### I.4.1 — Conceitos (artigo 2.º)
+
+- **Instalação de gás** — o sistema instalado num edifício (tubagens, dispositivos, acessórios, instrumentos de medição) que assegura a alimentação de gás desde a válvula de corte geral do edifício até às válvulas de corte dos aparelhos a gás.
+- **EI** — Entidade Instaladora de gás: habilitada para executar, reparar, alterar ou manter instalações de gás.
+- **EIG** — Entidade Inspetora de gás: habilitada para realizar inspeções e vistorias técnicas das instalações de gás.
+
+> **Nota terminológica — atenção a uma colisão de siglas.** Neste diploma (gás), «EI» designa a *Entidade Instaladora* e «EIG» a *Entidade Inspetora de Gás*. No DL 320/2002 (ascensores, secção I.3), «EI» designa a *Entidade Inspectora* de ascensores. São siglas iguais com significados distintos consoante o diploma; o contexto (gás ou ascensores) determina o sentido.
+
+### I.4.2 — Quem é responsável pela manutenção e pelas inspeções (artigos 17.º e 20.º)
+
+- O **dever de manutenção** das instalações de gás abastecidas e dos aparelhos ligados existe para garantir o seu bom estado de funcionamento; as intervenções de manutenção são sempre realizadas por uma **EI** (artigo 20.º, n.os 1 e 2).
+- A responsabilidade pelo pedido e pelos encargos da manutenção é, em regra, do proprietário ou usufrutuário, **exceto quando as intervenções sejam realizadas «nas partes comuns de um condomínio ou propriedade horizontal, sendo responsabilidade do condomínio»** (artigo 20.º, n.º 3, alínea a).
+- Quanto às **inspeções**, a regra é idêntica: cabe ao proprietário ou usufrutuário promover a inspeção e suportar o encargo, **exceto «às partes comuns de prédio constituído em propriedade horizontal, cuja responsabilidade cabe ao condomínio»** (artigo 17.º, n.os 1 e 2, alínea a).
+
+### I.4.3 — Inspeção periódica e sua periodicidade (artigo 21.º)
+
+Todas as instalações de gás abastecidas estão sujeitas a inspeção periódica, com a seguinte periodicidade (artigo 21.º, n.º 1):
+
+| Instalação de gás afeta a... | Periodicidade da inspeção |
+|---|---|
+| Edifícios das utilizações-tipo III a XII, ou outros que recebam público | **3 anos** |
+| Instalações de gás **executadas há mais de 10 anos** e não remodeladas | **5 anos** |
+
+> **Leitura para o condomínio de habitação.** A utilização-tipo I (habitação) **não consta** da alínea a) do artigo 21.º, n.º 1; as antigas subalíneas que a abrangiam foram **revogadas pela Lei n.º 59/2018**. Para um prédio de habitação, aplica-se a alínea b): a instalação de gás está sujeita a **inspeção periódica de 5 em 5 anos a partir do momento em que tenha mais de 10 anos** de execução (não tendo sido remodelada). Uma instalação de habitação com menos de 10 anos não está, em regra, sujeita a inspeção periódica obrigatória nos termos deste artigo.
+
+**Consequência do incumprimento (artigo 21.º, n.os 2 e 3):** se a inspeção periódica não for realizada, a DGEG notifica o proprietário ou usufrutuário para a concretizar nos três meses seguintes; persistindo a falta, a entidade distribuidora **procede ao corte do abastecimento de gás**, mediante pré-aviso.
+
+### I.4.4 — Inspeção inicial e inspeções extraordinárias (artigos 13.º e 23.º)
+
+- **Inspeção inicial (artigo 13.º):** concluída a execução, a instalação é inspecionada por uma EIG, que emite a declaração de inspeção; o abastecimento de gás só pode ocorrer havendo declaração de inspeção que ateste a aptidão da instalação (artigo 19.º).
+- **Inspeção extraordinária (artigo 23.º):** é obrigatória, designadamente, quando se procede à reconversão da instalação, quando há **alterações no traçado ou na natureza da tubagem nas partes comuns** ou no interior dos fogos, ou na sequência de fuga de gás ou de defeito grave.
+- **Defeitos (artigo 15.º):** as anomalias classificam-se em graves (G) — que impedem ou interrompem o fornecimento — e não graves (NG-1, a corrigir em 60 dias; NG-2, correção aconselhável em futura intervenção).
+
+### I.4.5 — Contraordenações (artigos 28.º e 29.º)
+
+A fiscalização do cumprimento do diploma compete à **DGEG** (artigo 28.º). Constituem contraordenação, entre outras, a violação das regras de execução das instalações e dos requisitos de projeto. As coimas são (artigo 29.º, n.º 1):
+- **pessoa singular:** de **€ 250 a € 3 500**;
+- **pessoa coletiva:** de **€ 450 a € 40 000**.
+
+A instauração e instrução dos processos competem à DGEG; a aplicação das coimas, ao diretor-geral de Energia e Geologia (artigo 31.º). O incumprimento das normas do diploma gera ainda **responsabilidade civil nos termos gerais do direito** (artigo 32.º).
+
+### I.4.6 — Síntese para o administrador de condomínio
+
+O condomínio é **responsável pela manutenção e pela inspeção das instalações de gás situadas nas partes comuns** do prédio (artigos 17.º e 20.º). A manutenção é sempre executada por uma EI. A instalação de gás de um prédio de habitação está sujeita a **inspeção periódica de 5 em 5 anos quando tenha mais de 10 anos** de execução (artigo 21.º). A não realização da inspeção pode levar ao **corte do gás** pela entidade distribuidora. Obras na tubagem das partes comuns implicam **inspeção extraordinária** (artigo 23.º).
+
+## I.5 — Pontos de carregamento de veículos elétricos (Decreto-Lei n.º 93/2025)
+
+**Decreto-Lei n.º 93/2025, de 14 de agosto** — estabelece o regime jurídico da mobilidade elétrica, alinhado com o Regulamento (UE) 2023/1804 (Regulamento AFIR). Publicado no Diário da República n.º 156/2025, Série I, de 14 de agosto de 2025. **Revoga o Decreto-Lei n.º 39/2010** (artigo 45.º). `✅ DRE`
+**Fonte oficial:** Decreto-Lei n.º 93/2025, de 14 de agosto, publicado no Diário da República n.º 156/2025, Série I, de 14 de agosto de 2025. Disponível em: https://diariodarepublica.pt/dr/detalhe/decreto-lei/93-2025-928937303 — o diploma está marcado como «Em vigor» e não tem versão consolidada autónoma no portal, pelo que esta é a URL canónica do ato original.
+
+> Esta secção sintetiza as disposições do DL 93/2025 relevantes para o condomínio. O texto entre aspas é verbatim. As regras técnicas concretas (potências mínimas, requisitos de instalação) são remetidas pelo diploma para portaria — ver nota final.
+
+### I.5.1 — Conceitos (artigo 2.º)
+
+- **Ponto de carregamento** — infraestrutura, fixa ou móvel, que permite transferir eletricidade para um veículo elétrico; exclui os dispositivos de potência igual ou inferior a 3,7 kW cuja finalidade principal não seja o carregamento de veículos elétricos (artigo 2.º, alínea l).
+- **OPC — Operador de Pontos de Carregamento** — entidade responsável pela gestão e operação de pontos de carregamento (artigo 2.º, alínea i).
+- **EIIEL** — entidade inspetora de instalações elétricas reconhecida pela DGEG (designação usada no artigo 16.º; o reconhecimento rege-se pela Lei n.º 14/2015).
+
+### I.5.2 — Pontos de carregamento em edifícios NOVOS (artigo 22.º)
+
+As operações urbanísticas de **construção de edifícios em regime de propriedade horizontal**, ou de outros imóveis que disponham de lugares de estacionamento, **devem incluir uma infraestrutura elétrica adequada** para o carregamento elétrico de veículos (artigo 22.º, n.º 1).
+
+> **Atenção ao conceito.** A «infraestrutura elétrica adequada» exigida no edifício novo **não inclui os pontos de carregamento nem as tomadas** — é a infraestrutura de base (tubagem, cablagem, capacidade) que torna possível instalar pontos mais tarde. O artigo é expresso quanto a isto.
+
+A potência a assegurar e as normas técnicas são fixadas por **portaria** dos membros do Governo responsáveis pelas áreas da administração local, ordenamento do território, habitação e energia (artigo 22.º, n.os 2 e 3).
+
+### I.5.3 — Pontos de carregamento em edifícios JÁ EXISTENTES (artigo 23.º)
+
+Esta é a disposição central para a vida de um condomínio em prédio já construído.
+
+**Princípio (artigo 23.º, n.º 1).** É admitida a instalação, **por qualquer condómino e a expensas do próprio**, de pontos de carregamento elétrico para uso exclusivo ou partilhado, nos lugares de estacionamento de edifícios já existentes que cumpram os requisitos técnicos definidos em portaria.
+
+**Comunicação prévia ao condomínio (artigo 23.º, n.º 2).** Quando a instalação seja efetuada **ou passe por uma parte comum** do edifício — esteja ou não essa parte afeta ao uso exclusivo do condómino —, a instalação **carece sempre de comunicação escrita prévia** dirigida à administração do condomínio (e, quando aplicável, ao proprietário), com uma antecedência de **pelo menos 30 dias** sobre a data pretendida.
+
+**Oposição da administração — apenas 5 fundamentos taxativos (artigo 23.º, n.º 3).** A administração do condomínio só pode opor-se à instalação nos seguintes casos, e em nenhum outro:
+- a) se, após a comunicação, o condomínio proceder ele próprio, no prazo de 90 dias, à instalação de pontos de carregamento para uso partilhado que assegurem os mesmos serviços, tecnologia e necessidades;
+- b) se o edifício já dispuser de um ponto de carregamento ou tomada para uso partilhado equivalente;
+- c) se a instalação colocar comprovadamente em risco a segurança de pessoas ou bens, conforme parecer técnico entregue à administração;
+- d) se a instalação dificultar a circulação nas vias comuns de acesso;
+- e) se não for assegurado, nos espaços comuns, o cumprimento das normas de acessibilidade do Decreto-Lei n.º 163/2006.
+
+**Maioria e prazos (artigo 23.º, n.os 4 e 5).** A decisão da administração é adotada no **prazo máximo de 30 dias** após a comunicação; a oposição **carece de aprovação por maioria simples do valor total do prédio**. As decisões são lavradas em ata e comunicadas por escrito a todos os condóminos ausentes no **prazo de 15 dias**, devendo ser **fundamentadas quando negativas**.
+
+> **Leitura para o condomínio.** O regime favorece o condómino que quer instalar: a regra é a admissibilidade; a oposição é a exceção, possível apenas com um dos cinco fundamentos taxativos do n.º 3, por maioria simples e dentro de 30 dias. Fora destes casos, a administração não pode impedir a instalação.
+
+### I.5.4 — Inspeções (artigo 16.º)
+
+Concluída a instalação, a exploração dos pontos de carregamento fica sujeita a **inspeção** realizada por uma EIIEL; e os pontos são objeto de **inspeção periódica quinquenal** (de 5 em 5 anos) pela EIIEL (artigo 16.º, n.os 2 e 3). Verificada a conformidade, é emitido um **certificado válido por cinco anos** (n.º 4). A não apresentação do certificado pode levar ao **encerramento temporário** do ponto de carregamento e, persistindo a falta além de 90 dias, ao **encerramento definitivo** (n.os 6 e 7).
+
+### I.5.5 — Regras técnicas: a Portaria n.º 128/2026/1
+
+Vários aspetos técnicos do regime da mobilidade elétrica são remetidos pelo DL 93/2025 para portaria. Essa portaria é a **Portaria n.º 128/2026/1, de 26 de março**, que estabelece as potências mínimas e as regras técnicas aplicáveis à instalação e ao funcionamento dos pontos de carregamento elétrico de veículos, concretizando o artigo 22.º do DL 93/2025. Publicada no Diário da República n.º 60, 1.ª série, de 26 de março de 2026. `✅ DRE`
+
+**Entrada em vigor (artigo 8.º).** A portaria entrou em vigor **no dia seguinte ao da publicação — 27 de março de 2026**.
+
+**Potência mínima (artigo 2.º).** A potência mínima de cada ponto de conexão de veículo elétrico **não pode ser inferior a 3680 volt-ampere (VA)** (artigo 2.º, n.º 1). Nos parques de estacionamento, a potência mínima total obtém-se pelo somatório das potências dos lugares considerados, com fator de simultaneidade igual a 1,00 (artigo 2.º, n.º 2).
+
+**Número mínimo de lugares a equipar (artigo 2.º, n.º 3).** Para os **edifícios de habitação multifamiliar**, o número mínimo de lugares de estacionamento a equipar para carregamento (N) obtém-se pela expressão **N = 0,8 + 0,2 × n**, em que n é o número total de lugares do parque (deduzido das dependências suscetíveis de carregamento alimentadas diretamente das frações), com arredondamento para cima ao número inteiro mais próximo. Nas instalações de habitação multifamiliar deve ainda ser previsto um **sistema de controlo da carga (SCC)** (artigo 2.º, n.º 4).
+
+**Custos da infraestrutura no edifício novo (artigo 4.º, n.º 3).** Os custos com a infraestruturação das operações urbanísticas de construção ou reconstrução de prédios em regime de propriedade horizontal, nos termos do artigo 22.º do DL 93/2025, **são suportados pela entidade promotora** dessas operações urbanísticas.
+
+**Regras de instalação e responsabilidade (artigos 3.º e 4.º).** A instalação de pontos de carregamento deve cumprir as regras técnicas das instalações elétricas de baixa tensão (Portaria n.º 949-A/2006, secção 722) e as especificações do Anexo II do Regulamento AFIR. A instalação deve ser executada por técnico ou entidade habilitados nos termos da Lei n.º 14/2015 (artigo 4.º, n.º 1).
+
+**Norma revogatória e regime transitório (artigos 6.º e 7.º).** A portaria revoga as Portarias n.os 220/2016 e 221/2016, ambas de 10 de agosto. As alterações necessárias a instalações já existentes à data de entrada em vigor podem ser realizadas **até 31 de dezembro de 2026** (artigo 7.º).
+
+## I.6 — Alojamento local e outros diplomas
+
+### I.6.1 — Alojamento local (Decreto-Lei n.º 128/2014)
+
+**Decreto-Lei n.º 128/2014, de 29 de agosto** — aprova o regime jurídico da exploração dos estabelecimentos de alojamento local (AL). Em vigor; **última alteração: Declaração de Retificação n.º 39/2024/1, de 10 de dezembro**, na sequência da revisão e republicação operada pelo **Decreto-Lei n.º 76/2024, de 23 de outubro**. `✅ DRE`
+**Fonte oficial (versão consolidada):** https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2014-56917875
+
+> Regime sujeito a alterações frequentes (foi alterado, entre outros, pela Lei n.º 62/2018, pela Lei n.º 56/2023 e pelo Decreto-Lei n.º 76/2024). Consultar sempre a versão consolidada. Esta secção sintetiza as disposições relevantes para o condomínio; o texto entre aspas é verbatim do DRE.
+
+**Modalidades (artigo 3.º).** O AL integra-se numa de quatro modalidades: moradia, apartamento, estabelecimento de hospedagem (que pode usar a denominação «hostel») e quartos. O «apartamento» é o AL cuja unidade é uma fração autónoma de edifício.
+
+#### O AL em propriedade horizontal — as disposições essenciais
+
+- **O AL não é, em si, uso diverso da habitação (artigo 6.º-B, n.º 4).** A instalação e exploração de AL numa fração autónoma **«não constitui uso diverso do fim a que é destinada, nos termos e para os efeitos do disposto na alínea c) do n.º 2 do artigo 1422.º do Código Civil»** — sem prejuízo de proibição constante do título constitutivo, de regulamento de condomínio, ou de deliberação da assembleia aprovada nos termos do número seguinte.
+
+- **Proibição do AL por deliberação da assembleia (artigo 6.º-B, n.º 5).** A assembleia de condóminos pode deliberar criar ou alterar o regulamento de condomínio **para proibir o exercício do AL** no prédio. Essa deliberação tem de ser **aprovada por maioria representativa de dois terços (2/3) da permilagem** do prédio, e **produz efeitos apenas para o futuro** — aplica-se somente aos pedidos de registo de AL submetidos em data posterior à deliberação. Não afeta, portanto, os AL já registados.
+
+- **Oposição a um AL já existente, por perturbação (artigo 9.º, n.º 2).** Distinta da proibição geral: quando o AL funcione numa fração e se verifique a **prática reiterada e comprovada de atos que perturbem a normal utilização do prédio**, ou que causem incómodo e afetem o descanso dos condóminos, a assembleia pode **opor-se ao exercício da atividade naquela fração**, por deliberação fundamentada **aprovada por mais de metade da permilagem** do edifício, solicitando uma decisão do presidente da câmara municipal. O cancelamento pode levar à impossibilidade de o imóvel ser explorado como AL por um período fixado na decisão, **até cinco anos** (artigo 9.º, n.º 8).
+
+- **Contribuição adicional para o condomínio (artigo 20.º-A).** O condomínio **pode fixar o pagamento de uma contribuição adicional** correspondente às despesas decorrentes da utilização acrescida das partes comuns, **com o limite de 30 % do valor anual da quota** respetiva, a deliberar nos termos do artigo 1424.º do Código Civil.
+
+- **Número de emergência (artigo 9.º, n.º 10).** A assembleia pode determinar, por deliberação aprovada por maioria dos votos representativos do capital investido, que os AL disponham de um **número de contacto telefónico permanente de emergência**, facultado aos demais condóminos. O responsável do AL deve disponibilizar ao condomínio o seu contacto telefónico e e-mail (artigo 12.º, n.º 9).
+
+- **Hostels (artigo 4.º, n.º 4).** Não pode haver instalação e exploração de «hostels» em edifícios em propriedade horizontal nos prédios em que coexista habitação **sem autorização dos condóminos**; a deliberação respetiva instrui a comunicação prévia. A ata da assembleia que autoriza a instalação é documento obrigatório da comunicação prévia, no caso dos hostels (artigo 6.º, n.º 2, alínea f).
+
+- **Obras nas partes comuns (artigo 13.º, n.º 3).** As despesas com obras realizadas nas partes comuns para adaptar ou licenciar a fração para AL **correm por conta do titular do alojamento local**.
+
+- **Sinalética de ruído (artigo 9.º, n.º 11).** O titular de AL em fração de prédio em PH deve afixar, em local visível no interior, sinalética com os horários previstos no Regulamento Geral do Ruído (DL 9/2007).
+
+#### Registo, fiscalização e contraordenações
+
+O AL exerce-se mediante **comunicação prévia com prazo** dirigida ao presidente da câmara municipal, através do Balcão Único Eletrónico (artigos 5.º e 6.º). Os municípios podem definir **áreas de contenção** e **áreas de crescimento sustentável**, com limites à instalação de novos AL (artigos 15.º-A a 15.º-C). A fiscalização compete à **ASAE** e à câmara municipal (artigo 21.º). As contraordenações (artigo 23.º) qualificam-se em graves e leves, **punidas nos termos do Regime Jurídico das Contraordenações Económicas (RJCE)** — o diploma não fixa montantes próprios de coima.
+
+### I.6.2 — Ruído (Decreto-Lei n.º 9/2007 — Regulamento Geral do Ruído)
+
+**Decreto-Lei n.º 9/2007, de 17 de janeiro** — aprova o Regulamento Geral do Ruído (RGR), que se publica em anexo e dele faz parte integrante. Em vigor; **alterado pelo Decreto-Lei n.º 278/2007, de 1 de agosto, e retificado pela Declaração de Retificação n.º 18/2007, de 16 de março**. `✅ DRE`
+**Fonte oficial (versão consolidada):** https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2007-34504975
+
+> O texto desta secção foi confrontado com a versão consolidada do DRE (que integra o DL 278/2007 e a Retificação 18/2007). As alterações de 2007 incidiram sobre os artigos 4.º do corpo do decreto-lei e 15.º do Regulamento; nenhum dos artigos citados nesta secção foi alterado. O texto entre aspas é verbatim.
+
+> O RGR é sobretudo um regime de ambiente e de ordenamento do território (zonas sensíveis e mistas, mapas de ruído, atividades ruidosas permanentes e temporárias). Esta secção retém apenas o que releva para a vida de um condomínio: o ruído de vizinhança, os períodos de referência, as obras no interior dos edifícios e a articulação com o artigo 1422.º do Código Civil.
+
+#### I.6.2.1 — Períodos de referência (artigo 3.º do RGR)
+
+O RGR define três períodos de referência (artigo 3.º, alínea p):
+- **Período diurno** — das 7 às 20 horas;
+- **Período do entardecer** — das 20 às 23 horas;
+- **Período noturno** — das 23 às 7 horas.
+
+#### I.6.2.2 — Ruído de vizinhança (artigos 3.º e 24.º do RGR)
+
+O **«ruído de vizinhança»** é definido (artigo 3.º, alínea r) como «o ruído associado ao uso habitacional e às atividades que lhe são inerentes, produzido diretamente por alguém ou por intermédio de outrem, por coisa à sua guarda ou animal colocado sob a sua responsabilidade, que, pela sua duração, repetição ou intensidade, seja suscetível de afetar a saúde pública ou a tranquilidade da vizinhança». É, portanto, o conceito que enquadra os conflitos de barulho mais comuns entre condóminos (festas, animais, equipamentos domésticos).
+
+Poderes de intervenção sobre o ruído de vizinhança (artigo 24.º):
+- **Ruído produzido entre as 23 e as 7 horas:** as autoridades policiais podem **ordenar ao produtor do ruído a adoção de medidas para fazer cessar imediatamente a incomodidade**.
+- **Ruído produzido entre as 7 e as 23 horas:** as autoridades policiais podem **fixar ao produtor um prazo para fazer cessar a incomodidade**.
+
+#### I.6.2.3 — Obras no interior dos edifícios (artigo 16.º do RGR)
+
+As obras de recuperação, remodelação ou conservação realizadas no interior de edifícios destinados a habitação, comércio ou serviços que constituam fonte de ruído **só podem ser realizadas em dias úteis, entre as 8 e as 20 horas**, não estando sujeitas a licença especial de ruído (artigo 16.º, n.º 1). O responsável pela execução das obras deve **afixar, em local acessível aos utilizadores do edifício, a duração prevista** das obras e, quando possível, o período de maior intensidade de ruído (artigo 16.º, n.º 2). Excetuam-se os trabalhos urgentes destinados a evitar perigo de danos para pessoas ou bens (artigo 17.º).
+
+#### I.6.2.4 — Fiscalização e contraordenações (artigos 26.º, 28.º e 30.º do RGR)
+
+A fiscalização do ruído de vizinhança e das atividades ruidosas temporárias cabe, designadamente, às **autoridades policiais e à polícia municipal** (artigo 26.º). As infrações constituem **contraordenação ambiental leve ou grave**; o RGR **não fixa montantes próprios** de coima — remete para a **Lei n.º 50/2006, de 29 de agosto (Lei-Quadro das Contraordenações Ambientais)** (artigos 28.º e 29.º). O processamento das contraordenações e a aplicação das coimas em matéria de ruído de vizinhança competem à **câmara municipal** (artigo 30.º, n.º 2).
+
+#### I.6.2.5 — Articulação com o regime do condomínio
+
+O RGR é um regime de direito público (ambiente), distinto do regime civil da propriedade horizontal, mas os dois articulam-se. O ruído excessivo de um condómino pode simultaneamente:
+- constituir **ruído de vizinhança** sancionável nos termos do RGR, com intervenção das autoridades policiais e da câmara municipal; e
+- violar o dever de não afetar o uso das demais frações e das partes comuns, podendo relevar como **uso prejudicial** para efeitos do **artigo 1422.º do Código Civil** (ver Parte B), com as consequências aí previstas no plano das relações entre condóminos.
+
+Os dois regimes são cumuláveis: a atuação da câmara ou da polícia ao abrigo do RGR não impede a reação dos condóminos ou do condomínio no plano civil, e vice-versa.
+
+### I.6.3 — Proteção de dados pessoais e videovigilância (Lei n.º 58/2019)
+
+**Lei n.º 58/2019, de 8 de agosto** — assegura a execução, na ordem jurídica nacional, do Regulamento (UE) 2016/679 (Regulamento Geral de Proteção de Dados — RGPD). Em vigor. `✅ DRE`
+**Fonte oficial:** https://diariodarepublica.pt/dr/legislacao-consolidada/lei/2019-123815598
+
+> A proteção de dados pessoais resulta de dois instrumentos articulados: o **RGPD** (regulamento da UE, diretamente aplicável) e a **Lei n.º 58/2019** (lei nacional que assegura a sua execução em Portugal). Esta secção sintetiza as disposições da Lei 58/2019 relevantes para a administração de um condomínio. O texto entre aspas é verbatim.
+
+> **Nota.** O Acórdão n.º 268/2022 do Tribunal Constitucional, por vezes invocado a propósito de proteção de dados, declarou inconstitucionais normas da **Lei n.º 32/2008** (conservação de metadados de telecomunicações) — diploma distinto. Não afeta a Lei n.º 58/2019 nem as disposições desta secção.
+
+#### I.6.3.1 — Enquadramento: o condomínio como responsável pelo tratamento
+
+O condomínio, ao gerir dados pessoais dos condóminos (nomes, frações, permilagens, contactos, quotas, dívidas, atas), realiza um **tratamento de dados pessoais** e é, quanto a esse tratamento, **responsável pelo tratamento** na aceção do RGPD. A Lei 58/2019 aplica-se a todos os tratamentos realizados em território nacional, independentemente da natureza pública ou privada do responsável (artigo 2.º, n.º 1). O administrador, na prática, assegura o cumprimento destas regras em nome do condomínio.
+
+A **autoridade de controlo nacional** é a **Comissão Nacional de Proteção de Dados (CNPD)** — entidade administrativa independente que fiscaliza o cumprimento do RGPD e da lei, e a quem qualquer pessoa pode apresentar queixa (artigos 3.º, 4.º e 6.º).
+
+#### I.6.3.2 — Videovigilância das partes comuns (artigo 19.º)
+
+A Lei 58/2019 contém um regime expresso de videovigilância no **artigo 19.º** — diretamente relevante para câmaras instaladas em partes comuns de um condomínio (halls, entradas, garagens). Os sistemas cuja finalidade seja a proteção de pessoas e bens devem observar os requisitos do artigo 31.º da Lei n.º 34/2013, de 16 de maio, com os **limites** seguintes (artigo 19.º, n.º 2):
+
+As câmaras **não podem incidir sobre**:
+- **«Vias públicas, propriedades limítrofes ou outros locais que não sejam do domínio exclusivo do responsável, exceto no que seja estritamente necessário para cobrir os acessos ao imóvel»** — uma câmara de condomínio não pode, em regra, filmar a rua ou o prédio vizinho, salvo o estritamente necessário para enquadrar o acesso;
+- a zona de digitação de códigos de caixas multibanco ou terminais de pagamento;
+- o interior de áreas reservadas onde deva ser respeitada a privacidade (instalações sanitárias, zonas de espera, provadores);
+- o interior de áreas reservadas aos trabalhadores (zonas de refeição, vestiários, instalações sanitárias, zonas de descanso) — relevante quando o condomínio tenha porteiro ou outro pessoal.
+
+**Captação de som:** nos casos em que a videovigilância é admitida, **é proibida a captação de som**, exceto no período em que as instalações vigiadas estejam encerradas ou mediante autorização prévia da CNPD (artigo 19.º, n.º 4).
+
+> O artigo 19.º fixa os limites; não dispensa o cumprimento das demais obrigações do RGPD (fundamento de licitude, informação aos titulares através de sinalética visível, prazo de conservação, segurança). A deliberação de instalar videovigilância nas partes comuns é tomada em assembleia de condóminos, no quadro das regras de administração das partes comuns (Parte B e Parte C). A CNPD tem emitido orientações específicas sobre videovigilância em condomínios, que devem ser consultadas em complemento.
+
+#### I.6.3.3 — Prazo de conservação dos dados (artigo 21.º)
+
+O prazo de conservação de dados pessoais é o fixado por norma legal ou regulamentar; na falta desta, **o que se revele necessário para a prossecução da finalidade** (artigo 21.º, n.º 1). Quando os dados sejam necessários para comprovar o cumprimento de obrigações contratuais ou de outra natureza, podem ser conservados **enquanto não decorrer o prazo de prescrição dos direitos correspondentes** (artigo 21.º, n.º 3) — relevante para a documentação de quotas e dívidas de condomínio. Cessada a finalidade do tratamento, o responsável deve proceder à **destruição ou anonimização** dos dados (artigo 21.º, n.º 4).
+
+#### I.6.3.4 — Contraordenações (artigos 37.º a 39.º)
+
+A Lei 58/2019 fixa montantes próprios de coima, distinguindo contraordenações **muito graves** (artigo 37.º) e **graves** (artigo 38.º). Os montantes variam consoante o infrator. Para uma **pessoa singular**:
+- contraordenação muito grave: coima de **1 000 € a 500 000 €** (artigo 37.º, n.º 2, alínea c);
+- contraordenação grave: coima de **500 € a 250 000 €** (artigo 38.º, n.º 2, alínea c).
+
+Para empresas (PME e grandes empresas), os limites são substancialmente mais elevados, podendo ascender, no caso de grande empresa, a 20 000 000 € ou 4 % do volume de negócios anual mundial. A violação das regras de videovigilância do artigo 19.º constitui **contraordenação grave** (artigo 38.º, n.º 1, alínea u). A competência sancionatória e a determinação da medida da coima cabem à **CNPD** (artigo 39.º).
+
+> A qualificação concreta do condomínio como «pessoa singular», «PME» ou outra categoria, para efeitos de moldura da coima, não é evidente e deve ser objeto de apreciação jurídica casuística — o condomínio não é nem uma pessoa singular nem, tipicamente, uma empresa. Este é um ponto a confirmar pelo jurista.
 
 ---
 
@@ -661,8 +1058,16 @@ Diplomas que não integram o núcleo da propriedade horizontal mas relevam para 
 - **Declaração de encargos do condomínio** — declaração escrita do administrador, exigível na alienação de uma fração (artigo 1424.º-A do Código Civil).
 - **Impugnação de deliberações** — meios de reação contra deliberações inválidas (artigo 1433.º do Código Civil).
 - **Inovação** — obra que altera a substância ou a funcionalidade das partes comuns, distinta da mera conservação.
-- **EMA** — Empresa de Manutenção de Ascensores.
+- **EMA** — Empresa de Manutenção de Ascensores (Decreto-Lei n.º 320/2002).
+- **EI** — duas aceções consoante o diploma: *Entidade Inspectora* de ascensores (Decreto-Lei n.º 320/2002) e *Entidade Instaladora* de gás (Decreto-Lei n.º 97/2017).
+- **RGPD** — Regulamento Geral de Proteção de Dados (Regulamento (UE) 2016/679), diretamente aplicável; executado em Portugal pela Lei n.º 58/2019.
+- **CNPD** — Comissão Nacional de Proteção de Dados; autoridade de controlo nacional em matéria de proteção de dados pessoais.
+- **Ruído de vizinhança** — ruído associado ao uso habitacional que, pela sua duração, repetição ou intensidade, afeta a tranquilidade da vizinhança (Decreto-Lei n.º 9/2007).
+- **EIG** — Entidade Inspetora de gás (Decreto-Lei n.º 97/2017).
 - **OPC** — Operador de Pontos de Carregamento (mobilidade elétrica).
+- **SCIE** — Segurança Contra Incêndio em Edifícios (Decreto-Lei n.º 220/2008).
+- **ANEPC** — Autoridade Nacional de Emergência e Proteção Civil (sucessora da ANPC).
+- **RJCE** — Regime Jurídico das Contraordenações Económicas (anexo ao Decreto-Lei n.º 9/2021).
 - **IAS** — indexante dos apoios sociais, valor de referência anual.
 
 ---
@@ -677,12 +1082,12 @@ Resumo do nível de auditoria de cada bloco, à data da auditoria final (maio de
 | Código Civil — capítulo VI (todos os 31 artigos, 1414.º a 1438.º-A) | ✅ DRE — confirmado contra fonte oficial | Verbatim confrontado com a versão consolidada do DRE e com a publicação oficial da Lei n.º 8/2022; última alteração do capítulo: DL 10/2024 |
 | DL 268/94 (Parte C) | ✅ DRE — confirmado contra fonte oficial | 14 unidades de artigos confrontadas com a versão consolidada do DRE e a republicação oficial da Lei 8/2022; sem alteração posterior à Lei 8/2022 |
 | Código do Notariado, art. 54.º (Parte E) | ✅ DRE — confirmado contra fonte oficial | 6 números confrontados com a versão consolidada do DRE; n.º 3 aditado pela Lei 8/2022 |
-| CPC, art. 703.º (Parte F) | ✅ DRE — verbatim confrontado | Inclui nota do Acórdão TC n.º 408/2015 |
-| Legislação conexa (Parte I) | ✅ DRE — estado e datas confirmados | Regime da mobilidade elétrica atualizado (DL 93/2025 + Portaria 128/2026/1); DL 39/2010 revogado |
+| CPC, arts. 11.º, 12.º e 703.º (Parte F) | ✅ DRE — verbatim confrontado | Arts. 11.º-12.º: personalidade judiciária do condomínio; art. 703.º: títulos executivos, com nota do Acórdão TC n.º 408/2015 |
+| Legislação conexa (Parte I) | ✅ DRE — estado e datas confirmados | DL 320/2002 (ascensores), DL 220/2008 (SCIE), DL 97/2017 (gás), DL 128/2014 (alojamento local), DL 9/2007 (ruído), Lei 58/2019 (proteção de dados), DL 93/2025 (mobilidade elétrica) e Portaria 128/2026/1 (regras técnicas de carregamento) integrados com verbatim confrontado; a grelha das categorias de risco da SCIE (Quadro I do Anexo III do DL 220/2008) foi confrontada com o texto da publicação oficial no Diário da República de 12-11-2008; DL 39/2010 e RGEU revogados. I.1 (urbanismo) confrontado com o DL 10/2024 e com o artigo 66.º do RJUE (DL 555/99). Toda a Parte I está confrontada artigo a artigo |
 | Jurisprudência (Parte G) | ✅ Existência, número de processo, data e relator confirmados em dgsi.pt / juris.stj.pt | Inclui ligações para o texto integral; seleção ilustrativa, não exaustiva |
 
 **Ações recomendadas antes de uso em produção:**
-1. Todos os diplomas do núcleo (Código Civil capítulo VI, DL 268/94, DL 269/94, CPC art. 703.º, Código do Notariado art. 54.º) foram confrontados com fonte oficial do Diário da República — não resta nenhum artigo com selo ◆. Recomenda-se, ainda assim, a validação de assinatura por jurista português antes do uso em produção.
+1. Todo o conteúdo legislativo desta base — o núcleo (Código Civil capítulo VI, DL 268/94, DL 269/94, CPC artigos 11.º, 12.º e 703.º, Código do Notariado artigo 54.º) e toda a legislação conexa da Parte I, incluindo a grelha das categorias de risco da SCIE e a Portaria n.º 128/2026/1 — foi confrontado com fonte oficial do Diário da República. Não resta nenhum elemento com selo ◆. Recomenda-se, ainda assim, a validação por jurista português antes do uso em produção: a confrontação verbatim assegura a fidelidade à fonte, mas não substitui o juízo jurídico sobre interpretação e aplicação.
 2. Estabelecer um processo de reverificação periódica: a legislação e a jurisprudência evoluem, pelo que a base deve ser confrontada com o DRE em intervalos regulares (ver nota técnica de integração com os dados oficiais do DRE).
 
 ---
