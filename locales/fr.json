@@ -1272,7 +1272,19 @@
       "uploadTagsPlaceholder": "Ex: plomberie, fuite, cave, urgent",
       "uploadCancel": "Annuler",
       "uploadUploading": "Upload...",
-      "uploadAddDoc": "Ajouter le document"
+      "uploadAddDoc": "Ajouter le document",
+      "typeLabels": {
+        "rapport": "Rapport intervention",
+        "facture": "Facture",
+        "devis": "Devis",
+        "contrat": "Contrat",
+        "diagnostic": "Diagnostic légal",
+        "ag": "PV Assemblée",
+        "plan": "Plan / Carnet",
+        "controle": "Contrôle réglementaire",
+        "assurance": "Assurance / RC Pro",
+        "autre": "Autre"
+      }
     },
     "coproprios": {
       "title": "Copropriétaires"
