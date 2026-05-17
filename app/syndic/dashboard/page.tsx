@@ -665,9 +665,11 @@ export default function SyndicDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
-      // Forcer le rafraîchissement du token pour obtenir les user_metadata à jour
-      await supabase.auth.refreshSession()
-      // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies)
+      // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies).
+      // ⚠️ Ne PAS appeler refreshSession() ici : crée une race condition avec la
+      // rotation du refresh_token du middleware SSR sur hard refresh, ce qui
+      // déconnecte l'utilisateur. Les app_metadata sont déjà à jour via le JWT
+      // (regénéré au prochain login si besoin).
       const { data: { user: freshUser } } = await supabase.auth.getUser()
       const userRole = freshUser?.app_metadata?.role || ''
       const isAdminOverride = freshUser?.app_metadata?._admin_override === true
