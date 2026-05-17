@@ -257,7 +257,13 @@ export default function CanalCommunicationsPage({
 
   // ─── Status tag mapping (mission list) ───
   const getStatutTag = (statut: string) => {
-    const map: Record<string, { label: string; cls: string }> = {
+    const map: Record<string, { label: string; cls: string }> = locale === 'pt' ? {
+      en_attente: { label: 'Em espera',  cls: 'sd-tag sd-tag-wait' },
+      acceptee:   { label: 'Aceite',     cls: 'sd-tag sd-tag-ok' },
+      en_cours:   { label: 'Em curso',   cls: 'sd-tag sd-tag-new' },
+      terminee:   { label: 'Concluída',  cls: 'sd-tag sd-tag-ok' },
+      annulee:    { label: 'Cancelada',  cls: 'sd-tag sd-tag-wait' },
+    } : {
       en_attente: { label: 'En attente', cls: 'sd-tag sd-tag-wait' },
       acceptee:   { label: 'Acceptée',   cls: 'sd-tag sd-tag-ok' },
       en_cours:   { label: 'En cours',   cls: 'sd-tag sd-tag-new' },
@@ -269,7 +275,13 @@ export default function CanalCommunicationsPage({
 
   // ─── Status tag for detail panel (longer labels) ───
   const getStatutTagDetail = (statut: string) => {
-    const map: Record<string, { label: string; cls: string }> = {
+    const map: Record<string, { label: string; cls: string }> = locale === 'pt' ? {
+      en_attente: { label: 'Em espera de validação', cls: 'sd-tag sd-tag-wait' },
+      acceptee:   { label: 'Aceite',                 cls: 'sd-tag sd-tag-ok' },
+      en_cours:   { label: 'Em curso',               cls: 'sd-tag sd-tag-new' },
+      terminee:   { label: 'Concluída',              cls: 'sd-tag sd-tag-ok' },
+      annulee:    { label: 'Cancelada',              cls: 'sd-tag sd-tag-wait' },
+    } : {
       en_attente: { label: 'En attente validation', cls: 'sd-tag sd-tag-wait' },
       acceptee:   { label: 'Acceptée',              cls: 'sd-tag sd-tag-ok' },
       en_cours:   { label: 'En cours',              cls: 'sd-tag sd-tag-new' },
@@ -280,6 +292,11 @@ export default function CanalCommunicationsPage({
   }
 
   const getPrioriteTag = (p?: string) => {
+    if (locale === 'pt') {
+      if (p === 'urgente') return { label: 'Urgente', cls: 'sd-tag sd-tag-urg' }
+      if (p === 'planifiee') return { label: 'Planeada', cls: 'sd-tag sd-tag-ok' }
+      return { label: 'Normal', cls: 'sd-tag sd-tag-norm' }
+    }
     if (p === 'urgente') return { label: 'Urgent', cls: 'sd-tag sd-tag-urg' }
     if (p === 'planifiee') return { label: 'Planifié', cls: 'sd-tag sd-tag-ok' }
     return { label: 'Normale', cls: 'sd-tag sd-tag-norm' }
@@ -296,11 +313,19 @@ export default function CanalCommunicationsPage({
   }
 
   // Helpers
-  const demandeurRoleLabel = selectedMission?.demandeurRole === 'coproprio' ? 'Coproprietaire'
+  const demandeurRoleLabel = locale === 'pt' ? (
+    selectedMission?.demandeurRole === 'coproprio' ? 'Condómino'
+    : selectedMission?.demandeurRole === 'locataire' ? 'Inquilino'
+    : selectedMission?.demandeurRole === 'technicien' ? 'Técnico do edifício'
+    : selectedMission?.locataire ? 'Inquilino / Residente'
+    : 'Solicitante'
+  ) : (
+    selectedMission?.demandeurRole === 'coproprio' ? 'Coproprietaire'
     : selectedMission?.demandeurRole === 'locataire' ? 'Locataire'
     : selectedMission?.demandeurRole === 'technicien' ? 'Technicien bâtiment'
     : selectedMission?.locataire ? 'Locataire / Résident'
     : 'Demandeur'
+  )
 
   const demandeurIcon = selectedMission?.demandeurRole === 'coproprio' ? '🏠'
     : selectedMission?.demandeurRole === 'locataire' ? '🔑'
@@ -392,7 +417,7 @@ export default function CanalCommunicationsPage({
               {/* Header */}
               <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--sd-border)' }}>
                 <div className="flex items-center justify-between mb-[14px]">
-                  <span className="sd-mp-title">Missions</span>
+                  <span className="sd-mp-title">{locale === 'pt' ? 'Missões' : 'Missions'}</span>
                 </div>
 
                 {/* Segment tabs */}
@@ -401,14 +426,14 @@ export default function CanalCommunicationsPage({
                     onClick={() => setChannelView('artisans')}
                     className={`sd-seg-tab ${channelView === 'artisans' ? 'active' : ''}`}
                   >
-                    <span>🔧</span> Artisans
+                    <span>🔧</span> {locale === 'pt' ? 'Profissionais' : 'Artisans'}
                     <span className="sd-seg-count">{missionsArtisan.length}</span>
                   </button>
                   <button
                     onClick={() => setChannelView('demandeurs')}
                     className={`sd-seg-tab ${channelView === 'demandeurs' ? 'active' : ''}`}
                   >
-                    <span>👤</span> Résidents
+                    <span>👤</span> {locale === 'pt' ? 'Residentes' : 'Résidents'}
                     <span className="sd-seg-count">{missionsDemandeur.length}</span>
                   </button>
                 </div>
@@ -651,7 +676,7 @@ export default function CanalCommunicationsPage({
                                         className="inline-flex items-center gap-1 mt-2 text-xs px-3 py-1.5 rounded-full font-medium transition"
                                         style={{ background: 'var(--sd-gold-dim)', color: 'var(--sd-gold)', border: '1px solid rgba(201,168,76,0.3)' }}
                                       >
-                                        + Ajouter au planning
+                                        + {locale === 'pt' ? 'Adicionar ao planeamento' : 'Ajouter au planning'}
                                       </button>
                                     )}
                                   </div>
@@ -663,11 +688,11 @@ export default function CanalCommunicationsPage({
                                 <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${msg.tachePriorite === 'urgente' ? 'rgba(192,57,43,0.2)' : 'var(--sd-border)'}`, boxShadow: '0 2px 8px rgba(13,27,46,0.06)' }}>
                                   <div className="flex items-center gap-2 px-4 py-2" style={{ background: msg.tachePriorite === 'urgente' ? 'var(--sd-red)' : 'var(--sd-navy)', color: 'white' }}>
                                     <span>✅</span>
-                                    <span className="text-xs font-bold tracking-wide">TÂCHE{msg.tachePriorite === 'urgente' ? ' — URGENTE' : ''}</span>
+                                    <span className="text-xs font-bold tracking-wide">{locale === 'pt' ? `TAREFA${msg.tachePriorite === 'urgente' ? ' — URGENTE' : ''}` : `TÂCHE${msg.tachePriorite === 'urgente' ? ' — URGENTE' : ''}`}</span>
                                   </div>
                                   <div className="px-4 py-3" style={{ background: msg.tachePriorite === 'urgente' ? 'var(--sd-red-soft)' : 'white' }}>
                                     <p className="text-sm font-medium" style={{ color: 'var(--sd-navy)' }}>{msg.contenu}</p>
-                                    {msg.tacheAssignee && <p className="text-xs mt-1" style={{ color: 'var(--sd-ink-3)' }}>👤 Pour : <span className="font-medium">{msg.tacheAssignee}</span></p>}
+                                    {msg.tacheAssignee && <p className="text-xs mt-1" style={{ color: 'var(--sd-ink-3)' }}>👤 {locale === 'pt' ? 'Para' : 'Pour'} : <span className="font-medium">{msg.tacheAssignee}</span></p>}
                                     <button
                                       onClick={() => setCanalInterneMessages(prev => prev.map(m =>
                                         m.id === msg.id ? { ...m, tacheStatut: m.tacheStatut === 'terminee' ? 'en_attente' : 'terminee' } : m
@@ -678,7 +703,9 @@ export default function CanalCommunicationsPage({
                                         color: msg.tacheStatut === 'terminee' ? 'var(--sd-teal)' : 'var(--sd-ink-2)',
                                       }}
                                     >
-                                      {msg.tacheStatut === 'terminee' ? '✓ Terminée — cliquer pour rouvrir' : 'En attente — marquer terminée'}
+                                      {locale === 'pt'
+                                        ? (msg.tacheStatut === 'terminee' ? '✓ Concluída — clique para reabrir' : 'Em espera — marcar como concluída')
+                                        : (msg.tacheStatut === 'terminee' ? '✓ Terminée — cliquer pour rouvrir' : 'En attente — marquer terminée')}
                                     </button>
                                   </div>
                                 </div>
@@ -780,16 +807,16 @@ export default function CanalCommunicationsPage({
                   💬
                 </div>
                 <p className="sd-ch-mission" style={{ fontSize: 18, textAlign: 'center' }}>
-                  Canal Communications
+                  {locale === 'pt' ? 'Canal de Comunicações' : 'Canal Communications'}
                 </p>
                 <p className="text-xs text-center" style={{ color: 'var(--sd-ink-3)', maxWidth: 240, lineHeight: 1.6 }}>
-                  Selectionnez une mission dans la liste pour acceder au fil de discussion
+                  {locale === 'pt' ? 'Selecione uma missão da lista para aceder ao fio de conversa' : 'Selectionnez une mission dans la liste pour acceder au fil de discussion'}
                 </p>
                 <button onClick={onCreateMission}
                   className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
                   style={{ background: 'var(--sd-navy)', color: 'white', boxShadow: '0 2px 8px rgba(13,27,46,0.2)' }}>
                   <span style={{ color: 'var(--sd-gold)', fontSize: 17, fontWeight: 300 }}>+</span>
-                  Nouvelle mission
+                  {locale === 'pt' ? 'Nova missão' : 'Nouvelle mission'}
                 </button>
               </div>
             ) : (
@@ -800,22 +827,24 @@ export default function CanalCommunicationsPage({
                   <div className="flex flex-col" style={{ gap: 3 }}>
                     <div className="sd-ch-mission">
                       {selectedMission.immeuble}
-                      {selectedMission.batiment && ` — Bât ${selectedMission.batiment}`}
+                      {selectedMission.batiment && ` — ${locale === 'pt' ? 'Bloco' : 'Bât'} ${selectedMission.batiment}`}
                       {selectedMission.type && <span style={{ color: 'var(--sd-ink-3)', fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 400 }}> · {selectedMission.type}</span>}
                     </div>
                     <div className="flex items-center text-xs" style={{ color: 'var(--sd-ink-3)', gap: 12 }}>
                       <span className="flex items-center gap-1">
                         <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--sd-teal)' }} />
-                        {selectedMission.artisan || selectedMission.demandeurNom || selectedMission.locataire || 'Sans artisan'}
+                        {selectedMission.artisan || selectedMission.demandeurNom || selectedMission.locataire || (locale === 'pt' ? 'Sem profissional' : 'Sans artisan')}
                       </span>
                       <span style={{ opacity: 0.4 }}>&middot;</span>
-                      <span>Mission #{selectedMission.id.substring(0, 8)}</span>
+                      <span>{locale === 'pt' ? 'Missão' : 'Mission'} #{selectedMission.id.substring(0, 8)}</span>
                       {(selectedMission.demandeurNom || selectedMission.locataire) && (
                         <>
                           <span style={{ opacity: 0.4 }}>&middot;</span>
                           <button onClick={() => setCanalTab(canalTab === 'artisan' ? 'demandeur' : 'artisan')}
                             className="underline" style={{ color: canalTab === 'demandeur' ? 'var(--sd-gold)' : 'var(--sd-ink-3)', cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 11 }}>
-                            {canalTab === 'artisan' ? `Vue: Artisan →` : `Vue: ${demandeurRoleLabel} →`}
+                            {locale === 'pt'
+                              ? (canalTab === 'artisan' ? `Vista: Profissional →` : `Vista: ${demandeurRoleLabel} →`)
+                              : (canalTab === 'artisan' ? `Vue: Artisan →` : `Vue: ${demandeurRoleLabel} →`)}
                           </button>
                         </>
                       )}
@@ -1190,9 +1219,9 @@ export default function CanalCommunicationsPage({
 
               {/* Selection artisan */}
               <div>
-                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--sd-navy)' }}>Artisan *</label>
+                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--sd-navy)' }}>{locale === 'pt' ? 'Profissional *' : 'Artisan *'}</label>
                 {artisans.filter(a => a.statut === 'actif').length === 0 ? (
-                  <p className="text-xs italic" style={{ color: 'var(--sd-ink-3)' }}>Aucun artisan actif disponible</p>
+                  <p className="text-xs italic" style={{ color: 'var(--sd-ink-3)' }}>{locale === 'pt' ? 'Nenhum profissional ativo disponível' : 'Aucun artisan actif disponible'}</p>
                 ) : (
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {artisans.filter(a => a.statut === 'actif').map(a => (
@@ -1206,13 +1235,13 @@ export default function CanalCommunicationsPage({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold" style={{ color: 'var(--sd-navy)' }}>{a.nom}</p>
-                            {(a.vitfixCertifie || a.vitfix_certifie) && <span className="sd-tag sd-tag-new">✓ Certifie</span>}
+                            {(a.vitfixCertifie || a.vitfix_certifie) && <span className="sd-tag sd-tag-new">✓ {locale === 'pt' ? 'Certificado' : 'Certifie'}</span>}
                           </div>
                           <p className="text-xs" style={{ color: 'var(--sd-ink-3)' }}>{a.metier} - {a.telephone}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-xs font-bold" style={{ color: 'var(--sd-gold)' }}>⭐ {a.note}</p>
-                          <p className="text-xs" style={{ color: 'var(--sd-ink-3)' }}>{a.nbInterventions || a.nb_interventions} missions</p>
+                          <p className="text-xs" style={{ color: 'var(--sd-ink-3)' }}>{a.nbInterventions || a.nb_interventions} {locale === 'pt' ? 'missões' : 'missions'}</p>
                         </div>
                       </label>
                     ))}
