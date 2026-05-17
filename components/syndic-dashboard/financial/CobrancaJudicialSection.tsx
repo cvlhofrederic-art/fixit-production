@@ -250,22 +250,22 @@ const MODELOS_DOCUMENTOS = [
   },
   {
     id: 'notificacao_lrar',
-    titulo: 'Notificacao formal (carta registada LRAR)',
-    descricao: 'Carta registada com aviso de recepcao, exigindo o pagamento sob pena de acao judicial conforme Lei 8/2022.',
+    titulo: 'Notificação formal (carta registada LRAR)',
+    descricao: 'Carta registada com aviso de receção, exigindo o pagamento sob pena de ação judicial conforme Lei 8/2022.',
     icon: '📨',
     etapaRelacionada: 'notificacao_formal' as EtapaCobranca,
   },
   {
     id: 'requerimento_injuncao',
-    titulo: 'Requerimento de injuncao (Tribunal)',
-    descricao: 'Formulario para procedimento de injuncao no Balcao Nacional de Injuncoes (DL 269/98).',
+    titulo: 'Requerimento de injunção (Tribunal)',
+    descricao: 'Formulário para procedimento de injunção no Balcão Nacional de Injunções (DL 269/98).',
     icon: '🏛️',
     etapaRelacionada: 'injuncao_acao' as EtapaCobranca,
   },
   {
     id: 'comunicacao_ag',
-    titulo: 'Comunicacao a AG sobre dividas',
-    descricao: 'Relatorio para apresentacao em Assembleia Geral com o ponto de situacao das dividas.',
+    titulo: 'Comunicação à AG sobre dívidas',
+    descricao: 'Relatório para apresentação em Assembleia Geral com o ponto de situação das dívidas.',
     icon: '📋',
     etapaRelacionada: 'prazo_90_dias' as EtapaCobranca,
   },
@@ -276,9 +276,9 @@ const MODELOS_DOCUMENTOS = [
 const LEGISLACAO = [
   {
     id: 'art1424_cc',
-    titulo: 'Art.o 1424.o Codigo Civil',
-    subtitulo: 'Obrigacao de pagamento de quotas',
-    resumo: 'Cada condomino e obrigado a contribuir para as despesas comuns do condominio na proporcao do valor da sua fracao, salvo disposicao em contrario do titulo constitutivo.',
+    titulo: 'Art.º 1424.º Código Civil',
+    subtitulo: 'Obrigação de pagamento de quotas',
+    resumo: 'Cada condómino é obrigado a contribuir para as despesas comuns do condomínio na proporção do valor da sua fração, salvo disposição em contrário do título constitutivo.',
     icon: '📜',
     tag: 'Quotas',
     tagColor: '#1E40AF',
@@ -286,35 +286,35 @@ const LEGISLACAO = [
   {
     id: 'lei_8_2022',
     titulo: 'Lei 8/2022 (novo regime)',
-    subtitulo: 'Prazo 90 dias para acao judicial',
-    resumo: 'O administrador e obrigado a instaurar acao judicial para cobranca das contribuicoes devidas ao condominio quando o atraso no pagamento exceda 90 dias, sob pena de responsabilidade.',
+    subtitulo: 'Prazo 90 dias para ação judicial',
+    resumo: 'O administrador é obrigado a instaurar ação judicial para cobrança das contribuições devidas ao condomínio quando o atraso no pagamento exceda 90 dias, sob pena de responsabilidade.',
     icon: '⚖️',
-    tag: 'Obrigatorio',
+    tag: 'Obrigatório',
     tagColor: '#DC2626',
   },
   {
     id: 'art310_cc',
-    titulo: 'Art.o 310.o Codigo Civil',
-    subtitulo: 'Prescricao de 5 anos',
-    resumo: 'As quotas de condominio prescrevem no prazo de 5 anos, contados a partir da data de vencimento de cada prestacao. Apos este prazo, a divida nao pode ser judicialmente exigida.',
+    titulo: 'Art.º 310.º Código Civil',
+    subtitulo: 'Prescrição de 5 anos',
+    resumo: 'As quotas de condomínio prescrevem no prazo de 5 anos, contados a partir da data de vencimento de cada prestação. Após este prazo, a dívida não pode ser judicialmente exigida.',
     icon: '⏰',
-    tag: 'Prescricao',
+    tag: 'Prescrição',
     tagColor: '#92400E',
   },
   {
     id: 'dl_269_98',
-    titulo: 'Art.o 1.o DL 269/98',
-    subtitulo: 'Procedimento de injuncao',
-    resumo: 'O condominio pode recorrer ao procedimento de injuncao para cobranca de dividas de quotas. Procedimento simplificado, rapido e com custas reduzidas no Balcao Nacional de Injuncoes.',
+    titulo: 'Art.º 1.º DL 269/98',
+    subtitulo: 'Procedimento de injunção',
+    resumo: 'O condomínio pode recorrer ao procedimento de injunção para cobrança de dívidas de quotas. Procedimento simplificado, rápido e com custas reduzidas no Balcão Nacional de Injunções.',
     icon: '🏛️',
-    tag: 'Injuncao',
+    tag: 'Injunção',
     tagColor: '#6C5CE7',
   },
   {
     id: 'hipoteca_legal',
-    titulo: 'Hipoteca legal do condominio',
-    subtitulo: 'Art.o 705.o CC + Propriedade horizontal',
-    resumo: 'O condominio goza de hipoteca legal sobre a fracao autonoma do condomino devedor para garantia do pagamento das contribuicoes devidas, incluindo juros de mora e custas judiciais.',
+    titulo: 'Hipoteca legal do condomínio',
+    subtitulo: 'Art.º 705.º CC + Propriedade horizontal',
+    resumo: 'O condomínio goza de hipoteca legal sobre a fração autónoma do condómino devedor para garantia do pagamento das contribuições devidas, incluindo juros de mora e custas judiciais.',
     icon: '🔒',
     tag: 'Garantia',
     tagColor: '#0D1B2E',
@@ -322,8 +322,8 @@ const LEGISLACAO = [
   {
     id: 'juros_mora',
     titulo: 'Juros de mora (taxa legal)',
-    subtitulo: 'Portaria anual + Art.o 806.o CC',
-    resumo: 'O condomino em mora deve juros a taxa legal (atualmente 4% ao ano) sobre as quantias em divida, a contar da data de vencimento de cada prestacao, sem necessidade de interpelacao.',
+    subtitulo: 'Portaria anual + Art.º 806.º CC',
+    resumo: 'O condómino em mora deve juros à taxa legal (atualmente 4% ao ano) sobre as quantias em dívida, a contar da data de vencimento de cada prestação, sem necessidade de interpelação.',
     icon: '📈',
     tag: 'Juros',
     tagColor: '#1A7A6E',
@@ -331,8 +331,8 @@ const LEGISLACAO = [
   {
     id: 'custas_devedor',
     titulo: 'Custas a cargo do devedor',
-    subtitulo: 'Art.o 527.o CPC',
-    resumo: 'Em caso de acao judicial bem-sucedida, todas as custas do processo (judiciais, advogado, peritos) sao suportadas pelo condomino devedor, incluindo as despesas de cobranca extrajudicial.',
+    subtitulo: 'Art.º 527.º CPC',
+    resumo: 'Em caso de ação judicial bem-sucedida, todas as custas do processo (judiciais, advogado, peritos) são suportadas pelo condómino devedor, incluindo as despesas de cobrança extrajudicial.',
     icon: '💰',
     tag: 'Custas',
     tagColor: '#6B7280',
@@ -472,10 +472,10 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
         ...p,
         status: 'recuperado' as StatusProcesso,
         valorDivida: 0,
-        ultimaAcao: 'Divida recuperada integralmente',
+        ultimaAcao: 'Dívida recuperada integralmente',
         proximaAcao: '---',
         dataLimite: '---',
-        historico: [...p.historico, { id: `h_${Date.now()}`, data: hoje, descricao: 'Pagamento recebido - divida recuperada', tipo: 'manual' as const }],
+        historico: [...p.historico, { id: `h_${Date.now()}`, data: hoje, descricao: 'Pagamento recebido — dívida recuperada', tipo: 'manual' as const }],
       }
     )
     saveProcessos(updated)
@@ -489,18 +489,18 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
 
     switch (modeloId) {
       case 'lembrete_amigavel':
-        return `LEMBRETE DE PAGAMENTO\n\nExmo(a) Sr(a) ${p.condomino}\nFracao: ${p.fracao}\nEdificio: ${p.edificio}\n\nVimos, por este meio, informar V. Exa. de que se encontra em atraso o pagamento das quotas de condominio, no valor total de ${formatEur(p.valorDivida)}.\n\nData de vencimento original: ${formatDate(p.dataVencimentoOriginal)}\n\nSolicitamos a regularizacao desta situacao no prazo de 15 dias. Caso ja tenha efetuado o pagamento, queira por favor desconsiderar esta comunicacao.\n\nPara qualquer esclarecimento ou acordo de pagamento, nao hesite em contactar-nos.\n\nCom os melhores cumprimentos,\nA Administracao do Condominio\n${hoje}`
+        return `LEMBRETE DE PAGAMENTO\n\nExmo(a) Sr(a) ${p.condomino}\nFração: ${p.fracao}\nEdifício: ${p.edificio}\n\nVimos, por este meio, informar V. Exa. de que se encontra em atraso o pagamento das quotas de condomínio, no valor total de ${formatEur(p.valorDivida)}.\n\nData de vencimento original: ${formatDate(p.dataVencimentoOriginal)}\n\nSolicitamos a regularização desta situação no prazo de 15 dias. Caso já tenha efetuado o pagamento, queira por favor desconsiderar esta comunicação.\n\nPara qualquer esclarecimento ou acordo de pagamento, não hesite em contactar-nos.\n\nCom os melhores cumprimentos,\nA Administração do Condomínio\n${hoje}`
 
       case 'notificacao_lrar':
-        return `NOTIFICACAO FORMAL — CARTA REGISTADA COM AVISO DE RECECAO\n\nExmo(a) Sr(a) ${p.condomino}\n${p.nif ? `NIF: ${p.nif}\n` : ''}Fracao: ${p.fracao}\nEdificio: ${p.edificio}\n\nAssunto: Quotas de condominio em divida — Notificacao nos termos da Lei 8/2022\n\nPela presente, notificamos V. Exa. de que se encontra em divida para com o condominio do edificio acima identificado, no montante de ${formatEur(p.valorDivida)} (capital: ${formatEur(p.valorOriginal)} + juros de mora: ${formatEur(p.jurosMora)}), referente a quotas vencidas desde ${formatDate(p.dataVencimentoOriginal)}.\n\nNos termos do Art.o 1424.o do Codigo Civil e da Lei 8/2022, o administrador e obrigado a instaurar acao judicial quando o atraso exceda 90 dias.\n\nConcedemos-lhe o prazo de 30 (trinta) dias a contar da rececao desta carta para proceder ao pagamento integral ou propor um plano de pagamento.\n\nFindo este prazo sem que se verifique qualquer pagamento ou acordo, seremos forcados a instaurar procedimento de injuncao (DL 269/98) ou acao judicial, sendo que todas as custas serao imputadas a V. Exa.\n\nInformamos ainda que o condominio goza de hipoteca legal sobre a fracao autonoma de V. Exa. para garantia da divida.\n\nFicamos ao dispor para qualquer esclarecimento.\n\nA Administracao do Condominio\n${hoje}\n\n[Enviar por carta registada com aviso de rececao (LRAR)]`
+        return `NOTIFICAÇÃO FORMAL — CARTA REGISTADA COM AVISO DE RECEÇÃO\n\nExmo(a) Sr(a) ${p.condomino}\n${p.nif ? `NIF: ${p.nif}\n` : ''}Fração: ${p.fracao}\nEdifício: ${p.edificio}\n\nAssunto: Quotas de condomínio em dívida — Notificação nos termos da Lei 8/2022\n\nPela presente, notificamos V. Exa. de que se encontra em dívida para com o condomínio do edifício acima identificado, no montante de ${formatEur(p.valorDivida)} (capital: ${formatEur(p.valorOriginal)} + juros de mora: ${formatEur(p.jurosMora)}), referente a quotas vencidas desde ${formatDate(p.dataVencimentoOriginal)}.\n\nNos termos do Art.º 1424.º do Código Civil e da Lei 8/2022, o administrador é obrigado a instaurar ação judicial quando o atraso exceda 90 dias.\n\nConcedemos-lhe o prazo de 30 (trinta) dias a contar da receção desta carta para proceder ao pagamento integral ou propor um plano de pagamento.\n\nFindo este prazo sem que se verifique qualquer pagamento ou acordo, seremos forçados a instaurar procedimento de injunção (DL 269/98) ou ação judicial, sendo que todas as custas serão imputadas a V. Exa.\n\nInformamos ainda que o condomínio goza de hipoteca legal sobre a fração autónoma de V. Exa. para garantia da dívida.\n\nFicamos ao dispor para qualquer esclarecimento.\n\nA Administração do Condomínio\n${hoje}\n\n[Enviar por carta registada com aviso de receção (LRAR)]`
 
       case 'requerimento_injuncao':
-        return `REQUERIMENTO DE INJUNCAO\n(Decreto-Lei n.o 269/98, de 1 de setembro)\n\nBalcao Nacional de Injuncoes\n\nREQUERENTE:\nCondominio do ${p.edificio}\nNIPE: [Inserir NIPE do condominio]\nMorada: [Morada do edificio]\nRepresentado pelo Administrador: [Nome]\n\nREQUERIDO:\n${p.condomino}\n${p.nif ? `NIF: ${p.nif}\n` : ''}Fracao: ${p.fracao}\n\nVALOR: ${formatEur(p.valorDivida)}\n(Capital: ${formatEur(p.valorOriginal)} + Juros de mora: ${formatEur(p.jurosMora)})\n\nFACTOS:\n1. O Requerido e proprietario da ${p.fracao} do ${p.edificio}.\n2. Encontram-se em divida quotas de condominio vencidas desde ${formatDate(p.dataVencimentoOriginal)}.\n3. O Requerido foi interpelado por carta registada (LRAR) em [data], sem que tenha procedido ao pagamento.\n4. O prazo de 90 dias previsto na Lei 8/2022 ja se encontra ultrapassado.\n5. Os juros de mora ascendem a ${formatEur(p.jurosMora)} (taxa legal de ${TAXA_JUROS_MORA_ANUAL * 100}%).\n\nFUNDAMENTOS DE DIREITO:\n- Art.o 1424.o do Codigo Civil (obrigacao de pagamento de quotas)\n- Lei 8/2022 (prazo de 90 dias para acao judicial)\n- Art.o 1.o do DL 269/98 (procedimento de injuncao)\n- Art.o 806.o do Codigo Civil (juros de mora)\n\nPEDIDO:\nRequer-se a notificacao do Requerido para pagar ao Requerente a quantia de ${formatEur(p.valorDivida)}, acrescida de juros de mora vincendos ate efetivo pagamento.\n\nData: ${hoje}\n\nO Administrador do Condominio\n[Assinatura]`
+        return `REQUERIMENTO DE INJUNÇÃO\n(Decreto-Lei n.º 269/98, de 1 de setembro)\n\nBalcão Nacional de Injunções\n\nREQUERENTE:\nCondomínio do ${p.edificio}\nNIPE: [Inserir NIPE do condomínio]\nMorada: [Morada do edifício]\nRepresentado pelo Administrador: [Nome]\n\nREQUERIDO:\n${p.condomino}\n${p.nif ? `NIF: ${p.nif}\n` : ''}Fração: ${p.fracao}\n\nVALOR: ${formatEur(p.valorDivida)}\n(Capital: ${formatEur(p.valorOriginal)} + Juros de mora: ${formatEur(p.jurosMora)})\n\nFACTOS:\n1. O Requerido é proprietário da ${p.fracao} do ${p.edificio}.\n2. Encontram-se em dívida quotas de condomínio vencidas desde ${formatDate(p.dataVencimentoOriginal)}.\n3. O Requerido foi interpelado por carta registada (LRAR) em [data], sem que tenha procedido ao pagamento.\n4. O prazo de 90 dias previsto na Lei 8/2022 já se encontra ultrapassado.\n5. Os juros de mora ascendem a ${formatEur(p.jurosMora)} (taxa legal de ${TAXA_JUROS_MORA_ANUAL * 100}%).\n\nFUNDAMENTOS DE DIREITO:\n- Art.º 1424.º do Código Civil (obrigação de pagamento de quotas)\n- Lei 8/2022 (prazo de 90 dias para ação judicial)\n- Art.º 1.º do DL 269/98 (procedimento de injunção)\n- Art.º 806.º do Código Civil (juros de mora)\n\nPEDIDO:\nRequer-se a notificação do Requerido para pagar ao Requerente a quantia de ${formatEur(p.valorDivida)}, acrescida de juros de mora vincendos até efetivo pagamento.\n\nData: ${hoje}\n\nO Administrador do Condomínio\n[Assinatura]`
 
       case 'comunicacao_ag':
         const ativos = processos.filter(p => p.status !== 'recuperado' && p.status !== 'prescrito')
         const totalAtivo = ativos.reduce((s, p) => s + p.valorDivida, 0)
-        return `PONTO DE SITUACAO — DIVIDAS DE CONDOMINOS\nPara apresentacao em Assembleia Geral\n\n${hoje}\n\nRESUMO:\n- Total em divida: ${formatEur(totalAtivo)}\n- Numero de processos ativos: ${ativos.length}\n- Valor recuperado este ano: ${formatEur(kpis.recuperadoAno)}\n\nDETALHE DOS PROCESSOS:\n${ativos.map((proc, i) => `\n${i + 1}. ${proc.condomino} — ${proc.fracao}\n   Divida: ${formatEur(proc.valorDivida)} | Etapa: ${ETAPAS.find(e => e.key === proc.etapa)?.label}\n   Ultima acao: ${proc.ultimaAcao}`).join('\n')}\n\nNOTAS LEGAIS:\n- Conforme Lei 8/2022, o administrador e obrigado a instaurar acao judicial apos 90 dias de atraso.\n- O prazo de prescricao e de 5 anos (Art.o 310.o CC).\n- Os juros de mora sao calculados a taxa legal de ${TAXA_JUROS_MORA_ANUAL * 100}% ao ano.\n\nSolicitamos mandato da AG para [prosseguir/instaurar] os procedimentos judiciais necessarios.\n\nO Administrador`
+        return `PONTO DE SITUAÇÃO — DÍVIDAS DE CONDÓMINOS\nPara apresentação em Assembleia Geral\n\n${hoje}\n\nRESUMO:\n- Total em dívida: ${formatEur(totalAtivo)}\n- Número de processos ativos: ${ativos.length}\n- Valor recuperado este ano: ${formatEur(kpis.recuperadoAno)}\n\nDETALHE DOS PROCESSOS:\n${ativos.map((proc, i) => `\n${i + 1}. ${proc.condomino} — ${proc.fracao}\n   Dívida: ${formatEur(proc.valorDivida)} | Etapa: ${ETAPAS.find(e => e.key === proc.etapa)?.label}\n   Última ação: ${proc.ultimaAcao}`).join('\n')}\n\nNOTAS LEGAIS:\n- Conforme Lei 8/2022, o administrador é obrigado a instaurar ação judicial após 90 dias de atraso.\n- O prazo de prescrição é de 5 anos (Art.º 310.º CC).\n- Os juros de mora são calculados à taxa legal de ${TAXA_JUROS_MORA_ANUAL * 100}% ao ano.\n\nSolicitamos mandato da AG para [prosseguir/instaurar] os procedimentos judiciais necessários.\n\nO Administrador`
 
       default:
         return ''
@@ -523,10 +523,10 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--sd-navy, #0D1B2E)' }}>
-            Cobranca Judicial
+            Cobrança Judicial
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--sd-ink-3, #8B8178)' }}>
-            Gestao automatizada de cobranca de dividas ao condominio (Lei portuguesa)
+            Gestão automatizada de cobrança de dívidas ao condomínio (Lei portuguesa)
           </p>
         </div>
         <button
@@ -674,7 +674,7 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: 'var(--sd-cream, #F7F4EE)' }}>
-                    {['Condomino', 'Fracao', 'Valor', 'Inicio', 'Etapa', 'Ultima acao', 'Proxima acao', 'Data limite', 'Status'].map(h => (
+                    {['Condómino', 'Fração', 'Valor', 'Início', 'Etapa', 'Última ação', 'Próxima ação', 'Data limite', 'Status'].map(h => (
                       <th key={h} className="text-left px-3 py-3 text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--sd-ink-3, #8B8178)' }}>
                         {h}
                       </th>
@@ -724,7 +724,7 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
           {/* Prescricao tracker */}
           <div className="rounded-2xl border shadow-sm p-4" style={{ background: '#fff', borderColor: 'var(--sd-border, #E4DDD0)' }}>
             <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: 'var(--sd-ink-3, #8B8178)' }}>
-              Tracker de prescricao (Art.o 310.o CC — 5 anos)
+              Tracker de prescrição (Art.º 310.º CC — 5 anos)
             </p>
             <div className="space-y-2">
               {processos.filter(p => p.status !== 'recuperado').map(p => {
@@ -826,11 +826,11 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
         </div>
       )}
 
-      {/* ═══════════ Tab 4: Legislacao ═══════════ */}
+      {/* ═══════════ Tab 4: Legislação ═══════════ */}
       {activeTab === 'legislacao' && (
         <div className="space-y-4">
           <p className="text-sm" style={{ color: 'var(--sd-ink-2, #6B6560)' }}>
-            Referencias legais aplicaveis a cobranca de dividas em condominio (legislacao portuguesa).
+            Referências legais aplicáveis à cobrança de dívidas em condomínio (legislação portuguesa).
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {LEGISLACAO.map(lei => (
@@ -891,7 +891,7 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
             <div className="grid grid-cols-3 gap-3 mb-5">
               <div className="rounded-xl border p-3 text-center" style={{ borderColor: 'var(--sd-border, #E4DDD0)' }}>
                 <p className="text-lg font-bold" style={{ color: '#DC2626' }}>{formatEur(selectedProcesso.valorDivida)}</p>
-                <p className="text-[10px]" style={{ color: 'var(--sd-ink-3, #8B8178)' }}>Divida total</p>
+                <p className="text-[10px]" style={{ color: 'var(--sd-ink-3, #8B8178)' }}>Dívida total</p>
               </div>
               <div className="rounded-xl border p-3 text-center" style={{ borderColor: 'var(--sd-border, #E4DDD0)' }}>
                 <p className="text-lg font-bold" style={{ color: 'var(--sd-navy, #0D1B2E)' }}>{formatEur(selectedProcesso.valorOriginal)}</p>
@@ -985,15 +985,15 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
           <div className="w-full max-w-lg rounded-2xl border shadow-xl p-6" style={{ background: '#fff', borderColor: 'var(--sd-border, #E4DDD0)' }}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold" style={{ color: 'var(--sd-navy, #0D1B2E)' }}>Novo processo de cobranca</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-xl p-1 hover:bg-gray-100 rounded-lg transition">X</button>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--sd-navy, #0D1B2E)' }}>Novo processo de cobrança</h2>
+              <button onClick={() => setShowAddModal(false)} className="text-xl p-1 hover:bg-gray-100 rounded-lg transition">×</button>
             </div>
             <div className="space-y-3">
               {[
-                { label: 'Condomino *', value: formCondomino, set: setFormCondomino, placeholder: 'Nome completo' },
-                { label: 'Fracao', value: formFracao, set: setFormFracao, placeholder: 'Ex: Fracao A - 1.o Esq.' },
-                { label: 'Edificio', value: formEdificio, set: setFormEdificio, placeholder: 'Nome do edificio' },
-                { label: 'NIF', value: formNif, set: setFormNif, placeholder: 'Numero de contribuinte' },
+                { label: 'Condómino *', value: formCondomino, set: setFormCondomino, placeholder: 'Nome completo' },
+                { label: 'Fração', value: formFracao, set: setFormFracao, placeholder: 'Ex: Fração A - 1.º Esq.' },
+                { label: 'Edifício', value: formEdificio, set: setFormEdificio, placeholder: 'Nome do edifício' },
+                { label: 'NIF', value: formNif, set: setFormNif, placeholder: 'Número de contribuinte' },
               ].map(f => (
                 <div key={f.label}>
                   <label className="text-xs font-medium" style={{ color: 'var(--sd-ink-2, #6B6560)' }}>{f.label}</label>
