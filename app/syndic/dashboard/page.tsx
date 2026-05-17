@@ -292,6 +292,29 @@ const PLANNING_EVENTS_DEMO: PlanningEvent[] = []
 const CANAL_INTERNE_DEMO: CanalInterneMsg[] = []
 const ECHEANCES_DEMO: EcheanceReglementaire[] = []
 
+// ─── Types — Citations validées Max consultor juridique ───────────────────────
+// Shape miroir du serveur (lib/syndic/max-validate.ts:MaxValidatedCitation).
+// Redéclaré ici pour éviter d'importer un module serveur côté client.
+export interface MaxClientCitation {
+  font_id: string
+  exact_quote: string
+  claim: string
+  chunk_id: string
+  source: string
+  article: string | null
+  title: string
+  parent_path: string | null
+  quote_verified: boolean
+}
+
+export interface MaxMessage {
+  role: 'user' | 'assistant'
+  content: string
+  citations?: MaxClientCitation[]
+  confidence?: number
+  refusal?: boolean
+}
+
 // ─── Dashboard Principal ───────────────────────────────────────────────────────
 
 export default function SyndicDashboard() {
@@ -393,25 +416,12 @@ export default function SyndicDashboard() {
   const iaVoiceDurationRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const iaTranscriptRef = useRef('')
 
-  // ── Filtre des tags ##TOOL##{...}## du RAG juridique en streaming ──────────
-  // Le mode SSE de /api/syndic/max-ai n'applique PAS resolveLegalToolCalls
-  // (TODO côté serveur, max-ai/route.ts:178). On retire les tags bruts du
-  // texte affiché. Gère aussi le tag partiel (encore en cours de stream) en
-  // tronquant à l'ouverture `##TOOL##` non encore fermée.
-  const stripMaxToolTags = (text: string): string => {
-    if (!text) return text
-    let cleaned = text.replace(/##TOOL##\s*\{[\s\S]*?\}\s*##/g, '')
-    const lastOpen = cleaned.lastIndexOf('##TOOL##')
-    if (lastOpen >= 0) cleaned = cleaned.slice(0, lastOpen)
-    return cleaned
-  }
-
   // ── Max — Expert-Conseil (lecture seule) ───────────────────────────────────
   const maxInitialMsg = locale === 'pt'
     ? 'Olá! Sou o **Max** 🎓, o vosso consultor especialista IA.\n\nEspecializado em **direito do condomínio** português, regulamentação técnica, gestão de artesãos e contabilidade.\n\nPara **executar uma ação** (criar missão, navegar...), utilizem o **Fixy** 🤖 (bolha amarela no canto inferior direito).\n\nQue questão posso esclarecer?'
     : 'Bonjour ! Je suis **Max** 🎓, votre expert-conseil IA.\n\nSpécialisé en **droit de la copropriété**, réglementation technique, gestion d\'artisans et comptabilité syndic.\n\nPour **exécuter une action** (créer mission, naviguer...), utilisez **Fixy** 🤖 (bulle jaune en bas à droite).\n\nQuelle question puis-je éclaircir ?'
-  const [maxMessages, setMaxMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: maxInitialMsg }
+  const [maxMessages, setMaxMessages] = useState<MaxMessage[]>([
+    { role: 'assistant', content: maxInitialMsg },
   ])
   // ID de la conversation Max persistée en DB (syndic_ai_conversations).
   // Hydraté au mount via GET /api/syndic/conversations?agent_id=max — créé
@@ -508,14 +518,26 @@ export default function SyndicDashboard() {
 
           if (convId) {
             setMaxConvId(convId)
-            // 3. Hydrate les messages
+            // 3. Hydrate les messages (citations restaurées depuis metadata)
             const msgsRes = await fetch(`/api/syndic/conversations/${convId}/messages`)
             if (cancelled) return
             if (msgsRes.ok) {
-              const msgsJson = await msgsRes.json() as { messages?: Array<{ role: string; content: string }> }
-              const dbMessages = (msgsJson.messages ?? [])
+              const msgsJson = await msgsRes.json() as {
+                messages?: Array<{
+                  role: string
+                  content: string
+                  metadata?: { citations?: MaxClientCitation[]; confidence?: number; refusal?: boolean } | null
+                }>
+              }
+              const dbMessages: MaxMessage[] = (msgsJson.messages ?? [])
                 .filter((m) => m.role === 'user' || m.role === 'assistant')
-                .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+                .map((m) => ({
+                  role: m.role as 'user' | 'assistant',
+                  content: m.content,
+                  citations: m.metadata?.citations,
+                  confidence: m.metadata?.confidence,
+                  refusal: m.metadata?.refusal,
+                }))
               if (dbMessages.length > 0) {
                 setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
                 return
@@ -2245,14 +2267,16 @@ export default function SyndicDashboard() {
     return checks
   }
 
-  // ── Envoi message Max (expert-conseil lecture seule) ──────────────────────
+  // ── Envoi message Max (consultor juridique strict 2026) ───────────────────
+  // Pipeline serveur : HyDE → Hybrid search → Rerank → MMR → Strict prompt
+  // → JSON mode Groq → Validation citations → réponse structurée.
+  // Réponse non-streaming (JSON mode) avec citations validées vs corpus officiel.
   const sendMaxMessage = async (directMsg?: string) => {
     const userMsg = (directMsg || maxInput).trim()
     if (!userMsg || maxLoading) return
     setMaxInput('')
     setMaxMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setMaxLoading(true)
-    // Cache local + persistance DB (fire-and-forget : si échec on garde la session courante)
     try {
       const updated = [...maxMessages, { role: 'user' as const, content: userMsg }]
       localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60)))
@@ -2266,7 +2290,6 @@ export default function SyndicDashboard() {
     }
     try {
       const maxToken = await getAdminToken()
-      // Build context — optionally filtered by immeuble
       const ctx = buildSyndicContext()
       if (maxSelectedImmeuble !== 'all') {
         ctx.immeubles = ctx.immeubles.filter((i: { nom: string }) => i.nom === maxSelectedImmeuble)
@@ -2278,97 +2301,42 @@ export default function SyndicDashboard() {
         body: JSON.stringify({
           message: userMsg,
           syndic_context: ctx,
-          // Cap historique à 50 (limite du schema syndicMaxAiSchema)
-          conversation_history: maxMessages.slice(-50).map(m => ({ role: m.role, content: m.content })),
+          conversation_history: maxMessages.slice(-12).map(m => ({ role: m.role, content: m.content })),
           locale,
-          // Streaming SSE pour le UX progressif. Les tags ##TOOL##...## du
-          // RAG juridique ne sont pas résolus en streaming (TODO côté serveur),
-          // ils sont donc filtrés côté client ci-dessous pour ne pas polluer
-          // l'affichage. Trade-off : pas de citations enrichies mais texte propre.
-          stream: true,
         }),
       })
-
-      const contentType = res.headers.get('content-type') || ''
-      if (res.ok && contentType.includes('text/event-stream') && res.body) {
-        // Streaming mode
-        setMaxLoading(false)
-        setMaxMessages(prev => [...prev, { role: 'assistant' as const, content: '' }])
-
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let fullText = ''
-        let buffer = ''
-
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (!trimmed || !trimmed.startsWith('data: ')) continue
-            const payload = trimmed.slice(6)
-            if (payload === '[DONE]') break
-            try {
-              const json = JSON.parse(payload)
-              if (json.text) {
-                fullText += json.text
-                // Filtre les tags ##TOOL##{...}## (RAG juridique non résolu en
-                // streaming) avant affichage : tag complet retiré, tag partiel
-                // en cours de stream masqué via lastIndexOf jusqu'à fermeture.
-                const cleaned = stripMaxToolTags(fullText)
-                setMaxMessages(prev => {
-                  const updated = [...prev]
-                  updated[updated.length - 1] = { role: 'assistant', content: cleaned }
-                  return updated
-                })
-                maxEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-              }
-            } catch { /* skip */ }
-          }
-        }
-
-        // Save final to localStorage + DB (texte nettoyé des tags TOOL)
-        if (fullText) {
-          const cleanedFinal = stripMaxToolTags(fullText)
-          setMaxMessages(prev => {
-            const updated = [...prev]
-            updated[updated.length - 1] = { role: 'assistant', content: cleanedFinal }
-            try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60))) } catch {}
-            return updated
-          })
-          if (maxConvId && cleanedFinal) {
-            void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ role: 'assistant', content: cleanedFinal }),
-            }).catch(() => { /* tolérance offline */ })
-          }
-        }
-      } else {
-        // Fallback non-streaming
-        const data = await res.json().catch(() => ({}))
-        const assistantMsg = data.response || (locale === 'pt' ? 'Erro, tente novamente.' : 'Erreur, réessayez.')
-        setMaxMessages(prev => {
-          const newMsgs = [...prev, { role: 'assistant' as const, content: assistantMsg }]
-          try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(newMsgs.slice(-60))) } catch {}
-          return newMsgs
-        })
-        if (maxConvId && assistantMsg) {
-          void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ role: 'assistant', content: assistantMsg }),
-          }).catch(() => { /* tolérance offline */ })
-        }
-        setMaxLoading(false)
+      const data = await res.json().catch(() => ({} as Record<string, unknown>))
+      const answer = (data.response as string) || (locale === 'pt'
+        ? 'Esta questão não está coberta pelo meu corpus jurídico atual. Por favor reformule.'
+        : 'Cette question n\'est pas couverte par mon corpus juridique actuel. Veuillez reformuler.')
+      const citations = Array.isArray(data.citations) ? data.citations as MaxClientCitation[] : []
+      const confidence = typeof data.confidence === 'number' ? data.confidence : 0
+      const refusal = data.refusal === true
+      const assistantEntry: MaxMessage = { role: 'assistant', content: answer, citations, confidence, refusal }
+      setMaxMessages(prev => {
+        const newMsgs = [...prev, assistantEntry]
+        try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(newMsgs.slice(-60))) } catch {}
+        return newMsgs
+      })
+      if (maxConvId && answer) {
+        void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            role: 'assistant',
+            content: answer,
+            metadata: { citations, confidence, refusal },
+          }),
+        }).catch(() => { /* tolérance offline */ })
       }
+      setMaxLoading(false)
     } catch {
-      setMaxMessages(prev => [...prev, { role: 'assistant', content: locale === 'pt' ? '❌ Erro de conexão. Verifique a sua rede.' : '❌ Erreur de connexion. Vérifiez votre réseau.' }])
+      setMaxMessages(prev => [...prev, {
+        role: 'assistant',
+        content: locale === 'pt'
+          ? '❌ Erro de ligação. Verifique a sua rede.'
+          : '❌ Erreur de connexion. Vérifiez votre réseau.',
+      }])
       setMaxLoading(false)
     }
   }

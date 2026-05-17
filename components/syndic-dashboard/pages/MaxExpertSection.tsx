@@ -53,9 +53,27 @@ interface DocPDFData {
   [key: string]: unknown
 }
 
+// Citation validée par le serveur après retrieval + vérification quote literal.
+// Shape miroir de lib/syndic/max-validate.ts:MaxValidatedCitation (redéclaré
+// ici pour éviter un import serveur côté client).
+interface MaxCitation {
+  font_id: string
+  exact_quote: string
+  claim: string
+  chunk_id: string
+  source: string
+  article: string | null
+  title: string
+  parent_path: string | null
+  quote_verified: boolean
+}
+
 interface MaxMessage {
   role: 'user' | 'assistant'
   content: string
+  citations?: MaxCitation[]
+  confidence?: number
+  refusal?: boolean
 }
 
 interface MaxExpertSectionProps {
@@ -295,10 +313,85 @@ export default function MaxExpertSection({
                   <div key={i} className="sd-mx-msg-max">
                     <div className="sd-mx-msg-av"><MaxAvatar size={34} /></div>
                     <div className="sd-mx-msg-inner">
-                      <div className="sd-mx-msg-label">Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}</div>
+                      <div className="sd-mx-msg-label">
+                        Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}
+                        {/* Badge confiance (présent uniquement quand serveur renvoie metadata) */}
+                        {typeof msg.confidence === 'number' && msg.confidence > 0 && !msg.refusal && (
+                          <span style={{
+                            marginLeft: 8, fontSize: 10, padding: '2px 8px', borderRadius: 12,
+                            background: msg.confidence >= 0.7 ? 'rgba(34,197,94,0.12)' : msg.confidence >= 0.45 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
+                            color: msg.confidence >= 0.7 ? '#16a34a' : msg.confidence >= 0.45 ? '#d97706' : '#dc2626',
+                            fontWeight: 600,
+                          }}>
+                            {locale === 'pt' ? 'Confiança' : 'Confiance'} {Math.round(msg.confidence * 100)}%
+                          </span>
+                        )}
+                        {msg.refusal && (
+                          <span style={{
+                            marginLeft: 8, fontSize: 10, padding: '2px 8px', borderRadius: 12,
+                            background: 'rgba(107,114,128,0.15)', color: '#374151', fontWeight: 600,
+                          }}>
+                            {locale === 'pt' ? 'Fora do corpus' : 'Hors corpus'}
+                          </span>
+                        )}
+                      </div>
                       <div className="sd-mx-msg-bubble" suppressHydrationWarning>
                         <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msgText) }} />
                       </div>
+                      {/* ── Citations validées (corpus officiel) ── */}
+                      {Array.isArray(msg.citations) && msg.citations.length > 0 && (
+                        <details style={{ marginTop: 10, padding: '8px 12px', background: 'var(--sd-bg-2)', border: '1px solid var(--sd-border)', borderRadius: 8 }}>
+                          <summary style={{ fontSize: 12, fontWeight: 600, color: 'var(--sd-navy)', cursor: 'pointer', userSelect: 'none' }}>
+                            📚 {locale === 'pt' ? `Fontes citadas (${msg.citations.length})` : `Sources citées (${msg.citations.length})`}
+                          </summary>
+                          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {msg.citations.map((cit, ci) => (
+                              <div key={`${cit.font_id}-${ci}`} style={{
+                                padding: 10, background: '#fff', borderRadius: 6,
+                                border: `1px solid ${cit.quote_verified ? 'var(--sd-border)' : '#fbbf24'}`,
+                                fontSize: 12,
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--sd-navy)' }}>
+                                    [{cit.font_id}]
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: 'var(--sd-gold)' }}>
+                                    {cit.source}{cit.article ? ` — Art. ${cit.article}` : ''}
+                                  </span>
+                                  <span style={{ color: 'var(--sd-ink-2)' }}>— {cit.title}</span>
+                                  {!cit.quote_verified && (
+                                    <span style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>
+                                      ⚠️ {locale === 'pt' ? 'citação não literal' : 'citation non littérale'}
+                                    </span>
+                                  )}
+                                </div>
+                                {cit.parent_path && (
+                                  <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginBottom: 4 }}>
+                                    {cit.parent_path}
+                                  </div>
+                                )}
+                                <blockquote style={{
+                                  margin: 0, padding: '6px 10px',
+                                  borderLeft: '3px solid var(--sd-gold)',
+                                  background: 'rgba(201,168,76,0.06)',
+                                  color: 'var(--sd-ink)',
+                                  fontStyle: 'italic',
+                                }}>
+                                  « {cit.exact_quote} »
+                                </blockquote>
+                                <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginTop: 4 }}>
+                                  {locale === 'pt' ? 'Suporta' : 'Soutient'} : {cit.claim}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginTop: 8, fontStyle: 'italic' }}>
+                            {locale === 'pt'
+                              ? 'Citações verificadas contra o corpus jurídico oficial. Esta resposta é informativa — não substitui parecer jurídico.'
+                              : 'Citations vérifiées contre le corpus juridique officiel. Cette réponse est informative — ne remplace pas un avis juridique.'}
+                          </div>
+                        </details>
+                      )}
                       {/* ── Copy + Fixy + PDF action buttons ── */}
                       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                         <button

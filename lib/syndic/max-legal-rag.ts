@@ -1,12 +1,212 @@
 // lib/syndic/max-legal-rag.ts
 // ──────────────────────────────────────────────────────────────────────────────
-// RAG — Recherche dans le corpus juridique de Max (Plan H).
-// Deux tables strictement isolées par locale : Max FR → syndic_legal_corpus_fr,
-// Max PT → syndic_legal_corpus_pt. Recherche full-text via tsvector + ts_rank.
+// RAG juridique de Max — Pipeline multi-étapes 2026 (Plan H+).
+// Architecture : HyDE → Hybrid Search (vector + BM25 RRF) → Reranker → MMR.
+// Tables strictement isolées par locale : Max FR → syndic_legal_corpus_fr,
+//                                          Max PT → syndic_legal_corpus_pt.
 // ──────────────────────────────────────────────────────────────────────────────
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { logger } from '@/lib/logger'
+import { embedText } from './embed'
+import { rerank, mmrFilter, cosineSimilarity, type RerankedCandidate } from './rerank'
+
+export interface LegalChunk {
+  id: string
+  source: string
+  article: string | null
+  title: string
+  content: string
+  theme: string | null
+  parent_path: string | null
+}
+
+export interface ScoredLegalChunk extends LegalChunk {
+  /** Score combiné du retrieval (RRF + rerank, normalisé 0..1 approximatif) */
+  score: number
+  /** Score brut du reranker (utilisable pour gate de confiance) */
+  rerankScore: number
+}
+
+interface CorpusHybridRow {
+  id: string
+  source: string
+  article: string | null
+  title: string
+  content: string
+  theme: string | null
+  parent_path: string | null
+  vector_score: number
+  bm25_score: number
+  rrf_score: number
+  embedding?: number[]
+}
+
+const HYBRID_TOP_K = 30        // candidats récupérés en hybrid search
+const RERANK_TOP_K = 10        // après reranker
+const MMR_FINAL_K = 6          // top final passé au LLM
+const MMR_LAMBDA = 0.7         // 0.7 = privilégie pertinence (vs diversité)
+const MIN_RERANK_SCORE = -2.0  // seuil sous lequel on considère "hors-scope"
+
+/**
+ * Pipeline retrieval complet. Renvoie les chunks pertinents pour la query,
+ * ou tableau vide si aucun chunk ne dépasse le seuil de pertinence (=> refus côté Max).
+ *
+ * Étapes :
+ *  1. Embed la query directement (et — si LLM disponible — la HyDE rewrite côté caller)
+ *  2. Hybrid search via RPC search_legal_corpus_hybrid_{language}
+ *  3. Rerank avec BGE-reranker (cross-encoder)
+ *  4. Filtre par seuil de confiance
+ *  5. Diversity MMR pour le top final
+ */
+export async function retrieveLegalChunks(
+  supabase: SupabaseClient,
+  query: string,
+  language: 'fr' | 'pt',
+  options?: { hydeQuery?: string },
+): Promise<ScoredLegalChunk[]> {
+  const trimmed = (query || '').trim()
+  if (!trimmed) return []
+
+  // ── 1. Embed la query (et la HyDE rewrite si fournie) ──
+  let queryEmbedding: number[]
+  try {
+    // Si une réécriture HyDE est fournie, on prend la moyenne des deux embeddings
+    // pour booster le recall (technique éprouvée 2025-2026).
+    if (options?.hydeQuery && options.hydeQuery.trim()) {
+      const [qVec, hVec] = await Promise.all([
+        embedText(trimmed),
+        embedText(options.hydeQuery.trim()),
+      ])
+      queryEmbedding = qVec.map((v, i) => (v + hVec[i]) / 2)
+    } else {
+      queryEmbedding = await embedText(trimmed)
+    }
+  } catch (err) {
+    logger.error('[max-legal-rag] embed query failed', {
+      error: err instanceof Error ? err.message : String(err),
+      language,
+    })
+    // Fallback : on tente quand même BM25 seul via une recherche textSearch.
+    return fallbackBm25(supabase, trimmed, language)
+  }
+
+  // ── 2. Hybrid search via RPC SQL ──
+  const rpcName = language === 'pt' ? 'search_legal_corpus_hybrid_pt' : 'search_legal_corpus_hybrid_fr'
+  const { data: hybridRows, error: hybridErr } = await supabase.rpc(rpcName, {
+    query_text: trimmed,
+    query_embedding: formatVec(queryEmbedding),
+    match_count: HYBRID_TOP_K,
+  })
+  if (hybridErr) {
+    logger.warn('[max-legal-rag] hybrid RPC error, fallback BM25', { error: hybridErr.message })
+    return fallbackBm25(supabase, trimmed, language)
+  }
+  const candidates = ((hybridRows ?? []) as CorpusHybridRow[]).filter((r) => r.content)
+  if (candidates.length === 0) return []
+
+  // ── 3. Rerank avec BGE-reranker ──
+  let reranked: RerankedCandidate<CorpusHybridRow>[]
+  try {
+    reranked = await rerank<CorpusHybridRow>(
+      trimmed,
+      candidates.map((c) => ({
+        document: c,
+        text: `${c.title}\n\n${c.content}`,
+      })),
+    )
+  } catch (err) {
+    logger.warn('[max-legal-rag] rerank failed, using RRF order', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    // Fallback : ordre RRF déjà calculé côté SQL, mapper directement.
+    reranked = candidates.map((c) => ({ document: c, rerankScore: c.rrf_score * 100 }))
+  }
+
+  // ── 4. Filtre par seuil de pertinence ──
+  // Si le top-1 est en dessous du seuil → on considère que la question est
+  // hors-scope du corpus, et on retourne vide pour déclencher le refus côté Max.
+  if (reranked.length === 0 || reranked[0].rerankScore < MIN_RERANK_SCORE) {
+    logger.info('[max-legal-rag] no chunk above relevance threshold', {
+      topScore: reranked[0]?.rerankScore ?? 'none',
+      query: trimmed.slice(0, 80),
+    })
+    return []
+  }
+  const filtered = reranked.slice(0, RERANK_TOP_K)
+
+  // ── 5. MMR pour la diversité du top final ──
+  // Sans embeddings disponibles côté reranker → on approxime la sim avec
+  // une similarité de Jaccard sur les tokens (rapide, suffisant pour MMR).
+  const diverse = mmrFilter<CorpusHybridRow>(
+    filtered,
+    MMR_FINAL_K,
+    MMR_LAMBDA,
+    (a, b) => jaccardSimilarity(`${a.title} ${a.content}`, `${b.title} ${b.content}`),
+  )
+
+  return diverse.map((d) => ({
+    id: d.document.id,
+    source: d.document.source,
+    article: d.document.article,
+    title: d.document.title,
+    content: d.document.content,
+    theme: d.document.theme,
+    parent_path: d.document.parent_path,
+    rerankScore: d.rerankScore,
+    score: Math.min(1, Math.max(0, (d.rerankScore + 5) / 10)),
+  }))
+}
+
+// ── Fallback BM25 si embeddings indisponibles ────────────────────────────────
+
+async function fallbackBm25(
+  supabase: SupabaseClient,
+  query: string,
+  language: 'fr' | 'pt',
+): Promise<ScoredLegalChunk[]> {
+  const table = language === 'pt' ? 'syndic_legal_corpus_pt' : 'syndic_legal_corpus_fr'
+  const tsConfig = language === 'pt' ? 'portuguese' : 'french'
+  const { data, error } = await supabase
+    .from(table)
+    .select('id, source, article, title, content, theme, parent_path')
+    .textSearch('search_vector', query, { config: tsConfig, type: 'plain' })
+    .limit(MMR_FINAL_K)
+  if (error || !data) return []
+  return data.map((r: Record<string, unknown>, i: number) => ({
+    id: r.id as string,
+    source: r.source as string,
+    article: (r.article as string) ?? null,
+    title: r.title as string,
+    content: r.content as string,
+    theme: (r.theme as string) ?? null,
+    parent_path: (r.parent_path as string) ?? null,
+    rerankScore: 0,
+    score: 1 - i / MMR_FINAL_K,
+  }))
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatVec(v: number[]): string {
+  return `[${v.join(',')}]`
+}
+
+/** Similarité de Jaccard sur les tokens (rapide, pour MMR sans embeddings) */
+function jaccardSimilarity(a: string, b: string): number {
+  const tokA = new Set(a.toLowerCase().match(/\p{L}+/gu) ?? [])
+  const tokB = new Set(b.toLowerCase().match(/\p{L}+/gu) ?? [])
+  if (tokA.size === 0 || tokB.size === 0) return 0
+  let inter = 0
+  for (const t of tokA) if (tokB.has(t)) inter++
+  return inter / (tokA.size + tokB.size - inter)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy compat : `searchLegalCorpus` + `formatCitationsMarkdown` + `resolveLegalToolCalls`
+// Conservés pour ne pas casser les imports existants (max-ai/route.ts legacy path).
+// Mais le nouveau code utilise retrieveLegalChunks directement.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface LegalCitation {
   source: string
@@ -16,83 +216,28 @@ export interface LegalCitation {
   theme: string | null
 }
 
-interface CorpusRow {
-  source: string
-  article: string
-  title: string
-  content: string
-  theme: string | null
-  rank?: number
-}
-
-const MAX_CONTENT_CHARS = 600 // tronqué pour limiter le coût du prompt
-const DEFAULT_LIMIT = 3
-
-/**
- * Recherche les articles juridiques pertinents pour une requête donnée.
- * @param supabase  Client Supabase (admin recommandé pour éviter RLS lookup overhead)
- * @param query     Requête en langage naturel (mots-clés)
- * @param language  'fr' ou 'pt' — détermine la table et la config tsvector
- * @param limit     Nombre max de résultats (défaut: 3)
- */
 export async function searchLegalCorpus(
   supabase: SupabaseClient,
   query: string,
   language: 'fr' | 'pt',
-  limit: number = DEFAULT_LIMIT,
+  limit: number = 3,
 ): Promise<LegalCitation[]> {
-  const trimmed = (query || '').trim()
-  if (!trimmed) return []
-
-  const table = language === 'pt' ? 'syndic_legal_corpus_pt' : 'syndic_legal_corpus_fr'
-  const tsConfig = language === 'pt' ? 'portuguese' : 'french'
-
-  try {
-    // textSearch avec plainto_tsquery — supabase-js gère l'échappement.
-    // On ne peut pas exprimer ts_rank en select() directement (limitation PostgREST),
-    // donc on récupère les matchs et on s'appuie sur l'ordre de pertinence
-    // implicite via la sélection d'un nombre limité + tri par created_at desc.
-    const { data, error } = await supabase
-      .from(table)
-      .select('source, article, title, content, theme')
-      .textSearch('search_vector', trimmed, { config: tsConfig, type: 'plain' })
-      .limit(Math.max(1, Math.min(limit, 10)))
-
-    if (error) {
-      logger.warn('[max-legal-rag] textSearch error', { error: error.message, language, query: trimmed.slice(0, 80) })
-      return []
-    }
-
-    const rows = (data ?? []) as CorpusRow[]
-    return rows.map((r) => ({
-      source: r.source,
-      article: r.article,
-      title: r.title,
-      content: r.content.length > MAX_CONTENT_CHARS
-        ? r.content.slice(0, MAX_CONTENT_CHARS).trimEnd() + '…'
-        : r.content,
-      theme: r.theme ?? null,
-    }))
-  } catch (err) {
-    logger.error('[max-legal-rag] unexpected error', {
-      error: err instanceof Error ? err.message : String(err),
-      language,
-    })
-    return []
-  }
+  const chunks = await retrieveLegalChunks(supabase, query, language)
+  return chunks.slice(0, limit).map((c) => ({
+    source: c.source,
+    article: c.article ?? '',
+    title: c.title,
+    content: c.content.length > 600 ? c.content.slice(0, 600).trimEnd() + '…' : c.content,
+    theme: c.theme,
+  }))
 }
 
-/**
- * Formatte un tableau de citations en bullet markdown pour insertion inline
- * dans la réponse Max. Retourne une chaîne vide si aucune citation.
- */
 export function formatCitationsMarkdown(citations: LegalCitation[], language: 'fr' | 'pt'): string {
   if (citations.length === 0) {
     return language === 'pt'
       ? '> _Nenhum artigo encontrado no corpus jurídico para esta consulta._'
       : '> _Aucun article trouvé dans le corpus juridique pour cette requête._'
   }
-
   const header = language === 'pt' ? '**Fontes legais citadas :**' : '**Sources légales citées :**'
   const bullets = citations.map((c) => {
     const themeSuffix = c.theme ? ` _(${c.theme})_` : ''
@@ -101,22 +246,14 @@ export function formatCitationsMarkdown(citations: LegalCitation[], language: 'f
   return `${header}\n\n${bullets.join('\n\n')}`
 }
 
-// ── Tool tag extraction (pattern ##TOOL##…##) ────────────────────────────────
-
 export interface LegalToolCall {
-  match: string         // chaîne complète à remplacer dans la réponse
-  query: string         // requête extraite
+  match: string
+  query: string
 }
 
-/**
- * Extrait tous les tags ##TOOL##{"name":"cite_legal_source","args":{"query":"..."}}##
- * de la réponse brute du LLM. Renvoie la liste des occurrences à résoudre.
- */
 export function extractLegalToolCalls(text: string): LegalToolCall[] {
   const calls: LegalToolCall[] = []
   if (!text) return calls
-
-  // Pattern non-greedy multi-occurrences.
   const re = /##TOOL##\s*(\{[\s\S]*?\})\s*##/g
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
@@ -125,17 +262,11 @@ export function extractLegalToolCalls(text: string): LegalToolCall[] {
       if (parsed.name === 'cite_legal_source' && typeof parsed.args?.query === 'string') {
         calls.push({ match: m[0], query: parsed.args.query })
       }
-    } catch {
-      // tag malformé — ignoré silencieusement (sera laissé tel quel dans la sortie)
-    }
+    } catch { /* ignored */ }
   }
   return calls
 }
 
-/**
- * Résout tous les tags cite_legal_source dans la réponse en les remplaçant
- * par les citations markdown correspondantes.
- */
 export async function resolveLegalToolCalls(
   supabase: SupabaseClient,
   rawResponse: string,
@@ -143,13 +274,14 @@ export async function resolveLegalToolCalls(
 ): Promise<string> {
   const calls = extractLegalToolCalls(rawResponse)
   if (calls.length === 0) return rawResponse
-
   let result = rawResponse
   for (const call of calls) {
-    const citations = await searchLegalCorpus(supabase, call.query, language, DEFAULT_LIMIT)
+    const citations = await searchLegalCorpus(supabase, call.query, language, 3)
     const formatted = formatCitationsMarkdown(citations, language)
-    // Remplace la première occurrence du tag exact (chaque appel est unique grâce à exec).
     result = result.replace(call.match, formatted)
   }
   return result
 }
+
+// Suppress unused warning while cosineSimilarity is re-exported for future use.
+export { cosineSimilarity }
