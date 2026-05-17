@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { Mission, Artisan, CanalInterneMsg, PlanningEvent } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { createClient } from '@supabase/supabase-js'
@@ -80,7 +80,7 @@ export default function CanalCommunicationsPage({
   const locale = useLocale()
   const isPt = locale === 'pt'
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null)
-  const [channelView, setChannelView] = useState<'artisans' | 'interne' | 'demandeurs'>('artisans')
+  const [channelView, setChannelView] = useState<'artisans' | 'interne' | 'demandeurs' | 'equipa'>('artisans')
   const [sending, setSending] = useState(false)
   const [canalTab, setCanalTab] = useState<'artisan' | 'demandeur'>('artisan')
   const [newMsg, setNewMsg] = useState('')
@@ -203,8 +203,33 @@ export default function CanalCommunicationsPage({
     return matchSearch && matchStatut
   })
 
-  const listeVue = channelView === 'demandeurs' ? 'demandeurs' : 'artisans'
-  const missionsArtisan = missionsAvecCanal.filter(m => m.artisan && m.artisan.trim() !== '')
+  // listeVue : 'artisans' regroupe Prestadores + Equipa (UX/labels identiques),
+  // seul listeActive change selon le filtre choisi.
+  const listeVue: 'artisans' | 'demandeurs' = channelView === 'demandeurs' ? 'demandeurs' : 'artisans'
+
+  // ─── Distinction Prestadores externes vs Equipa interna do gabinete ───
+  // En PT, lit la liste des colaboradores depuis le seed localStorage et compare
+  // au champ mission.artisan. Si le nom match → c'est l'équipe interne.
+  const equipaNomes = useMemo(() => {
+    if (locale !== 'pt' || typeof window === 'undefined') return new Set<string>()
+    try {
+      const uid = Object.keys(localStorage).find(k => k.startsWith('fixit_team_pt_demo_'))?.replace('fixit_team_pt_demo_', '')
+      if (!uid) return new Set<string>()
+      const raw = localStorage.getItem(`fixit_team_pt_demo_${uid}`)
+      if (!raw) return new Set<string>()
+      const team = JSON.parse(raw) as { full_name?: string }[]
+      return new Set(team.map(t => (t.full_name || '').toLowerCase().trim()).filter(Boolean))
+    } catch { return new Set<string>() }
+  }, [locale])
+
+  const isEquipaInterne = (artisanName: string | undefined): boolean => {
+    if (!artisanName || equipaNomes.size === 0) return false
+    return equipaNomes.has(artisanName.toLowerCase().trim())
+  }
+
+  const missionsArtisanAll = missionsAvecCanal.filter(m => m.artisan && m.artisan.trim() !== '')
+  const missionsPrestadores = missionsArtisanAll.filter(m => !isEquipaInterne(m.artisan))
+  const missionsEquipa = missionsArtisanAll.filter(m => isEquipaInterne(m.artisan))
   const missionsDemandeur = missionsAvecCanal.filter(m => (m.demandeurNom || m.locataire) && m.demandeurNom !== undefined || (m.demandeurMessages && m.demandeurMessages.length > 0))
 
   const nbArtisanMsgs = missions.reduce((s, m) => s + (m.canalMessages?.length || 0), 0)
@@ -212,7 +237,7 @@ export default function CanalCommunicationsPage({
   const nbInterneMsgs = canalInterneMessages.filter(m => !m.lu).length
 
   const selectedMission = missions.find(m => m.id === selectedMissionId) || null
-  const listeActive = listeVue === 'artisans' ? missionsArtisan : missionsDemandeur
+  const listeActive = channelView === 'demandeurs' ? missionsDemandeur : channelView === 'equipa' ? missionsEquipa : missionsPrestadores
 
   // ─── Envoi messages ───
   const sendMsg = () => {
@@ -426,9 +451,18 @@ export default function CanalCommunicationsPage({
                     onClick={() => setChannelView('artisans')}
                     className={`sd-seg-tab ${channelView === 'artisans' ? 'active' : ''}`}
                   >
-                    <span>🔧</span> {locale === 'pt' ? 'Profissionais' : 'Artisans'}
-                    <span className="sd-seg-count">{missionsArtisan.length}</span>
+                    <span>🔧</span> {locale === 'pt' ? 'Prestadores' : 'Artisans'}
+                    <span className="sd-seg-count">{missionsPrestadores.length}</span>
                   </button>
+                  {locale === 'pt' && (
+                    <button
+                      onClick={() => setChannelView('equipa')}
+                      className={`sd-seg-tab ${channelView === 'equipa' ? 'active' : ''}`}
+                    >
+                      <span>👷</span> Equipa
+                      <span className="sd-seg-count">{missionsEquipa.length}</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setChannelView('demandeurs')}
                     className={`sd-seg-tab ${channelView === 'demandeurs' ? 'active' : ''}`}
