@@ -4,9 +4,13 @@
 // Vérifie que :
 //   1. Le JSON est valide et conforme au schéma attendu
 //   2. Chaque font_id cité existe dans le set de chunks fourni au LLM
+//      (les chunks parent_path='__TOC__' sont exclus du fontMap par défense
+//      en profondeur — la RPC les filtre déjà côté retrieval)
 //   3. exact_quote correspond littéralement (avec tolérance espaces/casse) au chunk cité
 //   4. Coverage minimale : si refusal=false, au moins 1 citation présente
 //   5. Pas de fuite de notions de l'autre locale (PT vs FR)
+//   6. Pas d'auto-certification (« citação verificada », « [validado] », etc.) —
+//      les selos appartiennent à la base, pas à l'agent (v1.1 regime_de_citacao §5)
 // ──────────────────────────────────────────────────────────────────────────────
 
 import type { ScoredLegalChunk } from './max-legal-rag'
@@ -53,6 +57,28 @@ function normalize(s: string): string {
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim()
+}
+
+// Patterns d'auto-certification interdits dans la prose de la réponse.
+// Les selos `✅ DRE` / `◆` appartiennent à la base et sont reproductibles seulement
+// quand on cite un élément de la base qui en porte un. Toute formulation où
+// l'agent semble valider lui-même la citation est rejetée (v1.1 §regime_de_citacao 5).
+const AUTO_CERT_PATTERNS: RegExp[] = [
+  /\[\s*verifica(?:do|da|dos|das)\s*\]/i,
+  /\[\s*valida(?:do|da|dos|das)\s*\]/i,
+  /\[\s*confirma(?:do|da|dos|das)\s*\]/i,
+  /cita[çc][ãa]o\s+verifica(?:da|do)/i,
+  /fonte\s+confirma(?:da|do)/i,
+  /verifica[çc][ãa]o\s+confirmada/i,
+  /\beu\s+(?:verifiquei|validei|confirmo|certifico)\b/i,
+  /(?:^|\s)✅\s*(?:cita[çc][ãa]o|fonte|verifica|valida|confirma)/i,
+]
+
+function detectAutoCertification(answer: string): RegExp | null {
+  for (const re of AUTO_CERT_PATTERNS) {
+    if (re.test(answer)) return re
+  }
+  return null
 }
 
 /**
@@ -125,9 +151,14 @@ export function validateMaxResponse(
 
   // 4. Vérification de chaque citation
   const validated: MaxValidatedCitation[] = []
-  // Map font_id (FONT-1, FONT-2, …) → chunk
+  // Map font_id (FONT-1, FONT-2, …) → chunk.
+  // Défense en profondeur : on exclut les chunks TOC (parent_path='__TOC__')
+  // du fontMap pour empêcher toute citation pointant vers l'índice.
+  // La RPC search_legal_corpus_hybrid_pt les filtre déjà côté retrieval ;
+  // ce double filet protège contre une régression côté SQL.
+  const citableChunks = injectedChunks.filter((c) => c.parent_path !== '__TOC__')
   const fontMap = new Map<string, ScoredLegalChunk>()
-  injectedChunks.forEach((c, i) => fontMap.set(`FONT-${i + 1}`, c))
+  citableChunks.forEach((c, i) => fontMap.set(`FONT-${i + 1}`, c))
 
   for (const cit of parsed.citations ?? []) {
     if (!cit.font_id || !cit.exact_quote || !cit.claim) {
@@ -187,6 +218,21 @@ export function validateMaxResponse(
         citations: validated,
         refusal: false,
       }
+    }
+  }
+
+  // 7. Auto-certification : interdire que la réponse contienne des phrases du type
+  // « citação verificada », « [validado] », « ✅ verifica… », « eu validei »…
+  // Les selos appartiennent à la base, pas à l'agent (v1.1 §regime_de_citacao 5).
+  const autoCertHit = detectAutoCertification(parsed.answer)
+  if (autoCertHit) {
+    reasons.push(`auto-certification detected: ${autoCertHit.source}`)
+    return {
+      ok: false,
+      reasons,
+      answer: parsed.answer,
+      citations: validated,
+      refusal: false,
     }
   }
 

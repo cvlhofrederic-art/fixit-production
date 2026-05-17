@@ -20,6 +20,35 @@ export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
+// Cache module-level de l'índice (TOC) du corpus PT. Lu une fois au cold-start
+// du Worker, invalidation au prochain redéploiement (durée de vie de l'isolate).
+// Stratégie hybride Anthropic : la TOC est pré-chargée dans le system prompt,
+// pas récupérée via retrieval — le chunk parent_path='__TOC__' est exclu du RPC.
+let _cachedTocPt: string | null = null
+
+async function loadTocPt(): Promise<string | null> {
+  if (_cachedTocPt !== null) return _cachedTocPt
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('syndic_legal_corpus_pt')
+      .select('content')
+      .eq('parent_path', '__TOC__')
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      logger.warn('[max-ai] TOC load failed (non-bloquant)', { error: error.message })
+      return null
+    }
+    _cachedTocPt = (data?.content as string) ?? null
+    return _cachedTocPt
+  } catch (err) {
+    logger.warn('[max-ai] TOC load exception (non-bloquant)', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
+  }
+}
+
 // ── Max — Consultor juridique strict (Plan 2026) ────────────────────────────
 // Pipeline anti-hallucination :
 //  1. Embed la question + HyDE rewrite (LLM rapide)
@@ -72,6 +101,12 @@ export async function POST(request: NextRequest) {
 
     const userRole = getUserRole(user) || 'syndic'
 
+    // Tag d'observabilité pour les évals : le header X-Eval-Run-Id permet de
+    // filtrer les traces Langfuse appartenant à une passe d'évaluation
+    // particulière (cf. docs/agent-max/evals/). En production normale, header
+    // absent → tag null, traces dans le flux habituel.
+    const evalRunId = request.headers.get('x-eval-run-id') || null
+
     const rawBody = await request.json()
     const v = validateBody(syndicMaxAiSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
@@ -122,10 +157,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 3. Construction du prompt strict avec chunks injectés ──
+    // Pré-chargement de l'índice (TOC) pour la stratégie hybride Anthropic :
+    // Max sait toujours quelles matières la base couvre avant de répondre.
+    const tocContent = isPt ? await loadTocPt() : null
     const systemPrompt = buildMaxStrictSystemPrompt({
       chunks,
       locale: ragLanguage,
       userRole,
+      tocContent: tocContent ?? undefined,
     })
 
     // Historique conversation (limité) — sans le contexte syndic (anti-hallu)
@@ -158,6 +197,13 @@ export async function POST(request: NextRequest) {
             user_id: user.id,
             conversation_id: rawBody.conversation_id,
             prompt: message,
+            metadata: {
+              locale: ragLanguage,
+              chunks_found: chunks.length,
+              hyde_used: !!hydeQuery,
+              attempt,
+              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+            },
           },
           () => callGroqWithRetry({
             messages,
@@ -242,6 +288,11 @@ export async function POST(request: NextRequest) {
         chunks_found: chunks.length,
         chunks_cited: validated.citations.length,
         hyde_used: !!hydeQuery,
+        // Identifiants des chunks effectivement injectés au LLM — utile pour
+        // le replay côté évals (cf. docs/agent-max/evals/run-evals.ts) et le
+        // debug Langfuse. Pas de fuite PII (les ids sont des uuid v4).
+        chunk_ids: chunks.map((c) => c.id),
+        ...(evalRunId ? { eval_run_id: evalRunId } : {}),
       },
     })
   } catch (err: unknown) {

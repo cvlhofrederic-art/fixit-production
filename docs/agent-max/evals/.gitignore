@@ -1,0 +1,2 @@
+# Résultats horodatés des passes d'évals — ne pas committer (volumineux, transitoires)
+results/*.json
