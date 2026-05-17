@@ -56,6 +56,28 @@ function normalize(s: string): string {
 }
 
 /**
+ * Retire les marqueurs `[FONT-X]` du texte affiché à l'utilisateur.
+ * Les marqueurs servent à la validation/audit (mapping claim → chunk) mais
+ * sont inesthétiques dans la prose. Les citations restent disponibles dans
+ * le bloc dépliable « Fontes citadas » alimenté par le tableau `citations`.
+ *
+ * Gère plusieurs variantes que le LLM peut émettre :
+ *   [FONT-1], [FONT 1], [Font-1], (FONT-1), [FONT-1, FONT-2]
+ *   FONT-3 (sans brackets, en fin de phrase)
+ */
+function stripFontMarkers(text: string): string {
+  return text
+    // Marqueurs en brackets/parens avec un ou plusieurs IDs
+    .replace(/[ \t]*[[(]\s*FONT[\s\-]?\d+(?:\s*,\s*FONT[\s\-]?\d+)*\s*[\])]/gi, '')
+    // Marqueurs nus (sans brackets)
+    .replace(/[ \t]*\bFONT[\s\-]?\d+\b/gi, '')
+    // Nettoyer espaces avant ponctuation + doubles espaces
+    .replace(/\s+([.,;:!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+/**
  * Parse + valide la réponse brute du LLM. Retourne ok=false si la réponse
  * doit être rejetée (et idéalement re-générée).
  */
@@ -168,10 +190,12 @@ export function validateMaxResponse(
     }
   }
 
+  // Nettoie le texte affiché : retire les marqueurs [FONT-X] inesthétiques.
+  // Les citations restent intactes dans le tableau `citations` (bloc UI dépliable).
   return {
     ok: true,
     reasons,
-    answer: parsed.answer,
+    answer: stripFontMarkers(parsed.answer),
     citations: validated,
     refusal: parsed.refusal,
   }
