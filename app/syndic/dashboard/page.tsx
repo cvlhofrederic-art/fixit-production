@@ -487,77 +487,46 @@ export default function SyndicDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [notifPanelOpen])
 
-  // ── Load persisted Max conversation (DB-first, localStorage en fallback) ──
-  // Hydrate les messages Max depuis syndic_ai_conversations + syndic_ai_messages.
-  // Si aucune conversation n'existe, une nouvelle est créée (locale courante).
-  // En cas d'erreur DB, fallback gracieux sur le cache localStorage.
+  // ── Load most-recent Max conversation (multi-conv via sidebar) ──────────
+  // La sidebar de MaxExpertSection gère elle-même la liste des conversations.
+  // Ici on hydrate seulement la plus récente pour pré-remplir l'écran à
+  // l'ouverture du module Max — l'utilisateur peut ensuite naviguer entre
+  // conversations ou créer une nouvelle via la sidebar. Aucune création
+  // automatique : si zéro conversation existe, la première sera créée
+  // implicitement par sendMaxMessage au premier envoi.
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
     void (async () => {
       try {
-        // 1. Cherche la conversation Max la plus récente
         const listRes = await fetch('/api/syndic/conversations?agent_id=max')
-        if (cancelled) return
-        if (listRes.ok) {
-          const json = await listRes.json() as { conversations?: Array<{ id: string; locale?: string }> }
-          let convId = json.conversations?.[0]?.id ?? null
-
-          if (!convId) {
-            // 2. Aucune conversation : en créer une
-            const createRes = await fetch('/api/syndic/conversations', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ agent_id: 'max', locale, title: 'Max — Consultor' }),
-            })
-            if (cancelled) return
-            if (createRes.ok) {
-              const created = await createRes.json() as { conversation?: { id: string } }
-              convId = created.conversation?.id ?? null
-            }
-          }
-
-          if (convId) {
-            setMaxConvId(convId)
-            // 3. Hydrate les messages (citations restaurées depuis metadata)
-            const msgsRes = await fetch(`/api/syndic/conversations/${convId}/messages`)
-            if (cancelled) return
-            if (msgsRes.ok) {
-              const msgsJson = await msgsRes.json() as {
-                messages?: Array<{
-                  role: string
-                  content: string
-                  metadata?: { citations?: MaxClientCitation[]; confidence?: number; refusal?: boolean } | null
-                }>
-              }
-              const dbMessages: MaxMessage[] = (msgsJson.messages ?? [])
-                .filter((m) => m.role === 'user' || m.role === 'assistant')
-                .map((m) => ({
-                  role: m.role as 'user' | 'assistant',
-                  content: m.content,
-                  citations: m.metadata?.citations,
-                  confidence: m.metadata?.confidence,
-                  refusal: m.metadata?.refusal,
-                }))
-              if (dbMessages.length > 0) {
-                setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
-                return
-              }
-            }
-          }
+        if (cancelled || !listRes.ok) return
+        const json = await listRes.json() as { conversations?: Array<{ id: string }> }
+        const convId = json.conversations?.[0]?.id ?? null
+        if (!convId) return
+        setMaxConvId(convId)
+        const msgsRes = await fetch(`/api/syndic/conversations/${convId}/messages`)
+        if (cancelled || !msgsRes.ok) return
+        const msgsJson = await msgsRes.json() as {
+          messages?: Array<{
+            role: string
+            content: string
+            metadata?: { citations?: MaxClientCitation[]; confidence?: number; refusal?: boolean } | null
+          }>
         }
-      } catch {
-        // Erreur DB → fallback localStorage ci-dessous
-      }
-      if (cancelled) return
-      // Fallback : ancien cache localStorage si la DB est indisponible
-      try {
-        const saved = localStorage.getItem(`fixit_max_history_${user.id}`)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          if (Array.isArray(parsed) && parsed.length > 0) setMaxMessages(parsed)
+        const dbMessages: MaxMessage[] = (msgsJson.messages ?? [])
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            citations: m.metadata?.citations,
+            confidence: m.metadata?.confidence,
+            refusal: m.metadata?.refusal,
+          }))
+        if (dbMessages.length > 0) {
+          setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
         }
-      } catch {}
+      } catch { /* tolérance offline — la sidebar tentera son propre fetch */ }
     })()
 
     try {
@@ -2288,12 +2257,50 @@ export default function SyndicDashboard() {
       const updated = [...maxMessages, { role: 'user' as const, content: userMsg }]
       localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60)))
     } catch {}
-    if (maxConvId) {
-      void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
+
+    // ── Multi-conv : créer une conversation si aucune n'est active ──
+    // La sidebar peut être vide (premier envoi de l'utilisateur). On
+    // crée à la volée avec un titre dérivé du premier message (max 60
+    // caractères). Aucun envoi ne se perd : si la création échoue, on
+    // continue malgré tout — l'utilisateur verra la réponse en mémoire.
+    let convId = maxConvId
+    const isFirstMsg = !convId
+    if (!convId) {
+      try {
+        const createRes = await fetch('/api/syndic/conversations', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: 'max',
+            locale,
+            title: userMsg.slice(0, 60),
+          }),
+        })
+        if (createRes.ok) {
+          const created = await createRes.json() as { conversation?: { id: string } }
+          convId = created.conversation?.id ?? null
+          if (convId) setMaxConvId(convId)
+        }
+      } catch { /* tolérance offline */ }
+    }
+
+    if (convId) {
+      void fetch(`/api/syndic/conversations/${convId}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ role: 'user', content: userMsg }),
       }).catch(() => { /* tolérance offline */ })
+
+      // Auto-rename au premier vrai message : si la conversation existait
+      // déjà avec un titre générique ("Nova conversa"), on remplace par les
+      // 60 premiers caractères de la question — comme ChatGPT.
+      if (!isFirstMsg && maxMessages.length <= 1) {
+        void fetch(`/api/syndic/conversations/${convId}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: userMsg.slice(0, 60) }),
+        }).catch(() => { /* silencieux */ })
+      }
     }
     try {
       const maxToken = await getAdminToken()
@@ -2325,8 +2332,8 @@ export default function SyndicDashboard() {
         try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(newMsgs.slice(-60))) } catch {}
         return newMsgs
       })
-      if (maxConvId && answer) {
-        void fetch(`/api/syndic/conversations/${maxConvId}/messages`, {
+      if (convId && answer) {
+        void fetch(`/api/syndic/conversations/${convId}/messages`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -2797,6 +2804,9 @@ export default function SyndicDashboard() {
               setPdfSelectedImmeuble={setPdfSelectedImmeuble}
               setPdfSelectedCopro={setPdfSelectedCopro}
               setShowPdfModal={setShowPdfModal}
+              maxConvId={maxConvId}
+              setMaxConvId={setMaxConvId}
+              maxInitialMsg={maxInitialMsg}
             />
           )}
 
