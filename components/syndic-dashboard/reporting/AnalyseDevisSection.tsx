@@ -261,18 +261,32 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
         const now = new Date()
         const dateIntervStr = missionForm.dateIntervention
           ? new Date(missionForm.dateIntervention).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-          : 'à définir'
+          : (isPt ? 'a definir' : 'à définir')
         const localisationDetail = [
-          missionForm.batiment ? `Bâtiment ${missionForm.batiment}` : null,
-          missionForm.etage ? `Étage ${missionForm.etage}` : null,
-          missionForm.numLot ? `Appartement / Lot ${missionForm.numLot}` : null,
+          missionForm.batiment ? `${isPt ? 'Bloco' : 'Bâtiment'} ${missionForm.batiment}` : null,
+          missionForm.etage ? `${isPt ? 'Andar' : 'Étage'} ${missionForm.etage}` : null,
+          missionForm.numLot ? `${isPt ? 'Apartamento / Fração' : 'Appartement / Lot'} ${missionForm.numLot}` : null,
         ].filter(Boolean).join(' · ')
         const locataireDetail = missionForm.locataire
-          ? `\n👤 Locataire : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — Tél : ${missionForm.telephoneLocataire}` : ''}`
+          ? `\n👤 ${isPt ? 'Inquilino' : 'Locataire'} : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — ${isPt ? 'Tel' : 'Tél'} : ${missionForm.telephoneLocataire}` : ''}`
           : ''
-        const accesDetail = missionForm.accesLogement ? `\n🔑 Accès : ${missionForm.accesLogement}` : ''
+        const accesDetail = missionForm.accesLogement ? `\n🔑 ${isPt ? 'Acesso' : 'Accès'} : ${missionForm.accesLogement}` : ''
 
-        const msgAuto = `📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
+        const msgAuto = isPt
+          ? `📋 ORDEM DE MISSÃO — ${missionForm.type || 'Intervenção'}
+
+Olá ${missionForm.artisan},
+
+Foi-lhe atribuída uma intervenção:
+
+🏢 Edifício : ${missionForm.immeuble}${missionForm.adresseImmeuble ? `\n📍 Morada : ${missionForm.adresseImmeuble}` : ''}${localisationDetail ? `\n📌 ${localisationDetail}` : ''}${locataireDetail}${accesDetail}
+
+🔧 Missão : ${missionForm.description}
+📅 Data da intervenção : ${dateIntervStr}
+⚡ Prioridade : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normal' : '⚪ Planeada'}${missionForm.montantDevis ? `\n💰 Orçamento : ${missionForm.montantDevis.toLocaleString('pt-PT')} € sem IVA` : ''}
+
+Por favor confirme a receção desta ordem de missão respondendo neste canal.`
+          : `📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
 
 Bonjour ${missionForm.artisan},
 
@@ -282,11 +296,11 @@ Une intervention vous est assignée :
 
 🔧 Mission : ${missionForm.description}
 📅 Date d'intervention : ${dateIntervStr}
-⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} € HT` : ''}
+⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString('fr-FR')} € HT` : ''}
 
 Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`
 
-        const autoMsg = { auteur: 'Gestionnaire', role: 'syndic', texte: msgAuto, date: now.toISOString() }
+        const autoMsg = { auteur: isPt ? 'Gestor' : 'Gestionnaire', role: 'syndic', texte: msgAuto, date: now.toISOString() }
         const newMission: Mission = {
           id: newMissionId,
           immeuble: missionForm.immeuble,
@@ -934,7 +948,21 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                 <div className="bg-[#F7F4EE] rounded-xl p-4 border border-gray-200">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">👁️ {isPt ? 'Pré-visualização da mensagem automática enviada ao profissional' : 'Aperçu du message automatique envoyé à l\'artisan'}</p>
                   <div className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-white rounded-lg p-3 border border-gray-100 max-h-40 overflow-y-auto leading-relaxed">
-                    {`📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
+                    {isPt
+                      ? `📋 ORDEM DE MISSÃO — ${missionForm.type || 'Intervenção'}
+
+Olá ${missionForm.artisan},
+
+Foi-lhe atribuída uma intervenção:
+
+🏢 Edifício : ${missionForm.immeuble}${missionForm.adresseImmeuble ? `\n📍 Morada : ${missionForm.adresseImmeuble}` : ''}${[missionForm.batiment && `Bloco ${missionForm.batiment}`, missionForm.etage && `Andar ${missionForm.etage}`, missionForm.numLot && `Apartamento / Fração ${missionForm.numLot}`].filter(Boolean).join(' · ') ? `\n📌 ${[missionForm.batiment && `Bloco ${missionForm.batiment}`, missionForm.etage && `Andar ${missionForm.etage}`, missionForm.numLot && `Apartamento / Fração ${missionForm.numLot}`].filter(Boolean).join(' · ')}` : ''}${missionForm.locataire ? `\n👤 Inquilino : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — Tel : ${missionForm.telephoneLocataire}` : ''}` : ''}${missionForm.accesLogement ? `\n🔑 Acesso : ${missionForm.accesLogement}` : ''}
+
+🔧 Missão : ${missionForm.description}
+📅 Data da intervenção : ${missionForm.dateIntervention ? new Date(missionForm.dateIntervention).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'a definir'}
+⚡ Prioridade : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normal' : '⚪ Planeada'}${missionForm.montantDevis ? `\n💰 Orçamento : ${missionForm.montantDevis.toLocaleString('pt-PT')} € sem IVA` : ''}
+
+Por favor confirme a receção desta ordem de missão respondendo neste canal.`
+                      : `📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
 
 Bonjour ${missionForm.artisan},
 
@@ -943,8 +971,8 @@ Une intervention vous est assignée :
 🏢 Résidence : ${missionForm.immeuble}${missionForm.adresseImmeuble ? `\n📍 Adresse : ${missionForm.adresseImmeuble}` : ''}${[missionForm.batiment && `Bâtiment ${missionForm.batiment}`, missionForm.etage && `Étage ${missionForm.etage}`, missionForm.numLot && `Appartement / Lot ${missionForm.numLot}`].filter(Boolean).join(' · ') ? `\n📌 ${[missionForm.batiment && `Bâtiment ${missionForm.batiment}`, missionForm.etage && `Étage ${missionForm.etage}`, missionForm.numLot && `Appartement / Lot ${missionForm.numLot}`].filter(Boolean).join(' · ')}` : ''}${missionForm.locataire ? `\n👤 Locataire : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — Tél : ${missionForm.telephoneLocataire}` : ''}` : ''}${missionForm.accesLogement ? `\n🔑 Accès : ${missionForm.accesLogement}` : ''}
 
 🔧 Mission : ${missionForm.description}
-📅 Date d'intervention : ${missionForm.dateIntervention ? new Date(missionForm.dateIntervention).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'à définir'}
-⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} € HT` : ''}
+📅 Date d'intervention : ${missionForm.dateIntervention ? new Date(missionForm.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'à définir'}
+⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString('fr-FR')} € HT` : ''}
 
 Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`}
                   </div>
