@@ -207,9 +207,9 @@ export default function CanalCommunicationsPage({
   // seul listeActive change selon le filtre choisi.
   const listeVue: 'artisans' | 'demandeurs' = channelView === 'demandeurs' ? 'demandeurs' : 'artisans'
 
-  // ─── Distinction Prestadores externes vs Equipa interna do gabinete ───
-  // En PT, lit la liste des colaboradores depuis le seed localStorage et compare
-  // au champ mission.artisan. Si le nom match → c'est l'équipe interne.
+  // ─── Onglet "Equipa" = uniquement les TÉCNICOS internes (role syndic_tech) ───
+  // Les ordens de missão ne sont jamais assignées à des admins/secretárias/
+  // contabilistas/juristes. Seulement aux técnicos (internes ou prestadores externes).
   const equipaNomes = useMemo(() => {
     if (locale !== 'pt' || typeof window === 'undefined') return new Set<string>()
     try {
@@ -217,8 +217,14 @@ export default function CanalCommunicationsPage({
       if (!uid) return new Set<string>()
       const raw = localStorage.getItem(`fixit_team_pt_demo_${uid}`)
       if (!raw) return new Set<string>()
-      const team = JSON.parse(raw) as { full_name?: string }[]
-      return new Set(team.map(t => (t.full_name || '').toLowerCase().trim()).filter(Boolean))
+      const team = JSON.parse(raw) as { full_name?: string; role?: string }[]
+      // Filtre strict : uniquement role syndic_tech (técnicos internes)
+      return new Set(
+        team
+          .filter(t => t.role === 'syndic_tech')
+          .map(t => (t.full_name || '').toLowerCase().trim())
+          .filter(Boolean)
+      )
     } catch { return new Set<string>() }
   }, [locale])
 
