@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-900 capitalize">Planning — {planningMonthLabel}</h2>
+            <h2 className="text-lg font-bold text-gray-900 capitalize">{locale === 'pt' ? 'Planeamento' : 'Planning'} — {planningMonthLabel}</h2>
             <button
               onClick={() => onOpenPlanningModal(new Date().toISOString().slice(0, 10))}
               className="flex items-center gap-1 text-xs bg-[#0D1B2E] hover:bg-[#152338] text-white px-3 py-1.5 rounded-lg transition font-medium"
@@ -205,9 +205,9 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
 
       {/* Liste mensuelle */}
       <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
-        <h3 className="font-bold text-gray-900 mb-3">📋 Agenda du mois — {planningMonthLabel}</h3>
+        <h3 className="font-bold text-gray-900 mb-3">📋 {locale === 'pt' ? 'Agenda do mês' : 'Agenda du mois'} — {planningMonthLabel}</h3>
         {monthEvents.length === 0 && (
-          <p className="text-sm text-gray-500 py-6 text-center border-2 border-dashed border-gray-200 rounded-xl">Aucun événement ce mois</p>
+          <p className="text-sm text-gray-500 py-6 text-center border-2 border-dashed border-gray-200 rounded-xl">{locale === 'pt' ? 'Nenhum evento este mês' : 'Aucun événement ce mois'}</p>
         )}
         <div className="space-y-2">
           {[
