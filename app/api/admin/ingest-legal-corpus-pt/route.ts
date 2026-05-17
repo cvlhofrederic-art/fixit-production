@@ -298,9 +298,12 @@ export async function POST(request: NextRequest) {
         question_embedding: formatVectorLiteral(questionVecs[j]),
         version: 1,
       }))
+      // Insert simple : on a pré-filtré les chunks déjà présents via chunk_hash.
+      // (upsert avec onConflict ne fonctionne pas avec un index partiel
+      // WHERE chunk_hash IS NOT NULL, ce qui est notre cas.)
       const { error } = await supabaseAdmin
         .from('syndic_legal_corpus_pt')
-        .upsert(rows, { onConflict: 'chunk_hash' })
+        .insert(rows)
       if (error) {
         errors.push(`batch ${i / BATCH_SIZE + 1}: ${error.message}`)
       } else {
