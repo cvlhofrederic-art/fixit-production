@@ -631,7 +631,7 @@ export default function MissionDetailsModal({
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">{isPt ? 'Duração da intervenção' : 'Durée intervention'}</label>
-                  <input className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-[#C9A84C] outline-none" placeholder="Ex: 2h30" value={localData.dureeIntervention || ''} onChange={e => setLocalData(d => ({...d, dureeIntervention: e.target.value}))} onBlur={() => onUpdate(localData)} />
+                  <input className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-[#C9A84C] outline-none" placeholder={isPt ? 'Ex: 2h30' : 'Ex: 2h30'} value={localData.dureeIntervention || ''} onChange={e => setLocalData(d => ({...d, dureeIntervention: e.target.value}))} onBlur={() => onUpdate(localData)} />
                 </div>
               </div>
               {(isPt ? [
