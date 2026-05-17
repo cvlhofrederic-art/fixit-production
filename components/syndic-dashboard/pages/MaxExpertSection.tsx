@@ -5,6 +5,8 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
+import type { Conversation } from '@/lib/syndic/agent-types'
+import MaxConversationSidebar from './MaxConversationSidebar'
 
 // ── Web Speech API : typage minimal ─────────────────────────────────────
 // La SpeechRecognition n'est pas dans les types DOM standard. On déclare
@@ -106,6 +108,11 @@ interface MaxExpertSectionProps {
   setPdfSelectedImmeuble: (v: string) => void
   setPdfSelectedCopro: (v: null) => void
   setShowPdfModal: (v: boolean) => void
+  // Multi-conversation : géré par parent (sendMaxMessage référence maxConvId).
+  // Hydratés au mount via /api/syndic/conversations?agent_id=max.
+  maxConvId: string | null
+  setMaxConvId: (id: string | null) => void
+  maxInitialMsg: string
 }
 
 export default function MaxExpertSection({
@@ -132,9 +139,115 @@ export default function MaxExpertSection({
   setPdfSelectedImmeuble,
   setPdfSelectedCopro,
   setShowPdfModal,
+  maxConvId,
+  setMaxConvId,
+  maxInitialMsg,
 }: MaxExpertSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
+
+  // ── Multi-conversation : list + selection management ──────────────────
+  // Source of truth pour la liste affichée dans la sidebar. Synchronisé
+  // avec /api/syndic/conversations?agent_id=max ; le maxConvId actif
+  // remonte au parent pour que sendMaxMessage puisse persister chaque
+  // tour dans la bonne conversation.
+  const [conversations, setConversations] = useState<Conversation[]>([])
+
+  const refetchConversations = useCallback(async () => {
+    try {
+      const res = await fetch('/api/syndic/conversations?agent_id=max')
+      if (!res.ok) return
+      const json = await res.json() as { conversations?: Conversation[] }
+      setConversations(json.conversations ?? [])
+    } catch { /* tolérance offline */ }
+  }, [])
+
+  useEffect(() => { refetchConversations() }, [refetchConversations])
+
+  // Rafraîchit la liste après chaque envoi (titre auto + dernière prévisualisation
+  // mis à jour côté serveur via le trigger sur syndic_ai_messages).
+  useEffect(() => {
+    if (!maxLoading) refetchConversations()
+  }, [maxLoading, refetchConversations])
+
+  const handleNewConversation = useCallback(async () => {
+    try {
+      const res = await fetch('/api/syndic/conversations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: 'max',
+          locale,
+          title: locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation',
+        }),
+      })
+      if (!res.ok) return
+      const json = await res.json() as { conversation?: Conversation }
+      if (!json.conversation) return
+      setConversations(prev => [json.conversation!, ...prev])
+      setMaxConvId(json.conversation.id)
+      setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+    } catch { /* silencieux */ }
+  }, [locale, maxInitialMsg, setMaxConvId, setMaxMessages])
+
+  const handleSelectConversation = useCallback(async (id: string) => {
+    if (id === maxConvId) return
+    setMaxConvId(id)
+    try {
+      const res = await fetch(`/api/syndic/conversations/${id}/messages`)
+      if (!res.ok) {
+        setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+        return
+      }
+      const json = await res.json() as {
+        messages?: Array<{
+          role: string
+          content: string
+          metadata?: { citations?: MaxCitation[]; confidence?: number; refusal?: boolean } | null
+        }>
+      }
+      const dbMessages: MaxMessage[] = (json.messages ?? [])
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          citations: m.metadata?.citations,
+          confidence: m.metadata?.confidence,
+          refusal: m.metadata?.refusal,
+        }))
+      setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
+    } catch {
+      setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+    }
+  }, [maxConvId, maxInitialMsg, setMaxConvId, setMaxMessages])
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    const msg = locale === 'pt'
+      ? 'Apagar esta conversa? Esta acção é irreversível.'
+      : 'Supprimer cette conversation ? Cette action est irréversible.'
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    try {
+      const res = await fetch(`/api/syndic/conversations/${id}`, { method: 'DELETE' })
+      if (!res.ok) return
+      setConversations(prev => prev.filter(c => c.id !== id))
+      if (maxConvId === id) {
+        setMaxConvId(null)
+        setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+      }
+    } catch { /* silencieux */ }
+  }, [locale, maxConvId, maxInitialMsg, setMaxConvId, setMaxMessages])
+
+  const handleRenameConversation = useCallback(async (id: string, newTitle: string) => {
+    try {
+      const res = await fetch(`/api/syndic/conversations/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      })
+      if (!res.ok) return
+      setConversations(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c))
+    } catch { /* silencieux */ }
+  }, [])
 
   // ── Saisie vocale Web Speech API ───────────────────────────────────────
   // Bouton micro à côté du send. Pendant l'écoute, le transcript final est
@@ -211,6 +324,16 @@ export default function MaxExpertSection({
 
   return (
     <div className="sd-mx-zone">
+      <MaxConversationSidebar
+        conversations={conversations}
+        activeId={maxConvId}
+        onSelect={handleSelectConversation}
+        onNew={handleNewConversation}
+        onDelete={handleDeleteConversation}
+        onRename={handleRenameConversation}
+        immeubles={immeubles}
+        locale={locale === 'pt' ? 'pt' : 'fr'}
+      />
       <div className="sd-mx-inner">
 
         {/* ── Identity Banner ── */}
@@ -256,10 +379,10 @@ export default function MaxExpertSection({
             </div>
             <button
               className="sd-mx-clear"
-              onClick={() => { const cleared = [{ role: 'assistant' as const, content: t('syndicDash.ai.cleared') }]; setMaxMessages(cleared); try { localStorage.setItem(`fixit_max_history_${userId}`, JSON.stringify(cleared)) } catch {} }}
+              onClick={handleNewConversation}
               title={locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation'}
               aria-label={locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation'}
-            >✕</button>
+            >+</button>
           </div>
         </div>
 
