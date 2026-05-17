@@ -315,25 +315,6 @@ export default function MaxExpertSection({
                     <div className="sd-mx-msg-inner">
                       <div className="sd-mx-msg-label">
                         Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}
-                        {/* Badge confiance (présent uniquement quand serveur renvoie metadata) */}
-                        {typeof msg.confidence === 'number' && msg.confidence > 0 && !msg.refusal && (
-                          <span style={{
-                            marginLeft: 8, fontSize: 10, padding: '2px 8px', borderRadius: 12,
-                            background: msg.confidence >= 0.7 ? 'rgba(34,197,94,0.12)' : msg.confidence >= 0.45 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
-                            color: msg.confidence >= 0.7 ? '#16a34a' : msg.confidence >= 0.45 ? '#d97706' : '#dc2626',
-                            fontWeight: 600,
-                          }}>
-                            {locale === 'pt' ? 'Confiança' : 'Confiance'} {Math.round(msg.confidence * 100)}%
-                          </span>
-                        )}
-                        {msg.refusal && (
-                          <span style={{
-                            marginLeft: 8, fontSize: 10, padding: '2px 8px', borderRadius: 12,
-                            background: 'rgba(107,114,128,0.15)', color: '#374151', fontWeight: 600,
-                          }}>
-                            {locale === 'pt' ? 'Fora do corpus' : 'Hors corpus'}
-                          </span>
-                        )}
                       </div>
                       <div className="sd-mx-msg-bubble" suppressHydrationWarning>
                         <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msgText) }} />
