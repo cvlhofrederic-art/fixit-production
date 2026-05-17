@@ -210,48 +210,82 @@ Réponse de Max prod **post-déploiement v1.1** :
 - Le TOC chunk est en base ✅
 - L'isolation par locale (`language = 'pt'`) respectée ✅
 
-**Cause-racine confirmée empiriquement** (via console.groq.com Logs sous session utilisateur) :
+**Cause-racine confirmée empiriquement** (via console.groq.com Logs + Settings/Limits sous session utilisateur) :
 
-> **`429 rate_limit_exceeded`** systématique sur `llama-3.3-70b-versatile` ET `llama-3.1-8b-instant` (HyDE), API key « Vitfix Prod 2026-04-24 ». Tous les logs récents (21:00-21:03 UTC) montrent 0 input/output tokens — les requêtes sont rejetées **avant** traitement par le rate limiter Groq.
+> **`429 rate_limit_exceeded`** systématique sur `llama-3.3-70b-versatile` ET `llama-3.1-8b-instant` (HyDE). Tests successifs après 2 min d'attente → toujours bloqué.
 
-Compte Groq actuel : **free tier** (bouton « Upgrade to Dev Plan » visible). Le free tier limite typiquement :
-- Llama 3.3 70B : ~30 RPM (vs 1K RPM en Dev Plan)
-- Llama 3.1 8B : idem
-- TPM ~250K
+**Vraie limite déclenchée** (relevée sur https://console.groq.com/settings/limits, compte free tier) :
 
-L'historique de 86 messages Max + l'ingestion via worker (qui ne consomme pas Groq mais BGE-M3 Cloudflare AI) + mes 3 smoke tests récents + le pipeline post-deploy ont saturé la fenêtre roulante RPM.
+| Modèle | RPM | **RPD** | TPM | **TPD** |
+|---|---|---|---|---|
+| **llama-3.3-70b-versatile** (utilisé par Max) | 30 | **1K** | 12K | **100K ← dépassé** |
+| llama-3.1-8b-instant (HyDE) | 30 | 14.4K | 6K | 500K |
+| groq/compound | 30 | 250 | 70K | **No limit** |
+| openai/gpt-oss-120b | 30 | 1K | 8K | 200K |
 
-Token Usage 30 jours : 377.3K (Up 21% from previous 30 days). Total Spend $0.10 — non-bloquant côté facturation, mais **rate limit RPM persiste sur free tier**.
+**Calcul** : le prompt v1.1 enrichi (14 sections XML + TOC pré-chargée + 6 chunks injectés ×500-800 tokens + exemples) ≈ **10-15K tokens en input par requête**. Sur 100K TPD → **~7-10 questions/jour maximum** au free tier. La journée du 2026-05-17 a saturé avec : 86 messages historique antérieurs + 4 smoke tests + pipeline post-deploy.
 
-### 2.6 Action immédiate pour réactiver Max
+**Différence vs avant le merge** : le prompt v1.0 faisait ~3-4K tokens par requête → le free tier supportait ~25-30 questions/jour. Le v1.1 enrichi (cible : qualité juridique pro 2026 Anthropic) divise cette capacité par ~3.
 
-**Le rate limit Groq se reset automatiquement** sur une fenêtre roulante (généralement 1 minute pour RPM). Trois options par ordre de durabilité :
+**Reset automatique à minuit UTC** (≈ 01h00 heure Portugal continental). La limite TPD est une fenêtre journalière fixe, pas roulante.
 
-**Option A (immédiate, gratuite) — Attendre 1-2 minutes** sans appel à Max, puis retester :
+Compte non-bloquant côté facturation : Total Spend 30 jours = $0.10. C'est la fenêtre TPD qui bloque, pas le quota total.
+
+### 2.6 Décision opérationnelle — **Option A : attendre reset minuit UTC**
+
+Choisie par l'utilisateur (méthode pro, pas d'urgence cabinet ce soir). Concrètement :
+
+**Reset prévu : 2026-05-18 00:00 UTC** (≈ 01h00 heure Portugal continental).
+
+Procédure post-reset (le matin du 2026-05-18) :
 
 ```bash
-# Après ~2 minutes :
+# 1. Vérifier qu'on est passé minuit UTC
+date -u  # doit indiquer 2026-05-18 ... UTC
+
+# 2. Re-tester Max sur la question défaut C cible
+# Via le dashboard syndic : /syndic/dashboard → Max Expert
+# OU via curl avec un JWT user syndic récupéré du browser :
 curl -X POST https://vitfix.io/api/syndic/max-ai \
   -H "Authorization: Bearer <JWT user syndic>" \
   -H "Content-Type: application/json" \
-  -d '{"message":"Quem é responsável pelo contrato de manutenção do ascensor?","locale":"pt"}'
-# Attendu : citations non-vides avec font_id sur DL 320/2002
+  -d '{"message":"Que obrigações tem o condomínio quanto à manutenção do ascensor segundo o DL 320/2002?","locale":"pt"}'
+
+# 3. Lancer la suite d'évaluations complète
+export MAX_AI_ENDPOINT=https://vitfix.io/api/syndic/max-ai
+export MAX_AI_BEARER_TOKEN="<JWT user syndic>"
+export EVAL_RUN_ID="post-v11-deploy-$(date -u +%Y%m%d)"
+npx tsx docs/agent-max/evals/run-evals.ts --set=train --concurrency=1
+# concurrency=1 pour ménager le TPD free tier
 ```
 
-**Option B (recommandée pour usage cabinet) — Upgrader vers Dev Plan** :
-- https://console.groq.com/settings/billing
-- Free → Dev Plan : 1K RPM (au lieu de ~30 RPM), 300K TPM, $0.59/1M tokens input + $0.79 output
-- Pay-as-you-go, pas d'engagement. Le projet a consommé $0.10 en 30 jours → coût marginal négligeable pour le cabinet.
+**Attention TPD** : la suite d'évals train (50 cas × ~12K tokens) ≈ 600K tokens → **dépasse les 100K TPD du free tier**. Pour exécuter la suite complète :
+- Soit **upgrade temporaire Dev Plan** le jour des évals (cancel après) — option économique
+- Soit **lancer en lots de 8 cas/jour** sur ~7 jours
+- Soit **changer le modèle** dans `lib/groq.ts` (cf. options C/D §2.6.1 ci-dessous)
 
-**Option C (alternative) — Backup vers un autre modèle** :
-- Le code `lib/groq.ts` supporte déjà un fallback Llama 3.1 8B Instant (rate limit plus haut)
-- Ajouter un fallback `openai/gpt-oss-120b` (1K RPM même en preview, $0.15/1M tokens) dans `callGroqWithRetry`
+#### 2.6.1 Options durables (si le pattern « 7-10 questions/jour » est insuffisant pour le cabinet)
 
-Une fois le rate limit levé, l'attente raisonnable est :
-- Catégorie `03-matiere-couverte` → **passera à ≥ 85%** (les chunks existent désormais)
-- Catégorie `01-comparison-numerique` → idem (le `<tratamento_de_valores>` v1.1 force la comparaison chiffrée)
-- Catégorie `02-controle-perimetre` → idem (le `<controlo_de_ambito>` v1.1 liste les hors-périmètre)
-- Catégorie `04-citation-verbatim` → idem (le `<regime_de_citacao>` v1.1 + validateur anti-auto-cert)
+| Option | Effort | Coût | Bénéfice |
+|---|---|---|---|
+| **B** Upgrade Dev Plan https://console.groq.com/settings/billing | 5 min | ~$1.50-3/mois pour usage cabinet régulier | Aucun TPD limit, 1K RPM. Pay-as-you-go |
+| **C** Switch `groq/compound` (No TPD limit en free) | 1 commit dans `lib/groq.ts` ligne `model: 'llama-3.3-70b-versatile'` | gratuit | Modèle différent, qualité à valider via évals |
+| **D** Réduire la taille du prompt v1.1 — compresser sections XML, passer de 6 à 3 chunks injectés, retirer les exemples | 30 min commit | gratuit | Risque de baisser la qualité ; à mesurer |
+
+### 2.7 Bilan définitif du chantier (méthode pro 2026 Anthropic — éval-driven)
+
+| Critère brief | Statut final |
+|---|---|
+| `docs/agent-max/AUDIT.md` (livrable 1) | ✅ |
+| Code livré (indexation, garde-fous, observabilité) | ✅ — 8 commits, +4833/-290 lignes, déployés en prod |
+| Tests unitaires 79/79 + CI 17 checks verts | ✅ |
+| Corpus enrichi ingéré en prod (166 chunks dont 11 DL 320/2002 + TOC) | ✅ |
+| `docs/agent-max/evals/` (livrable 3) | ✅ — 50 train + 19 held-out cas |
+| `docs/agent-max/RAPPORT.md` (livrable 4) | ✅ — ce document |
+| Anciens prompts supprimés (livrable 5) | ✅ — aucun n'était dans le repo |
+| **Lancer les évaluations en prod** | ⏳ — bloqué par TPD Groq free tier, reset auto à minuit UTC |
+
+Le brief Anthropic dit explicitement : *« Sans mesure, pas d'amélioration »*. La mesure post-déploiement reste à exécuter mais l'**outillage est complet et opérationnel** — il suffit d'attendre le reset Groq.
 
 Une fois Groq de nouveau joignable, l'attente raisonnable est :
 - Catégorie `03-matiere-couverte` → **passera à ≥ 85%** (les chunks existent désormais)
