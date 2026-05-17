@@ -580,20 +580,20 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
                   <div className="space-y-4">
                     {/* Select recipients */}
                     <div>
-                      <label className="text-xs font-semibold text-gray-600 mb-2 block">Destinataires</label>
+                      <label className="text-xs font-semibold text-gray-600 mb-2 block">{isPt ? 'Destinatários' : 'Destinataires'}</label>
                       <div className="flex gap-2 mb-2">
                         <select value={envoiFilterImmeuble} onChange={e => setEnvoiFilterImmeuble(e.target.value)}
                           className="px-3 py-1.5 border-2 border-gray-200 rounded-lg text-xs focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none">
-                          <option value="">Tous immeubles</option>
+                          <option value="">{isPt ? 'Todos os edifícios' : 'Tous immeubles'}</option>
                           {immeublesList.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
                         </select>
                         <select value={envoiFilterPaiement} onChange={e => setEnvoiFilterPaiement(e.target.value as any)}
                           className="px-3 py-1.5 border-2 border-gray-200 rounded-lg text-xs focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none">
-                          <option value="">Tous statuts</option>
-                          <option value="a_jour">✅ À jour</option>
-                          <option value="en_retard">⚠️ En retard</option>
+                          <option value="">{isPt ? 'Todos os estados' : 'Tous statuts'}</option>
+                          <option value="a_jour">✅ {isPt ? 'Em dia' : 'À jour'}</option>
+                          <option value="en_retard">⚠️ {isPt ? 'Em atraso' : 'En retard'}</option>
                         </select>
-                        <button onClick={selectAllDestinataires} className="text-xs text-[var(--sd-gold,#C9A84C)] font-semibold hover:underline">Tout sélectionner</button>
+                        <button onClick={selectAllDestinataires} className="text-xs text-[var(--sd-gold,#C9A84C)] font-semibold hover:underline">{isPt ? 'Selecionar tudo' : 'Tout sélectionner'}</button>
                       </div>
                       <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-lg divide-y">
                         {copropriétaires.filter(cp => {
