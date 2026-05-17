@@ -446,17 +446,17 @@ export default function ArtisansPageSection({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Nome próprio' : 'Prénom'}</label>
-                      <input type="text" value={artisanForm.prenom} onChange={e => setArtisanForm(f => ({ ...f, prenom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder="Jean" />
+                      <input type="text" value={artisanForm.prenom} onChange={e => setArtisanForm(f => ({ ...f, prenom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder={locale === 'pt' ? 'João' : 'Jean'} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Apelido *' : 'Nom *'}</label>
-                      <input type="text" value={artisanForm.nom} onChange={e => setArtisanForm(f => ({ ...f, nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder="Dupont" />
+                      <input type="text" value={artisanForm.nom} onChange={e => setArtisanForm(f => ({ ...f, nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder={locale === 'pt' ? 'Silva' : 'Dupont'} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Telefone' : 'Téléphone'}</label>
-                      <input type="tel" value={artisanForm.telephone} onChange={e => setArtisanForm(f => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder="06 12 34 56 78" />
+                      <input type="tel" value={artisanForm.telephone} onChange={e => setArtisanForm(f => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder={locale === 'pt' ? '9X XXX XX XX' : '06 12 34 56 78'} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Área profissional' : 'Corps de métier'}</label>
