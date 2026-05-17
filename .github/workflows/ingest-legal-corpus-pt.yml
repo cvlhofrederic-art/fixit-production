@@ -1,0 +1,78 @@
+name: Ingest Legal Corpus PT
+
+# Workflow déclenchable manuellement pour ingérer (ou ré-ingérer) le corpus
+# juridique portugais dans syndic_legal_corpus_pt avec embeddings BGE-M3 et
+# question_embedding (dual embedding). Idempotent : ne ré-embed pas les chunks
+# dont le chunk_hash existe déjà en DB.
+#
+# Pré-requis : la migration SQL 20260520_legal_corpus_embeddings.sql doit être
+# appliquée AVANT (colonnes embedding + RPC search_legal_corpus_hybrid_pt).
+
+on:
+  workflow_dispatch:
+    inputs:
+      md_path:
+        description: 'Chemin du fichier MD dans le repo (par défaut le corpus officiel)'
+        required: false
+        default: 'scripts/data/regime-juridico-condominio-portugal-2026.md'
+      dry_run:
+        description: 'Mode dry-run : parse + stats sans embed ni insert'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  ingest:
+    name: Ingest PT legal corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify MD file exists
+        run: |
+          if [ ! -f "${{ inputs.md_path }}" ]; then
+            echo "::error::MD file not found: ${{ inputs.md_path }}"
+            exit 1
+          fi
+          echo "MD file: $(wc -lc "${{ inputs.md_path }}")"
+
+      - name: Dry-run parser (no DB, no embed)
+        if: ${{ inputs.dry_run }}
+        run: npx tsx scripts/test-parse-corpus-pt.ts "${{ inputs.md_path }}"
+
+      - name: Ingest corpus
+        if: ${{ !inputs.dry_run }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/ingest-legal-corpus-pt.ts "${{ inputs.md_path }}"
+
+      - name: Verify chunks in DB
+        if: ${{ !inputs.dry_run }}
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          response=$(curl -s "$SUPABASE_URL/rest/v1/syndic_legal_corpus_pt?select=count" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Prefer: count=exact" \
+            -H "Range: 0-0" -I)
+          count=$(echo "$response" | grep -i "content-range" | sed 's/.*\///' | tr -d '\r\n')
+          echo "Chunks en DB syndic_legal_corpus_pt : $count"
+          if [ -z "$count" ] || [ "$count" -lt 30 ]; then
+            echo "::warning::Moins de 30 chunks ingérés ($count) — vérifier les logs"
+          fi
