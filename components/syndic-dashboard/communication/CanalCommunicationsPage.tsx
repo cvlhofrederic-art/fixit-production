@@ -717,10 +717,10 @@ export default function CanalCommunicationsPage({
                   {/* Planning fields */}
                   {canalInterneType === 'planning' && (
                     <div className="grid grid-cols-2 gap-2 mb-3">
-                      <input type="text" placeholder="Résident (ex: Mme Lebrun)" value={canalPlanResident} onChange={e => setCanalPlanResident(e.target.value)}
+                      <input type="text" placeholder={locale === 'pt' ? 'Residente (ex: D. Silva)' : 'Résident (ex: Mme Lebrun)'} value={canalPlanResident} onChange={e => setCanalPlanResident(e.target.value)}
                         className="px-3 py-2 rounded-lg text-sm outline-none" style={{ border: '1px solid var(--sd-border)', background: 'white', color: 'var(--sd-navy)' }}
                         onFocus={e => (e.target.style.borderColor = 'var(--sd-gold)')} onBlur={e => (e.target.style.borderColor = 'var(--sd-border)')} />
-                      <input type="text" placeholder="Résidence (ex: Les Acacias)" value={canalPlanResidence} onChange={e => setCanalPlanResidence(e.target.value)}
+                      <input type="text" placeholder={locale === 'pt' ? 'Edifício (ex: Os Pinheiros)' : 'Résidence (ex: Les Acacias)'} value={canalPlanResidence} onChange={e => setCanalPlanResidence(e.target.value)}
                         className="px-3 py-2 rounded-lg text-sm outline-none" style={{ border: '1px solid var(--sd-border)', background: 'white', color: 'var(--sd-navy)' }}
                         onFocus={e => (e.target.style.borderColor = 'var(--sd-gold)')} onBlur={e => (e.target.style.borderColor = 'var(--sd-border)')} />
                       <input type="date" value={canalPlanDate} onChange={e => setCanalPlanDate(e.target.value)}
@@ -735,13 +735,13 @@ export default function CanalCommunicationsPage({
                   {/* Tache fields */}
                   {canalInterneType === 'tache' && (
                     <div className="grid grid-cols-2 gap-2 mb-3">
-                      <input type="text" placeholder="Assignée à (ex: Gestionnaire Tech)" value={canalTacheAssignee} onChange={e => setCanalTacheAssignee(e.target.value)}
+                      <input type="text" placeholder={locale === 'pt' ? 'Atribuído a (ex: Gestor Técnico)' : 'Assignée à (ex: Gestionnaire Tech)'} value={canalTacheAssignee} onChange={e => setCanalTacheAssignee(e.target.value)}
                         className="px-3 py-2 rounded-lg text-sm outline-none" style={{ border: '1px solid var(--sd-border)', background: 'white', color: 'var(--sd-navy)' }}
                         onFocus={e => (e.target.style.borderColor = 'var(--sd-gold)')} onBlur={e => (e.target.style.borderColor = 'var(--sd-border)')} />
                       <select value={canalTachePriorite} onChange={e => setCanalTachePriorite(e.target.value as 'normale' | 'urgente')}
                         className="px-3 py-2 rounded-lg text-sm outline-none" style={{ border: '1px solid var(--sd-border)', background: 'white', color: 'var(--sd-navy)' }}>
-                        <option value="normale">Priorite normale</option>
-                        <option value="urgente">Urgente</option>
+                        <option value="normale">{locale === 'pt' ? 'Prioridade normal' : 'Priorite normale'}</option>
+                        <option value="urgente">{locale === 'pt' ? 'Urgente' : 'Urgente'}</option>
                       </select>
                     </div>
                   )}
@@ -751,16 +751,16 @@ export default function CanalCommunicationsPage({
                     <textarea
                       className="sd-compose-input"
                       placeholder={
-                        canalInterneType === 'planning' ? 'Note complémentaire (optionnel)...'
-                        : canalInterneType === 'tache' ? 'Description de la tâche...'
-                        : "Message à l'équipe..."
+                        canalInterneType === 'planning' ? (locale === 'pt' ? 'Nota complementar (opcional)...' : 'Note complémentaire (optionnel)...')
+                        : canalInterneType === 'tache' ? (locale === 'pt' ? 'Descrição da tarefa...' : 'Description de la tâche...')
+                        : (locale === 'pt' ? 'Mensagem à equipa...' : "Message à l'équipe...")
                       }
                       value={canalInterneInput}
                       rows={1}
                       onChange={e => setCanalInterneInput(e.target.value)}
                       onKeyDown={async e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); setSending(true); await onSendCanalInterne(); setSending(false) } }}
                     />
-                    <button className="sd-send-btn" disabled={sending} onClick={async () => { setSending(true); await onSendCanalInterne(); setSending(false) }} title="Envoyer">
+                    <button className="sd-send-btn" disabled={sending} onClick={async () => { setSending(true); await onSendCanalInterne(); setSending(false) }} title={locale === 'pt' ? 'Enviar' : 'Envoyer'}>
                       <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 8L2 2l2.5 6L2 14l12-6z" fill="currentColor"/></svg>
                     </button>
                   </div>
@@ -945,11 +945,13 @@ export default function CanalCommunicationsPage({
                 {/* Compose area */}
                 <div className="bg-white flex-shrink-0" style={{ borderTop: '1px solid var(--sd-border)', padding: '16px 28px' }}>
                   <div className="sd-compose-box">
-                    <button className="sd-compose-btn" title="Joindre un fichier">📎</button>
-                    <button className="sd-compose-btn" title="Photo">📷</button>
+                    <button className="sd-compose-btn" title={locale === 'pt' ? 'Anexar ficheiro' : 'Joindre un fichier'}>📎</button>
+                    <button className="sd-compose-btn" title={locale === 'pt' ? 'Foto' : 'Photo'}>📷</button>
                     <textarea
                       className="sd-compose-input"
-                      placeholder={`Repondre a ${canalTab === 'artisan' ? (selectedMission.artisan || 'l\'artisan') : (selectedMission.demandeurNom || selectedMission.locataire || 'au demandeur')}...`}
+                      placeholder={locale === 'pt'
+                        ? `Responder a ${canalTab === 'artisan' ? (selectedMission.artisan || 'o profissional') : (selectedMission.demandeurNom || selectedMission.locataire || 'ao solicitante')}...`
+                        : `Repondre a ${canalTab === 'artisan' ? (selectedMission.artisan || 'l\'artisan') : (selectedMission.demandeurNom || selectedMission.locataire || 'au demandeur')}...`}
                       value={currentMsg}
                       rows={1}
                       onChange={e => setCurrentMsg(e.target.value)}
@@ -959,13 +961,13 @@ export default function CanalCommunicationsPage({
                       className="sd-send-btn"
                       disabled={!currentMsg.trim()}
                       onClick={sendCurrentMsg}
-                      title="Envoyer"
+                      title={locale === 'pt' ? 'Enviar' : 'Envoyer'}
                     >
                       <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 8L2 2l2.5 6L2 14l12-6z" fill="currentColor"/></svg>
                     </button>
                   </div>
                   <div className="flex items-center mt-2 px-0.5" style={{ gap: 14 }}>
-                    <span style={{ color: 'var(--sd-ink-3)', fontSize: 10 }}>Entrée pour envoyer · Maj+Entrée pour saut de ligne</span>
+                    <span style={{ color: 'var(--sd-ink-3)', fontSize: 10 }}>{locale === 'pt' ? 'Enter para enviar · Shift+Enter para nova linha' : 'Entrée pour envoyer · Maj+Entrée pour saut de ligne'}</span>
                     <div className="flex gap-1.5 ml-auto">
                       <button onClick={() => onOpenMission(selectedMission)} className="sd-quick-pill">✅ Valider</button>
                       <button className="sd-quick-pill">🔄 Demander révision</button>
@@ -1214,12 +1216,12 @@ export default function CanalCommunicationsPage({
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--sd-navy)' }}>Description de l&apos;intervention</label>
+                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--sd-navy)' }}>{locale === 'pt' ? 'Descrição da intervenção' : 'Description de l\'intervention'}</label>
                 <textarea
                   rows={3} value={transfertDescription} onChange={e => setTransfertDescription(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl text-sm resize-none outline-none"
                   style={{ border: '1px solid var(--sd-border)' }}
-                  placeholder="Décrivez le travail a effectuer..."
+                  placeholder={locale === 'pt' ? 'Descreva o trabalho a efetuar...' : 'Décrivez le travail a effectuer...'}
                   onFocus={e => (e.target.style.borderColor = 'var(--sd-gold)')}
                   onBlur={e => (e.target.style.borderColor = 'var(--sd-border)')}
                 />
@@ -1228,7 +1230,7 @@ export default function CanalCommunicationsPage({
               {/* Priorite + Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--sd-navy)' }}>Priorite</label>
+                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--sd-navy)' }}>{locale === 'pt' ? 'Prioridade' : 'Priorite'}</label>
                   <select value={transfertPriorite} onChange={e => setTransfertPriorite(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl text-sm outline-none"
                     style={{ border: '1px solid var(--sd-border)' }}>
