@@ -96,7 +96,7 @@ export default function MissionsPageSection({
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <PrioriteBadge p={m.priorite} />
                   <Badge statut={m.statut} locale={locale} />
-                  <span className="text-xs text-gray-500">#{m.id}</span>
+                  <span className="text-xs text-gray-400 font-mono" title={`ID complet : ${m.id}`}>#{m.id.slice(0, 8)}</span>
                   {m.locataire && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
                   {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `Bât. ${m.batiment} · ` : ''}Ét. {m.etage}</span>}
                 </div>
