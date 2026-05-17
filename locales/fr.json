@@ -1752,6 +1752,7 @@
       "roleDesc": {
         "admin": "Accès complet : gestion, configuration, équipe, facturation",
         "tech": "Missions, artisans, planning, comptabilité technique des interventions",
+        "technicien": "Prestataire interne du cabinet (homme à tout faire) — exécute les petites réparations et la maintenance sur le terrain",
         "secretary": "Copropriétaires, planning, emails, documents",
         "manager": "Immeubles, missions, artisans, alertes, calendrier réglementaire",
         "accountant": "Facturation, rapport mensuel, documents financiers",

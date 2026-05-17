@@ -300,6 +300,7 @@ export interface PointageActif {
 export const ROLE_LABELS_TEAM: Record<string, string> = {
   syndic_admin: 'Administrateur',
   syndic_tech: 'Gestionnaire Technique',
+  syndic_technicien: 'Technicien',
   syndic_secretaire: 'Secrétaire',
   syndic_gestionnaire: 'Gestionnaire Copropriété',
   syndic_comptable: 'Comptable',
@@ -309,6 +310,7 @@ export const ROLE_LABELS_TEAM: Record<string, string> = {
 export const ROLE_LABELS_TEAM_PT: Record<string, string> = {
   syndic_admin: 'Administrador',
   syndic_tech: 'Gestor Técnico',
+  syndic_technicien: 'Técnico',
   syndic_secretaire: 'Secretária',
   syndic_gestionnaire: 'Gestor de Condomínio',
   syndic_comptable: 'Contabilista',
@@ -323,6 +325,7 @@ export function getRoleLabel(role: string, locale?: string): string {
 export const ROLE_COLORS: Record<string, string> = {
   syndic_admin: 'bg-[#F7F4EE] text-[#0D1B2E]',
   syndic_tech: 'bg-blue-100 text-blue-800',
+  syndic_technicien: 'bg-indigo-100 text-indigo-800',
   syndic_secretaire: 'bg-green-100 text-green-800',
   syndic_gestionnaire: 'bg-yellow-100 text-yellow-800',
   syndic_comptable: 'bg-orange-100 text-orange-800',
@@ -332,6 +335,7 @@ export const ROLE_COLORS: Record<string, string> = {
 export const ROLE_EMOJIS_TEAM: Record<string, string> = {
   syndic_admin: '👑',
   syndic_tech: '🔧',
+  syndic_technicien: '🛠️',
   syndic_secretaire: '📋',
   syndic_gestionnaire: '🏢',
   syndic_comptable: '💶',
