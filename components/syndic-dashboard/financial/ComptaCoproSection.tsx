@@ -783,14 +783,14 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
                     type="number"
                     value={p.budget || ''}
                     onChange={e => setBudgetPostes(budgetPostes.map((pp, ii) => ii === i ? { ...pp, budget: parseFloat(e.target.value) || 0 } : pp))}
-                    placeholder="Budget €"
+                    placeholder={locale === 'pt' ? 'Orçamento €' : 'Budget €'}
                     className="w-28 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-orange-400 outline-none text-right"
                   />
                   <span className="text-xs text-gray-500">€</span>
                 </div>
               ))}
               <div className="bg-orange-50 rounded-xl p-3 flex justify-between">
-                <span className="font-bold text-orange-800">Total budget</span>
+                <span className="font-bold text-orange-800">{locale === 'pt' ? 'Orçamento total' : 'Total budget'}</span>
                 <span className="font-bold text-[#C9A84C]">{budgetPostes.reduce((s, p) => s + p.budget, 0).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</span>
               </div>
             </div>
