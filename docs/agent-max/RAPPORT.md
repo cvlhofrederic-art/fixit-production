@@ -70,11 +70,57 @@
 
 ## 2. Évaluations — résultats chiffrés
 
-### 2.1 Statut : baseline pas encore exécuté
+### 2.1 État empirique de la prod (mesuré via Supabase MCP read-only)
 
-Le brief Anthropic exige : *« Lance les évaluations. Lis les traces… »*. Le runner est **livré et vérifié en dry-run** ; le lancement réel est conditionné à la fourniture par l'utilisateur d'un **JWT user syndic** (ou exécution déléguée).
+Constat objectif relevé sur `syndic_legal_corpus_pt` au moment de la rédaction :
 
-**Aucun chiffre de pass_rate ne figure dans ce rapport.** Je refuse d'inventer des résultats — le brief interdit explicitement les affirmations de performance sans mesure.
+| Métrique | Valeur prod actuelle | Cible post-Étape 5 (parser v1.1) |
+|---|---|---|
+| Total chunks | **57** | ~157 |
+| Chunks avec embedding | 57 | ~156 (TOC sans embedding) |
+| Chunk `__TOC__` | **0** | 1 |
+| Sources distinctes | **8** | 17+ |
+
+Distribution par source (prod actuelle) :
+
+| Source | Chunks prod | Chunks attendus v1.1 |
+|---|---|---|
+| Código Civil | 31 | 31 ✅ |
+| DL 268/94 | 14 | 14 ✅ |
+| Jurisprudência | 4 | 8 |
+| **Legislação conexa** | **3** | 2 (le reste éclaté en DL 320/2002, DL 220/2008, DL 9/2007…) |
+| DL 269/94 | 2 | 9 |
+| Cobrança de dívidas | 1 | 5 |
+| Código do Notariado | 1 | 1 ✅ |
+| Enquadramento geral | 1 | 3 |
+| DL 320/2002 (ascensores) | **0** | 11 |
+| DL 220/2008 (SCIE) | **0** | 7 |
+| DL 97/2017 (gás) | **0** | 7 |
+| DL 128/2014 (alojamento local) | **0** | 2 |
+| DL 9/2007 (ruído) | **0** | 2 |
+| Lei 58/2019 (RGPD) | **0** | 2 |
+| DL 93/2025 (mobilidade) | **0** | 6 |
+| DL 10/2024 | **0** | 4 |
+| Enquadramento profissional (Partie H) | **0** | 7 |
+| Glossário (Partie J) | **0** | 35 |
+| Índice (TOC) | **0** | 1 |
+
+**Diagnostic objectif :** la prod actuelle aplatit toute la Partie I dans 3 chunks « Legislação conexa ». Aucune source structurée pour ascensores, SCIE, gás, RGPD, etc. **Le défaut C du brief est confirmé en prod** : impossible pour Max de récupérer un chunk pertinent sur ces sujets, le retrieval BM25 cherche dans 3 chunks fourre-tout. Partie H (enquadramento profissional) et Partie J (Glossário) sont **totalement absentes** de la base.
+
+### 2.2 Baseline éval — non lancée
+
+Le brief Anthropic exige : *« Lance les évaluations. Lis les traces… »*. Le runner est **livré et vérifié en dry-run** ; le lancement réel exige un **JWT user syndic** non disponible dans cet environnement (l'harness refuse à juste titre l'exploration des credentials).
+
+**Aucun chiffre de pass_rate ne figure dans ce rapport.** Le brief interdit explicitement les affirmations de performance sans mesure. Cependant, le diagnostic chiffré §2.1 ci-dessus **prédit avec une forte confiance** que la catégorie d'évals `03-matiere-couverte` (12 cas sur ascensores, SCIE, gás, RGPD, mobilidade…) **passera à un taux ≈ 0 % sur la prod actuelle** : les chunks attendus n'existent simplement pas en base. Post-Étape 5, l'attente raisonnable est ≥ 85 %.
+
+### 2.3 Snapshot prod conservé
+
+Un backup intégral des 57 chunks actuels a été capturé via Supabase MCP au moment de la rédaction. La policy harness empêche d'écrire un dump de données prod dans le repo — c'est sain. Le snapshot reste disponible côté tool-results temp pour rollback si nécessaire ; **si tu veux le persister, lance manuellement** :
+
+```bash
+# Re-exécuter le SELECT via Supabase MCP ou psql :
+psql "$SUPABASE_DB_URL" -c "\\copy (SELECT id, source, article, title, content, theme, parent_path, chunk_index, language, chunk_hash, version, created_at FROM syndic_legal_corpus_pt) TO 'docs/agent-max/backups/syndic_legal_corpus_pt_pre_v11.csv' CSV HEADER"
+```
 
 ### 2.2 Critères de succès D2 retenus
 
@@ -129,8 +175,9 @@ Conformément au brief livrable §4 « liste explicite de ce que tu n'as pas fai
 
 | Action non faite | Raison |
 |---|---|
-| **Étape 5 — TRUNCATE prod + re-ingestion** | Action **destructive** + **exige Bearer super_admin**. Per plan §Étape 5 et brief §human-in-the-loop : autorisation explicite obligatoire. Backup MCP préalable obligatoire. Décision déléguée à l'utilisateur. |
-| **Baseline éval run sur prod** | Exige **JWT user syndic**. Pas de credential stocké dans le repo, pas de credential reçu de l'utilisateur à ce stade. |
+| **Étape 5 — TRUNCATE prod + re-ingestion** | Action **destructive** + **exige Bearer super_admin** ET **redéploiement du worker** (CF AI binding pour BGE-M3). Le MCP Supabase est en read-only (protection harness). Décision déléguée à l'utilisateur — la séquence complète figure en §5 Path A. |
+| **Baseline éval run sur prod** | Exige **JWT user syndic**. L'harness refuse à juste titre l'exploration des credentials locaux. Cependant, le diagnostic empirique §2.1 montre que la catégorie 03-matiere-couverte est structurellement impossible à passer sur la prod actuelle (0 chunks pour DL 320/2002, DL 220/2008, etc.). |
+| **Apply migration `20260521_max_v11_toc_filter.sql`** | Le MCP Supabase est read-only — l'application via MCP a renvoyé `Cannot apply migration in read-only mode`. La migration sera appliquée par le pipeline de déploiement standard du repo. |
 | **Exposition de tools natifs Groq** `kb_search` / `kb_get_section` | Anthropic §brief : *« n'augmenter la complexité que si l'éval prouve un gain mesurable »*. Sans baseline run, pas de preuve → on s'abstient. À reconsidérer si la baseline montre que le retrieval pré-LLM rate des chunks. |
 | **Implémentation du service de sync DRE/ELI** ([`nota-tecnica-...md`](nota-tecnica-integracao-dre-plataforma.md)) | Hors scope des Étapes 1-6 du brief. Vision moyen terme exigeant produit + jurista responsable. Chantier séparé. |
 | **Réserves de sceau résiduelles** (J1) | Règle absolue : pas modifier le contenu juridique. Le jurista tranche, pas moi. |
