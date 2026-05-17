@@ -22,6 +22,7 @@ import {
   Badge, PrioriteBadge,
 } from '@/components/syndic-dashboard/types'
 import { ROLE_PAGES, SYNDIC_MODULES, EVENT_COLORS } from '@/components/syndic-dashboard/config'
+import { seedSyndicPtDemoIfEmpty } from '@/lib/seed-syndic-pt-demo'
 
 // ─── Lazy-loaded Section Components (code-splitting) ─────────────────────────
 // Dynamic import helper — cast as ComponentType<any> since loader erases prop types
@@ -741,6 +742,10 @@ export default function SyndicDashboard() {
           .forEach(k => localStorage.removeItem(k))
         localStorage.setItem(`fixit_clean_v6_${uid}`, '1')
       }
+
+      // ── Seed démo PT : injecte fausses données cohérentes si locale PT + localStorage vide ──
+      // Idempotent (flag fixit_seed_pt-v1_${uid}). N'affecte que les utilisateurs PT.
+      seedSyndicPtDemoIfEmpty(uid, locale)
 
       try {
         const savedMissions = localStorage.getItem(`fixit_syndic_missions_${uid}`)
