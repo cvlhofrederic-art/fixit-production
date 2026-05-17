@@ -330,7 +330,13 @@ export default function CanalCommunicationsPage({
 
   // Timeline steps for detail panel (5 steps — matching HTML mockup)
   const getTimelineSteps = (m: Mission) => {
-    const steps = [
+    const steps = locale === 'pt' ? [
+      { label: 'Missão criada',                date: m.dateCreation,        done: true },
+      { label: 'Profissional atribuído',       date: m.artisan ? m.dateCreation : undefined, done: !!m.artisan },
+      { label: 'Intervenção iniciada',         date: (m.statut === 'en_cours' || m.statut === 'terminee') ? m.dateIntervention : undefined, done: m.statut === 'en_cours' || m.statut === 'terminee' },
+      { label: 'Em espera de validação',       date: m.statut === 'terminee' ? m.dateIntervention : undefined, done: m.statut === 'terminee' },
+      { label: 'Missão encerrada',             date: undefined,             done: false },
+    ] : [
       { label: 'Mission créée',           date: m.dateCreation,        done: true },
       { label: 'Artisan assigné',          date: m.artisan ? m.dateCreation : undefined, done: !!m.artisan },
       { label: 'Intervention démarrée',    date: (m.statut === 'en_cours' || m.statut === 'terminee') ? m.dateIntervention : undefined, done: m.statut === 'en_cours' || m.statut === 'terminee' },
@@ -364,14 +370,14 @@ export default function CanalCommunicationsPage({
             onClick={() => { setChannelView('interne'); setSelectedMissionId(null); onMarkCanalInterneRead() }}
             className={`sd-channel-tab ${channelView === 'interne' ? 'active' : ''}`}
           >
-            <span className="sd-tab-icon">🏢</span> Interne
+            <span className="sd-tab-icon">🏢</span> {locale === 'pt' ? 'Interno' : 'Interne'}
             {nbInterneMsgs > 0 && channelView !== 'interne' && <span className="sd-channel-badge" style={{ background: 'var(--sd-red-soft)', color: 'var(--sd-red)', borderColor: 'rgba(192,57,43,0.3)' }}>{nbInterneMsgs}</span>}
           </button>
           <button
             onClick={() => { setChannelView('demandeurs'); setSelectedMissionId(null); setCanalTab('demandeur') }}
             className={`sd-channel-tab ${channelView === 'demandeurs' ? 'active' : ''}`}
           >
-            <span className="sd-tab-icon">👥</span> Résidents
+            <span className="sd-tab-icon">👥</span> {locale === 'pt' ? 'Residentes' : 'Résidents'}
             {nbDemandeurMsgs > 0 && <span className="sd-channel-badge">{nbDemandeurMsgs}</span>}
           </button>
         </div>
@@ -969,9 +975,9 @@ export default function CanalCommunicationsPage({
                   <div className="flex items-center mt-2 px-0.5" style={{ gap: 14 }}>
                     <span style={{ color: 'var(--sd-ink-3)', fontSize: 10 }}>{locale === 'pt' ? 'Enter para enviar · Shift+Enter para nova linha' : 'Entrée pour envoyer · Maj+Entrée pour saut de ligne'}</span>
                     <div className="flex gap-1.5 ml-auto">
-                      <button onClick={() => onOpenMission(selectedMission)} className="sd-quick-pill">✅ Valider</button>
-                      <button className="sd-quick-pill">🔄 Demander révision</button>
-                      <button className="sd-quick-pill">📋 Modèles</button>
+                      <button onClick={() => onOpenMission(selectedMission)} className="sd-quick-pill">✅ {locale === 'pt' ? 'Validar' : 'Valider'}</button>
+                      <button className="sd-quick-pill">🔄 {locale === 'pt' ? 'Pedir revisão' : 'Demander révision'}</button>
+                      <button className="sd-quick-pill">📋 {locale === 'pt' ? 'Modelos' : 'Modèles'}</button>
                     </div>
                   </div>
                 </div>
@@ -986,10 +992,10 @@ export default function CanalCommunicationsPage({
 
               {/* Mission info */}
               <div className="sd-dp-section">
-                <div className="sd-dp-label">Mission</div>
+                <div className="sd-dp-label">{locale === 'pt' ? 'Missão' : 'Mission'}</div>
                 <div className="sd-dp-mission-title">
                   {selectedMission.type} — {selectedMission.immeuble}
-                  {selectedMission.batiment && ` Bât ${selectedMission.batiment}`}
+                  {selectedMission.batiment && ` ${locale === 'pt' ? 'Bloco' : 'Bât'} ${selectedMission.batiment}`}
                 </div>
                 <div className="sd-dp-mission-id">
                   {formatMissionDisplayId(selectedMission.id, selectedMission.dateCreation)}
@@ -1002,15 +1008,15 @@ export default function CanalCommunicationsPage({
 
               {/* Informations */}
               <div className="sd-dp-section">
-                <div className="sd-dp-label">Informations</div>
+                <div className="sd-dp-label">{locale === 'pt' ? 'Informações' : 'Informations'}</div>
                 <div className="flex flex-col" style={{ gap: 10 }}>
                   {/* Résidence — lien teal */}
                   <div className="flex items-start gap-2.5">
                     <div className="sd-dp-icon">🏢</div>
                     <div>
-                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>Résidence</div>
+                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{locale === 'pt' ? 'Edifício' : 'Résidence'}</div>
                       <div className="sd-dp-info-link" style={{ fontWeight: 500, fontSize: 12 }}>
-                        {selectedMission.immeuble}{selectedMission.batiment ? ` — Bât ${selectedMission.batiment}` : ''}
+                        {selectedMission.immeuble}{selectedMission.batiment ? ` — ${locale === 'pt' ? 'Bloco' : 'Bât'} ${selectedMission.batiment}` : ''}
                       </div>
                     </div>
                   </div>
@@ -1018,7 +1024,7 @@ export default function CanalCommunicationsPage({
                   <div className="flex items-start gap-2.5">
                     <div className="sd-dp-icon">🔧</div>
                     <div>
-                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>Corps de métier</div>
+                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{locale === 'pt' ? 'Área profissional' : 'Corps de métier'}</div>
                       <div style={{ color: 'var(--sd-navy)', fontWeight: 500, fontSize: 12 }}>{selectedMission.type}</div>
                     </div>
                   </div>
@@ -1026,7 +1032,7 @@ export default function CanalCommunicationsPage({
                   <div className="flex items-start gap-2.5">
                     <div className="sd-dp-icon">📅</div>
                     <div>
-                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{"Date d'intervention"}</div>
+                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{locale === 'pt' ? 'Data da intervenção' : "Date d'intervention"}</div>
                       <div style={{ color: 'var(--sd-navy)', fontWeight: 500, fontSize: 12 }}>{formatDate(selectedMission.dateIntervention)}</div>
                     </div>
                   </div>
@@ -1034,7 +1040,7 @@ export default function CanalCommunicationsPage({
                   <div className="flex items-start gap-2.5">
                     <div className="sd-dp-icon">⏱</div>
                     <div>
-                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>Durée estimée</div>
+                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{locale === 'pt' ? 'Duração estimada' : 'Durée estimée'}</div>
                       <div style={{ color: 'var(--sd-navy)', fontWeight: 500, fontSize: 12 }}>
                         {(selectedMission as any).dureeIntervention || '—'}
                       </div>
@@ -1044,10 +1050,10 @@ export default function CanalCommunicationsPage({
                   <div className="flex items-start gap-2.5">
                     <div className="sd-dp-icon">💶</div>
                     <div>
-                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>Montant HT</div>
+                      <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{locale === 'pt' ? 'Montante sem IVA' : 'Montant HT'}</div>
                       <div style={{ color: 'var(--sd-navy)', fontWeight: 500, fontSize: 12 }}>
                         {(selectedMission as any).montantDevis
-                          ? `${(selectedMission as any).montantDevis.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+                          ? `${(selectedMission as any).montantDevis.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2 })} €`
                           : '—'}
                       </div>
                     </div>
@@ -1057,7 +1063,7 @@ export default function CanalCommunicationsPage({
                     <div className="flex items-start gap-2.5">
                       <div className="sd-dp-icon">👤</div>
                       <div>
-                        <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>Demandeur</div>
+                        <div style={{ color: 'var(--sd-ink-3)', fontWeight: 500, fontSize: 10, marginBottom: 1 }}>{locale === 'pt' ? 'Solicitante' : 'Demandeur'}</div>
                         <div style={{ color: 'var(--sd-navy)', fontWeight: 500, fontSize: 12 }}>{selectedMission.demandeurNom}</div>
                       </div>
                     </div>
@@ -1067,7 +1073,7 @@ export default function CanalCommunicationsPage({
 
               {/* Timeline */}
               <div className="sd-dp-section">
-                <div className="sd-dp-label">Avancement</div>
+                <div className="sd-dp-label">{locale === 'pt' ? 'Progresso' : 'Avancement'}</div>
                 <div className="flex flex-col">
                   {getTimelineSteps(selectedMission).map((step, i, arr) => (
                     <div key={i} className="flex gap-3" style={{ paddingBottom: i < arr.length - 1 ? 14 : 0 }}>
@@ -1090,7 +1096,7 @@ export default function CanalCommunicationsPage({
 
               {/* Participants */}
               <div className="sd-dp-section">
-                <div className="sd-dp-label">Participants</div>
+                <div className="sd-dp-label">{locale === 'pt' ? 'Participantes' : 'Participants'}</div>
                 <div className="flex flex-col gap-2.5">
                   {/* Gestionnaire */}
                   <div className="flex items-center gap-2.5">
@@ -1099,7 +1105,7 @@ export default function CanalCommunicationsPage({
                     </div>
                     <div className="flex-1">
                       <div className="text-xs font-medium" style={{ color: 'var(--sd-navy)', fontSize: 12 }}>{user?.user_metadata?.name || authorName}</div>
-                      <div className="text-xs" style={{ color: 'var(--sd-ink-3)', fontSize: 10, marginTop: 1 }}>Gestionnaire technique</div>
+                      <div className="text-xs" style={{ color: 'var(--sd-ink-3)', fontSize: 10, marginTop: 1 }}>{locale === 'pt' ? 'Gestor técnico' : 'Gestionnaire technique'}</div>
                     </div>
                     <div className="w-2 h-2 rounded-full" style={{ background: 'var(--sd-teal)' }} />
                   </div>
@@ -1111,7 +1117,7 @@ export default function CanalCommunicationsPage({
                       </div>
                       <div className="flex-1">
                         <div className="text-xs font-medium" style={{ color: 'var(--sd-navy)', fontSize: 12 }}>{selectedMission.artisan}</div>
-                        <div className="text-xs" style={{ color: 'var(--sd-ink-3)', fontSize: 10, marginTop: 1 }}>Artisan certifié VitFix</div>
+                        <div className="text-xs" style={{ color: 'var(--sd-ink-3)', fontSize: 10, marginTop: 1 }}>{locale === 'pt' ? 'Profissional certificado VitFix' : 'Artisan certifié VitFix'}</div>
                       </div>
                       <div className="w-2 h-2 rounded-full" style={{ background: 'var(--sd-teal)' }} />
                     </div>
@@ -1133,22 +1139,22 @@ export default function CanalCommunicationsPage({
 
               {/* Actions rapides */}
               <div className="sd-dp-section">
-                <div className="sd-dp-label">Actions rapides</div>
+                <div className="sd-dp-label">{locale === 'pt' ? 'Ações rápidas' : 'Actions rapides'}</div>
                 <div className="flex flex-col gap-2">
                   <button className="sd-action-btn gold" onClick={() => onOpenMission(selectedMission)}>
-                    <span style={{ fontSize: 15 }}>✅</span> Valider & clôturer la mission
+                    <span style={{ fontSize: 15 }}>✅</span> {locale === 'pt' ? 'Validar & encerrar a missão' : 'Valider & clôturer la mission'}
                   </button>
                   <button className="sd-action-btn" onClick={() => onOpenMission(selectedMission)}>
-                    <span style={{ fontSize: 15 }}>📄</span> Générer rapport PDF
+                    <span style={{ fontSize: 15 }}>📄</span> {locale === 'pt' ? 'Gerar relatório PDF' : 'Générer rapport PDF'}
                   </button>
                   <button className="sd-action-btn" onClick={() => onOpenMission(selectedMission)}>
-                    <span style={{ fontSize: 15 }}>💶</span> Créer facture
+                    <span style={{ fontSize: 15 }}>💶</span> {locale === 'pt' ? 'Criar fatura' : 'Créer facture'}
                   </button>
                   <button className="sd-action-btn">
-                    <span style={{ fontSize: 15 }}>🔄</span> Demander une révision
+                    <span style={{ fontSize: 15 }}>🔄</span> {locale === 'pt' ? 'Pedir revisão' : 'Demander une révision'}
                   </button>
                   <button className="sd-action-btn danger">
-                    <span style={{ fontSize: 15 }}>🚫</span> Annuler la mission
+                    <span style={{ fontSize: 15 }}>🚫</span> {locale === 'pt' ? 'Cancelar a missão' : 'Annuler la mission'}
                   </button>
                 </div>
               </div>
