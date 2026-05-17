@@ -7,7 +7,6 @@ import type { SignatureData } from '../types'
 import { ROLE_COLORS, getRoleLabel } from '../types'
 import { TOAST_SHORT } from '@/lib/constants'
 import { supabase } from '@/lib/supabase'
-import { forceSeedSyndicPt } from '@/lib/seed-syndic-pt-demo'
 import GmailConnectButton from '@/components/syndic-dashboard/communication/GmailConnectButton'
 
 interface ParametresSectionProps {
@@ -281,32 +280,6 @@ export default function ParametresSection({
           </div>
         ))}
       </div>
-
-      {/* Card "Reiniciar demonstração" — visible uniquement en PT */}
-      {locale === 'pt' && (
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-amber-200">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">🎬 Modo demonstração</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Reinicia o conjunto completo de dados de demonstração (4 edifícios, 40 condóminos, 15 missões, 3 atas, equipa interna, prestadores externos) na sua versão mais recente. Útil antes de uma apresentação a investidores ou clientes.
-          </p>
-          <button
-            onClick={() => {
-              if (!user?.id) { toast.error('Utilizador não identificado'); return }
-              if (!confirm('Reiniciar todos os dados de demonstração? Os seus dados atuais serão substituídos pelo conjunto demo oficial.')) return
-              const result = forceSeedSyndicPt(user.id)
-              if (result.seeded) {
-                toast.success('Demonstração reiniciada com sucesso. A recarregar…', { duration: TOAST_SHORT })
-                setTimeout(() => window.location.reload(), 600)
-              } else {
-                toast.error(`Não foi possível reiniciar: ${result.reason}`)
-              }
-            }}
-            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition shadow-sm"
-          >
-            🔄 Reiniciar dados de demonstração
-          </button>
-        </div>
-      )}
     </div>
   )
 }
