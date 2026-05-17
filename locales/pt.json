@@ -1281,7 +1281,19 @@
       "uploadTagsPlaceholder": "Ex: canalização, fuga, cave, urgente",
       "uploadCancel": "Cancelar",
       "uploadUploading": "A carregar...",
-      "uploadAddDoc": "Adicionar o documento"
+      "uploadAddDoc": "Adicionar o documento",
+      "typeLabels": {
+        "rapport": "Relatório intervenção",
+        "facture": "Fatura",
+        "devis": "Orçamento",
+        "contrat": "Contrato",
+        "diagnostic": "Diagnóstico legal",
+        "ag": "Ata Assembleia",
+        "plan": "Plano / Caderno",
+        "controle": "Controlo regulamentar",
+        "assurance": "Seguro / RC Pro",
+        "autre": "Outro"
+      }
     },
     "coproprios": {
       "title": "Condóminos"
