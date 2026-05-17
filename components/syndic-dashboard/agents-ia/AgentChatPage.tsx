@@ -273,9 +273,10 @@ export default function AgentChatPage({ agentConfig, user, onNavigate }: Props) 
     <div
       style={{
         display: 'flex',
-        height: '100%',
-        minHeight: 'calc(100vh - 80px)',
+        gap: 16,
+        height: 'calc(100vh - 180px)',
         background: 'var(--sd-bg)',
+        overflow: 'hidden',
       }}
     >
       <ConversationSidebar
@@ -292,7 +293,7 @@ export default function AgentChatPage({ agentConfig, user, onNavigate }: Props) 
         }}
         locale={resolvedLocale}
       />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <AgentChatHeader
           agentConfig={agentConfig}
           locale={resolvedLocale}
