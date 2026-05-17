@@ -115,7 +115,7 @@ export const SEED_PT_COLABORADORES: TeamMember[] = [
   },
   {
     id: 'pt-team-002',
-    email: 'gestor.tecnico@gabinete-vitfix.pt',
+    email: 'bruno.tavares@gabinete-vitfix.pt',
     full_name: 'Bruno Tavares',
     role: 'syndic_tech',
     invite_token: null,
@@ -123,6 +123,30 @@ export const SEED_PT_COLABORADORES: TeamMember[] = [
     accepted_at: '2024-10-16T14:20:00Z',
     is_active: true,
     created_at: '2024-10-15T09:00:00Z',
+    custom_modules: null,
+  },
+  {
+    id: 'pt-team-006',
+    email: 'diogo.pereira@gabinete-vitfix.pt',
+    full_name: 'Diogo Pereira',
+    role: 'syndic_tech',
+    invite_token: null,
+    invite_sent_at: '2024-12-05T09:00:00Z',
+    accepted_at: '2024-12-06T11:15:00Z',
+    is_active: true,
+    created_at: '2024-12-05T09:00:00Z',
+    custom_modules: null,
+  },
+  {
+    id: 'pt-team-007',
+    email: 'tiago.mendes@gabinete-vitfix.pt',
+    full_name: 'Tiago Mendes',
+    role: 'syndic_tech',
+    invite_token: null,
+    invite_sent_at: '2025-02-12T10:00:00Z',
+    accepted_at: '2025-02-13T15:40:00Z',
+    is_active: true,
+    created_at: '2025-02-12T10:00:00Z',
     custom_modules: null,
   },
   {
@@ -584,6 +608,44 @@ export const SEED_PT_MISSOES: Mission[] = [
     dateCreation: daysAgo(1),
     montantDevis: 150,
   },
+  // ─── Missões assignées à des técnicos internes do gabinete ───
+  {
+    id: 'pt-mis-016',
+    immeuble: 'Edifício Atlântico',
+    artisan: 'Bruno Tavares',
+    type: 'Vistoria técnica',
+    description: 'Vistoria trimestral das partes comuns — verificação de extintores, sinalética e iluminação de emergência.',
+    priorite: 'normale',
+    statut: 'en_cours',
+    dateCreation: daysAgo(5),
+    dateIntervention: daysAhead(2),
+    dureeIntervention: '2 horas',
+  },
+  {
+    id: 'pt-mis-017',
+    immeuble: 'Condomínio Boavista Center',
+    artisan: 'Diogo Pereira',
+    type: 'Auditoria energética',
+    description: 'Levantamento dos consumos de eletricidade e água das partes comuns (Lei 8/2022 art.º 1436.º) — preparação Relatório Anual.',
+    priorite: 'normale',
+    statut: 'terminee',
+    dateCreation: daysAgo(18),
+    dateIntervention: daysAgo(14),
+    travailEffectue: 'Auditoria concluída. Identificadas 3 oportunidades de poupança energética (estimativa 12%/ano).',
+    dureeIntervention: '4 horas',
+    dateRapport: daysAgo(13),
+  },
+  {
+    id: 'pt-mis-018',
+    immeuble: 'Residencial Cedofeita',
+    artisan: 'Tiago Mendes',
+    type: 'Inspeção pós-obras',
+    description: 'Receção provisória dos trabalhos de impermeabilização — verificação de conformidade e checklist final antes do pagamento do saldo ao prestador.',
+    priorite: 'normale',
+    statut: 'en_attente',
+    dateCreation: daysAgo(2),
+    dateIntervention: daysAhead(5),
+  },
 ]
 
 // ─── Alertas (5) ─────────────────────────────────────────────────────────────
@@ -694,8 +756,8 @@ export const SEED_PT_ECHEANCES: EcheanceReglementaire[] = [
 
 // ─── API publique : seedSyndicPtDemoIfEmpty ──────────────────────────────────
 
-const SEED_VERSION = 'pt-v2'
-const LEGACY_VERSIONS = ['pt-v1']
+const SEED_VERSION = 'pt-v3'
+const LEGACY_VERSIONS = ['pt-v1', 'pt-v2']
 
 interface SeedResult {
   seeded: boolean
