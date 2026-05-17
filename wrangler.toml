@@ -36,6 +36,13 @@ zone_name = "vitfix.io"
 # binding = "CACHE"
 # id = "<KV_NAMESPACE_ID>"
 
+# ── Workers AI Binding ──────────────────────────────────────────────────────
+# Permet d'appeler les modèles Cloudflare AI (BGE-M3 embeddings + BGE-reranker)
+# sans token API au runtime. Utilisé par Max consultor juridique pour le
+# retrieval sémantique multi-étapes (cf. lib/syndic/embed.ts).
+[ai]
+binding = "AI"
+
 # ── Cron Triggers ─────────��──────────────────────────────────────────────────
 # Migrated from vercel.json crons.
 # Routes < 30s CPU can be triggered directly.

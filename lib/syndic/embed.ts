@@ -1,13 +1,12 @@
 // Helper d'embedding via Cloudflare Workers AI (modèle BGE-M3, 1024 dims).
 // Multilingue de premier rang (top MTEB pour PT), gratuit dans le free tier
-// CF Workers AI (10K req/jour). Utilisé pour :
-//   - Ingestion (script Node) : embed chaque chunk du corpus juridique
-//   - Runtime (route max-ai) : embed la question utilisateur pour retrieval
+// CF Workers AI (10K req/jour).
 //
-// Variables d'env requises :
-//   CLOUDFLARE_ACCOUNT_ID — déjà présent (secret CF)
-//   CLOUDFLARE_API_TOKEN  — à ajouter via `wrangler secret put CLOUDFLARE_API_TOKEN`
-//                            (token avec Workers AI scope)
+// Stratégie d'accès :
+//   1. Binding AI (env.AI.run) si disponible (runtime Worker via OpenNext) →
+//      AUCUN token requis, latence ~30 ms colocalisée
+//   2. Fallback REST API avec CLOUDFLARE_API_TOKEN si pas de binding
+//      (scripts Node locaux ou environnements sans binding)
 
 const BGE_M3_MODEL = '@cf/baai/bge-m3'
 const EMBED_DIM = 1024
@@ -28,6 +27,13 @@ interface EmbedOptions {
   apiToken?: string
   /** Timeout en millisecondes (défaut 15s) */
   timeoutMs?: number
+  /**
+   * Si fourni : utilise directement le binding AI au lieu de la REST API.
+   * À passer depuis une route Next.js Cloudflare via
+   * `(await getCloudflareContext()).env.AI`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiBinding?: any
 }
 
 function getCredentials(opts?: EmbedOptions): { accountId: string; apiToken: string } {
@@ -39,12 +45,45 @@ function getCredentials(opts?: EmbedOptions): { accountId: string; apiToken: str
 }
 
 /**
+ * Essaie de récupérer le binding AI depuis le contexte Cloudflare OpenNext.
+ * Retourne null si pas dans un Worker (scripts Node, dev local sans wrangler).
+ */
+async function tryGetAIBinding(): Promise<unknown | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import('@opennextjs/cloudflare')
+    if (typeof mod.getCloudflareContext === 'function') {
+      const ctx = await mod.getCloudflareContext({ async: true })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (ctx as any)?.env?.AI ?? null
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/**
  * Embed un seul texte. Retourne un vecteur 1024-dimensionnel.
  * Pour batcher, voir embedBatch().
  */
 export async function embedText(text: string, opts?: EmbedOptions): Promise<number[]> {
   const trimmed = text.trim()
   if (!trimmed) throw new Error('embedText: input text is empty')
+
+  // 1. Préfère le binding AI si disponible (runtime Worker)
+  const binding = opts?.aiBinding ?? await tryGetAIBinding()
+  if (binding) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await (binding as any).run(BGE_M3_MODEL, { text: [trimmed] })
+    const vec = res?.data?.[0]
+    if (!Array.isArray(vec) || vec.length !== EMBED_DIM) {
+      throw new Error(`embedText: invalid vector shape from binding (expected ${EMBED_DIM}, got ${vec?.length})`)
+    }
+    return vec
+  }
+
+  // 2. Fallback REST API
   const { accountId, apiToken } = getCredentials(opts)
   const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${BGE_M3_MODEL}`
 
@@ -87,6 +126,25 @@ export async function embedBatch(texts: string[], opts?: EmbedOptions): Promise<
   if (cleaned.length > 100) {
     throw new Error('embedBatch: batch size > 100 is not supported (split before calling)')
   }
+
+  // 1. Préfère le binding AI si disponible
+  const binding = opts?.aiBinding ?? await tryGetAIBinding()
+  if (binding) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await (binding as any).run(BGE_M3_MODEL, { text: cleaned })
+    const data = res?.data
+    if (!Array.isArray(data) || data.length !== cleaned.length) {
+      throw new Error(`embedBatch: expected ${cleaned.length} vectors from binding, got ${data?.length}`)
+    }
+    for (const v of data) {
+      if (!Array.isArray(v) || v.length !== EMBED_DIM) {
+        throw new Error(`embedBatch: invalid vector shape from binding (expected ${EMBED_DIM})`)
+      }
+    }
+    return data
+  }
+
+  // 2. Fallback REST API
   const { accountId, apiToken } = getCredentials(opts)
   const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${BGE_M3_MODEL}`
 

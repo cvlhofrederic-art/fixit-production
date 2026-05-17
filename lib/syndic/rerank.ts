@@ -39,6 +39,8 @@ interface RerankOptions {
   accountId?: string
   apiToken?: string
   timeoutMs?: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiBinding?: any
 }
 
 function getCredentials(opts?: RerankOptions): { accountId: string; apiToken: string } {
@@ -47,6 +49,21 @@ function getCredentials(opts?: RerankOptions): { accountId: string; apiToken: st
   if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID is not configured')
   if (!apiToken) throw new Error('CLOUDFLARE_API_TOKEN is not configured')
   return { accountId, apiToken }
+}
+
+async function tryGetAIBinding(): Promise<unknown | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import('@opennextjs/cloudflare')
+    if (typeof mod.getCloudflareContext === 'function') {
+      const ctx = await mod.getCloudflareContext({ async: true })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (ctx as any)?.env?.AI ?? null
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
 /**
@@ -65,6 +82,30 @@ export async function rerank<T>(
   if (candidates.length > 100) {
     throw new Error('rerank: > 100 candidates not supported (split before calling)')
   }
+
+  // 1. Préfère le binding AI si disponible
+  const binding = opts?.aiBinding ?? await tryGetAIBinding()
+  if (binding) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bRes = await (binding as any).run(RERANKER_MODEL, {
+      query,
+      contexts: candidates.map((c) => ({ text: c.text })),
+    })
+    const scores = bRes?.response
+    if (!Array.isArray(scores)) {
+      throw new Error('rerank: invalid response from binding (missing response array)')
+    }
+    return scores
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((s: any) => ({
+        document: candidates[s.id]?.document as T,
+        rerankScore: s.score,
+      }))
+      .filter((c: RerankedCandidate<T>) => c.document !== undefined)
+      .sort((a: RerankedCandidate<T>, b: RerankedCandidate<T>) => b.rerankScore - a.rerankScore)
+  }
+
+  // 2. Fallback REST API
   const { accountId, apiToken } = getCredentials(opts)
   const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${RERANKER_MODEL}`
 
