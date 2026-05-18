@@ -29,21 +29,25 @@ BEGIN;
 -- ----------------------------------------------------------------------------
 -- BLOC 1 — Piège D : REVOKE EXECUTE sur les fonctions SECURITY DEFINER exposées
 -- ----------------------------------------------------------------------------
--- next_doc_number : reste callable par 'authenticated' (le corps protège,
--- voir BLOC 2 pour la suppression de la branche v_caller IS NULL).
--- REVOKE anon ferme l'appel RPC non authentifié.
-REVOKE EXECUTE ON FUNCTION public.next_doc_number(uuid, text, integer) FROM anon;
+-- Les fonctions Postgres ont par défaut un grant EXECUTE à PUBLIC, qui couvre
+-- anon et authenticated. REVOKE FROM anon seul ne ferme rien tant que PUBLIC
+-- reste. On REVOKE FROM PUBLIC d'abord, puis on re-GRANT explicitement aux
+-- rôles qui doivent garder l'accès.
 
--- Purge RGPD : service_role uniquement, déclenchées par cron, jamais via RPC client.
-REVOKE EXECUTE ON FUNCTION public.anonymize_old_devis()    FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.anonymize_old_factures() FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.next_doc_number(uuid, text, integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.anonymize_old_devis()    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.anonymize_old_factures() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.audit_devis_changes()    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.audit_factures_changes() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.update_conv_metadata()   FROM PUBLIC;
 
--- Fonctions trigger / audit : jamais censées être appelées en RPC.
-REVOKE EXECUTE ON FUNCTION public.audit_devis_changes()    FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.audit_factures_changes() FROM anon, authenticated;
+-- next_doc_number : re-GRANT à authenticated (artisan appelle depuis le client
+-- après login, le corps protège via auth.uid() = p_artisan_user_id OU membership
+-- pro_team_members — voir BLOC 2 pour la suppression de la branche v_caller IS NULL).
+GRANT EXECUTE ON FUNCTION public.next_doc_number(uuid, text, integer) TO authenticated;
 
--- update_conv_metadata : trigger-only (AFTER INSERT ON syndic_ai_messages).
-REVOKE EXECUTE ON FUNCTION public.update_conv_metadata()   FROM anon, authenticated;
+-- Les 5 autres fonctions (anonymize_*, audit_*, update_conv_metadata) :
+-- pas de re-GRANT — elles sont server-only (cron) ou trigger-only.
 
 
 -- ----------------------------------------------------------------------------
