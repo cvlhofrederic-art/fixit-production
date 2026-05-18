@@ -909,15 +909,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         rowKinds.push('desc')
       }
 
-      // 4. Rows étapes (1 row par étape, numérotées)
+      // 4. Rows étapes (1 row par étape, numérotées) — descriptives uniquement, pas de prix
       if (l.etapes && l.etapes.length > 0) {
         const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
         sortedEtapes.forEach((e, i) => {
-          const unitSuffix = e.unit ? ` / ${formatUnitForPdf(e.unit)}` : ''
-          const priceSuffix = e.prixHT != null && e.prixHT > 0
-            ? ` — ${localeFormats.currencyFormat(e.prixHT)}${unitSuffix}`
-            : ''
-          const etapeText = `${i + 1}. ${sanitizeForHelvetica(e.designation)}${priceSuffix}`
+          const etapeText = `${i + 1}. ${sanitizeForHelvetica(e.designation)}`
           rows.push(emptyCols(etapeText))
           rowKinds.push('etape')
         })
