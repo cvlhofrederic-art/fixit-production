@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import type { Artisan, SyndicMessage } from '@/components/syndic-dashboard/types'
 import type { User } from '@supabase/supabase-js'
+import { SEED_PT_ARTISANS_FOR_DASHBOARD } from '@/lib/seed-syndic-pt-demo'
 
 interface ArtisansPageSectionProps {
   artisans: Artisan[]
@@ -63,30 +64,32 @@ export default function ArtisansPageSection({
         }
       }
 
-      // ── Démo PT : merge profissionais portugais depuis localStorage seed ──
-      // Permet de montrer les 6 prestadores PT (canalizador, eletricista, etc.)
-      // en plus des vrais artisans Supabase.
-      if (locale === 'pt' && typeof window !== 'undefined') {
-        try {
-          const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
-          const uid = session?.user?.id
-          if (uid) {
-            const seeded = localStorage.getItem(`fixit_artisans_pt_${uid}`)
-            if (seeded) {
-              const seedArtisans = JSON.parse(seeded) as Artisan[]
-              // Anti-doublons : on garde ceux du seed qui ne sont pas déjà dans mapped (par id)
-              const existingIds = new Set(mapped.map(a => a.id))
-              const newOnes = seedArtisans.filter(a => !existingIds.has(a.id))
-              mapped = [...mapped, ...newOnes]
-            }
-          }
-        } catch { /* silencieux */ }
+      // ── Démo PT : filtre artisans FR hérités + merge prestadores externos +
+      // técnicos internos du seed. On présente toujours 9 entrées en PT.
+      if (locale === 'pt') {
+        const LEGACY_FR_ARTISANS = ['Lepore']
+        mapped = mapped.filter(a =>
+          !LEGACY_FR_ARTISANS.some(p => (a.nom || '').includes(p) || (a.email || '').toLowerCase().includes(p.toLowerCase()))
+        )
+        const ptIds = new Set(SEED_PT_ARTISANS_FOR_DASHBOARD.map(a => a.id))
+        mapped = [
+          ...SEED_PT_ARTISANS_FOR_DASHBOARD,
+          ...mapped.filter(a => !ptIds.has(a.id)),
+        ]
       }
 
       if (mapped.length > 0) setArtisans(mapped)
       setArtisansLoaded(true)
     } catch { /* silencieux */ }
   }
+
+  // ── Auto-fetch au mount ──
+  // Sans cet effet, la liste reste figée sur ce que le parent a chargé (parfois
+  // un état stale FR avant que le locale PT soit appliqué).
+  useEffect(() => {
+    if (!artisansLoaded) fetchArtisans()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Fetch messages ──
   const fetchMessages = async (artisan: Artisan) => {

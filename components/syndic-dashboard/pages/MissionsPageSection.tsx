@@ -60,6 +60,19 @@ export default function MissionsPageSection({
       const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
       localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(stored.filter((m: Mission) => m.id !== id)))
     } catch {}
+    // Supprime aussi de Supabase pour que la suppression persiste après reload.
+    // Sinon le prochain fetch /api/syndic/missions réinjecte la mission supprimée.
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (token && id && !id.startsWith('pt-mis-')) {
+        await fetch(`/api/syndic/missions?id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      }
+    } catch {}
   }
 
   return (
@@ -98,7 +111,7 @@ export default function MissionsPageSection({
                   <Badge statut={m.statut} locale={locale} />
                   <span className="text-xs text-gray-400 font-mono" title={`ID complet : ${m.id}`}>#{m.id.slice(0, 8)}</span>
                   {m.locataire && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
-                  {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `Bât. ${m.batiment} · ` : ''}Ét. {m.etage}</span>}
+                  {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `${locale === 'pt' ? 'Bl.' : 'Bât.'} ${m.batiment} · ` : ''}{locale === 'pt' ? 'And.' : 'Ét.'} {m.etage}</span>}
                 </div>
                 <h3 className="font-bold text-gray-900">{m.immeuble}</h3>
                 <p className="text-sm text-gray-600">{m.type} · {m.description}</p>
