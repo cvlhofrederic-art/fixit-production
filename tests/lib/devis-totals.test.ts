@@ -83,3 +83,45 @@ describe('computeDocumentTotalHT — robustesse nullish', () => {
     expect(computeDocumentTotalHtCents(doc)).toBe(1234)
   })
 })
+
+// Invariant : pour tout devis BTP, la somme des sous-totaux des sections
+// effectivement rendues dans le PDF (rendu V3 : `devis-pdf-v3.ts:1109,1112`
+// filtre `materialLinesEnabled` / `fraisLinesEnabled` à false) doit être
+// égale au sous-total HT global. Sans ce filtre, des « lignes phantom »
+// survivant dans `materialLines` / `fraisLines` après masquage UI gonflent
+// silencieusement le total côté `download-saved-devis.ts:326` — le PDF
+// affichait alors 46 225 € pour un devis dont les 9 lignes visibles sommaient
+// à 43 425 € (régression DEV-2026-005, 2026-05-18, +2 800 € phantom).
+describe('computeDocumentTotalHT — invariant rendu == total (flags Enabled)', () => {
+  it('exclut materialLines quand materialLinesEnabled === false (phantom masqué)', () => {
+    const doc = {
+      lines: [{ totalHT: 17425 }],
+      materialLines: [{ totalHT: 2800 }], // phantom survivant à un masquage UI
+      materialLinesEnabled: false,
+      customTables: [{ lines: [{ totalHT: 26000 }] }],
+    }
+    // Avant fix : sommait 17425 + 2800 + 26000 = 46225 (phantom compté).
+    // Après fix : 17425 + 0 + 26000 = 43425 (phantom exclu).
+    expect(computeDocumentTotalHT(doc)).toBe(43425)
+  })
+
+  it('exclut fraisLines quand fraisLinesEnabled === false', () => {
+    const doc = {
+      lines: [{ totalHT: 100 }],
+      fraisLines: [{ totalHT: 50 }],
+      fraisLinesEnabled: false,
+    }
+    expect(computeDocumentTotalHT(doc)).toBe(100)
+  })
+
+  it('inclut materialLines par défaut (flag absent ou true)', () => {
+    const docDefaut = {
+      lines: [{ totalHT: 100 }],
+      materialLines: [{ totalHT: 50 }],
+    }
+    expect(computeDocumentTotalHT(docDefaut)).toBe(150)
+
+    const docTrue = { ...docDefaut, materialLinesEnabled: true }
+    expect(computeDocumentTotalHT(docTrue)).toBe(150)
+  })
+})
