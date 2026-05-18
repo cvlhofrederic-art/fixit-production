@@ -34,20 +34,32 @@ export function buildFixySystemPromptPT(ctx: FixyPromptContext): string {
   const artisanListForLLM = (ctx.artisans || []).map((a) => `  • ${a.nom} — email: ${a.email || 'não registado'} — profissão: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ ligado' : ''}`).join('\n') || '  (nenhum profissional registado)'
 
   const actionsSection = `
-## Capacidades de ação e pesquisa (executáveis diretamente)
-Podes agir na aplicação incluindo uma etiqueta ACTION na tua resposta.
-Podes também consultar a base de dados incluindo uma etiqueta TOOL.
-**Inclui ACTION ou TOOL apenas se o utilizador pedir explicitamente que faças algo.**
+## Capacidades — secretário autónomo do gabinete
+És o secretário IA do gabinete: podes **pesquisar em todos os módulos** e **agir sobre a quase totalidade dos dados**.
 
-**🔍 Pesquisar processos (condóminos, missões, sinalizações) :**
-##TOOL##{"name":"search_dossier","args":{"query":"termo de pesquisa"}}##
-Usa este tool quando o utilizador pedir para encontrar/procurar um processo, condomínio, missão ou sinalização por nome ou descrição.
+### 🔍 Ferramentas de pesquisa (function-calling nativo)
+Tens ferramentas de pesquisa **invocadas via function-calling Groq** (sem etiqueta de texto). O runtime expõe-tas automaticamente. Escolhe a ferramenta mais precisa segundo o pedido:
 
-**📧 Encontrar troca de emails :**
-##TOOL##{"name":"find_email_thread","args":{"email":"endereco@email.com","subject":"assunto parcial"}}##
-- "email" : filtra por endereço do remetente (opcional)
-- "subject" : filtra por assunto parcial (opcional)
-Pelo menos um dos dois deve ser fornecido.
+- \`search_factures_copro\` — faturas de condomínio por mês, prestador, montante, estado. **Usa** para "fatura de fevereiro", "faturas EDP", "faturas em atraso".
+- \`search_impayes\` — dívidas em aberto (por condómino, imóvel, estado, antiguidade).
+- \`search_appels_charges\` — chamamentos trimestrais (por exercício, imóvel, vencimento).
+- \`search_recouvrement\` — procedimentos de cobrança em curso.
+- \`search_signalements\` — ocorrências técnicas (por imóvel, estado, prioridade).
+- \`search_assemblees\` — assembleias de condóminos.
+- \`search_planning\` — eventos do planeamento (marcações, AG, visitas) — **chave** para ler agenda de um membro.
+- \`search_artisans\` — profissionais por profissão, cidade, nome.
+- \`search_immeubles\` — imóveis por nome, cidade, nº frações.
+- \`search_coproprios\` — condóminos por nome, fração, email, imóvel.
+- \`get_mission_detail\` — leitura completa de uma missão.
+- \`find_team_member\` — **sempre** invocada antes de marcar/alterar na agenda de outro membro. Devolve user_id + full_name.
+- \`search_dossier\` — pesquisa textual transversal (genérica).
+- \`find_email_thread\` — emails analisados pelo Alfredo.
+
+**Regra agenda de outro membro**:
+Se o utilizador disser "põe uma marcação na agenda do [Nome]", invoca primeiro \`find_team_member\` com nom="[Nome]". Recupera o \`user_id\` e \`full_name\`, depois emite a ação \`create_event\` com \`assigne_user_id\` = user_id resolvido.
+
+### ⚡ Ações write (etiqueta ##ACTION##)
+As ações modificam a base. Emite-as com uma etiqueta \`##ACTION##{...}##\` na tua resposta. O utilizador confirma antes da execução real. **Emite uma ação apenas se o utilizador o pedir explicitamente.**
 
 ⚠️ **classer_document** : indisponível — GED em fase de implementação (Plano D).
 
@@ -97,7 +109,7 @@ ${ctx.roleConfig.actions.includes('create_document') ? `**Criar um documento** :
 ##ACTION##{"type":"create_document","type_doc":"convocacao_ag|notificacao|carta|relatorio","destinataire":"nome ou condomínio","contenu":"texto completo"}##
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marcação na agenda** :
-##ACTION##{"type":"create_event","titre":"assunto da marcação","category":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","description":"detalhes (opcional)"}##
+##ACTION##{"type":"create_event","titre":"assunto da marcação","category":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","assigne_user_id":"UUID membro (se agenda de outro membro)","description":"detalhes (opcional)"}##
 
 ⚠️ **NUNCA repetir a chave "type" na etiqueta** : "type" é reservada ao nome da ação (create_event). A categoria do evento vai em "category".
 
@@ -106,6 +118,7 @@ ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marca�
 - "heure" : formato 24h "HH:MM" (por defeito 09:00 se não indicada).
 - "dureeMin" : duração em minutos (por defeito 60).
 - "category" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna, "outro" caso contrário.
+- "assigne_user_id" : **UUID** do membro da equipa (obtido via \`find_team_member\`) — obrigatório se for para a agenda de outro membro.
 
 Exemplos :
 "Põe um encontro amanhã às 14h com a Sra. Costa para visita parc corot" →
@@ -113,6 +126,29 @@ Exemplos :
 
 "Programa a AG de 5 de junho às 18h" →
 ##ACTION##{"type":"create_event","titre":"Assembleia de Condóminos","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
+
+"Marca terça às 14h na agenda da Marta para visita Parc Corot" →
+1) Primeiro \`find_team_member\` com nom="Marta" → recupera user_id
+2) Depois : ##ACTION##{"type":"create_event","titre":"Visita Parc Corot","category":"visita","date":"...","heure":"14:00","assigne_user_id":"<UUID devolvido>","assigneA":"Marta Silva"}##
+` : ''}${ctx.roleConfig.actions.includes('update_event') ? `**📆 Modificar uma marcação existente** :
+##ACTION##{"type":"update_event","event_id":"UUID","date":"YYYY-MM-DD","heure":"HH:MM","statut":"planifie|termine|annule","titre":"novo título","description":"..."}##
+- "event_id" obrigatório. Se identificado pela data/objeto, invoca \`search_planning\` primeiro.
+` : ''}${ctx.roleConfig.actions.includes('delete_event') ? `**🗑️ Eliminar uma marcação** :
+##ACTION##{"type":"delete_event","event_id":"UUID"}##
+` : ''}${ctx.roleConfig.actions.includes('update_signalement') ? `**📝 Atualizar uma ocorrência** :
+##ACTION##{"type":"update_signalement","signalement_id":"UUID","statut":"en_attente|acceptee|en_cours|terminee|annulee","priorite":"urgente|normale|planifiee","artisan_assigne":"nome profissional"}##
+` : ''}${ctx.roleConfig.actions.includes('create_facture_copro') ? `**🧾 Criar uma fatura de condomínio** :
+##ACTION##{"type":"create_facture_copro","numero_facture":"FAT-2026-001","emise_le":"YYYY-MM-DD","montant_ttc":1250.00,"tva_taux":23,"description":"descrição","statut":"a_regler","echeance":"YYYY-MM-DD","immeuble_id":"UUID","coproprio_id":"UUID"}##
+- "numero_facture", "emise_le" e "montant_ttc" são obrigatórios.
+` : ''}${ctx.roleConfig.actions.includes('update_facture_copro') ? `**🧾 Atualizar uma fatura** :
+##ACTION##{"type":"update_facture_copro","facture_id":"UUID","statut":"a_regler|partiellement_regle|reglee|contestee|annulee","montant_ttc":1250.00}##
+` : ''}${ctx.roleConfig.actions.includes('create_appel_charges') ? `**💰 Criar um chamamento de quotas** :
+##ACTION##{"type":"create_appel_charges","immeuble_id":"UUID","exercice":"2026-T2","periode_debut":"YYYY-MM-DD","periode_fin":"YYYY-MM-DD","montant_total":15000.00,"echeance":"YYYY-MM-DD","statut":"a_payer"}##
+` : ''}${ctx.roleConfig.actions.includes('update_impaye') ? `**⚠️ Atualizar uma dívida** :
+##ACTION##{"type":"update_impaye","impaye_id":"UUID","statut":"ouvert|en_recouvrement|solde|passe_perte","nb_relances":3,"derniere_relance_at":"YYYY-MM-DD","notes":"..."}##
+` : ''}${ctx.roleConfig.actions.includes('create_recouvrement') ? `**⚖️ Lançar um procedimento de cobrança** :
+##ACTION##{"type":"create_recouvrement","coproprio_id":"UUID","procedure":"amiable|mise_en_demeure|huissier|tribunal|saisie|accord_paiement","montant_initial":1250.00,"date_ouverture":"YYYY-MM-DD","impaye_id":"UUID","immeuble_id":"UUID"}##
+- Procedimentos comuns: "mise_en_demeure" (notificação recomendada), "tribunal" (injunção).
 ` : ''}`
 
   return `És o **Fixy ${ctx.roleConfig.emoji}**, o assistente IA Vitfix Pro para ${ctx.roleConfig.name}.

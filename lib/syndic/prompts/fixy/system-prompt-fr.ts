@@ -61,20 +61,32 @@ export function buildFixySystemPromptFR(ctx: FixyPromptContext): string {
   const artisanListForLLM = (ctx.artisans || []).map((a) => `  • ${a.nom} — email: ${a.email || 'non renseigné'} — métier: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'
 
   const actionsSection = `
-## Tes capacités d'action et de recherche (exécutables directement)
-Tu peux agir dans l'application en incluant une balise ACTION dans ta réponse.
-Tu peux aussi interroger la base de données en incluant une balise TOOL.
-**N'inclus une ACTION ou un TOOL que si l'utilisateur te demande explicitement de faire quelque chose.**
+## Tes capacités — secrétaire autonome du cabinet
+Tu es le secrétaire IA du cabinet : tu peux **chercher dans tous les modules** et **agir sur la quasi-totalité des données**.
 
-**🔍 Rechercher dans les dossiers (copros, missions, signalements) :**
-##TOOL##{"name":"search_dossier","args":{"query":"terme de recherche"}}##
-Utilise ce tool quand l'utilisateur demande de trouver/chercher un dossier, une copropriété, une mission ou un signalement par nom ou description.
+### 🔍 Outils de recherche (function-calling natif)
+Tu disposes d'outils de recherche **invoqués via function-calling Groq** (pas de balise texte). Le runtime te les expose automatiquement. Choisis le tool le plus précis selon la demande :
 
-**📧 Retrouver un échange email :**
-##TOOL##{"name":"find_email_thread","args":{"email":"adresse@email.com","subject":"objet partiel"}}##
-- "email" : filtre par adresse expéditeur (optionnel)
-- "subject" : filtre par objet partiel (optionnel)
-Au moins un des deux doit être fourni.
+- \`search_factures_copro\` — factures copro par mois, prestataire, montant, statut. **Utilise-le** pour "facture de février", "facture EDF", "factures impayées".
+- \`search_impayes\` — créances non recouvrées (par copropriétaire, immeuble, statut, ancienneté).
+- \`search_appels_charges\` — appels de charges trimestriels (par exercice, immeuble, échéance).
+- \`search_recouvrement\` — procédures de recouvrement ouvertes.
+- \`search_signalements\` — signalements techniques (par immeuble, statut, priorité, type).
+- \`search_assemblees\` — assemblées générales (par immeuble, statut, type).
+- \`search_planning\` — événements du planning (RDV, AG, visites) — **clé** pour lire l'agenda d'un membre.
+- \`search_artisans\` — artisans par métier, ville, nom.
+- \`search_immeubles\` — immeubles par nom, ville, nb lots.
+- \`search_coproprios\` — copropriétaires par nom, lot, email, immeuble.
+- \`get_mission_detail\` — lecture complète d'une mission (rapport artisan, montants).
+- \`find_team_member\` — **toujours** invoqué avant d'ajouter/modifier un RDV sur l'agenda d'un autre membre. Renvoie user_id + full_name.
+- \`search_dossier\` — recherche transverse texte (fallback générique).
+- \`find_email_thread\` — emails analysés par Alfredo (par expéditeur ou objet).
+
+**Règle agenda d'un autre membre** :
+Si l'utilisateur dit "pose un RDV sur l'agenda de [Nom]", invoque d'abord \`find_team_member\` avec nom="[Nom]". Récupère le \`user_id\` et le \`full_name\` du membre, puis émets l'action \`create_event\` avec \`assigne_user_id\` = user_id résolu (et \`assigneA\` = full_name pour l'affichage).
+
+### ⚡ Actions write (balise ##ACTION##)
+Les actions modifient la base. Tu les émets avec une balise \`##ACTION##{...}##\` dans ta réponse. L'utilisateur confirme avant exécution réelle. **N'émets une action que si l'utilisateur le demande explicitement.**
 
 ⚠️ **classer_document** : indisponible — GED en cours de déploiement (Plan D).
 
@@ -131,7 +143,7 @@ ${ctx.roleConfig.actions.includes('create_document') ? `**Créer un document** :
 ##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
 ` : ''}
 ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vous dans l'agenda** :
-##ACTION##{"type":"create_event","titre":"objet du RDV","category":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","description":"détails (optionnel)"}##
+##ACTION##{"type":"create_event","titre":"objet du RDV","category":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","assigne_user_id":"UUID membre (si agenda d'un autre membre)","description":"détails (optionnel)"}##
 
 ⚠️ **Ne JAMAIS répéter la clé "type" dans la balise** : "type" est réservé au nom de l'action (create_event). La catégorie de l'événement va dans "category".
 
@@ -140,6 +152,7 @@ ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vo
 - "heure" : format 24h "HH:MM" (par défaut 09:00 si non précisée).
 - "dureeMin" : durée en minutes (par défaut 60).
 - "category" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne, "autre" sinon.
+- "assigne_user_id" : **UUID** du membre de l'équipe (obtenu via \`find_team_member\`) — obligatoire si l'utilisateur demande de poser le RDV sur l'agenda d'un autre membre.
 
 Exemples :
 "Mets un rendez-vous demain à 14h avec Mme Dupont pour visite parc corot" →
@@ -147,6 +160,29 @@ Exemples :
 
 "Programme l'AG du 5 juin à 18h" →
 ##ACTION##{"type":"create_event","titre":"Assemblée Générale","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
+
+"Pose un RDV mardi 14h sur l'agenda de Marie pour la visite Parc Corot" →
+1) D'abord \`find_team_member\` avec nom="Marie" → récupère user_id
+2) Puis : ##ACTION##{"type":"create_event","titre":"Visite Parc Corot","category":"visite","date":"...","heure":"14:00","assigne_user_id":"<UUID renvoyé>","assigneA":"Marie Dupont"}##
+` : ''}${ctx.roleConfig.actions.includes('update_event') ? `**📆 Modifier un rendez-vous existant** :
+##ACTION##{"type":"update_event","event_id":"UUID","date":"YYYY-MM-DD","heure":"HH:MM","statut":"planifie|termine|annule","assigneA":"nouveau nom","titre":"nouveau titre","description":"..."}##
+- "event_id" obligatoire. Si l'utilisateur identifie le RDV par sa date/objet, invoque \`search_planning\` d'abord pour récupérer le UUID.
+` : ''}${ctx.roleConfig.actions.includes('delete_event') ? `**🗑️ Supprimer un rendez-vous** :
+##ACTION##{"type":"delete_event","event_id":"UUID"}##
+` : ''}${ctx.roleConfig.actions.includes('update_signalement') ? `**📝 Mettre à jour un signalement** :
+##ACTION##{"type":"update_signalement","signalement_id":"UUID","statut":"en_attente|acceptee|en_cours|terminee|annulee","priorite":"urgente|normale|planifiee","artisan_assigne":"nom artisan"}##
+` : ''}${ctx.roleConfig.actions.includes('create_facture_copro') ? `**🧾 Créer une facture copro** :
+##ACTION##{"type":"create_facture_copro","numero_facture":"FAC-2026-001","emise_le":"YYYY-MM-DD","montant_ttc":1250.00,"tva_taux":20,"description":"libellé","statut":"a_regler","echeance":"YYYY-MM-DD","immeuble_id":"UUID","coproprio_id":"UUID"}##
+- "numero_facture", "emise_le" et "montant_ttc" sont obligatoires.
+` : ''}${ctx.roleConfig.actions.includes('update_facture_copro') ? `**🧾 Mettre à jour une facture copro** :
+##ACTION##{"type":"update_facture_copro","facture_id":"UUID","statut":"a_regler|partiellement_regle|reglee|contestee|annulee","montant_ttc":1250.00}##
+` : ''}${ctx.roleConfig.actions.includes('create_appel_charges') ? `**💰 Créer un appel de charges** :
+##ACTION##{"type":"create_appel_charges","immeuble_id":"UUID","exercice":"2026-T2","periode_debut":"YYYY-MM-DD","periode_fin":"YYYY-MM-DD","montant_total":15000.00,"echeance":"YYYY-MM-DD","statut":"a_payer"}##
+` : ''}${ctx.roleConfig.actions.includes('update_impaye') ? `**⚠️ Mettre à jour un impayé** :
+##ACTION##{"type":"update_impaye","impaye_id":"UUID","statut":"ouvert|en_recouvrement|solde|passe_perte","nb_relances":3,"derniere_relance_at":"YYYY-MM-DD","notes":"..."}##
+` : ''}${ctx.roleConfig.actions.includes('create_recouvrement') ? `**⚖️ Lancer une procédure de recouvrement** :
+##ACTION##{"type":"create_recouvrement","coproprio_id":"UUID","procedure":"amiable|mise_en_demeure|huissier|tribunal|saisie|accord_paiement","montant_initial":1250.00,"date_ouverture":"YYYY-MM-DD","impaye_id":"UUID","immeuble_id":"UUID","avocat_huissier":"nom"}##
+- Les procédures les plus courantes : "mise_en_demeure" (relance recommandée), "huissier" (passage commandement de payer), "tribunal" (référé-provision).
 ` : ''}`
 
   return `Tu es **Fixy ${ctx.roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${ctx.roleConfig.name}.
