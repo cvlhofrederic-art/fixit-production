@@ -22,7 +22,11 @@ import {
   Badge, PrioriteBadge,
 } from '@/components/syndic-dashboard/types'
 import { ROLE_PAGES, SYNDIC_MODULES, EVENT_COLORS } from '@/components/syndic-dashboard/config'
-import { seedSyndicPtDemoIfEmpty } from '@/lib/seed-syndic-pt-demo'
+import {
+  seedSyndicPtDemoIfEmpty,
+  seedSyndicPtMissionsToSupabaseIfEmpty,
+  SEED_PT_ARTISANS_FOR_DASHBOARD,
+} from '@/lib/seed-syndic-pt-demo'
 
 // ─── Lazy-loaded Section Components (code-splitting) ─────────────────────────
 // Dynamic import helper — cast as ComponentType<any> since loader erases prop types
@@ -879,10 +883,11 @@ export default function SyndicDashboard() {
         // Séparé des autres fetches pour ne pas être bloqué par leurs erreurs
         try {
           const artResEarly = await fetch('/api/syndic/artisans', { headers })
+          let mappedEarly: Artisan[] = []
           if (artResEarly.ok) {
             const artDataEarly = await artResEarly.json()
             if (artDataEarly.artisans && artDataEarly.artisans.length > 0) {
-              const mappedEarly: Artisan[] = artDataEarly.artisans.map((a: ArtisanAPIRow) => ({
+              mappedEarly = artDataEarly.artisans.map((a: ArtisanAPIRow) => ({
                 ...a,
                 nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
                 rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -892,13 +897,31 @@ export default function SyndicDashboard() {
                 nbInterventions: a.nb_interventions ?? a.nbInterventions ?? 0,
                 vitfixCertifie: a.vitfix_certifie ?? a.vitfixCertifie ?? false,
               }))
-              setArtisans(mappedEarly)
-              console.info(`[DASHBOARD] ✅ Artisans chargés au mount : ${mappedEarly.length} artisans`, mappedEarly.map(a => `${a.nom} <${a.email}>`))
             } else {
               if (process.env.NODE_ENV !== 'production') console.warn(`[DASHBOARD] API artisans OK mais liste vide`)
             }
           } else {
             if (process.env.NODE_ENV !== 'production') console.error(`[DASHBOARD] API artisans erreur HTTP ${artResEarly.status}`)
+          }
+          // En PT : filtrer les artisans FR hérités et fusionner les prestadores +
+          // técnicos internos PT du seed. Ainsi le formulaire "Nova ordem" présente
+          // les bonnes personnes à assigner même si Supabase ne contient encore
+          // que des artisans FR héritées (ex. Lepore Sebastien).
+          if (locale === 'pt') {
+            const LEGACY_FR_ARTISANS = ['Lepore']
+            const filtered = mappedEarly.filter(a =>
+              !LEGACY_FR_ARTISANS.some(p => (a.nom || '').includes(p) || (a.email || '').toLowerCase().includes(p.toLowerCase()))
+            )
+            const ptIds = new Set(SEED_PT_ARTISANS_FOR_DASHBOARD.map(a => a.id))
+            const merged = [
+              ...SEED_PT_ARTISANS_FOR_DASHBOARD,
+              ...filtered.filter(a => !ptIds.has(a.id)),
+            ]
+            setArtisans(merged)
+            console.info(`[DASHBOARD] ✅ Artisans PT chargés : ${merged.length} (${SEED_PT_ARTISANS_FOR_DASHBOARD.length} seed PT + ${merged.length - SEED_PT_ARTISANS_FOR_DASHBOARD.length} from API)`)
+          } else if (mappedEarly.length > 0) {
+            setArtisans(mappedEarly)
+            console.info(`[DASHBOARD] ✅ Artisans chargés au mount : ${mappedEarly.length} artisans`, mappedEarly.map(a => `${a.nom} <${a.email}>`))
           }
         } catch (artErr) {
           if (process.env.NODE_ENV !== 'production') console.error(`[DASHBOARD] Fetch artisans échoué :`, artErr)
@@ -922,7 +945,7 @@ export default function SyndicDashboard() {
               FAKE_BUILDING_NAMES_DB.includes(m.immeuble) ||
               (locale === 'pt' && isFrContaminated(m))
             const fakeMissions = dbMissions.filter(isStaleMission)
-            const realMissions = dbMissions.filter((m: Mission) => !isStaleMission(m))
+            let realMissions = dbMissions.filter((m: Mission) => !isStaleMission(m))
             // AUTO-CLEANUP DB : supprimer définitivement les missions obsolètes/contaminées
             if (fakeMissions.length > 0) {
               for (const fm of fakeMissions) {
@@ -931,7 +954,13 @@ export default function SyndicDashboard() {
                 } catch {}
               }
             }
-            // Ne pas écraser l'état avec un tableau vide : préserve le seed PT si DB nettoyée
+            // Si cabinet PT vide après nettoyage → seed les missions démo PT en base
+            // pour qu'elles persistent et soient visibles au refresh suivant.
+            if (locale === 'pt' && realMissions.length === 0) {
+              const seeded = await seedSyndicPtMissionsToSupabaseIfEmpty(uid, token)
+              if (seeded.length > 0) realMissions = seeded
+            }
+            // Ne pas écraser l'état avec un tableau vide : préserve le seed PT local si DB nettoyée et seed Supabase n'a rien créé
             if (realMissions.length > 0) {
               setMissions(realMissions)
               try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(realMissions)) } catch {}

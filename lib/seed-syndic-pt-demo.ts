@@ -302,6 +302,75 @@ export const SEED_PT_PROFISSIONAIS: Artisan[] = [
   },
 ]
 
+// ─── Técnicos internos exposés comme "Artisans" pour la liste d'assignation ──
+// Les 3 syndic_tech sont des collaborateurs du gabinete, mais le formulaire
+// "Nova ordem de missão" puise dans la liste des artisans. On les y ajoute
+// pour qu'on puisse leur assigner des missions internes.
+
+const PT_INTERNAL_TECHS_AS_ARTISANS: Artisan[] = [
+  {
+    id: 'pt-team-002',
+    nom: 'Bruno Tavares',
+    prenom: 'Bruno',
+    nom_famille: 'Tavares',
+    metier: 'Técnico interno',
+    telephone: '935 100 002',
+    email: 'bruno.tavares@gabinete-vitfix.pt',
+    siret: '',
+    rcProValide: true,
+    rcProExpiration: '',
+    decennaleValide: true,
+    decennaleExpiration: '',
+    note: 5,
+    nbInterventions: 0,
+    statut: 'actif',
+    vitfixCertifie: true,
+  },
+  {
+    id: 'pt-team-006',
+    nom: 'Diogo Pereira',
+    prenom: 'Diogo',
+    nom_famille: 'Pereira',
+    metier: 'Técnico interno',
+    telephone: '935 100 006',
+    email: 'diogo.pereira@gabinete-vitfix.pt',
+    siret: '',
+    rcProValide: true,
+    rcProExpiration: '',
+    decennaleValide: true,
+    decennaleExpiration: '',
+    note: 5,
+    nbInterventions: 0,
+    statut: 'actif',
+    vitfixCertifie: true,
+  },
+  {
+    id: 'pt-team-007',
+    nom: 'Tiago Mendes',
+    prenom: 'Tiago',
+    nom_famille: 'Mendes',
+    metier: 'Técnico interno',
+    telephone: '935 100 007',
+    email: 'tiago.mendes@gabinete-vitfix.pt',
+    siret: '',
+    rcProValide: true,
+    rcProExpiration: '',
+    decennaleValide: true,
+    decennaleExpiration: '',
+    note: 5,
+    nbInterventions: 0,
+    statut: 'actif',
+    vitfixCertifie: true,
+  },
+]
+
+/** Liste complète des "artisans" PT à présenter dans le dashboard syndic :
+ * prestadores externos + técnicos internos du gabinete. */
+export const SEED_PT_ARTISANS_FOR_DASHBOARD: Artisan[] = [
+  ...SEED_PT_PROFISSIONAIS,
+  ...PT_INTERNAL_TECHS_AS_ARTISANS,
+]
+
 // ─── Condóminos (40) — répartis sur les 4 edifícios ─────────────────────────
 
 const PT_FIRST_NAMES = ['Ana', 'João', 'Maria', 'Pedro', 'Sofia', 'Carlos', 'Isabel', 'Miguel', 'Teresa', 'Rui', 'Catarina', 'André', 'Beatriz', 'Nuno', 'Luísa', 'Tiago', 'Margarida', 'Bruno', 'Inês', 'Ricardo', 'Filipa', 'Hugo', 'Mariana', 'Diogo', 'Patrícia', 'Vasco', 'Joana', 'Francisco', 'Helena', 'Tomás', 'Cristina', 'Gonçalo', 'Raquel', 'Vítor', 'Susana', 'Daniel', 'Madalena', 'Fernando', 'Constança', 'Henrique']
@@ -409,7 +478,7 @@ export const SEED_PT_MISSOES: Mission[] = [
     immeuble: 'Edifício Atlântico',
     artisan: 'Ferreira Carlos',
     type: 'Eletricidade',
-    description: 'Substituição quadro elétrico zonas comuns piso 0.',
+    description: 'Substituição quadro elétrico zonas comuns piso 0. Pedido pelo condómino após disjuntor recorrente.',
     priorite: 'normale',
     statut: 'acceptee',
     dateCreation: daysAgo(8),
@@ -417,6 +486,8 @@ export const SEED_PT_MISSOES: Mission[] = [
     montantDevis: 1250,
     batiment: 'A',
     etage: 'R/C',
+    demandeurNom: 'Pedro Silva',
+    demandeurRole: 'coproprio',
   },
   {
     id: 'pt-mis-003',
@@ -440,13 +511,15 @@ export const SEED_PT_MISSOES: Mission[] = [
     immeuble: 'Residencial Cedofeita',
     artisan: 'Santos Miguel',
     type: 'Construção',
-    description: 'Reparação fissura na fachada lateral, lado norte.',
+    description: 'Reparação fissura na fachada lateral, lado norte. Sinalizado pela condómina do 2.º Frt.',
     priorite: 'normale',
     statut: 'en_cours',
     dateCreation: daysAgo(12),
     dateIntervention: daysAgo(2),
     montantDevis: 2800,
     batiment: 'A',
+    demandeurNom: 'Sofia Carvalho',
+    demandeurRole: 'coproprio',
   },
   {
     id: 'pt-mis-005',
@@ -505,13 +578,15 @@ export const SEED_PT_MISSOES: Mission[] = [
     immeuble: 'Edifício Atlântico',
     artisan: 'Pereira Ana',
     type: 'Pintura',
-    description: 'Repintura corredores piso 1.',
+    description: 'Repintura corredores piso 1. Solicitação aprovada em AG do trimestre passado.',
     priorite: 'planifiee',
     statut: 'en_attente',
     dateCreation: daysAgo(2),
     montantDevis: 1800,
     batiment: 'A',
     etage: '1.º',
+    demandeurNom: 'Catarina Oliveira',
+    demandeurRole: 'coproprio',
   },
   {
     id: 'pt-mis-009',
@@ -557,7 +632,7 @@ export const SEED_PT_MISSOES: Mission[] = [
     immeuble: 'Condomínio Boavista Center',
     artisan: 'Silva João',
     type: 'Canalização',
-    description: 'Desentupimento canalização cave + limpeza.',
+    description: 'Desentupimento canalização cave + limpeza. Reportado pelo morador do R/C Dto.',
     priorite: 'urgente',
     statut: 'terminee',
     dateCreation: daysAgo(15),
@@ -567,18 +642,24 @@ export const SEED_PT_MISSOES: Mission[] = [
     travailEffectue: 'Desentupimento concluído. Limpeza preventiva efetuada.',
     dureeIntervention: '2h',
     dateRapport: daysAgo(13),
+    demandeurNom: 'Rui Tavares',
+    demandeurRole: 'coproprio',
+    etage: 'R/C',
+    numLot: 'B',
   },
   {
     id: 'pt-mis-013',
     immeuble: 'Edifício Foz Douro',
     artisan: 'Martins Pedro',
     type: 'Serralharia',
-    description: 'Instalação 2 cancelas novas zona piscina.',
+    description: 'Instalação 2 cancelas novas zona piscina. Proposta votada favoravelmente em AG.',
     priorite: 'planifiee',
     statut: 'acceptee',
     dateCreation: daysAgo(5),
     dateIntervention: daysAhead(15),
     montantDevis: 1450,
+    demandeurNom: 'Helena Monteiro',
+    demandeurRole: 'coproprio',
   },
   {
     id: 'pt-mis-014',
@@ -602,11 +683,13 @@ export const SEED_PT_MISSOES: Mission[] = [
     immeuble: 'Edifício Atlântico',
     artisan: 'Costa Rui',
     type: 'Espaços verdes',
-    description: 'Corte relva jardim comum + manutenção.',
+    description: 'Corte relva jardim comum + manutenção. Reclamação dos condóminos do R/C que dão para o jardim.',
     priorite: 'normale',
     statut: 'en_attente',
     dateCreation: daysAgo(1),
     montantDevis: 150,
+    demandeurNom: 'Tomás Fernandes',
+    demandeurRole: 'coproprio',
   },
   // ─── Missões assignées à des técnicos internes do gabinete ───
   {
@@ -614,12 +697,14 @@ export const SEED_PT_MISSOES: Mission[] = [
     immeuble: 'Edifício Atlântico',
     artisan: 'Bruno Tavares',
     type: 'Vistoria técnica',
-    description: 'Vistoria trimestral das partes comuns — verificação de extintores, sinalética e iluminação de emergência.',
+    description: 'Vistoria trimestral das partes comuns — verificação de extintores, sinalética e iluminação de emergência. Vistoria agendada pelo gabinete a pedido da Administração.',
     priorite: 'normale',
     statut: 'en_cours',
     dateCreation: daysAgo(5),
     dateIntervention: daysAhead(2),
     dureeIntervention: '2 horas',
+    demandeurNom: 'Helena Carvalho',
+    demandeurRole: 'technicien',
   },
   {
     id: 'pt-mis-017',
@@ -646,6 +731,8 @@ export const SEED_PT_MISSOES: Mission[] = [
     statut: 'en_attente',
     dateCreation: daysAgo(2),
     dateIntervention: daysAhead(5),
+    demandeurNom: 'Helena Carvalho',
+    demandeurRole: 'technicien',
   },
 ]
 
@@ -867,6 +954,95 @@ export function seedSyndicPtDemoIfEmpty(userId: string, locale: string): SeedRes
     console.warn('[seed-syndic-pt] failed:', e)
     return { seeded: false, reason: 'localStorage-error' }
   }
+}
+
+// ─── Seed côté Supabase : injecte les missions PT en base ────────────────────
+// Sans ça, le dashboard fetch /api/syndic/missions, ne trouve rien, et
+// l'utilisateur ne voit que ce qui reste en localStorage — qui se fait écraser
+// par la réponse vide de Supabase.
+
+interface SupabaseMissionInsert {
+  immeuble: string
+  artisan: string
+  type: string
+  description: string
+  priorite: 'normale' | 'urgente'
+  statut: 'en_attente' | 'en_cours' | 'terminee' | 'annulee'
+  dateCreation: string
+  dateIntervention?: string
+  montantDevis?: number
+  batiment?: string
+  etage?: string
+  numLot?: string
+  locataire?: string
+  demandeurNom?: string
+  demandeurRole?: 'coproprio' | 'locataire' | 'technicien'
+}
+
+/**
+ * Mappe une mission seed (qui utilise les enums du frontend, ex. 'planifiee',
+ * 'acceptee') vers ce que la validation Zod de l'API accepte.
+ */
+function adaptMissionForSupabase(m: Mission): SupabaseMissionInsert {
+  // Schema accepte: 'basse' | 'normale' | 'haute' | 'urgente' — 'planifiee' n'existe pas
+  const priorite: 'normale' | 'urgente' = m.priorite === 'urgente' ? 'urgente' : 'normale'
+  // Schema accepte: 'en_attente' | 'en_cours' | 'terminee' | 'annulee' — pas 'acceptee'
+  const statut: SupabaseMissionInsert['statut'] = m.statut === 'acceptee' ? 'en_cours' : m.statut
+  return {
+    immeuble: m.immeuble,
+    artisan: m.artisan,
+    type: m.type,
+    description: m.description,
+    priorite,
+    statut,
+    dateCreation: m.dateCreation.slice(0, 10),
+    dateIntervention: m.dateIntervention?.slice(0, 10),
+    montantDevis: m.montantDevis,
+    batiment: m.batiment,
+    etage: m.etage,
+    numLot: m.numLot,
+    locataire: m.locataire,
+    demandeurNom: m.demandeurNom,
+    demandeurRole: m.demandeurRole,
+  }
+}
+
+/**
+ * Injecte les missions PT démo dans Supabase si le cabinet PT n'en a aucune.
+ * Idempotent via flag localStorage `fixit_seed_pt_supabase_v1_${uid}`.
+ * Retourne les missions effectivement insérées (avec UUID Supabase) pour
+ * que le dashboard les affiche immédiatement sans avoir besoin de re-fetch.
+ */
+export async function seedSyndicPtMissionsToSupabaseIfEmpty(
+  userId: string,
+  token: string,
+): Promise<Mission[]> {
+  if (typeof window === 'undefined' || !userId || !token) return []
+  const flagKey = `fixit_seed_pt_supabase_v1_${userId}`
+  if (localStorage.getItem(flagKey)) return []
+
+  const created: Mission[] = []
+  for (const seed of SEED_PT_MISSOES) {
+    try {
+      const res = await fetch('/api/syndic/missions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(adaptMissionForSupabase(seed)),
+      })
+      if (!res.ok) continue
+      const { mission } = await res.json()
+      if (mission?.id) {
+        // Reconstruit la mission au format frontend en gardant les champs riches
+        // du seed (rapport, durée, etc.) qu'on ne POST pas mais qu'on veut afficher.
+        created.push({
+          ...seed,
+          id: mission.id as string,
+        })
+      }
+    } catch { /* silencieux */ }
+  }
+  if (created.length > 0) localStorage.setItem(flagKey, '1')
+  return created
 }
 
 /**
