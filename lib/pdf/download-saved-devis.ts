@@ -17,6 +17,7 @@ import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
+import { buildDocumentLines } from '@/lib/devis-totals'
 
 interface SavedDevis {
   id?: string
@@ -305,38 +306,22 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 // ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
 async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   const { locale, t, artisan } = ctx
+  // Pas de re-construction locale des collections sommées : la source
+  // unique de vérité est `buildDocumentLines` (lib/devis-totals.ts). Elle
+  // applique les règles communes (laborLines > lines, masquage
+  // materialLines/fraisLines si leur flag Enabled === false, aplatissement
+  // customTables, filtres null-safe). Tout site qui sommait à la main
+  // pouvait diverger — régression DEV-2026-005 (+2 800 € phantom).
+  const sourceLines = buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0]) as ProductLine[]
+  // Champs encore référencés par le payload V3 (sections rendues, noms,
+  // flags) — réutilisés tels quels pour respecter la forme attendue par
+  // `generateDevisPdfV3`.
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
   const laborLinesRaw = (doc.laborLines as ProductLine[]) || []
   const fraisLines = ((doc as Record<string, unknown>).fraisLines as ProductLine[]) || []
   const customTables = ((doc as Record<string, unknown>).customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) || []
-  const customLines = customTables.flatMap(t => t.lines || [])
-
-  // CORRIGE le bug introduit par H5 (audit interne 04/05/2026) :
-  // Dans le BTP form `buildPayload`, `lines` n'est PAS une union — c'est la
-  // section principale "Main d'œuvre" (renommée DÉMOLITION dans certains cas).
-  // `laborLines` n'est généralement pas dans le storage (pas dans buildPayload).
-  // Donc :
-  //   - laborLines (storage explicite) priorité 1
-  //   - sinon `lines` agit comme labor section (legacy + actuel BTP)
-  // PUIS sommer materialLines + fraisLines + customLines en plus (jamais l'union).
-  // Avant ce fix : `lines` était IGNORÉ quand customTables existaient → la
-  // section DÉMOLITION disparaissait du PDF (5 272,73 € manquants sur Adeline).
   const labor = laborLinesRaw.length > 0 ? laborLinesRaw : lines
-  // Respect des flags Enabled — `devis-pdf-v3.ts:1109,1112` filtre déjà ces
-  // sections quand `materialLinesEnabled === false` / `fraisLinesEnabled
-  // === false` pour le rendu des lignes. Sans le même filtre ici, des lignes
-  // « phantom » survivant dans la donnée (ex : section masquée non vidée)
-  // étaient sommées dans `subtotalHT` alors qu'elles n'apparaissaient pas
-  // dans le tableau du PDF — total final divergeant de la somme visible.
-  const materialEnabled = (doc as { materialLinesEnabled?: boolean }).materialLinesEnabled !== false
-  const fraisEnabled = (doc as { fraisLinesEnabled?: boolean }).fraisLinesEnabled !== false
-  const sourceLines = [
-    ...labor,
-    ...(materialEnabled ? materialLines : []),
-    ...(fraisEnabled ? fraisLines : []),
-    ...customLines,
-  ]
   // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
   const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false

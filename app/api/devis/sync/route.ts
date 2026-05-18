@@ -4,7 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, devisSyncSchema, canTransition } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { computeDocumentTotalHtCents } from '@/lib/devis-totals'
+import { computeDocumentTotalHtCents, buildDocumentLines } from '@/lib/devis-totals'
 import { computeTva, type TvaRegime, type TvaLineInput } from '@/lib/tva-calculator'
 import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
@@ -131,17 +131,11 @@ export async function POST(request: NextRequest) {
   const totalHtCents = computeDocumentTotalHtCents(doc as Record<string, unknown>)
 
   const docRec = doc as Record<string, unknown>
-  // Sections BTP masquées : si materialLinesEnabled/fraisLinesEnabled === false,
-  // exclure leurs lignes de la TVA et du total. Sinon `total_tax_cents` et
-  // les agrégats côté liste divergent du RÉSUMÉ affiché dans le formulaire.
-  const matEnabled = docRec.materialLinesEnabled !== false
-  const fraisEnabled = docRec.fraisLinesEnabled !== false
-  const items = [
-    ...((docRec.lines as unknown[]) || []),
-    ...(matEnabled ? ((docRec.materialLines as unknown[]) || []) : []),
-    ...(fraisEnabled ? ((docRec.fraisLines as unknown[]) || []) : []),
-    ...((docRec.fraisAnnexes as unknown[]) || []),
-  ]
+  // Source unique de vérité : `buildDocumentLines` applique le filtrage
+  // canonique des sections masquées (materialLinesEnabled/fraisLinesEnabled),
+  // le fallback laborLines → lines, et l'aplatissement customTables avec
+  // garde null-safe. Aucune sommation à la main ici — invariant garanti.
+  const items = buildDocumentLines(docRec as Parameters<typeof buildDocumentLines>[0]) as unknown[]
   const fraisAnnexes =
     (docRec.fraisAnnexes as unknown[])?.length
       ? docRec.fraisAnnexes
