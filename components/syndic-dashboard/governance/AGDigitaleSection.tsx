@@ -489,38 +489,38 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
     setPvPdfLoading(false)
   }
 
-  const STATUS_COLORS: Record<string, string> = { brouillon: 'bg-[#F7F4EE] text-gray-700', convoquée: 'bg-blue-100 text-blue-700', en_cours: 'bg-orange-100 text-orange-700', clôturée: 'bg-green-100 text-green-700' }
+  const STATUS_COLORS: Record<string, string> = { brouillon: 'bg-[#F7F4EE] text-gray-700', convoquée: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]', en_cours: 'bg-orange-100 text-orange-700', clôturée: 'bg-green-100 text-green-700' }
   const RES_COLORS: Record<string, string> = { en_cours: 'bg-orange-100 text-orange-700', adoptée: 'bg-green-100 text-green-700', rejetée: 'bg-red-100 text-red-700' }
 
   if (loading) {
     return (
       <div className="animate-fadeIn flex items-center justify-center p-12">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#C9A84C]"></div>
       </div>
     )
   }
 
   return (
     <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-blue-500 shadow-sm flex justify-between items-center">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b border-[#E4DDD0] flex justify-between items-center">
         <div><h1 className="text-2xl font-semibold">🏛️ {t('syndicDash.ag.title')}</h1><p className="text-sm text-gray-500">{t('syndicDash.ag.subtitle')}</p></div>
-        <button onClick={() => setShowNewAG(true)} disabled={saving} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition shadow-sm disabled:opacity-60">{t('syndicDash.ag.newAG')}</button>
+        <button onClick={() => setShowNewAG(true)} disabled={saving} className="bg-[#0D1B2E] text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#152338] transition shadow-sm disabled:opacity-60">{t('syndicDash.ag.newAG')}</button>
       </div>
 
       {!activeAG ? (
         <div className="p-6 lg:p-8">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">{t('syndicDash.ag.totalAG')}</div><div className="text-3xl font-bold text-blue-600">{ags.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{t('syndicDash.ag.totalAG')}</div><div className="text-3xl font-bold text-[#0D1B2E]">{ags.length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-orange-400"><div className="text-sm text-gray-500">{t('syndicDash.ag.inProgress')}</div><div className="text-3xl font-bold text-[#C9A84C]">{ags.filter(a => a.statut === 'en_cours').length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{t('syndicDash.ag.closed')}</div><div className="text-3xl font-bold text-green-600">{ags.filter(a => a.statut === 'clôturée').length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{t('syndicDash.ag.totalResolutions')}</div><div className="text-3xl font-bold text-[#C9A84C]">{ags.reduce((s, a) => s + a.resolutions.length, 0)}</div></div>
           </div>
           {ags.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-6xl mb-4">🏛️</div><h3 className="text-xl font-bold mb-2">{t('syndicDash.ag.noAG')}</h3><p className="text-gray-500 mb-6">{t('syndicDash.ag.noAGDesc')}</p><button onClick={() => setShowNewAG(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700">{t('syndicDash.ag.createFirstAG')}</button></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-6xl mb-4">🏛️</div><h3 className="text-xl font-bold mb-2">{t('syndicDash.ag.noAG')}</h3><p className="text-gray-500 mb-6">{t('syndicDash.ag.noAGDesc')}</p><button onClick={() => setShowNewAG(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">{t('syndicDash.ag.createFirstAG')}</button></div>
           ) : (
             <div className="space-y-4">
               {ags.map(ag => (
-                <div key={ag.id} onClick={async () => { const detailed = await loadAGDetails(ag.id); setActiveAG(detailed || ag); setActiveTab('details') }} className="bg-white rounded-2xl shadow-sm p-6 cursor-pointer hover:shadow-md transition hover:border-blue-200 border-2 border-transparent">
+                <div key={ag.id} onClick={async () => { const detailed = await loadAGDetails(ag.id); setActiveAG(detailed || ag); setActiveTab('details') }} className="bg-white rounded-2xl shadow-sm p-6 cursor-pointer hover:shadow-md transition hover:border-[#E4DDD0] border-2 border-transparent">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap"><h3 className="font-bold text-lg">{ag.titre}</h3><span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[ag.statut]}`}>{ag.statut}</span><span className="bg-[#F7F4EE] text-gray-600 px-2 py-1 rounded-full text-xs">{ag.type}</span>{ag.signataireNom && <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">✍️ Signé</span>}</div>
@@ -535,14 +535,14 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
         </div>
       ) : (
         <div className="p-6 lg:p-8">
-          <button onClick={() => setActiveAG(null)} className="flex items-center gap-2 text-blue-600 hover:underline mb-6 font-semibold">{t('syndicDash.ag.backToList')}</button>
+          <button onClick={() => setActiveAG(null)} className="flex items-center gap-2 text-[#C9A84C] hover:underline mb-6 font-semibold">{t('syndicDash.ag.backToList')}</button>
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <h2 className="text-2xl font-bold">{activeAG.titre}</h2>
             <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[activeAG.statut]}`}>{activeAG.statut}</span>
             {activeAG.signataireNom && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">✍️ {t('syndicDash.ag.signedBy')} {activeAG.signataireNom}</span>}
           </div>
           <div className="flex gap-2 mb-6 flex-wrap">
-            {activeAG.statut === 'brouillon' && <button onClick={() => handleConvoquer(activeAG.id)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">📤 {t('syndicDash.ag.sendConvocations')}</button>}
+            {activeAG.statut === 'brouillon' && <button onClick={() => handleConvoquer(activeAG.id)} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#152338]">📤 {t('syndicDash.ag.sendConvocations')}</button>}
             {activeAG.statut === 'convoquée' && <button onClick={() => handleDemarrer(activeAG.id)} className="bg-[#C9A84C] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#C9A84C]">▶️ {t('syndicDash.ag.startAG')}</button>}
             {activeAG.statut === 'en_cours' && <button onClick={() => handleCloture(activeAG.id)} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-green-700">✅ {t('syndicDash.ag.closeAG')}</button>}
             {activeAG.statut === 'clôturée' && !activeAG.signataireNom && <button onClick={() => setShowSignature(true)} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#152338]">✍️ {t('syndicDash.ag.signPV')}</button>}
@@ -551,7 +551,7 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
 
           <div className="flex gap-1 mb-6 border-b overflow-x-auto">
             {(['details', 'votes', 'correspondance', 'pv'] as const).map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === tab ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'}`}>
+              <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === tab ? 'border-[#C9A84C] text-[#C9A84C]' : 'border-transparent text-gray-500'}`}>
                 {tab === 'details' ? `📋 ${t('syndicDash.ag.tabDetails')}` : tab === 'votes' ? `🗳️ ${t('syndicDash.ag.tabVotes')}` : tab === 'correspondance' ? `📮 ${t('syndicDash.ag.tabCorrespondance')}` : `📄 ${t('syndicDash.ag.tabPV')}`}
               </button>
             ))}
@@ -578,8 +578,8 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
                 </div>
                 {activeAG.statut === 'en_cours' && (
                   <div className="flex gap-2 mt-3">
-                    <input type="number" value={quorumInput} onChange={e => setQuorumInput(e.target.value)} placeholder={t('syndicDash.ag.tantToAdd')} className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-blue-500 outline-none" />
-                    <button onClick={async () => { const v = parseInt(quorumInput || '0'); if (v > 0) { const newPresents = (activeAG?.presents || 0) + v; if (getToken) await apiPatch({ action: 'update_ag', id: activeAG.id, presents: newPresents }); const u = ags.map(a => a.id === activeAG.id ? { ...a, presents: newPresents } : a); saveAGs(u); setActiveAG(u.find(a => a.id === activeAG.id) || null); setQuorumInput('') } }} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">{t('syndicDash.ag.add')}</button>
+                    <input type="number" value={quorumInput} onChange={e => setQuorumInput(e.target.value)} placeholder={t('syndicDash.ag.tantToAdd')} className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-[#C9A84C] outline-none" />
+                    <button onClick={async () => { const v = parseInt(quorumInput || '0'); if (v > 0) { const newPresents = (activeAG?.presents || 0) + v; if (getToken) await apiPatch({ action: 'update_ag', id: activeAG.id, presents: newPresents }); const u = ags.map(a => a.id === activeAG.id ? { ...a, presents: newPresents } : a); saveAGs(u); setActiveAG(u.find(a => a.id === activeAG.id) || null); setQuorumInput('') } }} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#152338]">{t('syndicDash.ag.add')}</button>
                   </div>
                 )}
               </div>
@@ -596,12 +596,12 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
                 <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
                   <h3 className="font-bold mb-4">{t('syndicDash.ag.newResolution')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input value={newResolution.titre} onChange={e => setNewResolution({...newResolution, titre: e.target.value})} placeholder={t('syndicDash.ag.resolutionTitle')} className="md:col-span-2 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm" />
-                    <select value={newResolution.majorite} onChange={e => setNewResolution({...newResolution, majorite: e.target.value as MajoriteType})} className="border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm">
+                    <input value={newResolution.titre} onChange={e => setNewResolution({...newResolution, titre: e.target.value})} placeholder={t('syndicDash.ag.resolutionTitle')} className="md:col-span-2 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none text-sm" />
+                    <select value={newResolution.majorite} onChange={e => setNewResolution({...newResolution, majorite: e.target.value as MajoriteType})} className="border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none text-sm">
                       {(Object.entries(MAJORITE_LABELS) as [MajoriteType, string][]).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
-                    <textarea value={newResDesc} onChange={e => setNewResDesc(e.target.value)} placeholder={t('syndicDash.ag.descriptionOptional')} rows={2} className="md:col-span-3 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm resize-none" />
-                    <button onClick={handleAddResolution} className="md:col-span-3 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">{t('syndicDash.ag.addResolution')}</button>
+                    <textarea value={newResDesc} onChange={e => setNewResDesc(e.target.value)} placeholder={t('syndicDash.ag.descriptionOptional')} rows={2} className="md:col-span-3 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none text-sm resize-none" />
+                    <button onClick={handleAddResolution} className="md:col-span-3 bg-[#0D1B2E] text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#152338]">{t('syndicDash.ag.addResolution')}</button>
                   </div>
                 </div>
               )}
@@ -618,7 +618,7 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
                           <div>
                             <h4 className="font-bold text-lg">{t('syndicDash.ag.resolution')} {i + 1} — {res.titre}</h4>
                             {res.description && <p className="text-sm text-gray-500 mt-1">{res.description}</p>}
-                            <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-full mt-1 inline-block">{MAJORITE_LABELS[res.majorite]}</span>
+                            <span className="text-xs text-[#C9A84C] font-semibold bg-[#F7F4EE] px-2 py-0.5 rounded-full mt-1 inline-block">{MAJORITE_LABELS[res.majorite]}</span>
                           </div>
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${RES_COLORS[res.statut]}`}>{res.statut}</span>
                         </div>
@@ -643,7 +643,7 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
                             <input type="number" min="0" placeholder={t('syndicDash.ag.for')} value={voteInputs[`${res.id}_pour`] || ''} onChange={e => setVoteInputs(p => ({...p, [`${res.id}_pour`]: parseInt(e.target.value)||0}))} className="border-2 border-green-200 rounded-xl px-3 py-2 text-sm focus:border-green-500 outline-none" />
                             <input type="number" min="0" placeholder={t('syndicDash.ag.against')} value={voteInputs[`${res.id}_contre`] || ''} onChange={e => setVoteInputs(p => ({...p, [`${res.id}_contre`]: parseInt(e.target.value)||0}))} className="border-2 border-red-200 rounded-xl px-3 py-2 text-sm focus:border-red-500 outline-none" />
                             <input type="number" min="0" placeholder={t('syndicDash.ag.abstention')} value={voteInputs[`${res.id}_abs`] || ''} onChange={e => setVoteInputs(p => ({...p, [`${res.id}_abs`]: parseInt(e.target.value)||0}))} className="border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-gray-400 outline-none" />
-                            <button onClick={() => handleVoteSeance(res.id)} className="col-span-3 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">🗳️ {t('syndicDash.ag.validateSessionVote')}</button>
+                            <button onClick={() => handleVoteSeance(res.id)} className="col-span-3 bg-[#0D1B2E] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#152338]">🗳️ {t('syndicDash.ag.validateSessionVote')}</button>
                           </div>
                         )}
                       </div>
@@ -656,8 +656,8 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
 
           {activeTab === 'correspondance' && (
             <div>
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
-                <p className="text-sm text-blue-800"><strong>📮 {t('syndicDash.ag.tabCorrespondance')}</strong> — {t('syndicDash.ag.corrVoteInfo')}</p>
+              <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-4 mb-6">
+                <p className="text-sm text-[#0D1B2E]"><strong>📮 {t('syndicDash.ag.tabCorrespondance')}</strong> — {t('syndicDash.ag.corrVoteInfo')}</p>
               </div>
               {activeAG.resolutions.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-500">{t('syndicDash.ag.noResolutionCorr')}</div>
@@ -668,7 +668,7 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
                       <div className="flex justify-between items-center mb-3">
                         <div>
                           <h4 className="font-bold">{t('syndicDash.ag.resolution')} {i+1} — {res.titre}</h4>
-                          <span className="text-xs text-blue-600">{MAJORITE_LABELS[res.majorite]}</span>
+                          <span className="text-xs text-[#C9A84C]">{MAJORITE_LABELS[res.majorite]}</span>
                         </div>
                         {(activeAG.statut === 'convoquée' || activeAG.statut === 'en_cours') && (
                           <button onClick={() => setShowVoteCorr(res)} className="bg-[#0D1B2E] text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#152338]">{t('syndicDash.ag.registerCorrVote')}</button>
@@ -749,22 +749,22 @@ Hash : ${typeof btoa !== 'undefined' ? btoa(activeAG.id + activeAG.signataireNom
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b"><h2 className="text-xl font-bold">🏛️ {t('syndicDash.ag.newAGTitle')}</h2></div>
             <div className="p-6 space-y-4">
-              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.titleLabel')}</label><input value={agForm.titre} onChange={e => setAgForm({...agForm, titre: e.target.value})} placeholder={t('syndicDash.ag.titlePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
-              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.buildingLabel')}</label><input value={agForm.immeuble} onChange={e => setAgForm({...agForm, immeuble: e.target.value})} placeholder={t('syndicDash.ag.buildingPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.titleLabel')}</label><input value={agForm.titre} onChange={e => setAgForm({...agForm, titre: e.target.value})} placeholder={t('syndicDash.ag.titlePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.buildingLabel')}</label><input value={agForm.immeuble} onChange={e => setAgForm({...agForm, immeuble: e.target.value})} placeholder={t('syndicDash.ag.buildingPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.dateLabel')}</label><input type="datetime-local" value={agForm.date} onChange={e => setAgForm({...agForm, date: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.typeLabel')}</label><select value={agForm.type} onChange={e => setAgForm({...agForm, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none"><option value="ordinaire">{t('syndicDash.ag.typeOrdinaire')}</option><option value="extraordinaire">{t('syndicDash.ag.typeExtraordinaire')}</option></select></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.dateLabel')}</label><input type="datetime-local" value={agForm.date} onChange={e => setAgForm({...agForm, date: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.typeLabel')}</label><select value={agForm.type} onChange={e => setAgForm({...agForm, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none"><option value="ordinaire">{t('syndicDash.ag.typeOrdinaire')}</option><option value="extraordinaire">{t('syndicDash.ag.typeExtraordinaire')}</option></select></div>
               </div>
-              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.locationLabel')}</label><input value={agForm.lieu} onChange={e => setAgForm({...agForm, lieu: e.target.value})} placeholder={t('syndicDash.ag.locationPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.locationLabel')}</label><input value={agForm.lieu} onChange={e => setAgForm({...agForm, lieu: e.target.value})} placeholder={t('syndicDash.ag.locationPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.quorumPercent')}</label><input type="number" value={agForm.quorum} onChange={e => setAgForm({...agForm, quorum: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.totalTantiemes')}</label><input type="number" value={agForm.totalTantiemes} onChange={e => setAgForm({...agForm, totalTantiemes: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.quorumPercent')}</label><input type="number" value={agForm.quorum} onChange={e => setAgForm({...agForm, quorum: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.totalTantiemes')}</label><input type="number" value={agForm.totalTantiemes} onChange={e => setAgForm({...agForm, totalTantiemes: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
               </div>
-              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.agendaLabel')}</label><textarea value={agForm.odj} onChange={e => setAgForm({...agForm, odj: e.target.value})} rows={5} placeholder={t('syndicDash.ag.agendaPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none resize-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.ag.agendaLabel')}</label><textarea value={agForm.odj} onChange={e => setAgForm({...agForm, odj: e.target.value})} rows={5} placeholder={t('syndicDash.ag.agendaPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none resize-none" /></div>
             </div>
             <div className="p-6 border-t flex gap-3">
               <button onClick={() => setShowNewAG(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-[#F7F4EE]">{t('syndicDash.ag.cancel')}</button>
-              <button onClick={handleCreateAG} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">{t('syndicDash.ag.createAG')}</button>
+              <button onClick={handleCreateAG} className="flex-1 py-2.5 bg-[#0D1B2E] text-white rounded-xl font-semibold hover:bg-[#152338]">{t('syndicDash.ag.createAG')}</button>
             </div>
           </div>
         </div>

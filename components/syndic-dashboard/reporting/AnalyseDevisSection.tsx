@@ -611,17 +611,17 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                 <h2 className="text-lg font-bold text-[#0D1B2E]">
                   📊 {isPt ? 'Resultado' : 'Résultat'} {filename && <span className="font-normal text-gray-500 text-base">— {filename}</span>}
                 </h2>
-                <button onClick={handleReset} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">
+                <button onClick={handleReset} className="text-sm text-[#C9A84C] hover:text-[#B8963D] font-semibold">
                   ← {isPt ? 'Nova análise' : 'Nouvelle analyse'}
                 </button>
               </div>
 
               {/* Carte récap extraite + bouton mission */}
               {extracted && (extracted.artisan_nom || extracted.description_travaux) && (
-                <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] border border-blue-200 rounded-2xl p-5">
+                <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">{isPt ? 'Informações extraídas automaticamente' : 'Informations extraites automatiquement'}</p>
+                      <p className="text-xs font-semibold text-[#C9A84C] uppercase tracking-wide mb-2">{isPt ? 'Informações extraídas automaticamente' : 'Informations extraites automatiquement'}</p>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                         {extracted.artisan_nom && (
                           <div className="flex items-center gap-2">
@@ -661,7 +661,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                             <span className="text-gray-500">🚦</span>
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                               extracted.priorite === 'urgente' ? 'bg-red-100 text-red-700' :
-                              extracted.priorite === 'normale' ? 'bg-blue-100 text-blue-700' :
+                              extracted.priorite === 'normale' ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' :
                               'bg-[#F7F4EE] text-gray-600'
                             }`}>{isPt
                               ? (extracted.priorite === 'urgente' ? 'Urgente' : extracted.priorite === 'normale' ? 'Normal' : 'Planeada')
@@ -679,7 +679,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                       ) : (
                         <button
                           onClick={() => handleOpenMissionModal(extracted)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 shadow-sm"
+                          className="bg-[#0D1B2E] hover:bg-[#152338] text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 shadow-sm"
                         >
                           📋 {isPt ? 'Criar a missão' : 'Créer la mission'}
                         </button>
@@ -802,7 +802,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-xl font-medium text-sm transition"
                 >
                   🔍 {isPt ? 'Analisar outro' : 'Analyser un autre'}
                 </button>
@@ -815,7 +815,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
       {/* MODE HISTORIQUE */}
       {mode === 'history' && (
         <div className="space-y-4">
-          <button onClick={() => setMode('main')} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">← {isPt ? 'Voltar' : 'Retour'}</button>
+          <button onClick={() => setMode('main')} className="text-sm text-[#C9A84C] hover:text-[#B8963D] font-semibold">← {isPt ? 'Voltar' : 'Retour'}</button>
           {history.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
               <div className="text-4xl mb-3">📂</div>
@@ -824,7 +824,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
             </div>
           ) : selectedHistory ? (
             <div className="space-y-4">
-              <button onClick={() => setSelectedHistory(null)} className="text-sm text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+              <button onClick={() => setSelectedHistory(null)} className="text-sm text-[#C9A84C] hover:text-[#B8963D] font-semibold flex items-center gap-1">
                 ← {isPt ? 'Voltar ao histórico' : 'Retour à l\'historique'}
               </button>
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -860,7 +860,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <button onClick={() => setSelectedHistory(h.id)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">{isPt ? 'Ver →' : 'Voir →'}</button>
+                        <button onClick={() => setSelectedHistory(h.id)} className="text-sm text-[#C9A84C] hover:text-[#B8963D] font-medium">{isPt ? 'Ver →' : 'Voir →'}</button>
                       </td>
                     </tr>
                   ))}
@@ -915,8 +915,8 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
               </div>
 
               {/* Section localisation */}
-              <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">📍 {isPt ? 'Localização da intervenção' : 'Localisation de l\'intervention'}</p>
+              <div className="bg-[#F7F4EE] rounded-xl p-4 space-y-3">
+                <p className="text-xs font-bold text-[#C9A84C] uppercase tracking-wide">📍 {isPt ? 'Localização da intervenção' : 'Localisation de l\'intervention'}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Nome do edifício' : 'Nom de la résidence'} <span className="text-red-500">*</span></label>
@@ -1029,7 +1029,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
               <button
                 onClick={handleCreateMission}
                 disabled={missionCreating || !missionForm.artisan || !missionForm.description || !missionForm.immeuble}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
+                className="flex-1 bg-[#0D1B2E] hover:bg-[#152338] text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {missionCreating ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {isPt ? 'A criar...' : 'Création en cours...'}</>
