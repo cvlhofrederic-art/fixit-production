@@ -58,7 +58,7 @@ function ModuleSelector({
           {selectedModules.length} {locale === 'pt' ? 'módulo(s) ativado(s)' : `module${selectedModules.length > 1 ? 's' : ''} activé${selectedModules.length > 1 ? 's' : ''}`}
         </p>
         <div className="flex gap-2">
-          <button type="button" onClick={onSelectAll} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+          <button type="button" onClick={onSelectAll} className="text-xs text-[#C9A84C] hover:text-[#B8963D] hover:underline">
             {locale === 'pt' ? 'Ativar tudo' : 'Tout activer'}
           </button>
           <button type="button" onClick={onReset} className="text-xs text-[#C9A84C] hover:text-[#B8963D] hover:underline">
@@ -504,7 +504,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
                                 navigator.clipboard.writeText(url)
                                 toast.success(t('syndicDash.equipe.linkCopied'))
                               }}
-                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-200 hover:bg-blue-50 transition"
+                              className="text-xs text-[#C9A84C] hover:text-[#B8963D] px-2 py-1 rounded border border-[#E4DDD0] hover:bg-[#F7F4EE] transition"
                             >
                               {t('syndicDash.equipe.copyLink')}
                             </button>

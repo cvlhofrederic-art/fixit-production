@@ -129,7 +129,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
   }
 
   const STATUT_CONFIG = {
-    nouveau:      { label: isPt ? 'Novo'           : 'Nouveau',       color: 'bg-blue-100 text-blue-700' },
+    nouveau:      { label: isPt ? 'Novo'           : 'Nouveau',       color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
     traite:       { label: isPt ? 'Tratado'        : 'Traité',        color: 'bg-green-100 text-green-700' },
     archive:      { label: isPt ? 'Arquivado'      : 'Archivé',       color: 'bg-[#F7F4EE] text-gray-500' },
     mission_cree: { label: isPt ? 'Missão criada'  : 'Mission créée', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
@@ -188,7 +188,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
           {emails.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: isPt ? 'Por tratar' : 'Non traités', nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
+                { label: isPt ? 'Por tratar' : 'Non traités', nb: stats.nouveaux, emoji: '📬', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
                 { label: isPt ? 'Urgentes'   : 'Urgents',     nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-[#F7F4EE] border-gray-200' },
                 { label: isPt ? 'Tratados'   : 'Traités',     nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
                 { label: isPt ? 'Total'      : 'Total',       nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
@@ -264,7 +264,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                   <div key={email.id}
                     onClick={() => setSelectedEmail(email)}
                     className={`bg-white rounded-xl shadow-sm border-2 p-4 cursor-pointer hover:border-[#C9A84C] transition ${
-                      email.urgence === 'haute' && isNew ? 'border-red-200 bg-red-50/30' : isNew ? 'border-blue-100' : 'border-gray-100'
+                      email.urgence === 'haute' && isNew ? 'border-red-200 bg-red-50/30' : isNew ? 'border-[#E4DDD0]' : 'border-gray-100'
                     }`}>
                     <div className="flex items-start justify-between gap-3">
                       {/* Gauche */}
@@ -337,7 +337,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
                   { label: isPt ? 'Total analisados' : 'Total analysés',  nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
-                  { label: isPt ? 'Por tratar'       : 'Non traités',      nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
+                  { label: isPt ? 'Por tratar'       : 'Non traités',      nb: stats.nouveaux, emoji: '📬', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
                   { label: isPt ? '🔴 Urgentes'       : '🔴 Urgents',        nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-200' },
                   { label: isPt ? 'Tratados'         : 'Traités',          nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
                 ].map(s => (
@@ -453,13 +453,13 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               {selectedEmail.reponse_suggeree && selectedEmail.statut !== 'repondu' && (
                 <div>
                   <p className="text-xs font-bold text-gray-500 mb-2">{isPt ? '✉️ RASCUNHO DE RESPOSTA (gerado pelo Fixy)' : '✉️ BROUILLON DE RÉPONSE (généré par Fixy)'}</p>
-                  <div className="bg-blue-50 rounded-xl p-4 text-sm border border-blue-100">
+                  <div className="bg-[#F7F4EE] rounded-xl p-4 text-sm border border-[#E4DDD0]">
                     <textarea
                       value={draftResponse || selectedEmail.reponse_suggeree}
                       onChange={e => setDraftResponse(e.target.value)}
                       onFocus={() => { if (!draftResponse) setDraftResponse(selectedEmail.reponse_suggeree || '') }}
                       rows={6}
-                      className="w-full bg-white border border-blue-200 rounded-lg p-3 text-sm text-gray-700 resize-y focus:outline-none focus:border-blue-400"
+                      className="w-full bg-white border border-[#E4DDD0] rounded-lg p-3 text-sm text-gray-700 resize-y focus:outline-none focus:border-[#C9A84C]"
                       placeholder={isPt ? 'Edite o rascunho se necessário...' : 'Modifiez le brouillon si nécessaire...'}
                     />
                     <p className="text-[11px] text-gray-400 mt-1 mb-3">
