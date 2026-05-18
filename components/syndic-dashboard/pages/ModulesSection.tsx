@@ -212,12 +212,12 @@ export default function ModulesSection({
         })}
       </div>
 
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+      <div className="mt-6 bg-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-4">
         <div className="flex items-start gap-3">
           <span className="text-xl">💡</span>
           <div>
-            <div className="font-semibold text-blue-800 text-sm">{locale === 'pt' ? 'Dica' : 'Astuce'}</div>
-            <div className="text-xs text-blue-600 mt-0.5">{locale === 'pt' ? 'Os módulos desativados desaparecem da barra lateral mas permanecem acessíveis a qualquer momento. Os seus dados nunca são eliminados.' : 'Les modules désactivés disparaissent de la barre latérale mais restent accessibles à tout moment. Vos données ne sont jamais supprimées.'}</div>
+            <div className="font-semibold text-[#0D1B2E] text-sm">{locale === 'pt' ? 'Dica' : 'Astuce'}</div>
+            <div className="text-xs text-[#C9A84C] mt-0.5">{locale === 'pt' ? 'Os módulos desativados desaparecem da barra lateral mas permanecem acessíveis a qualquer momento. Os seus dados nunca são eliminados.' : 'Les modules désactivés disparaissent de la barre latérale mais restent accessibles à tout moment. Vos données ne sont jamais supprimées.'}</div>
           </div>
         </div>
       </div>

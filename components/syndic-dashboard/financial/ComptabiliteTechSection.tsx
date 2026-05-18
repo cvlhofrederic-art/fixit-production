@@ -128,7 +128,7 @@ export default function ComptabiliteTechSection({
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: isPt ? 'Intervenções' : 'Interventions', value: filteredMissions.length, icon: '📋', color: 'bg-blue-50 border-blue-100' },
+          { label: isPt ? 'Intervenções' : 'Interventions', value: filteredMissions.length, icon: '📋', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
           { label: isPt ? 'Concluídas'   : 'Terminées',     value: terminees, icon: '✅', color: 'bg-green-50 border-green-100' },
           { label: isPt ? 'Em curso'     : 'En cours',      value: enCours, icon: '⚙️', color: 'bg-yellow-50 border-yellow-100' },
           { label: isPt ? 'Montante total' : 'Montant total', value: `${totalMontant.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')} €`, icon: '💶', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
@@ -243,14 +243,14 @@ export default function ComptabiliteTechSection({
                     <td className="px-3 py-3 text-center">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                         m.priorite === 'urgente' ? 'bg-red-100 text-red-700' :
-                        m.priorite === 'planifiee' ? 'bg-blue-100 text-blue-700' :
+                        m.priorite === 'planifiee' ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' :
                         'bg-[#F7F4EE] text-gray-600'
                       }`}>{m.priorite}</span>
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                         m.statut === 'terminee' ? 'bg-green-100 text-green-700' :
-                        m.statut === 'en_cours' ? 'bg-blue-100 text-blue-700' :
+                        m.statut === 'en_cours' ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>{m.statut.replace('_', ' ')}</span>
                     </td>

@@ -104,8 +104,8 @@ export default function SignatureModal({ documentRef, signataire, onClose, onSig
           <button onClick={onClose} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-          <p className="text-xs text-blue-700">📄 {locale === 'pt' ? 'Documento' : 'Document'} : <span className="font-semibold">{documentRef}</span></p>
+        <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-3 mb-4">
+          <p className="text-xs text-[#0D1B2E]">📄 {locale === 'pt' ? 'Documento' : 'Document'} : <span className="font-semibold">{documentRef}</span></p>
         </div>
 
         <div className="mb-3">

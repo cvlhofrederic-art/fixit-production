@@ -488,7 +488,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className="font-bold">{c.type}</h3>
                           <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUT_CONTRAT_COLORS[c.statut]}`}>{c.statut === 'actif' ? '✅ Actif' : c.statut === 'renouvellement' ? '🔄 À renouveler' : '⛔ Résilié'}</span>
-                          {c.reconduction && <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">♾️ Recond. tacite</span>}
+                          {c.reconduction && <span className="px-2 py-0.5 rounded-full text-xs bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]">♾️ Recond. tacite</span>}
                         </div>
                         <div className="flex gap-3 text-sm text-gray-500 flex-wrap">
                           <span>👷 {c.prestataire}</span>

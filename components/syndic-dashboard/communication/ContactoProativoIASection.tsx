@@ -208,7 +208,7 @@ const formatEur = (n: number) =>
 const TIPO_LABELS: Record<TipoCampanha, { label: string; icon: string; color: string }> = {
   cobranca: { label: 'Cobrança', icon: '💸', color: 'bg-red-100 text-red-700' },
   aviso_obras: { label: 'Aviso Obras', icon: '🏗️', color: 'bg-amber-100 text-amber-700' },
-  convocatoria_ag: { label: 'Convocatória AG', icon: '🏛️', color: 'bg-purple-100 text-purple-700' },
+  convocatoria_ag: { label: 'Convocatória AG', icon: '🏛️', color: 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]' },
   boas_vindas: { label: 'Boas-vindas', icon: '👋', color: 'bg-green-100 text-green-700' },
   relatorio_mensal: { label: 'Relatório Mensal', icon: '📊', color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
   alerta_consumo: { label: 'Alerta Consumo', icon: '⚠️', color: 'bg-orange-100 text-orange-700' },

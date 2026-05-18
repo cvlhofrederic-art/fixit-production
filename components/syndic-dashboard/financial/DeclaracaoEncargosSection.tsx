@@ -41,7 +41,7 @@ const ESTADOS: Record<EstadoDeclaracao, { label: string; icon: string; badge: st
   pendente:         { label: 'Pendente',          icon: '⏳', badge: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-400' },
   emitida:          { label: 'Emitida',           icon: '📄', badge: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]',     dot: 'bg-[#C9A84C]'   },
   entregue:         { label: 'Entregue',          icon: '✅', badge: 'bg-green-50 text-green-700 border-green-200',  dot: 'bg-green-400'  },
-  venda_concluida:  { label: 'Venda concluída',   icon: '🏠', badge: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-400' },
+  venda_concluida:  { label: 'Venda concluída',   icon: '🏠', badge: 'bg-[#F7F4EE] text-[#C9A84C] border-[#E4DDD0]', dot: 'bg-[#C9A84C]' },
 }
 
 const formatEur = (n: number) =>
@@ -336,7 +336,7 @@ export default function DeclaracaoEncargosSection({ user, userRole }: { user: { 
                         <button onClick={() => updateEstado(decl, 'entregue')} className="text-xs bg-green-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-green-700 transition-colors">✅ Marcar como entregue</button>
                       )}
                       {(decl.estado === 'entregue') && (
-                        <button onClick={() => updateEstado(decl, 'venda_concluida')} className="text-xs bg-purple-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-purple-700 transition-colors">🏠 Venda concluída</button>
+                        <button onClick={() => updateEstado(decl, 'venda_concluida')} className="text-xs bg-[#C9A84C] text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-[#B8963D] transition-colors">🏠 Venda concluída</button>
                       )}
                       <button onClick={() => openEdit(decl)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-200 transition-colors">✏️ Editar</button>
                       <button onClick={() => window.print()} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-200 transition-colors">🖨️ Imprimir</button>
