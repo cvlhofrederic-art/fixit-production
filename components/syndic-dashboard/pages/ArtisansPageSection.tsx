@@ -256,7 +256,7 @@ export default function ArtisansPageSection({
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-bold text-gray-900">{a.nom}</h3>
                         {certifie && <span className="text-xs bg-[#FFC107] text-gray-900 px-2 py-0.5 rounded-full font-bold">⚡ {locale === 'pt' ? 'Certificado' : 'Certifié'}</span>}
-                        {a.compte_existant && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">🔗 {locale === 'pt' ? 'Sincronizado' : 'Synchronisé'}</span>}
+                        {a.compte_existant && <span className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-2 py-0.5 rounded-full font-bold">🔗 {locale === 'pt' ? 'Sincronizado' : 'Synchronisé'}</span>}
                       </div>
                       <p className="text-sm text-gray-500">{a.metier}</p>
                     </div>
@@ -458,7 +458,7 @@ export default function ArtisansPageSection({
                       </button>
                     </div>
                     {artisanSearchResult && (
-                      <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-blue-50 border border-blue-200 text-blue-800' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
+                      <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-[#F7F4EE] border border-[#E4DDD0] text-[#0D1B2E]' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
                         {artisanSearchResult.found
                           ? <>✅ {locale === 'pt' ? 'Conta Vitfix encontrada' : 'Compte Vitfix trouvé'} — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? (locale === 'pt' ? 'profissional certificado' : 'artisan certifié') : artisanSearchResult.role})<br/><span className="text-xs">{locale === 'pt' ? 'Será sincronizado com o seu gabinete.' : 'Il sera synchronisé avec votre cabinet.'}</span></>
                           : <>{locale === 'pt' ? '⚠️ Nenhuma conta Vitfix. Pode criar uma conta de profissional ou adicioná-lo sem conta.' : '⚠️ Aucun compte Vitfix. Vous pouvez créer un compte artisan ou l\'ajouter sans compte.'}</>

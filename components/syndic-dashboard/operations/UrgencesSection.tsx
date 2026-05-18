@@ -66,8 +66,8 @@ const getNiveaux = (isPt: boolean): Record<NiveauUrgence, { label: string; badge
 const getStatuts = (isPt: boolean): Record<StatutUrgence, { label: string; icon: string; color: string }> => ({
   signale:           { label: isPt ? 'Reportado'              : 'Signalé',              icon: '📣', color: 'text-red-600'    },
   artisan_contacte:  { label: isPt ? 'Profissional contactado': 'Artisan contacté',     icon: '📞', color: 'text-orange-600' },
-  artisan_en_route:  { label: isPt ? 'Profissional a caminho' : 'Artisan en route',     icon: '🚗', color: 'text-blue-600'   },
-  en_cours:          { label: isPt ? 'Intervenção em curso'   : 'Intervention en cours', icon: '🔧', color: 'text-purple-600' },
+  artisan_en_route:  { label: isPt ? 'Profissional a caminho' : 'Artisan en route',     icon: '🚗', color: 'text-[#C9A84C]'   },
+  en_cours:          { label: isPt ? 'Intervenção em curso'   : 'Intervention en cours', icon: '🔧', color: 'text-[#C9A84C]' },
   resolu:            { label: isPt ? 'Resolvida'              : 'Résolu',                icon: '✅', color: 'text-green-600'  },
 })
 
@@ -357,7 +357,7 @@ export default function UrgencesSection({
                       <div className="bg-white/60 rounded-lg px-2 py-1.5 text-xs">
                         <p className="font-semibold text-gray-900">🔧 {urgence.artisanNom}</p>
                         {urgence.artisanTelephone && (
-                          <a href={`tel:${urgence.artisanTelephone}`} onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline">
+                          <a href={`tel:${urgence.artisanTelephone}`} onClick={e => e.stopPropagation()} className="text-[#C9A84C] hover:underline">
                             {urgence.artisanTelephone}
                           </a>
                         )}
@@ -392,7 +392,7 @@ export default function UrgencesSection({
                     {(urgence.signalePar || urgence.telephone) && (
                       <div className="grid grid-cols-2 gap-3 bg-white/50 rounded-xl p-3">
                         {urgence.signalePar && <div><p className="text-xs text-gray-400">{isPt ? 'Reportado por' : 'Signalé par'}</p><p className="text-sm font-semibold">{urgence.signalePar}</p></div>}
-                        {urgence.telephone && <div><p className="text-xs text-gray-400">{isPt ? 'Telefone' : 'Téléphone'}</p><a href={`tel:${urgence.telephone}`} className="text-sm font-semibold text-blue-600">{urgence.telephone}</a></div>}
+                        {urgence.telephone && <div><p className="text-xs text-gray-400">{isPt ? 'Telefone' : 'Téléphone'}</p><a href={`tel:${urgence.telephone}`} className="text-sm font-semibold text-[#C9A84C]">{urgence.telephone}</a></div>}
                       </div>
                     )}
 
@@ -415,7 +415,7 @@ export default function UrgencesSection({
                                   <p className="text-xs text-gray-500">{a.metier}</p>
                                 </div>
                                 {isMatch && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{isPt ? 'Recomendado' : 'Recommandé'}</span>}
-                                <a href={`tel:${a.telephone}`} onClick={e => e.stopPropagation()} className="text-blue-600 text-xs hover:underline">{a.telephone}</a>
+                                <a href={`tel:${a.telephone}`} onClick={e => e.stopPropagation()} className="text-[#C9A84C] text-xs hover:underline">{a.telephone}</a>
                               </button>
                             )
                           })}

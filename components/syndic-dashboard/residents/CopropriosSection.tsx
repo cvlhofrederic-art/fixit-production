@@ -558,7 +558,7 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
             {/* ══ STEP 1: Upload ══ */}
             {importStep === 'upload' && (
               <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-4 text-sm text-[#0D1B2E]">
                   <p className="font-semibold mb-1">{locale === 'pt' ? 'Formatos suportados' : 'Formats supportés'}</p>
                   <ul className="list-disc list-inside text-xs space-y-0.5">
                     <li>{locale === 'pt' ? 'CSV Gecond completo (42 colunas)' : 'CSV Gecond complet (42 colonnes)'}</li>
@@ -615,8 +615,8 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
                     <div className="text-xl font-bold text-green-700">{importParseResult.stats.withOwner}</div>
                     <div className="text-xs text-gray-500">{locale === 'pt' ? 'c/ proprietário' : 'avec proprio'}</div>
                   </div>
-                  <div className="bg-blue-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-blue-700">{importParseResult.stats.withTenant}</div>
+                  <div className="bg-[#F7F4EE] rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-[#0D1B2E]">{importParseResult.stats.withTenant}</div>
                     <div className="text-xs text-gray-500">{locale === 'pt' ? 'c/ inquilino' : 'avec locataire'}</div>
                   </div>
                   <div className="bg-amber-50 rounded-xl p-3 text-center">

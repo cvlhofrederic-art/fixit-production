@@ -324,12 +324,12 @@ export function getRoleLabel(role: string, locale?: string): string {
 
 export const ROLE_COLORS: Record<string, string> = {
   syndic_admin: 'bg-[#F7F4EE] text-[#0D1B2E]',
-  syndic_tech: 'bg-blue-100 text-blue-800',
-  syndic_technicien: 'bg-indigo-100 text-indigo-800',
+  syndic_tech: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',
+  syndic_technicien: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',
   syndic_secretaire: 'bg-green-100 text-green-800',
   syndic_gestionnaire: 'bg-yellow-100 text-yellow-800',
   syndic_comptable: 'bg-orange-100 text-orange-800',
-  syndic_juriste: 'bg-purple-100 text-purple-800',
+  syndic_juriste: 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]',
 }
 
 export const ROLE_EMOJIS_TEAM: Record<string, string> = {
@@ -344,11 +344,11 @@ export const ROLE_EMOJIS_TEAM: Record<string, string> = {
 
 export const TYPE_EMAIL_CONFIG: Record<string, { emoji: string; label: string; color: string }> = {
   signalement_panne: { emoji: '🔧', label: 'Signalement panne', color: 'bg-orange-100 text-orange-700' },
-  demande_devis:     { emoji: '📝', label: 'Demande devis',      color: 'bg-blue-100 text-blue-700' },
+  demande_devis:     { emoji: '📝', label: 'Demande devis',      color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
   reclamation:       { emoji: '⚠️', label: 'Réclamation',        color: 'bg-red-100 text-red-700' },
   ag:                { emoji: '🔑', label: 'Assemblée générale', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
   facturation:       { emoji: '💶', label: 'Facturation',        color: 'bg-green-100 text-green-700' },
-  resiliation:       { emoji: '📤', label: 'Résiliation',        color: 'bg-pink-100 text-pink-700' },
+  resiliation:       { emoji: '📤', label: 'Résiliation',        color: 'bg-red-100 text-red-700' },
   information:       { emoji: 'ℹ️', label: 'Information',        color: 'bg-[#F7F4EE] text-gray-600' },
   autre:             { emoji: '📄', label: 'Autre',              color: 'bg-[#F7F4EE] text-gray-500' },
 }
@@ -357,9 +357,9 @@ export const TYPE_DOC_CONFIG: Record<TypeDocument, { emoji: string; label: strin
   rapport:    { emoji: '📋', label: 'Rapport intervention', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
   facture:    { emoji: '💶', label: 'Facture',              color: 'bg-green-100 text-green-700' },
   devis:      { emoji: '📝', label: 'Devis',                color: 'bg-amber-100 text-amber-700' },
-  contrat:    { emoji: '📜', label: 'Contrat',              color: 'bg-blue-100 text-blue-700' },
+  contrat:    { emoji: '📜', label: 'Contrat',              color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
   diagnostic: { emoji: '🏛️', label: 'Diagnostic légal',     color: 'bg-[#F7F4EE] text-[#C9A84C]' },
-  ag:         { emoji: '🔑', label: 'PV Assemblée',         color: 'bg-pink-100 text-pink-700' },
+  ag:         { emoji: '🔑', label: 'PV Assemblée',         color: 'bg-red-100 text-red-700' },
   plan:       { emoji: '🏗️', label: 'Plan / Carnet',        color: 'bg-orange-100 text-orange-700' },
   controle:   { emoji: '⚙️', label: 'Contrôle réglementaire', color: 'bg-red-100 text-red-700' },
   assurance:  { emoji: '🛡️', label: 'Assurance / RC Pro',   color: 'bg-teal-100 text-teal-700' },
@@ -367,7 +367,7 @@ export const TYPE_DOC_CONFIG: Record<TypeDocument, { emoji: string; label: strin
 }
 
 export const ECHEANCE_CONFIG: Record<TypeEcheance, { emoji: string; label: string; color: string }> = {
-  dpe:          { emoji: '🏷️', label: 'DPE',                     color: 'bg-blue-100 text-blue-700' },
+  dpe:          { emoji: '🏷️', label: 'DPE',                     color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
   ascenseur:    { emoji: '🛗', label: 'Contrôle ascenseur',       color: 'bg-orange-100 text-orange-700' },
   amiante:      { emoji: '⚠️', label: 'Diagnostic amiante',       color: 'bg-red-100 text-red-700' },
   plomb:        { emoji: '🔩', label: 'Diagnostic plomb (CREP)',  color: 'bg-[#F7F4EE] text-gray-700' },
@@ -375,7 +375,7 @@ export const ECHEANCE_CONFIG: Record<TypeEcheance, { emoji: string; label: strin
   electricite:  { emoji: '⚡', label: 'Contrôle électricité',     color: 'bg-[#F7F4EE] text-[#C9A84C]' },
   ag:           { emoji: '🔑', label: 'Assemblée Générale',       color: 'bg-[#F7F4EE] text-[#C9A84C]' },
   assurance:    { emoji: '🛡️', label: 'Renouvellement assurance', color: 'bg-teal-100 text-teal-700' },
-  ravalement:   { emoji: '🏗️', label: 'Ravalement façade',        color: 'bg-pink-100 text-pink-700' },
+  ravalement:   { emoji: '🏗️', label: 'Ravalement façade',        color: 'bg-red-100 text-red-700' },
   autre:        { emoji: '📋', label: 'Autre',                    color: 'bg-[#F7F4EE] text-gray-500' },
 }
 
