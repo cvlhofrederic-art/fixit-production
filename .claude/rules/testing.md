@@ -45,4 +45,4 @@ npm run test:e2e:ui       # Playwright UI mode
 - Config Playwright : `playwright.config.ts` (Chromium local, 1 worker en CI)
 
 ## Avant de toucher au Simulateur V2
-Lire en priorité les tests `simulateur-v2-*` — couverture dense, refléter tout changement par un test (TDD).
+Lire en priorité les tests `simulateur-v2-*` — couverture dense (la règle TDD est portée par le `CLAUDE.md` racine).
