@@ -6,7 +6,7 @@ import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
 import type { Conversation } from '@/lib/syndic/agent-types'
-import MaxConversationSidebar from './MaxConversationSidebar'
+import ConversationSidebar from '../agents-ia/ConversationSidebar'
 
 // ── Web Speech API : typage minimal ─────────────────────────────────────
 // La SpeechRecognition n'est pas dans les types DOM standard. On déclare
@@ -324,7 +324,7 @@ export default function MaxExpertSection({
 
   return (
     <div className="sd-mx-zone">
-      <MaxConversationSidebar
+      <ConversationSidebar
         conversations={conversations}
         activeId={maxConvId}
         onSelect={handleSelectConversation}

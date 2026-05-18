@@ -681,6 +681,15 @@ export default function SyndicDashboard() {
       // ── Noms des faux immeubles de démo — utilisés pour filtrer partout ──────
       const FAKE_BUILDING_NAMES = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
 
+      // ── Marqueurs de contamination FR à purger en locale PT (artisan, immeuble, type) ──
+      const FR_CONTAMINATION_ARTISANS = ['Lepore Sebastien']
+      const FR_CONTAMINATION_BUILDINGS = ['La Sauvagère', 'La Sauvagère — Bât A', 'La Sauvagère - Bât A']
+      const FR_CONTAMINATION_TYPES = ['Espaces verts']
+      const isFrContaminated = (m: { artisan?: string; immeuble?: string; type?: string }) =>
+        FR_CONTAMINATION_ARTISANS.includes(String(m.artisan || '')) ||
+        FR_CONTAMINATION_BUILDINGS.some(b => String(m.immeuble || '').includes(b)) ||
+        FR_CONTAMINATION_TYPES.includes(String(m.type || ''))
+
       // ── Purge one-shot v6 : efface TOUT l'ancien localStorage syndic ─────────
       // Flag UID-spécifique → chaque utilisateur est purgé une seule fois indépendamment
       // v6 : force re-purge pour éliminer toutes les fausses données persistantes
@@ -729,7 +738,8 @@ export default function SyndicDashboard() {
             const FAKE_IDS = ['1','2','3','4','5']
             const real = parsed.filter((m: Mission) =>
               !FAKE_IDS.includes(String(m.id)) &&
-              !FAKE_BUILDING_NAMES.includes(m.immeuble)
+              !FAKE_BUILDING_NAMES.includes(m.immeuble) &&
+              !(locale === 'pt' && isFrContaminated(m))
             )
             if (real.length < parsed.length) {
               localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(real))
@@ -769,11 +779,16 @@ export default function SyndicDashboard() {
         if (savedCanalInterne) {
           try {
             const parsed = JSON.parse(savedCanalInterne)
-            // Purge si contient des IDs de démo ou des références à de faux immeubles
+            // Purge si contient des IDs de démo, refs à de faux immeubles, ou contamination FR en PT
             const hasFake = parsed.some((m: Record<string, unknown>) =>
               /^(ci|pe)-\d+$/.test(String(m.id)) ||
               ['ci-1','ci-2','ci-3'].includes(String(m.id)) ||
-              FAKE_BUILDING_NAMES.some(n => String(m.texte || '').includes(n) || String(m.sujet || '').includes(n))
+              FAKE_BUILDING_NAMES.some(n => String(m.texte || '').includes(n) || String(m.sujet || '').includes(n)) ||
+              (locale === 'pt' && (
+                FR_CONTAMINATION_ARTISANS.some(a => String(m.texte || '').includes(a) || String(m.contenu || '').includes(a) || String(m.sujet || '').includes(a)) ||
+                FR_CONTAMINATION_BUILDINGS.some(b => String(m.texte || '').includes(b) || String(m.contenu || '').includes(b) || String(m.sujet || '').includes(b)) ||
+                /ORDRE DE MISSION/i.test(String(m.texte || '') + String(m.contenu || '') + String(m.sujet || ''))
+              ))
             )
             if (hasFake) {
               localStorage.removeItem(`fixit_canal_interne_${uid}`)
@@ -924,20 +939,14 @@ export default function SyndicDashboard() {
         if (mRes.ok) {
           const { missions: dbMissions } = await mRes.json()
           if (dbMissions) {
-            // Séparer vraies missions des fausses missions de démo
+            // Séparer vraies missions des fausses missions de démo + contamination FR en PT
             const FAKE_BUILDING_NAMES_DB = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
-            // Sur dashboard PT, on purge aussi les missions FR héritées (noms d'immeubles
-            // ou artisans qui n'ont rien à faire dans un cabinet portugais).
-            const LEGACY_FR_PATTERNS = ['Sauvagère', 'Lepore', 'Acacias', 'Clos Vendôme', 'Tour Horizon']
-            const isLegacyFr = (m: Mission) =>
+            const isStaleMission = (m: Mission) =>
               FAKE_BUILDING_NAMES_DB.includes(m.immeuble) ||
-              (locale === 'pt' && (
-                !m.immeuble || m.immeuble === '—' || m.immeuble.trim() === '' ||
-                LEGACY_FR_PATTERNS.some(p => (m.immeuble || '').includes(p) || (m.artisan || '').includes(p))
-              ))
-            const fakeMissions = dbMissions.filter(isLegacyFr)
-            let realMissions = dbMissions.filter((m: Mission) => !isLegacyFr(m))
-            // AUTO-CLEANUP DB : supprimer définitivement les fausses missions de Supabase
+              (locale === 'pt' && isFrContaminated(m))
+            const fakeMissions = dbMissions.filter(isStaleMission)
+            let realMissions = dbMissions.filter((m: Mission) => !isStaleMission(m))
+            // AUTO-CLEANUP DB : supprimer définitivement les missions obsolètes/contaminées
             if (fakeMissions.length > 0) {
               for (const fm of fakeMissions) {
                 try {
@@ -945,13 +954,17 @@ export default function SyndicDashboard() {
                 } catch {}
               }
             }
-            // Si cabinet PT vide après nettoyage → seed les missions démo PT en base.
+            // Si cabinet PT vide après nettoyage → seed les missions démo PT en base
+            // pour qu'elles persistent et soient visibles au refresh suivant.
             if (locale === 'pt' && realMissions.length === 0) {
               const seeded = await seedSyndicPtMissionsToSupabaseIfEmpty(uid, token)
               if (seeded.length > 0) realMissions = seeded
             }
-            setMissions(realMissions)
-            try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(realMissions)) } catch {}
+            // Ne pas écraser l'état avec un tableau vide : préserve le seed PT local si DB nettoyée et seed Supabase n'a rien créé
+            if (realMissions.length > 0) {
+              setMissions(realMissions)
+              try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(realMissions)) } catch {}
+            }
           }
         }
 
@@ -1008,7 +1021,16 @@ export default function SyndicDashboard() {
               } catch {}
               return { id: m.id, de: m.auteur, deRole: m.auteurRole || '', type: 'message' as const, contenu: m.texte, date: m.createdAt, lu: m.lu ?? true }
             })
-            setCanalInterneMessages(converted)
+            // Filtrer la contamination FR en locale PT (Lepore Sebastien, La Sauvagère, ORDRE DE MISSION)
+            const filtered = locale === 'pt'
+              ? converted.filter(c => {
+                  const blob = `${c.contenu || ''} ${(c as { sujet?: string }).sujet || ''}`
+                  return !FR_CONTAMINATION_ARTISANS.some(a => blob.includes(a)) &&
+                    !FR_CONTAMINATION_BUILDINGS.some(b => blob.includes(b)) &&
+                    !/ORDRE DE MISSION/i.test(blob)
+                })
+              : converted
+            if (filtered.length > 0) setCanalInterneMessages(filtered)
           }
         }
 

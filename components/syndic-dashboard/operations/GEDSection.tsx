@@ -8,6 +8,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 export default function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; artisans: Artisan[]; userId?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const getDocLabel = (type: TypeDocument) => t(`syndicDash.ged.typeLabels.${type}`, TYPE_DOC_CONFIG[type].label)
   const gedKey = userId ? `fixit_ged_${userId}` : 'fixit_ged_local'
   const FAKE_GED_IDS = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']
   const [docs, setDocs] = useState<GEDDocument[]>(() => {
@@ -202,7 +203,7 @@ export default function GEDSection({ immeubles, artisans, userId }: { immeubles:
                 className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
                 <option value="">{t('syndicDash.ged.allTypes')}</option>
                 {(Object.entries(TYPE_DOC_CONFIG) as [TypeDocument, { emoji: string; label: string }][]).map(([k, v]) => (
-                  <option key={k} value={k}>{v.emoji} {v.label}</option>
+                  <option key={k} value={k}>{v.emoji} {getDocLabel(k)}</option>
                 ))}
               </select>
             </div>
@@ -269,7 +270,7 @@ export default function GEDSection({ immeubles, artisans, userId }: { immeubles:
                     </div>
                     {/* Type */}
                     <div className="col-span-2">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.color}`}>{cfg.label}</span>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.color}`}>{getDocLabel(doc.type)}</span>
                     </div>
                     {/* Bâtiment */}
                     <div className="col-span-2 text-sm text-gray-600 truncate">{doc.immeuble}</div>
@@ -319,7 +320,7 @@ export default function GEDSection({ immeubles, artisans, userId }: { immeubles:
               <div key={doc.id} onClick={() => setSelectedDoc(doc)}
                 className="bg-white rounded-2xl border-2 border-gray-100 p-4 hover:border-[#C9A84C] hover:shadow-md transition cursor-pointer">
                 <div className="text-3xl mb-2">{cfg.emoji}</div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.color}`}>{getDocLabel(doc.type)}</span>
                 <p className="text-sm font-medium text-[#0D1B2E] mt-2 leading-snug line-clamp-2">{doc.nom}</p>
                 <p className="text-xs text-gray-500 mt-2">{doc.immeuble}</p>
                 {doc.artisan && <p className="text-xs text-gray-500">🔧 {doc.artisan}</p>}
@@ -340,7 +341,7 @@ export default function GEDSection({ immeubles, artisans, userId }: { immeubles:
                 <span className="text-4xl">{TYPE_DOC_CONFIG[selectedDoc.type].emoji}</span>
                 <div>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${TYPE_DOC_CONFIG[selectedDoc.type].color}`}>
-                    {TYPE_DOC_CONFIG[selectedDoc.type].label}
+                    {getDocLabel(selectedDoc.type)}
                   </span>
                   <h3 className="font-bold text-[#0D1B2E] mt-1 leading-snug">{selectedDoc.nom}</h3>
                 </div>
@@ -481,7 +482,7 @@ export default function GEDSection({ immeubles, artisans, userId }: { immeubles:
                   <select value={uploadForm.type} onChange={e => setUploadForm({ ...uploadForm, type: e.target.value as TypeDocument })}
                     className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
                     {(Object.entries(TYPE_DOC_CONFIG) as [TypeDocument, { emoji: string; label: string }][]).map(([k, v]) => (
-                      <option key={k} value={k}>{v.emoji} {v.label}</option>
+                      <option key={k} value={k}>{v.emoji} {getDocLabel(k)}</option>
                     ))}
                   </select>
                 </div>
