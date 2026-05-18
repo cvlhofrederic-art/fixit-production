@@ -1272,7 +1272,19 @@
       "uploadTagsPlaceholder": "Ex: plomberie, fuite, cave, urgent",
       "uploadCancel": "Annuler",
       "uploadUploading": "Upload...",
-      "uploadAddDoc": "Ajouter le document"
+      "uploadAddDoc": "Ajouter le document",
+      "typeLabels": {
+        "rapport": "Rapport intervention",
+        "facture": "Facture",
+        "devis": "Devis",
+        "contrat": "Contrat",
+        "diagnostic": "Diagnostic légal",
+        "ag": "PV Assemblée",
+        "plan": "Plan / Carnet",
+        "controle": "Contrôle réglementaire",
+        "assurance": "Assurance / RC Pro",
+        "autre": "Autre"
+      }
     },
     "coproprios": {
       "title": "Copropriétaires"
@@ -1740,6 +1752,7 @@
       "roleDesc": {
         "admin": "Accès complet : gestion, configuration, équipe, facturation",
         "tech": "Missions, artisans, planning, comptabilité technique des interventions",
+        "technicien": "Prestataire interne du cabinet (homme à tout faire) — exécute les petites réparations et la maintenance sur le terrain",
         "secretary": "Copropriétaires, planning, emails, documents",
         "manager": "Immeubles, missions, artisans, alertes, calendrier réglementaire",
         "accountant": "Facturation, rapport mensuel, documents financiers",

@@ -129,7 +129,7 @@ export const SEED_PT_COLABORADORES: TeamMember[] = [
     id: 'pt-team-006',
     email: 'diogo.pereira@gabinete-vitfix.pt',
     full_name: 'Diogo Pereira',
-    role: 'syndic_tech',
+    role: 'syndic_technicien',
     invite_token: null,
     invite_sent_at: '2024-12-05T09:00:00Z',
     accepted_at: '2024-12-06T11:15:00Z',
@@ -141,7 +141,7 @@ export const SEED_PT_COLABORADORES: TeamMember[] = [
     id: 'pt-team-007',
     email: 'tiago.mendes@gabinete-vitfix.pt',
     full_name: 'Tiago Mendes',
-    role: 'syndic_tech',
+    role: 'syndic_technicien',
     invite_token: null,
     invite_sent_at: '2025-02-12T10:00:00Z',
     accepted_at: '2025-02-13T15:40:00Z',
@@ -710,22 +710,23 @@ export const SEED_PT_MISSOES: Mission[] = [
     id: 'pt-mis-017',
     immeuble: 'Condomínio Boavista Center',
     artisan: 'Diogo Pereira',
-    type: 'Auditoria energética',
-    description: 'Levantamento dos consumos de eletricidade e água das partes comuns (Lei 8/2022 art.º 1436.º) — preparação Relatório Anual.',
+    type: 'Pequenas reparações',
+    description: 'Substituição de 4 lâmpadas LED na garagem + ajuste da fechadura da porta de acesso à zona técnica.',
     priorite: 'normale',
     statut: 'terminee',
     dateCreation: daysAgo(18),
     dateIntervention: daysAgo(14),
-    travailEffectue: 'Auditoria concluída. Identificadas 3 oportunidades de poupança energética (estimativa 12%/ano).',
-    dureeIntervention: '4 horas',
+    travailEffectue: 'Lâmpadas LED substituídas (todas funcionais). Fechadura lubrificada e parafusos apertados — porta fecha corretamente.',
+    materiauxUtilises: '4 lâmpadas LED 12W, óleo lubrificante',
+    dureeIntervention: '1h30',
     dateRapport: daysAgo(13),
   },
   {
     id: 'pt-mis-018',
     immeuble: 'Residencial Cedofeita',
     artisan: 'Tiago Mendes',
-    type: 'Inspeção pós-obras',
-    description: 'Receção provisória dos trabalhos de impermeabilização — verificação de conformidade e checklist final antes do pagamento do saldo ao prestador.',
+    type: 'Manutenção corrente',
+    description: 'Reparação de campainha avariada no R/C esquerdo + colocação de batente em falta na porta do hall.',
     priorite: 'normale',
     statut: 'en_attente',
     dateCreation: daysAgo(2),
@@ -843,8 +844,8 @@ export const SEED_PT_ECHEANCES: EcheanceReglementaire[] = [
 
 // ─── API publique : seedSyndicPtDemoIfEmpty ──────────────────────────────────
 
-const SEED_VERSION = 'pt-v4'
-const LEGACY_VERSIONS = ['pt-v1', 'pt-v2', 'pt-v3']
+const SEED_VERSION = 'pt-v5'
+const LEGACY_VERSIONS = ['pt-v1', 'pt-v2', 'pt-v3', 'pt-v4']
 
 interface SeedResult {
   seeded: boolean
