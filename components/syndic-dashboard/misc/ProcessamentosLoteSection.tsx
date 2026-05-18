@@ -114,7 +114,7 @@ const BATCH_CONFIGS: BatchConfig[] = [
     label: 'Atualização Fundo de Reserva',
     emoji: '🏦',
     description: 'Recalcular e atualizar fundo de reserva legal (mín. 10% orçamento - DL 268/94)',
-    color: '#0EA5E9',
+    color: '#1A7A6E',
     steps: [
       'Carregar orçamento aprovado',
       'Calcular 10% mínimo legal',
@@ -400,7 +400,7 @@ export default function ProcessamentosLoteSection({ user, userRole }: Props) {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
-          { emoji: '▶️', label: 'Execuções totais', value: totalExecutions, color: '#0EA5E9' },
+          { emoji: '▶️', label: 'Execuções totais', value: totalExecutions, color: '#1A7A6E' },
           { emoji: '✅', label: 'Concluídas', value: successExecutions, color: '#22C55E' },
           { emoji: '❌', label: 'Com erros', value: errorExecutions, color: '#EF4444' },
           { emoji: '⏰', label: 'Agendamentos ativos', value: activeSchedules, color: '#8B5CF6' },

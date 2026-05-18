@@ -31,7 +31,7 @@ const CATEGORIAS = [
   { key: 'orcamentos', label: 'Orçamentos', icon: '📊', cor: '#10B981' },
   { key: 'contratos', label: 'Contratos', icon: '📋', cor: '#F59E0B' },
   { key: 'seguros', label: 'Seguros', icon: '🛡️', cor: '#EF4444' },
-  { key: 'certificados', label: 'Certificados', icon: '📄', cor: '#06B6D4' },
+  { key: 'certificados', label: 'Certificados', icon: '📄', cor: '#1A7A6E' },
   { key: 'fiscal', label: 'Fiscal', icon: '💰', cor: '#84CC16' },
   { key: 'correspondencia', label: 'Correspondência', icon: '✉️', cor: '#F97316' },
 ]

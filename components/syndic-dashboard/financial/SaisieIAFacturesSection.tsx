@@ -287,7 +287,7 @@ const ANOMALIE_LABELS: Record<AnomalieType, string> = {
 const ANOMALIE_COLORS: Record<AnomalieType, { bg: string; color: string }> = {
   doublon: { bg: '#FDEDEC', color: '#E74C3C' },
   montant_anormal: { bg: '#FEF5E7', color: '#E67E22' },
-  fournisseur_inconnu: { bg: '#EBF5FB', color: '#2980B9' },
+  fournisseur_inconnu: { bg: '#EBF5FB', color: '#0D1B2E' },
   tva_incorrecte: { bg: '#F5EEF8', color: '#8E44AD' },
 }
 
@@ -845,7 +845,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                     background: item.type === 'pdf' ? '#FDEDEC' : '#EBF5FB',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 12, fontWeight: 700,
-                    color: item.type === 'pdf' ? '#E74C3C' : '#2980B9',
+                    color: item.type === 'pdf' ? '#E74C3C' : '#0D1B2E',
                   }}>
                     {item.type.toUpperCase()}
                   </div>
@@ -914,7 +914,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                         background: facture.fichierType === 'pdf' ? '#FDEDEC' : '#EBF5FB',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 13, fontWeight: 700,
-                        color: facture.fichierType === 'pdf' ? '#E74C3C' : '#2980B9',
+                        color: facture.fichierType === 'pdf' ? '#E74C3C' : '#0D1B2E',
                       }}>
                         {facture.fichierType.toUpperCase()}
                       </div>

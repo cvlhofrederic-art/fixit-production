@@ -67,7 +67,7 @@ const ESTADO_PEDIDO_CONFIG: Record<EstadoPedido, { label: string; bg: string; co
   em_analise:  { label: 'Em Análise',       bg: '#F7F4EE', color: '#C9A84C', dot: '#C9A84C' },
   aprovado:    { label: 'Aprovado',         bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
   recusado:    { label: 'Recusado',         bg: '#FDECEA', color: '#C0392B', dot: '#C0392B' },
-  instalacao:  { label: 'Em Instalação',    bg: '#E8F0FE', color: '#1967D2', dot: '#1967D2' },
+  instalacao:  { label: 'Em Instalação',    bg: '#E8F0FE', color: '#0D1B2E', dot: '#0D1B2E' },
   concluido:   { label: 'Concluído',        bg: '#F7F4EE', color: '#0D1B2E', dot: '#0D1B2E' },
 }
 
@@ -495,7 +495,7 @@ export default function CarregamentoVESection({ user }: Props) {
           { emoji: '✅', label: 'Aprovados', value: stats.aprovados, color: '#1A7A6E' },
           { emoji: '🔌', label: 'Postos Ativos', value: stats.postosAtivos, color: 'var(--sd-navy, #0D1B2E)' },
           { emoji: '⚡', label: 'Potência Total', value: `${fmt(stats.potenciaTotal)} kW`, color: '#C9A84C' },
-          { emoji: '📊', label: 'Consumo Total', value: `${stats.consumoTotal.toLocaleString('pt-PT')} kWh`, color: '#1967D2' },
+          { emoji: '📊', label: 'Consumo Total', value: `${stats.consumoTotal.toLocaleString('pt-PT')} kWh`, color: '#0D1B2E' },
           { emoji: '💶', label: 'Custo Total', value: `${fmt(stats.custoTotal)} €`, color: '#C0392B' },
         ].map((s, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 14 }}>
@@ -766,7 +766,7 @@ export default function CarregamentoVESection({ user }: Props) {
                   <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
                     <button
                       onClick={() => { atualizarPedidoEstado(selectedPedido.id, 'instalacao'); setSelectedPedido({ ...selectedPedido, estado: 'instalacao' }) }}
-                      style={{ background: '#E8F0FE', color: '#1967D2', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                      style={{ background: '#E8F0FE', color: '#0D1B2E', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                     >
                       Marcar Instalação Iniciada
                     </button>
@@ -942,7 +942,7 @@ export default function CarregamentoVESection({ user }: Props) {
                         </div>
                         <div>
                           <div style={{ color: 'var(--sd-ink-3, #8A9BB0)' }}>Total acumulado</div>
-                          <div style={{ fontWeight: 700, color: '#1967D2' }}>{totalKwh.toLocaleString('pt-PT')} kWh</div>
+                          <div style={{ fontWeight: 700, color: '#0D1B2E' }}>{totalKwh.toLocaleString('pt-PT')} kWh</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--sd-ink-3, #8A9BB0)' }}>Custo total</div>
@@ -1170,7 +1170,7 @@ export default function CarregamentoVESection({ user }: Props) {
                 titulo: 'DL 101-D/2020',
                 subtitulo: 'Direito Individual à Instalação',
                 conteudo: 'Todo o condómino tem o direito de instalar infraestrutura de carregamento de veículos elétricos na sua fração ou lugar de estacionamento, incluindo em partes comuns, mediante comunicação prévia.',
-                cor: '#1967D2',
+                cor: '#0D1B2E',
                 bg: '#E8F0FE',
               },
               {

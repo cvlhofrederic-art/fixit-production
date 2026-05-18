@@ -496,7 +496,7 @@ export default function DashboardCondominoRTSection({ user, userRole }: Props) {
                   <span style={{
                     padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                     background: interv.status === 'concluida' ? '#DCFCE7' : interv.status === 'em_curso' ? '#FEF3C7' : '#DBEAFE',
-                    color: interv.status === 'concluida' ? '#166534' : interv.status === 'em_curso' ? '#92400E' : '#1E40AF',
+                    color: interv.status === 'concluida' ? '#166534' : interv.status === 'em_curso' ? '#92400E' : '#0D1B2E',
                   }}>
                     {INTERVENTION_STEPS.find(s => s.key === interv.status)?.emoji} {INTERVENTION_STEPS.find(s => s.key === interv.status)?.label}
                   </span>
