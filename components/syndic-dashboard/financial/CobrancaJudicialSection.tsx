@@ -67,7 +67,7 @@ const ETAPA_ORDER: EtapaCobranca[] = [
 ]
 
 const STATUS_CONFIG: Record<StatusProcesso, { label: string; bg: string; color: string; dot: string }> = {
-  em_curso:           { label: 'Em curso',           bg: '#DBEAFE', color: '#0D1B2E', dot: '#0D1B2E' },
+  em_curso:           { label: 'Em curso',           bg: '#F7F4EE', color: '#0D1B2E', dot: '#0D1B2E' },
   pendente_judicial:  { label: 'Pendente judicial',  bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
   recuperado:         { label: 'Recuperado',         bg: '#D1FAE5', color: '#065F46', dot: '#10B981' },
   prescrito:          { label: 'Prescrito',          bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
@@ -587,7 +587,7 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: 'Total em divida',    value: formatEur(kpis.totalDivida),     icon: '💰', bg: '#FEE2E2', color: '#991B1B' },
-              { label: 'N.o devedores',       value: kpis.nDevedores.toString(),      icon: '👥', bg: '#DBEAFE', color: '#0D1B2E' },
+              { label: 'N.o devedores',       value: kpis.nDevedores.toString(),      icon: '👥', bg: '#F7F4EE', color: '#0D1B2E' },
               { label: 'Media dias atraso',   value: `${kpis.mediaAtraso} dias`,      icon: '📅', bg: '#FEF3C7', color: '#92400E' },
               { label: 'Recuperado este ano', value: formatEur(kpis.recuperadoAno),   icon: '✅', bg: '#D1FAE5', color: '#065F46' },
             ].map((kpi, i) => (
