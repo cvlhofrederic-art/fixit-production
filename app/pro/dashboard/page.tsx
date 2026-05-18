@@ -13,6 +13,7 @@ import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
+import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -617,6 +618,7 @@ function DashboardPage() {
   }
 
   return (
+    <OrgRoleProvider orgRole={orgRole}>
     <div id={isV5 ? 'artisan-dashboard-v5' : 'artisan-dashboard-v22'} className={isV5 ? 'v5-app' : 'h-screen flex flex-col overflow-hidden'}>
 
       {/* ── BOUTON RETOUR ADMIN : retiré (vuln privilege escalation via user_metadata) ──
@@ -1025,7 +1027,6 @@ function DashboardPage() {
               openDevisForm={openDevisForm as any}
               convertDevisToFacture={handleConvertDevisToFacture as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
-              orgRole={orgRole}
             />
             </SectionErrorBoundary>
           )}
@@ -1041,7 +1042,6 @@ function DashboardPage() {
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
               openFactureForm={openFactureForm as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
-              orgRole={orgRole}
             />
             </SectionErrorBoundary>
           )}
@@ -1767,6 +1767,7 @@ function DashboardPage() {
         </div>
       )}
     </div>
+    </OrgRoleProvider>
   )
 }
 
