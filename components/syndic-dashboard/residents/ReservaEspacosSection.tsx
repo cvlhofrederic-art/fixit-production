@@ -58,7 +58,7 @@ interface Props {
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const TIPO_ESPACO_CONFIG: Record<TipoEspaco, { label: string; emoji: string; cor: string; corBg: string }> = {
-  salao_festas:  { label: 'Salão de Festas',    emoji: '🎉', cor: '#3B82F6', corBg: 'rgba(59,130,246,0.12)' },
+  salao_festas:  { label: 'Salão de Festas',    emoji: '🎉', cor: '#0D1B2E', corBg: 'rgba(59,130,246,0.12)' },
   churrasqueira: { label: 'Churrasqueira',       emoji: '🔥', cor: '#F97316', corBg: 'rgba(249,115,22,0.12)' },
   campo:         { label: 'Campo/Polidesportivo', emoji: '⚽', cor: '#22C55E', corBg: 'rgba(34,197,94,0.12)' },
   piscina:       { label: 'Piscina',             emoji: '🏊', cor: '#06B6D4', corBg: 'rgba(6,182,212,0.12)' },

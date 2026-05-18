@@ -67,7 +67,7 @@ const ETAPA_ORDER: EtapaCobranca[] = [
 ]
 
 const STATUS_CONFIG: Record<StatusProcesso, { label: string; bg: string; color: string; dot: string }> = {
-  em_curso:           { label: 'Em curso',           bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
+  em_curso:           { label: 'Em curso',           bg: '#DBEAFE', color: '#1E40AF', dot: '#0D1B2E' },
   pendente_judicial:  { label: 'Pendente judicial',  bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
   recuperado:         { label: 'Recuperado',         bg: '#D1FAE5', color: '#065F46', dot: '#10B981' },
   prescrito:          { label: 'Prescrito',          bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
@@ -308,7 +308,7 @@ const LEGISLACAO = [
     resumo: 'O condomínio pode recorrer ao procedimento de injunção para cobrança de dívidas de quotas. Procedimento simplificado, rápido e com custas reduzidas no Balcão Nacional de Injunções.',
     icon: '🏛️',
     tag: 'Injunção',
-    tagColor: '#6C5CE7',
+    tagColor: '#C9A84C',
   },
   {
     id: 'hipoteca_legal',
@@ -922,7 +922,7 @@ export default function CobrancaJudicialSection({ user, userRole }: Props) {
                   <div key={h.id} className="flex gap-3">
                     <div className="flex flex-col items-center">
                       <div className="w-2.5 h-2.5 rounded-full mt-1" style={{
-                        background: h.tipo === 'automatico' ? '#3B82F6'
+                        background: h.tipo === 'automatico' ? '#0D1B2E'
                           : h.tipo === 'documento' ? 'var(--sd-gold, #C9A84C)'
                           : h.tipo === 'comunicacao' ? '#10B981'
                           : 'var(--sd-navy, #0D1B2E)',

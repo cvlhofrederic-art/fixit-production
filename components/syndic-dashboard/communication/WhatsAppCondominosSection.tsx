@@ -77,14 +77,14 @@ interface Props {
 
 const CANAL_CONFIG: Record<CanalMensagem, { emoji: string; label: string; cor: string }> = {
   whatsapp: { emoji: '💬', label: 'WhatsApp', cor: '#25D366' },
-  sms:      { emoji: '📱', label: 'SMS',      cor: '#6C5CE7' },
-  email:    { emoji: '📧', label: 'Email',    cor: '#3B82F6' },
+  sms:      { emoji: '📱', label: 'SMS',      cor: '#C9A84C' },
+  email:    { emoji: '📧', label: 'Email',    cor: '#0D1B2E' },
 }
 
 const ESTADO_MSG_CONFIG: Record<EstadoMensagem, { label: string; emoji: string; cor: string }> = {
   enviado:  { label: 'Enviado',  emoji: '✓',  cor: 'var(--sd-ink-3, #8B8178)' },
   entregue: { label: 'Entregue', emoji: '✓✓', cor: 'var(--sd-ink-2, #5A5149)' },
-  lido:     { label: 'Lido',     emoji: '✓✓', cor: '#3B82F6' },
+  lido:     { label: 'Lido',     emoji: '✓✓', cor: '#0D1B2E' },
   falhou:   { label: 'Falhou',   emoji: '✕',  cor: '#C0392B' },
 }
 
@@ -506,7 +506,7 @@ export default function WhatsAppCondominosSection({ user, userRole }: Props) {
                           }}>
                             <span>{canalCfg.emoji}</span>
                             <span>{new Date(msg.dataEnvio).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</span>
-                            {isEnviada && <span style={{ color: msg.estado === 'lido' ? '#3B82F6' : 'inherit' }}>{estCfg.emoji}</span>}
+                            {isEnviada && <span style={{ color: msg.estado === 'lido' ? '#0D1B2E' : 'inherit' }}>{estCfg.emoji}</span>}
                           </div>
                         </div>
                       </div>
@@ -789,7 +789,7 @@ export default function WhatsAppCondominosSection({ user, userRole }: Props) {
                     {[
                       { label: 'Enviadas', value: em.stats.enviadas, color: 'var(--sd-ink-2, #5A5149)' },
                       { label: 'Entregues', value: em.stats.entregues, color: '#1A7A6E' },
-                      { label: 'Lidas', value: em.stats.lidas, color: '#3B82F6' },
+                      { label: 'Lidas', value: em.stats.lidas, color: '#0D1B2E' },
                       { label: 'Falharam', value: em.stats.falharam, color: '#C0392B' },
                     ].map((s, i) => (
                       <div key={i}>

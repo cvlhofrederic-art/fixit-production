@@ -70,7 +70,7 @@ interface Props {
 
 const TIPO_UTILIDADE_CONFIG: Record<TipoUtilidade, { emoji: string; label: string; unidade: string; cor: string; corBarra: string }> = {
   eletricidade: { emoji: '⚡', label: 'Eletricidade', unidade: 'kWh', cor: '#F59E0B', corBarra: '#F59E0B' },
-  agua:         { emoji: '💧', label: 'Água',         unidade: 'm³',  cor: '#3B82F6', corBarra: '#3B82F6' },
+  agua:         { emoji: '💧', label: 'Água',         unidade: 'm³',  cor: '#0D1B2E', corBarra: '#0D1B2E' },
   gas:          { emoji: '🔥', label: 'Gás',          unidade: 'm³',  cor: '#EF4444', corBarra: '#EF4444' },
 }
 
@@ -350,7 +350,7 @@ export default function MonitorizacaoConsumosSection({ user, userRole }: Props) 
       edificioNom: fcEdificio.trim(),
       fracaoId: fcFracao.trim() || undefined,
       numeroContador: fcNumero.trim(),
-      tarifa: parseFloat(fcTarifa) || cfg.cor === '#3B82F6' ? 2.85 : 0.16,
+      tarifa: parseFloat(fcTarifa) || cfg.cor === '#0D1B2E' ? 2.85 : 0.16,
       unidade: cfg.unidade,
       ativo: true,
     }
@@ -470,7 +470,7 @@ export default function MonitorizacaoConsumosSection({ user, userRole }: Props) 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
             {([
               { label: 'Eletricidade', valor: `${formatNum(kpis.eletricidade.valor)} kWh`, variacao: kpis.eletricidade.variacao, emoji: '⚡', cor: '#F59E0B' },
-              { label: 'Agua', valor: `${formatNum(kpis.agua.valor)} m3`, variacao: kpis.agua.variacao, emoji: '💧', cor: '#3B82F6' },
+              { label: 'Agua', valor: `${formatNum(kpis.agua.valor)} m3`, variacao: kpis.agua.variacao, emoji: '💧', cor: '#0D1B2E' },
               { label: 'Gas', valor: `${formatNum(kpis.gas.valor)} m3`, variacao: kpis.gas.variacao, emoji: '🔥', cor: '#EF4444' },
               { label: 'Custo total', valor: formatEur(kpis.custoTotal.valor), variacao: kpis.custoTotal.variacao, emoji: '💰', cor: 'var(--sd-gold, #C9A84C)' },
             ] as const).map((kpi, i) => (

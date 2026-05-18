@@ -34,7 +34,7 @@ interface Props {
 
 const CATEGORIAS: Record<CategoriaAviso, { icon: string; label: string; cor: string }> = {
   manutencao:  { icon: '🔧', label: 'Manutenção',  cor: '#D4830A' },
-  assembleia:  { icon: '🏛️', label: 'Assembleia',   cor: '#6C5CE7' },
+  assembleia:  { icon: '🏛️', label: 'Assembleia',   cor: '#C9A84C' },
   financeiro:  { icon: '💶', label: 'Financeiro',   cor: '#1A7A6E' },
   seguranca:   { icon: '🛡️', label: 'Segurança',    cor: '#C0392B' },
   social:      { icon: '🎉', label: 'Social',       cor: '#C9A84C' },
