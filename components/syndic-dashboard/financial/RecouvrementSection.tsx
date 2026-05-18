@@ -26,7 +26,7 @@ export default function RecouvrementSection({ user, userRole }: { user: User; us
   ]
   const STAGE_ORDER: StageRec[] = ['amiable', 'relance_1', 'relance_2', 'mise_en_demeure', 'contentieux', 'huissier', 'regle']
   const stageCls: Record<string, string> = {
-    blue: 'bg-blue-100 text-blue-700 border-blue-200', amber: 'bg-amber-100 text-amber-700 border-amber-200',
+    blue: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]', amber: 'bg-amber-100 text-amber-700 border-amber-200',
     orange: 'bg-orange-100 text-orange-700 border-orange-200', red: 'bg-red-100 text-red-700 border-red-200',
     purple: 'bg-[#F7F4EE] text-[#C9A84C] border-[#E4DDD0]', gray: 'bg-[#F7F4EE] text-gray-600 border-gray-200',
     green: 'bg-green-100 text-green-700 border-green-200',
@@ -225,7 +225,7 @@ export default function RecouvrementSection({ user, userRole }: { user: User; us
             </div>
             {selected.stage !== 'regle' && (
               <div className="flex gap-2 flex-wrap">
-                <button onClick={() => generateLetter(selected)} className="flex-1 min-w-32 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">📝 {t('syndicDash.recouvrement.generateLetter')}</button>
+                <button onClick={() => generateLetter(selected)} className="flex-1 min-w-32 px-4 py-2 bg-[#0D1B2E] text-white rounded-xl text-sm font-semibold hover:bg-[#152338] transition">📝 {t('syndicDash.recouvrement.generateLetter')}</button>
                 <button onClick={() => escalate(selected.id)} className="flex-1 min-w-32 px-4 py-2 bg-[#C9A84C] text-white rounded-xl text-sm font-semibold hover:bg-orange-700 transition">⬆️ {t('syndicDash.recouvrement.escalate')}</button>
                 <button onClick={() => markRegle(selected.id)} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition">✅ {t('syndicDash.recouvrement.settled')}</button>
                 <button onClick={() => { saveDossiers(dossiers.filter(d => d.id !== selected.id)); setSelected(null) }} className="px-4 py-2 border border-red-200 text-red-500 rounded-xl text-sm hover:bg-red-50 transition">🗑️</button>
@@ -248,7 +248,7 @@ export default function RecouvrementSection({ user, userRole }: { user: User; us
                 {copiedLetter ? `✓ ${t('syndicDash.recouvrement.copied')}` : `📋 ${t('syndicDash.recouvrement.copyLetter')}`}
               </button>
               {selected?.coproprio_email && (
-                <a href={`mailto:${selected.coproprio_email}?subject=Charges%20de%20copropri%C3%A9t%C3%A9%20impay%C3%A9es&body=${encodeURIComponent(letter)}`} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition text-center">📧 {t('syndicDash.recouvrement.sendByEmail')}</a>
+                <a href={`mailto:${selected.coproprio_email}?subject=Charges%20de%20copropri%C3%A9t%C3%A9%20impay%C3%A9es&body=${encodeURIComponent(letter)}`} className="flex-1 px-4 py-2 bg-[#0D1B2E] text-white rounded-xl text-sm font-semibold hover:bg-[#152338] transition text-center">📧 {t('syndicDash.recouvrement.sendByEmail')}</a>
               )}
             </div>
           </div>
