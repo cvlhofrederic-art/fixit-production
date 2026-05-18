@@ -98,8 +98,14 @@ const sharedMeta = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  // MOBILE_BUILD : en mode export statique Capacitor, cookies() / headers() ne
+  // sont pas disponibles (pas de runtime Node). Fallback à 'fr' — l'app mobile
+  // pré-release sert d'abord le marché FR ; la locale peut être switchée
+  // dynamiquement côté client après hydratation.
+  const isMobileBuild = process.env.MOBILE_BUILD === 'true'
+  const locale = (isMobileBuild
+    ? 'fr'
+    : (await cookies()).get('locale')?.value || 'fr') as Locale
 
   // NL and ES landing pages - fall back to EN metadata
   if (locale === 'nl') {
@@ -182,10 +188,16 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Read locale: x-locale header (set by middleware from URL path) takes priority
-  // over cookie, which may be stale when middleware updates it in the response
-  const cookieStore = await cookies()
-  const headerStore = await headers()
-  const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+  // over cookie, which may be stale when middleware updates it in the response.
+  // En mode MOBILE_BUILD (export Capacitor), cookies()/headers() ne sont pas
+  // disponibles — fallback 'fr' qui peut être surchargé côté client.
+  const isMobileBuild = process.env.MOBILE_BUILD === 'true'
+  let locale: Locale = 'fr'
+  if (!isMobileBuild) {
+    const cookieStore = await cookies()
+    const headerStore = await headers()
+    locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+  }
 
 
   return (

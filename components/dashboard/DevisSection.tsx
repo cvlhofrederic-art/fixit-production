@@ -13,6 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
   totalHT?: number
@@ -33,8 +34,6 @@ interface DevisDocument {
   lines?: DevisLine[]
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
-
-type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 // Total HT d'un devis BTP — délégué à `computeDocumentTotalHT`
 // (lib/devis-totals.ts), source unique de vérité. Toute logique de
@@ -74,18 +73,17 @@ interface DevisSectionProps {
   /** Callback unifié : openDevisForm() = nouveau, openDevisForm(doc) = édition. */
   openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
-  orgRole?: OrgRole
 }
 
 export default function DevisSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
   showDevisForm, setShowDevisForm, convertingDevis, setConvertingDevis, openDevisForm,
-  convertDevisToFacture, orgRole,
+  convertDevisToFacture,
 }: DevisSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const { orgRole, isV5, useBtpDesign } = useOrgRoleContext()
   const tv = useThemeVars(isV5)
 
   const refreshDocuments = () => {
@@ -415,6 +413,7 @@ function DevisSectionV5({
   orgRole?: OrgRole
   onRemoveDoc: (doc: DevisDocument) => void
 }) {
+  const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
 
@@ -596,7 +595,7 @@ function DevisSectionV5({
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
                                 rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                               } : null,
-                              useBtpDesign: orgRole === 'pro_societe',
+                              useBtpDesign,
                             })
                           } catch (err) {
                             console.error('[Devis] download failed', err)

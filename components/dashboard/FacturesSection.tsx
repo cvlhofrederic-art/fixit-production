@@ -14,6 +14,7 @@ import { computeDocumentTotalHT } from '@/lib/devis-totals'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
+import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -29,8 +30,6 @@ interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 
   lines?: Array<{ totalHT?: number; [key: string]: unknown }>
 }
 
-type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
-
 interface FacturesSectionProps {
   artisan: Artisan
   services: Service[]
@@ -43,18 +42,16 @@ interface FacturesSectionProps {
   setConvertingDevis: (v: PersistedDocument | null) => void
   /** Callback unifié : openFactureForm() = nouvelle, openFactureForm(doc) = édition. */
   openFactureForm: (doc?: PersistedDocument | null) => void
-  orgRole?: OrgRole
 }
 
 export default function FacturesSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
   showFactureForm, setShowFactureForm, convertingDevis, setConvertingDevis, openFactureForm,
-  orgRole,
 }: FacturesSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const { orgRole, isV5, useBtpDesign } = useOrgRoleContext()
   const tv = useThemeVars(isV5)
 
   const refreshDocuments = () => {
@@ -372,6 +369,7 @@ function FacturesSectionV5({
   orgRole?: OrgRole
   onRemoveDoc: (doc: PersistedDocument) => void
 }) {
+  const { useBtpDesign } = useOrgRoleContext()
   const [search, setSearch] = useState('')
 
   const filtered = factureDocs
@@ -534,7 +532,7 @@ function FacturesSectionV5({
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
                                 rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                               } : null,
-                              useBtpDesign: orgRole === 'pro_societe',
+                              useBtpDesign,
                             })
                           } catch (err) {
                             console.error('[Facture] download failed', err)
