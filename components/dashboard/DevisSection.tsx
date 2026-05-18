@@ -441,7 +441,7 @@ function DevisSectionV5({
         d.docTitle?.toLowerCase().includes(q)
       )
     })
-    .sort((a, b) => getDocSeq(a) - getDocSeq(b))
+    .sort((a, b) => getDocSeq(b) - getDocSeq(a))
 
   const getV5Badge = (doc: DevisDocument) => {
     if (doc.status === 'cancelled' || doc.status === 'annule') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Anulado' : 'Annulé' }
