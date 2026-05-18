@@ -40,7 +40,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
   const EQUIP_TYPES = ['Ascenseur', 'Chaudière collective', 'VMC / Ventilation', 'Portail / Porte garage', 'Interphone / Digicode', 'Groupe électrogène', 'Pompe de relevage', 'Système incendie / Extincteurs', 'Climatisation collective', 'Éclairage communs (horloge)', 'Station de relevage eaux usées', 'Toiture terrasse / Étanchéité', 'Autre']
   const CONTRAT_TYPES = ['Entretien ascenseur', 'Entretien chaudière / chauffage', 'Nettoyage parties communes', 'Maintenance système incendie', 'Entretien espaces verts', 'Entretien VMC', 'Maintenance portail / interphone', 'Déneigement', 'Désinsectisation / dératisation', 'Maintenance piscine', 'Assurance immeuble', 'Autre']
   const ETAT_COLORS: Record<string, string> = { bon: 'bg-green-100 text-green-700', surveiller: 'bg-orange-100 text-orange-700', defaillant: 'bg-red-100 text-red-700' }
-  const STATUT_CONTRAT_COLORS: Record<string, string> = { actif: 'bg-green-100 text-green-700', renouvellement: 'bg-blue-100 text-blue-700', resilie: 'bg-gray-100 text-gray-500' }
+  const STATUT_CONTRAT_COLORS: Record<string, string> = { actif: 'bg-green-100 text-green-700', renouvellement: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]', resilie: 'bg-gray-100 text-gray-500' }
 
   const handleAddEquip = () => {
     if (!equipForm.type || !equipForm.immeuble) return
@@ -228,7 +228,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
   const immeubles = [...new Set(interventions.map(i => i.immeuble).filter(Boolean))]
   const filtered = filterImmeuble ? interventions.filter(i => i.immeuble === filterImmeuble) : interventions
   const totalCouts = filtered.reduce((s, i) => s + i.cout, 0)
-  const STATUS_COLORS: Record<string, string> = { réalisé: 'bg-green-100 text-green-700', planifié: 'bg-blue-100 text-blue-700', en_cours: 'bg-orange-100 text-orange-700' }
+  const STATUS_COLORS: Record<string, string> = { réalisé: 'bg-green-100 text-green-700', planifié: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]', en_cours: 'bg-orange-100 text-orange-700' }
   const DPE_COLORS: Record<string, string> = { A: 'bg-green-700 text-white', B: 'bg-green-500 text-white', C: 'bg-lime-400 text-[#0D1B2E]', D: 'bg-yellow-400 text-[#0D1B2E]', E: 'bg-orange-400 text-white', F: 'bg-[#C9A84C] text-white', G: 'bg-red-600 text-white' }
   const NATURES = ['Entretien ascenseur', 'Ravalement façade', 'Toiture / étanchéité', 'Plomberie collective', 'Électricité commune', 'Espaces verts', 'Nettoyage parties communes', 'Chaufferie / chaudière', 'Parking', 'Digicode / Interphone', 'Peinture parties communes', 'Menuiserie', 'Désinfection / dératisation', 'Contrôle technique', 'Diagnostic DPE collectif', 'Autre']
 
@@ -258,7 +258,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
         <div className="p-6 lg:p-8">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-teal-400"><div className="text-sm text-gray-500">Interventions</div><div className="text-3xl font-bold text-teal-600">{filtered.length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">Planifiées</div><div className="text-3xl font-bold text-blue-600">{filtered.filter(i => i.statut === 'planifié').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">Planifiées</div><div className="text-3xl font-bold text-[#0D1B2E]">{filtered.filter(i => i.statut === 'planifié').length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Coût total</div><div className="text-2xl font-bold text-green-600">{totalCouts.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">Immeubles</div><div className="text-3xl font-bold text-[#C9A84C]">{immeubles.length}</div></div>
           </div>
@@ -323,7 +323,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
                       </div>
                       <div className="flex gap-4 text-sm mt-2 flex-wrap">
                         {e.chargesRestant > 0 && <span className="text-[#C9A84C] font-semibold">Charges restant : {e.chargesRestant.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</span>}
-                        {e.fondsTravaux > 0 && <span className="text-blue-600 font-semibold">Fonds travaux : {e.fondsTravaux.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</span>}
+                        {e.fondsTravaux > 0 && <span className="text-[#C9A84C] font-semibold">Fonds travaux : {e.fondsTravaux.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</span>}
                         {e.impayesCopro > 0 && <span className="text-red-600 font-semibold">⚠️ Impayés : {e.impayesCopro.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</span>}
                       </div>
                     </div>
@@ -460,13 +460,13 @@ export default function CarnetEntretienSection({ user, userRole }: { user: User;
         <div className="p-6 lg:p-8">
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Contrats actifs</div><div className="text-3xl font-bold text-green-600">{contrats.filter(c => c.statut === 'actif').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">À renouveler</div><div className="text-3xl font-bold text-blue-600">{contrats.filter(c => c.statut === 'renouvellement').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">À renouveler</div><div className="text-3xl font-bold text-[#0D1B2E]">{contrats.filter(c => c.statut === 'renouvellement').length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-teal-400"><div className="text-sm text-gray-500">Budget annuel HT</div><div className="text-2xl font-bold text-teal-600">{contrats.filter(c => c.statut !== 'resilie').reduce((s, c) => s + (c.montantHT || 0), 0).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
           </div>
 
           {contrats.filter(c => { const j = joursAvantEcheance(c.dateFin); return j !== null && j <= 60 && j >= 0 && c.statut !== 'resilie' }).length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
-              <p className="text-sm text-blue-800 font-semibold">🔄 Contrats arrivant à échéance (60 jours) : {contrats.filter(c => { const j = joursAvantEcheance(c.dateFin); return j !== null && j <= 60 && j >= 0 && c.statut !== 'resilie' }).map(c => `${c.type} — ${c.prestataire}`).join(', ')}</p>
+            <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-4 mb-6">
+              <p className="text-sm text-[#0D1B2E] font-semibold">🔄 Contrats arrivant à échéance (60 jours) : {contrats.filter(c => { const j = joursAvantEcheance(c.dateFin); return j !== null && j <= 60 && j >= 0 && c.statut !== 'resilie' }).map(c => `${c.type} — ${c.prestataire}`).join(', ')}</p>
             </div>
           )}
 

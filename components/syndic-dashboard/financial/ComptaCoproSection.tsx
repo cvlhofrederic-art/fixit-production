@@ -180,9 +180,9 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
                 <div className="text-3xl font-bold text-[#C9A84C]">{lots.length}</div>
                 <div className="text-xs text-gray-500 mt-1">{totalTantiemes.toFixed(0)} tantièmes</div>
               </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-400">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]">
                 <div className="text-sm text-gray-500 mb-1">Appels de charges</div>
-                <div className="text-3xl font-bold text-blue-600">{appels.length}</div>
+                <div className="text-3xl font-bold text-[#0D1B2E]">{appels.length}</div>
                 <div className="text-xs text-gray-500 mt-1">{appelsEnvoyes} envoyés · {appelsSoldes} soldés</div>
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-400">
@@ -206,7 +206,7 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
                       <div className="font-semibold">{a.periode}</div>
                       <div className="text-sm text-gray-500">{a.lots} · {a.totalBudget.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-blue-100 text-blue-700' : 'bg-[#F7F4EE] text-gray-700'}`}>{a.statut}</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]' : 'bg-[#F7F4EE] text-gray-700'}`}>{a.statut}</span>
                   </div>
                 ))}
                 {appels.length === 0 && <p className="text-gray-500 text-sm text-center py-4">Aucun appel de charges</p>}
@@ -335,7 +335,7 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-3">
                             <h3 className="font-bold text-lg">{a.periode}</h3>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-blue-100 text-blue-700' : 'bg-[#F7F4EE] text-gray-700'}`}>{a.statut}</span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]' : 'bg-[#F7F4EE] text-gray-700'}`}>{a.statut}</span>
                           </div>
                           <div className="flex gap-6 text-sm text-gray-600 mb-4">
                             <span>💰 Budget total : <strong>{a.totalBudget.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</strong></span>
@@ -369,7 +369,7 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
                           )}
                         </div>
                         <div className="flex flex-col gap-2 min-w-[160px]">
-                          {a.statut === 'Brouillon' && <button onClick={() => handleEnvoyerAppel(a.id)} className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition">📤 Envoyer</button>}
+                          {a.statut === 'Brouillon' && <button onClick={() => handleEnvoyerAppel(a.id)} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#152338] transition">📤 Envoyer</button>}
                           {a.statut === 'Envoyé' && <button onClick={() => handleSolderAppel(a.id)} className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-600 transition">✅ Solder</button>}
                           <button className="bg-[#F7F4EE] text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-200 transition">📄 Imprimer</button>
                         </div>
