@@ -1358,10 +1358,13 @@ export default function DevisFactureFormBTP({
       interventionEspacesCommuns,
       interventionExterieur,
       ordreDeService,
-      // Lignes
+      // Lignes — les sections masquées sont persistées vides pour exclure
+      // leurs montants du total côté API et de la liste devis (bug : sinon
+      // les sections cachées étaient sommées par computeDocumentTotalHtCents
+      // et le total enregistré ne correspondait pas au RÉSUMÉ affiché).
       lines,
-      materialLines,
-      fraisLines,
+      materialLines: materialLinesEnabled ? materialLines : [],
+      fraisLines: fraisLinesEnabled ? fraisLines : [],
       // BTP — tables personnalisables (noms, masquage doux, tables custom additionnelles)
       linesName,
       materialLinesName,

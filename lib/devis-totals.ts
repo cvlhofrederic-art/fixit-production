@@ -35,6 +35,12 @@ interface DocumentWithLines {
   fraisLines?: ProductLineLike[]
   fraisAnnexes?: ProductLineLike[]
   customTables?: { lines?: ProductLineLike[] }[]
+  // Flags de visibilité BTP : quand une section est masquée par l'utilisateur
+  // (« Masquer cette section »), ses lignes doivent être ignorées dans le total.
+  // Sinon le montant sauvegardé inclut des sections cachées et diverge du
+  // RÉSUMÉ affiché dans le formulaire.
+  materialLinesEnabled?: boolean
+  fraisLinesEnabled?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
@@ -70,8 +76,11 @@ export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined
   if (!doc || typeof doc !== 'object') return 0
   const laborRaw = safeLines(doc.laborLines)
   const lines = safeLines(doc.lines)
-  const material = safeLines(doc.materialLines)
-  const frais = safeLines(doc.fraisLines)
+  // Respect des flags de visibilité BTP : une section désactivée
+  // (materialLinesEnabled === false ou fraisLinesEnabled === false) ne doit
+  // pas être sommée — sinon le total persisté diverge du RÉSUMÉ affiché.
+  const material = doc.materialLinesEnabled === false ? [] : safeLines(doc.materialLines)
+  const frais = doc.fraisLinesEnabled === false ? [] : safeLines(doc.fraisLines)
   const fraisAnnexes = safeLines(doc.fraisAnnexes)
   // customTables peut contenir des entrées null (corruption localStorage).
   // On filtre les tables invalides AVANT d'accéder à `.lines` pour éviter

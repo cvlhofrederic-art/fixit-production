@@ -131,10 +131,15 @@ export async function POST(request: NextRequest) {
   const totalHtCents = computeDocumentTotalHtCents(doc as Record<string, unknown>)
 
   const docRec = doc as Record<string, unknown>
+  // Sections BTP masquées : si materialLinesEnabled/fraisLinesEnabled === false,
+  // exclure leurs lignes de la TVA et du total. Sinon `total_tax_cents` et
+  // les agrégats côté liste divergent du RÉSUMÉ affiché dans le formulaire.
+  const matEnabled = docRec.materialLinesEnabled !== false
+  const fraisEnabled = docRec.fraisLinesEnabled !== false
   const items = [
     ...((docRec.lines as unknown[]) || []),
-    ...((docRec.materialLines as unknown[]) || []),
-    ...((docRec.fraisLines as unknown[]) || []),
+    ...(matEnabled ? ((docRec.materialLines as unknown[]) || []) : []),
+    ...(fraisEnabled ? ((docRec.fraisLines as unknown[]) || []) : []),
     ...((docRec.fraisAnnexes as unknown[]) || []),
   ]
   const fraisAnnexes =

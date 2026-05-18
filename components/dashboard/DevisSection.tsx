@@ -45,12 +45,18 @@ const computeDevisTotalHT = (doc: DevisDocument): number => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const customTables = (doc as any).customTables as { lines?: DevisLine[] }[] | undefined
   const customLines = (customTables || []).flatMap(t => t.lines || [])
+  // Sections BTP masquées (Matériaux / Frais annexes) : ignorer leurs lignes
+  // pour éviter que le total affiché diverge du RÉSUMÉ du formulaire.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matEnabled = (doc as any).materialLinesEnabled !== false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fraisEnabled = (doc as any).fraisLinesEnabled !== false
   return (
     sum(doc.lines)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    + sum((doc as any).materialLines)
+    + (matEnabled ? sum((doc as any).materialLines) : 0)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    + sum((doc as any).fraisLines)
+    + (fraisEnabled ? sum((doc as any).fraisLines) : 0)
     + sum(customLines)
   )
 }
