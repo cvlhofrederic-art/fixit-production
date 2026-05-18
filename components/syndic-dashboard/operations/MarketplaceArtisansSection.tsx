@@ -254,7 +254,7 @@ export default function MarketplaceArtisansSection({ user, userRole }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
           { emoji: '👷', label: 'Profissionais disponíveis', value: artisans.filter(a => a.disponivel).length, color: '#22C55E' },
-          { emoji: '📝', label: 'Pedidos ativos', value: pedidos.filter(p => p.status === 'aberto').length, color: '#0EA5E9' },
+          { emoji: '📝', label: 'Pedidos ativos', value: pedidos.filter(p => p.status === 'aberto').length, color: '#1A7A6E' },
           { emoji: '❤️', label: 'Favoritos', value: favoritos.length, color: '#EF4444' },
           { emoji: '⭐', label: 'Avaliação média', value: (artisans.reduce((s, a) => s + a.avaliacao, 0) / artisans.length).toFixed(1), color: '#C9A84C' },
         ].map(s => (
@@ -587,7 +587,7 @@ export default function MarketplaceArtisansSection({ user, userRole }: Props) {
                       fontSize: 11,
                       fontWeight: 600,
                       background: p.status === 'aberto' ? '#DBEAFE' : p.status === 'adjudicado' ? '#DCFCE7' : '#F3F4F6',
-                      color: p.status === 'aberto' ? '#1E40AF' : p.status === 'adjudicado' ? '#166534' : '#6B7280',
+                      color: p.status === 'aberto' ? '#0D1B2E' : p.status === 'adjudicado' ? '#166534' : '#6B7280',
                     }}>
                       {p.status === 'aberto' ? '🔵 Aberto' : p.status === 'adjudicado' ? '✅ Adjudicado' : p.status}
                     </span>

@@ -588,7 +588,7 @@ export default function PredicaoManutencaoSection({ user, userRole }: Props) {
                     <span style={{
                       padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700,
                       background: a.prioridade === 'critica' ? '#FEE2E2' : a.prioridade === 'alta' ? '#FEF3C7' : '#DBEAFE',
-                      color: a.prioridade === 'critica' ? '#991B1B' : a.prioridade === 'alta' ? '#92400E' : '#1E40AF',
+                      color: a.prioridade === 'critica' ? '#991B1B' : a.prioridade === 'alta' ? '#92400E' : '#0D1B2E',
                     }}>
                       {a.prioridade === 'critica' ? '🔴 Crítica' : a.prioridade === 'alta' ? '🟡 Alta' : '🔵 Média'}
                     </span>

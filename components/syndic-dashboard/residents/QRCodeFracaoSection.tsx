@@ -289,7 +289,7 @@ export default function QRCodeFracaoSection({ user, userRole }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
           { emoji: '📱', label: 'QR Codes ativos', value: qrConfigs.filter(q => q.ativo).length, color: '#0D1B2E' },
-          { emoji: '👁️', label: 'Total scans', value: totalScans, color: '#0EA5E9' },
+          { emoji: '👁️', label: 'Total scans', value: totalScans, color: '#1A7A6E' },
           { emoji: '🆕', label: 'Novos signalements', value: newSigs, color: '#EF4444' },
           { emoji: '✅', label: 'Resolvidos', value: resolvedSigs, color: '#22C55E' },
         ].map(s => (
@@ -373,7 +373,7 @@ export default function QRCodeFracaoSection({ user, userRole }: Props) {
                     <span style={{
                       padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                       background: qr.tipo === 'zona_comum' ? '#DBEAFE' : qr.tipo === 'fracao' ? '#F3E8FF' : '#FEF3C7',
-                      color: qr.tipo === 'zona_comum' ? '#1E40AF' : qr.tipo === 'fracao' ? '#6B21A8' : '#92400E',
+                      color: qr.tipo === 'zona_comum' ? '#0D1B2E' : qr.tipo === 'fracao' ? '#6B21A8' : '#92400E',
                     }}>
                       {qr.tipo === 'zona_comum' ? '🏢 Zona comum' : qr.tipo === 'fracao' ? '🚪 Fração' : '⚙️ Equipamento'}
                     </span>
@@ -517,7 +517,7 @@ export default function QRCodeFracaoSection({ user, userRole }: Props) {
                       <span style={{
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                         background: sig.prioridade === 'urgente' ? '#FEE2E2' : sig.prioridade === 'alta' ? '#FEF3C7' : sig.prioridade === 'media' ? '#DBEAFE' : '#F3F4F6',
-                        color: sig.prioridade === 'urgente' ? '#991B1B' : sig.prioridade === 'alta' ? '#92400E' : sig.prioridade === 'media' ? '#1E40AF' : '#6B7280',
+                        color: sig.prioridade === 'urgente' ? '#991B1B' : sig.prioridade === 'alta' ? '#92400E' : sig.prioridade === 'media' ? '#0D1B2E' : '#6B7280',
                       }}>
                         {sig.prioridade === 'urgente' ? '🔴' : sig.prioridade === 'alta' ? '🟡' : sig.prioridade === 'media' ? '🔵' : '⚪'} {sig.prioridade}
                       </span>

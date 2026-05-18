@@ -762,7 +762,7 @@ export default function ChatbotWhatsAppSection({ user, userRole }: { user: User;
                           borderTopLeftRadius: isResident ? 2 : 10,
                           borderTopRightRadius: isResident ? 10 : 2,
                         }}>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: isResident ? '#4A5E78' : isBot ? TEAL : '#2980B9', marginBottom: 3 }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: isResident ? '#4A5E78' : isBot ? TEAL : '#0D1B2E', marginBottom: 3 }}>
                             {isResident ? selectedConversation.condominoNome : isBot ? '🤖 Bot IA' : '🧑‍💼 Agente'}
                           </div>
                           <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.45 }}>{msg.content}</div>

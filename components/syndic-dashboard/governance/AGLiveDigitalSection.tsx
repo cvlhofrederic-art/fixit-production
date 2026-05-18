@@ -407,7 +407,7 @@ export default function AGLiveDigitalSection({ user, userRole }: Props) {
         {[
           { emoji: '🏛️', label: 'Total AGs', value: totalAGs, color: '#0D1B2E' },
           { emoji: '✅', label: 'Encerradas', value: agEncerradas, color: '#22C55E' },
-          { emoji: '👥', label: 'Presentes (live)', value: totalPresentes, color: '#0EA5E9' },
+          { emoji: '👥', label: 'Presentes (live)', value: totalPresentes, color: '#1A7A6E' },
           { emoji: '📊', label: 'Permilagem (live)', value: `${totalPermilagem}‰`, color: '#C9A84C' },
         ].map(s => (
           <div key={s.label} style={{ background: '#fff', border: '1px solid #E4DDD0', borderRadius: 12, padding: 16 }}>
