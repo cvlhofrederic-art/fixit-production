@@ -586,7 +586,7 @@ export default function MarketplaceArtisansSection({ user, userRole }: Props) {
                       borderRadius: 20,
                       fontSize: 11,
                       fontWeight: 600,
-                      background: p.status === 'aberto' ? '#DBEAFE' : p.status === 'adjudicado' ? '#DCFCE7' : '#F3F4F6',
+                      background: p.status === 'aberto' ? '#F7F4EE' : p.status === 'adjudicado' ? '#DCFCE7' : '#F3F4F6',
                       color: p.status === 'aberto' ? '#0D1B2E' : p.status === 'adjudicado' ? '#166534' : '#6B7280',
                     }}>
                       {p.status === 'aberto' ? '🔵 Aberto' : p.status === 'adjudicado' ? '✅ Adjudicado' : p.status}

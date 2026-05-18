@@ -250,7 +250,7 @@ export default function PredicaoManutencaoSection({ user, userRole }: Props) {
           { emoji: '🔴', label: 'Críticos', value: critiques, color: '#DC2626' },
           { emoji: '📉', label: 'Em degradação', value: degradation, color: '#F59E0B' },
           { emoji: '📊', label: 'Score médio risco', value: `${scoreMoyen}%`, color: getScoreColor(scoreMoyen) },
-          { emoji: '💰', label: 'Custo previsto total', value: `${(custoTotal / 1000).toFixed(0)}k€`, color: '#8B5CF6' },
+          { emoji: '💰', label: 'Custo previsto total', value: `${(custoTotal / 1000).toFixed(0)}k€`, color: '#C9A84C' },
         ].map(s => (
           <div key={s.label} style={{ background: '#fff', border: '1px solid #E4DDD0', borderRadius: 12, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -587,7 +587,7 @@ export default function PredicaoManutencaoSection({ user, userRole }: Props) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{
                       padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                      background: a.prioridade === 'critica' ? '#FEE2E2' : a.prioridade === 'alta' ? '#FEF3C7' : '#DBEAFE',
+                      background: a.prioridade === 'critica' ? '#FEE2E2' : a.prioridade === 'alta' ? '#FEF3C7' : '#F7F4EE',
                       color: a.prioridade === 'critica' ? '#991B1B' : a.prioridade === 'alta' ? '#92400E' : '#0D1B2E',
                     }}>
                       {a.prioridade === 'critica' ? '🔴 Crítica' : a.prioridade === 'alta' ? '🟡 Alta' : '🔵 Média'}

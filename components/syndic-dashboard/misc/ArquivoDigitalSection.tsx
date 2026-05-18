@@ -27,7 +27,7 @@ interface RetentionRule {
 const CATEGORIAS = [
   { key: 'atas', label: 'Atas', icon: '📝', cor: '#C9A84C' },
   { key: 'convocatorias', label: 'Convocatórias', icon: '📩', cor: '#0D1B2E' },
-  { key: 'regulamentos', label: 'Regulamentos', icon: '📜', cor: '#8B5CF6' },
+  { key: 'regulamentos', label: 'Regulamentos', icon: '📜', cor: '#C9A84C' },
   { key: 'orcamentos', label: 'Orçamentos', icon: '📊', cor: '#10B981' },
   { key: 'contratos', label: 'Contratos', icon: '📋', cor: '#F59E0B' },
   { key: 'seguros', label: 'Seguros', icon: '🛡️', cor: '#EF4444' },
