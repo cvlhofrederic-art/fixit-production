@@ -71,7 +71,7 @@ const PRIORIDADES: Record<Prioridade, { label: string; color: string; bg: string
 
 const ESTADOS: Record<Estado, { label: string; icon: string; color: string; bg: string }> = {
   aberto:              { label: 'Aberto',              icon: '📣', color: '#C0392B', bg: '#FDECEA' },
-  em_analise:          { label: 'Em análise',          icon: '🔍', color: '#6C5CE7', bg: '#EDE8FF' },
+  em_analise:          { label: 'Em análise',          icon: '🔍', color: '#C9A84C', bg: '#F7F4EE' },
   artesao_contactado:  { label: 'Artesão contactado',  icon: '📞', color: '#D4830A', bg: '#FEF5E4' },
   em_reparacao:        { label: 'Em reparação',        icon: '🔨', color: '#2980B9', bg: '#EBF5FB' },
   resolvido:           { label: 'Resolvido',           icon: '✅', color: '#1A7A6E', bg: '#E6F4F2' },

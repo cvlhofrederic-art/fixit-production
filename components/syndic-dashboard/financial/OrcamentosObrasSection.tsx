@@ -50,7 +50,7 @@ interface Props {
 
 const FASES_CONFIG: Record<FaseObra, { label: string; emoji: string; bg: string; color: string; dot: string }> = {
   orcamentacao:  { label: 'Orçamentação',  emoji: '📋', bg: '#FEF5E4', color: '#D4830A', dot: '#D4830A' },
-  aprovacao_ag:   { label: 'Aprovação AG',   emoji: '🗳️', bg: '#EDE8FF', color: '#6C5CE7', dot: '#6C5CE7' },
+  aprovacao_ag:   { label: 'Aprovação AG',   emoji: '🗳️', bg: '#F7F4EE', color: '#C9A84C', dot: '#C9A84C' },
   em_execucao:    { label: 'Em Execução',    emoji: '🔧', bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
   concluida:      { label: 'Concluída',      emoji: '✅', bg: '#F0F9E8', color: '#2D8A4E', dot: '#2D8A4E' },
 }
@@ -324,7 +324,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
         {[
           { emoji: '🏗️', label: 'Obras Ativas', value: obrasAtivas.length, color: 'var(--sd-navy, #0D1B2E)' },
           { emoji: '📋', label: 'Em Orçamentação', value: obras.filter(o => o.fase === 'orcamentacao').length, color: '#D4830A' },
-          { emoji: '🗳️', label: 'Aprovação AG', value: obras.filter(o => o.fase === 'aprovacao_ag').length, color: '#6C5CE7' },
+          { emoji: '🗳️', label: 'Aprovação AG', value: obras.filter(o => o.fase === 'aprovacao_ag').length, color: '#C9A84C' },
           { emoji: '🔧', label: 'Em Execução', value: obras.filter(o => o.fase === 'em_execucao').length, color: '#1A7A6E' },
           { emoji: '✅', label: 'Concluídas', value: obrasArquivadas.length, color: '#2D8A4E' },
           { emoji: '📊', label: 'Total Orçamentos', value: orcamentos.length, color: 'var(--sd-gold, #C9A84C)' },
@@ -627,7 +627,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                               <div style={{ fontWeight: 600, color: 'var(--sd-navy, #0D1B2E)' }}>{orc.fornecedor}</div>
                               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                 {isCheapest && <span style={{ fontSize: 10, background: '#E6F4F2', color: '#1A7A6E', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>💰 Mais barato</span>}
-                                {isFastest && <span style={{ fontSize: 10, background: '#EDE8FF', color: '#6C5CE7', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>⚡ Mais rápido</span>}
+                                {isFastest && <span style={{ fontSize: 10, background: '#F7F4EE', color: '#C9A84C', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>⚡ Mais rápido</span>}
                                 {isBestValue && <span style={{ fontSize: 10, background: 'rgba(201,168,76,0.15)', color: '#B8941F', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>🏆 Melhor relação qualidade-preço</span>}
                               </div>
                               <div style={{ marginTop: 4 }}>
@@ -639,7 +639,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                             <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: isCheapest ? '#1A7A6E' : 'var(--sd-navy, #0D1B2E)' }}>
                               {fmt(orc.valorTotal)} €
                             </td>
-                            <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: isFastest ? 700 : 400, color: isFastest ? '#6C5CE7' : 'var(--sd-ink-2, #4A5E78)' }}>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: isFastest ? 700 : 400, color: isFastest ? '#C9A84C' : 'var(--sd-ink-2, #4A5E78)' }}>
                               {orc.prazoExecucao} dias
                             </td>
                             <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--sd-ink-2, #4A5E78)' }}>
@@ -843,7 +843,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
             </div>
 
             {/* Seuil AG */}
-            <div style={{ ...sCard, borderLeft: '4px solid #6C5CE7' }}>
+            <div style={{ ...sCard, borderLeft: '4px solid #C9A84C' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <span style={{
                   width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
