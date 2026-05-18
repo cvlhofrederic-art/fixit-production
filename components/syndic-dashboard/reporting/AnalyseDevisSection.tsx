@@ -365,41 +365,51 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
   return (
     <div className="max-w-5xl space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — style premium navy/gold/Playfair (aligné Painel de Controlo) */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#0D1B2E]">🔍 {isPt ? 'Análise Orçamentos & Faturas' : 'Analyse Devis & Factures'}</h1>
-          <p className="text-sm text-gray-500 mt-1">{isPt ? 'Conformidade jurídica · Referência de preços de mercado · Prevenção de litígios' : 'Conformité juridique · Benchmark prix marché · Prévention litiges'}</p>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 400, color: 'var(--sd-navy, #0D1B2E)', lineHeight: 1.1 }}>
+            🔍 {isPt ? 'Análise Orçamentos & Faturas' : 'Analyse Devis & Factures'}
+          </h1>
+          <p style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 6, letterSpacing: '0.3px' }}>
+            {isPt ? 'Conformidade jurídica · Referência de preços de mercado · Prevenção de litígios' : 'Conformité juridique · Benchmark prix marché · Prévention litiges'}
+          </p>
         </div>
         <button
           onClick={() => setMode(mode === 'history' ? 'main' : 'history')}
-          className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${mode === 'history' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-[#F7F4EE]'}`}
+          style={{
+            padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.3px',
+            background: mode === 'history' ? 'var(--sd-navy, #0D1B2E)' : '#fff',
+            color: mode === 'history' ? '#fff' : 'var(--sd-ink-2, #4A5E78)',
+            border: mode === 'history' ? 'none' : '1px solid var(--sd-border, #E4DDD0)',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
         >
           🕐 {isPt ? 'Histórico' : 'Historique'} ({history.length})
         </button>
       </div>
 
-      {/* Bandeaux info */}
+      {/* Bandeaux info — cards blanches subtiles avec icône doré */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-          <span className="text-2xl">⚖️</span>
+        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 18, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--sd-gold-dim, rgba(201,168,76,0.15))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>⚖️</div>
           <div>
-            <p className="font-semibold text-blue-900 text-sm">{isPt ? 'Conformidade jurídica' : 'Conformité juridique'}</p>
-            <p className="text-xs text-blue-600 mt-0.5">{isPt ? 'NIF, IVA, Seguro RC, garantia decenal' : 'SIRET, TVA, RC Pro, garantie décennale'}</p>
+            <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy, #0D1B2E)' }}>{isPt ? 'Conformidade jurídica' : 'Conformité juridique'}</p>
+            <p style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 3 }}>{isPt ? 'NIF, IVA, Seguro RC, garantia decenal' : 'SIRET, TVA, RC Pro, garantie décennale'}</p>
           </div>
         </div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
-          <span className="text-2xl">💰</span>
+        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 18, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--sd-teal-soft, #E6F4F2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>💰</div>
           <div>
-            <p className="font-semibold text-green-900 text-sm">{isPt ? 'Referência de preços de mercado' : 'Benchmark prix marché'}</p>
-            <p className="text-xs text-green-600 mt-0.5">{isPt ? 'Tarifas 2024-2025 por ofício' : 'Tarifs 2024-2025 par corps de métier'}</p>
+            <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy, #0D1B2E)' }}>{isPt ? 'Referência de preços de mercado' : 'Benchmark prix marché'}</p>
+            <p style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 3 }}>{isPt ? 'Tarifas 2024-2025 por ofício' : 'Tarifs 2024-2025 par corps de métier'}</p>
           </div>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <span className="text-2xl">🛡️</span>
+        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 18, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--sd-amber-soft, #FEF5E4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🛡️</div>
           <div>
-            <p className="font-semibold text-amber-900 text-sm">{isPt ? 'Prevenção de litígios' : 'Prévention litiges'}</p>
-            <p className="text-xs text-amber-600 mt-0.5">{isPt ? 'Deteção de riscos jurídicos' : 'Détection des risques juridiques'}</p>
+            <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--sd-navy, #0D1B2E)' }}>{isPt ? 'Prevenção de litígios' : 'Prévention litiges'}</p>
+            <p style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 3 }}>{isPt ? 'Deteção de riscos jurídicos' : 'Détection des risques juridiques'}</p>
           </div>
         </div>
       </div>
@@ -408,19 +418,31 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
       {mode === 'main' && (
         <div className="space-y-4">
           {!analysis ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 14, overflow: 'hidden' }}>
 
-              {/* Onglets PDF / Texte */}
-              <div className="flex border-b border-gray-100">
+              {/* Onglets PDF / Texte — style navy active, ink inactif (aligné Painel) */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--sd-border, #E4DDD0)' }}>
                 <button
                   onClick={() => { setInputMode('drop'); setError('') }}
-                  className={`flex-1 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition ${inputMode === 'drop' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-[#F7F4EE]'}`}
+                  style={{
+                    flex: 1, padding: '16px 0', fontSize: 13, fontWeight: 600, letterSpacing: '0.3px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    background: inputMode === 'drop' ? 'var(--sd-navy, #0D1B2E)' : 'transparent',
+                    color: inputMode === 'drop' ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  }}
                 >
                   📄 {isPt ? 'Enviar um PDF' : 'Déposer un PDF'}
                 </button>
                 <button
                   onClick={() => { setInputMode('paste'); setError('') }}
-                  className={`flex-1 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition ${inputMode === 'paste' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-[#F7F4EE]'}`}
+                  style={{
+                    flex: 1, padding: '16px 0', fontSize: 13, fontWeight: 600, letterSpacing: '0.3px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    background: inputMode === 'paste' ? 'var(--sd-navy, #0D1B2E)' : 'transparent',
+                    color: inputMode === 'paste' ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  }}
                 >
                   ✏️ {isPt ? 'Inserir o texto' : 'Saisir le texte'}
                 </button>
@@ -428,7 +450,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
 
               <div className="p-6 space-y-4">
 
-                {/* Zone Drop PDF */}
+                {/* Zone Drop PDF — style premium cream/gold border */}
                 {inputMode === 'drop' && (
                   <div className="space-y-4">
                     {!pdfReady ? (
@@ -437,13 +459,25 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
-                        className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
-                          dragOver
-                            ? 'border-blue-500 bg-blue-50 scale-[1.01]'
-                            : extracting
-                            ? 'border-blue-300 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'
-                        }`}
+                        style={{
+                          position: 'relative', borderRadius: 14, padding: 48, textAlign: 'center', cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          border: '2px dashed ' + (dragOver ? 'var(--sd-gold, #C9A84C)' : extracting ? 'var(--sd-gold-light, #D6BC6E)' : 'var(--sd-border, #E4DDD0)'),
+                          background: dragOver ? 'var(--sd-gold-dim, rgba(201,168,76,0.08))' : extracting ? 'var(--sd-cream, #F7F4EE)' : 'var(--sd-cream, #F7F4EE)',
+                          transform: dragOver ? 'scale(1.005)' : 'scale(1)',
+                        }}
+                        onMouseEnter={e => {
+                          if (!dragOver && !extracting) {
+                            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--sd-gold, #C9A84C)'
+                            ;(e.currentTarget as HTMLDivElement).style.background = 'var(--sd-gold-dim, rgba(201,168,76,0.06))'
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!dragOver && !extracting) {
+                            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--sd-border, #E4DDD0)'
+                            ;(e.currentTarget as HTMLDivElement).style.background = 'var(--sd-cream, #F7F4EE)'
+                          }
+                        }}
                       >
                         <input
                           ref={fileInputRef}
@@ -453,38 +487,38 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                           className="hidden"
                         />
                         {extracting ? (
-                          <div className="space-y-3">
-                            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                            <p className="font-semibold text-blue-700">{isPt ? 'A extrair o texto...' : 'Extraction du texte en cours...'}</p>
-                            <p className="text-sm text-blue-500">{filename}</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                            <div style={{ width: 44, height: 44, border: '3px solid var(--sd-gold, #C9A84C)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: 'var(--sd-navy, #0D1B2E)' }}>{isPt ? 'A extrair o texto...' : 'Extraction du texte en cours...'}</p>
+                            <p style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)' }}>{filename}</p>
                           </div>
                         ) : (
-                          <div className="space-y-3">
-                            <div className="text-6xl">📄</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+                            <div style={{ fontSize: 48 }}>📄</div>
                             <div>
-                              <p className="text-lg font-bold text-gray-800">{isPt ? 'Arraste o seu PDF aqui' : 'Glissez votre PDF ici'}</p>
-                              <p className="text-sm text-gray-500 mt-1">{isPt ? 'ou clique para selecionar um ficheiro' : 'ou cliquez pour sélectionner un fichier'}</p>
+                              <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: 'var(--sd-navy, #0D1B2E)', lineHeight: 1.2 }}>{isPt ? 'Arraste o seu PDF aqui' : 'Glissez votre PDF ici'}</p>
+                              <p style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 6 }}>{isPt ? 'ou clique para selecionar um ficheiro' : 'ou cliquez pour sélectionner un fichier'}</p>
                             </div>
-                            <div className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm">
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--sd-navy, #0D1B2E)', color: '#fff', padding: '10px 22px', borderRadius: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.3px' }}>
                               📂 {isPt ? 'Escolher um PDF' : 'Choisir un PDF'}
                             </div>
-                            <p className="text-xs text-gray-500">{isPt ? 'Orçamento, fatura, nota de encomenda — máx 20 Mo' : 'Devis, facture, bon de commande — max 20 Mo'}</p>
+                            <p style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 4 }}>{isPt ? 'Orçamento, fatura, nota de encomenda — máx 20 Mo' : 'Devis, facture, bon de commande — max 20 Mo'}</p>
                           </div>
                         )}
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">✅</span>
+                        <div style={{ background: 'var(--sd-teal-soft, #E6F4F2)', border: '1px solid rgba(26,122,110,0.2)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: 22 }}>✅</span>
                             <div>
-                              <p className="font-semibold text-green-800 text-sm">{filename}</p>
-                              <p className="text-xs text-green-600">{docText.length.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} {isPt ? 'caracteres extraídos · Pronto para analisar' : 'caractères extraits · Prêt à analyser'}</p>
+                              <p style={{ fontWeight: 600, color: 'var(--sd-teal, #1A7A6E)', fontSize: 13 }}>{filename}</p>
+                              <p style={{ fontSize: 11, color: 'var(--sd-teal, #1A7A6E)', opacity: 0.8 }}>{docText.length.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} {isPt ? 'caracteres extraídos · Pronto para analisar' : 'caractères extraits · Prêt à analyser'}</p>
                             </div>
                           </div>
                           <button
                             onClick={handleReset}
-                            className="text-sm text-gray-500 hover:text-red-500 transition"
+                            style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                           >
                             {isPt ? 'Alterar' : 'Changer'} ✕
                           </button>
@@ -541,19 +575,30 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                   </div>
                 )}
 
-                {/* Bouton analyser */}
+                {/* Bouton analyser — navy avec accent gold (style Painel) */}
                 <button
                   onClick={handleAnalyse}
                   disabled={loading || extracting || docText.trim().length < 10}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold transition disabled:opacity-40 flex items-center justify-center gap-2 text-base"
+                  style={{
+                    width: '100%', padding: '14px 0', borderRadius: 12,
+                    background: loading || extracting || docText.trim().length < 10 ? 'var(--sd-cream-dark, #EDE8DF)' : 'var(--sd-navy, #0D1B2E)',
+                    color: loading || extracting || docText.trim().length < 10 ? 'var(--sd-ink-3, #8A9BB0)' : '#fff',
+                    fontSize: 14, fontWeight: 600, letterSpacing: '0.4px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                    border: 'none', cursor: loading || extracting || docText.trim().length < 10 ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s', boxShadow: !(loading || extracting || docText.trim().length < 10) ? '0 4px 12px rgba(13,27,46,0.15)' : 'none',
+                  }}
                 >
                   {loading ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div style={{ width: 18, height: 18, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                       {isPt ? 'Análise IA em curso...' : 'Analyse IA en cours...'}
                     </>
                   ) : (
-                    <>🔍 {isPt ? 'Analisar o documento' : 'Analyser le document'}</>
+                    <>
+                      <span style={{ color: 'var(--sd-gold, #C9A84C)' }}>🔍</span>
+                      {isPt ? 'Analisar o documento' : 'Analyser le document'}
+                    </>
                   )}
                 </button>
               </div>
