@@ -87,7 +87,7 @@ export default function MissionsPageSection({
             <button key={f} onClick={() => setMissionsFilter(f)} className={`text-sm px-3 py-1.5 rounded-lg border transition ${missionsFilter === f ? 'border-[#C9A84C] bg-[#F7F4EE] text-[#C9A84C] font-semibold' : 'border-gray-200 hover:border-[#C9A84C] hover:text-[#C9A84C]'}`}>
               {filterLabel}
               {f === 'Urgentes' && <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.priorite === 'urgente').length}</span>}
-              {f === 'En cours' && <span className="ml-1.5 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee').length}</span>}
+              {f === 'En cours' && <span className="ml-1.5 bg-[#C9A84C] text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee').length}</span>}
             </button>
             )
           })}
@@ -110,7 +110,7 @@ export default function MissionsPageSection({
                   <PrioriteBadge p={m.priorite} />
                   <Badge statut={m.statut} locale={locale} />
                   <span className="text-xs text-gray-400 font-mono" title={`ID complet : ${m.id}`}>#{m.id.slice(0, 8)}</span>
-                  {m.locataire && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
+                  {m.locataire && <span className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
                   {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `${locale === 'pt' ? 'Bl.' : 'Bât.'} ${m.batiment} · ` : ''}{locale === 'pt' ? 'And.' : 'Ét.'} {m.etage}</span>}
                 </div>
                 <h3 className="font-bold text-gray-900">{m.immeuble}</h3>
@@ -133,7 +133,7 @@ export default function MissionsPageSection({
                   <button onClick={() => handleValiderMission(m.id)} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">✅ {locale === 'pt' ? 'Validar' : 'Valider'}</button>
                 )}
                 {m.statut === 'terminee' && (
-                  <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">📄 {locale === 'pt' ? 'Relatório' : 'Rapport'}</button>
+                  <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📄 {locale === 'pt' ? 'Relatório' : 'Rapport'}</button>
                 )}
                 <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📋 {locale === 'pt' ? 'Abrir' : 'Ouvrir'}</button>
                 <button onClick={(e) => { e.stopPropagation(); handleDeleteMission(m.id) }} className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-lg hover:bg-red-200 transition font-medium" title={t('syndicDash.common.delete')} aria-label={t('syndicDash.common.delete')}>🗑️</button>
