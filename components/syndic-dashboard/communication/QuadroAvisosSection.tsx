@@ -790,7 +790,7 @@ export default function QuadroAvisosSection({ user, userRole }: Props) {
                     width: 38,
                     height: 38,
                     borderRadius: 9,
-                    background: 'rgba(108,92,231,0.1)',
+                    background: 'rgba(201,168,76,0.10)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

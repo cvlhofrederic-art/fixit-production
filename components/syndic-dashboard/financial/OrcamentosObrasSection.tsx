@@ -847,7 +847,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <span style={{
                   width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(108,92,231,0.12)', fontSize: 20,
+                  background: 'rgba(201,168,76,0.12)', fontSize: 20,
                 }}>🗳️</span>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Limiar de Concorrência</div>

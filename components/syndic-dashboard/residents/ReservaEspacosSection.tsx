@@ -58,12 +58,12 @@ interface Props {
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const TIPO_ESPACO_CONFIG: Record<TipoEspaco, { label: string; emoji: string; cor: string; corBg: string }> = {
-  salao_festas:  { label: 'Salão de Festas',    emoji: '🎉', cor: '#0D1B2E', corBg: 'rgba(59,130,246,0.12)' },
+  salao_festas:  { label: 'Salão de Festas',    emoji: '🎉', cor: '#0D1B2E', corBg: 'rgba(13,27,46,0.10)' },
   churrasqueira: { label: 'Churrasqueira',       emoji: '🔥', cor: '#F97316', corBg: 'rgba(249,115,22,0.12)' },
   campo:         { label: 'Campo/Polidesportivo', emoji: '⚽', cor: '#22C55E', corBg: 'rgba(34,197,94,0.12)' },
-  piscina:       { label: 'Piscina',             emoji: '🏊', cor: '#1A7A6E', corBg: 'rgba(6,182,212,0.12)' },
-  ginasio:       { label: 'Ginasio',             emoji: '🏋️', cor: '#8B5CF6', corBg: 'rgba(139,92,246,0.12)' },
-  sala_reunioes: { label: 'Sala de Reuniões',    emoji: '🤝', cor: '#EC4899', corBg: 'rgba(236,72,153,0.12)' },
+  piscina:       { label: 'Piscina',             emoji: '🏊', cor: '#1A7A6E', corBg: 'rgba(26,122,110,0.12)' },
+  ginasio:       { label: 'Ginasio',             emoji: '🏋️', cor: '#C9A84C', corBg: 'rgba(201,168,76,0.12)' },
+  sala_reunioes: { label: 'Sala de Reuniões',    emoji: '🤝', cor: '#C0392B', corBg: 'rgba(192,57,43,0.10)' },
 }
 
 const ESTADO_ESPACO_CONFIG: Record<EstadoEspaco, { label: string; cor: string; bg: string }> = {
