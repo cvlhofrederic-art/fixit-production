@@ -12,6 +12,7 @@ import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
+import { computeDocumentTotalHT } from '@/lib/devis-totals'
 
 interface DevisLine {
   totalHT?: number
@@ -35,31 +36,11 @@ interface DevisDocument {
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
-// Calcule le total HT d'un devis BTP en sommant TOUTES les sources de lignes :
-// lines (main d'œuvre par défaut) + materialLines + fraisLines + customTables
-// (corps d'état). Sans ce helper, l'affichage liste ne montrait que le total
-// de `lines` — ridiculement faible pour un devis BTP enrichi.
-const computeDevisTotalHT = (doc: DevisDocument): number => {
-  const sum = (arr: DevisLine[] | undefined) =>
-    (arr || []).reduce((s, l) => s + (l.totalHT || 0), 0)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const customTables = (doc as any).customTables as { lines?: DevisLine[] }[] | undefined
-  const customLines = (customTables || []).flatMap(t => t.lines || [])
-  // Sections BTP masquées (Matériaux / Frais annexes) : ignorer leurs lignes
-  // pour éviter que le total affiché diverge du RÉSUMÉ du formulaire.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const matEnabled = (doc as any).materialLinesEnabled !== false
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fraisEnabled = (doc as any).fraisLinesEnabled !== false
-  return (
-    sum(doc.lines)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    + (matEnabled ? sum((doc as any).materialLines) : 0)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    + (fraisEnabled ? sum((doc as any).fraisLines) : 0)
-    + sum(customLines)
-  )
-}
+// Total HT d'un devis BTP — délégué à `computeDocumentTotalHT`
+// (lib/devis-totals.ts), source unique de vérité. Toute logique de
+// sommation et de filtrage des sections masquées est centralisée là.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const computeDevisTotalHT = (doc: DevisDocument): number => computeDocumentTotalHT(doc as any)
 
 // Identifie un document unique
 // 1) id (Date.now() par save) — nouveaux docs

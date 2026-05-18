@@ -26,6 +26,12 @@ interface ProductLineLike {
   total_ht?: number
   total?: number
   description?: string
+  tvaRate?: number
+  tva_rate?: number
+  qty?: number
+  priceHT?: number
+  unit?: string
+  id?: string | number
 }
 
 interface DocumentWithLines {
@@ -72,31 +78,38 @@ const safeLines = (arr: unknown): ProductLineLike[] => {
  *   ce qui faisait disparaître la section DÉMOLITION du dashboard car elle
  *   est stockée dans `lines` (pas `laborLines`).
  */
-export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
-  if (!doc || typeof doc !== 'object') return 0
+/**
+ * Source unique de vérité pour la collection de lignes effective d'un devis
+ * ou d'une facture (BTP ou artisan). Applique toutes les règles de filtrage :
+ *
+ *   - laborLines (storage explicite) priorité sur `lines` (fallback legacy)
+ *   - materialLines / fraisLines exclus si leur flag `Enabled` === false
+ *     (section masquée par l'utilisateur, ses lignes ne sont jamais sommées)
+ *   - customTables aplatis, entrées null filtrées (corruption localStorage)
+ *   - safeLines à chaque niveau (null-safe)
+ *
+ * Tout site qui calcule un sous-total HT, somme la TVA, ou itère les postes
+ * d'un document persisté DOIT passer par ce helper. Sans cette source unique,
+ * un patch sur un seul des chemins (form, dashboard, API, PDF download)
+ * laisserait les autres divergents — régression DEV-2026-005, +2 800 €.
+ */
+export function buildDocumentLines(doc: DocumentWithLines | null | undefined): ProductLineLike[] {
+  if (!doc || typeof doc !== 'object') return []
   const laborRaw = safeLines(doc.laborLines)
   const lines = safeLines(doc.lines)
-  // Respect des flags de visibilité BTP : une section désactivée
-  // (materialLinesEnabled === false ou fraisLinesEnabled === false) ne doit
-  // pas être sommée — sinon le total persisté diverge du RÉSUMÉ affiché.
   const material = doc.materialLinesEnabled === false ? [] : safeLines(doc.materialLines)
   const frais = doc.fraisLinesEnabled === false ? [] : safeLines(doc.fraisLines)
   const fraisAnnexes = safeLines(doc.fraisAnnexes)
-  // customTables peut contenir des entrées null (corruption localStorage).
-  // On filtre les tables invalides AVANT d'accéder à `.lines` pour éviter
-  // un TypeError fatal côté FacturesSection / Pipeline rendering.
   const customTablesRaw = Array.isArray(doc.customTables) ? doc.customTables : []
   const customLines = customTablesRaw
     .filter((t): t is { lines?: ProductLineLike[] } => t !== null && typeof t === 'object')
     .flatMap(t => safeLines(t.lines))
   const labor = laborRaw.length > 0 ? laborRaw : lines
-  return sumMoney([
-    ...labor.map(lineHT),
-    ...material.map(lineHT),
-    ...frais.map(lineHT),
-    ...fraisAnnexes.map(lineHT),
-    ...customLines.map(lineHT),
-  ])
+  return [...labor, ...material, ...frais, ...fraisAnnexes, ...customLines]
+}
+
+export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
+  return sumMoney(buildDocumentLines(doc).map(lineHT))
 }
 
 /**

@@ -73,6 +73,11 @@ vi.mock('@sentry/nextjs', () => ({
 
 vi.mock('@/lib/devis-totals', () => ({
   computeDocumentTotalHtCents: vi.fn().mockReturnValue(12345),
+  // `buildDocumentLines` est la source unique des lignes effectives —
+  // appelée par route.ts:138 pour construire `items` (TVA, hash, payload DB).
+  // Mock minimaliste : renvoie un tableau vide, suffisant pour les
+  // assertions de transition / autorisation / mapping de status.
+  buildDocumentLines: vi.fn().mockReturnValue([]),
 }))
 
 vi.mock('@/lib/logger', () => ({

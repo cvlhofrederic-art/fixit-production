@@ -28,6 +28,7 @@ import {
   type ServiceBasic,
 } from '@/lib/devis-types'
 import { mapLegalFormToCode, titleCaseAddress } from '@/lib/devis-utils'
+import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
@@ -896,12 +897,15 @@ export default function DevisFactureFormBTP({
   }, [artisan?.id, docType])
 
   const totaux = useMemo(() => {
-    const allLines = [
-      ...lines,
-      ...(materialLinesEnabled ? materialLines : []),
-      ...(fraisLinesEnabled ? fraisLines : []),
-      ...customTables.flatMap(t => t.lines || []),
-    ]
+    // Source unique de vérité : `buildDocumentLines` (lib/devis-totals.ts)
+    // applique le filtrage des sections masquées (materialLinesEnabled /
+    // fraisLinesEnabled === false) et l'aplatissement customTables. Tout
+    // autre site (PDF, dashboard, API sync) passe par le même helper —
+    // aucune divergence possible entre RÉSUMÉ affiché et total persisté.
+    const allLines = buildDocumentLines({
+      lines, materialLines, fraisLines, customTables,
+      materialLinesEnabled, fraisLinesEnabled,
+    }) as typeof lines
     // Sous-total via centimes entiers (sumMoney) — arrondi par ligne d'abord
     // (norme BOFiP BOI-TVA-DECLA-30-20-20 §50), puis somme exacte.
     const subTotalBrut = sumMoney(

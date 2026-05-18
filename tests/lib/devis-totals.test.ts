@@ -7,7 +7,7 @@
 // chaque chargement de la section factures.
 
 import { describe, it, expect } from 'vitest'
-import { computeDocumentTotalHT, computeDocumentTotalHtCents } from '@/lib/devis-totals'
+import { computeDocumentTotalHT, computeDocumentTotalHtCents, buildDocumentLines } from '@/lib/devis-totals'
 
 describe('computeDocumentTotalHT — robustesse nullish', () => {
   it('retourne 0 si doc est null', () => {
@@ -123,5 +123,48 @@ describe('computeDocumentTotalHT — invariant rendu == total (flags Enabled)', 
 
     const docTrue = { ...docDefaut, materialLinesEnabled: true }
     expect(computeDocumentTotalHT(docTrue)).toBe(150)
+  })
+})
+
+// `buildDocumentLines` est désormais la source unique de vérité pour la
+// collection effective des lignes d'un document. Tous les sites de calcul
+// HT (form RÉSUMÉ, dashboard, API sync, PDF download) passent par ce helper.
+// Toute divergence future entre ces sites se manifestera comme un test
+// cassé ici si le contrat du helper change — ou comme une régression
+// visible si un site contourne le helper. C'est l'antidote au risque
+// systémique « 5 implémentations en parallèle » qui a causé DEV-2026-005.
+describe('buildDocumentLines — source unique de vérité', () => {
+  it('retourne un array vide si doc est null/undefined', () => {
+    expect(buildDocumentLines(null)).toEqual([])
+    expect(buildDocumentLines(undefined)).toEqual([])
+  })
+
+  it('exclut materialLines + fraisLines masqués, conserve labor + customTables', () => {
+    const doc = {
+      lines: [{ totalHT: 100, description: 'L1' }],
+      materialLines: [{ totalHT: 200, description: 'M1' }],
+      materialLinesEnabled: false,
+      fraisLines: [{ totalHT: 50, description: 'F1' }],
+      fraisLinesEnabled: false,
+      customTables: [{ lines: [{ totalHT: 300, description: 'C1' }] }],
+    }
+    const result = buildDocumentLines(doc)
+    expect(result.map(l => l.description)).toEqual(['L1', 'C1'])
+    expect(result.map(l => l.totalHT)).toEqual([100, 300])
+  })
+
+  it('invariant : computeDocumentTotalHT(doc) === sumMoney(buildDocumentLines(doc))', () => {
+    // Cas régression DEV-2026-005 reproduit : phantom 2 800 € dans materialLines
+    // masqué + custom table de 26 000 € + labor de 17 425 €.
+    const doc = {
+      lines: [{ totalHT: 17425 }],
+      materialLines: [{ totalHT: 2800 }],
+      materialLinesEnabled: false,
+      customTables: [{ lines: [{ totalHT: 26000 }] }],
+    }
+    const lines = buildDocumentLines(doc)
+    const totalViaHelper = lines.reduce((s, l) => s + (l.totalHT || 0), 0)
+    expect(totalViaHelper).toBe(43425)
+    expect(computeDocumentTotalHT(doc)).toBe(totalViaHelper)
   })
 })
