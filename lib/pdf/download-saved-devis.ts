@@ -323,7 +323,20 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   // Avant ce fix : `lines` était IGNORÉ quand customTables existaient → la
   // section DÉMOLITION disparaissait du PDF (5 272,73 € manquants sur Adeline).
   const labor = laborLinesRaw.length > 0 ? laborLinesRaw : lines
-  const sourceLines = [...labor, ...materialLines, ...fraisLines, ...customLines]
+  // Respect des flags Enabled — `devis-pdf-v3.ts:1109,1112` filtre déjà ces
+  // sections quand `materialLinesEnabled === false` / `fraisLinesEnabled
+  // === false` pour le rendu des lignes. Sans le même filtre ici, des lignes
+  // « phantom » survivant dans la donnée (ex : section masquée non vidée)
+  // étaient sommées dans `subtotalHT` alors qu'elles n'apparaissaient pas
+  // dans le tableau du PDF — total final divergeant de la somme visible.
+  const materialEnabled = (doc as { materialLinesEnabled?: boolean }).materialLinesEnabled !== false
+  const fraisEnabled = (doc as { fraisLinesEnabled?: boolean }).fraisLinesEnabled !== false
+  const sourceLines = [
+    ...labor,
+    ...(materialEnabled ? materialLines : []),
+    ...(fraisEnabled ? fraisLines : []),
+    ...customLines,
+  ]
   // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
   const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false
