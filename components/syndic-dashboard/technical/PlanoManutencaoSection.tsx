@@ -47,14 +47,14 @@ const CATEGORIAS = [
 
 const ESTADOS_GLOBAL = {
   preparacao:   { label: 'Em preparação',       dot: 'bg-yellow-400',  badge: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-  submetido_ag: { label: 'Submetido em AG',     dot: 'bg-blue-400',    badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  submetido_ag: { label: 'Submetido em AG',     dot: 'bg-[#C9A84C]',    badge: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]' },
   aprovado:     { label: 'Aprovado em AG',      dot: 'bg-green-400',   badge: 'bg-green-50 text-green-700 border-green-200' },
   em_execucao:  { label: 'Em execução',         dot: 'bg-purple-400',  badge: 'bg-purple-50 text-purple-700 border-purple-200' },
   arquivado:    { label: 'Arquivado',           dot: 'bg-gray-400',    badge: 'bg-gray-50 text-gray-500 border-gray-200' },
 }
 
 const ESTADOS_OBRA = {
-  previsto:  { label: 'Previsto',   color: 'bg-blue-50 text-blue-600' },
+  previsto:  { label: 'Previsto',   color: 'bg-[#F7F4EE] text-[#C9A84C]' },
   em_curso:  { label: 'Em curso',   color: 'bg-orange-50 text-orange-600' },
   realizado: { label: 'Realizado',  color: 'bg-green-50 text-green-600' },
   adiado:    { label: 'Adiado',     color: 'bg-gray-50 text-gray-500' },
@@ -123,7 +123,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
           <h1 className="text-2xl font-bold text-gray-900">🏗️ Plano de Manutenção</h1>
           <p className="text-sm text-gray-500 mt-0.5">Conservação obrigatória 8 anos — DL 555/99 art. 89.º</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-colors">+ Novo plano</button>
+        <button onClick={openCreate} className="flex items-center gap-2 bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#152338] transition-colors">+ Novo plano</button>
       </div>
 
       <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
@@ -142,7 +142,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
           { label: 'Planos criados', value: planos.length, color: 'text-gray-900' },
           { label: 'Aprovados em AG', value: countAprovados, color: 'text-green-600' },
           { label: 'Em preparação', value: planos.filter(p => p.estadoGlobal === 'preparacao' || p.estadoGlobal === 'submetido_ag').length, color: 'text-yellow-600' },
-          { label: 'Orçamento total', value: totalOrcamento > 0 ? formatEur(totalOrcamento) : '—', color: 'text-blue-600' },
+          { label: 'Orçamento total', value: totalOrcamento > 0 ? formatEur(totalOrcamento) : '—', color: 'text-[#C9A84C]' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -156,7 +156,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
           <div className="text-5xl mb-4">🏗️</div>
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Nenhum plano de manutenção</h3>
           <p className="text-gray-400 text-sm mb-6">Comece por criar o plano de conservação<br />para os seus edifícios.</p>
-          <button onClick={openCreate} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-colors">+ Criar plano</button>
+          <button onClick={openCreate} className="bg-[#0D1B2E] text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#152338] transition-colors">+ Criar plano</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -194,7 +194,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
                   </div>
                 </div>
                 <div className="flex gap-2 pt-1 border-t border-gray-100">
-                  <button onClick={() => setSelectedPlano(plano)} className="flex-1 text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-medium hover:bg-blue-100 transition-colors">👁️ Ver plano</button>
+                  <button onClick={() => setSelectedPlano(plano)} className="flex-1 text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1.5 rounded-lg font-medium hover:bg-[#EDE8DF] transition-colors">👁️ Ver plano</button>
                   <button onClick={() => openEdit(plano)} className="text-xs bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-100 transition-colors">✏️</button>
                   <button onClick={() => { if (confirm('Eliminar este plano?')) savePlanos(planos.filter(p => p.id !== plano.id)) }} className="text-xs bg-red-50 text-red-500 px-2 py-1.5 rounded-lg font-medium hover:bg-red-100 transition-colors">🗑️</button>
                 </div>
@@ -223,7 +223,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
                 return (
                   <div key={ano} className="mb-5">
                     <div className="flex items-center justify-between mb-2">
-                      <span className={`font-bold text-sm px-3 py-0.5 rounded-full ${ano === ANO_ATUAL ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{ano}</span>
+                      <span className={`font-bold text-sm px-3 py-0.5 rounded-full ${ano === ANO_ATUAL ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' : 'bg-gray-100 text-gray-600'}`}>{ano}</span>
                       <span className="font-bold text-gray-900">{formatEur(anoOrc)}</span>
                     </div>
                     <div className="space-y-2">
@@ -265,19 +265,19 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="text-xs text-gray-500 mb-1 block">Nome do edifício *</label>
-                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ex: Edifício Sol Nascente" value={form.edificioNom || ''} onChange={e => setForm({ ...form, edificioNom: e.target.value })} />
+                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="Ex: Edifício Sol Nascente" value={form.edificioNom || ''} onChange={e => setForm({ ...form, edificioNom: e.target.value })} />
                   </div>
                   <div className="col-span-2">
                     <label className="text-xs text-gray-500 mb-1 block">Morada</label>
-                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Rua das Flores, 12, 1000-001 Lisboa" value={form.edificioMorada || ''} onChange={e => setForm({ ...form, edificioMorada: e.target.value })} />
+                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="Rua das Flores, 12, 1000-001 Lisboa" value={form.edificioMorada || ''} onChange={e => setForm({ ...form, edificioMorada: e.target.value })} />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">Número de frações</label>
-                    <input type="number" min={1} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.nbFracoes || ''} onChange={e => setForm({ ...form, nbFracoes: parseInt(e.target.value) || 0 })} />
+                    <input type="number" min={1} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.nbFracoes || ''} onChange={e => setForm({ ...form, nbFracoes: parseInt(e.target.value) || 0 })} />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">Ano de construção</label>
-                    <input type="number" min={1800} max={ANO_ATUAL} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.anoConstrucao || ''} onChange={e => setForm({ ...form, anoConstrucao: parseInt(e.target.value) || 0 })} />
+                    <input type="number" min={1800} max={ANO_ATUAL} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.anoConstrucao || ''} onChange={e => setForm({ ...form, anoConstrucao: parseInt(e.target.value) || 0 })} />
                   </div>
                 </div>
                 {!!form.nbFracoes && !!form.anoConstrucao && (() => {
@@ -291,13 +291,13 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">Estado</label>
-                    <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.estadoGlobal || 'preparacao'} onChange={e => setForm({ ...form, estadoGlobal: e.target.value as PlanoConservacao['estadoGlobal'] })}>
+                    <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.estadoGlobal || 'preparacao'} onChange={e => setForm({ ...form, estadoGlobal: e.target.value as PlanoConservacao['estadoGlobal'] })}>
                       {Object.entries(ESTADOS_GLOBAL).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">Data aprovação AG</label>
-                    <input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.dataAprovacaoAG || ''} onChange={e => setForm({ ...form, dataAprovacaoAG: e.target.value })} />
+                    <input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.dataAprovacaoAG || ''} onChange={e => setForm({ ...form, dataAprovacaoAG: e.target.value })} />
                   </div>
                 </div>
               </section>
@@ -305,10 +305,10 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-700">🔨 Obras planeadas ({obras.length})</h3>
-                  <button onClick={() => setShowAddObra(v => !v)} className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-medium hover:bg-blue-100 transition-colors">{showAddObra ? 'Cancelar' : '+ Adicionar'}</button>
+                  <button onClick={() => setShowAddObra(v => !v)} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1.5 rounded-lg font-medium hover:bg-[#EDE8DF] transition-colors">{showAddObra ? 'Cancelar' : '+ Adicionar'}</button>
                 </div>
                 {showAddObra && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-3 space-y-3">
+                  <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-4 mb-3 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-gray-500 mb-1 block">Ano</label>
@@ -338,7 +338,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
                         </select>
                       </div>
                     </div>
-                    <button onClick={handleAddObra} disabled={!obraForm.descricao?.trim()} className="w-full bg-blue-600 text-white py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">Adicionar obra</button>
+                    <button onClick={handleAddObra} disabled={!obraForm.descricao?.trim()} className="w-full bg-[#0D1B2E] text-white py-2 rounded-xl text-sm font-semibold hover:bg-[#152338] disabled:opacity-50 transition-colors">Adicionar obra</button>
                   </div>
                 )}
                 {obras.length === 0 ? (
@@ -365,7 +365,7 @@ export default function PlanoManutencaoSection({ user, userRole }: { user: { id:
               </section>
 
               <div className="flex gap-3 pt-1">
-                <button onClick={handleSave} disabled={!form.edificioNom?.trim()} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">{editing ? '💾 Guardar alterações' : '✅ Criar plano'}</button>
+                <button onClick={handleSave} disabled={!form.edificioNom?.trim()} className="flex-1 bg-[#0D1B2E] text-white py-3 rounded-xl font-semibold hover:bg-[#152338] disabled:opacity-50 transition-colors">{editing ? '💾 Guardar alterações' : '✅ Criar plano'}</button>
                 <button onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl font-medium text-gray-600 hover:bg-gray-100 transition-colors">Cancelar</button>
               </div>
             </div>
