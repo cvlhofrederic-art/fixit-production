@@ -2580,7 +2580,7 @@ export default function DevisFactureFormBTP({
               <tbody>
                 {lines.map((l) => {
                   const lineHT = (l.qty || 0) * (l.priceHT || 0)
-                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
                       <td>
@@ -2665,7 +2665,7 @@ export default function DevisFactureFormBTP({
                       </td>
                       <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
-                        <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                        <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
@@ -2677,7 +2677,7 @@ export default function DevisFactureFormBTP({
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td style={{ textAlign: 'right' }}><DecimalInput
                         value={lineTTC}
-                        onChangeNumber={(v) => { const ht = v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateLine(l.id, { priceHT: ht / q }) }}
+                        onChangeNumber={(v) => { const ht = autoliquidationBTP ? v : v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateLine(l.id, { priceHT: ht / q }) }}
                         format={fmtN} parse={parseDecimalInput}
                         placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
@@ -2738,7 +2738,7 @@ export default function DevisFactureFormBTP({
               <tbody>
                 {materialLines.map((l) => {
                   const lineHT = (l.qty || 0) * (l.priceHT || 0)
-                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
                       <td>
@@ -2778,7 +2778,7 @@ export default function DevisFactureFormBTP({
                       </td>
                       <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
-                        <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                        <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
@@ -2790,7 +2790,7 @@ export default function DevisFactureFormBTP({
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td style={{ textAlign: 'right' }}><DecimalInput
                         value={lineTTC}
-                        onChangeNumber={(v) => { const ht = v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: ht / q }) }}
+                        onChangeNumber={(v) => { const ht = autoliquidationBTP ? v : v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: ht / q }) }}
                         format={fmtN} parse={parseDecimalInput}
                         placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
@@ -2867,7 +2867,7 @@ export default function DevisFactureFormBTP({
               <tbody>
                 {fraisLines.map((l) => {
                   const lineHT = (l.qty || 0) * (l.priceHT || 0)
-                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
                       <td>
@@ -2883,7 +2883,7 @@ export default function DevisFactureFormBTP({
                       </td>
                       <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateFraisLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
-                        <select value={l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                        <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
@@ -2895,7 +2895,7 @@ export default function DevisFactureFormBTP({
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td style={{ textAlign: 'right' }}><DecimalInput
                         value={lineTTC}
-                        onChangeNumber={(v) => { const ht = v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateFraisLine(l.id, { priceHT: ht / q }) }}
+                        onChangeNumber={(v) => { const ht = autoliquidationBTP ? v : v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateFraisLine(l.id, { priceHT: ht / q }) }}
                         format={fmtN} parse={parseDecimalInput}
                         placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
@@ -2957,7 +2957,7 @@ export default function DevisFactureFormBTP({
                 <tbody>
                   {(tbl.lines || []).map((l) => {
                     const lineHT = (l.qty || 0) * (l.priceHT || 0)
-                    const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                    const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                     return (
                       <tr key={l.id}>
                         <td>
@@ -3017,7 +3017,7 @@ export default function DevisFactureFormBTP({
                         </td>
                         <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                         <td>
-                          <select value={l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                          <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                           </select>
                         </td>
