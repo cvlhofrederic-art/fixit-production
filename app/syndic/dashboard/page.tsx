@@ -2834,8 +2834,8 @@ export default function SyndicDashboard() {
             />
           )}
 
-          {/* ── EMAILS MAX IA ── */}
-          {page === 'emails' && user && <EmailsSection syndicId={user.id} onNavigateParams={() => setPage('parametres')} />}
+          {/* ── ALFREDO — Agent emails IA (rebrand de "Emails Fixy") ── */}
+          {page === 'emails' && user && <AlfredoAgentPage user={user} />}
 
           {/* ── MAX EXPERT-CONSEIL ── */}
           {page === 'ia' && (
