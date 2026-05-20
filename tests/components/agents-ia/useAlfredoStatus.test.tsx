@@ -45,7 +45,7 @@ describe('useAlfredoStatus', () => {
   })
 
   it('renvoie connected=false si fetch rejette (erreur réseau)', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('network down')) as unknown as typeof fetch
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
     const { result } = renderHook(() => useAlfredoStatus())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -58,7 +58,7 @@ describe('useAlfredoStatus', () => {
       ok: true,
       json: async () => ({ connected: false, email_compte: null, drafts_pending: 0, emails_analysed: 0 }),
     })
-    global.fetch = fetchMock as unknown as typeof fetch
+    vi.stubGlobal('fetch', fetchMock)
 
     const { result } = renderHook(() => useAlfredoStatus())
     await waitFor(() => expect(result.current.loading).toBe(false))
