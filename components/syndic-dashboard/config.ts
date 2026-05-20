@@ -48,7 +48,7 @@ export const SYNDIC_MODULES = [
   { key: 'recouvrement', label: 'Recouvrement auto', icon: '💸', description: 'Procédure automatisée de recouvrement', default: false },
   { key: 'historique_immeuble', label: 'Historique Immeuble', icon: '🏛️', description: 'Vue consolidée par immeuble — interventions, équipements, contrats', default: false },
   { key: 'urgences', label: 'Urgences Techniques', icon: '🚨', description: 'Dispatch immédiat vers l\'artisan VITFIX disponible', default: true },
-  { key: 'emails', label: 'Emails Fixy', icon: '📧', description: 'Gestion des emails avec IA', default: true },
+  { key: 'emails', label: 'Alfredo', icon: '📧', description: 'Assistant emails IA — analyse, brouillons de réponse, contexte client', default: true },
   { key: 'ia', label: 'Max Expert', icon: '🎓', description: 'Expert-conseil IA copropriété', default: true },
   // ── Modules FR uniquement ──
   { key: 'reglementaire', label: 'Calendrier réglementaire', icon: '⚖️', description: 'Obligations légales et échéances', default: false, locale: 'fr' as const },
