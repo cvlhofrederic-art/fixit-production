@@ -376,8 +376,14 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     regimeTva
       ?? (autoliquidationBTP ? 'autoliquidation_btp' : (tvaEnabled ? 'classique' : 'franchise_293b'))
   // showTva : true uniquement en régime classique. En franchise/autoliquidation,
-  // pas de colonne TVA dans les lignes, pas de breakdown, total = HT.
+  // pas de breakdown TVA, total = HT.
   const showTva = effectiveRegime === 'classique' && tvaEnabled
+  // showTvaColumn : la colonne TVA % apparaît aussi en autoliquidation BTP,
+  // affichée à 0 % pour rendre explicite l'absence de TVA collectée par
+  // le sous-traitant (lecture client : pas d'ambiguïté entre franchise et
+  // autoliq sur la facture). Franchise 293 B : colonne masquée car le
+  // statut « non assujetti » impose la mention textuelle, pas une ligne 0 %.
+  const showTvaColumn = showTva || effectiveRegime === 'autoliquidation_btp'
   // Mention légale obligatoire — source unique : lib/tva-calculator.ts (locale-aware).
   // FR : art. 293 B CGI / art. 283, 2 nonies CGI
   // PT : art. 53.º CIVA / art. 2.º n.º 1 al. j) CIVA (inversão do sujeito passivo)
@@ -839,11 +845,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += dateBoxH + 4
 
   // ═══ 6. TABLEAU PRESTATIONS (autoTable) ═══
-  // Colonne TVA affichée uniquement en régime classique. En autoliquidation BTP
-  // ou franchise 293 B, la colonne disparaît (calcul de TVA non pertinent —
-  // BOFiP BOI-TVA-DECLA-30-20 §50, mention « Autoliquidation » obligatoire).
+  // Colonne TVA : visible en régime classique ET en autoliquidation BTP
+  // (affichée à 0 % côté autoliq, voir showTvaColumn). En franchise 293 B,
+  // colonne masquée — la mention textuelle « TVA non applicable, art. 293 B »
+  // suffit (BOFiP BOI-TVA-DECLA-30-20 §50).
   const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
-  const tableHead = showTva
+  const tableHead = showTvaColumn
     ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
     : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
@@ -860,7 +867,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // vide en bas de page. rowPageBreak:'avoid' continue à protéger chaque sub-row
   // individuelle (étape jamais coupée au milieu de son texte).
   type RowKind = 'parent' | 'desc' | 'etape'
-  const colCount = showTva ? 6 : 5
+  const colCount = showTvaColumn ? 6 : 5
   const emptyCols = (text: string): string[] => {
     const r = Array(colCount).fill('')
     r[0] = text
@@ -891,7 +898,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
       // 1. Row parent (motif + colonnes prix complètes)
       const parentRow: any[] = [title, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
-      if (showTva) parentRow.push(`${l.tvaRate}%`)
+      // Autoliquidation : TVA forcée à 0 % sur toutes les lignes (le donneur
+      // d'ordre l'autoliquide). Le tvaRate state-side peut rester à 20/10 si
+      // l'artisan a basculé en autoliq après saisie — on n'affiche jamais sa
+      // valeur dans ce régime.
+      if (showTvaColumn) {
+        parentRow.push(effectiveRegime === 'autoliquidation_btp' ? '0 %' : `${l.tvaRate}%`)
+      }
       parentRow.push(localeFormats.currencyFormat(l.totalHT))
       rows.push(parentRow)
       rowKinds.push('parent')
@@ -948,7 +961,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     2: { cellWidth: contentW * 0.08, halign: 'center' },
     3: { cellWidth: contentW * 0.19, halign: 'center' },
   }
-  if (showTva) {
+  if (showTvaColumn) {
     colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
     colStyles[5] = { cellWidth: contentW * 0.21, halign: 'right' }
   } else {
@@ -961,7 +974,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     2: { halign: 'center' },
     3: { halign: 'center' },
   }
-  if (showTva) {
+  if (showTvaColumn) {
     headColStyles[4] = { halign: 'center' }
     headColStyles[5] = { halign: 'right' }
   } else {
@@ -1036,7 +1049,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
           data.cell.styles.halign = headColStyles[data.column.index].halign
         }
         if (data.section === 'body') {
-          const lastCol = showTva ? 5 : 4
+          const lastCol = showTvaColumn ? 5 : 4
           const kind: RowKind | undefined = rowKinds?.[data.row.index]
           // Style des sub-rows (description et étapes) : police plus petite,
           // padding compact, indentation à gauche pour bien distinguer la
