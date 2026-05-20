@@ -7,17 +7,24 @@ export interface AlfredoStatus {
   emails_analysed: number
 }
 
+const DISCONNECTED_FALLBACK: AlfredoStatus = {
+  connected: false,
+  email_compte: null,
+  drafts_pending: 0,
+  emails_analysed: 0,
+}
+
 export function useAlfredoStatus() {
   const [status, setStatus] = useState<AlfredoStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     try {
-      const res = await fetch('/api/email-agent/status')
+      const res = await fetch('/api/email-agent/status', { signal })
       if (!res.ok) {
-        setStatus({ connected: false, email_compte: null, drafts_pending: 0, emails_analysed: 0 })
+        setStatus(DISCONNECTED_FALLBACK)
         setError(`status_${res.status}`)
         return
       }
@@ -25,15 +32,22 @@ export function useAlfredoStatus() {
       setStatus(json)
       setError(null)
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return
+      }
       setError(err instanceof Error ? err.message : 'unknown')
-      setStatus({ connected: false, email_compte: null, drafts_pending: 0, emails_analysed: 0 })
+      setStatus(DISCONNECTED_FALLBACK)
     } finally {
-      setLoading(false)
+      if (!signal?.aborted) {
+        setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
-    refetch()
+    const ctrl = new AbortController()
+    refetch(ctrl.signal)
+    return () => ctrl.abort()
   }, [refetch])
 
   return { status, loading, error, refetch }
