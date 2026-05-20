@@ -40,16 +40,20 @@ jobs:
         run: npm ci
 
       - name: Verify MD file exists
+        env:
+          MD_PATH: ${{ inputs.md_path }}
         run: |
-          if [ ! -f "${{ inputs.md_path }}" ]; then
-            echo "::error::MD file not found: ${{ inputs.md_path }}"
+          if [ ! -f "$MD_PATH" ]; then
+            echo "::error::MD file not found: $MD_PATH"
             exit 1
           fi
-          echo "MD file: $(wc -lc "${{ inputs.md_path }}")"
+          echo "MD file: $(wc -lc "$MD_PATH")"
 
       - name: Dry-run parser (no DB, no embed)
         if: ${{ inputs.dry_run }}
-        run: npx tsx scripts/test-parse-corpus-pt.ts "${{ inputs.md_path }}"
+        env:
+          MD_PATH: ${{ inputs.md_path }}
+        run: npx tsx scripts/test-parse-corpus-pt.ts "$MD_PATH"
 
       - name: Ingest corpus
         if: ${{ !inputs.dry_run }}
@@ -58,7 +62,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npx tsx scripts/ingest-legal-corpus-pt.ts "${{ inputs.md_path }}"
+          MD_PATH: ${{ inputs.md_path }}
+        run: npx tsx scripts/ingest-legal-corpus-pt.ts "$MD_PATH"
 
       - name: Verify chunks in DB
         if: ${{ !inputs.dry_run }}
