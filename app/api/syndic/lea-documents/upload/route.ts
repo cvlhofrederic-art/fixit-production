@@ -8,6 +8,8 @@ import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { getCabinetStorageUsage, wouldExceedQuota } from '@/lib/syndic/lea-documents-quota'
+import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 30
 
@@ -62,6 +64,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'unsupported_mime_type', mime: file.type }, { status: 415 })
     }
 
+    // P5 — Quota storage par cabinet (free tier protection)
+    const usage = await getCabinetStorageUsage(supabaseAdmin, user.id)
+    if (wouldExceedQuota(usage, file.size)) {
+      return NextResponse.json({
+        error: 'quota_exceeded',
+        bytes_used: usage.bytes_used,
+        bytes_quota: usage.bytes_quota,
+      }, { status: 413 })
+    }
+
     const parsed = FormSchema.safeParse({
       type: form.get('type') ?? undefined,
       immeuble_id: form.get('immeuble_id') ?? undefined,
@@ -107,6 +119,7 @@ export async function POST(request: NextRequest) {
       // Rollback storage si l'insert DB échoue
       await supabaseAdmin.storage.from('syndic-documents').remove([storagePath]).catch(() => {})
       logger.error('[lea-documents/upload] db insert failed:', insErr)
+      Sentry.captureException(insErr, { tags: { agent_type: 'lea', surface: 'documents_upload' } })
       return NextResponse.json({ error: 'db_insert_failed' }, { status: 500 })
     }
 
@@ -123,9 +136,17 @@ export async function POST(request: NextRequest) {
       }).catch(err => logger.warn('[lea-documents/upload] fire-and-forget process trigger failed:', err))
     }
 
-    return NextResponse.json({ document: row }, { status: 201 })
+    return NextResponse.json({
+      document: row,
+      quota: {
+        bytes_used: usage.bytes_used + file.size,
+        bytes_quota: usage.bytes_quota,
+        warning: (usage.bytes_used + file.size) / usage.bytes_quota >= 0.8,
+      },
+    }, { status: 201 })
   } catch (err) {
     logger.error('[lea-documents/upload] unexpected:', err)
+    Sentry.captureException(err, { tags: { agent_type: 'lea', surface: 'documents_upload' } })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }

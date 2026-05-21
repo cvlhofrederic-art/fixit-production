@@ -9,6 +9,8 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { generatePdfFromTemplate, type PdfFieldValue } from '@/lib/syndic/lea-pdf-generator'
+import { traceAgent } from '@/lib/langfuse'
+import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 30
 
@@ -86,9 +88,17 @@ export async function POST(request: NextRequest) {
       fields.push({ key, label: def?.label, value })
     }
 
-    // 5. Générer le PDF
+    // 5. Générer le PDF (wrapped traceAgent pour observabilité)
     const tplBytes = await tplBlob.arrayBuffer()
-    const result = await generatePdfFromTemplate(tplBytes, fields)
+    const result = await traceAgent(
+      {
+        agent_id: 'lea',
+        user_id: user.id,
+        prompt: `generate_pdf:${tpl.name}`,
+        metadata: { tool: 'generate_pdf', template_id: tpl.id, template_type: tpl.type, fields_count: fields.length },
+      },
+      () => generatePdfFromTemplate(tplBytes, fields),
+    )
 
     // 6. Upload du PDF généré
     const docId = crypto.randomUUID()
@@ -138,6 +148,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
   } catch (err) {
     logger.error('[lea-pdf-generate] unexpected:', err)
+    Sentry.captureException(err, { tags: { agent_type: 'lea', surface: 'pdf_generate' } })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }
