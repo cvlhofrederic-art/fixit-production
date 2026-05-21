@@ -8,6 +8,7 @@ import { buildLeaSystemPromptFR } from '@/lib/syndic/prompts/lea/system-prompt-f
 import { buildLeaSystemPromptPT } from '@/lib/syndic/prompts/lea/system-prompt-pt'
 import type { LeaPromptContext } from '@/lib/syndic/prompts/lea/system-prompt-fr'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
+import { searchDocuments, formatSearchHitsForPrompt } from '@/lib/syndic/lea-documents-search'
 import { wrapGroqStreamWithPIIResolution, SSE_HEADERS } from '@/lib/syndic/agent-sse-stream'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { loadLeaContext } from '@/lib/syndic/lea-context-loader'
@@ -117,12 +118,32 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // P3 RAG — pré-retrieval hybride dans les documents Léa avant l'appel LLM.
+    // Best-effort : si la recherche échoue ou ne trouve rien, Léa répond
+    // normalement avec son contexte comptable structuré.
+    let ragBlock = ''
+    try {
+      const hits = await searchDocuments(supabaseAdmin, user.id, message, {
+        locale: isPt ? 'pt' : 'fr',
+        matchCount: 5,
+      })
+      if (hits.length > 0) {
+        ragBlock = formatSearchHitsForPrompt(hits, isPt ? 'pt' : 'fr')
+      }
+    } catch (err) {
+      logger.warn('[lea-comptable] RAG search failed (continuing without docs):', err)
+    }
+
     // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
     const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(syndic_context as LeaPromptContext)
 
-    const systemPrompt = isPt
+    const baseSystemPrompt = isPt
       ? buildLeaSystemPromptPT(sanitizedCtx)
       : buildLeaSystemPromptFR(sanitizedCtx)
+
+    const systemPrompt = ragBlock
+      ? `${baseSystemPrompt}\n\n${ragBlock}`
+      : baseSystemPrompt
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
