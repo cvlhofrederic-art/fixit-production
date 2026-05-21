@@ -24,21 +24,30 @@ import { parseLegalMarkdown, type ParsedChunk } from '@/lib/syndic/max-parser'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { logger } from '@/lib/logger'
 
-// Auth dual-path : Bearer header OU cookies SSR. Permet d'appeler la route
-// depuis curl avec token OU depuis la session navigateur du super_admin.
-async function authenticateSuperAdmin(request: NextRequest) {
-  // Path 1 : Bearer header (script/CI)
+// Auth triple-path :
+//  1. Bearer Supabase JWT (script avec access_token super_admin)
+//  2. Cookie SSR (super_admin connecté dans le navigateur)
+//  3. Header x-cron-secret = INTERNAL_API_SECRET (GitHub Actions / CI)
+async function authenticateSuperAdmin(request: NextRequest): Promise<boolean> {
+  // Path 1 : Bearer Supabase JWT (script/CI)
   const bearerUser = await getAuthUser(request)
-  if (bearerUser && isSyndicRole(bearerUser)) return bearerUser
+  if (bearerUser && isSyndicRole(bearerUser)) return true
   // Path 2 : cookies SSR (navigateur logged in)
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (user && isSyndicRole(user)) return user
+    if (user && isSyndicRole(user)) return true
   } catch {
     // ignore
   }
-  return null
+  // Path 3 : shared secret pour automation CI (pattern x-cron-secret existant).
+  // Même niveau de privilège que les workflows cron — l'endpoint est idempotent
+  // et seul super_admin peut déclencher la rotation du secret.
+  const cronSecret = request.headers.get('x-cron-secret')
+  if (cronSecret && process.env.INTERNAL_API_SECRET && cronSecret === process.env.INTERNAL_API_SECRET) {
+    return true
+  }
+  return false
 }
 
 export const maxDuration = 30
@@ -64,8 +73,7 @@ function isTocChunk(c: ParsedChunk): boolean {
 // Route POST — ingestion idempotente
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
-  const user = await authenticateSuperAdmin(request)
-  if (!user) {
+  if (!(await authenticateSuperAdmin(request))) {
     return NextResponse.json({ error: 'super_admin_required' }, { status: 403 })
   }
 
@@ -189,19 +197,18 @@ export async function POST(request: NextRequest) {
 
 // Handler GET pour vérifier la couverture (audit + monitoring)
 export async function GET(request: NextRequest) {
-  const user = await authenticateSuperAdmin(request)
-  if (!user) {
+  if (!(await authenticateSuperAdmin(request))) {
     return NextResponse.json({ error: 'super_admin_required' }, { status: 403 })
   }
-  const { count } = await supabaseAdmin
+  const { count: totalCount } = await supabaseAdmin
     .from('syndic_legal_corpus_pt')
     .select('*', { count: 'exact', head: true })
-  const { data: withEmbedding } = await supabaseAdmin
+  const { count: withEmbeddingCount } = await supabaseAdmin
     .from('syndic_legal_corpus_pt')
     .select('id', { count: 'exact', head: true })
     .not('embedding', 'is', null)
   return NextResponse.json({
-    total_chunks: count ?? 0,
-    chunks_with_embedding: (withEmbedding as unknown as { count?: number })?.count ?? 0,
+    total_chunks: totalCount ?? 0,
+    chunks_with_embedding: withEmbeddingCount ?? 0,
   })
 }
