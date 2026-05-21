@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
+import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import {
   PROFILE_DEMO, CHARGES_DEMO, PAIEMENTS_DEMO, DOCUMENTS_DEMO, ANNONCES_DEMO,
   AG_DEMO, ECHEANCES_DEMO, NOTIFICATIONS_DEMO, HISTORIQUE_DEMO, PARAMS_DEMO,
@@ -15,7 +16,39 @@ import {
 } from '@/lib/copro-demo-data'
 
 // ─── Dynamic imports for extracted page sections ─────────────────────────────
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any>
+// Each section is wrapped in SectionErrorBoundary so a single crash (chunk loading
+// failure on edge, runtime exception, etc.) shows an in-place fallback with retry
+// instead of destroying the dashboard shell via app/error.tsx.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const d = (loader: () => Promise<any>) => {
+  const DynamicComponent = dynamic(loader, {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+      </div>
+    ),
+  })
+  const WrappedSection = (props: Record<string, unknown>) => {
+    const locale = useLocale()
+    const boundaryLocale: 'fr' | 'pt' | 'en' =
+      locale === 'pt' || locale === 'en' ? locale : 'fr'
+    const fallbackTitle =
+      locale === 'pt'
+        ? 'Erro nesta secção'
+        : locale === 'en'
+          ? 'Error in this section'
+          : 'Erreur dans cette section'
+    return (
+      <SectionErrorBoundary locale={boundaryLocale} fallbackTitle={fallbackTitle}>
+        <DynamicComponent {...props} />
+      </SectionErrorBoundary>
+    )
+  }
+  WrappedSection.displayName = 'DynamicSection'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return WrappedSection as React.ComponentType<any>
+}
 
 const CoproAccueilSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproAccueilSection'))
 const CoproDocumentsSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproDocumentsSection'))
