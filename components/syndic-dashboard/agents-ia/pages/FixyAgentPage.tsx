@@ -136,11 +136,11 @@ export default function FixyAgentPage({ user: _user, onNavigate }: Props) {
     if (!input.trim() || loading) return
     const userText = input.trim()
     setInput('')
+    conv.setMessages(prev => [...prev, { role: 'user', content: userText }])
     setLoading(true)
 
     try {
       const convId = await conv.ensureConversation(userText)
-      conv.setMessages(prev => [...prev, { role: 'user', content: userText }])
       void conv.persistMessage(convId, 'user', userText)
 
       const { data: { session } } = await supabase.auth.getSession()

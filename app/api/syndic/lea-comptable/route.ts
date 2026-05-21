@@ -12,6 +12,7 @@ import { searchDocuments, formatSearchHitsForPrompt } from '@/lib/syndic/lea-doc
 import { wrapGroqStreamWithPIIResolution, SSE_HEADERS } from '@/lib/syndic/agent-sse-stream'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { loadLeaContext } from '@/lib/syndic/lea-context-loader'
+import { getSecret } from '@/lib/env'
 
 export const maxDuration = 30
 
@@ -77,7 +78,7 @@ function generateFallback(message: string, ctx: LeaContext, isPt = false): strin
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+    const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
 
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`lea_comptable_${ip}`, 30, 60_000))) {
@@ -186,7 +187,7 @@ export async function POST(request: NextRequest) {
           messages,
           temperature: 0.15,
           max_tokens: 4000,
-        })
+        }, { apiKey: GROQ_API_KEY })
 
         // Enveloppe le stream Groq pour résoudre les tokens PII (helper partagé Plan B).
         const readable = wrapGroqStreamWithPIIResolution(rawStream, tokenMap)
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
           messages,
           temperature: 0.15,
           max_tokens: 4000,
-        }),
+        }, { apiKey: GROQ_API_KEY }),
       )
     } catch (err) {
       logger.error('Groq Léa error:', err)

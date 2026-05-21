@@ -16,6 +16,7 @@ import {
   getRefusalMessage,
 } from '@/lib/syndic/max-strict-prompt'
 import { validateMaxResponse, type MaxValidatedCitation } from '@/lib/syndic/max-validate'
+import { getSecret } from '@/lib/env'
 
 export const maxDuration = 30
 
@@ -64,7 +65,7 @@ async function loadTocPt(): Promise<string | null> {
 // HyDE rewriter — appel Groq très court (~500ms) pour générer une réponse
 // hypothétique qu'on embed pour augmenter le recall du retrieval.
 // ─────────────────────────────────────────────────────────────────────────────
-async function generateHyDE(query: string, locale: 'fr' | 'pt'): Promise<string | null> {
+async function generateHyDE(query: string, locale: 'fr' | 'pt', apiKey?: string): Promise<string | null> {
   try {
     const data = await callGroqWithRetry({
       messages: [
@@ -73,7 +74,7 @@ async function generateHyDE(query: string, locale: 'fr' | 'pt'): Promise<string 
       temperature: 0.2,
       max_tokens: 300,
       model: 'llama-3.1-8b-instant', // petit modèle rapide pour HyDE
-    })
+    }, apiKey ? { apiKey } : {})
     return data.choices?.[0]?.message?.content?.trim() ?? null
   } catch (err) {
     logger.warn('[max-ai] HyDE generation failed (non-bloquant)', {
@@ -88,7 +89,7 @@ async function generateHyDE(query: string, locale: 'fr' | 'pt'): Promise<string 
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+    const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
 
     const ip = getClientIP(request)
     if (!(await checkRateLimit(ip, 40, 60_000))) {
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 1. Retrieval multi-étapes : HyDE + Hybrid + Rerank + MMR ──
-    const hydeQuery = await generateHyDE(message, ragLanguage)
+    const hydeQuery = await generateHyDE(message, ragLanguage, GROQ_API_KEY)
     const chunks = await retrieveLegalChunks(supabaseAdmin, message, ragLanguage, {
       hydeQuery: hydeQuery ?? undefined,
     })
@@ -218,7 +219,7 @@ export async function POST(request: NextRequest) {
               temperature: 0.1,
               max_tokens: 3500,
               response_format: { type: 'json_object' },
-            }, { disableCerebrasFallback: true }),
+}, { apiKey: GROQ_API_KEY }),
           )
           providerUsed = 'groq'
         } catch (groqErr) {
