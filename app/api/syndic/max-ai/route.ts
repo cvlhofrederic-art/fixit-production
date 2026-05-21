@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
+import { callCerebrasWithRetry, hasCerebrasKey } from '@/lib/cerebras'
 import { logger } from '@/lib/logger'
 import { traceAgent } from '@/lib/langfuse'
 import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
@@ -182,8 +183,13 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    // ── 4. Appel Groq avec JSON mode strict ──
+    // ── 4. Appel LLM (Groq primary, Cerebras fallback) avec JSON mode strict ──
+    // Le system prompt v1.1 PT (XML + TOC + 6 chunks) peut dépasser les 6K TPM
+    // du free tier Groq llama-3.3-70b → 413 instantané. Si Groq plante ET que
+    // CEREBRAS_API_KEY est configurée, on bascule sur Cerebras Inference (même
+    // famille de modèles, free tier nettement plus large, API OpenAI-compat).
     let groqData: GroqResponse
+    let providerUsed: 'groq' | 'cerebras' = 'groq'
     let validated: ReturnType<typeof validateMaxResponse> | null = null
     let attempt = 0
     const MAX_ATTEMPTS = 2
@@ -191,29 +197,63 @@ export async function POST(request: NextRequest) {
     while (attempt < MAX_ATTEMPTS) {
       attempt++
       try {
-        groqData = await traceAgent(
-          {
-            agent_id: 'max',
-            user_id: user.id,
-            conversation_id: rawBody.conversation_id,
-            prompt: message,
-            metadata: {
-              locale: ragLanguage,
-              chunks_found: chunks.length,
-              hyde_used: !!hydeQuery,
-              attempt,
-              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+        try {
+          groqData = await traceAgent(
+            {
+              agent_id: 'max',
+              user_id: user.id,
+              conversation_id: rawBody.conversation_id,
+              prompt: message,
+              metadata: {
+                locale: ragLanguage,
+                chunks_found: chunks.length,
+                hyde_used: !!hydeQuery,
+                attempt,
+                provider: 'groq',
+                ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+              },
             },
-          },
-          () => callGroqWithRetry({
-            messages,
-            temperature: 0.1,
-            max_tokens: 3500,
-            response_format: { type: 'json_object' },
-          }),
-        )
+            () => callGroqWithRetry({
+              messages,
+              temperature: 0.1,
+              max_tokens: 3500,
+              response_format: { type: 'json_object' },
+            }),
+          )
+          providerUsed = 'groq'
+        } catch (groqErr) {
+          if (!hasCerebrasKey()) throw groqErr
+          logger.warn('[max-ai] Groq failed, fallback to Cerebras', {
+            error: groqErr instanceof Error ? groqErr.message : String(groqErr),
+            attempt,
+          })
+          groqData = await traceAgent(
+            {
+              agent_id: 'max',
+              user_id: user.id,
+              conversation_id: rawBody.conversation_id,
+              prompt: message,
+              metadata: {
+                locale: ragLanguage,
+                chunks_found: chunks.length,
+                hyde_used: !!hydeQuery,
+                attempt,
+                provider: 'cerebras',
+                groq_error: (groqErr instanceof Error ? groqErr.message : String(groqErr)).slice(0, 200),
+                ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+              },
+            },
+            () => callCerebrasWithRetry({
+              messages,
+              temperature: 0.1,
+              max_tokens: 3500,
+              response_format: { type: 'json_object' },
+            }),
+          )
+          providerUsed = 'cerebras'
+        }
       } catch (err) {
-        logger.error('[max-ai] Groq call failed', {
+        logger.error('[max-ai] LLM call failed (Groq + Cerebras)', {
           error: err instanceof Error ? err.message : String(err),
           attempt,
         })
@@ -223,7 +263,7 @@ export async function POST(request: NextRequest) {
             citations: [],
             confidence: 0,
             refusal: true,
-            error: 'groq_unreachable',
+            error: 'llm_unreachable',
           })
         }
         continue
@@ -284,6 +324,7 @@ export async function POST(request: NextRequest) {
       confidence: Number(confidence.toFixed(3)),
       refusal: validated.refusal,
       role: userRole,
+      provider: providerUsed,
       retrieval: {
         chunks_found: chunks.length,
         chunks_cited: validated.citations.length,
