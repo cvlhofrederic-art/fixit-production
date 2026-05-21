@@ -16,7 +16,7 @@ import {
   getRefusalMessage,
 } from '@/lib/syndic/max-strict-prompt'
 import { validateMaxResponse, type MaxValidatedCitation } from '@/lib/syndic/max-validate'
-import { getSecret } from '@/lib/env'
+import { getSecret, getCfEnv } from '@/lib/env'
 
 export const maxDuration = 30
 
@@ -147,9 +147,16 @@ export async function POST(request: NextRequest) {
     })
 
     // ── 1. Retrieval multi-étapes : HyDE + Hybrid + Rerank + MMR ──
+    let aiBinding: unknown = null
+    try {
+      const cfEnv = await getCfEnv()
+      aiBinding = (cfEnv as Record<string, unknown>).AI ?? null
+    } catch { /* non-bloquant */ }
+
     const hydeQuery = await generateHyDE(message, ragLanguage, GROQ_API_KEY)
     const chunks = await retrieveLegalChunks(supabaseAdmin, message, ragLanguage, {
       hydeQuery: hydeQuery ?? undefined,
+      aiBinding: aiBinding ?? undefined,
     })
 
     // ── 2. Aucun chunk pertinent → refus formaté (corpus gap) ──
