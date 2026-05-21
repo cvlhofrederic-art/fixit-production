@@ -272,11 +272,12 @@ ${fontsBlock}
 function formatChunkPT(c: ScoredLegalChunk, idx: number): string {
   const articleLabel = c.article ? `Art. ${c.article} — ` : ''
   const themeLabel = c.theme ? ` (${c.theme})` : ''
+  const truncated = c.content.length > 600 ? c.content.slice(0, 600).trimEnd() + ' [...]' : c.content
   return `[FONT-${idx}] **${c.source} — ${articleLabel}${c.title}**${themeLabel}
 Caminho: ${c.parent_path ?? '-'}
 Conteúdo:
 """
-${c.content}
+${truncated}
 """`
 }
 
@@ -358,11 +359,12 @@ la règle absolue et la réponse sera REJETÉE par le système de validation.`
 function formatChunkFR(c: ScoredLegalChunk, idx: number): string {
   const articleLabel = c.article ? `Art. ${c.article} — ` : ''
   const themeLabel = c.theme ? ` (${c.theme})` : ''
+  const truncated = c.content.length > 600 ? c.content.slice(0, 600).trimEnd() + ' [...]' : c.content
   return `[FONT-${idx}] **${c.source} — ${articleLabel}${c.title}**${themeLabel}
 Chemin : ${c.parent_path ?? '-'}
 Contenu :
 """
-${c.content}
+${truncated}
 """`
 }
 

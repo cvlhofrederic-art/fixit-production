@@ -44,7 +44,7 @@ interface CorpusHybridRow {
 
 const HYBRID_TOP_K = 30        // candidats récupérés en hybrid search
 const RERANK_TOP_K = 10        // après reranker
-const MMR_FINAL_K = 6          // top final passé au LLM
+const MMR_FINAL_K = 3          // top final passé au LLM (réduit de 6 : budget tokens Groq free tier)
 const MMR_LAMBDA = 0.7         // 0.7 = privilégie pertinence (vs diversité)
 const MIN_RERANK_SCORE = -2.0  // seuil sous lequel on considère "hors-scope"
 
