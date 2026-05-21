@@ -48,6 +48,133 @@ export function has(
   return 'missing'
 }
 
+// ── Fourchettes prix marché PT-PT 2025-2026 (sem IVA, em €) ─────────────────
+// Sources : indicateurs marché Portugal cités dans SYSTEM_PROMPT_PT,
+// extensions pour cas observés (motorisations, inspeções elétricas).
+const PRIX_MARCHE_PT: Record<string, [number, number]> = {
+  // Canalização
+  'desentupimento simples': [60, 150],
+  'desentupimento complexo': [150, 400],
+  'fuga torneira': [50, 100],
+  'substituicao torneira': [120, 300],
+  'termoacumulador': [600, 1200],
+  'cilindro agua quente': [600, 1200],
+  'instalacao sanitarios': [350, 800],
+  'coluna agua quente': [150, 400],
+  // Eletricidade
+  'quadro eletrico monofasico': [500, 1000],
+  'quadro eletrico trifasico': [800, 2000],
+  'adaptacao regras tecnicas': [1500, 4000],
+  'inspecao previa sistema eletrico': [50, 150],
+  'inspecao sistema eletrico': [50, 150],
+  'tomada eletrica': [40, 120],
+  'ponto de luz': [50, 150],
+  'videoporteiro': [150, 700],
+  'intercomunicador': [150, 700],
+  'iluminacao areas comuns': [600, 1800],
+  // Motorizações / portões (PDF Lobão)
+  'motorizacao portao batente': [500, 1200],
+  'motorizacao portao': [500, 1200],
+  'motorline lince': [500, 1200],
+  'motorline': [500, 1200],
+  'mao de obra instalacao portao': [350, 800],
+  'mao de obra instalacao completa': [200, 800],
+  'mao de obra instalacao': [200, 800],
+  'deslocacao materiais diversos': [50, 200],
+  'outras despesas': [50, 200],
+  // Carpintaria / Serralharia
+  'porta entrada predio': [1500, 5000],
+  'porta entrada': [1500, 5000],
+  'porta patamar': [600, 2000],
+  'janela vidro duplo': [350, 1000],
+  'portao automatico': [1500, 5000],
+  // Pintura
+  'pintura interior': [15, 40],
+  'pintura fachada': [20, 60],
+  'reabilitacao fachada reboco': [30, 80],
+  // Fechaduras / Segurança
+  'fechadura': [120, 350],
+  'codigo de acesso': [250, 700],
+  'videoporteiro predio': [400, 1700],
+  // Elevadores
+  'manutencao anual elevador': [1200, 4000],
+  'revisao elevador': [2500, 6500],
+  // Coberturas
+  'substituicao telhas': [60, 130],
+  'impermeabilizacao terraco': [40, 100],
+  // Espaços verdes
+  'corte sebes': [25, 70],
+  'poda arvore': [150, 700],
+  'manutencao mensal espacos verdes': [150, 700],
+  // Limpeza
+  'limpeza areas comuns': [250, 700],
+  'limpeza vidros': [1.5, 7],
+  // Alvenaria
+  'fissuracao fachada': [40, 130],
+  'regularizacao pavimento': [8, 25],
+}
+
+function findPriceRangePt(designation: string): [number, number] | null {
+  const norm = normalize(designation)
+  let best: [number, number] | null = null
+  let bestScore = 0
+  for (const [key, range] of Object.entries(PRIX_MARCHE_PT)) {
+    const keyN = normalize(key)
+    const words = keyN.split(' ').filter(w => w.length > 1)
+    if (words.length === 0) continue
+    const matches = words.filter(w => norm.includes(w)).length
+    const score = matches / words.length
+    if (score > bestScore && score >= 0.5) {
+      bestScore = score
+      best = range
+    }
+  }
+  return best
+}
+
+function calculatePrixScorePt(
+  prestations: Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number }>,
+): ScorePrix {
+  const details: PrixDetail[] = []
+  for (const p of prestations) {
+    const prix = p.prix_unitaire_ht || p.total_ht || 0
+    if (!prix || prix <= 0) continue
+    const fourchette = findPriceRangePt(p.designation)
+    if (!fourchette) {
+      details.push({
+        designation: p.designation,
+        prix,
+        unite: p.unite || 'u',
+        fourchette_min: 0,
+        fourchette_max: 0,
+        status: 'inconnu',
+        ecart_pct: 0,
+      })
+      continue
+    }
+    const milieu = (fourchette[0] + fourchette[1]) / 2
+    const ecart = ((prix - milieu) / milieu) * 100
+    let status: PrixDetail['status'] = 'ok'
+    if (prix < fourchette[0]) status = 'bas'
+    else if (prix > fourchette[1] * 1.5) status = 'excessif'
+    else if (prix > fourchette[1]) status = 'eleve'
+    details.push({
+      designation: p.designation,
+      prix,
+      unite: p.unite || 'u',
+      fourchette_min: fourchette[0],
+      fourchette_max: fourchette[1],
+      status,
+      ecart_pct: Math.round(ecart),
+    })
+  }
+  const known = details.filter(d => d.status !== 'inconnu')
+  const ecart_moyen = known.length > 0
+    ? Math.round(known.reduce((s, d) => s + d.ecart_pct, 0) / known.length)
+    : 0
+  return { ecart_moyen_pct: ecart_moyen, details }
+}
+
 // ── Critères de conformité PT ───────────────────────────────────────────────
 function calculateConformiteScorePt(
   extracted: Record<string, unknown>,
@@ -237,9 +364,11 @@ export function calculateScoresPt(
 ): AnalyseScores {
   const nifVerified = !!options?.nifVerified
   const conformite = calculateConformiteScorePt(extracted, rawText, nifVerified)
+  const prestations = (extracted.prestations || []) as Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number }>
+  const prix = calculatePrixScorePt(prestations)
   return {
     conformite,
-    prix: { ecart_moyen_pct: 0, details: [] },
+    prix,
     confiance: 0,
     action_recommandee: 'valider',
     messages_negociation: [],

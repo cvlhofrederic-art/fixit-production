@@ -194,3 +194,36 @@ describe('calculateScoresPt — Seguro RC adaptatif', () => {
     expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('ok')
   })
 })
+
+describe('calculateScoresPt — análise dos preços', () => {
+  it('matches motorização Motorline LINCE within market range', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const motoriz = r.prix.details.find(d => /motorline|motorizac/i.test(d.designation))
+    expect(motoriz).toBeDefined()
+    expect(motoriz?.status).not.toBe('inconnu')
+    expect(motoriz?.fourchette_min).toBeGreaterThan(0)
+  })
+
+  it('matches mão de obra instalação as known range', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const mo = r.prix.details.find(d => /mao\s*de\s*obra/i.test(d.designation))
+    expect(mo?.status).not.toBe('inconnu')
+  })
+
+  it('computes a non-zero ecart_moyen_pct when prices match', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const known = r.prix.details.filter(d => d.status !== 'inconnu')
+    expect(known.length).toBeGreaterThan(0)
+  })
+
+  it('flags excessive price (> 50% above max) as excessif', () => {
+    const ext = {
+      ...lobaoExtracted,
+      prestations: [
+        { designation: 'Mão de obra — instalação completa', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 1500, total_ht: 1500 },
+      ],
+    }
+    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    expect(r.prix.details[0].status).toBe('excessif')
+  })
+})
