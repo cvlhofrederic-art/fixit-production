@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateScoresPt } from '@/lib/analyse-devis-scoring-pt'
+import { calculateScoresPt, extractPrestationsFromRawTextPt } from '@/lib/analyse-devis-scoring-pt'
 
 // ── Fixture : extraction JSON simulée du PDF Vitfix Artisan PT
 // Orcamento-Lobao-Motorline-Lince.pdf (21/05/2026, NIF 276 873 297) ────────
@@ -350,6 +350,110 @@ describe('calculateScoresPt — filtrage strict des prestations vs descriptions/
   it('produces a meaningful ecart_moyen_pct (non-zero, within reasonable range)', () => {
     const r = calculateScoresPt(noisyExtracted, lobaoRawText, { nifVerified: true })
     expect(r.prix.ecart_moyen_pct).not.toBe(0)
+    expect(Math.abs(r.prix.ecart_moyen_pct)).toBeLessThanOrEqual(50)
+  })
+})
+
+// ── Reproduction du texte brut tel qu'extrait par unpdf depuis le PDF Lobão ──
+// Lignes empilées dans l'ordre d'apparition après extraction PDF :
+//   <designation>\n(<sous-description>)\n1. <étape>\n...\n<qty> <unite> <prix> € <total> €
+const lobaoPdfRawText = `ORÇAMENTO — Projeto: Motorização portão de batente
+ORC-2026-205
+EMITENTE
+Nome : Frédéric Neiva Carvalho
+NIF : 276 873 297
+CAE : 81210, 38112
+DESTINATÁRIO
+Nome : João Teixeira Lobão
+DATA DE EMISSÃO
+21/05/2026
+DESCRIÇÃO QTD UNID PREÇO S/IVA TOTAL S/IVA
+Inspeção prévia do sistema elétrico
+(Diagnóstico técnico prévio)
+1. Verificação do quadro e ponto de alimentação 230 V
+2. Avaliação das folhas e pilares (compatibilidade Motorline)
+3. Dimensionamento e elaboração do orçamento
+1 Serviço 80,00 € 80,00 €
+Fornecimento de motorização Motorline LINCE
+(Equipamentos para portão de batente)
+1. Par eletromecânico hidráulico Motorline LINCE (2 motores)
+2. Placa central de comando MC2 (recetor 433 MHz)
+3. 2 comandos rolling code 433 MHz
+1 Serviço 720,00 € 720,00 €
+Mão de obra — instalação completa
+(Montagem, programação e ensaios)
+1. Instalação e fixação dos motores nas folhas do portão
+2. Programação da central e regulação de força/tempo
+3. Emparelhamento dos comandos e ensaios de funcionamento
+1 Serviço 440,00 € 440,00 €
+Outras despesas
+(Deslocação e materiais diversos)
+1. Deslocação Aveiro – Barrosas, ida e volta
+2. Buchas químicas, parafusos inox e cabo H07RN-F 3G1,5 mm²
+3. Calha técnica, terminais e ligações estanques
+1 Serviço 110,00 € 110,00 €
+IVA 23% Subtotal s/IVA 1 350,00 €
+IVA 23% s/ 1 350,00 € 310,50 €
+TOTAL C/IVA 1 660,50 €`
+
+describe('extractPrestationsFromRawTextPt — fallback regex deterministe', () => {
+  it('extracts the 4 priced prestations from the Lobão PDF rawText', () => {
+    const result = extractPrestationsFromRawTextPt(lobaoPdfRawText)
+    expect(result.length).toBe(4)
+  })
+
+  it('correctly attaches the designation (preceding non-numbered non-paren line) to each price line', () => {
+    const result = extractPrestationsFromRawTextPt(lobaoPdfRawText)
+    const designations = result.map(p => p.designation)
+    expect(designations).toContain('Inspeção prévia do sistema elétrico')
+    expect(designations).toContain('Fornecimento de motorização Motorline LINCE')
+    expect(designations).toContain('Mão de obra — instalação completa')
+    expect(designations).toContain('Outras despesas')
+  })
+
+  it('correctly parses prices and quantities', () => {
+    const result = extractPrestationsFromRawTextPt(lobaoPdfRawText)
+    const motorline = result.find(p => /motorline/i.test(p.designation))
+    expect(motorline?.prix_unitaire_ht).toBe(720)
+    expect(motorline?.quantite).toBe(1)
+    expect(motorline?.unite).toMatch(/serviço/i)
+  })
+
+  it('returns empty array on empty input', () => {
+    expect(extractPrestationsFromRawTextPt('')).toEqual([])
+  })
+
+  it('returns empty array on text without priced lines', () => {
+    expect(extractPrestationsFromRawTextPt('Lorem ipsum dolor sit amet')).toEqual([])
+  })
+})
+
+describe('calculateScoresPt — fallback prestations from rawText when LLM extraction fails', () => {
+  it('uses rawText regex fallback when extracted.prestations is empty', () => {
+    const noPrestations = { ...lobaoExtracted, prestations: [] }
+    const r = calculateScoresPt(noPrestations, lobaoPdfRawText, { nifVerified: true })
+    expect(r.prix.details.length).toBeGreaterThan(0)
+    const known = r.prix.details.filter(d => d.status !== 'inconnu')
+    expect(known.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('uses rawText regex fallback when extracted.prestations has only no-price items', () => {
+    const onlyDescriptions = {
+      ...lobaoExtracted,
+      prestations: [
+        { designation: '(Diagnóstico técnico prévio)', type: 'description', quantite: 0, unite: '', prix_unitaire_ht: 0, total_ht: 0 },
+        { designation: '1. Verificação do quadro', type: 'etape', quantite: 0, unite: '', prix_unitaire_ht: 0, total_ht: 0 },
+      ],
+    }
+    const r = calculateScoresPt(onlyDescriptions, lobaoPdfRawText, { nifVerified: true })
+    const known = r.prix.details.filter(d => d.status !== 'inconnu')
+    expect(known.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('keeps LLM-extracted prestations when they already match (no fallback needed)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoPdfRawText, { nifVerified: true })
+    expect(r.prix.details.length).toBeGreaterThan(0)
+    // ecart_moyen_pct cohérent (the 4 prestations sit in/around the market mid-range)
     expect(Math.abs(r.prix.ecart_moyen_pct)).toBeLessThanOrEqual(50)
   })
 })
