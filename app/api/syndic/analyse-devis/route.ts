@@ -468,21 +468,28 @@ export async function POST(req: NextRequest) {
       logger.warn('Extraction JSON failed (non-bloquant):', e)
     }
 
-    // ── Vérification entreprise (SIRET FR uniquement) + Scoring ──
-    // En mode PT le champ contient un NIF/NIPC à 9 chiffres : l'API SIRET FR
-    // est inapplicable. On retourne verified=false sans appel pour éviter le
-    // bruit dans les logs. Une vérification NIF PT (AT/Portal das Finanças)
-    // sera ajoutée ultérieurement.
-    const siretResult = isPt
-      ? { verified: false }
-      : await verifySiret((extracted.artisan_siret as string) || '', req)
+    // ── Vérification entreprise + Scoring (dispatch FR/PT) ──
+    // FR : SIRET via API verify-siret (Sirene).
+    // PT : NIF checksum local (algorithme AT modulo 11), pas d'API externe.
+    let scores: AnalyseScores
+    let siretResult: { verified: boolean; company?: Record<string, unknown> }
 
-    const scores = calculateScores(
-      (extracted.mentions_presentes || []) as string[],
-      (extracted.mentions_manquantes || []) as string[],
-      extracted,
-      siretResult.verified
-    )
+    if (isPt) {
+      const { validateNif } = await import('@/lib/nif-pt')
+      const { calculateScoresPt } = await import('@/lib/analyse-devis-scoring-pt')
+      const nifRaw = (extracted.artisan_siret as string) || ''
+      const nifVerified = validateNif(nifRaw)
+      siretResult = { verified: nifVerified }
+      scores = calculateScoresPt(extracted, content, { nifVerified })
+    } else {
+      siretResult = await verifySiret((extracted.artisan_siret as string) || '', req)
+      scores = calculateScores(
+        (extracted.mentions_presentes || []) as string[],
+        (extracted.mentions_manquantes || []) as string[],
+        extracted,
+        siretResult.verified,
+      )
+    }
 
     const totalTokens = (analyseData.usage?.total_tokens || 0) + (extractData?.usage?.total_tokens || 0)
 

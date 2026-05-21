@@ -36,9 +36,7 @@ describe('validateNif', () => {
   })
 
   it('rejects undefined/null gracefully', () => {
-    // @ts-expect-error testing runtime safety
     expect(validateNif(undefined)).toBe(false)
-    // @ts-expect-error testing runtime safety
     expect(validateNif(null)).toBe(false)
   })
 })
@@ -59,9 +57,7 @@ describe('extractNif', () => {
 
   it('returns null on empty input', () => {
     expect(extractNif('')).toBeNull()
-    // @ts-expect-error testing runtime safety
     expect(extractNif(null)).toBeNull()
-    // @ts-expect-error testing runtime safety
     expect(extractNif(undefined)).toBeNull()
   })
 
