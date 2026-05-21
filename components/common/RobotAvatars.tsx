@@ -56,3 +56,17 @@ export function AlfredoAvatar({ size = 40 }: { size?: number }) {
     />
   )
 }
+
+// ═══ TEMPO — Robot automatisations & tâches récurrentes ═══
+export function TempoAvatar({ size = 40 }: { size?: number }) {
+  return (
+    <img
+      src="/tempo-avatar.webp"
+      alt="Tempo — Agent Automatisations IA"
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: 'cover', borderRadius: size > 36 ? 12 : 8 }}
+      draggable={false}
+    />
+  )
+}
