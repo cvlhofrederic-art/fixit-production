@@ -363,6 +363,59 @@ function calculateConformiteScorePt(
   return { total, max, details: criteres }
 }
 
+// ── Fallback déterministe : extraction prestations depuis texte brut ────────
+// Utilisé quand le LLM JSON extractor échoue à produire des prestations
+// valides (champ prestations vide, ou aucune avec prix > 0, ou aucune
+// matchant les fourchettes PRIX_MARCHE_PT).
+// Pattern PT typique après extraction PDF : "<qty> <unite> <prix>,<dec> €  <total>,<dec> €"
+// précédé d'une ligne titre (la designation).
+export function extractPrestationsFromRawTextPt(
+  rawText: string,
+): Array<{ designation: string; type: 'prestation'; quantite: number; unite: string; prix_unitaire_ht: number; total_ht: number }> {
+  if (!rawText) return []
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean)
+  // Regex ligne de prix : "1 Serviço 80,00 € 80,00 €" ou "2 h 35,00 € 70,00 €"
+  const UNITS = '(?:Serviço|servico|Servico|h|m²|m2|ml|u|un|unidade|forfait|dia|dias|mês|mes|hora|horas)'
+  const priceLineRegex = new RegExp(`^(\\d+(?:[.,]\\d+)?)\\s+${UNITS}\\s+([\\d.\\s]+,\\d{2})\\s*€`, 'i')
+  // Skip helpers
+  const isParens = (s: string) => /^\(.*\)$/.test(s)
+  const isNumberedStep = (s: string) => /^\d+\.\s/.test(s)
+  const isHeader = (s: string) => /^(DESCRIÇÃO|DESCRICAO|QTD|UNID|PREÇO|PRECO|TOTAL|SUBTOTAL|IVA|CONDIÇÕES|CONDICOES|GARANTIA)\b/i.test(s)
+  const isPriceLineItself = (s: string) => priceLineRegex.test(s)
+
+  const results: ReturnType<typeof extractPrestationsFromRawTextPt> = []
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(priceLineRegex)
+    if (!m) continue
+    const qty = parseFloat(m[1].replace(',', '.'))
+    // Re-extract unit (we need it via captured group — use full regex with capture)
+    const fullMatch = lines[i].match(new RegExp(`^(\\d+(?:[.,]\\d+)?)\\s+(${UNITS})\\s+([\\d.\\s]+,\\d{2})\\s*€`, 'i'))
+    if (!fullMatch) continue
+    const unit = fullMatch[2]
+    const priceStr = fullMatch[3].replace(/\s/g, '').replace(/\.(?=\d{3}(?:[^\d]|$))/g, '').replace(',', '.')
+    const price = parseFloat(priceStr)
+    if (!isFinite(price) || price <= 0 || !isFinite(qty) || qty <= 0) continue
+    // Look back up to 10 lines for a designation
+    let designation = ''
+    for (let j = i - 1; j >= Math.max(0, i - 10); j--) {
+      const ln = lines[j]
+      if (isParens(ln) || isNumberedStep(ln) || isHeader(ln) || isPriceLineItself(ln)) continue
+      designation = ln
+      break
+    }
+    if (!designation) continue
+    results.push({
+      designation,
+      type: 'prestation',
+      quantite: qty,
+      unite: unit,
+      prix_unitaire_ht: price,
+      total_ht: Math.round(price * qty * 100) / 100,
+    })
+  }
+  return results
+}
+
 // ── API publique ────────────────────────────────────────────────────────────
 export function calculateScoresPt(
   extracted: Record<string, unknown>,
@@ -371,8 +424,19 @@ export function calculateScoresPt(
 ): AnalyseScores {
   const nifVerified = !!options?.nifVerified
   const conformite = calculateConformiteScorePt(extracted, rawText, nifVerified)
-  const prestations = (extracted.prestations || []) as Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number }>
-  const prix = calculatePrixScorePt(prestations)
+  let prestations = (extracted.prestations || []) as Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number; type?: string }>
+  let prix = calculatePrixScorePt(prestations)
+
+  // Fallback : si aucune prestation matchée (LLM JSON extractor défaillant),
+  // on tente une extraction regex déterministe depuis le texte brut.
+  const matchedAny = prix.details.some(d => d.status !== 'inconnu')
+  if (!matchedAny && rawText) {
+    const fallbackPrestations = extractPrestationsFromRawTextPt(rawText)
+    if (fallbackPrestations.length > 0) {
+      prestations = fallbackPrestations
+      prix = calculatePrixScorePt(fallbackPrestations)
+    }
+  }
 
   // Score prix normalisé /100 : 100 = pile au milieu, -1pt par % d'écart
   const prixScore = Math.max(0, Math.min(100, 100 - Math.abs(prix.ecart_moyen_pct)))

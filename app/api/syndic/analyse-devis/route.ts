@@ -495,9 +495,18 @@ export async function POST(req: NextRequest) {
     let siretResult: { verified: boolean; company?: Record<string, unknown> }
 
     if (isPt) {
-      const { validateNif } = await import('@/lib/nif-pt')
+      const { validateNif, extractNif } = await import('@/lib/nif-pt')
       const { calculateScoresPt } = await import('@/lib/analyse-devis-scoring-pt')
-      const nifRaw = (extracted.artisan_siret as string) || ''
+      // Fallback déterministe : si le LLM JSON extractor a laissé artisan_siret
+      // vide ou invalide, on scanne le texte brut nous-mêmes.
+      let nifRaw = (extracted.artisan_siret as string) || ''
+      if (!nifRaw || !validateNif(nifRaw)) {
+        const fromText = extractNif(content)
+        if (fromText) {
+          nifRaw = fromText
+          extracted.artisan_siret = fromText
+        }
+      }
       const nifVerified = validateNif(nifRaw)
       siretResult = { verified: nifVerified }
       scores = calculateScoresPt(extracted, content, { nifVerified })
