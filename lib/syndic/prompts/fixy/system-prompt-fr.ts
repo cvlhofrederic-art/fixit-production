@@ -62,9 +62,14 @@ export function buildFixySystemPromptFR(ctx: FixyPromptContext): string {
 
   const actionsSection = `
 ## Tes capacités d'action et de recherche (exécutables directement)
-Tu peux agir dans l'application en incluant une balise ACTION dans ta réponse.
-Tu peux aussi interroger la base de données en incluant une balise TOOL.
-**N'inclus une ACTION ou un TOOL que si l'utilisateur te demande explicitement de faire quelque chose.**
+Tu peux agir dans l'application en incluant une balise ##ACTION## dans ta réponse.
+Tu peux aussi interroger la base de données en incluant une balise ##TOOL##.
+
+**🚨 RÈGLE CRITIQUE : quand l'utilisateur te demande de FAIRE quelque chose (créer, envoyer, ouvrir, programmer…), tu DOIS inclure la balise ##ACTION## dans ta réponse. Sans cette balise, RIEN ne sera exécuté. Réponds toujours avec ton texte explicatif ET la balise action.**
+
+**📅 TABLE DE CONVERSION DES DATES (VALABLE POUR TOUTES LES ACTIONS) :**
+${ctx.dateMappingStr}
+⚠️ UTILISE TOUJOURS les dates de cette table. Ne calcule JAMAIS une date toi-même. Par défaut si aucune date : ${ctx.dateISO}
 
 **🔍 Rechercher dans les dossiers (copros, missions, signalements) :**
 ##TOOL##{"name":"search_dossier","args":{"query":"terme de recherche"}}##
@@ -93,11 +98,7 @@ ${ctx.roleConfig.actions.includes('create_mission') ? `**🔴 RÈGLE ABSOLUE POU
 - artisan : le nom tel que dicté par l'utilisateur
 - artisan_email : CHERCHE dans la liste ci-dessous et COPIE l'email exact. Si introuvable, mets ""
 - description : ce qui est demandé
-- date_intervention : **UTILISE OBLIGATOIREMENT** la table de conversion ci-dessous. Si aucune date dite, utilise ${ctx.dateISO}
-
-**📅 TABLE DE CONVERSION DES DATES (NE PAS CALCULER SOI-MÊME) :**
-${ctx.dateMappingStr}
-⚠️ UTILISE TOUJOURS les dates de cette table. Ne calcule JAMAIS une date toi-même.
+- date_intervention : utilise la TABLE DE CONVERSION ci-dessus. Si aucune date dite, utilise ${ctx.dateISO}
 - type_travaux : le type déduit de la description
 - priorite : "normale" par défaut, "urgente" si mots-clés urgence/urgent/en urgence
 
@@ -110,6 +111,27 @@ ${ctx.dateMappingStr}
 
 **📋 LISTE DES ARTISANS DU CABINET (cherche l'email ici) :**
 ${artisanListForLLM}
+` : ''}
+${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vous dans l'agenda** :
+##ACTION##{"type":"create_event","titre":"objet du RDV","category":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","description":"détails (optionnel)"}##
+
+⚠️ **Ne JAMAIS répéter la clé "type" dans la balise** : "type" est réservé au nom de l'action (create_event). La catégorie de l'événement va dans "category".
+
+- "titre" et "date" sont obligatoires.
+- "date" : utilise la TABLE DE CONVERSION DES DATES ci-dessus, ne calcule jamais toi-même.
+- "heure" : format 24h "HH:MM" (par défaut 09:00 si non précisée).
+- "dureeMin" : durée en minutes (par défaut 60).
+- "category" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne, "autre" sinon.
+
+Exemples :
+"Mets un rendez-vous demain à 14h avec Mme Dupont pour visite parc corot" →
+##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Parc Corot","category":"rdv","date":"(voir table)","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Parc Corot"}##
+
+"Met un rendez-vous sur mon agenda" →
+##ACTION##{"type":"create_event","titre":"Rendez-vous","category":"rdv","date":"${ctx.dateISO}","heure":"09:00","dureeMin":60}##
+
+"Programme l'AG du 5 juin à 18h" →
+##ACTION##{"type":"create_event","titre":"Assemblée Générale","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
 ` : ''}
 ${ctx.roleConfig.actions.includes('navigate') ? `**Naviguer vers une page** :
 ##ACTION##{"type":"navigate","page":"nom_page"}##
@@ -130,24 +152,9 @@ ${ctx.roleConfig.actions.includes('send_message') ? `**Envoyer un email à un ar
 ${ctx.roleConfig.actions.includes('create_document') ? `**Créer un document** :
 ##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
 ` : ''}
-${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vous dans l'agenda** :
-##ACTION##{"type":"create_event","titre":"objet du RDV","category":"rdv|ag|visite|reunion|autre","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nom de la personne (optionnel)","description":"détails (optionnel)"}##
 
-⚠️ **Ne JAMAIS répéter la clé "type" dans la balise** : "type" est réservé au nom de l'action (create_event). La catégorie de l'événement va dans "category".
-
-- "titre" et "date" sont obligatoires.
-- "date" : **UTILISE OBLIGATOIREMENT** la table de conversion des dates ci-dessus, ne calcule jamais toi-même.
-- "heure" : format 24h "HH:MM" (par défaut 09:00 si non précisée).
-- "dureeMin" : durée en minutes (par défaut 60).
-- "category" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne, "autre" sinon.
-
-Exemples :
-"Mets un rendez-vous demain à 14h avec Mme Dupont pour visite parc corot" →
-##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Parc Corot","category":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Parc Corot"}##
-
-"Programme l'AG du 5 juin à 18h" →
-##ACTION##{"type":"create_event","titre":"Assemblée Générale","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
-` : ''}`
+## RAPPEL FINAL — TOUJOURS inclure ##ACTION## quand on te demande d'agir
+Si l'utilisateur dit "crée", "mets", "programme", "envoie", "ouvre" → tu DOIS émettre ##ACTION##. Ne réponds JAMAIS uniquement en texte quand une action est demandée.`
 
   return `Tu es **Fixy ${ctx.roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${ctx.roleConfig.name}.
 

@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 export async function POST(request: NextRequest) {
   try {
+    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`whatsapp_${ip}`, 20, 60_000))) return rateLimitResponse()
 

@@ -12,8 +12,6 @@ import { ROLE_PAGES, SYNDIC_MODULES } from '@/components/syndic-dashboard/config
 
 export const maxDuration = 30
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
 // ── Fixy — Assistant Expert Syndic Vitfix Pro ────────────────────────────────
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Capacités : contexte complet cabinet + actions directes + mémoire + multi-rôles
@@ -205,6 +203,9 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // Read at request time — Cloudflare Workers populate process.env during fetch, not at module load
+    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(ip, 40, 60_000))) {
       return rateLimitResponse()
@@ -432,6 +433,7 @@ export async function POST(request: NextRequest) {
             update_mission: '📝 Atualização de missão preparada.',
             send_message: '✉️ Mensagem preparada.',
             create_document: '📄 Documento preparado.',
+            create_event: '📆 Marcação preparada. Verifique os detalhes abaixo.',
           } : {
             create_mission: '📋 Mission préparée. Vérifiez les détails ci-dessous.',
             assign_mission: '📋 Mission assignée préparée. Vérifiez les détails ci-dessous.',
@@ -440,6 +442,7 @@ export async function POST(request: NextRequest) {
             update_mission: '📝 Mise à jour de mission préparée.',
             send_message: '✉️ Message préparé.',
             create_document: '📄 Document préparé.',
+            create_event: '📆 Rendez-vous préparé. Vérifiez les détails ci-dessous.',
           }
           response = actionLabels[action.type as string] || (locale === 'pt' ? '✅ Ação preparada. Verifique os detalhes abaixo.' : '✅ Action préparée. Vérifiez les détails ci-dessous.')
         }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { FixyAvatar } from '@/components/common/RobotAvatars'
@@ -15,18 +15,24 @@ interface UserWithProfile extends User {
 
 interface Props {
   user: UserWithProfile
-  // Forward au dashboard parent quand Fixy émet `##ACTION##{"type":"navigate",...}##`.
   onNavigate?: (page: string) => void
+}
+
+interface ParsedAction {
+  type: string
+  args: Record<string, unknown>
 }
 
 const ACTION_RE = /##ACTION##\s*(\{[\s\S]*?\})\s*##/
 
-function extractNavigatePage(text: string): string | null {
+function extractAction(text: string): ParsedAction | null {
   const match = text.match(ACTION_RE)
   if (!match) return null
   try {
-    const parsed = JSON.parse(match[1]) as { type?: string; page?: string }
-    return parsed.type === 'navigate' && typeof parsed.page === 'string' ? parsed.page : null
+    const parsed = JSON.parse(match[1]) as Record<string, unknown>
+    const { type, ...args } = parsed
+    if (typeof type !== 'string') return null
+    return { type, args }
   } catch {
     return null
   }
@@ -36,14 +42,35 @@ function stripActionMarkers(text: string): string {
   return text.replace(/##ACTION##[\s\S]*?##/g, '').trim()
 }
 
+const ACTION_LABELS: Record<string, { fr: string; pt: string }> = {
+  create_event: { fr: 'Créer un rendez-vous', pt: 'Criar marcação' },
+  create_mission: { fr: 'Créer une mission', pt: 'Criar missão' },
+  assign_mission: { fr: 'Attribuer une mission', pt: 'Atribuir missão' },
+  update_mission: { fr: 'Mettre à jour mission', pt: 'Atualizar missão' },
+  create_alert: { fr: 'Créer une alerte', pt: 'Criar alerta' },
+  send_message: { fr: 'Envoyer un email', pt: 'Enviar email' },
+  create_document: { fr: 'Générer un document', pt: 'Gerar documento' },
+}
+
+const DISPLAY_KEYS: Record<string, string> = {
+  titre: 'Titre', date: 'Date', heure: 'Heure', category: 'Catégorie',
+  description: 'Description', artisan: 'Artisan', immeuble: 'Immeuble',
+  priorite: 'Priorité', type_travaux: 'Type', to: 'Destinataire',
+  subject: 'Objet', body: 'Message', message: 'Message', urgence: 'Urgence',
+  assigneA: 'Assigné à', dureeMin: 'Durée (min)', date_intervention: 'Intervention',
+}
+
 export default function FixyAgentPage({ user: _user, onNavigate }: Props) {
   const uiLocale = useLocale()
   const locale = uiLocale === 'pt' ? 'pt' : 'fr'
+  const l = locale === 'pt' ? 'pt' : 'fr'
 
   const conv = useAgentConversation('fixy', locale)
 
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingAction, setPendingAction] = useState<ParsedAction | null>(null)
+  const [executingAction, setExecutingAction] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const SUGGESTIONS = locale === 'pt'
@@ -67,6 +94,43 @@ export default function FixyAgentPage({ user: _user, onNavigate }: Props) {
         "Crée une alerte pour l'inspection de l'ascenseur",
         "Résume l'activité de la semaine",
       ]
+
+  const executeAction = useCallback(async (action: ParsedAction) => {
+    setExecutingAction(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/syndic/fixy-syndic/execute-action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ action: { type: action.type, args: action.args } }),
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        conv.setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: l === 'pt' ? '✅ Ação executada com sucesso.' : '✅ Action exécutée avec succès.',
+        }])
+      } else {
+        conv.setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: l === 'pt'
+            ? `❌ Erro: ${data.error || 'falha na execução'}`
+            : `❌ Erreur : ${data.error || 'échec de l\'exécution'}`,
+        }])
+      }
+    } catch {
+      conv.setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: l === 'pt' ? '❌ Erro de ligação.' : '❌ Erreur de connexion.',
+      }])
+    } finally {
+      setPendingAction(null)
+      setExecutingAction(false)
+    }
+  }, [conv, l])
 
   const send = async () => {
     if (!input.trim() || loading) return
@@ -96,13 +160,27 @@ export default function FixyAgentPage({ user: _user, onNavigate }: Props) {
       const rawReply = data.response || data.reply || data.content
         || (locale === 'pt' ? 'Desculpe, ocorreu um erro.' : 'Désolé, une erreur est survenue.')
 
-      // Parse ACTION markers pour navigation Fixy → dashboard parent
-      const targetPage = extractNavigatePage(rawReply)
+      // Backend extracts ##ACTION## and returns it as `data.action` (already stripped from response text).
+      // Fallback: try extracting from response in case backend didn't parse it.
+      let action: ParsedAction | null = null
+      if (data.action && typeof data.action === 'object' && data.action.type) {
+        const { type, ...args } = data.action as Record<string, unknown>
+        action = { type: String(type), args }
+      } else {
+        action = extractAction(rawReply)
+      }
+
       const displayReply = stripActionMarkers(rawReply) || rawReply
       conv.setMessages(prev => [...prev, { role: 'assistant', content: displayReply }])
       void conv.persistMessage(convId, 'assistant', displayReply)
-      if (targetPage && onNavigate) {
-        onNavigate(targetPage)
+
+      if (action) {
+        if (action.type === 'navigate') {
+          const page = action.args.page as string | undefined
+          if (page && onNavigate) onNavigate(page)
+        } else {
+          setPendingAction(action)
+        }
       }
     } catch {
       conv.setMessages(prev => [...prev, {
@@ -116,7 +194,7 @@ export default function FixyAgentPage({ user: _user, onNavigate }: Props) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conv.messages, loading])
+  }, [conv.messages, loading, pendingAction])
 
   return (
     <div className="flex gap-4 h-[calc(100vh-200px)] w-full">
@@ -185,7 +263,42 @@ export default function FixyAgentPage({ user: _user, onNavigate }: Props) {
                 />
               </div>
             ))}
-            {loading && (
+            {pendingAction && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">⚡</div>
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-md">
+                  <p className="text-sm font-semibold text-amber-900 mb-2">
+                    {ACTION_LABELS[pendingAction.type]?.[l] ?? pendingAction.type}
+                  </p>
+                  <div className="text-xs text-amber-800 space-y-0.5 mb-3">
+                    {Object.entries(pendingAction.args)
+                      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+                      .map(([k, v]) => (
+                        <div key={k}><span className="font-medium">{DISPLAY_KEYS[k] || k} :</span> {String(v)}</div>
+                      ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => executeAction(pendingAction)}
+                      disabled={executingAction}
+                      className="text-xs bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg font-semibold transition"
+                    >
+                      {executingAction
+                        ? (l === 'pt' ? 'A executar…' : 'Exécution…')
+                        : (l === 'pt' ? '✓ Confirmar' : '✓ Confirmer')}
+                    </button>
+                    <button
+                      onClick={() => setPendingAction(null)}
+                      disabled={executingAction}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-1.5 rounded-lg font-medium transition"
+                    >
+                      {l === 'pt' ? 'Cancelar' : 'Annuler'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {(loading || executingAction) && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0D1B2E] to-[#152338] flex items-center justify-center flex-shrink-0 overflow-hidden">
                   <FixyAvatar size={28} />

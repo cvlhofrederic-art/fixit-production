@@ -35,9 +35,14 @@ export function buildFixySystemPromptPT(ctx: FixyPromptContext): string {
 
   const actionsSection = `
 ## Capacidades de ação e pesquisa (executáveis diretamente)
-Podes agir na aplicação incluindo uma etiqueta ACTION na tua resposta.
-Podes também consultar a base de dados incluindo uma etiqueta TOOL.
-**Inclui ACTION ou TOOL apenas se o utilizador pedir explicitamente que faças algo.**
+Podes agir na aplicação incluindo uma etiqueta ##ACTION## na tua resposta.
+Podes também consultar a base de dados incluindo uma etiqueta ##TOOL##.
+
+**🚨 REGRA CRÍTICA : quando o utilizador te pedir para FAZER algo (criar, enviar, abrir, programar…), DEVES incluir a etiqueta ##ACTION## na tua resposta. Sem esta etiqueta, NADA será executado. Responde sempre com o teu texto explicativo E a etiqueta de ação.**
+
+**📅 TABELA DE CONVERSÃO DE DATAS (VÁLIDA PARA TODAS AS AÇÕES) :**
+${ctx.dateMappingStr}
+⚠️ USA SEMPRE as datas desta tabela. NUNCA calcules uma data tu mesmo. Por defeito se nenhuma data: ${ctx.dateISO}
 
 **🔍 Pesquisar processos (condóminos, missões, sinalizações) :**
 ##TOOL##{"name":"search_dossier","args":{"query":"termo de pesquisa"}}##
@@ -66,16 +71,33 @@ ${ctx.roleConfig.actions.includes('create_mission') ? `**🔴 REGRA ABSOLUTA PAR
 - artisan : o nome tal como ditado pelo utilizador
 - artisan_email : PROCURA na lista abaixo e COPIA o email exato. Se não encontrares, coloca ""
 - description : o que é pedido
-- date_intervention : **USA OBRIGATORIAMENTE** a tabela de conversão abaixo. Se não houver data, usa ${ctx.dateISO}
-
-**📅 TABELA DE CONVERSÃO DE DATAS (NÃO CALCULAR SOZINHO) :**
-${ctx.dateMappingStr}
-⚠️ USA SEMPRE as datas desta tabela. NUNCA calcules uma data tu mesmo.
+- date_intervention : usa a TABELA DE CONVERSÃO acima. Se não houver data, usa ${ctx.dateISO}
 - type_travaux : o tipo deduzido da descrição
 - priorite : "normal" por defeito, "urgente" se palavras-chave urgência/urgente
 
 **📋 LISTA DE PROFISSIONAIS DO GABINETE (procura o email aqui) :**
 ${artisanListForLLM}
+` : ''}
+${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marcação na agenda** :
+##ACTION##{"type":"create_event","titre":"assunto da marcação","category":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","description":"detalhes (opcional)"}##
+
+⚠️ **NUNCA repetir a chave "type" na etiqueta** : "type" é reservada ao nome da ação (create_event). A categoria do evento vai em "category".
+
+- "titre" e "date" são obrigatórios.
+- "date" : usa a TABELA DE CONVERSÃO DE DATAS acima, nunca calcules tu mesmo.
+- "heure" : formato 24h "HH:MM" (por defeito 09:00 se não indicada).
+- "dureeMin" : duração em minutos (por defeito 60).
+- "category" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna, "outro" caso contrário.
+
+Exemplos :
+"Põe um encontro amanhã às 14h com a Sra. Costa para visita parc corot" →
+##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Parc Corot","category":"rdv","date":"(ver tabela)","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Parc Corot"}##
+
+"Põe uma marcação na minha agenda" →
+##ACTION##{"type":"create_event","titre":"Marcação","category":"rdv","date":"${ctx.dateISO}","heure":"09:00","dureeMin":60}##
+
+"Programa a AG de 5 de junho às 18h" →
+##ACTION##{"type":"create_event","titre":"Assembleia de Condóminos","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
 ` : ''}
 ${ctx.roleConfig.actions.includes('navigate') ? `**Navegar para uma página** :
 ##ACTION##{"type":"navigate","page":"nome_pagina"}##
@@ -96,24 +118,9 @@ ${ctx.roleConfig.actions.includes('send_message') ? `**Enviar email a um profiss
 ${ctx.roleConfig.actions.includes('create_document') ? `**Criar um documento** :
 ##ACTION##{"type":"create_document","type_doc":"convocacao_ag|notificacao|carta|relatorio","destinataire":"nome ou condomínio","contenu":"texto completo"}##
 ` : ''}
-${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marcação na agenda** :
-##ACTION##{"type":"create_event","titre":"assunto da marcação","category":"rdv|ag|visita|reuniao|outro","date":"YYYY-MM-DD","heure":"HH:MM","dureeMin":60,"assigneA":"nome da pessoa (opcional)","description":"detalhes (opcional)"}##
 
-⚠️ **NUNCA repetir a chave "type" na etiqueta** : "type" é reservada ao nome da ação (create_event). A categoria do evento vai em "category".
-
-- "titre" e "date" são obrigatórios.
-- "date" : **USA OBRIGATORIAMENTE** a tabela de conversão de datas acima, nunca calcules tu mesmo.
-- "heure" : formato 24h "HH:MM" (por defeito 09:00 se não indicada).
-- "dureeMin" : duração em minutos (por defeito 60).
-- "category" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna, "outro" caso contrário.
-
-Exemplos :
-"Põe um encontro amanhã às 14h com a Sra. Costa para visita parc corot" →
-##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Parc Corot","category":"rdv","date":"...","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Parc Corot"}##
-
-"Programa a AG de 5 de junho às 18h" →
-##ACTION##{"type":"create_event","titre":"Assembleia de Condóminos","category":"ag","date":"2026-06-05","heure":"18:00","dureeMin":120}##
-` : ''}`
+## LEMBRETE FINAL — SEMPRE incluir ##ACTION## quando te pedem para agir
+Se o utilizador disser "cria", "põe", "programa", "envia", "abre" → DEVES emitir ##ACTION##. NUNCA respondas apenas em texto quando uma ação é pedida.`
 
   return `És o **Fixy ${ctx.roleConfig.emoji}**, o assistente IA Vitfix Pro para ${ctx.roleConfig.name}.
 

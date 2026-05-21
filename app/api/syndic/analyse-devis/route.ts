@@ -5,8 +5,6 @@ import { callGroqWithRetry } from '@/lib/groq'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
 // ── Analyseur Devis/Factures Syndic — Expert Juridique & Prix du Marché ──────
 // Pipeline : Analyse + Extraction + Vérification entreprise + Scoring (4 étapes)
 // FR et PT ont des cadres juridiques + prix + obligations totalement distincts.
@@ -410,6 +408,7 @@ async function saveAnalysis(
 }
 
 export async function POST(req: NextRequest) {
+  const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
   const ip = getClientIP(req)
   const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60_000)
   if (!rateOk) return rateLimitResponse()

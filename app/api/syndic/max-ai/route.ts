@@ -19,8 +19,6 @@ import { validateMaxResponse, type MaxValidatedCitation } from '@/lib/syndic/max
 
 export const maxDuration = 30
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
 // Cache module-level de l'índice (TOC) du corpus PT. Lu une fois au cold-start
 // du Worker, invalidation au prochain redéploiement (durée de vie de l'isolate).
 // Stratégie hybride Anthropic : la TOC est pré-chargée dans le system prompt,
@@ -90,6 +88,8 @@ async function generateHyDE(query: string, locale: 'fr' | 'pt'): Promise<string 
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(ip, 40, 60_000))) {
       return rateLimitResponse()
