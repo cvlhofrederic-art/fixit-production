@@ -10,11 +10,27 @@
 // Voir : https://inference-docs.cerebras.ai/api-reference/chat-completions
 
 import { CEREBRAS_API_URL, CEREBRAS_MODEL_PRIMARY } from '@/lib/constants'
-import type { GroqMessage, GroqResponse } from '@/lib/groq'
+
+// Shape OpenAI-compatible (identique à GroqMessage / GroqResponse côté `lib/groq.ts`).
+// On redéfinit ici pour éviter une dépendance circulaire — `lib/groq.ts` importe
+// `callCerebrasWithRetry` pour son fallback inter-provider.
+export interface CerebrasMessage {
+  role: string
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> | null
+  tool_call_id?: string
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+  name?: string
+}
+
+export interface CerebrasResponse {
+  choices: { message: { content: string }; finish_reason?: string }[]
+  usage?: { total_tokens: number; prompt_tokens: number; completion_tokens: number }
+  model?: string
+}
 
 export interface CerebrasCallOptions {
   model?: string
-  messages: GroqMessage[]
+  messages: CerebrasMessage[]
   temperature?: number
   max_tokens?: number
   response_format?: { type: string }
@@ -32,7 +48,7 @@ export interface CerebrasCallOptions {
 export async function callCerebrasWithRetry(
   opts: CerebrasCallOptions,
   config: { maxRetries?: number; apiKey?: string } = {},
-): Promise<GroqResponse> {
+): Promise<CerebrasResponse> {
   const apiKey = config.apiKey || process.env.CEREBRAS_API_KEY || ''
   if (!apiKey) throw new Error('CEREBRAS_API_KEY not configured')
 
@@ -87,4 +103,102 @@ export async function callCerebrasWithRetry(
 /** True si la clé Cerebras est configurée — à utiliser pour activer le fallback côté caller. */
 export function hasCerebrasKey(): boolean {
   return !!process.env.CEREBRAS_API_KEY
+}
+
+// ── Tool-calling support ────────────────────────────────────────────────────
+
+export interface CerebrasToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
+export interface CerebrasToolsCallOptions {
+  model?: string
+  messages: CerebrasMessage[]
+  tools: Array<{
+    type: 'function'
+    function: { name: string; description: string; parameters: Record<string, unknown> }
+  }>
+  tool_choice?: 'auto' | 'required' | 'none'
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface CerebrasToolsResponse {
+  message: {
+    role: 'assistant'
+    content: string | null
+    tool_calls?: CerebrasToolCall[]
+  }
+  finish_reason?: string
+  usage?: { total_tokens: number; prompt_tokens: number; completion_tokens: number }
+  model?: string
+}
+
+export async function callCerebrasWithTools(
+  opts: CerebrasToolsCallOptions,
+  config: { maxRetries?: number; apiKey?: string } = {},
+): Promise<CerebrasToolsResponse> {
+  const apiKey = config.apiKey || process.env.CEREBRAS_API_KEY || ''
+  if (!apiKey) throw new Error('CEREBRAS_API_KEY not configured')
+
+  const maxRetries = config.maxRetries ?? 2
+  const model = opts.model || CEREBRAS_MODEL_PRIMARY
+
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(CEREBRAS_API_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: opts.messages,
+          tools: opts.tools,
+          tool_choice: opts.tool_choice ?? 'auto',
+          temperature: opts.temperature ?? 0.2,
+          max_tokens: opts.max_tokens ?? 1500,
+        }),
+        signal: AbortSignal.timeout(25000),
+      })
+
+      if (res.ok) {
+        const json = await res.json()
+        const choice = json.choices?.[0]
+        if (!choice) throw new Error('cerebras tools: no choice in response')
+        return {
+          message: {
+            role: 'assistant',
+            content: choice.message?.content ?? null,
+            tool_calls: choice.message?.tool_calls,
+          },
+          finish_reason: choice.finish_reason,
+          usage: json.usage,
+          model: json.model,
+        }
+      }
+
+      if (res.status === 429) {
+        const retryAfter = res.headers.get('retry-after')
+        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+        console.warn(`[cerebras-tools] 429 on ${model}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
+        await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+        continue
+      }
+
+      const errText = await res.text().catch(() => '')
+      console.error(`[cerebras-tools] Error ${res.status} on ${model}:`, errText.substring(0, 200))
+      lastError = new Error(`Cerebras tools ${res.status}: ${errText.substring(0, 100)}`)
+      break
+    } catch (fetchErr: unknown) {
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
+      console.error(`[cerebras-tools] Fetch error on ${model}:`, errMsg)
+      lastError = fetchErr instanceof Error ? fetchErr : new Error(errMsg)
+      break
+    }
+  }
+
+  throw lastError || new Error('All Cerebras tools attempts failed')
 }
