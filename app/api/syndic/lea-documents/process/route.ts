@@ -10,6 +10,8 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { extractPdfText, extractMetadataFromText, type ExtractedMetadata } from '@/lib/syndic/lea-documents-extract'
 import { embedText } from '@/lib/syndic/embed'
+import { traceAgent } from '@/lib/langfuse'
+import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 60
 
@@ -35,6 +37,18 @@ async function authorize(request: NextRequest): Promise<{ ok: true; restrictToCa
 }
 
 async function processOne(doc: PendingDoc): Promise<{ id: string; ok: boolean; error?: string }> {
+  return traceAgent(
+    {
+      agent_id: 'lea',
+      user_id: doc.cabinet_id,
+      prompt: `process_document:${doc.id}`,
+      metadata: { tool: 'process_document', mime_type: doc.mime_type, doc_type: doc.type },
+    },
+    () => processOneInner(doc),
+  )
+}
+
+async function processOneInner(doc: PendingDoc): Promise<{ id: string; ok: boolean; error?: string }> {
   try {
     // 1. Mark processing
     await supabaseAdmin
@@ -99,6 +113,10 @@ async function processOne(doc: PendingDoc): Promise<{ id: string; ok: boolean; e
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown_error'
     logger.error(`[lea-documents/process] doc ${doc.id} failed:`, err)
+    Sentry.captureException(err, {
+      tags: { agent_type: 'lea', surface: 'documents_process', mime_type: doc.mime_type },
+      extra: { doc_id: doc.id, cabinet_id: doc.cabinet_id },
+    })
     try {
       await supabaseAdmin
         .from('syndic_documents')
