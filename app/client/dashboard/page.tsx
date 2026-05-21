@@ -9,47 +9,19 @@ import LocaleLink from '@/components/common/LocaleLink'
 import Image from 'next/image'
 import { Calendar, MapPin, LogOut, User, Search, Home, Shield, FileText, FileSearch, MessageSquare, Send, LayoutDashboard, Hammer, Calculator, CreditCard } from 'lucide-react'
 import FixyChatGeneric from '@/components/chat/FixyChatGeneric'
-import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
-import dynamic from 'next/dynamic'
+import { createDynamicSection } from '@/lib/dashboard-section-loader'
 import type { ChatMessage as SharedChatMessage } from '@/lib/types'
 import { type CILEntry, generateCILEntries, getCILHealthScore, getCategoryInfo as getCategoryInfoBase, getPonctualiteScore as getPonctualiteScoreBase } from '@/lib/cil-utils'
 import { useSignatureCanvas } from '@/hooks/useSignatureCanvas'
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
 
 // Dynamic imports for extracted page sections.
-// Each section is wrapped in SectionErrorBoundary so a single crash (chunk loading
-// failure on edge, runtime exception, etc.) shows an in-place fallback with retry
-// instead of destroying the dashboard shell via app/error.tsx.
+// Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
+// so a single crash (chunk loading failure on edge, runtime exception, etc.) shows
+// an in-place fallback with retry instead of destroying the shell.
+// Spinner color is the legacy yellow (#FFC107) specific to the particulier UI.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const d = (loader: () => Promise<any>) => {
-  const DynamicComponent = dynamic(loader, {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-6 h-6 border-2 border-[#FFC107] border-t-transparent rounded-full animate-spin" />
-      </div>
-    ),
-  })
-  const WrappedSection = (props: Record<string, unknown>) => {
-    const locale = useLocale()
-    const boundaryLocale: 'fr' | 'pt' | 'en' =
-      locale === 'pt' || locale === 'en' ? locale : 'fr'
-    const fallbackTitle =
-      locale === 'pt'
-        ? 'Erro nesta secção'
-        : locale === 'en'
-          ? 'Error in this section'
-          : 'Erreur dans cette section'
-    return (
-      <SectionErrorBoundary locale={boundaryLocale} fallbackTitle={fallbackTitle}>
-        <DynamicComponent {...props} />
-      </SectionErrorBoundary>
-    )
-  }
-  WrappedSection.displayName = 'DynamicSection'
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return WrappedSection as React.ComponentType<any>
-}
+const d = (loader: () => Promise<any>) => createDynamicSection(loader, { spinnerColor: '#FFC107' })
 const ClientDashboardOverview = d(() => import('@/components/client-dashboard/pages/ClientDashboardOverview'))
 const ClientMessagesSection = d(() => import('@/components/client-dashboard/pages/ClientMessagesSection'))
 const ClientDocumentsSection = d(() => import('@/components/client-dashboard/pages/ClientDocumentsSection'))

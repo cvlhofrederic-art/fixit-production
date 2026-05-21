@@ -1,14 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useTransition } from 'react'
-import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { toast } from 'sonner'
 import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
-import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
+import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { generateMaxPDF as generateMaxPDFUtil, parseDocPDF as parseDocPDFUtil } from '@/lib/syndic-pdf'
 import type { User } from '@supabase/supabase-js'
@@ -30,41 +29,9 @@ import {
 } from '@/lib/seed-syndic-pt-demo'
 
 // ─── Lazy-loaded Section Components (code-splitting) ─────────────────────────
-// Dynamic import helper — cast as ComponentType<any> since loader erases prop types.
-// Components with complex typed callbacks should use static imports instead (see above).
-// Each dynamic section is wrapped in SectionErrorBoundary so a single section crash
-// (chunk loading failure on edge, runtime exception, etc.) renders an in-place
-// fallback with retry instead of destroying the dashboard shell via app/error.tsx.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const d = (loader: () => Promise<any>) => {
-  const DynamicComponent = dynamic(loader, {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-      </div>
-    ),
-  })
-  const WrappedSection = (props: Record<string, unknown>) => {
-    const locale = useLocale()
-    const boundaryLocale: 'fr' | 'pt' | 'en' =
-      locale === 'pt' || locale === 'en' ? locale : 'fr'
-    const fallbackTitle =
-      locale === 'pt'
-        ? 'Erro nesta secção'
-        : locale === 'en'
-          ? 'Error in this section'
-          : 'Erreur dans cette section'
-    return (
-      <SectionErrorBoundary locale={boundaryLocale} fallbackTitle={fallbackTitle}>
-        <DynamicComponent {...props} />
-      </SectionErrorBoundary>
-    )
-  }
-  WrappedSection.displayName = 'DynamicSection'
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return WrappedSection as React.ComponentType<any>
-}
+// Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
+// so a single crash (chunk loading failure on edge, runtime exception, etc.)
+// shows an in-place fallback with retry instead of destroying the shell.
 const EquipeSection = d(() => import('@/components/syndic-dashboard/misc/EquipeSection'))
 const AnalyseDevisSection = d(() => import('@/components/syndic-dashboard/reporting/AnalyseDevisSection'))
 const DocsInterventionsSection = d(() => import('@/components/syndic-dashboard/operations/DocsInterventionsSection'))
