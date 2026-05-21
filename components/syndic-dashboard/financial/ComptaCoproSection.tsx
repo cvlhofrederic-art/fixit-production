@@ -5,7 +5,6 @@ import type { Immeuble } from '../types'
 import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
-import AgentComptableCopro from './AgentComptableCopro'
 import type { User } from '@supabase/supabase-js'
 export default function ComptaCoproSection({ user, userRole, immeubles }: { user: User; userRole: string; immeubles: Immeuble[] }) {
   const { t } = useTranslation()
@@ -16,11 +15,7 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
   type Budget = { id: string; immeuble: string; annee: number; postes: { libelle: string; budget: number; realise: number }[] }
 
   const uid = user?.id || 'demo'
-  const [activeTab, setActiveTab] = useState<'tableau' | 'lots' | 'appels' | 'journal' | 'budget' | 'cloture' | 'rapports' | 'agent'>('tableau')
-
-  // ── Immeuble sélectionné pour l'agent IA ──
-  const [selectedImmeubleId, setSelectedImmeubleId] = useState<string>(immeubles[0]?.id || '')
-  const selectedImmeuble = immeubles.find(i => i.id === selectedImmeubleId) || immeubles[0] || null
+  const [activeTab, setActiveTab] = useState<'tableau' | 'lots' | 'appels' | 'journal' | 'budget' | 'cloture' | 'rapports'>('tableau')
 
   // ── Lots / Tantièmes ──
   const [lots, setLots] = useState<Lot[]>(() => {
@@ -148,7 +143,6 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
     { key: 'budget', label: '📋 Budget prévisionnel' },
     { key: 'cloture', label: '📁 Clôture exercice' },
     { key: 'rapports', label: '📄 Rapports AG' },
-    { key: 'agent', label: '🧮 Agent Comptable Léa' },
   ]
 
   return (
@@ -622,18 +616,6 @@ export default function ComptaCoproSection({ user, userRole, immeubles }: { user
           </div>
         )}
 
-        {/* ── AGENT IA COMPTABLE ── */}
-        {activeTab === 'agent' && (
-          <AgentComptableCopro
-            immeubles={immeubles}
-            selectedImmeubleId={selectedImmeubleId}
-            setSelectedImmeubleId={setSelectedImmeubleId}
-            lots={lots}
-            ecritures={ecritures}
-            appels={appels}
-            budgets={budgets}
-          />
-        )}
       </div>
 
       {/* ── Modals ── */}

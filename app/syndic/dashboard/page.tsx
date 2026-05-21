@@ -2906,7 +2906,7 @@ export default function SyndicDashboard() {
             <FixyAgentPage user={user} onNavigate={(p: string) => setPage(p as Page)} />
           )}
           {/* max_agent retiré : Max Expert (page === 'ia') prend désormais sa place */}
-          {page === 'lea_agent' && user && <LeaAgentPage user={user} />}
+          {page === 'lea_agent' && user && <LeaAgentPage user={user} immeubles={immeubles} />}
           {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}
           {page === 'automation_agent' && user && <TempoAgentPage user={user} />}
 
