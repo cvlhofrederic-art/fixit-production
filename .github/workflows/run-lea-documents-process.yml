@@ -1,0 +1,21 @@
+name: Léa documents — Process pending OCR/extraction
+
+# Safety net : déclenche /api/syndic/lea-documents/process toutes les 15 min
+# pour rattraper les documents pending non traités (cas où le fire-and-forget
+# post-upload échoue).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # toutes les 15 min
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger process endpoint
+        run: |
+          curl -s -X POST https://vitfix.io/api/syndic/lea-documents/process \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            --fail-with-body

@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('syndic_documents')
-      .select('id, filename, mime_type, size_bytes, type, status, immeuble_id, tags, uploaded_at, processed_at, error_message', { count: 'exact' })
+      .select('id, filename, mime_type, size_bytes, type, status, immeuble_id, tags, uploaded_at, processed_at, error_message, extracted_metadata', { count: 'exact' })
       .eq('cabinet_id', user.id)
       .order('uploaded_at', { ascending: false })
       .range(parsed.data.offset, parsed.data.offset + parsed.data.limit - 1)
