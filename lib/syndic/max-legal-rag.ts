@@ -82,12 +82,14 @@ export async function retrieveLegalChunks(
       queryEmbedding = await embedText(trimmed, embedOpts)
     }
   } catch (err) {
-    logger.error('[max-legal-rag] embed query failed', {
+    logger.error('[max-legal-rag] embed query failed — falling to BM25', {
       error: err instanceof Error ? err.message : String(err),
       language,
+      hadBinding: !!options?.aiBinding,
     })
     return fallbackBm25(supabase, trimmed, language)
   }
+  logger.info('[max-legal-rag] embed OK', { dims: queryEmbedding.length, language })
 
   // ── 2. Hybrid search via RPC SQL ──
   const rpcName = language === 'pt' ? 'search_legal_corpus_hybrid_pt' : 'search_legal_corpus_hybrid_fr'
@@ -101,6 +103,12 @@ export async function retrieveLegalChunks(
     return fallbackBm25(supabase, trimmed, language)
   }
   const candidates = ((hybridRows ?? []) as CorpusHybridRow[]).filter((r) => r.content)
+  logger.info('[max-legal-rag] hybrid search results', {
+    total: candidates.length,
+    topRrf: candidates[0]?.rrf_score ?? 0,
+    topVec: candidates[0]?.vector_score ?? 0,
+    topBm25: candidates[0]?.bm25_score ?? 0,
+  })
   if (candidates.length === 0) {
     logger.info('[max-legal-rag] hybrid search returned 0, trying BM25 fallback', {
       query: trimmed.slice(0, 80), language,
@@ -125,16 +133,21 @@ export async function retrieveLegalChunks(
     // Fallback : ordre RRF déjà calculé côté SQL, mapper directement.
     reranked = candidates.map((c) => ({ document: c, rerankScore: c.rrf_score * 100 }))
   }
+  logger.info('[max-legal-rag] rerank done', {
+    topScore: reranked[0]?.rerankScore ?? 'none',
+    count: reranked.length,
+    threshold: MIN_RERANK_SCORE,
+  })
 
   // ── 4. Filtre par seuil de pertinence ──
-  // Si le top-1 est en dessous du seuil → on considère que la question est
-  // hors-scope du corpus, et on retourne vide pour déclencher le refus côté Max.
+  // Si le top-1 est en dessous du seuil → la pipeline vectorielle n'a pas trouvé
+  // de résultat confiant. On tente ILIKE comme filet de sécurité avant de refuser.
   if (reranked.length === 0 || reranked[0].rerankScore < MIN_RERANK_SCORE) {
-    logger.info('[max-legal-rag] no chunk above relevance threshold', {
+    logger.info('[max-legal-rag] no chunk above relevance threshold, trying ILIKE fallback', {
       topScore: reranked[0]?.rerankScore ?? 'none',
       query: trimmed.slice(0, 80),
     })
-    return []
+    return fallbackIlike(supabase, trimmed, language)
   }
   const filtered = reranked.slice(0, RERANK_TOP_K)
 
