@@ -9,6 +9,7 @@ import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { ROLE_PAGES, SYNDIC_MODULES } from '@/components/syndic-dashboard/config'
+import { getSecret } from '@/lib/env'
 
 export const maxDuration = 30
 
@@ -203,8 +204,7 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    // Read at request time — Cloudflare Workers populate process.env during fetch, not at module load
-    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+    const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
 
     const ip = getClientIP(request)
     if (!(await checkRateLimit(ip, 40, 60_000))) {
@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
           messages,
           temperature: 0.25,
           max_tokens: 4000,
-        }),
+        }, { apiKey: GROQ_API_KEY }),
       )
     } catch (err) {
       logger.error('Groq Fixy error:', err)
@@ -399,7 +399,7 @@ export async function POST(request: NextRequest) {
             messages: messagesWithToolResult,
             temperature: 0.25,
             max_tokens: 4000,
-          })
+          }, { apiKey: GROQ_API_KEY })
           const response2 = groqData2.choices?.[0]?.message?.content
           if (response2) {
             response = response2.replace(/##TOOL##[\s\S]*?##/g, '').trim()

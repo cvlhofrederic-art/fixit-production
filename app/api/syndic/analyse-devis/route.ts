@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { callGroqWithRetry } from '@/lib/groq'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
+import { getSecret } from '@/lib/env'
 
 // ── Analyseur Devis/Factures Syndic — Expert Juridique & Prix du Marché ──────
 // Pipeline : Analyse + Extraction + Vérification entreprise + Scoring (4 étapes)
@@ -408,7 +409,7 @@ async function saveAnalysis(
 }
 
 export async function POST(req: NextRequest) {
-  const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+  const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
   const ip = getClientIP(req)
   const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60_000)
   if (!rateOk) return rateLimitResponse()
@@ -461,7 +462,7 @@ export async function POST(req: NextRequest) {
         ],
         temperature: 0.1,
         max_tokens: 5000,
-      }),
+      }, { apiKey: GROQ_API_KEY }),
       callGroqWithRetry({
         messages: [
           { role: 'system', content: extractPrompt },
@@ -471,7 +472,7 @@ export async function POST(req: NextRequest) {
         ],
         temperature: 0,
         max_tokens: 1200,
-      }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
+      }, { apiKey: GROQ_API_KEY }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
     ])
 
     const analysis = analyseData.choices?.[0]?.message?.content || ''
