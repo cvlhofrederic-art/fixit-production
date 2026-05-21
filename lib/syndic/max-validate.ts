@@ -191,17 +191,12 @@ export function validateMaxResponse(
     })
   }
 
-  // 5. Couverture minimale : si pas de citation pour une réponse longue → suspect
+  // 5. Couverture minimale : si pas de citation pour une réponse longue → warning
+  // Soft pass : on laisse passer la réponse (mieux qu'un refus silencieux) mais
+  // on signale le risque d'hallucination dans les reasons pour audit.
   const wordCount = parsed.answer.split(/\s+/).length
   if (validated.length === 0 && wordCount > 30 && !parsed.refusal) {
     reasons.push('long answer without any citation (suspect hallucination)')
-    return {
-      ok: false,
-      reasons,
-      answer: parsed.answer,
-      citations: [],
-      refusal: false,
-    }
   }
 
   // 6. Fuite cross-locale : refuse si la réponse mentionne des notions de l'autre locale

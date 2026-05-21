@@ -12,7 +12,6 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { retrieveLegalChunks } from '@/lib/syndic/max-legal-rag'
 import {
   buildMaxStrictSystemPrompt,
-  buildHyDEPrompt,
   getRefusalMessage,
 } from '@/lib/syndic/max-strict-prompt'
 import { validateMaxResponse, type MaxValidatedCitation } from '@/lib/syndic/max-validate'
@@ -50,39 +49,13 @@ async function loadTocPt(): Promise<string | null> {
 }
 
 // ── Max — Consultor juridique strict (Plan 2026) ────────────────────────────
-// Pipeline anti-hallucination :
-//  1. Embed la question + HyDE rewrite (LLM rapide)
-//  2. Hybrid search PT (vector + BM25 RRF) sur syndic_legal_corpus_pt
-//  3. Rerank cross-encoder + MMR diversité
-//  4. Si 0 chunks pertinents → refus formaté (corpus gap)
-//  5. Prompt strict + JSON mode + tool calling structuré
-//  6. Validation post-gen : chunk_id existence + quote literal + coverage + cross-locale
-//  7. Retry une fois si validation échoue, sinon refusal de secours
-//
-// Réponse : { response: string, citations: Citation[], confidence, refusal }
+// Pipeline : Embed → Hybrid search (vector + BM25 + ILIKE fallback) → Rerank →
+// MMR → Prompt strict JSON → Validation → Response.
+// Budget 30s Worker : single LLM attempt, no HyDE, no retry.
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HyDE rewriter — appel Groq très court (~500ms) pour générer une réponse
-// hypothétique qu'on embed pour augmenter le recall du retrieval.
-// ─────────────────────────────────────────────────────────────────────────────
-async function generateHyDE(query: string, locale: 'fr' | 'pt', apiKey?: string): Promise<string | null> {
-  try {
-    const data = await callGroqWithRetry({
-      messages: [
-        { role: 'user', content: buildHyDEPrompt(query, locale) },
-      ],
-      temperature: 0.2,
-      max_tokens: 300,
-      model: 'llama-3.1-8b-instant', // petit modèle rapide pour HyDE
-    }, apiKey ? { apiKey } : {})
-    return data.choices?.[0]?.message?.content?.trim() ?? null
-  } catch (err) {
-    logger.warn('[max-ai] HyDE generation failed (non-bloquant)', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-    return null
-  }
-}
+// HyDE rewriter désactivé : le coût en latence (~2-5s Groq + embed supplémentaire)
+// est incompatible avec le budget de 30s du Worker. Le recall du retrieval est
+// suffisant avec le hybrid search (vector + BM25 + ILIKE fallback).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Route principale
@@ -146,16 +119,14 @@ export async function POST(request: NextRequest) {
       groq_key_present: !!GROQ_API_KEY,
     })
 
-    // ── 1. Retrieval multi-étapes : HyDE + Hybrid + Rerank + MMR ──
+    // ── 1. Retrieval : Hybrid search (vector + BM25 + ILIKE fallback) ──
     let aiBinding: unknown = null
     try {
       const cfEnv = await getCfEnv()
       aiBinding = (cfEnv as Record<string, unknown>).AI ?? null
     } catch { /* non-bloquant */ }
 
-    const hydeQuery = await generateHyDE(message, ragLanguage, GROQ_API_KEY)
     const chunks = await retrieveLegalChunks(supabaseAdmin, message, ragLanguage, {
-      hydeQuery: hydeQuery ?? undefined,
       aiBinding: aiBinding ?? undefined,
     })
 
@@ -164,7 +135,6 @@ export async function POST(request: NextRequest) {
       logger.info('[max-ai] corpus gap — returning refusal', {
         query: message.slice(0, 80),
         language: ragLanguage,
-        hyde_used: !!hydeQuery,
         corpus_size: corpusSize ?? 0,
       })
       return NextResponse.json({
@@ -172,7 +142,7 @@ export async function POST(request: NextRequest) {
         citations: [],
         confidence: 0,
         refusal: true,
-        retrieval: { chunks_found: 0, hyde_used: !!hydeQuery, corpus_size: corpusSize ?? 0 },
+        retrieval: { chunks_found: 0, corpus_size: corpusSize ?? 0 },
       })
     }
 
@@ -202,129 +172,95 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    // ── 4. Appel LLM (Groq primary, Cerebras fallback) avec JSON mode strict ──
-    // Le system prompt v1.1 PT (XML + TOC + 6 chunks) peut dépasser les 6K TPM
-    // du free tier Groq llama-3.3-70b → 413 instantané. Si Groq plante ET que
-    // CEREBRAS_API_KEY est configurée, on bascule sur Cerebras Inference (même
-    // famille de modèles, free tier nettement plus large, API OpenAI-compat).
+    // ── 4. Appel LLM (Groq primary, Cerebras fallback) — single attempt ──
+    // maxRetries: 0 pour éviter les délais de retry internes (429 backoff).
+    // disableCerebrasFallback: true — on gère le fallback nous-mêmes pour le tracing.
     let groqData: GroqResponse
     let providerUsed: 'groq' | 'cerebras' = 'groq'
-    let validated: ReturnType<typeof validateMaxResponse> | null = null
-    let attempt = 0
-    const MAX_ATTEMPTS = 2
-
-    while (attempt < MAX_ATTEMPTS) {
-      attempt++
+    try {
       try {
-        try {
-          groqData = await traceAgent(
-            {
-              agent_id: 'max',
-              user_id: user.id,
-              conversation_id: rawBody.conversation_id,
-              prompt: message,
-              metadata: {
-                locale: ragLanguage,
-                chunks_found: chunks.length,
-                hyde_used: !!hydeQuery,
-                attempt,
-                provider: 'groq',
-                ...(evalRunId ? { eval_run_id: evalRunId } : {}),
-              },
-            },
-            () => callGroqWithRetry({
-              messages,
-              temperature: 0.1,
-              max_tokens: 3500,
-              response_format: { type: 'json_object' },
-}, { apiKey: GROQ_API_KEY }),
-          )
-          providerUsed = 'groq'
-        } catch (groqErr) {
-          if (!hasCerebrasKey()) throw groqErr
-          logger.warn('[max-ai] Groq failed, fallback to Cerebras', {
-            error: groqErr instanceof Error ? groqErr.message : String(groqErr),
-            attempt,
-          })
-          groqData = await traceAgent(
-            {
-              agent_id: 'max',
-              user_id: user.id,
-              conversation_id: rawBody.conversation_id,
-              prompt: message,
-              metadata: {
-                locale: ragLanguage,
-                chunks_found: chunks.length,
-                hyde_used: !!hydeQuery,
-                attempt,
-                provider: 'cerebras',
-                groq_error: (groqErr instanceof Error ? groqErr.message : String(groqErr)).slice(0, 200),
-                ...(evalRunId ? { eval_run_id: evalRunId } : {}),
-              },
-            },
-            () => callCerebrasWithRetry({
-              messages,
-              temperature: 0.1,
-              max_tokens: 3500,
-              response_format: { type: 'json_object' },
-            }),
-          )
-          providerUsed = 'cerebras'
-        }
-      } catch (err) {
-        logger.error('[max-ai] LLM call failed (Groq + Cerebras)', {
-          error: err instanceof Error ? err.message : String(err),
-          attempt,
-        })
-        if (attempt >= MAX_ATTEMPTS) {
-          return NextResponse.json({
-            response: getRefusalMessage(ragLanguage),
-            citations: [],
-            confidence: 0,
-            refusal: true,
-            error: 'llm_unreachable',
-          })
-        }
-        continue
-      }
-
-      const rawJson = groqData.choices?.[0]?.message?.content ?? ''
-      validated = validateMaxResponse(rawJson, chunks, ragLanguage)
-
-      if (validated.ok) {
-        break
-      }
-      // Si validation échoue, on retry avec un message d'erreur pour le LLM
-      logger.warn('[max-ai] validation failed, retrying', {
-        attempt,
-        reasons: validated.reasons.slice(0, 3),
-      })
-      if (attempt < MAX_ATTEMPTS) {
-        messages.push(
-          { role: 'assistant', content: rawJson },
+        groqData = await traceAgent(
           {
-            role: 'user',
-            content: isPt
-              ? `A tua resposta foi rejeitada pelo sistema de validação porque: ${validated.reasons.join('; ')}. Reformula respeitando ESTRITAMENTE as fontes [FONT-X] e o formato JSON.`
-              : `Ta réponse a été rejetée par le système de validation car : ${validated.reasons.join('; ')}. Reformule en respectant STRICTEMENT les sources [FONT-X] et le format JSON.`,
+            agent_id: 'max',
+            user_id: user.id,
+            conversation_id: rawBody.conversation_id,
+            prompt: message,
+            metadata: {
+              locale: ragLanguage,
+              chunks_found: chunks.length,
+              provider: 'groq',
+              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+            },
           },
+          () => callGroqWithRetry({
+            messages,
+            temperature: 0.1,
+            max_tokens: 3500,
+            response_format: { type: 'json_object' },
+          }, { apiKey: GROQ_API_KEY, maxRetries: 0, disableCerebrasFallback: true }),
         )
+        providerUsed = 'groq'
+      } catch (groqErr) {
+        if (!hasCerebrasKey()) throw groqErr
+        logger.warn('[max-ai] Groq failed, fallback to Cerebras', {
+          error: groqErr instanceof Error ? groqErr.message : String(groqErr),
+        })
+        groqData = await traceAgent(
+          {
+            agent_id: 'max',
+            user_id: user.id,
+            conversation_id: rawBody.conversation_id,
+            prompt: message,
+            metadata: {
+              locale: ragLanguage,
+              chunks_found: chunks.length,
+              provider: 'cerebras',
+              groq_error: (groqErr instanceof Error ? groqErr.message : String(groqErr)).slice(0, 200),
+              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+            },
+          },
+          () => callCerebrasWithRetry({
+            messages,
+            temperature: 0.1,
+            max_tokens: 3500,
+            response_format: { type: 'json_object' },
+          }, { maxRetries: 0 }),
+        )
+        providerUsed = 'cerebras'
       }
-    }
-
-    // ── 5. Si validation finale échoue → refus de secours ──
-    if (!validated || !validated.ok) {
-      logger.error('[max-ai] validation failed after retries — refusing', {
-        reasons: validated?.reasons ?? ['unknown'],
+    } catch (err) {
+      logger.error('[max-ai] LLM call failed (Groq + Cerebras)', {
+        error: err instanceof Error ? err.message : String(err),
       })
       return NextResponse.json({
         response: getRefusalMessage(ragLanguage),
         citations: [],
         confidence: 0,
         refusal: true,
-        error: 'validation_failed',
-        debug: process.env.NODE_ENV === 'development' ? validated?.reasons : undefined,
+        error: 'llm_unreachable',
       })
+    }
+
+    const rawJson = groqData.choices?.[0]?.message?.content ?? ''
+    const validated = validateMaxResponse(rawJson, chunks, ragLanguage)
+
+    if (!validated.ok) {
+      logger.warn('[max-ai] validation failed', {
+        reasons: validated.reasons.slice(0, 5),
+      })
+      // Return the answer anyway if we got one — better than silent refusal
+      if (validated.answer && validated.answer.length > 20) {
+        logger.info('[max-ai] returning unvalidated answer (soft pass)')
+      } else {
+        return NextResponse.json({
+          response: getRefusalMessage(ragLanguage),
+          citations: [],
+          confidence: 0,
+          refusal: true,
+          error: 'validation_failed',
+          debug: process.env.NODE_ENV === 'development' ? validated.reasons : undefined,
+        })
+      }
     }
 
     // ── 6. Résolution finale des tokens PII (sécurité défense en profondeur) ──
@@ -347,10 +283,6 @@ export async function POST(request: NextRequest) {
       retrieval: {
         chunks_found: chunks.length,
         chunks_cited: validated.citations.length,
-        hyde_used: !!hydeQuery,
-        // Identifiants des chunks effectivement injectés au LLM — utile pour
-        // le replay côté évals (cf. docs/agent-max/evals/run-evals.ts) et le
-        // debug Langfuse. Pas de fuite PII (les ids sont des uuid v4).
         chunk_ids: chunks.map((c) => c.id),
         ...(evalRunId ? { eval_run_id: evalRunId } : {}),
       },

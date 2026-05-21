@@ -74,8 +74,15 @@ export async function embedText(text: string, opts?: EmbedOptions): Promise<numb
   // 1. Préfère le binding AI si disponible (runtime Worker)
   const binding = opts?.aiBinding ?? await tryGetAIBinding()
   if (binding) {
+    const timeoutMs = opts?.timeoutMs ?? 8_000
+    const res = await Promise.race([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (binding as any).run(BGE_M3_MODEL, { text: [trimmed] }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('AI binding embed timeout')), timeoutMs),
+      ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await (binding as any).run(BGE_M3_MODEL, { text: [trimmed] })
+    ]) as any
     const vec = res?.data?.[0]
     if (!Array.isArray(vec) || vec.length !== EMBED_DIM) {
       throw new Error(`embedText: invalid vector shape from binding (expected ${EMBED_DIM}, got ${vec?.length})`)
