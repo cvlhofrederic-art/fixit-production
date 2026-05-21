@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { TempoAvatar } from '@/components/common/RobotAvatars'
 import { useLocale } from '@/lib/i18n/context'
+import ConversationSidebar from '../ConversationSidebar'
+import { useAgentConversation } from '../hooks/useAgentConversation'
 import AutomationsListView from '../AutomationsListView'
 import type { User } from '@supabase/supabase-js'
 
@@ -12,15 +14,15 @@ interface UserWithProfile extends User {
   profile?: { country?: string }
 }
 
-type Msg = { role: 'user' | 'assistant'; content: string }
 type Mode = 'tableau' | 'chat'
 
 export default function TempoAgentPage({ user: _user }: { user: UserWithProfile }) {
   const uiLocale = useLocale()
   const locale = uiLocale === 'pt' ? 'pt' : 'fr'
 
+  const conv = useAgentConversation('tempo', locale)
+
   const [mode, setMode] = useState<Mode>('tableau')
-  const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -49,12 +51,15 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
 
   const send = async () => {
     if (!input.trim() || loading) return
-    const userMsg: Msg = { role: 'user', content: input.trim() }
-    setMessages(prev => [...prev, userMsg])
+    const userText = input.trim()
     setInput('')
     setLoading(true)
 
     try {
+      const convId = await conv.ensureConversation(userText)
+      conv.setMessages(prev => [...prev, { role: 'user', content: userText }])
+      void conv.persistMessage(convId, 'user', userText)
+
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/syndic/tempo-ai', {
         method: 'POST',
@@ -63,17 +68,18 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
           Authorization: `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({
-          message: userMsg.content,
-          conversation_history: messages.map(m => ({ role: m.role, content: m.content })),
+          message: userText,
+          conversation_history: conv.messages.map(m => ({ role: m.role, content: m.content })),
           locale,
         }),
       })
       const data = await res.json()
       const reply = data.response || data.reply || data.content
         || (locale === 'pt' ? 'Desculpe, ocorreu um erro.' : 'Désolé, une erreur est survenue.')
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      conv.setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      void conv.persistMessage(convId, 'assistant', reply)
     } catch {
-      setMessages(prev => [...prev, {
+      conv.setMessages(prev => [...prev, {
         role: 'assistant',
         content: locale === 'pt' ? '❌ Erro de ligação à IA.' : '❌ Erreur de connexion à l\'IA.',
       }])
@@ -84,10 +90,21 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+  }, [conv.messages, loading])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] w-full">
+    <div className="flex gap-4 h-[calc(100vh-200px)] w-full">
+      <ConversationSidebar
+        conversations={conv.conversations}
+        activeId={conv.activeId}
+        onSelect={conv.handleSelect}
+        onNew={conv.handleNew}
+        onDelete={conv.handleDelete}
+        onRename={conv.handleRename}
+        locale={locale}
+      />
+
+      <div className="flex flex-col flex-1 min-w-0">
       {/* Header + mode toggle */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex-shrink-0">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -125,7 +142,7 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
         <>
           {/* Zone messages */}
           <div className="flex-1 overflow-y-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 space-y-4 min-h-0">
-            {messages.length === 0 ? (
+            {conv.messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-8 space-y-4">
                 <div><TempoAvatar size={64} /></div>
                 <div>
@@ -149,7 +166,7 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
               </div>
             ) : (
               <>
-                {messages.map((msg, i) => (
+                {conv.messages.map((msg, i) => (
                   <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 font-bold ${msg.role === 'user' ? 'bg-orange-400 text-white' : 'bg-gradient-to-br from-[#C9A84C] to-[#F0D898] text-white'}`}>
                       {msg.role === 'user' ? '👤' : <TempoAvatar size={20} />}
@@ -178,7 +195,7 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
 
           {/* Saisie */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex-shrink-0">
-            {messages.length > 0 && (
+            {conv.messages.length > 0 && (
               <div className="flex gap-1.5 flex-wrap mb-2">
                 {SUGGESTIONS.slice(0, 4).map((s, i) => (
                   <button key={i} onClick={() => setInput(s)}
@@ -204,16 +221,12 @@ export default function TempoAgentPage({ user: _user }: { user: UserWithProfile 
                   className="flex-1 bg-[#C9A84C] hover:bg-[#C9A84C] disabled:opacity-40 text-white px-5 rounded-xl font-bold text-sm transition">
                   {locale === 'pt' ? 'Enviar' : 'Envoyer'}
                 </button>
-                {messages.length > 0 && (
-                  <button onClick={() => setMessages([])} className="text-xs text-gray-500 hover:text-gray-600 text-center">
-                    {locale === 'pt' ? 'Limpar' : 'Effacer'}
-                  </button>
-                )}
               </div>
             </div>
           </div>
         </>
       )}
+      </div>
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { isSyndicRole } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 
 const CreateConversationSchema = z.object({
-  agent_id: z.enum(['fixy', 'max', 'lea', 'alfredo']),
+  agent_id: z.enum(['fixy', 'max', 'lea', 'alfredo', 'tempo']),
   locale: z.enum(['fr', 'pt']),
   title: z.string().min(1).max(200).optional(),
   immeuble_id: z.string().uuid().optional(),
