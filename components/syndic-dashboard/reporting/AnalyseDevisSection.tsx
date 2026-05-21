@@ -9,7 +9,7 @@ import type { User } from '@supabase/supabase-js'
 
 interface DevisScores {
   conformite: { total: number; max: number; details: { id?: string; label: string; ok?: boolean; status?: string; points?: number; poids?: number }[] }
-  prix: { ecart_moyen_pct: number }
+  prix: { ecart_moyen_pct: number; details?: { designation: string; status: string }[] }
   confiance: number
 }
 
@@ -713,12 +713,20 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
                       <div className="text-xs text-gray-500 font-medium mb-1">{isPt ? 'Nível de preço' : 'Niveau de prix'}</div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${Math.abs(scores.prix.ecart_moyen_pct) <= 15 ? 'bg-green-500' : Math.abs(scores.prix.ecart_moyen_pct) <= 30 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.max(10, 100 - Math.abs(scores.prix.ecart_moyen_pct))}%` }} />
-                        </div>
-                        <span className={`text-sm font-bold ${scores.prix.ecart_moyen_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>{scores.prix.ecart_moyen_pct > 0 ? '+' : ''}{scores.prix.ecart_moyen_pct}%</span>
-                      </div>
+                      {(() => {
+                        const known = (scores.prix.details || []).filter(d => d.status !== 'inconnu')
+                        if (known.length === 0) {
+                          return <div className="text-xs text-gray-400 italic">{isPt ? 'Sem correspondência preço-mercado' : 'Pas de correspondance prix-marché'}</div>
+                        }
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${Math.abs(scores.prix.ecart_moyen_pct) <= 15 ? 'bg-green-500' : Math.abs(scores.prix.ecart_moyen_pct) <= 30 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.max(10, 100 - Math.abs(scores.prix.ecart_moyen_pct))}%` }} />
+                            </div>
+                            <span className={`text-sm font-bold ${scores.prix.ecart_moyen_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>{scores.prix.ecart_moyen_pct > 0 ? '+' : ''}{scores.prix.ecart_moyen_pct}%</span>
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
                       <div className="text-xs text-gray-500 font-medium mb-1">{isPt ? 'Confiança' : 'Confiance'}</div>
@@ -764,6 +772,11 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                               <div><span className="font-semibold text-gray-500">{isPt ? 'Atividade :' : 'Activité :'}</span> {siretResult.company.nafLabel} ({siretResult.company.nafCode})</div>
                               <div><span className="font-semibold text-gray-500">{isPt ? 'Forma :' : 'Forme :'}</span> {siretResult.company.legalForm}</div>
                               <div><span className="font-semibold text-gray-500">{isPt ? 'Estado :' : 'Statut :'}</span> <span className="text-green-600 font-semibold">{isPt ? 'Ativa ✅' : 'Active ✅'}</span></div>
+                            </>
+                          ) : siretResult.verified && extracted?.artisan_siret ? (
+                            <>
+                              <div><span className="font-semibold text-gray-500">{isPt ? 'NIF :' : 'SIRET :'}</span> <span className="font-semibold text-green-600">{extracted.artisan_siret}</span></div>
+                              <div className="text-green-600">{isPt ? '✅ Validado por checksum (algoritmo AT — Autoridade Tributária)' : '✅ Vérifié par checksum'}</div>
                             </>
                           ) : (
                             <div className="text-red-600 font-semibold">{extracted?.artisan_siret ? `${locale === 'pt' ? 'NIF' : 'SIRET'} ${extracted.artisan_siret} ${locale === 'pt' ? 'não encontrado' : 'non trouvé'}` : (locale === 'pt' ? 'Nenhum NIF detetado' : 'Aucun SIRET détecté')}</div>
