@@ -136,6 +136,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // ── Diagnostic : taille du corpus (log uniquement) ──
+    const { count: corpusSize } = await supabaseAdmin
+      .from(isPt ? 'syndic_legal_corpus_pt' : 'syndic_legal_corpus_fr')
+      .select('id', { count: 'exact', head: true })
+    logger.info('[max-ai] corpus check', {
+      language: ragLanguage,
+      corpus_size: corpusSize ?? 0,
+      groq_key_present: !!GROQ_API_KEY,
+    })
+
     // ── 1. Retrieval multi-étapes : HyDE + Hybrid + Rerank + MMR ──
     const hydeQuery = await generateHyDE(message, ragLanguage, GROQ_API_KEY)
     const chunks = await retrieveLegalChunks(supabaseAdmin, message, ragLanguage, {
@@ -148,13 +158,14 @@ export async function POST(request: NextRequest) {
         query: message.slice(0, 80),
         language: ragLanguage,
         hyde_used: !!hydeQuery,
+        corpus_size: corpusSize ?? 0,
       })
       return NextResponse.json({
         response: getRefusalMessage(ragLanguage),
         citations: [],
         confidence: 0,
         refusal: true,
-        retrieval: { chunks_found: 0, hyde_used: !!hydeQuery },
+        retrieval: { chunks_found: 0, hyde_used: !!hydeQuery, corpus_size: corpusSize ?? 0 },
       })
     }
 
