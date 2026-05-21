@@ -49,8 +49,11 @@ function buildPT(chunks: ScoredLegalChunk[], tocContent?: string): string {
     ? '_(Nenhuma fonte jurídica encontrada para esta consulta no corpus oficial.)_'
     : chunks.map((c, i) => formatChunkPT(c, i + 1)).join('\n\n')
 
-  const tocBlock = tocContent && tocContent.trim().length > 0
-    ? tocContent
+  const rawToc = tocContent && tocContent.trim().length > 0
+    ? tocContent.trim()
+    : null
+  const tocBlock = rawToc
+    ? (rawToc.length > 2000 ? rawToc.slice(0, 2000).trimEnd() + '\n[... índice truncado por limite de contexto]' : rawToc)
     : '_(Índice da base não disponível neste contexto — usa o teu conhecimento das Partes A–J descritas em <o_que_a_base_cobre>.)_'
 
   return `Prompt de sistema v1.1 — Agente jurídico de apoio (condomínio / propriedade horizontal)
