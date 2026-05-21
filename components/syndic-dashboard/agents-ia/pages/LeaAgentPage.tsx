@@ -48,17 +48,29 @@ export default function LeaAgentPage({ user, immeubles = [] }: { user: UserWithP
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const SUGGESTIONS = [
-    'Explique la règle de répartition des charges de cette copropriété',
-    'Comment voter ces travaux selon le règlement ? (majorité requise)',
-    'Quel est le montant du fonds de travaux obligatoire ?',
-    'Génère un appel de charges trimestriel pour cette copro',
-    'Y a-t-il des incohérences dans le journal comptable ?',
-    'Quelles sont les dépenses dépassant le budget prévisionnel ?',
-    'Rédige un courrier de relance impayé conforme à la loi Alur',
-    'Quelles charges sont récupérables sur les locataires ?',
-    'Synthèse comptable pour l\'assemblée générale',
-  ]
+  const SUGGESTIONS = locale === 'pt'
+    ? [
+        'Explica a regra de repartição de encargos deste condomínio',
+        'Como votar estas obras segundo o regulamento ? (maioria exigida)',
+        'Qual é o montante do fundo comum de reserva obrigatório ?',
+        'Gera uma chamada de quotas trimestral para este condomínio',
+        'Há inconsistências no diário contabilístico ?',
+        'Quais são as despesas que ultrapassam o orçamento previsional ?',
+        'Redige uma carta de cobrança de quotas em atraso conforme a lei portuguesa',
+        'Que encargos são recuperáveis sobre os inquilinos ?',
+        'Síntese contabilística para a assembleia geral',
+      ]
+    : [
+        'Explique la règle de répartition des charges de cette copropriété',
+        'Comment voter ces travaux selon le règlement ? (majorité requise)',
+        'Quel est le montant du fonds de travaux obligatoire ?',
+        'Génère un appel de charges trimestriel pour cette copro',
+        'Y a-t-il des incohérences dans le journal comptable ?',
+        'Quelles sont les dépenses dépassant le budget prévisionnel ?',
+        'Rédige un courrier de relance impayé conforme à la loi Alur',
+        'Quelles charges sont récupérables sur les locataires ?',
+        'Synthèse comptable pour l\'assemblée générale',
+      ]
 
   const buildLeaContext = () => {
     const totalTantiemes = lots.reduce((s, l) => s + (l.tantieme || 0), 0)
@@ -118,7 +130,7 @@ export default function LeaAgentPage({ user, immeubles = [] }: { user: UserWithP
   const hasReglement = !!(imm?.reglementTexte || imm?.reglementChargesRepartition || imm?.reglementMajoriteAG)
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] max-w-4xl">
+    <div className="flex flex-col h-[calc(100vh-200px)] w-full">
       {/* Header + sélecteur immeuble */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex-shrink-0">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -167,7 +179,7 @@ export default function LeaAgentPage({ user, immeubles = [] }: { user: UserWithP
                 ? <>Sou a sua assistente contabilística IA especializada em condomínio. Conheço o regulamento de <strong>{imm?.nom || 'o seu condomínio'}</strong> e todos os seus dados contabilísticos.</>
                 : <>Je suis votre assistante comptable IA spécialisée en copropriété. Je connais le règlement de <strong>{imm?.nom || 'votre copropriété'}</strong> et toutes vos données comptables.</>}</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 w-full max-w-5xl">
               {SUGGESTIONS.map((s, i) => (
                 <button key={i} onClick={() => setInput(s)} className="text-left text-xs bg-[#F7F4EE] hover:bg-orange-50 hover:text-orange-700 border border-gray-200 hover:border-orange-200 px-3 py-2 rounded-xl transition">
                   {s}
