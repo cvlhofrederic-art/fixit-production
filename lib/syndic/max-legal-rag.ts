@@ -63,31 +63,29 @@ export async function retrieveLegalChunks(
   supabase: SupabaseClient,
   query: string,
   language: 'fr' | 'pt',
-  options?: { hydeQuery?: string },
+  options?: { hydeQuery?: string; aiBinding?: unknown },
 ): Promise<ScoredLegalChunk[]> {
   const trimmed = (query || '').trim()
   if (!trimmed) return []
 
   // ── 1. Embed la query (et la HyDE rewrite si fournie) ──
   let queryEmbedding: number[]
+  const embedOpts = options?.aiBinding ? { aiBinding: options.aiBinding, timeoutMs: 8_000 } : { timeoutMs: 8_000 }
   try {
-    // Si une réécriture HyDE est fournie, on prend la moyenne des deux embeddings
-    // pour booster le recall (technique éprouvée 2025-2026).
     if (options?.hydeQuery && options.hydeQuery.trim()) {
       const [qVec, hVec] = await Promise.all([
-        embedText(trimmed),
-        embedText(options.hydeQuery.trim()),
+        embedText(trimmed, embedOpts),
+        embedText(options.hydeQuery.trim(), embedOpts),
       ])
       queryEmbedding = qVec.map((v, i) => (v + hVec[i]) / 2)
     } else {
-      queryEmbedding = await embedText(trimmed)
+      queryEmbedding = await embedText(trimmed, embedOpts)
     }
   } catch (err) {
     logger.error('[max-legal-rag] embed query failed', {
       error: err instanceof Error ? err.message : String(err),
       language,
     })
-    // Fallback : on tente quand même BM25 seul via une recherche textSearch.
     return fallbackBm25(supabase, trimmed, language)
   }
 
@@ -177,8 +175,39 @@ async function fallbackBm25(
     .select('id, source, article, title, content, theme, parent_path')
     .textSearch('search_vector', query, { config: tsConfig, type: 'plain' })
     .limit(MMR_FINAL_K)
-  if (error || !data) return []
-  return data.map((r: Record<string, unknown>, i: number) => ({
+  if (!error && data && data.length > 0) {
+    return mapChunkRows(data)
+  }
+  logger.info('[max-legal-rag] BM25 returned 0, trying ILIKE fallback', {
+    query: query.slice(0, 80), language,
+  })
+  return fallbackIlike(supabase, query, language)
+}
+
+async function fallbackIlike(
+  supabase: SupabaseClient,
+  query: string,
+  language: 'fr' | 'pt',
+): Promise<ScoredLegalChunk[]> {
+  const table = language === 'pt' ? 'syndic_legal_corpus_pt' : 'syndic_legal_corpus_fr'
+  const words = query.toLowerCase().match(/\p{L}{3,}/gu) ?? []
+  if (words.length === 0) return []
+  const keywords = [...new Set(words)].slice(0, 5)
+  const orConditions = keywords
+    .flatMap((kw) => [`content.ilike.%${kw}%`, `title.ilike.%${kw}%`])
+    .join(',')
+  const { data, error } = await supabase
+    .from(table)
+    .select('id, source, article, title, content, theme, parent_path')
+    .neq('parent_path', '__TOC__')
+    .or(orConditions)
+    .limit(MMR_FINAL_K)
+  if (error || !data || data.length === 0) return []
+  return mapChunkRows(data)
+}
+
+function mapChunkRows(data: Record<string, unknown>[]): ScoredLegalChunk[] {
+  return data.map((r, i) => ({
     id: r.id as string,
     source: r.source as string,
     article: (r.article as string) ?? null,
