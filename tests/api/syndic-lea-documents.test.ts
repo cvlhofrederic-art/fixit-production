@@ -17,4 +17,9 @@ describe('app/api/syndic/lea-documents', () => {
     expect(typeof mod.GET).toBe('function')
     expect(typeof mod.DELETE).toBe('function')
   })
+
+  it('exporte le handler POST (process — P2 OCR/extraction)', async () => {
+    const mod = await import('@/app/api/syndic/lea-documents/process/route')
+    expect(typeof mod.POST).toBe('function')
+  })
 })

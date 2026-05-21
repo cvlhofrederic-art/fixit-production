@@ -13,6 +13,17 @@ type DocumentType =
 
 type DocumentStatus = 'pending' | 'processing' | 'processed' | 'error'
 
+interface ExtractedMetadata {
+  date_doc?: string | null
+  montant_ttc?: number | null
+  montant_ht?: number | null
+  fournisseur?: string | null
+  numero_facture?: string | null
+  iban?: string | null
+  type_detected?: DocumentType | null
+  summary_short?: string | null
+}
+
 interface DocumentRow {
   id: string
   filename: string
@@ -25,6 +36,7 @@ interface DocumentRow {
   uploaded_at: string
   processed_at: string | null
   error_message: string | null
+  extracted_metadata?: ExtractedMetadata | null
 }
 
 const TYPE_LABELS_FR: Record<DocumentType, string> = {
@@ -262,8 +274,21 @@ export default function LeaDocumentsPanel({ locale, immeubleId }: Props) {
                       {doc.status === 'error' && <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">!</span>}
                     </div>
                     <div className="text-xs text-gray-700 truncate" title={doc.filename}>{doc.filename}</div>
+                    {doc.extracted_metadata && (doc.extracted_metadata.fournisseur || doc.extracted_metadata.montant_ttc != null || doc.extracted_metadata.date_doc) && (
+                      <div className="text-[10px] text-[#0D1B2E] mt-0.5 truncate">
+                        {doc.extracted_metadata.fournisseur && <span className="font-semibold">{doc.extracted_metadata.fournisseur}</span>}
+                        {doc.extracted_metadata.montant_ttc != null && <span className="ml-1">· {doc.extracted_metadata.montant_ttc.toFixed(2)} €</span>}
+                        {doc.extracted_metadata.date_doc && <span className="ml-1">· {doc.extracted_metadata.date_doc}</span>}
+                      </div>
+                    )}
+                    {doc.extracted_metadata?.summary_short && (
+                      <div className="text-[10px] text-gray-500 italic truncate" title={doc.extracted_metadata.summary_short}>
+                        {doc.extracted_metadata.summary_short}
+                      </div>
+                    )}
                     <div className="text-[10px] text-gray-400">
                       {formatBytes(doc.size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR')}
+                      {doc.status === 'error' && doc.error_message && <span className="ml-1 text-red-500" title={doc.error_message}>· {isPt ? 'erro' : 'erreur'}</span>}
                     </div>
                   </div>
                   <button onClick={() => onView(doc.id)} className="text-xs px-2 py-1 rounded bg-[#0D1B2E] text-white hover:bg-[#152338]" type="button">

@@ -110,6 +110,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'db_insert_failed' }, { status: 500 })
     }
 
+    // Fire-and-forget : déclenche le pipeline OCR/extraction async (P2).
+    // Ne bloque pas la réponse — si ça échoue, le cron de safety net (5 min)
+    // attrapera les pending. Pas d'auth Bearer ici car l'endpoint /process
+    // accepte la cookie session du user via getAuthUser.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const cronKey = process.env.CRON_SECRET
+    if (appUrl && cronKey) {
+      void fetch(`${appUrl}/api/syndic/lea-documents/process`, {
+        method: 'POST',
+        headers: { 'x-cron-key': cronKey },
+      }).catch(err => logger.warn('[lea-documents/upload] fire-and-forget process trigger failed:', err))
+    }
+
     return NextResponse.json({ document: row }, { status: 201 })
   } catch (err) {
     logger.error('[lea-documents/upload] unexpected:', err)
