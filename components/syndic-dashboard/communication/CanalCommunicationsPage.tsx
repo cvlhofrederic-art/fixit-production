@@ -429,13 +429,6 @@ export default function CanalCommunicationsPage({
             <span className="sd-tab-icon">🏢</span> {locale === 'pt' ? 'Interno' : 'Interne'}
             {nbInterneMsgs > 0 && channelView !== 'interne' && <span className="sd-channel-badge" style={{ background: 'var(--sd-red-soft)', color: 'var(--sd-red)', borderColor: 'rgba(192,57,43,0.3)' }}>{nbInterneMsgs}</span>}
           </button>
-          <button
-            onClick={() => { setChannelView('demandeurs'); setSelectedMissionId(null); setCanalTab('demandeur') }}
-            className={`sd-channel-tab ${channelView === 'demandeurs' ? 'active' : ''}`}
-          >
-            <span className="sd-tab-icon">👥</span> {locale === 'pt' ? 'Residentes' : 'Résidents'}
-            {nbDemandeurMsgs > 0 && <span className="sd-channel-badge">{nbDemandeurMsgs}</span>}
-          </button>
         </div>
 
         {/* ══════ THREE-PANEL BODY ══════ */}
@@ -469,13 +462,6 @@ export default function CanalCommunicationsPage({
                       <span className="sd-seg-count">{missionsEquipa.length}</span>
                     </button>
                   )}
-                  <button
-                    onClick={() => setChannelView('demandeurs')}
-                    className={`sd-seg-tab ${channelView === 'demandeurs' ? 'active' : ''}`}
-                  >
-                    <span>👤</span> {locale === 'pt' ? 'Residentes' : 'Résidents'}
-                    <span className="sd-seg-count">{missionsDemandeur.length}</span>
-                  </button>
                 </div>
 
                 {/* Search */}
