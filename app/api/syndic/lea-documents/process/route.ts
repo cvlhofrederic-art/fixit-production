@@ -9,6 +9,7 @@ import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { extractPdfText, extractMetadataFromText, type ExtractedMetadata } from '@/lib/syndic/lea-documents-extract'
+import { embedText } from '@/lib/syndic/embed'
 
 export const maxDuration = 60
 
@@ -66,13 +67,27 @@ async function processOne(doc: PendingDoc): Promise<{ id: string; ok: boolean; e
       metadata = await extractMetadataFromText(extractedText, 'fr')
     }
 
-    // 5. Update row
+    // 5. Embed pour RAG hybride P3 (best-effort — l'absence d'embedding
+    //    ne bloque pas le doc, juste pas trouvable par search sémantique)
+    let embedding: number[] | null = null
+    if (extractedText.length > 20) {
+      try {
+        // BGE-M3 supporte 8192 tokens, on truncate généreusement à 8K caractères
+        const inputForEmbed = extractedText.slice(0, 8000)
+        embedding = await embedText(inputForEmbed)
+      } catch (embedErr) {
+        logger.warn(`[lea-documents/process] embedding failed for doc ${doc.id} (will retry on next process run):`, embedErr)
+      }
+    }
+
+    // 6. Update row
     const { error: updErr } = await supabaseAdmin
       .from('syndic_documents')
       .update({
         status: 'processed',
         extracted_text: extractedText || null,
         extracted_metadata: metadata,
+        embedding: embedding,
         processed_at: new Date().toISOString(),
         error_message: null,
       })
