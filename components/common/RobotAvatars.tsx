@@ -66,3 +66,17 @@ export function LeaAvatar({ size = 40 }: { size?: number }) {
     />
   )
 }
+
+// ═══ ALFREDO — Robot détective steampunk gestionnaire emails ═══
+export function AlfredoAvatar({ size = 40 }: { size?: number }) {
+  return (
+    <img
+      src="/alfredo-avatar.webp"
+      alt="Alfredo — Gestionnaire Emails IA"
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: 'cover', borderRadius: size > 36 ? 12 : 8 }}
+      draggable={false}
+    />
+  )
+}
