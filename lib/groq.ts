@@ -1,6 +1,15 @@
 // ── Shared Groq API helper with retry 429 + model fallback ──────────────────
+//
+// Inter-provider fallback : si Groq plante (rate-limit, network, etc.) ET que
+// CEREBRAS_API_KEY est configurée, on bascule transparentement sur Cerebras
+// Inference. Activé pour `callGroqWithRetry` et `callGroqWithTools` ; le
+// streaming SSE reste sur Groq (pas de bascule mid-stream).
+//
+// Désactivable cas par cas via `config.disableCerebrasFallback: true` (utile
+// pour les évals où l'on veut tester un provider précis).
 
 import { GROQ_API_URL, GROQ_MODEL_PRIMARY, GROQ_MODEL_FALLBACK } from '@/lib/constants'
+import { callCerebrasWithRetry, callCerebrasWithTools, hasCerebrasKey } from '@/lib/cerebras'
 
 const GROQ_URL = GROQ_API_URL
 
@@ -36,10 +45,21 @@ export interface GroqResponse {
  */
 export async function callGroqWithRetry(
   opts: GroqCallOptions,
-  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string } = {}
+  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; disableCerebrasFallback?: boolean } = {}
 ): Promise<GroqResponse> {
   const apiKey = config.apiKey || process.env.GROQ_API_KEY || ''
-  if (!apiKey) throw new Error('GROQ_API_KEY not configured')
+  // Si Groq n'est pas configuré mais Cerebras l'est, on saute direct sur Cerebras.
+  if (!apiKey) {
+    if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+      return callCerebrasWithRetry({
+        messages: opts.messages,
+        temperature: opts.temperature,
+        max_tokens: opts.max_tokens,
+        response_format: opts.response_format,
+      }, { maxRetries: config.maxRetries })
+    }
+    throw new Error('GROQ_API_KEY not configured')
+  }
 
   const maxRetries = config.maxRetries ?? 2
   const primaryModel = opts.model || GROQ_MODEL_PRIMARY
@@ -89,6 +109,19 @@ export async function callGroqWithRetry(
         break
       }
     }
+  }
+
+  // Tous les modèles Groq ont échoué → fallback Cerebras si dispo.
+  if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+    console.warn('[groq] all attempts failed, fallback to Cerebras', {
+      groqError: lastError?.message,
+    })
+    return callCerebrasWithRetry({
+      messages: opts.messages,
+      temperature: opts.temperature,
+      max_tokens: opts.max_tokens,
+      response_format: opts.response_format,
+    }, { maxRetries: config.maxRetries })
   }
 
   throw lastError || new Error('All Groq API attempts failed')
@@ -248,10 +281,21 @@ export interface GroqToolsResponse {
 
 export async function callGroqWithTools(
   opts: GroqToolsCallOptions,
-  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string } = {}
+  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; disableCerebrasFallback?: boolean } = {}
 ): Promise<GroqToolsResponse> {
   const apiKey = config.apiKey || process.env.GROQ_API_KEY || ''
-  if (!apiKey) throw new Error('GROQ_API_KEY not configured')
+  if (!apiKey) {
+    if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+      return callCerebrasWithTools({
+        messages: opts.messages,
+        tools: opts.tools,
+        tool_choice: opts.tool_choice,
+        temperature: opts.temperature,
+        max_tokens: opts.max_tokens,
+      }, { maxRetries: config.maxRetries })
+    }
+    throw new Error('GROQ_API_KEY not configured')
+  }
 
   const maxRetries = config.maxRetries ?? 2
   const primaryModel = opts.model || GROQ_MODEL_PRIMARY
@@ -312,6 +356,20 @@ export async function callGroqWithTools(
         break
       }
     }
+  }
+
+  // Tous les modèles Groq ont échoué → fallback Cerebras si dispo.
+  if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+    console.warn('[groq-tools] all attempts failed, fallback to Cerebras', {
+      groqError: lastError?.message,
+    })
+    return callCerebrasWithTools({
+      messages: opts.messages,
+      tools: opts.tools,
+      tool_choice: opts.tool_choice,
+      temperature: opts.temperature,
+      max_tokens: opts.max_tokens,
+    }, { maxRetries: config.maxRetries })
   }
 
   throw lastError || new Error('All Groq tools attempts failed')
