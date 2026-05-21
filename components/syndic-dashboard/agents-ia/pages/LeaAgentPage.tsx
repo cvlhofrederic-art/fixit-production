@@ -6,6 +6,7 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useLocale } from '@/lib/i18n/context'
 import ConversationSidebar from '../ConversationSidebar'
+import LeaDocumentsPanel from '../LeaDocumentsPanel'
 import { useAgentConversation } from '../hooks/useAgentConversation'
 import type { User } from '@supabase/supabase-js'
 import type { Immeuble } from '../../types'
@@ -156,18 +157,21 @@ export default function LeaAgentPage({ user, immeubles = [] }: { user: UserWithP
             <h2 className="text-lg font-bold text-[#0D1B2E] flex items-center gap-2"><LeaAvatar size={28} /> {locale === 'pt' ? 'Agente Contabilística Léa' : 'Agent Comptable Léa'} <span className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-2 py-0.5 rounded-full font-medium">IA</span></h2>
             <p className="text-sm text-gray-500 mt-0.5">{locale === 'pt' ? 'Analisa o regulamento do condomínio e os dados contabilísticos para responder às suas perguntas' : 'Analyse le règlement de copropriété et les données comptables pour répondre à vos questions'}</p>
           </div>
-          {immeubles.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-500 font-medium">{locale === 'pt' ? 'Condomínio' : 'Copropriété'} :</label>
-              <select
-                value={selectedImmeubleId}
-                onChange={e => setSelectedImmeubleId(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
-              >
-                {immeubles.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {immeubles.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500 font-medium">{locale === 'pt' ? 'Condomínio' : 'Copropriété'} :</label>
+                <select
+                  value={selectedImmeubleId}
+                  onChange={e => setSelectedImmeubleId(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                >
+                  {immeubles.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+                </select>
+              </div>
+            )}
+            <LeaDocumentsPanel locale={locale} immeubleId={imm?.id} />
+          </div>
         </div>
 
         {/* Badge règlement */}
