@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
               temperature: 0.1,
               max_tokens: 3500,
               response_format: { type: 'json_object' },
-            }),
+            }, { disableCerebrasFallback: true }),
           )
           providerUsed = 'groq'
         } catch (groqErr) {
