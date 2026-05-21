@@ -263,3 +263,31 @@ describe('calculateScoresPt — messages PT + action + confiance', () => {
     expect(r.confiance).toBeGreaterThanOrEqual(80)
   })
 })
+
+describe('calculateScoresPt — acceptation Lobão PDF', () => {
+  it('PDF Vitfix Artisan Lobão obtient un score de conformidade ≥ 80%', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const ratio = r.conformite.total / r.conformite.max
+    expect(ratio).toBeGreaterThanOrEqual(0.8)
+  })
+
+  it('PDF Lobão affiche au moins 12 critères PT (pas FR)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const ids = r.conformite.details.map(c => c.id)
+    expect(ids).toEqual(expect.arrayContaining([
+      'nif', 'cae', 'iva', 'garantia_legal', 'livre_resolucao',
+      'cniacc_ral', 'livro_reclamacoes', 'rgpd', 'iban_titular',
+    ]))
+    expect(ids).not.toContain('siret')
+    expect(ids).not.toContain('assurance_decennale')
+    expect(ids).not.toContain('statut_juridique')
+    expect(ids).not.toContain('mediateur')
+  })
+
+  it('Lobão : tous les labels sont en portugais (caractères portugais OK)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const labels = r.conformite.details.map(c => c.label).join(' ')
+    expect(labels).not.toMatch(/\bSIRET\b|\bdécennale\b|\bTVA mentionnée\b|\bSARL\b|\bSAS\b|\bEI\b/i)
+    expect(labels).toMatch(/NIF|IVA|CAE|garantia|orçamento|livre resolução/i)
+  })
+})
