@@ -15,8 +15,6 @@ import { loadLeaContext } from '@/lib/syndic/lea-context-loader'
 
 export const maxDuration = 30
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
 // ── Léa — Assistante Comptable Professionnelle Syndic ────────────────────────
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Périmètre strict : comptabilité syndic + copropriété (JAMAIS artisan)
@@ -79,6 +77,8 @@ function generateFallback(message: string, ctx: LeaContext, isPt = false): strin
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`lea_comptable_${ip}`, 30, 60_000))) {
       return rateLimitResponse()
