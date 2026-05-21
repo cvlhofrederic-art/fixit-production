@@ -170,10 +170,13 @@ function calculateConformiteScorePt(
   ]
 
   // Alvará — applicable seulement si montant ≥ 16 750 € (Lei 41/2015)
+  // When montant qualifies, we override LLM's "não aplicável" judgment in mm
+  // so rawText presence of "alvara" correctly yields 'ok' (not 'partial').
+  const alvaraMm = montantHt >= 16750 ? [] : mm
   const alvaraStatus: ConformiteCritere['status'] =
     montantHt < 16750
       ? 'na'
-      : has(['alvara', 'lei 41 2015', 'alvara de construcao'], mp, mm, rawText)
+      : has(['alvara', 'lei 41 2015', 'alvara de construcao'], mp, alvaraMm, rawText)
   criteres.push({
     id: 'alvara',
     label: 'Alvará de construção (Lei 41/2015, obras ≥ 16 750 €)',

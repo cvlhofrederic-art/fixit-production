@@ -147,3 +147,50 @@ describe('calculateScoresPt — critères de base', () => {
     expect(r.conformite.details.find(c => c.id === 'iban_titular')?.status).toBe('ok')
   })
 })
+
+describe('calculateScoresPt — alvará conditionnel', () => {
+  it('alvará marked NA when montant_ht < 16 750 €', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const alvara = r.conformite.details.find(c => c.id === 'alvara')
+    expect(alvara?.status).toBe('na')
+  })
+
+  it('alvará marked missing when montant_ht ≥ 16 750 € and no mention', () => {
+    const ext = { ...lobaoExtracted, montant_ht: 20000 }
+    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    expect(r.conformite.details.find(c => c.id === 'alvara')?.status).toBe('missing')
+  })
+
+  it('alvará marked ok when present in rawText AND montant qualifies', () => {
+    const ext = { ...lobaoExtracted, montant_ht: 20000 }
+    const raw = lobaoRawText + '\nAlvará de construção n.º 12345'
+    const r = calculateScoresPt(ext, raw, { nifVerified: true })
+    expect(r.conformite.details.find(c => c.id === 'alvara')?.status).toBe('ok')
+  })
+
+  it('alvará NA does not count in max (conformite ratio reflects N applicable items)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const max = r.conformite.max
+    expect(max).toBeGreaterThan(0)
+    expect(max).toBeLessThanOrEqual(120)
+  })
+})
+
+describe('calculateScoresPt — Seguro RC adaptatif', () => {
+  it('seguro_rc marked partial when absent BUT statut = Recibos Verdes', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('partial')
+  })
+
+  it('seguro_rc marked missing when absent AND statut = LDA/SA (pessoa coletiva)', () => {
+    const ext = { ...lobaoExtracted, statut_juridique: 'Sociedade por Quotas (LDA)' }
+    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('missing')
+  })
+
+  it('seguro_rc marked ok when present in mentions_presentes', () => {
+    const ext = { ...lobaoExtracted, mentions_presentes: [...lobaoExtracted.mentions_presentes, 'Seguro de responsabilidade civil profissional Allianz nº 12345'] }
+    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('ok')
+  })
+})
