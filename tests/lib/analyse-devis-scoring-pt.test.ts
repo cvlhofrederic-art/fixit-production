@@ -291,3 +291,65 @@ describe('calculateScoresPt — acceptation Lobão PDF', () => {
     expect(labels).toMatch(/NIF|IVA|CAE|garantia|orçamento|livre resolução/i)
   })
 })
+
+describe('calculateScoresPt — filtrage strict des prestations vs descriptions/étapes', () => {
+  // Reproduit le pattern observé en prod : le LLM JSON extractor confond
+  // les sous-descriptions et étapes numérotées avec des prestations sans prix.
+  // Le scoring doit les filtrer pour ne garder que les vraies prestations.
+  const noisyExtracted = {
+    ...lobaoExtracted,
+    prestations: [
+      { designation: 'Inspeção prévia do sistema elétrico', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 80, total_ht: 80 },
+      { designation: '(Diagnóstico técnico prévio)', type: 'description', quantite: 0, unite: '', prix_unitaire_ht: 0, total_ht: 0 },
+      { designation: '1. Verificação do quadro e ponto de alimentação 230 V', type: 'prestation', quantite: 0, unite: '', prix_unitaire_ht: 0, total_ht: 0 },
+      { designation: '2. Avaliação das folhas e pilares', type: 'etape', quantite: 0, unite: '', prix_unitaire_ht: 0, total_ht: 0 },
+      { designation: 'Fornecimento de motorização Motorline LINCE', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 720, total_ht: 720 },
+      { designation: 'Mão de obra — instalação completa', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 440, total_ht: 440 },
+    ],
+  }
+
+  it('filters out type=description from prix details', () => {
+    const r = calculateScoresPt(noisyExtracted, lobaoRawText, { nifVerified: true })
+    const designations = r.prix.details.map(d => d.designation)
+    expect(designations).not.toContain('(Diagnóstico técnico prévio)')
+  })
+
+  it('filters out type=etape from prix details', () => {
+    const r = calculateScoresPt(noisyExtracted, lobaoRawText, { nifVerified: true })
+    const designations = r.prix.details.map(d => d.designation)
+    expect(designations).not.toContain('2. Avaliação das folhas e pilares')
+  })
+
+  it('filters out numbered-step designations even when LLM mistypes them as prestation', () => {
+    const r = calculateScoresPt(noisyExtracted, lobaoRawText, { nifVerified: true })
+    const designations = r.prix.details.map(d => d.designation)
+    expect(designations).not.toContain('1. Verificação do quadro e ponto de alimentação 230 V')
+  })
+
+  it('filters out parenthetical sub-descriptions even when mistyped as prestation', () => {
+    const noisier = {
+      ...noisyExtracted,
+      prestations: [
+        ...noisyExtracted.prestations.slice(0, 1),
+        { designation: '(Equipamentos para portão de batente)', type: 'prestation', quantite: 0, unite: '', prix_unitaire_ht: 0, total_ht: 0 },
+        ...noisyExtracted.prestations.slice(4),
+      ],
+    }
+    const r = calculateScoresPt(noisier, lobaoRawText, { nifVerified: true })
+    const designations = r.prix.details.map(d => d.designation)
+    expect(designations).not.toContain('(Equipamentos para portão de batente)')
+  })
+
+  it('keeps the 3 real prestations and matches them to PT price ranges', () => {
+    const r = calculateScoresPt(noisyExtracted, lobaoRawText, { nifVerified: true })
+    expect(r.prix.details.length).toBe(3)
+    const known = r.prix.details.filter(d => d.status !== 'inconnu')
+    expect(known.length).toBe(3)
+  })
+
+  it('produces a meaningful ecart_moyen_pct (non-zero, within reasonable range)', () => {
+    const r = calculateScoresPt(noisyExtracted, lobaoRawText, { nifVerified: true })
+    expect(r.prix.ecart_moyen_pct).not.toBe(0)
+    expect(Math.abs(r.prix.ecart_moyen_pct)).toBeLessThanOrEqual(50)
+  })
+})
