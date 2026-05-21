@@ -128,7 +128,7 @@ export default function AlfredoAgentPage({ user: _user }: { user: UserWithProfil
   const draftsPending = status?.drafts_pending ?? 0
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] max-w-4xl">
+    <div className="flex flex-col h-[calc(100vh-200px)] w-full">
       {/* Header + statut Gmail + tabs Chat/Inbox */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex-shrink-0">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -203,7 +203,7 @@ export default function AlfredoAgentPage({ user: _user }: { user: UserWithProfil
                           : 'Connectez votre boîte Gmail dans la section Emails Fixy pour démarrer.'}</>}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 w-full max-w-5xl">
                   {SUGGESTIONS.map((s, i) => (
                     <button key={i} onClick={() => setInput(s)}
                       className="text-left text-xs bg-[#F7F4EE] hover:bg-orange-50 hover:text-orange-700 border border-gray-200 hover:border-orange-200 px-3 py-2 rounded-xl transition">
