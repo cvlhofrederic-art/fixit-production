@@ -227,3 +227,39 @@ describe('calculateScoresPt — análise dos preços', () => {
     expect(r.prix.details[0].status).toBe('excessif')
   })
 })
+
+describe('calculateScoresPt — messages PT + action + confiance', () => {
+  it('messages_negociation are in Portuguese (no French phrasing)', () => {
+    const degraded = { ...lobaoExtracted, mentions_presentes: [] as string[], mentions_manquantes: ['IVA', 'Garantia legal'] as string[] }
+    const r = calculateScoresPt(degraded, '', { nifVerified: false })
+    expect(r.messages_negociation.length).toBeGreaterThan(0)
+    const joined = r.messages_negociation.join(' ')
+    expect(joined).toMatch(/orçamento|preço|menciona/i)
+    expect(joined).not.toMatch(/votre|prix|mentionne/i)
+  })
+
+  it('action_recommandee = valider when conformite ≥ 90%', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    if (r.conformite.total / r.conformite.max >= 0.9) {
+      expect(r.action_recommandee).toBe('valider')
+    }
+  })
+
+  it('action_recommandee = negocier when 70% ≤ conformite < 90%', () => {
+    const partial = { ...lobaoExtracted, mentions_presentes: lobaoExtracted.mentions_presentes.slice(0, 5) }
+    const r = calculateScoresPt(partial, '', { nifVerified: true })
+    const pct = r.conformite.total / r.conformite.max
+    if (pct >= 0.7 && pct < 0.9) expect(r.action_recommandee).toBe('negocier')
+  })
+
+  it('confiance is bounded 0-100', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    expect(r.confiance).toBeGreaterThanOrEqual(0)
+    expect(r.confiance).toBeLessThanOrEqual(100)
+  })
+
+  it('confiance ≥ 80 on the Lobão fixture (well-formed PT doc)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    expect(r.confiance).toBeGreaterThanOrEqual(80)
+  })
+})

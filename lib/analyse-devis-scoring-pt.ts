@@ -366,12 +366,43 @@ export function calculateScoresPt(
   const conformite = calculateConformiteScorePt(extracted, rawText, nifVerified)
   const prestations = (extracted.prestations || []) as Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number }>
   const prix = calculatePrixScorePt(prestations)
+
+  // Score prix normalisé /100 : 100 = pile au milieu, -1pt par % d'écart
+  const prixScore = Math.max(0, Math.min(100, 100 - Math.abs(prix.ecart_moyen_pct)))
+
+  // Confiance = conformidade × 0.5 + prix × 0.3 + bonus × 0.2
+  const bonusEmpresa = nifVerified ? 100 : 50
+  const conformitePct = conformite.max > 0 ? (conformite.total / conformite.max) * 100 : 0
+  const confiance = Math.round(conformitePct * 0.5 + prixScore * 0.3 + bonusEmpresa * 0.2)
+
+  // Action recommandée
+  let action: AnalyseScores['action_recommandee'] = 'valider'
+  if (conformitePct < 70 || prix.details.some(d => d.status === 'excessif')) {
+    action = 'devis_vitfix'
+  } else if (conformitePct < 90 || prix.details.some(d => d.status === 'eleve')) {
+    action = 'negocier'
+  }
+
+  // Messages négo en portugais
+  const messages: string[] = []
+  for (const c of conformite.details) {
+    if (c.status === 'missing') {
+      messages.push(`O seu orçamento não menciona : ${c.label}. Pode acrescentar esta informação ?`)
+    }
+  }
+  for (const p of prix.details) {
+    if (p.status === 'eleve' || p.status === 'excessif') {
+      const intensite = p.status === 'excessif' ? 'muito ' : ''
+      messages.push(`O preço de "${p.designation}" (${p.prix} €) parece ${intensite}elevado face ao mercado PT (${p.fourchette_min}-${p.fourchette_max} €). É negociável ?`)
+    }
+  }
+
   return {
     conformite,
     prix,
-    confiance: 0,
-    action_recommandee: 'valider',
-    messages_negociation: [],
+    confiance: Math.max(0, Math.min(100, confiance)),
+    action_recommandee: action,
+    messages_negociation: messages,
   }
 }
 
