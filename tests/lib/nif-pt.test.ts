@@ -42,3 +42,31 @@ describe('validateNif', () => {
     expect(validateNif(null)).toBe(false)
   })
 })
+
+describe('extractNif', () => {
+  it('extracts NIF from PDF body (3+3+3 spaced format)', () => {
+    const text = 'EMITENTE\nNome : Frédéric Neiva Carvalho\nNIF : 276 873 297\nMorada : 109 Av.'
+    expect(extractNif(text)).toBe('276873297')
+  })
+
+  it('extracts NIF from continuous digit format', () => {
+    expect(extractNif('NIF: 276873297 / CAE 81210')).toBe('276873297')
+  })
+
+  it('returns null when no valid NIF in text', () => {
+    expect(extractNif('Random text 111 222 333 (invalid checksum)')).toBeNull()
+  })
+
+  it('returns null on empty input', () => {
+    expect(extractNif('')).toBeNull()
+    // @ts-expect-error testing runtime safety
+    expect(extractNif(null)).toBeNull()
+    // @ts-expect-error testing runtime safety
+    expect(extractNif(undefined)).toBeNull()
+  })
+
+  it('skips invalid candidates and picks the valid one', () => {
+    const text = 'Telefone : 912 014 971 \n NIF : 276 873 297'
+    expect(extractNif(text)).toBe('276873297')
+  })
+})
