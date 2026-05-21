@@ -24,7 +24,7 @@ describe('lib/groq — Cerebras fallback', () => {
     it('falls back to Cerebras when Groq returns 413 on all models', async () => {
       const okResp = { choices: [{ message: { content: 'cerebras answer' } }] }
       const fetchMock = vi.fn(async (url: string) => {
-        if (typeof url === 'string' && url.includes('cerebras.ai')) {
+        if (typeof url === 'string' && url === CEREBRAS_API_URL) {
           return new Response(JSON.stringify(okResp), { status: 200 })
         }
         // Groq returns 413 rate limit on both primary and fallback model
@@ -39,8 +39,8 @@ describe('lib/groq — Cerebras fallback', () => {
       expect(result.choices[0].message.content).toBe('cerebras answer')
       // Groq tried both primary + fallback model = 2 calls; Cerebras = 1 call
       const allCalls = fetchMock.mock.calls as unknown as Array<[string, RequestInit?]>
-      const groqCalls = allCalls.filter((c) => String(c[0]).includes('groq.com')).length
-      const cerebrasCalls = allCalls.filter((c) => String(c[0]).includes('cerebras.ai')).length
+      const groqCalls = allCalls.filter((c) => String(c[0]) === GROQ_API_URL).length
+      const cerebrasCalls = allCalls.filter((c) => String(c[0]) === CEREBRAS_API_URL).length
       expect(groqCalls).toBeGreaterThanOrEqual(1)
       expect(cerebrasCalls).toBe(1)
     })
@@ -58,7 +58,7 @@ describe('lib/groq — Cerebras fallback', () => {
         ),
       ).rejects.toThrow(/Groq 413/)
 
-      const cerebrasCalls = (fetchMock.mock.calls as unknown as Array<[string, RequestInit?]>).filter((c) => String(c[0]).includes('cerebras.ai')).length
+      const cerebrasCalls = (fetchMock.mock.calls as unknown as Array<[string, RequestInit?]>).filter((c) => String(c[0]) === CEREBRAS_API_URL).length
       expect(cerebrasCalls).toBe(0)
     })
 
@@ -78,7 +78,7 @@ describe('lib/groq — Cerebras fallback', () => {
       process.env.GROQ_API_KEY = ''
       const okResp = { choices: [{ message: { content: 'cerebras only' } }] }
       const fetchMock = vi.fn(async (url: string) => {
-        if (typeof url === 'string' && url.includes('cerebras.ai')) {
+        if (typeof url === 'string' && url === CEREBRAS_API_URL) {
           return new Response(JSON.stringify(okResp), { status: 200 })
         }
         throw new Error('Groq should not have been called')
@@ -90,7 +90,7 @@ describe('lib/groq — Cerebras fallback', () => {
       })
       expect(result.choices[0].message.content).toBe('cerebras only')
       const calls = (fetchMock.mock.calls as unknown as Array<[string, RequestInit?]>).map((c) => String(c[0]))
-      expect(calls.every((u) => u.includes(CEREBRAS_API_URL))).toBe(true)
+      expect(calls.every((u) => u === CEREBRAS_API_URL)).toBe(true)
     })
   })
 
@@ -107,7 +107,7 @@ describe('lib/groq — Cerebras fallback', () => {
         }],
       }
       const fetchMock = vi.fn(async (url: string) => {
-        if (typeof url === 'string' && url.includes('cerebras.ai')) {
+        if (typeof url === 'string' && url === CEREBRAS_API_URL) {
           return new Response(JSON.stringify(cerebrasToolsResp), { status: 200 })
         }
         return new Response(JSON.stringify({ error: 'rate_limit_exceeded' }), { status: 413 })
@@ -123,7 +123,7 @@ describe('lib/groq — Cerebras fallback', () => {
       })
 
       expect(result.message.tool_calls?.[0].function.name).toBe('foo')
-      const cerebrasCalls = (fetchMock.mock.calls as unknown as Array<[string, RequestInit?]>).filter((c) => String(c[0]).includes('cerebras.ai')).length
+      const cerebrasCalls = (fetchMock.mock.calls as unknown as Array<[string, RequestInit?]>).filter((c) => String(c[0]) === CEREBRAS_API_URL).length
       expect(cerebrasCalls).toBe(1)
     })
   })
