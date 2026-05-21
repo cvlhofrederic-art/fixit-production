@@ -539,12 +539,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
   const titleMaxW = pageW - 2 * (mR + logoZoneW)
   pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  // PT-V1 : Vitfix non-certifié AT (Decreto-Lei 28/2019). Côté PT, toute
-  // facture devient une « Pró-forma » non-fiscale. Devis (Orçamento) reste
-  // valide en PT car non-fiscal par nature.
   const rawTitle = docTitle || (docType === 'devis'
     ? (locale === 'pt' ? 'Orçamento' : 'Devis')
-    : (locale === 'pt' ? 'Pró-forma' : 'Facture'))
+    : (locale === 'pt' ? 'Fatura' : 'Facture'))
   const safeTitle = sanitizeForHelvetica(rawTitle)
   // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
   // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
@@ -577,21 +574,6 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
     y += 3
-  }
-
-  // ── PT Proforma watermark (PT-V1) ──
-  // Si on émet en mode PT et qu'on n'a PAS de ptFiscalData (cas par défaut
-  // depuis la désactivation 2026-05), on affiche un avertissement clair que
-  // le document n'a pas de valeur fiscale.
-  if (locale === 'pt' && !ptFiscalData && docType === 'facture') {
-    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#B91C1C')
-    pdf.text('PRÓ-FORMA — NÃO É FATURA', pageW / 2, y, { align: 'center' })
-    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-    y += 4
-    pdf.setFontSize(6.5)
-    pdf.text('Sem valor fiscal. Para emitir fatura legal, utilize software certificado AT.', pageW / 2, y, { align: 'center' })
-    y += 3.5
-    pdf.setFontSize(9)
   }
 
   // ── PT Fiscal: ATCUD + Hash ──
@@ -688,7 +670,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companyAddress) {
     const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
     const sp = splitAddress(addrNorm)
-    const addrText = `Adresse : ${sp.street}`
+    const addrText = `${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`
     let addrFs = 10
     pdf.setFontSize(addrFs)
     if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 9; pdf.setFontSize(addrFs) }
@@ -696,7 +678,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.text(addrText, emTx, ey2); ey2 += ptToMm(14)
     pdf.setFontSize(10)
     if (sp.city) {
-      pdf.text(`Ville : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
+      pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
     }
   }
   // Helper : rendu d'une ligne d'identité avec ramping fontSize 10→9→8 si débordement
@@ -711,8 +693,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setFontSize(10)
   }
   if (companyPhone) { drawEmitterLine(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`) }
-  if (companyEmail) { drawEmitterLine(`E-mail : ${companyEmail}`) }
-  if (companySiret) { drawEmitterLine(`SIRET : ${companySiret}`) }
+  if (companyEmail) { drawEmitterLine(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${companyEmail}`) }
+  if (companySiret) { drawEmitterLine(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${companySiret}`) }
   if (companyRCS) {
     // Auto-détection RCS vs RM (mutuellement exclusifs en droit français) :
     //   - RCS (Registre du Commerce et des Sociétés) → SAS, SARL, EURL, SASU,
@@ -742,9 +724,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     )
     drawEmitterLine(rmDisplay)
   }
-  if (tvaEnabled && tvaNumber) { drawEmitterLine(`TVA Intra. : ${tvaNumber}`) }
-  if (companyAPE) { drawEmitterLine(`APE / NAF : ${companyAPE}`) }
-  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} EUR`) }
+  if (tvaEnabled && tvaNumber) { drawEmitterLine(`${locale === 'pt' ? 'NIF intracom.' : 'TVA Intra.'} : ${tvaNumber}`) }
+  if (companyAPE) { drawEmitterLine(`${locale === 'pt' ? 'CAE' : 'APE / NAF'} : ${companyAPE}`) }
+  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} ${locale === 'pt' ? '€' : 'EUR'}`) }
 
   // Destinataire
   let dy3 = boxStartY + boxPadTop
@@ -758,10 +740,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Ordre : Adresse → Ville → Intervention → Bât/Étage → … → Tél → Email → SIRET
   if (clientAddress) {
     const sp = splitAddress(clientAddress)
-    const cAL = pdf.splitTextToSize(`Adresse : ${sp.street}`, destMaxW)
+    const cAL = pdf.splitTextToSize(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`, destMaxW)
     pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
     if (sp.city) {
-      pdf.text(`Ville : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
+      pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
     }
   }
   if (interventionAddress || interventionBatiment || interventionEtage) {
@@ -771,25 +753,27 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       const iAL = pdf.splitTextToSize(`${interventionLabel} : ${sp.street}`, destMaxW)
       pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
       if (sp.city) {
-        pdf.text(`Ville : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
+        pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
       }
     }
     const batEtParts: string[] = []
-    if (interventionBatiment) batEtParts.push(`Bât. ${interventionBatiment}`)
-    if (interventionEtage) batEtParts.push(`Étage ${interventionEtage}`)
+    if (interventionBatiment) batEtParts.push(`${locale === 'pt' ? 'Edif.' : 'Bât.'} ${interventionBatiment}`)
+    if (interventionEtage) batEtParts.push(`${locale === 'pt' ? 'Andar' : 'Étage'} ${interventionEtage}`)
     if (batEtParts.length > 0) {
       pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
     }
     if (interventionEspacesCommuns) {
-      pdf.text(`Lieu : Espaces communs, ${interventionEspacesCommuns}`, destTx, dy3); dy3 += ptToMm(14)
+      const prefix = locale === 'pt' ? 'Local : Áreas comuns' : 'Lieu : Espaces communs'
+      pdf.text(`${prefix}, ${interventionEspacesCommuns}`, destTx, dy3); dy3 += ptToMm(14)
     }
     if (interventionExterieur) {
-      pdf.text(`Lieu : Extérieur, ${interventionExterieur}`, destTx, dy3); dy3 += ptToMm(14)
+      const prefix = locale === 'pt' ? 'Local : Exterior' : 'Lieu : Extérieur'
+      pdf.text(`${prefix}, ${interventionExterieur}`, destTx, dy3); dy3 += ptToMm(14)
     }
   }
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+  if (clientEmail) { pdf.text(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
+  if (clientSiret) { pdf.text(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
   // Autoliquidation BTP : n° TVA intra du preneur OBLIGATOIRE sur la facture
   // (art. 242 nonies A I-3° annexe II CGI). Champ saisi explicitement sinon
   // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
@@ -1198,7 +1182,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  const stLabel = showTva ? (locale === 'pt' ? 'Subtotal HT' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
+  const stLabel = showTva ? (locale === 'pt' ? 'Subtotal s/IVA' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
   pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
@@ -1238,7 +1222,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.setFillColor(COLOR_WHITE)
       pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(`TVA ${rate}% sur ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
+      const tvaPrefix = locale === 'pt' ? 'IVA' : 'TVA'
+      const tvaSep = locale === 'pt' ? 's/' : 'sur'
+      pdf.text(`${tvaPrefix} ${rate}% ${tvaSep} ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
       pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
       pdf.text(localeFormats.currencyFormat(amount), xRight - boxPadX, y + 4, { align: 'right' })
       y += 6
@@ -1277,7 +1263,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFillColor(COLOR_BG_GRAY)
   pdf.rect(totBoxX, y, totBoxW, totH, 'F')
   pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const totalLabel = showTva ? 'TOTAL TTC' : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
+  const totalLabel = showTva ? (locale === 'pt' ? 'TOTAL c/IVA' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
   pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
   pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
 
@@ -1985,7 +1971,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setPage(p)
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
     pdf.text(footerDocRef, mL, pageH - 3.2)
-    pdf.text(`Page ${p}/${totalPgs}`, xRight - 2, pageH - 3.2, { align: 'right' })
+    pdf.text(`${locale === 'pt' ? 'Página' : 'Page'} ${p}/${totalPgs}`, xRight - 2, pageH - 3.2, { align: 'right' })
   }
 
   // ─── Save / Preview ───
