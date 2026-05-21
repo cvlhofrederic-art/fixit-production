@@ -70,7 +70,7 @@ export async function retrieveLegalChunks(
 
   // ── 1. Embed la query (et la HyDE rewrite si fournie) ──
   let queryEmbedding: number[]
-  const embedOpts = options?.aiBinding ? { aiBinding: options.aiBinding, timeoutMs: 8_000 } : { timeoutMs: 8_000 }
+  const embedOpts = options?.aiBinding ? { aiBinding: options.aiBinding, timeoutMs: 4_000 } : { timeoutMs: 4_000 }
   try {
     if (options?.hydeQuery && options.hydeQuery.trim()) {
       const [qVec, hVec] = await Promise.all([

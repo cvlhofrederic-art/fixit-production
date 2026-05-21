@@ -86,11 +86,18 @@ export async function rerank<T>(
   // 1. Préfère le binding AI si disponible
   const binding = opts?.aiBinding ?? await tryGetAIBinding()
   if (binding) {
+    const timeoutMs = opts?.timeoutMs ?? 8_000
+    const bRes = await Promise.race([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (binding as any).run(RERANKER_MODEL, {
+        query,
+        contexts: candidates.map((c) => ({ text: c.text })),
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('AI binding rerank timeout')), timeoutMs),
+      ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bRes = await (binding as any).run(RERANKER_MODEL, {
-      query,
-      contexts: candidates.map((c) => ({ text: c.text })),
-    })
+    ]) as any
     const scores = bRes?.response
     if (!Array.isArray(scores)) {
       throw new Error('rerank: invalid response from binding (missing response array)')
