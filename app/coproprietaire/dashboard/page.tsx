@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
+import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import {
   PROFILE_DEMO, CHARGES_DEMO, PAIEMENTS_DEMO, DOCUMENTS_DEMO, ANNONCES_DEMO,
   AG_DEMO, ECHEANCES_DEMO, NOTIFICATIONS_DEMO, HISTORIQUE_DEMO, PARAMS_DEMO,
@@ -15,8 +15,9 @@ import {
 } from '@/lib/copro-demo-data'
 
 // ─── Dynamic imports for extracted page sections ─────────────────────────────
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any>
-
+// Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
+// so a single crash (chunk loading failure on edge, runtime exception, etc.) shows
+// an in-place fallback with retry instead of destroying the shell.
 const CoproAccueilSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproAccueilSection'))
 const CoproDocumentsSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproDocumentsSection'))
 const CoproPaiementsSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproPaiementsSection'))
