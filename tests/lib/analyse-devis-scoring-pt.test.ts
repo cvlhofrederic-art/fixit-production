@@ -80,3 +80,70 @@ describe('calculateScoresPt — squelette', () => {
     })
   })
 })
+
+describe('calculateScoresPt — critères de base', () => {
+  it('detects NIF as ok when nifVerified=true', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    expect(r.conformite.details.find(c => c.id === 'nif')?.status).toBe('ok')
+  })
+
+  it('detects NIF as missing when nifVerified=false', () => {
+    const r = calculateScoresPt({ ...lobaoExtracted, artisan_siret: '' }, lobaoRawText, { nifVerified: false })
+    expect(r.conformite.details.find(c => c.id === 'nif')?.status).toBe('missing')
+  })
+
+  it('detects IVA mentioned (taxa 23%)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'iva')?.status).toBe('ok')
+  })
+
+  it('detects garantia legal (DL 84/2021) via rawText fallback', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'garantia_legal')?.status).toBe('ok')
+  })
+
+  it('detects direito de livre resolução (DL 24/2014)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'livre_resolucao')?.status).toBe('ok')
+  })
+
+  it('detects RGPD', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'rgpd')?.status).toBe('ok')
+  })
+
+  it('detects CNIACC (entidade RAL)', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'cniacc_ral')?.status).toBe('ok')
+  })
+
+  it('detects livro de reclamações', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'livro_reclamacoes')?.status).toBe('ok')
+  })
+
+  it('detects CAE present', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'cae')?.status).toBe('ok')
+  })
+
+  it('detects numero_orcamento from extracted.numero_document', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'numero_orcamento')?.status).toBe('ok')
+  })
+
+  it('detects data_emissao from extracted.date_document', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'data_emissao')?.status).toBe('ok')
+  })
+
+  it('detects detalhe_prestacoes when prestations[] has items with prix', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'detalhe_prestacoes')?.status).toBe('ok')
+  })
+
+  it('detects IBAN', () => {
+    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    expect(r.conformite.details.find(c => c.id === 'iban_titular')?.status).toBe('ok')
+  })
+})
