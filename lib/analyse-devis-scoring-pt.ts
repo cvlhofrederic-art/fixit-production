@@ -133,10 +133,17 @@ function findPriceRangePt(designation: string): [number, number] | null {
 }
 
 function calculatePrixScorePt(
-  prestations: Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number }>,
+  prestations: Array<{ designation: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number; type?: string }>,
 ): ScorePrix {
   const details: PrixDetail[] = []
   for (const p of prestations) {
+    // Filtre 1 : exclure description / etape explicites du LLM
+    if (p.type === 'description' || p.type === 'etape') continue
+    // Filtre 2 : exclure designations commençant par un numéro+point (étapes numérotées
+    // que le LLM aurait mal typées en 'prestation')
+    if (/^\s*\d+\.\s/.test(p.designation || '')) continue
+    // Filtre 3 : exclure designations qui commencent par '(' (sous-descriptions)
+    if (/^\s*\(/.test(p.designation || '')) continue
     const prix = p.prix_unitaire_ht || p.total_ht || 0
     if (!prix || prix <= 0) continue
     const fourchette = findPriceRangePt(p.designation)

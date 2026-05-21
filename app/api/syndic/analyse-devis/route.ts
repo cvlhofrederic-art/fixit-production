@@ -289,10 +289,30 @@ Champs à extraire :
 
 const EXTRACT_PROMPT_PT = `És um extrator de dados. A partir de um orçamento ou fatura PORTUGUÊS, extrai a informação chave em formato JSON estrito.
 
-⚠️ DISTINÇÃO PRESTAÇÕES vs DESCRIÇÕES vs ETAPAS :
-- Uma linha com QTD + PREÇO = PRESTAÇÃO (type: "prestation")
-- Uma linha sem preço, sob um título = DESCRIÇÃO (type: "description")
-- Linhas numeradas (1. 2. 3...) sem preço = ETAPAS (type: "etape")
+⚠️ DISTINÇÃO PRESTAÇÕES vs DESCRIÇÕES vs ETAPAS — REGRA ABSOLUTA :
+- Uma linha que TEM AO MESMO TEMPO quantidade + unidade (Serviço, m², h…) + preço (€) = PRESTAÇÃO (type: "prestation"). É a ÚNICA categoria com prix_unitaire_ht > 0.
+- Uma linha entre parênteses ou sob um título de prestação = DESCRIÇÃO (type: "description"). prix_unitaire_ht = 0.
+- Uma linha numerada (1. 2. 3…) que detalha um sub-passo = ETAPA (type: "etape"). prix_unitaire_ht = 0.
+
+EXEMPLO PRÁTICO — bloco típico de um orçamento PT :
+\`\`\`
+Inspeção prévia do sistema elétrico
+(Diagnóstico técnico prévio)
+1. Verificação do quadro e ponto de alimentação 230 V
+2. Avaliação das folhas e pilares
+3. Dimensionamento e elaboração do orçamento
+1 Serviço 80,00 € 80,00 €
+\`\`\`
+DEVE produzir EXATAMENTE :
+\`\`\`
+{ "designation": "Inspeção prévia do sistema elétrico", "type": "prestation", "quantite": 1, "unite": "Serviço", "prix_unitaire_ht": 80, "total_ht": 80 },
+{ "designation": "(Diagnóstico técnico prévio)", "type": "description", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 },
+{ "designation": "1. Verificação do quadro e ponto de alimentação 230 V", "type": "etape", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 },
+{ "designation": "2. Avaliação das folhas e pilares", "type": "etape", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 },
+{ "designation": "3. Dimensionamento e elaboração do orçamento", "type": "etape", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 }
+\`\`\`
+
+NUNCA atribuas o preço de uma prestação a uma das suas etapas/descrições. NUNCA marques uma etapa ou descrição como type "prestation". Se hesitares, marca como "description" — é melhor não-contar do que contar errado.
 
 Responde APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown, sem backticks.
 
