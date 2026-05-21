@@ -103,7 +103,12 @@ export async function retrieveLegalChunks(
     return fallbackBm25(supabase, trimmed, language)
   }
   const candidates = ((hybridRows ?? []) as CorpusHybridRow[]).filter((r) => r.content)
-  if (candidates.length === 0) return []
+  if (candidates.length === 0) {
+    logger.info('[max-legal-rag] hybrid search returned 0, trying BM25 fallback', {
+      query: trimmed.slice(0, 80), language,
+    })
+    return fallbackBm25(supabase, trimmed, language)
+  }
 
   // ── 3. Rerank avec BGE-reranker ──
   let reranked: RerankedCandidate<CorpusHybridRow>[]
