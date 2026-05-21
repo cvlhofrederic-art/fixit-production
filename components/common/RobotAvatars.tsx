@@ -47,7 +47,7 @@ export function LeaAvatar({ size = 40 }: { size?: number }) {
 export function AlfredoAvatar({ size = 40 }: { size?: number }) {
   return (
     <img
-      src="/alfredo-avatar.webp"
+      src="/alfredo-avatar.png"
       alt="Alfredo — Gestionnaire Emails IA"
       width={size}
       height={size}
@@ -61,7 +61,7 @@ export function AlfredoAvatar({ size = 40 }: { size?: number }) {
 export function TempoAvatar({ size = 40 }: { size?: number }) {
   return (
     <img
-      src="/tempo-avatar.webp"
+      src="/tempo-avatar.png"
       alt="Tempo — Agent Automatisations IA"
       width={size}
       height={size}
