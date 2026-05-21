@@ -134,6 +134,29 @@ export async function POST(request: NextRequest) {
       logger.warn('[lea-comptable] RAG search failed (continuing without docs):', err)
     }
 
+    // P4 — Liste des templates PDF dispo (Léa peut les mentionner / suggérer
+    // à l'utilisateur de les générer via le panel Documents).
+    let templatesBlock = ''
+    try {
+      const { data: templates } = await supabaseAdmin
+        .from('syndic_pdf_templates')
+        .select('id, name, type, locale, placeholders')
+        .eq('cabinet_id', user.id)
+        .eq('is_active', true)
+        .limit(20)
+      if (templates && templates.length > 0) {
+        const lines = templates.map(t => {
+          const phKeys = Object.keys(t.placeholders ?? {}).join(', ')
+          return `- ${t.name} (type=${t.type}, locale=${t.locale}${phKeys ? `, champs=${phKeys}` : ''})`
+        }).join('\n')
+        templatesBlock = isPt
+          ? `## Modelos PDF disponíveis (${templates.length})\nO utilizador pode gerar estes documentos a partir do painel « Documentos » :\n${lines}`
+          : `## Modèles PDF disponibles (${templates.length})\nL'utilisateur peut générer ces documents depuis le panneau « Documents » :\n${lines}`
+      }
+    } catch (err) {
+      logger.warn('[lea-comptable] templates load failed (continuing):', err)
+    }
+
     // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
     const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(syndic_context as LeaPromptContext)
 
@@ -141,8 +164,9 @@ export async function POST(request: NextRequest) {
       ? buildLeaSystemPromptPT(sanitizedCtx)
       : buildLeaSystemPromptFR(sanitizedCtx)
 
-    const systemPrompt = ragBlock
-      ? `${baseSystemPrompt}\n\n${ragBlock}`
+    const extraBlocks = [ragBlock, templatesBlock].filter(Boolean).join('\n\n')
+    const systemPrompt = extraBlocks
+      ? `${baseSystemPrompt}\n\n${extraBlocks}`
       : baseSystemPrompt
 
     const historyMessages = limitedHistory
