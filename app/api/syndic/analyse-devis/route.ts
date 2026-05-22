@@ -453,14 +453,10 @@ export async function POST(req: NextRequest) {
   const systemPrompt = isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR
   const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
 
-  // Groq seul — méthode d'origine qui fonctionnait. Cerebras retiré (modèle
-  // llama-3.3-70b inaccessible sur la clé Cerebras en place → 404).
-  // callGroqWithRetry gère retry 429 + fallback automatique vers llama-3.1-8b-instant.
   async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
     return callGroqWithRetry(opts, {
       apiKey: GROQ_API_KEY,
-      maxRetries: 3,
-      disableCerebrasFallback: true,
+      maxRetries: 2,
       fallbackModel: 'llama-3.3-70b-versatile',
     })
   }
