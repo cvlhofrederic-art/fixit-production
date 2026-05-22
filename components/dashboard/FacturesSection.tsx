@@ -400,8 +400,13 @@ function FacturesSectionV5({
     return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.factures.brouillon') }
   }
 
-  // Guess facture type from docNumber or title
+  // Determine facture type from factureSubType field, falling back to docNumber/title heuristic
   const guessType = (doc: PersistedDocument) => {
+    // Read the persisted factureSubType first (set by DevisFactureFormBTP)
+    const sub = (doc as unknown as Record<string, unknown>).factureSubType as string | undefined
+    if (sub === 'acompte') return t('proDash.factures.typeAcompte')
+    if (sub === 'situation') return t('proDash.factures.typeSituation')
+    // Fallback: heuristic from docNumber / title
     const num = doc.docNumber?.toLowerCase() || ''
     const title = doc.docTitle?.toLowerCase() || ''
     if (num.includes('sit') || title.includes('situation')) return t('proDash.factures.typeSituation')
@@ -474,7 +479,15 @@ function FacturesSectionV5({
                     tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
                   })),
               })
-              const totalTTC = tva.totalTTC
+              let totalTTC = tva.totalTTC
+              // For acompte invoices, display the acompte amount instead of the full total
+              const docAny = doc as unknown as Record<string, unknown>
+              if (docAny.factureSubType === 'acompte' && Array.isArray(docAny.acomptes) && (docAny.acomptes as Array<{ pourcentage?: number }>).length > 0) {
+                const firstAcompte = (docAny.acomptes as Array<{ pourcentage?: number }>)[0]
+                if (firstAcompte?.pourcentage && firstAcompte.pourcentage > 0 && firstAcompte.pourcentage < 100) {
+                  totalTTC = totalTTC * firstAcompte.pourcentage / 100
+                }
+              }
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
