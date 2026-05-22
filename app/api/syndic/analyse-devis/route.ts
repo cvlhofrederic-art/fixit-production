@@ -457,7 +457,12 @@ export async function POST(req: NextRequest) {
   // llama-3.3-70b inaccessible sur la clé Cerebras en place → 404).
   // callGroqWithRetry gère retry 429 + fallback automatique vers llama-3.1-8b-instant.
   async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
-    return callGroqWithRetry(opts, { apiKey: GROQ_API_KEY, maxRetries: 2, disableCerebrasFallback: true })
+    return callGroqWithRetry(opts, {
+      apiKey: GROQ_API_KEY,
+      maxRetries: 3,
+      disableCerebrasFallback: true,
+      fallbackModel: 'llama-3.3-70b-versatile',
+    })
   }
 
   try {
