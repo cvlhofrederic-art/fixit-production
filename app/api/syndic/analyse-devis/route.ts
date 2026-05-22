@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
+import { callCerebrasWithRetry } from '@/lib/cerebras'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 import { getSecret } from '@/lib/env'
@@ -410,6 +411,7 @@ async function saveAnalysis(
 
 export async function POST(req: NextRequest) {
   const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
+  const CEREBRAS_API_KEY = await getSecret('CEREBRAS_API_KEY')
   const ip = getClientIP(req)
   const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60_000)
   if (!rateOk) return rateLimitResponse()
@@ -434,9 +436,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!GROQ_API_KEY) {
+  if (!GROQ_API_KEY && !CEREBRAS_API_KEY) {
     return NextResponse.json(
-      { error: isPt ? 'Chave API Groq em falta' : 'Clé API Groq manquante' },
+      { error: isPt ? 'Nenhuma chave API LLM configurada' : 'Aucune clé API LLM configurée' },
       { status: 500 },
     )
   }
@@ -453,17 +455,35 @@ export async function POST(req: NextRequest) {
   const systemPrompt = isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR
   const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
 
+  // Groq primary (méthode d'origine), Cerebras fallback explicite via getSecret
+  async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
+    if (GROQ_API_KEY) {
+      try {
+        return await callGroqWithRetry(opts, { apiKey: GROQ_API_KEY, maxRetries: 1, disableCerebrasFallback: true })
+      } catch (groqErr) {
+        if (CEREBRAS_API_KEY) {
+          logger.warn('[analyse-devis] Groq failed, fallback Cerebras', {
+            error: groqErr instanceof Error ? groqErr.message : String(groqErr),
+          })
+        } else {
+          throw groqErr
+        }
+      }
+    }
+    return callCerebrasWithRetry(opts, { apiKey: CEREBRAS_API_KEY, maxRetries: 1 })
+  }
+
   try {
     const [analyseData, extractData] = await Promise.all([
-      callGroqWithRetry({
+      callLLM({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
         max_tokens: 5000,
-      }, { apiKey: GROQ_API_KEY }),
-      callGroqWithRetry({
+      }),
+      callLLM({
         messages: [
           { role: 'system', content: extractPrompt },
           { role: 'user', content: isPt
@@ -472,7 +492,7 @@ export async function POST(req: NextRequest) {
         ],
         temperature: 0,
         max_tokens: 1200,
-      }, { apiKey: GROQ_API_KEY }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
+      }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
     ])
 
     const analysis = analyseData.choices?.[0]?.message?.content || ''
@@ -543,9 +563,10 @@ export async function POST(req: NextRequest) {
       tokens: totalTokens,
     })
   } catch (err) {
-    logger.error('Analyse devis error:', err)
+    const errMsg = err instanceof Error ? err.message : String(err)
+    logger.error('[syndic/analyse-devis] Pipeline error', { error: errMsg })
     return NextResponse.json(
-      { error: isPt ? 'Erro do servidor' : 'Erreur serveur' },
+      { error: isPt ? `Erro: ${errMsg.slice(0, 120)}` : `Erreur : ${errMsg.slice(0, 120)}` },
       { status: 500 },
     )
   }
