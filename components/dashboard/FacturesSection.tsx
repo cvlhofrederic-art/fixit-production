@@ -469,10 +469,17 @@ function FacturesSectionV5({
                 ?? (docRec.autoliquidationBTP
                   ? 'autoliquidation_btp'
                   : (tvaEnabled ? 'classique' : 'franchise_293b'))
-              const safeLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
+              // Collect lines from both flat lines[] and BTP customTables[].lines[]
+              const flatLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
+              const customTables = (doc as unknown as Record<string, unknown>).customTables as Array<{ lines?: Array<Record<string, unknown>> }> | undefined
+              const tableLines = Array.isArray(customTables)
+                ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
+                : []
+              // Use customTables lines when available (BTP docs), otherwise fall back to flat lines
+              const allLines = tableLines.length > 0 ? tableLines : flatLines
               const tva = computeTva({
                 regime: effectiveRegime,
-                lines: safeLines
+                lines: allLines
                   .filter((l): l is { totalHT?: number; tvaRate?: number } => l !== null && typeof l === 'object')
                   .map(l => ({
                     totalHT: (l.totalHT as number) || 0,
