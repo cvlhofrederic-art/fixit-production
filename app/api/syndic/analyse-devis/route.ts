@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
-import { callCerebrasWithRetry } from '@/lib/cerebras'
+import { callGroqWithRetry } from '@/lib/groq'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 import { getSecret } from '@/lib/env'
@@ -411,7 +410,6 @@ async function saveAnalysis(
 
 export async function POST(req: NextRequest) {
   const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
-  const CEREBRAS_API_KEY = await getSecret('CEREBRAS_API_KEY')
   const ip = getClientIP(req)
   const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60_000)
   if (!rateOk) return rateLimitResponse()
@@ -436,9 +434,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!GROQ_API_KEY && !CEREBRAS_API_KEY) {
+  if (!GROQ_API_KEY) {
     return NextResponse.json(
-      { error: isPt ? 'Nenhuma chave API LLM configurada' : 'Aucune clé API LLM configurée' },
+      { error: isPt ? 'Chave API Groq em falta' : 'Clé API Groq manquante' },
       { status: 500 },
     )
   }
@@ -455,32 +453,17 @@ export async function POST(req: NextRequest) {
   const systemPrompt = isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR
   const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
 
-  // Cerebras primary (60K TPM), Groq fallback (6K TPM)
-  async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
-    if (CEREBRAS_API_KEY) {
-      try {
-        return await callCerebrasWithRetry(opts, { apiKey: CEREBRAS_API_KEY, maxRetries: 1 })
-      } catch (err) {
-        logger.warn('[analyse-devis] Cerebras failed, fallback Groq', {
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
-    }
-    if (!GROQ_API_KEY) throw new Error('No LLM key available')
-    return callGroqWithRetry(opts, { apiKey: GROQ_API_KEY, maxRetries: 0, disableCerebrasFallback: true })
-  }
-
   try {
     const [analyseData, extractData] = await Promise.all([
-      callLLM({
+      callGroqWithRetry({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
         max_tokens: 5000,
-      }),
-      callLLM({
+      }, { apiKey: GROQ_API_KEY }),
+      callGroqWithRetry({
         messages: [
           { role: 'system', content: extractPrompt },
           { role: 'user', content: isPt
@@ -489,7 +472,7 @@ export async function POST(req: NextRequest) {
         ],
         temperature: 0,
         max_tokens: 1200,
-      }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
+      }, { apiKey: GROQ_API_KEY }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
     ])
 
     const analysis = analyseData.choices?.[0]?.message?.content || ''
