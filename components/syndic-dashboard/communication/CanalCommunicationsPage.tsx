@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { Mission, Artisan, CanalInterneMsg, PlanningEvent } from '../types'
+import PedidosTab from './PedidosTab'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { createClient } from '@supabase/supabase-js'
 import type { User } from '@supabase/supabase-js'
@@ -80,7 +81,7 @@ export default function CanalCommunicationsPage({
   const locale = useLocale()
   const isPt = locale === 'pt'
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null)
-  const [channelView, setChannelView] = useState<'artisans' | 'interne' | 'demandeurs' | 'equipa'>('artisans')
+  const [channelView, setChannelView] = useState<'artisans' | 'interne' | 'demandeurs' | 'equipa' | 'pedidos'>('artisans')
   const [sending, setSending] = useState(false)
   const [canalTab, setCanalTab] = useState<'artisan' | 'demandeur'>('artisan')
   const [newMsg, setNewMsg] = useState('')
@@ -407,7 +408,7 @@ export default function CanalCommunicationsPage({
   }
 
   // ─── Show missions panel? ───
-  const showMissionsPanel = channelView !== 'interne'
+  const showMissionsPanel = channelView !== 'interne' && channelView !== 'pedidos'
 
   return (
     <>
@@ -428,6 +429,13 @@ export default function CanalCommunicationsPage({
           >
             <span className="sd-tab-icon">🏢</span> {locale === 'pt' ? 'Interno' : 'Interne'}
             {nbInterneMsgs > 0 && channelView !== 'interne' && <span className="sd-channel-badge" style={{ background: 'var(--sd-red-soft)', color: 'var(--sd-red)', borderColor: 'rgba(192,57,43,0.3)' }}>{nbInterneMsgs}</span>}
+          </button>
+          <button
+            onClick={() => { setChannelView('pedidos'); setSelectedMissionId(null) }}
+            className={`sd-channel-tab ${channelView === 'pedidos' ? 'active' : ''}`}
+          >
+            <span className="sd-tab-icon">📨</span> {locale === 'pt' ? 'Pedidos' : 'Demandes'}
+            <span className="sd-channel-badge" style={{ background: 'var(--sd-gold-soft, #FBF5E0)', color: 'var(--sd-gold, #C9A84C)', borderColor: 'rgba(201,168,76,0.3)' }}>2</span>
           </button>
         </div>
 
@@ -586,8 +594,14 @@ export default function CanalCommunicationsPage({
           {/* ─── CENTER PANEL ─── */}
           <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'var(--sd-cream)' }}>
 
-            {/* ═══ CANAL INTERNE VIEW ═══ */}
-            {channelView === 'interne' ? (
+            {/* ═══ PEDIDOS VIEW (demandes condóminos → ordem de missão) ═══ */}
+            {channelView === 'pedidos' ? (
+              <PedidosTab
+                artisans={artisans}
+                onAddMission={onAddMission}
+                userName={userName}
+              />
+            ) : channelView === 'interne' ? (
               <>
                 {/* Header Canal Interne */}
                 <div className="bg-white flex items-center justify-between flex-shrink-0" style={{ padding: '16px 28px', borderBottom: '1px solid var(--sd-border)' }}>
@@ -1041,7 +1055,7 @@ export default function CanalCommunicationsPage({
           </div>
 
           {/* ─── RIGHT PANEL: Details (300px) ─── */}
-          {channelView !== 'interne' && selectedMission && (
+          {channelView !== 'interne' && channelView !== 'pedidos' && selectedMission && (
             <div className="w-[300px] flex-shrink-0 bg-white flex flex-col overflow-y-auto"
               style={{ borderLeft: '1px solid var(--sd-border)', scrollbarWidth: 'thin', scrollbarColor: 'var(--sd-border) transparent' }}>
 
