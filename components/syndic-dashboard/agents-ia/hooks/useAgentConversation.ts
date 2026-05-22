@@ -8,7 +8,7 @@
 // persistance DB en parallèle de l'affichage optimiste local.
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConversations } from './useConversations'
 import type { AgentId, Locale, Message } from '@/lib/syndic/agent-types'
 
@@ -26,11 +26,16 @@ export function useAgentConversation(agentId: AgentId, locale: Locale) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<PersistedMsg[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
+  const skipHydrationRef = useRef(false)
 
   // Hydrate messages quand on bascule sur une conversation
   useEffect(() => {
     if (!activeId) {
       setMessages([])
+      return
+    }
+    if (skipHydrationRef.current) {
+      skipHydrationRef.current = false
       return
     }
     let aborted = false
@@ -64,6 +69,7 @@ export function useAgentConversation(agentId: AgentId, locale: Locale) {
         locale,
         title: firstUserMessage.slice(0, 60),
       })
+      skipHydrationRef.current = true
       setActiveId(conv.id)
       return conv.id
     },
