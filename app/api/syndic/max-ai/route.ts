@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
-import { callCerebrasWithRetry, hasCerebrasKey } from '@/lib/cerebras'
+import { callCerebrasWithRetry } from '@/lib/cerebras'
 import { logger } from '@/lib/logger'
 import { traceAgent } from '@/lib/langfuse'
 import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
@@ -97,15 +97,14 @@ export async function POST(request: NextRequest) {
     const syndic_context = (v.data.syndic_context || {}) as Record<string, any>
     const { tokenMap } = sanitizeContextForLLM(syndic_context as MaxPromptContext)
 
-    if (!GROQ_API_KEY) {
-      // Cas pathologique : la clé Groq n'est pas configurée côté Worker.
-      // On retourne un refusal explicite (pas un fallback marketing).
+    const hasCerebras = !!(await getSecret('CEREBRAS_API_KEY'))
+    if (!GROQ_API_KEY && !hasCerebras) {
       return NextResponse.json({
         response: getRefusalMessage(ragLanguage),
         citations: [],
         confidence: 0,
         refusal: true,
-        error: 'groq_api_key_missing',
+        error: 'no_llm_key_configured',
       })
     }
 
@@ -172,40 +171,17 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    // ── 4. Appel LLM (Groq primary, Cerebras fallback) — single attempt ──
-    // maxRetries: 0 pour éviter les délais de retry internes (429 backoff).
-    // disableCerebrasFallback: true — on gère le fallback nous-mêmes pour le tracing.
-    let groqData: GroqResponse
-    let providerUsed: 'groq' | 'cerebras' = 'groq'
+    // ── 4. Appel LLM — Cerebras primary (60K TPM), Groq fallback (6K TPM) ──
+    // Groq free tier llama-3.3-70b = 6K TPM : le prompt strict de Max (~8K tokens
+    // prompt+completion) dépasse systématiquement cette limite → 429 sur chaque
+    // requête. Cerebras Inference a le même modèle avec 60K TPM, largement suffisant.
+    const CEREBRAS_API_KEY = await getSecret('CEREBRAS_API_KEY')
+    let llmData: GroqResponse
+    let providerUsed: 'cerebras' | 'groq' = 'cerebras'
     try {
       try {
-        groqData = await traceAgent(
-          {
-            agent_id: 'max',
-            user_id: user.id,
-            conversation_id: rawBody.conversation_id,
-            prompt: message,
-            metadata: {
-              locale: ragLanguage,
-              chunks_found: chunks.length,
-              provider: 'groq',
-              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
-            },
-          },
-          () => callGroqWithRetry({
-            messages,
-            temperature: 0.1,
-            max_tokens: 3500,
-            response_format: { type: 'json_object' },
-          }, { apiKey: GROQ_API_KEY, maxRetries: 0, disableCerebrasFallback: true }),
-        )
-        providerUsed = 'groq'
-      } catch (groqErr) {
-        if (!hasCerebrasKey()) throw groqErr
-        logger.warn('[max-ai] Groq failed, fallback to Cerebras', {
-          error: groqErr instanceof Error ? groqErr.message : String(groqErr),
-        })
-        groqData = await traceAgent(
+        if (!CEREBRAS_API_KEY) throw new Error('CEREBRAS_API_KEY not configured — skip to Groq')
+        llmData = await traceAgent(
           {
             agent_id: 'max',
             user_id: user.id,
@@ -215,7 +191,6 @@ export async function POST(request: NextRequest) {
               locale: ragLanguage,
               chunks_found: chunks.length,
               provider: 'cerebras',
-              groq_error: (groqErr instanceof Error ? groqErr.message : String(groqErr)).slice(0, 200),
               ...(evalRunId ? { eval_run_id: evalRunId } : {}),
             },
           },
@@ -224,12 +199,38 @@ export async function POST(request: NextRequest) {
             temperature: 0.1,
             max_tokens: 3500,
             response_format: { type: 'json_object' },
-          }, { maxRetries: 0 }),
+          }, { apiKey: CEREBRAS_API_KEY, maxRetries: 1 }),
         )
         providerUsed = 'cerebras'
+      } catch (cerebrasErr) {
+        logger.warn('[max-ai] Cerebras failed, fallback to Groq', {
+          error: cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr),
+        })
+        llmData = await traceAgent(
+          {
+            agent_id: 'max',
+            user_id: user.id,
+            conversation_id: rawBody.conversation_id,
+            prompt: message,
+            metadata: {
+              locale: ragLanguage,
+              chunks_found: chunks.length,
+              provider: 'groq',
+              cerebras_error: (cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr)).slice(0, 200),
+              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+            },
+          },
+          () => callGroqWithRetry({
+            messages,
+            temperature: 0.1,
+            max_tokens: 3500,
+            response_format: { type: 'json_object' },
+          }, { apiKey: GROQ_API_KEY, maxRetries: 0 }),
+        )
+        providerUsed = 'groq'
       }
     } catch (err) {
-      logger.error('[max-ai] LLM call failed (Groq + Cerebras)', {
+      logger.error('[max-ai] LLM call failed (Cerebras + Groq)', {
         error: err instanceof Error ? err.message : String(err),
       })
       return NextResponse.json({
@@ -241,7 +242,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const rawJson = groqData.choices?.[0]?.message?.content ?? ''
+    const rawJson = llmData.choices?.[0]?.message?.content ?? ''
     const validated = validateMaxResponse(rawJson, chunks, ragLanguage)
 
     if (!validated.ok) {
