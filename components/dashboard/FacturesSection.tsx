@@ -475,8 +475,8 @@ function FacturesSectionV5({
               const tableLines = Array.isArray(customTables)
                 ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
                 : []
-              // Use customTables lines when available (BTP docs), otherwise fall back to flat lines
-              const allLines = tableLines.length > 0 ? tableLines : flatLines
+              // Combine flat lines and customTables lines (BTP docs use both)
+              const allLines = [...flatLines, ...tableLines]
               const tva = computeTva({
                 regime: effectiveRegime,
                 lines: allLines
