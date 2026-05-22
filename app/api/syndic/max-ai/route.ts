@@ -198,7 +198,6 @@ export async function POST(request: NextRequest) {
             messages,
             temperature: 0.1,
             max_tokens: 3500,
-            response_format: { type: 'json_object' },
           }, { apiKey: CEREBRAS_API_KEY, maxRetries: 1 }),
         )
         providerUsed = 'cerebras'
@@ -230,15 +229,15 @@ export async function POST(request: NextRequest) {
         providerUsed = 'groq'
       }
     } catch (err) {
-      logger.error('[max-ai] LLM call failed (Cerebras + Groq)', {
-        error: err instanceof Error ? err.message : String(err),
-      })
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logger.error('[max-ai] LLM call failed (Cerebras + Groq)', { error: errMsg })
       return NextResponse.json({
         response: getRefusalMessage(ragLanguage),
         citations: [],
         confidence: 0,
         refusal: true,
         error: 'llm_unreachable',
+        debug_error: errMsg.slice(0, 200),
       })
     }
 
