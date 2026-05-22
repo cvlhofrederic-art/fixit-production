@@ -114,22 +114,27 @@ export function validateMaxResponse(
 ): MaxValidationResult {
   const reasons: string[] = []
 
-  // 1. Parsing JSON
+  // 1. Parsing JSON — tolère markdown code blocks et texte autour du JSON
   let parsed: MaxRawResponse
   try {
-    // Tolère les wrappers markdown éventuels (```json ... ```)
     const cleaned = rawJson.trim()
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')
       .replace(/\s*```$/i, '')
     parsed = JSON.parse(cleaned) as MaxRawResponse
   } catch {
-    return {
-      ok: false,
-      reasons: ['JSON parse failed'],
-      answer: '',
-      citations: [],
-      refusal: false,
+    try {
+      const jsonMatch = rawJson.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('no JSON object found')
+      parsed = JSON.parse(jsonMatch[0]) as MaxRawResponse
+    } catch {
+      return {
+        ok: false,
+        reasons: ['JSON parse failed'],
+        answer: '',
+        citations: [],
+        refusal: false,
+      }
     }
   }
 
