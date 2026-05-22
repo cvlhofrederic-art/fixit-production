@@ -454,11 +454,44 @@ export async function POST(req: NextRequest) {
   const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
 
   async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
-    return callGroqWithRetry(opts, {
-      apiKey: GROQ_API_KEY,
-      maxRetries: 2,
-      fallbackModel: 'llama-3.3-70b-versatile',
-    })
+    // 1) Groq 70b — primary
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+        signal: AbortSignal.timeout(30000),
+      })
+      if (res.ok) return res.json()
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 4000))
+        const retry = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          signal: AbortSignal.timeout(30000),
+        })
+        if (retry.ok) return retry.json()
+      }
+    } catch (e) { logger.warn('[analyse-devis] Groq failed:', e) }
+
+    // 2) Cerebras llama3.1-70b — fallback
+    const CEREBRAS_KEY = await getSecret('CEREBRAS_API_KEY')
+    if (CEREBRAS_KEY) {
+      try {
+        const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${CEREBRAS_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'llama3.1-70b', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          signal: AbortSignal.timeout(30000),
+        })
+        if (res.ok) return res.json()
+        const errText = await res.text().catch(() => '')
+        logger.error('[analyse-devis] Cerebras failed:', res.status, errText.substring(0, 200))
+      } catch (e) { logger.error('[analyse-devis] Cerebras fetch error:', e) }
+    }
+
+    throw new Error('Tous les providers LLM sont indisponibles')
   }
 
   try {
