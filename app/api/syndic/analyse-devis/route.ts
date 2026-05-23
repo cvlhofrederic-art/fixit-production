@@ -156,6 +156,22 @@ Verificar a presença das menções obrigatórias segundo a legislação portugu
 - Penalizações por atraso (se fatura)
 - Para condomínio : referência à deliberação da assembleia e ao mandato do administrador
 
+**⚠️ REGRAS DE APLICABILIDADE — NÃO LISTAR O QUE NÃO SE APLICA**
+
+Na secção ❌ MENÇÕES EM FALTA, inclui APENAS itens efetivamente obrigatórios e ausentes para este documento concreto. Se um item não se aplica ao caso, NÃO o menciones de todo — nem sequer com "(não aplicável)".
+
+a) **ENI / Trabalhador independente** (NIF pessoa singular 1XX/2XX, menções "Recibos verdes" ou "Trabalhador independente") :
+   - NÃO tem matrícula na Conservatória do Registo Comercial (só sociedades com NIPC 5XX XXX XXX).
+   - NÃO precisa de alvará se montante < 16 750 € e obra não especializada.
+   - Seguro RC profissional : recomendado mas NÃO obrigatório por lei — se ausente, assinalar como recomendação, não como falha obrigatória.
+
+b) **Orçamento (não fatura)** :
+   - ATCUD (Portaria 195/2020) — NÃO aplicável, só faturas. NÃO mencionar.
+   - SAF-T PT (DL 28/2019) — NÃO aplicável, só faturas. NÃO mencionar.
+
+c) **Montante < 16 750 € e obra não especializada** (instalações simples, motorizações de portões, canalizações, pintura, serralharia ligeira) :
+   - Alvará de construção (Lei 41/2015) — NÃO obrigatório. NÃO mencionar.
+
 **2. ANÁLISE DOS PREÇOS & BENCHMARK MERCADO PORTUGAL 2024-2025**
 
 CANALIZAÇÃO :
@@ -202,7 +218,7 @@ ALVENARIA :
 - Sem garantia de 5 anos (DL 67/2003) → risco em caso de defeito de construção
 - IVA incorreto (23% aplicado em vez de 6% para reabilitação em ARU) → sobrefaturação
 - Condições abusivas (sinal > 30%) → DL 67/2003 art. 4º
-- Sem ATCUD numa fatura emitida em 2024+ → não conformidade fiscal (Portaria 195/2020)
+- Sem ATCUD numa fatura emitida em 2024+ → não conformidade fiscal (Portaria 195/2020) — SÓ faturas, nunca orçamentos
 
 **FORMATO DE RESPOSTA OBRIGATÓRIO**
 
@@ -219,7 +235,7 @@ ALVENARIA :
 [Lista com ✅]
 
 ## ❌ MENÇÕES EM FALTA / NÃO CONFORMES
-[Lista com ❌]
+[Lista com ❌ — APENAS itens aplicáveis ao caso concreto. Respeitar as REGRAS DE APLICABILIDADE acima.]
 
 ---
 
@@ -320,7 +336,11 @@ Responde APENAS com um objeto JSON válido, sem texto antes ou depois, sem markd
 - "tva_taux" → a taxa de IVA aplicada (23, 13, 6 para continente, ou 22, 13, 5 Açores, ou 18, 9, 4 Madeira)
 - "montant_ht" → o montante sem IVA (em PT diz-se "valor sem IVA")
 - "montant_ttc" → o montante com IVA
-- "mentions_presentes" / "mentions_manquantes" devem usar os termos portugueses : "NIPC", "IVA", "Alvará", "ATCUD", "Garantia 5 anos DL 67/2003", "Seguro RC", "CAE"
+- "mentions_presentes" / "mentions_manquantes" devem usar os termos portugueses : "NIPC", "NIF", "IVA", "Alvará", "ATCUD", "Garantia legal DL 84/2021", "Garantia 5 anos DL 67/2003", "Seguro RC", "CAE", "Matrícula Conservatória"
+  ⚠️ mentions_manquantes : incluir APENAS menções obrigatórias E aplicáveis ao caso :
+  - Se orçamento (não fatura) → NÃO incluir ATCUD nem SAF-T.
+  - Se ENI/trabalhador independente → NÃO incluir Matrícula Conservatória.
+  - Se montante < 16 750 € e obra simples → NÃO incluir Alvará.
 
 Campos a extrair :
 {
@@ -342,10 +362,10 @@ Campos a extrair :
   "artisan_telephone": "telefone (string, '' se não encontrado)",
   "priorite": "urgente|normale|planifiee",
   "mentions_presentes": ["NIPC", "IVA", "Alvará", "ATCUD", ...],
-  "mentions_manquantes": ["Alvará", "ATCUD", "Garantia 5 anos", ...],
+  "mentions_manquantes": ["só menções obrigatórias E aplicáveis ao caso concreto"],
   "numero_document": "número do orçamento/fatura (string, '' se não encontrado)",
   "date_document": "data formato YYYY-MM-DD (string, '' se não encontrado)",
-  "statut_juridique": ""
+  "statut_juridique": "ENI se 'Trabalhador independente'/'Recibos verdes'/NIF 1XX ou 2XX ; Lda/SA/Unipessoal se sociedade com NIPC 5XX"
 }`
 
 // ── Vérification SIRET via API interne ──────────────────────────────────────

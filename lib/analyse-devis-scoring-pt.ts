@@ -114,6 +114,74 @@ const PRIX_MARCHE_PT: Record<string, [number, number]> = {
   'regularizacao pavimento': [8, 25],
 }
 
+// ── Référentiel CAE Rev.4 — Bâtiment résidentiel (DL 9/2025, 12 fev.) ──────
+// En vigueur depuis 01/01/2025. Codes pertinents pour syndic de copropriété.
+const CAE_BATIMENT_REV4: Record<string, { desc: string; cat: string }> = {
+  // Construction de bâtiments
+  '41000': { desc: 'Construção de edifícios residenciais e não residenciais', cat: 'construction' },
+  '43110': { desc: 'Demolição', cat: 'construction' },
+  '43120': { desc: 'Preparação dos locais de construção', cat: 'construction' },
+  '43130': { desc: 'Perfurações e sondagens', cat: 'construction' },
+  '43210': { desc: 'Instalação elétrica', cat: 'construction' },
+  '43221': { desc: 'Instalação de canalizações', cat: 'construction' },
+  '43222': { desc: 'Instalação de climatização', cat: 'construction' },
+  '43230': { desc: 'Instalação de isolamento', cat: 'construction' },
+  '43240': { desc: 'Outras instalações em construções', cat: 'construction' },
+  '43310': { desc: 'Estucagem', cat: 'construction' },
+  '43320': { desc: 'Montagem de trabalhos de carpintaria e de caixilharia', cat: 'construction' },
+  '43330': { desc: 'Revestimento de pavimentos e de paredes', cat: 'construction' },
+  '43340': { desc: 'Pintura e colocação de vidros', cat: 'construction' },
+  '43350': { desc: 'Outras atividades de acabamento em edifícios', cat: 'construction' },
+  '43410': { desc: 'Atividades de colocação de telhados e coberturas', cat: 'construction' },
+  '43420': { desc: 'Outras atividades especializadas de construção', cat: 'construction' },
+  '43910': { desc: 'Atividades de alvenaria e assentamento de tijolos', cat: 'construction' },
+  '43992': { desc: 'Outras atividades especializadas de construção diversas, n.e.', cat: 'construction' },
+  // Services aux bâtiments
+  '81100': { desc: 'Atividades combinadas de apoio aos edifícios', cat: 'services' },
+  '81210': { desc: 'Limpeza geral de edifícios', cat: 'services' },
+  '81220': { desc: 'Outras atividades de limpeza de edifícios e em equipamentos industriais', cat: 'services' },
+  '81231': { desc: 'Atividades de desinfeção, desratização e similares', cat: 'services' },
+  '81232': { desc: 'Outras atividades de limpeza, n.e.', cat: 'services' },
+  '81300': { desc: 'Atividades dos serviços de plantação e manutenção de jardins', cat: 'services' },
+  // Sécurité
+  '80011': { desc: 'Atividades de segurança privada', cat: 'securite' },
+  '80090': { desc: 'Atividades de segurança, n.e.', cat: 'securite' },
+  // Resíduos
+  '38112': { desc: 'Recolha de outros resíduos não perigosos', cat: 'residuos' },
+  // Maintenance équipements
+  '33120': { desc: 'Reparação e manutenção de máquinas', cat: 'maintenance' },
+  '33140': { desc: 'Reparação e manutenção de equipamento elétrico', cat: 'maintenance' },
+  '33190': { desc: 'Reparação e manutenção de outro equipamento', cat: 'maintenance' },
+}
+
+// ── Extraction et classification de codes CAE depuis le texte brut ────────
+export function extractCaeCodes(text: string): string[] {
+  const codes: string[] = []
+  const caeBlocks = text.match(/\bCAE\s*:?\s*[\d\s,;.]+/gi) || []
+  for (const block of caeBlocks) {
+    const digits = block.match(/\b\d{5}\b/g) || []
+    codes.push(...digits)
+  }
+  return [...new Set(codes)]
+}
+
+export function classifyCaeCodes(codes: string[]): {
+  known: Array<{ code: string; desc: string; cat: string }>
+  unknown: string[]
+} {
+  const known: Array<{ code: string; desc: string; cat: string }> = []
+  const unknown: string[] = []
+  for (const c of codes) {
+    const entry = CAE_BATIMENT_REV4[c]
+    if (entry) {
+      known.push({ code: c, ...entry })
+    } else {
+      unknown.push(c)
+    }
+  }
+  return { known, unknown }
+}
+
 function findPriceRangePt(designation: string): [number, number] | null {
   const norm = normalize(designation)
   let best: [number, number] | null = null
@@ -194,7 +262,12 @@ function calculateConformiteScorePt(
   const isFatura = typeDoc.includes('fatura') || typeDoc === 'factura'
   const montantHt = Number(extracted.montant_ht || 0)
   const statutJuridique = String(extracted.statut_juridique || '').toLowerCase()
-  const isRecibosVerdes = /recibos\s*verdes|trabalhador\s+independente|empresario.+nome\s+individual|\bei\b/.test(statutJuridique)
+  const rawLower = rawText.toLowerCase()
+  const nifStr = String(extracted.artisan_siret || '').replace(/\s/g, '')
+  const nifStartsWithPerson = /^[12]/.test(nifStr) && nifStr.length === 9
+  const isEni = /recibos\s*verdes|trabalhador\s+independente|empresario.+nome\s+individual|\beni\b/.test(statutJuridique)
+    || /recibos\s*verdes|trabalhador\s+independente|empresário\s+em\s+nome\s+individual/.test(rawLower)
+    || nifStartsWithPerson
 
   const prestations = (extracted.prestations || []) as Array<{ prix_unitaire_ht?: number; total_ht?: number }>
   const hasPrestations = prestations.length > 0 && prestations.some(p => (p.prix_unitaire_ht || p.total_ht || 0) > 0)
@@ -217,7 +290,14 @@ function calculateConformiteScorePt(
       id: 'cae',
       label: 'CAE (Código de Atividade Económica)',
       poids: 5,
-      status: has(['cae', 'codigo de atividade economica'], mp, mm, rawText),
+      status: (() => {
+        const codes = extractCaeCodes(rawText)
+        if (codes.length > 0) {
+          const { known } = classifyCaeCodes(codes)
+          return known.length > 0 ? 'ok' : 'partial'
+        }
+        return has(['cae', 'codigo de atividade economica'], mp, mm, rawText)
+      })(),
     },
     {
       id: 'iva',
@@ -303,6 +383,16 @@ function calculateConformiteScorePt(
     },
   ]
 
+  // Matrícula na Conservatória — only for sociedades (NIPC 5XX), not ENI
+  if (!isEni) {
+    criteres.push({
+      id: 'matricula_conservatoria',
+      label: 'Matrícula na Conservatória do Registo Comercial',
+      poids: 5,
+      status: has(['matricula', 'conservatoria', 'registo comercial'], mp, mm, rawText),
+    })
+  }
+
   // Alvará — applicable seulement si montant ≥ 16 750 € (Lei 41/2015)
   // When montant qualifies, we override LLM's "não aplicável" judgment in mm
   // so rawText presence of "alvara" correctly yields 'ok' (not 'partial').
@@ -318,12 +408,12 @@ function calculateConformiteScorePt(
     status: alvaraStatus,
   })
 
-  // Seguro RC — adaptatif au statut juridique
+  // Seguro RC — adaptatif au statut juridique (ENI = recommandé, sociedade = exigible)
   const seguroFound = has(['seguro de responsabilidade civil', 'seguro rc', 'apolice'], mp, mm, rawText)
   const seguroStatus: ConformiteCritere['status'] =
     seguroFound === 'ok'
       ? 'ok'
-      : isRecibosVerdes
+      : isEni
         ? 'partial'
         : 'missing'
   criteres.push({
