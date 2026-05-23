@@ -368,6 +368,30 @@ Campos a extrair :
   "statut_juridique": "ENI se 'Trabalhador independente'/'Recibos verdes'/NIF 1XX ou 2XX ; Lda/SA/Unipessoal se sociedade com NIPC 5XX"
 }`
 
+// ── Filtre post-LLM : retire les mentions ❌ marquées non-applicables ───────
+// Le LLM ignore souvent l'instruction du prompt et liste quand même les items
+// avec "(não aplicável...)" / "(não obrigatório para...)". On filtre nous-mêmes.
+// Les recommandations légitimes (ex: "recomendado, mas não obrigatório") restent.
+function filterNonApplicableMentionsPt(analysis: string): string {
+  if (!analysis) return analysis
+  const REMOVE_PATTERNS = [
+    /\(\s*não\s+aplicáve(l|is)/i,
+    /\(\s*não\s+obrigatóri[oa]\s+(para|nesta|neste|a este)/i,
+    /\(\s*N\s*\/?\s*A\s*[)\,]/i,
+    /\(\s*sem\s+aplicação/i,
+    /\(\s*inaplicáve(l|is)/i,
+  ]
+  return analysis
+    .split('\n')
+    .filter(line => {
+      if (!/[❌✗✘]/.test(line)) return true
+      // Recommandations légitimes (ex: "Seguro RC (recomendado, mas não obrigatório por lei)")
+      if (/recomend(ad[oa]|ação|a-se)/i.test(line)) return true
+      return !REMOVE_PATTERNS.some(p => p.test(line))
+    })
+    .join('\n')
+}
+
 // ── Vérification SIRET via API interne ──────────────────────────────────────
 async function verifySiret(siret: string, req: NextRequest): Promise<{ verified: boolean; company?: Record<string, unknown> }> {
   if (!siret || siret.replace(/\s/g, '').length !== 14) return { verified: false }
@@ -536,7 +560,10 @@ export async function POST(req: NextRequest) {
       }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
     ])
 
-    const analysis = analyseData.choices?.[0]?.message?.content || ''
+    let analysis = analyseData.choices?.[0]?.message?.content || ''
+    // PT : post-filter to remove ❌ items the LLM marked "(não aplicável)" despite
+    // the prompt instruction. Recommendations stay (matched on "recomendado").
+    if (isPt) analysis = filterNonApplicableMentionsPt(analysis)
 
     let extracted: Record<string, unknown> = {}
     try {
