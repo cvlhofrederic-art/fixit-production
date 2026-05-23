@@ -274,7 +274,7 @@ export interface DevisExtracted {
   statut_juridique?: string
 }
 
-export type InputMode = 'drop' | 'paste'
+export type InputMode = 'drop' | 'paste' | 'seguro'
 
 export interface PointageSession {
   id: string
