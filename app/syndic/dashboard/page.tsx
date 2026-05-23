@@ -2593,7 +2593,7 @@ export default function SyndicDashboard() {
     { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'agents_ia' },
     { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
     { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', badge: alfredoPendingCount > 0 ? alfredoPendingCount : undefined, category: 'agents_ia' },
-    { id: 'automation_agent' as const, emoji: '🔄', label: locale === 'pt' ? 'Automações' : 'Automatisations', category: 'agents_ia' },
+    { id: 'automation_agent' as const, emoji: '⏱️', label: 'Tempo', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
     // ── COMPTE ──
