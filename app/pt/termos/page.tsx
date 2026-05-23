@@ -197,7 +197,7 @@ export default async function TermosPage() {
             <h2 className="text-xl font-bold text-gray-900 mb-3">{t('cgu.contact.title')}</h2>
             <p>{t('cgu.contact.intro')}</p>
             <ul className="mt-2 space-y-1 text-sm">
-              <li><strong>Vitfix SAS</strong></li>
+              <li><strong>VITFIX — Empresário em Nome Individual · NIF 276 873 297</strong></li>
               <li>{t('cgu.contact.email')} <a href="mailto:contact@vitfix.io" className="text-yellow hover:underline">contact@vitfix.io</a></li>
               <li>{t('cgu.contact.dpo')} <a href="mailto:dpo@vitfix.io" className="text-yellow hover:underline">dpo@vitfix.io</a></li>
             </ul>

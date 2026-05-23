@@ -54,6 +54,7 @@ export default function ContactPage() {
           url: 'https://vitfix.io/pt/',
           telephone: PHONE_PT,
           email: 'contact@vitfix.io',
+          taxID: 'PT276873297',
           address: {
             '@type': 'PostalAddress',
             addressLocality: 'Marco de Canaveses',

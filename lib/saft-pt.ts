@@ -28,7 +28,7 @@ export interface SAFTHeader {
   taxEntity: string           // "Global"
   productCompanyTaxID: string // NIF de la société éditrice du logiciel
   softwareCertificateNumber: string // AT cert number
-  productID: string           // "Vitfix Pro/Vitfix SAS"
+  productID: string           // "Vitfix Pro/VITFIX"
   productVersion: string      // "1.0"
   startDate: string           // YYYY-MM-DD (début de la période)
   endDate: string             // YYYY-MM-DD (fin de la période)
@@ -512,7 +512,7 @@ export function buildSAFTData(
       taxEntity: 'Global',
       productCompanyTaxID: process.env.VITFIX_PT_NIF || '000000000',
       softwareCertificateNumber: AT_CERT_NUMBER,
-      productID: 'Vitfix Pro/Vitfix SAS',
+      productID: 'Vitfix Pro/VITFIX',
       productVersion: '1.0',
       startDate: period.startDate,
       endDate: period.endDate,

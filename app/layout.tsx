@@ -58,9 +58,9 @@ const outfit = Outfit({
 // Économie ~150-300KB sur les pages publiques (perf SEO 2026, LCP mobile).
 
 const sharedMeta = {
-  authors: [{ name: "Vitfix SAS" }] as Metadata['authors'],
-  creator: "Vitfix SAS",
-  publisher: "Vitfix SAS",
+  authors: [{ name: "VITFIX" }] as Metadata['authors'],
+  creator: "VITFIX",
+  publisher: "VITFIX",
   // Google Search Console verification (URL Prefix method).
   // Génère <meta name="google-site-verification" content="..." /> dans le <head>.
   verification: {
@@ -263,7 +263,7 @@ export default async function RootLayout({
                   '@id': 'https://vitfix.io/#business',
                   name: 'VITFIX',
                   alternateName: 'Vitfix',
-                  legalName: 'Vitfix SAS',
+                  legalName: 'VITFIX — Empresário em Nome Individual',
                   url: 'https://vitfix.io',
                   logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
                   image: 'https://vitfix.io/og-image.png',
@@ -300,14 +300,14 @@ export default async function RootLayout({
                     { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
                   ],
                   priceRange: '€€',
+                  taxID: 'PT276873297',
+                  foundingDate: '2024',
                   // aggregateRating intentionnellement OMIS de l'Organization
                   // globale (review #140) :
                   // - Évite incohérence avec ratings per-locale dans
                   //   lib/schemas/index.ts (4.8 FR / 4.9 PT).
                   // - Service pages portent leurs propres ratings localisés.
                   // - Pas de risque Google "Inconsistent ratings warning".
-                  // sameAs, address, taxID, foundingDate intentionnellement omis
-                  // tant que les données réelles ne sont pas fournies par l'utilisateur.
                 },
               ],
             }),

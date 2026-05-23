@@ -4842,7 +4842,7 @@
       "title": "Editor do site",
       "name": "Denominação social",
       "form": "Forma jurídica",
-      "formValue": "Sociedade por Quotas (Lda.)",
+      "formValue": "Empresário em Nome Individual",
       "capital": "Capital social",
       "hq": "Sede social",
       "siren": "NIF/NIPC",
@@ -4850,7 +4850,7 @@
       "vat": "N.º de contribuinte intracomunitário",
       "vatValue": "Em processo de atribuição",
       "director": "Diretor de publicação",
-      "directorValue": "O Presidente da Vitfix SAS"
+      "directorValue": "O responsável da VITFIX"
     },
     "hosting": {
       "title": "Alojamento",
@@ -4862,21 +4862,21 @@
     "ip": {
       "title": "Propriedade intelectual",
       "p1": "Todos os conteúdos presentes no site Vitfix (textos, imagens, logotipos, ícones, vídeos, bases de dados, software) estão protegidos pelas leis portuguesas e internacionais relativas à propriedade intelectual.",
-      "p2": "Qualquer reprodução, representação, modificação, publicação ou adaptação de todo ou parte dos elementos do site, seja qual for o meio ou processo utilizado, é proibida sem autorização escrita prévia da Vitfix SAS.",
+      "p2": "Qualquer reprodução, representação, modificação, publicação ou adaptação de todo ou parte dos elementos do site, seja qual for o meio ou processo utilizado, é proibida sem autorização escrita prévia da VITFIX.",
       "p3": "Qualquer exploração não autorizada do site ou do seu conteúdo será considerada como constituindo contrafação e será processada em conformidade com a legislação aplicável."
     },
     "trademark": {
       "title": "Marcas",
-      "p1": "As marcas «Vitfix», o logotipo Vitfix e todas as marcas figurativas ou não figurativas presentes no site são marcas registadas ou em processo de registo pela Vitfix SAS. Qualquer utilização não autorizada destas marcas constitui contrafação passível de processo judicial."
+      "p1": "As marcas «Vitfix», o logotipo Vitfix e todas as marcas figurativas ou não figurativas presentes no site são marcas registadas ou em processo de registo pela VITFIX. Qualquer utilização não autorizada destas marcas constitui contrafação passível de processo judicial."
     },
     "liability": {
       "title": "Limitação de responsabilidade",
-      "p1": "A Vitfix SAS não poderá ser responsabilizada por danos diretos e indiretos causados ao equipamento do utilizador durante o acesso ao site. A Vitfix SAS declina qualquer responsabilidade quanto ao uso que possa ser feito das informações e conteúdos presentes no site.",
-      "p2": "A Vitfix SAS compromete-se a proteger o site da melhor forma possível, no entanto a sua responsabilidade não poderá ser invocada caso dados indesejados sejam importados e instalados no seu site sem o seu conhecimento."
+      "p1": "A VITFIX não poderá ser responsabilizada por danos diretos e indiretos causados ao equipamento do utilizador durante o acesso ao site. A VITFIX declina qualquer responsabilidade quanto ao uso que possa ser feito das informações e conteúdos presentes no site.",
+      "p2": "A VITFIX compromete-se a proteger o site da melhor forma possível, no entanto a sua responsabilidade não poderá ser invocada caso dados indesejados sejam importados e instalados no seu site sem o seu conhecimento."
     },
     "links": {
       "title": "Hiperligações",
-      "p1": "O site pode conter hiperligações para outros websites. A Vitfix SAS não exerce qualquer controlo sobre esses sites e declina qualquer responsabilidade quanto ao seu conteúdo e ao tratamento de dados pessoais que realizam."
+      "p1": "O site pode conter hiperligações para outros websites. A VITFIX não exerce qualquer controlo sobre esses sites e declina qualquer responsabilidade quanto ao seu conteúdo e ao tratamento de dados pessoais que realizam."
     },
     "data": {
       "title": "Dados pessoais",
@@ -4894,7 +4894,7 @@
     "lastUpdate": "Última atualização: 1 de janeiro de 2026",
     "preamble": {
       "title": "Preâmbulo",
-      "p1": "Os presentes Termos e Condições de Utilização (doravante «TCU») regem o acesso e a utilização da plataforma Vitfix, editada pela Vitfix SAS.",
+      "p1": "Os presentes Termos e Condições de Utilização (doravante «TCU») regem o acesso e a utilização da plataforma Vitfix, editada pela VITFIX.",
       "p2": "Ao aceder à plataforma, o Utilizador reconhece ter tomado conhecimento dos presentes TCU e compromete-se a respeitá-los. Os TCU são estabelecidos em conformidade com os seguintes textos:",
       "law1": "Decreto-Lei n.º 7/2004 de 7 de janeiro — Comércio Eletrónico",
       "law2": "Lei n.º 67/98 de 26 de outubro — Proteção de Dados Pessoais",
@@ -5037,8 +5037,8 @@
     },
     "art11": {
       "title": "Artigo 11 — Propriedade intelectual",
-      "p1": "Todos os elementos da Plataforma (textos, imagens, logotipos, software, bases de dados) são propriedade exclusiva da Vitfix SAS e estão protegidos pelo direito de propriedade intelectual.",
-      "p2": "Qualquer reprodução, mesmo parcial, destes elementos é estritamente proibida sem autorização escrita prévia da Vitfix SAS."
+      "p1": "Todos os elementos da Plataforma (textos, imagens, logotipos, software, bases de dados) são propriedade exclusiva da VITFIX e estão protegidos pelo direito de propriedade intelectual.",
+      "p2": "Qualquer reprodução, mesmo parcial, destes elementos é estritamente proibida sem autorização escrita prévia da VITFIX."
     },
     "art12": {
       "title": "Artigo 12 — Mediação e litígios",
@@ -5053,8 +5053,8 @@
     },
     "art14": {
       "title": "Artigo 14 — Direito aplicável e jurisdição",
-      "p1": "Os presentes TCU são regidos pelo direito francês.",
-      "p2": "Em caso de litígio, e após insucesso de qualquer tentativa de resolução amigável, os tribunais competentes da área da sede social da Vitfix SAS serão exclusivamente competentes."
+      "p1": "Os presentes TCU são regidos pelo direito português.",
+      "p2": "Em caso de litígio, e após insucesso de qualquer tentativa de resolução amigável, os tribunais competentes da área da sede social da VITFIX serão exclusivamente competentes."
     },
     "contact": {
       "title": "Contacto",

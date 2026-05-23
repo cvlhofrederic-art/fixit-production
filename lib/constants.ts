@@ -109,5 +109,8 @@ export const PAGE_SIZE_MAX = 500
 
 // ── Fiscal PT ────────────────────────────────────────────────────────────────
 
+/** NIF de l'entité légale Vitfix au Portugal */
+export const PT_NIF_EMPRESA = '276873297'
+
 /** NIF placeholder pour documents fiscaux sans NIF client */
 export const PT_NIF_CONSUMIDOR_FINAL = '999999990'
