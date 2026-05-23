@@ -21,14 +21,12 @@ export default async function LegalNoticesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">{t('legal.editor.title')}</h2>
             <ul className="space-y-2 text-sm">
-              <li><strong>{t('legal.editor.name')} :</strong> Vitfix SAS</li>
-              <li><strong>{t('legal.editor.form')} :</strong> {t('legal.editor.formValue')}</li>
-              <li><strong>{t('legal.editor.capital')} :</strong> 10 000 &euro;</li>
-              <li><strong>{t('legal.editor.hq')} :</strong> France</li>
-              <li><strong>{t('legal.editor.siren')} :</strong> {t('legal.editor.sirenValue')}</li>
-              <li><strong>{t('legal.editor.vat')} :</strong> {t('legal.editor.vatValue')}</li>
-              <li><strong>{t('legal.editor.director')} :</strong> {t('legal.editor.directorValue')}</li>
-              <li><strong>Email :</strong> <a href="mailto:contact@vitfix.io" className="text-yellow hover:underline">contact@vitfix.io</a></li>
+              <li><strong>Name:</strong> VITFIX</li>
+              <li><strong>Legal form:</strong> Empresário em Nome Individual (sole trader)</li>
+              <li><strong>Tax ID (NIF):</strong> 276 873 297</li>
+              <li><strong>Headquarters:</strong> Portugal</li>
+              <li><strong>Email:</strong> <a href="mailto:contact@vitfix.io" className="text-yellow hover:underline">contact@vitfix.io</a></li>
+              <li><strong>Phone:</strong> <a href="tel:+351912014971" className="text-yellow hover:underline">+351 912 014 971</a></li>
             </ul>
           </section>
 

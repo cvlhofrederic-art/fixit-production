@@ -3,7 +3,7 @@
  * Use these instead of inline schema objects in page files.
  */
 
-import { PHONE_FR, PHONE_PT } from '@/lib/constants'
+import { PHONE_FR, PHONE_PT, PT_NIF_EMPRESA } from '@/lib/constants'
 
 // ── Shared data ──
 
@@ -85,6 +85,10 @@ export function buildBusinessSchema(options: BusinessSchemaOptions) {
     telephone: phone,
     openingHoursSpecification: hours,
     priceRange: '€€',
+  }
+
+  if (!isFr) {
+    schema.taxID = `PT${PT_NIF_EMPRESA}`
   }
 
   if (aggregateRating) {
