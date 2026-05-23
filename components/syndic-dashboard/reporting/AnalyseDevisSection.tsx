@@ -1079,308 +1079,296 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
   )
 }
 
-// ── Seguro — Analyse assurances prestataires ──────────────────────────────
-interface SeguroPrestataire {
-  id: string
-  nom: string
-  nif: string
-  metier: string
-  assureur: string
-  numPolice: string
-  typeSeguro: string
-  couverture: string
-  montantCouvert: string
-  franchise: string
-  debut: string
-  expiration: string
-  statut: 'valide' | 'expire_bientot' | 'expire'
-  documents: string[]
-}
-
-const DEMO_PRESTATAIRES: SeguroPrestataire[] = [
-  {
-    id: 'seg-001',
-    nom: 'Silva Canalizações Lda',
-    nif: '514 237 891',
-    metier: 'Canalização',
-    assureur: 'Fidelidade',
-    numPolice: 'RC-2025-048721',
-    typeSeguro: 'Responsabilidade Civil Profissional',
-    couverture: 'Danos materiais e corporais a terceiros, vícios ocultos',
-    montantCouvert: '500 000 €',
-    franchise: '500 €',
-    debut: '2025-03-01',
-    expiration: '2026-02-28',
-    statut: 'expire_bientot',
-    documents: ['Apólice RC Pro', 'Certificado de seguro'],
-  },
-  {
-    id: 'seg-002',
-    nom: 'ElectroNorte — Instalações Elétricas',
-    nif: '509 876 432',
-    metier: 'Eletricidade',
-    assureur: 'Allianz Portugal',
-    numPolice: 'AL-PT-2024-112847',
-    typeSeguro: 'RC Profissional + Decenal',
-    couverture: 'RC profissional, garantia decenal obras, danos elétricos',
-    montantCouvert: '1 000 000 €',
-    franchise: '750 €',
-    debut: '2024-06-15',
-    expiration: '2027-06-14',
-    statut: 'valide',
-    documents: ['Apólice RC Pro', 'Certificado decenal', 'Comprovativo pagamento'],
-  },
-  {
-    id: 'seg-003',
-    nom: 'Revestimentos Costa & Filhos',
-    nif: '511 345 678',
-    metier: 'Pintura e revestimentos',
-    assureur: 'Tranquilidade',
-    numPolice: 'TQ-RC-2024-093215',
-    typeSeguro: 'Responsabilidade Civil Profissional',
-    couverture: 'Danos materiais em obra, responsabilidade civil exploração',
-    montantCouvert: '250 000 €',
-    franchise: '300 €',
-    debut: '2024-09-01',
-    expiration: '2025-08-31',
-    statut: 'expire',
-    documents: ['Apólice RC Pro'],
-  },
-  {
-    id: 'seg-004',
-    nom: 'Ferreira Elevadores Lda',
-    nif: '507 654 321',
-    metier: 'Manutenção elevadores',
-    assureur: 'Ageas Portugal',
-    numPolice: 'AG-EL-2025-067432',
-    typeSeguro: 'RC Profissional + Acidentes de trabalho',
-    couverture: 'Danos a equipamentos, acidentes corporais, RC exploração',
-    montantCouvert: '2 000 000 €',
-    franchise: '1 000 €',
-    debut: '2025-01-01',
-    expiration: '2026-12-31',
-    statut: 'valide',
-    documents: ['Apólice RC Pro', 'Seguro acidentes trabalho', 'Certificado DGEG'],
-  },
-  {
-    id: 'seg-005',
-    nom: 'Jardins do Porto — Espaços Verdes',
-    nif: '516 789 012',
-    metier: 'Jardinagem e espaços verdes',
-    assureur: 'Generali Portugal',
-    numPolice: 'GEN-2025-034589',
-    typeSeguro: 'Responsabilidade Civil Profissional',
-    couverture: 'Danos a bens de terceiros, responsabilidade civil geral',
-    montantCouvert: '150 000 €',
-    franchise: '250 €',
-    debut: '2025-04-01',
-    expiration: '2026-03-31',
-    statut: 'valide',
-    documents: ['Apólice RC Pro', 'Certificado de seguro'],
-  },
-]
+// ── Seguro — Analyse assurances prestataires (même flux que devis/factures) ──
 
 function SeguroView({ locale, isPt }: { locale: string; isPt: boolean }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'valide' | 'alerte'>('all')
+  const [seguroInput, setSeguroInput] = useState<'drop' | 'paste'>('drop')
+  const [seguroText, setSeguroText] = useState('')
+  const [seguroFilename, setSeguroFilename] = useState('')
+  const [seguroExtracting, setSeguroExtracting] = useState(false)
+  const [seguroPdfReady, setSeguroPdfReady] = useState(false)
+  const [seguroLoading, setSeguroLoading] = useState(false)
+  const [seguroAnalysis, setSeguroAnalysis] = useState<string | null>(null)
+  const [seguroError, setSeguroError] = useState('')
+  const [seguroDragOver, setSeguroDragOver] = useState(false)
+  const seguroFileRef = useRef<HTMLInputElement>(null)
 
-  const filtered = DEMO_PRESTATAIRES.filter(p => {
-    if (filter === 'valide') return p.statut === 'valide'
-    if (filter === 'alerte') return p.statut === 'expire' || p.statut === 'expire_bientot'
-    return true
-  })
+  const handleSeguroFileDrop = async (file: File) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setSeguroError(isPt ? 'Apenas são aceites ficheiros PDF.' : 'Seuls les fichiers PDF sont acceptés.')
+      return
+    }
+    setSeguroError('')
+    setSeguroExtracting(true)
+    setSeguroPdfReady(false)
+    setSeguroText('')
+    setSeguroFilename(file.name)
+    setSeguroAnalysis(null)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/syndic/extract-pdf', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: form,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.isScanned) {
+          setSeguroError(isPt
+            ? 'Este PDF é um documento digitalizado (imagem). Copie e cole o texto manualmente.'
+            : 'Ce PDF est un document scanné. Copiez-collez le texte manuellement.')
+          setSeguroInput('paste')
+        } else {
+          setSeguroError(data.error || (isPt ? 'Erro ao extrair o PDF.' : 'Erreur lors de l\'extraction du PDF.'))
+        }
+        return
+      }
+      setSeguroText(data.text)
+      setSeguroPdfReady(true)
+    } catch {
+      setSeguroError(isPt ? 'Erro de rede durante a extração' : 'Erreur réseau lors de l\'extraction')
+    } finally {
+      setSeguroExtracting(false)
+    }
+  }
 
-  const validCount = DEMO_PRESTATAIRES.filter(p => p.statut === 'valide').length
-  const alertCount = DEMO_PRESTATAIRES.filter(p => p.statut !== 'valide').length
+  const handleSeguroAnalyse = async () => {
+    if (!seguroText.trim() || seguroLoading) return
+    setSeguroLoading(true)
+    setSeguroError('')
+    setSeguroAnalysis(null)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      const res = await fetch('/api/syndic/analyse-devis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ content: seguroText, filename: seguroFilename, locale, type: 'seguro' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSeguroError(data.error || (isPt ? 'Erro durante a análise' : 'Erreur lors de l\'analyse')); return }
+      setSeguroAnalysis(data.analysis)
+    } catch {
+      setSeguroError(isPt ? 'Erro de rede, por favor tente novamente.' : 'Erreur réseau, veuillez réessayer.')
+    } finally {
+      setSeguroLoading(false)
+    }
+  }
 
-  const statutBadge = (s: SeguroPrestataire['statut']) => {
-    const conf = {
-      valide: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', label: isPt ? 'Válido' : 'Valide', icon: '✅' },
-      expire_bientot: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: isPt ? 'Expira em breve' : 'Expire bientôt', icon: '⚠️' },
-      expire: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: isPt ? 'Expirado' : 'Expiré', icon: '❌' },
-    }[s]
+  const handleSeguroReset = () => {
+    setSeguroText('')
+    setSeguroFilename('')
+    setSeguroAnalysis(null)
+    setSeguroError('')
+    setSeguroPdfReady(false)
+    if (seguroFileRef.current) seguroFileRef.current.value = ''
+  }
+
+  // ── Résultat affiché ──
+  if (seguroAnalysis) {
     return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${conf.bg} ${conf.text} border ${conf.border}`}>
-        {conf.icon} {conf.label}
-      </span>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-[#0D1B2E] flex items-center gap-2">
+            🛡️ {isPt ? 'Resultado da análise' : 'Résultat de l\'analyse'}
+            {seguroFilename && <span className="font-normal text-gray-500 text-sm">— {seguroFilename}</span>}
+          </h3>
+          <button onClick={handleSeguroReset} className="text-sm text-[#C9A84C] hover:text-[#B8963D] font-semibold">
+            ← {isPt ? 'Nova análise' : 'Nouvelle analyse'}
+          </button>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(seguroAnalysis) }} />
+        </div>
+        <div className="flex gap-3 flex-wrap">
+          <button
+            onClick={() => {
+              const blob = new Blob([seguroAnalysis], { type: 'text/plain; charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `analyse-seguro-${seguroFilename || 'document'}-${new Date().toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR').replace(/\//g, '-')}.txt`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#F7F4EE] hover:bg-gray-200 text-gray-700 rounded-xl font-medium text-sm transition"
+          >
+            💾 {isPt ? 'Exportar' : 'Exporter'}
+          </button>
+          <button
+            onClick={() => navigator.clipboard.writeText(seguroAnalysis).then(() => toast.success(isPt ? 'Análise copiada !' : 'Analyse copiée !'))}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#F7F4EE] hover:bg-gray-200 text-gray-700 rounded-xl font-medium text-sm transition"
+          >
+            📋 {isPt ? 'Copiar' : 'Copier'}
+          </button>
+          <button onClick={handleSeguroReset} className="flex items-center gap-2 px-5 py-2.5 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-xl font-medium text-sm transition">
+            🛡️ {isPt ? 'Analisar outro seguro' : 'Analyser une autre assurance'}
+          </button>
+        </div>
+      </div>
     )
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-
-  const daysUntil = (d: string) => {
-    const diff = Math.ceil((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    return diff
-  }
-
+  // ── Formulaire d'entrée ──
   return (
     <div className="space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>{DEMO_PRESTATAIRES.length}</div>
-          <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isPt ? 'Prestadores' : 'Prestataires'}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{validCount}</div>
-          <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isPt ? 'Seguros válidos' : 'Assurances valides'}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: alertCount > 0 ? '#ef4444' : '#22c55e' }}>{alertCount}</div>
-          <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isPt ? 'Alertas' : 'Alertes'}</div>
-        </div>
-      </div>
-
-      {/* Filters */}
+      {/* Sub-toggle PDF / Texto */}
       <div className="flex gap-2">
-        {(['all', 'valide', 'alerte'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8,
-              border: '1px solid var(--sd-border, #E4DDD0)',
-              background: filter === f ? 'var(--sd-navy, #0D1B2E)' : '#fff',
-              color: filter === f ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}
-          >
-            {f === 'all' ? (isPt ? 'Todos' : 'Tous') : f === 'valide' ? (isPt ? `Válidos (${validCount})` : `Valides (${validCount})`) : (isPt ? `Alertas (${alertCount})` : `Alertes (${alertCount})`)}
-          </button>
-        ))}
+        <button
+          onClick={() => { setSeguroInput('drop'); setSeguroError('') }}
+          style={{
+            padding: '8px 16px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+            background: seguroInput === 'drop' ? 'var(--sd-gold, #C9A84C)' : '#fff',
+            color: seguroInput === 'drop' ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
+            border: '1px solid var(--sd-border, #E4DDD0)', cursor: 'pointer',
+          }}
+        >
+          📄 PDF
+        </button>
+        <button
+          onClick={() => { setSeguroInput('paste'); setSeguroError('') }}
+          style={{
+            padding: '8px 16px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+            background: seguroInput === 'paste' ? 'var(--sd-gold, #C9A84C)' : '#fff',
+            color: seguroInput === 'paste' ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
+            border: '1px solid var(--sd-border, #E4DDD0)', cursor: 'pointer',
+          }}
+        >
+          ✏️ {isPt ? 'Texto' : 'Texte'}
+        </button>
       </div>
 
-      {/* Table */}
-      <div style={{ borderRadius: 12, border: '1px solid var(--sd-border, #E4DDD0)', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr 1fr 100px',
-          padding: '10px 16px', background: 'var(--sd-cream, #F7F4EE)',
-          fontSize: 11, fontWeight: 600, color: 'var(--sd-ink-3, #8A9BB0)',
-          textTransform: 'uppercase', letterSpacing: 0.5, gap: 8,
-          borderBottom: '1px solid var(--sd-border, #E4DDD0)',
-        }}>
-          <div>{isPt ? 'Prestador' : 'Prestataire'}</div>
-          <div>{isPt ? 'Ofício' : 'Métier'}</div>
-          <div>{isPt ? 'Seguradora' : 'Assureur'}</div>
-          <div>{isPt ? 'Expiração' : 'Expiration'}</div>
-          <div style={{ textAlign: 'center' }}>Status</div>
-        </div>
-
-        {/* Rows */}
-        {filtered.map(p => {
-          const isExpanded = expandedId === p.id
-          const days = daysUntil(p.expiration)
-
-          return (
-            <div key={p.id}>
-              <div
-                onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                style={{
-                  display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr 1fr 100px',
-                  padding: '14px 16px',
-                  borderTop: '1px solid var(--sd-border, #E4DDD0)',
-                  cursor: 'pointer', transition: 'background 0.15s',
-                  background: isExpanded ? 'var(--sd-cream, #F7F4EE)' : '#fff',
-                  alignItems: 'center', gap: 8,
-                }}
-                onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = 'var(--sd-cream, #F7F4EE)' }}
-                onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = '#fff' }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--sd-navy, #0D1B2E)' }}>{p.nom}</div>
-                  <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 2 }}>NIF: {p.nif}</div>
+      {/* Drop zone PDF */}
+      {seguroInput === 'drop' && (
+        <div className="space-y-4">
+          {!seguroPdfReady ? (
+            <div
+              onDragOver={e => { e.preventDefault(); setSeguroDragOver(true) }}
+              onDragLeave={() => setSeguroDragOver(false)}
+              onDrop={e => { e.preventDefault(); setSeguroDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleSeguroFileDrop(f) }}
+              onClick={() => seguroFileRef.current?.click()}
+              style={{
+                borderRadius: 14, padding: 40, textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
+                border: '2px dashed ' + (seguroDragOver ? 'var(--sd-gold, #C9A84C)' : seguroExtracting ? 'var(--sd-gold-light, #D6BC6E)' : 'var(--sd-border, #E4DDD0)'),
+                background: seguroDragOver ? 'var(--sd-gold-dim, rgba(201,168,76,0.08))' : 'var(--sd-cream, #F7F4EE)',
+              }}
+            >
+              <input ref={seguroFileRef} type="file" accept=".pdf,application/pdf" onChange={e => { const f = e.target.files?.[0]; if (f) handleSeguroFileDrop(f); e.target.value = '' }} className="hidden" />
+              {seguroExtracting ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                  <div style={{ width: 44, height: 44, border: '3px solid var(--sd-gold, #C9A84C)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: 'var(--sd-navy, #0D1B2E)' }}>{isPt ? 'A extrair o texto...' : 'Extraction du texte en cours...'}</p>
+                  <p style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)' }}>{seguroFilename}</p>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)' }}>{p.metier}</div>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)' }}>{p.assureur}</div>
-                  <div style={{ fontSize: 10, color: 'var(--sd-ink-3, #8A9BB0)', fontFamily: 'monospace' }}>{p.numPolice}</div>
-                </div>
-                <div style={{ fontSize: 12 }}>
-                  <div style={{ color: p.statut === 'expire' ? '#ef4444' : p.statut === 'expire_bientot' ? '#f59e0b' : 'var(--sd-ink-2, #4A5E78)' }}>
-                    {formatDate(p.expiration)}
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                  <div style={{ fontSize: 48 }}>🛡️</div>
+                  <div>
+                    <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: 'var(--sd-navy, #0D1B2E)' }}>
+                      {isPt ? 'Arraste o certificado de seguro aqui' : 'Glissez le certificat d\'assurance ici'}
+                    </p>
+                    <p style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 6 }}>
+                      {isPt ? 'ou clique para selecionar um ficheiro' : 'ou cliquez pour sélectionner un fichier'}
+                    </p>
                   </div>
-                  {p.statut !== 'expire' && days > 0 && (
-                    <div style={{ fontSize: 10, color: days <= 90 ? '#f59e0b' : 'var(--sd-ink-3, #8A9BB0)' }}>
-                      {days} {isPt ? 'dias restantes' : 'jours restants'}
-                    </div>
-                  )}
-                </div>
-                <div style={{ textAlign: 'center' }}>{statutBadge(p.statut)}</div>
-              </div>
-
-              {/* Expanded details */}
-              {isExpanded && (
-                <div style={{
-                  padding: '14px 16px 18px 16px',
-                  background: 'var(--sd-cream, #F7F4EE)',
-                  borderTop: '1px solid var(--sd-border, #E4DDD0)',
-                }}>
-                  <div className="grid grid-cols-2 gap-x-8 gap-y-3" style={{ fontSize: 12 }}>
-                    <div>
-                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Tipo de seguro' : 'Type d\'assurance'}</span>
-                      <div style={{ color: 'var(--sd-navy, #0D1B2E)', fontWeight: 600, marginTop: 2 }}>{p.typeSeguro}</div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Montante coberto' : 'Montant couvert'}</span>
-                      <div style={{ color: 'var(--sd-navy, #0D1B2E)', fontWeight: 600, marginTop: 2 }}>{p.montantCouvert}</div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Cobertura' : 'Couverture'}</span>
-                      <div style={{ color: 'var(--sd-ink-2, #4A5E78)', marginTop: 2 }}>{p.couverture}</div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Franquia' : 'Franchise'}</span>
-                      <div style={{ color: 'var(--sd-navy, #0D1B2E)', fontWeight: 600, marginTop: 2 }}>{p.franchise}</div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Período de validade' : 'Période de validité'}</span>
-                      <div style={{ color: 'var(--sd-ink-2, #4A5E78)', marginTop: 2 }}>{formatDate(p.debut)} → {formatDate(p.expiration)}</div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Documentos em arquivo' : 'Documents archivés'}</span>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                        {p.documents.map((doc, i) => (
-                          <span key={i} style={{
-                            padding: '3px 10px', fontSize: 11, borderRadius: 6,
-                            background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)',
-                            color: 'var(--sd-ink-2, #4A5E78)',
-                          }}>📎 {doc}</span>
-                        ))}
-                      </div>
-                    </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--sd-navy, #0D1B2E)', color: '#fff', padding: '10px 22px', borderRadius: 10, fontSize: 12, fontWeight: 600 }}>
+                    📂 {isPt ? 'Escolher um PDF' : 'Choisir un PDF'}
                   </div>
-
-                  {p.statut !== 'valide' && (
-                    <div style={{
-                      marginTop: 12, padding: '10px 14px', borderRadius: 10,
-                      background: p.statut === 'expire' ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
-                      border: `1px solid ${p.statut === 'expire' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`,
-                      fontSize: 12, color: p.statut === 'expire' ? '#dc2626' : '#d97706',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      {p.statut === 'expire' ? '🚨' : '⏳'}
-                      <span>
-                        {p.statut === 'expire'
-                          ? (isPt ? `Seguro expirado desde ${formatDate(p.expiration)} — solicitar renovação ao prestador antes de nova intervenção.` : `Assurance expirée depuis le ${formatDate(p.expiration)} — demander le renouvellement au prestataire avant toute intervention.`)
-                          : (isPt ? `Seguro expira em ${days} dias (${formatDate(p.expiration)}) — agendar renovação.` : `Assurance expire dans ${days} jours (${formatDate(p.expiration)}) — planifier le renouvellement.`)
-                        }
-                      </span>
-                    </div>
-                  )}
+                  <p style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 4 }}>
+                    {isPt ? 'Apólice RC Pro, certificado de seguro, atestado de responsabilidade civil' : 'Attestation RC Pro, certificat d\'assurance, police responsabilité civile'}
+                  </p>
                 </div>
               )}
             </div>
-          )
-        })}
-      </div>
+          ) : (
+            <div style={{ background: 'var(--sd-teal-soft, #E6F4F2)', border: '1px solid rgba(26,122,110,0.2)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>✅</span>
+                <div>
+                  <p style={{ fontWeight: 600, color: 'var(--sd-teal, #1A7A6E)', fontSize: 13 }}>{seguroFilename}</p>
+                  <p style={{ fontSize: 11, color: 'var(--sd-teal, #1A7A6E)', opacity: 0.8 }}>
+                    {seguroText.length.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')} {isPt ? 'caracteres extraídos · Pronto para analisar' : 'caractères extraits · Prêt à analyser'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={handleSeguroReset} style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                {isPt ? 'Alterar' : 'Changer'} ✕
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Zone texte manuel */}
+      {seguroInput === 'paste' && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              {isPt ? 'Nome do documento' : 'Nom du document'} <span className="font-normal text-gray-500">{isPt ? '(opcional)' : '(optionnel)'}</span>
+            </label>
+            <input type="text" value={seguroFilename} onChange={e => setSeguroFilename(e.target.value)}
+              placeholder={isPt ? 'ex : Apólice RC Pro — Silva Canalizações' : 'ex : Attestation RC Pro — Fontaine Plomberie'}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              {isPt ? 'Texto do certificado de seguro' : 'Texte du certificat d\'assurance'} <span className="text-red-500">*</span>
+            </label>
+            <textarea value={seguroText} onChange={e => setSeguroText(e.target.value)}
+              placeholder={isPt
+                ? "Cole aqui o conteúdo do certificado de seguro...\n\nEx :\nFidelidade — Companhia de Seguros, S.A.\nAPÓLICE N° RC-2025-048721\nTomador : Silva Canalizações Lda — NIF 514237891\nRamo : Responsabilidade Civil Profissional\nCapital segurado : 500 000,00 €\nFranquia : 500,00 €\nInício : 01/03/2025 — Termo : 28/02/2026\nCobertura : Danos materiais e corporais a terceiros"
+                : "Collez ici le contenu du certificat d'assurance...\n\nEx :\nAllianz France — Assurances\nATTESTATION RC PRO N° AL-2025-112847\nSouscripteur : Fontaine Plomberie SARL — SIRET 12345678901234\nGarantie : Responsabilité Civile Professionnelle\nMontant : 1 000 000 €\nFranchise : 750 €\nEffet : 01/01/2025 — Échéance : 31/12/2025\nActivités couvertes : Plomberie, chauffage, sanitaire"}
+              rows={10}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-mono resize-y" />
+            <p className="text-xs text-gray-500 mt-1">{seguroText.length} {isPt ? 'caracteres' : 'caractères'}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Erreur */}
+      {seguroError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-2">
+          <span className="flex-shrink-0">⚠️</span>
+          <span>{seguroError}</span>
+        </div>
+      )}
+
+      {/* Bouton analyser */}
+      <button onClick={handleSeguroAnalyse} disabled={seguroLoading || seguroExtracting || seguroText.trim().length < 10}
+        style={{
+          width: '100%', padding: '14px 0', borderRadius: 12,
+          background: seguroLoading || seguroExtracting || seguroText.trim().length < 10 ? 'var(--sd-cream-dark, #EDE8DF)' : 'var(--sd-navy, #0D1B2E)',
+          color: seguroLoading || seguroExtracting || seguroText.trim().length < 10 ? 'var(--sd-ink-3, #8A9BB0)' : '#fff',
+          fontSize: 14, fontWeight: 600, letterSpacing: '0.4px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          border: 'none', cursor: seguroLoading || seguroExtracting || seguroText.trim().length < 10 ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s', boxShadow: !(seguroLoading || seguroExtracting || seguroText.trim().length < 10) ? '0 4px 12px rgba(13,27,46,0.15)' : 'none',
+        }}
+      >
+        {seguroLoading ? (
+          <>
+            <div style={{ width: 18, height: 18, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            {isPt ? 'Análise IA em curso...' : 'Analyse IA en cours...'}
+          </>
+        ) : (
+          <>
+            <span style={{ color: 'var(--sd-gold, #C9A84C)' }}>🛡️</span>
+            {isPt ? 'Analisar o seguro' : 'Analyser l\'assurance'}
+          </>
+        )}
+      </button>
 
       {/* Info box */}
       <div className="bg-[#F7F4EE] rounded-xl p-3 border border-gray-100 text-xs text-gray-500 flex gap-2 items-start">
-        <span>🛡️</span>
+        <span>💡</span>
         <span>{isPt
-          ? 'Verifique sempre a validade do seguro RC Profissional antes de atribuir uma missão. O administrador é co-responsável em caso de sinistro com prestador sem seguro válido.'
-          : 'Vérifiez toujours la validité de l\'assurance RC Pro avant d\'assigner une mission. Le syndic est co-responsable en cas de sinistre avec un prestataire non assuré.'}</span>
+          ? 'A IA verificará : validade da apólice, tipo de cobertura (RC Pro, decenal, acidentes), montantes segurados, franquias, exclusões, e conformidade com as exigências de copropiedade.'
+          : 'L\'IA vérifiera : validité de la police, type de couverture (RC Pro, décennale, accidents), montants assurés, franchises, exclusions, et conformité avec les exigences de copropriété.'}</span>
       </div>
     </div>
   )
