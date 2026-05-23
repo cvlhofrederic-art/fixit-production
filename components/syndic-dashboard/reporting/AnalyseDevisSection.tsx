@@ -446,6 +446,18 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                 >
                   ✏️ {isPt ? 'Inserir o texto' : 'Saisir le texte'}
                 </button>
+                <button
+                  onClick={() => { setInputMode('seguro'); setError('') }}
+                  style={{
+                    flex: 1, padding: '16px 0', fontSize: 13, fontWeight: 600, letterSpacing: '0.3px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    background: inputMode === 'seguro' ? 'var(--sd-navy, #0D1B2E)' : 'transparent',
+                    color: inputMode === 'seguro' ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  🛡️ {isPt ? 'Seguro' : 'Assurance'}
+                </button>
               </div>
 
               <div className="p-6 space-y-4">
@@ -565,6 +577,11 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                         : 'Pour extraire le texte d\'un PDF : ouvrir → Ctrl+A → Ctrl+C → coller ici. Pour un PDF scanné (image), utilisez Google Lens ou Adobe Acrobat.'}</span>
                     </div>
                   </div>
+                )}
+
+                {/* Zone Seguro — analyse assurances prestataires */}
+                {inputMode === 'seguro' && (
+                  <SeguroView locale={locale} isPt={isPt} />
                 )}
 
                 {/* Erreur */}
@@ -1058,6 +1075,313 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Seguro — Analyse assurances prestataires ──────────────────────────────
+interface SeguroPrestataire {
+  id: string
+  nom: string
+  nif: string
+  metier: string
+  assureur: string
+  numPolice: string
+  typeSeguro: string
+  couverture: string
+  montantCouvert: string
+  franchise: string
+  debut: string
+  expiration: string
+  statut: 'valide' | 'expire_bientot' | 'expire'
+  documents: string[]
+}
+
+const DEMO_PRESTATAIRES: SeguroPrestataire[] = [
+  {
+    id: 'seg-001',
+    nom: 'Silva Canalizações Lda',
+    nif: '514 237 891',
+    metier: 'Canalização',
+    assureur: 'Fidelidade',
+    numPolice: 'RC-2025-048721',
+    typeSeguro: 'Responsabilidade Civil Profissional',
+    couverture: 'Danos materiais e corporais a terceiros, vícios ocultos',
+    montantCouvert: '500 000 €',
+    franchise: '500 €',
+    debut: '2025-03-01',
+    expiration: '2026-02-28',
+    statut: 'expire_bientot',
+    documents: ['Apólice RC Pro', 'Certificado de seguro'],
+  },
+  {
+    id: 'seg-002',
+    nom: 'ElectroNorte — Instalações Elétricas',
+    nif: '509 876 432',
+    metier: 'Eletricidade',
+    assureur: 'Allianz Portugal',
+    numPolice: 'AL-PT-2024-112847',
+    typeSeguro: 'RC Profissional + Decenal',
+    couverture: 'RC profissional, garantia decenal obras, danos elétricos',
+    montantCouvert: '1 000 000 €',
+    franchise: '750 €',
+    debut: '2024-06-15',
+    expiration: '2027-06-14',
+    statut: 'valide',
+    documents: ['Apólice RC Pro', 'Certificado decenal', 'Comprovativo pagamento'],
+  },
+  {
+    id: 'seg-003',
+    nom: 'Revestimentos Costa & Filhos',
+    nif: '511 345 678',
+    metier: 'Pintura e revestimentos',
+    assureur: 'Tranquilidade',
+    numPolice: 'TQ-RC-2024-093215',
+    typeSeguro: 'Responsabilidade Civil Profissional',
+    couverture: 'Danos materiais em obra, responsabilidade civil exploração',
+    montantCouvert: '250 000 €',
+    franchise: '300 €',
+    debut: '2024-09-01',
+    expiration: '2025-08-31',
+    statut: 'expire',
+    documents: ['Apólice RC Pro'],
+  },
+  {
+    id: 'seg-004',
+    nom: 'Ferreira Elevadores Lda',
+    nif: '507 654 321',
+    metier: 'Manutenção elevadores',
+    assureur: 'Ageas Portugal',
+    numPolice: 'AG-EL-2025-067432',
+    typeSeguro: 'RC Profissional + Acidentes de trabalho',
+    couverture: 'Danos a equipamentos, acidentes corporais, RC exploração',
+    montantCouvert: '2 000 000 €',
+    franchise: '1 000 €',
+    debut: '2025-01-01',
+    expiration: '2026-12-31',
+    statut: 'valide',
+    documents: ['Apólice RC Pro', 'Seguro acidentes trabalho', 'Certificado DGEG'],
+  },
+  {
+    id: 'seg-005',
+    nom: 'Jardins do Porto — Espaços Verdes',
+    nif: '516 789 012',
+    metier: 'Jardinagem e espaços verdes',
+    assureur: 'Generali Portugal',
+    numPolice: 'GEN-2025-034589',
+    typeSeguro: 'Responsabilidade Civil Profissional',
+    couverture: 'Danos a bens de terceiros, responsabilidade civil geral',
+    montantCouvert: '150 000 €',
+    franchise: '250 €',
+    debut: '2025-04-01',
+    expiration: '2026-03-31',
+    statut: 'valide',
+    documents: ['Apólice RC Pro', 'Certificado de seguro'],
+  },
+]
+
+function SeguroView({ locale, isPt }: { locale: string; isPt: boolean }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'all' | 'valide' | 'alerte'>('all')
+
+  const filtered = DEMO_PRESTATAIRES.filter(p => {
+    if (filter === 'valide') return p.statut === 'valide'
+    if (filter === 'alerte') return p.statut === 'expire' || p.statut === 'expire_bientot'
+    return true
+  })
+
+  const validCount = DEMO_PRESTATAIRES.filter(p => p.statut === 'valide').length
+  const alertCount = DEMO_PRESTATAIRES.filter(p => p.statut !== 'valide').length
+
+  const statutBadge = (s: SeguroPrestataire['statut']) => {
+    const conf = {
+      valide: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', label: isPt ? 'Válido' : 'Valide', icon: '✅' },
+      expire_bientot: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: isPt ? 'Expira em breve' : 'Expire bientôt', icon: '⚠️' },
+      expire: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: isPt ? 'Expirado' : 'Expiré', icon: '❌' },
+    }[s]
+    return (
+      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${conf.bg} ${conf.text} border ${conf.border}`}>
+        {conf.icon} {conf.label}
+      </span>
+    )
+  }
+
+  const formatDate = (d: string) => new Date(d).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  const daysUntil = (d: string) => {
+    const diff = Math.ceil((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    return diff
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>{DEMO_PRESTATAIRES.length}</div>
+          <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isPt ? 'Prestadores' : 'Prestataires'}</div>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{validCount}</div>
+          <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isPt ? 'Seguros válidos' : 'Assurances valides'}</div>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: alertCount > 0 ? '#ef4444' : '#22c55e' }}>{alertCount}</div>
+          <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isPt ? 'Alertas' : 'Alertes'}</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2">
+        {(['all', 'valide', 'alerte'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+              border: '1px solid var(--sd-border, #E4DDD0)',
+              background: filter === f ? 'var(--sd-navy, #0D1B2E)' : '#fff',
+              color: filter === f ? '#fff' : 'var(--sd-ink-3, #8A9BB0)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {f === 'all' ? (isPt ? 'Todos' : 'Tous') : f === 'valide' ? (isPt ? `Válidos (${validCount})` : `Valides (${validCount})`) : (isPt ? `Alertas (${alertCount})` : `Alertes (${alertCount})`)}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div style={{ borderRadius: 12, border: '1px solid var(--sd-border, #E4DDD0)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr 1fr 100px',
+          padding: '10px 16px', background: 'var(--sd-cream, #F7F4EE)',
+          fontSize: 11, fontWeight: 600, color: 'var(--sd-ink-3, #8A9BB0)',
+          textTransform: 'uppercase', letterSpacing: 0.5, gap: 8,
+          borderBottom: '1px solid var(--sd-border, #E4DDD0)',
+        }}>
+          <div>{isPt ? 'Prestador' : 'Prestataire'}</div>
+          <div>{isPt ? 'Ofício' : 'Métier'}</div>
+          <div>{isPt ? 'Seguradora' : 'Assureur'}</div>
+          <div>{isPt ? 'Expiração' : 'Expiration'}</div>
+          <div style={{ textAlign: 'center' }}>Status</div>
+        </div>
+
+        {/* Rows */}
+        {filtered.map(p => {
+          const isExpanded = expandedId === p.id
+          const days = daysUntil(p.expiration)
+
+          return (
+            <div key={p.id}>
+              <div
+                onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                style={{
+                  display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr 1fr 100px',
+                  padding: '14px 16px',
+                  borderTop: '1px solid var(--sd-border, #E4DDD0)',
+                  cursor: 'pointer', transition: 'background 0.15s',
+                  background: isExpanded ? 'var(--sd-cream, #F7F4EE)' : '#fff',
+                  alignItems: 'center', gap: 8,
+                }}
+                onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = 'var(--sd-cream, #F7F4EE)' }}
+                onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = '#fff' }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--sd-navy, #0D1B2E)' }}>{p.nom}</div>
+                  <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 2 }}>NIF: {p.nif}</div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)' }}>{p.metier}</div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)' }}>{p.assureur}</div>
+                  <div style={{ fontSize: 10, color: 'var(--sd-ink-3, #8A9BB0)', fontFamily: 'monospace' }}>{p.numPolice}</div>
+                </div>
+                <div style={{ fontSize: 12 }}>
+                  <div style={{ color: p.statut === 'expire' ? '#ef4444' : p.statut === 'expire_bientot' ? '#f59e0b' : 'var(--sd-ink-2, #4A5E78)' }}>
+                    {formatDate(p.expiration)}
+                  </div>
+                  {p.statut !== 'expire' && days > 0 && (
+                    <div style={{ fontSize: 10, color: days <= 90 ? '#f59e0b' : 'var(--sd-ink-3, #8A9BB0)' }}>
+                      {days} {isPt ? 'dias restantes' : 'jours restants'}
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'center' }}>{statutBadge(p.statut)}</div>
+              </div>
+
+              {/* Expanded details */}
+              {isExpanded && (
+                <div style={{
+                  padding: '14px 16px 18px 16px',
+                  background: 'var(--sd-cream, #F7F4EE)',
+                  borderTop: '1px solid var(--sd-border, #E4DDD0)',
+                }}>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-3" style={{ fontSize: 12 }}>
+                    <div>
+                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Tipo de seguro' : 'Type d\'assurance'}</span>
+                      <div style={{ color: 'var(--sd-navy, #0D1B2E)', fontWeight: 600, marginTop: 2 }}>{p.typeSeguro}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Montante coberto' : 'Montant couvert'}</span>
+                      <div style={{ color: 'var(--sd-navy, #0D1B2E)', fontWeight: 600, marginTop: 2 }}>{p.montantCouvert}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Cobertura' : 'Couverture'}</span>
+                      <div style={{ color: 'var(--sd-ink-2, #4A5E78)', marginTop: 2 }}>{p.couverture}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Franquia' : 'Franchise'}</span>
+                      <div style={{ color: 'var(--sd-navy, #0D1B2E)', fontWeight: 600, marginTop: 2 }}>{p.franchise}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Período de validade' : 'Période de validité'}</span>
+                      <div style={{ color: 'var(--sd-ink-2, #4A5E78)', marginTop: 2 }}>{formatDate(p.debut)} → {formatDate(p.expiration)}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--sd-ink-3, #8A9BB0)', fontWeight: 500 }}>{isPt ? 'Documentos em arquivo' : 'Documents archivés'}</span>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                        {p.documents.map((doc, i) => (
+                          <span key={i} style={{
+                            padding: '3px 10px', fontSize: 11, borderRadius: 6,
+                            background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)',
+                            color: 'var(--sd-ink-2, #4A5E78)',
+                          }}>📎 {doc}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {p.statut !== 'valide' && (
+                    <div style={{
+                      marginTop: 12, padding: '10px 14px', borderRadius: 10,
+                      background: p.statut === 'expire' ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
+                      border: `1px solid ${p.statut === 'expire' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`,
+                      fontSize: 12, color: p.statut === 'expire' ? '#dc2626' : '#d97706',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      {p.statut === 'expire' ? '🚨' : '⏳'}
+                      <span>
+                        {p.statut === 'expire'
+                          ? (isPt ? `Seguro expirado desde ${formatDate(p.expiration)} — solicitar renovação ao prestador antes de nova intervenção.` : `Assurance expirée depuis le ${formatDate(p.expiration)} — demander le renouvellement au prestataire avant toute intervention.`)
+                          : (isPt ? `Seguro expira em ${days} dias (${formatDate(p.expiration)}) — agendar renovação.` : `Assurance expire dans ${days} jours (${formatDate(p.expiration)}) — planifier le renouvellement.`)
+                        }
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Info box */}
+      <div className="bg-[#F7F4EE] rounded-xl p-3 border border-gray-100 text-xs text-gray-500 flex gap-2 items-start">
+        <span>🛡️</span>
+        <span>{isPt
+          ? 'Verifique sempre a validade do seguro RC Profissional antes de atribuir uma missão. O administrador é co-responsável em caso de sinistro com prestador sem seguro válido.'
+          : 'Vérifiez toujours la validité de l\'assurance RC Pro avant d\'assigner une mission. Le syndic est co-responsable en cas de sinistre avec un prestataire non assuré.'}</span>
+      </div>
     </div>
   )
 }
