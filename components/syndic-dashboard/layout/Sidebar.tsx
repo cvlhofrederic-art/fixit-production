@@ -91,7 +91,7 @@ export default function Sidebar({
           return (
             <div key={cat.key}>
               {sidebarOpen && (
-                <div style={{ padding: '20px 24px 6px', fontSize: 9, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
+                <div style={{ padding: '20px 24px 6px', fontSize: 9, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--sd-gold)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
                   {cat.label}
                 </div>
               )}
