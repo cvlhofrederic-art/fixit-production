@@ -220,6 +220,24 @@ function titleCaseAddress(addr: string): string {
 function splitAddress(addr: string): { rue: string; ville: string } | null {
   if (!addr) return null
   const norm = titleCaseAddress(addr)
+  // 1) FR : code postal 5 chiffres (75001, 13830...).
+  // 2) PT : code postal 4-3 (XXXX-XXX, ex: 4430-319 Vila Nova de Gaia).
+  //    On essaie PT d'abord parce qu'un préfixe 4 chiffres + tiret + 3 chiffres
+  //    matcherait aussi le regex FR en mode "5 premiers chiffres" sur "4430-".
+  const ptMatch = norm.match(/^(.+?)\s*,?\s*(\d{4}-\d{3})\s+(.+)$/)
+  if (ptMatch) {
+    const villeRaw = ptMatch[3].trim()
+    const parts = villeRaw.split(/\s*,\s*/).map(p => p.trim()).filter(Boolean)
+    // Dé-duplication ville (cf. dédoublonnage FR)
+    const dedup: string[] = []
+    for (const p of parts) {
+      const normalized = p.replace(/\d{4}-\d{3}\s+/, '').toLowerCase().trim()
+      if (dedup.length === 0) { dedup.push(p); continue }
+      if (normalized === parts[0].replace(/\d{4}-\d{3}\s+/, '').toLowerCase()) continue
+      dedup.push(p)
+    }
+    return { rue: ptMatch[1].replace(/,\s*$/, '').trim(), ville: `${ptMatch[2]} ${dedup.join(', ')}` }
+  }
   const match = norm.match(/^(.+?)\s*,?\s*(\d{5})\s+(.+)$/)
   if (match) {
     // Dé-duplication ville : si "Ville1, Ville2" sont identiques après norm,
