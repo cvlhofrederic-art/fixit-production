@@ -61,8 +61,33 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
 
   type Coproprietaire = { id: string; nom: string; email: string; lot: string; tantieme: number; telephone: string; solde: number; dateAdhesion: string; accesActif: boolean }
 
+  // Normalise une entrée copro venant de localStorage : tolère le schéma legacy
+  // (nomProprietaire/emailProprietaire/numeroPorte…) et les champs manquants.
+  const normalizeCopro = (raw: Record<string, unknown>): Coproprietaire => {
+    const r = raw as Record<string, any>
+    const prenom = typeof r.prenomProprietaire === 'string' ? r.prenomProprietaire : ''
+    const nomLegacy = typeof r.nomProprietaire === 'string' ? r.nomProprietaire : ''
+    const fullLegacy = [prenom, nomLegacy].filter(Boolean).join(' ').trim()
+    return {
+      id: String(r.id ?? Date.now()),
+      nom: typeof r.nom === 'string' && r.nom ? r.nom : fullLegacy,
+      email: typeof r.email === 'string' ? r.email : (typeof r.emailProprietaire === 'string' ? r.emailProprietaire : ''),
+      lot: typeof r.lot === 'string' ? r.lot : (typeof r.numeroPorte === 'string' ? r.numeroPorte : ''),
+      tantieme: typeof r.tantieme === 'number' ? r.tantieme : (Number(r.tantieme) || 0),
+      telephone: typeof r.telephone === 'string' ? r.telephone : (typeof r.telephoneProprietaire === 'string' ? r.telephoneProprietaire : ''),
+      solde: typeof r.solde === 'number' ? r.solde : (Number(r.solde) || 0),
+      dateAdhesion: typeof r.dateAdhesion === 'string' ? r.dateAdhesion : '',
+      accesActif: typeof r.accesActif === 'boolean' ? r.accesActif : true,
+    }
+  }
+
   // ── Copros state ──
-  const [copros, setCopros] = useState<Coproprietaire[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]') } catch { return [] } })
+  const [copros, setCopros] = useState<Coproprietaire[]>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]')
+      return Array.isArray(parsed) ? parsed.map(normalizeCopro) : []
+    } catch { return [] }
+  })
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ nom: '', email: '', lot: '', tantieme: '', telephone: '', solde: '' })
   const [showInvite, setShowInvite] = useState<Coproprietaire | null>(null)
