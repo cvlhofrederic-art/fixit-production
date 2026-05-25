@@ -1,5 +1,13 @@
 // lib/syndic/alfredo-chat-tools.ts
-import type { SupabaseClient, User } from '@supabase/supabase-js'
+//
+// Les 4 tools Alfredo prennent `cabinetId: string` (et NON `user`).
+// Raison : un team_member (syndic_comptable, syndic_tech…) doit accéder à
+// l'inbox du cabinet, pas à son user.id propre. Le caller (alfredo-chat
+// route) résout `cabinetId` via `resolveCabinetId(user, supabaseAdmin)` et
+// passe `supabaseAdmin` (service_role) au client — la RLS de
+// `syndic_emails_analysed` est strictement `syndic_id = auth.uid()`, donc
+// le bypass est nécessaire tant que la RLS n'est pas étendue (Phase 5).
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateDraftReply } from '@/lib/syndic/alfredo-draft'
 import { loadClientContext } from '@/lib/syndic/alfredo-load-client-context'
 import type { Locale, SyndicRole } from '@/lib/syndic/agent-types'
@@ -37,14 +45,14 @@ export interface SearchEmailsResult {
 
 export async function searchEmails(
   client: AnyClient,
-  user: User,
+  cabinetId: string,
   args: SearchEmailsArgs,
 ): Promise<SearchEmailsResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = client
     .from('syndic_emails_analysed')
     .select('id, from_email, subject, body_preview, received_at, urgence, type_demande, statut, draft_status', { count: 'exact' })
-    .eq('syndic_id', user.id)
+    .eq('syndic_id', cabinetId)
     .order('received_at', { ascending: false })
     .limit(Math.min(args.limit ?? 20, 50))
 
@@ -98,14 +106,14 @@ export interface RegenerateDraftArgs {
 
 export async function regenerateDraft(
   client: AnyClient,
-  user: User,
+  cabinetId: string,
   args: RegenerateDraftArgs,
 ): Promise<{ ok: boolean; email_id: string; new_subject?: string; new_body?: string; error?: string }> {
   const { data: email, error } = await client
     .from('syndic_emails_analysed')
     .select('id, from_email, subject, body_preview, received_at, urgence, type_demande')
     .eq('id', args.email_id)
-    .eq('syndic_id', user.id)
+    .eq('syndic_id', cabinetId)
     .single()
 
   if (error || !email) return { ok: false, email_id: args.email_id, error: 'email_not_found' }
@@ -121,7 +129,7 @@ export async function regenerateDraft(
   }
 
   const clientCtx = await loadClientContext(client, {
-    syndicId: user.id,
+    syndicId: cabinetId,
     syndicRole: args.syndicRole,
     emailAddress: typedEmail.from_email,
     locale: args.locale,
@@ -163,7 +171,7 @@ export async function regenerateDraft(
       },
     })
     .eq('id', args.email_id)
-    .eq('syndic_id', user.id)
+    .eq('syndic_id', cabinetId)
 
   return {
     ok: true,
@@ -191,10 +199,10 @@ export interface BulkActionResult {
 
 export async function bulkAction(
   client: AnyClient,
-  user: User,
+  cabinetId: string,
   args: BulkActionArgs,
 ): Promise<BulkActionResult> {
-  const search = await searchEmails(client, user, { ...args.filter, limit: 100 })
+  const search = await searchEmails(client, cabinetId, { ...args.filter, limit: 100 })
   const emails = search.emails
   let succeeded = 0
   let failed = 0
@@ -207,24 +215,24 @@ export async function bulkAction(
           .from('syndic_emails_analysed')
           .update({ statut: 'archive' })
           .eq('id', email.id)
-          .eq('syndic_id', user.id)
+          .eq('syndic_id', cabinetId)
       } else if (args.action === 'mark_spam') {
         await client
           .from('syndic_emails_analysed')
           .update({ statut: 'archive', type_demande: 'spam' })
           .eq('id', email.id)
-          .eq('syndic_id', user.id)
+          .eq('syndic_id', cabinetId)
       } else if (args.action === 'flag_priority') {
         await client
           .from('syndic_emails_analysed')
           .update({ urgence: 'haute' })
           .eq('id', email.id)
-          .eq('syndic_id', user.id)
+          .eq('syndic_id', cabinetId)
       } else if (args.action === 'draft_reply') {
         if (!args.syndicRole || !args.locale) {
           throw new Error('syndicRole and locale required for draft_reply bulk action')
         }
-        await regenerateDraft(client, user, {
+        await regenerateDraft(client, cabinetId, {
           email_id: email.id,
           locale: args.locale,
           syndicRole: args.syndicRole,
@@ -259,7 +267,7 @@ export interface InboxSummary {
 
 export async function summarizeInbox(
   client: AnyClient,
-  user: User,
+  cabinetId: string,
   args: SummarizeInboxArgs,
 ): Promise<InboxSummary> {
   const periodMap: Record<string, number> = { today: 1, week: 7, month: 30 }
@@ -269,7 +277,7 @@ export async function summarizeInbox(
   const { data: emails } = await client
     .from('syndic_emails_analysed')
     .select('id, from_email, statut, urgence, type_demande, draft_status')
-    .eq('syndic_id', user.id)
+    .eq('syndic_id', cabinetId)
     .gte('received_at', sinceDate)
 
   const list = (emails ?? []) as Array<{

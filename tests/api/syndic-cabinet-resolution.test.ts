@@ -54,6 +54,17 @@ describe('Multi-user cabinet resolution — Finding 1.2 fix', () => {
     expect(content).not.toMatch(/\.eq\(\s*['"]syndic_id['"]\s*,\s*user\.id\s*\)/)
   })
 
+  it('alfredo-chat-tools accepte cabinetId et non user (Phase 3a)', () => {
+    const content = readFileSync(resolve(process.cwd(), 'lib/syndic/alfredo-chat-tools.ts'), 'utf-8')
+    // Aucun .eq('syndic_id', user.id) — tous remplacés par cabinetId
+    expect(content).not.toMatch(/\.eq\(\s*['"]syndic_id['"]\s*,\s*user\.id\s*\)/)
+    // Les 4 signatures exportées prennent `cabinetId: string` en deuxième paramètre
+    expect(content).toMatch(/export async function searchEmails\s*\(\s*client:[^,]+,\s*cabinetId:\s*string/)
+    expect(content).toMatch(/export async function regenerateDraft\s*\(\s*client:[^,]+,\s*cabinetId:\s*string/)
+    expect(content).toMatch(/export async function bulkAction\s*\(\s*client:[^,]+,\s*cabinetId:\s*string/)
+    expect(content).toMatch(/export async function summarizeInbox\s*\(\s*client:[^,]+,\s*cabinetId:\s*string/)
+  })
+
   // ── Self-verification de la regex (red-green safe sans toucher au code prod) ──
   // Le harness auto-deploy interdit de revert un fix sur disque pour faire un
   // red-green. À la place, on prouve que la regex catche bien le pattern bugué.
