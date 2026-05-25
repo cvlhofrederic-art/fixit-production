@@ -4,7 +4,7 @@
 // dans bucket syndic-pdf-generated, et retourne un signed URL.
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -35,6 +35,11 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) {
+      return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+    }
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`lea-pdf-gen:${ip}`, 30, 60_000))) return rateLimitResponse()
 
@@ -49,7 +54,7 @@ export async function POST(request: NextRequest) {
       .from('syndic_pdf_templates')
       .select('id, name, storage_path, placeholders, locale, type')
       .eq('id', parsed.data.template_id)
-      .eq('cabinet_id', user.id)
+      .eq('cabinet_id', cabinetId)
       .maybeSingle()
     if (tplErr) {
       logger.error('[lea-pdf-generate] template query failed:', tplErr)
@@ -104,7 +109,8 @@ export async function POST(request: NextRequest) {
     const docId = crypto.randomUUID()
     const baseFilename = safeFilename(parsed.data.filename || `${tpl.name}_${new Date().toISOString().slice(0, 10)}`)
     const filename = baseFilename.endsWith('.pdf') ? baseFilename : `${baseFilename}.pdf`
-    const storagePath = `${user.id}/${docId}.pdf`
+    // Storage path scopé cabinet (et non uploader) — toute l'équipe accède aux PDFs générés.
+    const storagePath = `${cabinetId}/${docId}.pdf`
 
     const { error: upErr } = await supabaseAdmin.storage
       .from('syndic-pdf-generated')
@@ -119,13 +125,13 @@ export async function POST(request: NextRequest) {
       .from('syndic_pdf_generated')
       .insert({
         id: docId,
-        cabinet_id: user.id,
+        cabinet_id: cabinetId,
         template_id: tpl.id,
         filename,
         storage_path: storagePath,
         field_values: parsed.data.field_values,
         size_bytes: result.bytes.byteLength,
-        generated_by: user.id,
+        generated_by: user.id, // qui a généré (per-user, intentionnel)
       })
       .select('id, filename, generated_at')
       .single()

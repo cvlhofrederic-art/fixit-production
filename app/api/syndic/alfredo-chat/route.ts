@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
-import { isSyndicRole } from '@/lib/auth-helpers'
+import { supabaseAdmin } from '@/lib/supabase-server'
+import { isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { callGroqWithRetry } from '@/lib/groq'
@@ -100,6 +101,13 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+  // Résolution du cabinet — un team_member voit l'inbox du cabinet, pas la sienne.
+  // Note Phase 3 : le tool dispatch (searchEmails / regenerateDraft / …) utilise
+  // encore le client RLS via `user.id`. Il faudra étendre la RLS de syndic_emails_analysed
+  // pour accepter les team_members OU passer supabaseAdmin aux tools.
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+
   const body = await req.json().catch(() => null)
   const parsed = BodySchema.safeParse(body)
   if (!parsed.success) {
@@ -111,19 +119,21 @@ export async function POST(req: NextRequest) {
 
   const locale = (parsed.data.locale ?? 'fr') as Locale
 
-  const { data: countsData } = await supabase
+  // supabaseAdmin (service_role) car les RLS sur syndic_emails_analysed et
+  // syndic_oauth_tokens sont strictement `syndic_id = auth.uid()` (≠ team_members).
+  const { data: countsData } = await supabaseAdmin
     .from('syndic_emails_analysed')
     .select('draft_status')
-    .eq('syndic_id', user.id)
+    .eq('syndic_id', cabinetId)
     .limit(1000)
 
   const counts = (countsData ?? []) as Array<{ draft_status: string }>
   const pending = counts.filter((c) => c.draft_status === 'pending_review').length
 
-  const { data: gmailToken } = await supabase
+  const { data: gmailToken } = await supabaseAdmin
     .from('syndic_oauth_tokens')
     .select('syndic_id')
-    .eq('syndic_id', user.id)
+    .eq('syndic_id', cabinetId)
     .maybeSingle()
 
   const userRole = (user.user_metadata?.role as SyndicRole) ?? 'syndic'

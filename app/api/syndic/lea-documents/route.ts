@@ -2,7 +2,7 @@
 // P1 Léa Documents — Liste paginée avec filtres (type, status, immeuble, date).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -28,6 +28,11 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) {
+      return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+    }
+
     const ip = getClientIP(request)
     const allowed = await checkRateLimit(`lea-docs-list:${ip}`, 120, 60_000)
     if (!allowed) return rateLimitResponse()
@@ -41,7 +46,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('syndic_documents')
       .select('id, filename, mime_type, size_bytes, type, status, immeuble_id, tags, uploaded_at, processed_at, error_message, extracted_metadata', { count: 'exact' })
-      .eq('cabinet_id', user.id)
+      .eq('cabinet_id', cabinetId)
       .order('uploaded_at', { ascending: false })
       .range(parsed.data.offset, parsed.data.offset + parsed.data.limit - 1)
 

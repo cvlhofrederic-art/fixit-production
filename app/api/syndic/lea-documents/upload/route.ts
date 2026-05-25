@@ -4,7 +4,7 @@
 // Cloudflare Workers compatible (FormData + Blob, pas de fs/path).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -47,6 +47,11 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) {
+      return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+    }
+
     const ip = getClientIP(request)
     const allowed = await checkRateLimit(`lea-docs-upload:${ip}`, 30, 60_000)
     if (!allowed) return rateLimitResponse()
@@ -65,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     // P5 — Quota storage par cabinet (free tier protection)
-    const usage = await getCabinetStorageUsage(supabaseAdmin, user.id)
+    const usage = await getCabinetStorageUsage(supabaseAdmin, cabinetId)
     if (wouldExceedQuota(usage, file.size)) {
       return NextResponse.json({
         error: 'quota_exceeded',
@@ -84,7 +89,9 @@ export async function POST(request: NextRequest) {
 
     const docId = crypto.randomUUID()
     const ext = extensionFor(file.type, file.name)
-    const storagePath = `${user.id}/${docId}.${ext}`
+    // Storage path scopé sur le cabinet (et non sur l'uploader) — un team_member
+    // doit déposer dans le dossier du cabinet pour que toute l'équipe y accède.
+    const storagePath = `${cabinetId}/${docId}.${ext}`
 
     const { error: upErr } = await supabaseAdmin.storage
       .from('syndic-documents')
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
       .from('syndic_documents')
       .insert({
         id: docId,
-        cabinet_id: user.id,
+        cabinet_id: cabinetId,
         immeuble_id: parsed.data.immeuble_id ?? null,
         filename: file.name,
         mime_type: file.type,
@@ -110,7 +117,7 @@ export async function POST(request: NextRequest) {
         storage_path: storagePath,
         type: parsed.data.type,
         status: 'pending',
-        uploaded_by: user.id,
+        uploaded_by: user.id, // qui a uploadé (per-user, intentionnel)
       })
       .select('id, filename, type, status, size_bytes, uploaded_at')
       .single()

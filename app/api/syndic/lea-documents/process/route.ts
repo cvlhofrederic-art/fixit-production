@@ -5,7 +5,7 @@
 //   - Fire-and-forget après upload (cookie auth syndic)
 //   - Cron GitHub Actions (x-cron-key)
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { extractPdfText, extractMetadataFromText, type ExtractedMetadata } from '@/lib/syndic/lea-documents-extract'
@@ -33,7 +33,9 @@ async function authorize(request: NextRequest): Promise<{ ok: true; restrictToCa
   const user = await getAuthUser(request)
   if (!user) return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
   if (!isSyndicRole(user)) return { ok: false, response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
-  return { ok: true, restrictToCabinetId: user.id }
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return { ok: false, response: NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 }) }
+  return { ok: true, restrictToCabinetId: cabinetId }
 }
 
 async function processOne(doc: PendingDoc): Promise<{ id: string; ok: boolean; error?: string }> {

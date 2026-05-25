@@ -1,7 +1,7 @@
 // P4 Léa Documents — DELETE template (et son fichier Storage).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -17,6 +17,9 @@ export async function DELETE(
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`lea-tpl-del:${ip}`, 30, 60_000))) return rateLimitResponse()
 
@@ -28,7 +31,7 @@ export async function DELETE(
       .from('syndic_pdf_templates')
       .select('id, storage_path')
       .eq('id', parsed.data)
-      .eq('cabinet_id', user.id)
+      .eq('cabinet_id', cabinetId)
       .maybeSingle()
     if (q) {
       logger.error('[lea-pdf-templates/delete] query failed:', q)
@@ -47,7 +50,7 @@ export async function DELETE(
       .from('syndic_pdf_templates')
       .delete()
       .eq('id', parsed.data)
-      .eq('cabinet_id', user.id)
+      .eq('cabinet_id', cabinetId)
     if (dErr) {
       logger.error('[lea-pdf-templates/delete] db delete failed:', dErr)
       return NextResponse.json({ error: 'db_delete_failed' }, { status: 500 })
