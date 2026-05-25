@@ -269,12 +269,12 @@ export async function fetchDocumentsFromSupabase(): Promise<Record<string, unkno
   const fetchTable = async (table: 'factures' | 'devis'): Promise<Array<Record<string, unknown>>> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const baseQuery = supabase.from(table) as any
-    let q = baseQuery.select(SELECT_FIELDS_FULL).eq('artisan_user_id', user.id)
-    if (table === 'factures') q = q.is('deleted_at', null)
+    // deleted_at appliqué aux 2 tables : migration 078 l'a ajouté à devis ET factures
+    // (conformité loi anti-fraude TVA — soft-delete uniquement, hard-DELETE bloqué par RLS)
+    const q = baseQuery.select(SELECT_FIELDS_FULL).eq('artisan_user_id', user.id).is('deleted_at', null)
     let result = await q
     if (result.error && /column .*raw_data.* does not exist/i.test(result.error.message || '')) {
-      let q2 = baseQuery.select(SELECT_FIELDS_LEGACY).eq('artisan_user_id', user.id)
-      if (table === 'factures') q2 = q2.is('deleted_at', null)
+      const q2 = baseQuery.select(SELECT_FIELDS_LEGACY).eq('artisan_user_id', user.id).is('deleted_at', null)
       result = await q2
     }
     if (result.error) {
