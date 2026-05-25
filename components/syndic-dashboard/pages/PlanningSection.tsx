@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlanningEvent, Immeuble } from '../types'
 import { getRoleLabel } from '../types'
 import { EVENT_COLORS } from '../config'
@@ -29,11 +29,18 @@ interface PlanningSectionProps {
 
 type Granularity = '60' | '30'
 
+interface EventLayout {
+  event: PlanningEvent
+  col: number
+  totalCols: number
+}
+
 const HOUR_START = 7
 const HOUR_END = 22
 const HOURS_COUNT = HOUR_END - HOUR_START
 const PX_PER_HOUR = 48
 const PREFS_KEY = 'vitfix.syndic.planning.prefs'
+const NOW_TICK_MS = 60_000
 
 function startOfWeekMonday(d: Date): Date {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -56,15 +63,78 @@ function fmtDate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function topPxForHeure(heure: string): number {
+function heureToMinutes(heure: string): number {
   const [hhRaw, mmRaw] = heure.split(':')
-  const hh = Number(hhRaw) || 0
-  const mm = Number(mmRaw) || 0
-  return (hh - HOUR_START + mm / 60) * PX_PER_HOUR
+  return (Number(hhRaw) || 0) * 60 + (Number(mmRaw) || 0)
+}
+
+function minutesToTopPx(min: number): number {
+  return (min - HOUR_START * 60) / 60 * PX_PER_HOUR
+}
+
+function topPxForHeure(heure: string): number {
+  return minutesToTopPx(heureToMinutes(heure))
 }
 
 function heightPxForDuree(dureeMin: number): number {
   return Math.max(22, (dureeMin / 60) * PX_PER_HOUR)
+}
+
+// Column-packing : groupe les événements qui se chevauchent (par fermeture
+// transitive de l'overlap), puis les distribue en colonnes côte-à-côte.
+// Tous les événements d'un même cluster partagent le même `totalCols`.
+function layoutEvents(events: PlanningEvent[]): EventLayout[] {
+  if (events.length === 0) return []
+
+  const sorted = [...events].sort((a, b) => {
+    const sa = heureToMinutes(a.heure)
+    const sb = heureToMinutes(b.heure)
+    if (sa !== sb) return sa - sb
+    return b.dureeMin - a.dureeMin
+  })
+
+  type Cluster = { events: PlanningEvent[]; maxEnd: number }
+  const clusters: Cluster[] = []
+  for (const evt of sorted) {
+    const start = heureToMinutes(evt.heure)
+    const end = start + evt.dureeMin
+    const last = clusters[clusters.length - 1]
+    if (last && start < last.maxEnd) {
+      last.events.push(evt)
+      last.maxEnd = Math.max(last.maxEnd, end)
+    } else {
+      clusters.push({ events: [evt], maxEnd: end })
+    }
+  }
+
+  const result: EventLayout[] = []
+  for (const cluster of clusters) {
+    const cols: PlanningEvent[][] = []
+    for (const evt of cluster.events) {
+      const start = heureToMinutes(evt.heure)
+      let colIdx = -1
+      for (let i = 0; i < cols.length; i++) {
+        const last = cols[i][cols[i].length - 1]
+        const lastEnd = heureToMinutes(last.heure) + last.dureeMin
+        if (start >= lastEnd) {
+          colIdx = i
+          break
+        }
+      }
+      if (colIdx === -1) {
+        colIdx = cols.length
+        cols.push([])
+      }
+      cols[colIdx].push(evt)
+    }
+    const totalCols = cols.length
+    for (let i = 0; i < cols.length; i++) {
+      for (const evt of cols[i]) {
+        result.push({ event: evt, col: i, totalCols })
+      }
+    }
+  }
+  return result
 }
 
 export default function PlanningSection({
@@ -83,8 +153,14 @@ export default function PlanningSection({
   const [planningViewFilter, setPlanningViewFilter] = useState('tous')
   const [showSettings, setShowSettings] = useState(false)
   const [granularity, setGranularity] = useState<Granularity>('60')
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date()
+    return n.getHours() * 60 + n.getMinutes()
+  })
+  const gridScrollRef = useRef<HTMLDivElement | null>(null)
+  const hasAutoScrolled = useRef(false)
 
-  // Préfs utilisateur : chargement au mount
+  // Préfs utilisateur : chargement
   useEffect(() => {
     if (!user?.id) return
     try {
@@ -104,6 +180,16 @@ export default function PlanningSection({
       localStorage.setItem(`${PREFS_KEY}.${user.id}`, JSON.stringify({ granularity }))
     } catch {}
   }, [granularity, user?.id])
+
+  // Indicateur d'heure actuelle : tick chaque minute
+  useEffect(() => {
+    const tick = () => {
+      const n = new Date()
+      setNowMinutes(n.getHours() * 60 + n.getMinutes())
+    }
+    const id = setInterval(tick, NOW_TICK_MS)
+    return () => clearInterval(id)
+  }, [])
 
   const canAssign = userRole === 'syndic_secretaire' || userRole === 'syndic' || userRole === 'syndic_admin'
 
@@ -135,10 +221,22 @@ export default function PlanningSection({
     [planningEvents, planningViewFilter],
   )
 
+  // Layout côte-à-côte des événements de chaque jour
+  const layoutsByDay = useMemo(() => {
+    const map = new Map<string, EventLayout[]>()
+    for (const d of weekDays) {
+      const dateStr = fmtDate(d)
+      const dayEvents = filteredEvents.filter(e => e.date === dateStr)
+      map.set(dateStr, layoutEvents(dayEvents))
+    }
+    return map
+  }, [weekDays, filteredEvents])
+
   const slotsPerHour = granularity === '30' ? 2 : 1
   const slotMinutes = 60 / slotsPerHour
   const slotHeight = PX_PER_HOUR / slotsPerHour
   const totalSlots = HOURS_COUNT * slotsPerHour
+  const bodyHeight = HOURS_COUNT * PX_PER_HOUR
 
   const slotIndexToHeure = (i: number): string => {
     const totalMinutes = HOUR_START * 60 + i * slotMinutes
@@ -146,6 +244,24 @@ export default function PlanningSection({
     const mm = totalMinutes % 60
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
+
+  // Auto-scroll horizontal au montage si la vue semaine est sur la semaine
+  // actuelle : amène la colonne du jour au centre sur petits écrans.
+  useEffect(() => {
+    if (hasAutoScrolled.current) return
+    if (!isCurrentWeek) return
+    const el = gridScrollRef.current
+    if (!el) return
+    // Trouve l'index du jour courant (0 = Lun, 6 = Dim)
+    const todayDay = new Date().getDay()
+    const idx = todayDay === 0 ? 6 : todayDay - 1
+    // Largeur visible / 7 colonnes pour calculer scrollLeft approximatif
+    const totalWidth = el.scrollWidth
+    const dayColWidth = (totalWidth - 56) / 7 // 56 = largeur col heures
+    const target = idx * dayColWidth - el.clientWidth / 2 + dayColWidth / 2 + 56
+    el.scrollTo({ left: Math.max(0, target), behavior: 'auto' })
+    hasAutoScrolled.current = true
+  }, [isCurrentWeek])
 
   const handleDeletePlanningEvent = async (id: string) => {
     if (!confirm(locale === 'pt' ? 'Eliminar este evento do planeamento?' : 'Supprimer cet événement du planning ?')) return
@@ -166,6 +282,9 @@ export default function PlanningSection({
   const dayShort = locale === 'pt'
     ? ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
     : ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+  const nowTopPx = minutesToTopPx(nowMinutes)
+  const nowInRange = nowTopPx >= 0 && nowTopPx <= bodyHeight
 
   return (
     <div className="space-y-4">
@@ -266,106 +385,132 @@ export default function PlanningSection({
           <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-[#F7F4EE] text-[#C9A84C]">🔧 {locale === 'pt' ? 'Missão artesão' : 'Mission artisan'}</span>
         </div>
 
-        {/* Grille vue semaine */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-          {/* Ligne des jours */}
-          <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] bg-gray-50 border-b border-gray-200">
-            <div className="border-r border-gray-200" />
-            {weekDays.map((d, i) => {
-              const isToday = fmtDate(d) === todayStr
-              return (
-                <div
-                  key={i}
-                  className={`text-center py-2 border-r border-gray-200 last:border-r-0 ${isToday ? 'bg-[#F7F4EE]' : ''}`}
-                >
-                  <p className="text-[10px] uppercase tracking-wide font-medium text-gray-500">{dayShort[i]}</p>
-                  <p className={`text-base font-bold leading-tight ${isToday ? 'text-[#C9A84C]' : 'text-gray-900'}`}>
-                    {d.getDate()}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Corps : col heures + 7 col jours */}
-          <div
-            className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] relative"
-            style={{ height: HOURS_COUNT * PX_PER_HOUR }}
-          >
-            {/* Colonne heures */}
-            <div className="border-r border-gray-200 relative bg-gray-50/40">
-              {Array.from({ length: HOURS_COUNT }, (_, i) => HOUR_START + i).map(h => (
-                <div
-                  key={h}
-                  className="absolute right-1.5 text-[10px] text-gray-400 leading-none tabular-nums"
-                  style={{ top: (h - HOUR_START) * PX_PER_HOUR + 3 }}
-                >
-                  {String(h).padStart(2, '0')}:00
-                </div>
-              ))}
+        {/* Wrapper scroll horizontal pour mobile */}
+        <div
+          ref={gridScrollRef}
+          className="border border-gray-200 rounded-xl overflow-x-auto bg-white"
+        >
+          <div className="min-w-[768px]">
+            {/* Ligne des jours */}
+            <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] bg-gray-50 border-b border-gray-200">
+              <div className="border-r border-gray-200" />
+              {weekDays.map((d, i) => {
+                const isToday = fmtDate(d) === todayStr
+                return (
+                  <div
+                    key={i}
+                    className={`text-center py-2 border-r border-gray-200 last:border-r-0 ${isToday ? 'bg-[#F7F4EE]' : ''}`}
+                  >
+                    <p className="text-[10px] uppercase tracking-wide font-medium text-gray-500">{dayShort[i]}</p>
+                    <p className={`text-base font-bold leading-tight ${isToday ? 'text-[#C9A84C]' : 'text-gray-900'}`}>
+                      {d.getDate()}
+                    </p>
+                  </div>
+                )
+              })}
             </div>
 
-            {/* Colonnes jours */}
-            {weekDays.map((d, dayIdx) => {
-              const dateStr = fmtDate(d)
-              const isToday = dateStr === todayStr
-              const dayEvents = filteredEvents.filter(e => e.date === dateStr)
-              return (
-                <div
-                  key={dayIdx}
-                  className={`border-r border-gray-200 last:border-r-0 relative overflow-hidden ${isToday ? 'bg-[#F7F4EE]/30' : ''}`}
-                >
-                  {/* Slots cliquables (cible + grille de fond) */}
-                  {Array.from({ length: totalSlots }, (_, i) => {
-                    const heure = slotIndexToHeure(i)
-                    const isHourLine = i % slotsPerHour === 0
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => onOpenPlanningModal(dateStr, heure)}
-                        style={{ height: slotHeight }}
-                        className={`hover:bg-[#F7F4EE]/60 cursor-pointer transition-colors ${i === 0 ? '' : isHourLine ? 'border-t border-gray-200' : 'border-t border-dashed border-gray-100'}`}
-                      />
-                    )
-                  })}
+            {/* Corps : col heures + 7 col jours */}
+            <div
+              className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] relative"
+              style={{ height: bodyHeight }}
+            >
+              {/* Colonne heures */}
+              <div className="border-r border-gray-200 relative bg-gray-50/40">
+                {Array.from({ length: HOURS_COUNT }, (_, i) => HOUR_START + i).map(h => (
+                  <div
+                    key={h}
+                    className="absolute right-1.5 text-[10px] text-gray-400 leading-none tabular-nums"
+                    style={{ top: (h - HOUR_START) * PX_PER_HOUR + 3 }}
+                  >
+                    {String(h).padStart(2, '0')}:00
+                  </div>
+                ))}
+                {/* Pastille rouge "now" sur la col heures, alignée à droite */}
+                {isCurrentWeek && nowInRange && (
+                  <div
+                    className="absolute right-0 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white"
+                    style={{ top: nowTopPx - 4, transform: 'translateX(50%)' }}
+                    aria-hidden
+                  />
+                )}
+              </div>
 
-                  {/* Événements du jour */}
-                  {dayEvents.map((e, eIdx) => {
-                    const color = EVENT_COLORS[e.type] || EVENT_COLORS.autre
-                    return (
+              {/* Colonnes jours */}
+              {weekDays.map((d, dayIdx) => {
+                const dateStr = fmtDate(d)
+                const isToday = dateStr === todayStr
+                const layouts = layoutsByDay.get(dateStr) || []
+                return (
+                  <div
+                    key={dayIdx}
+                    className={`border-r border-gray-200 last:border-r-0 relative overflow-hidden ${isToday ? 'bg-[#F7F4EE]/30' : ''}`}
+                  >
+                    {/* Slots cliquables (cible + grille) */}
+                    {Array.from({ length: totalSlots }, (_, i) => {
+                      const heure = slotIndexToHeure(i)
+                      const isHourLine = i % slotsPerHour === 0
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => onOpenPlanningModal(dateStr, heure)}
+                          style={{ height: slotHeight }}
+                          className={`hover:bg-[#F7F4EE]/60 cursor-pointer transition-colors ${i === 0 ? '' : isHourLine ? 'border-t border-gray-200' : 'border-t border-dashed border-gray-100'}`}
+                        />
+                      )
+                    })}
+
+                    {/* Ligne rouge "now" sur la colonne du jour courant */}
+                    {isToday && nowInRange && (
                       <div
-                        key={e.id}
-                        className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-[11px] overflow-hidden border ${color.bg} ${color.text} ${color.border} shadow-sm`}
-                        style={{
-                          top: topPxForHeure(e.heure),
-                          height: heightPxForDuree(e.dureeMin),
-                          zIndex: 10 + eIdx,
-                        }}
-                        title={`${e.heure} — ${e.titre}${e.assigneA ? ` (${e.assigneA})` : ''}`}
+                        className="absolute left-0 right-0 pointer-events-none z-30"
+                        style={{ top: nowTopPx - 1 }}
+                        aria-hidden
                       >
-                        <div className="flex items-start justify-between gap-1 h-full">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold truncate leading-tight">{e.titre}</p>
-                            <p className="text-[10px] opacity-80 leading-tight tabular-nums">
-                              {e.heure}{e.assigneA ? ` · ${e.assigneA}` : ''}
-                            </p>
-                          </div>
-                          <button
-                            onClick={ev => { ev.stopPropagation(); handleDeletePlanningEvent(e.id) }}
-                            disabled={deleting === e.id}
-                            className="flex-shrink-0 opacity-60 hover:opacity-100 font-bold text-xs leading-none disabled:cursor-default"
-                            title={t('syndicDash.common.delete')}
-                            aria-label={t('syndicDash.common.delete')}
-                          >
-                            {deleting === e.id ? '…' : '×'}
-                          </button>
-                        </div>
+                        <div className="h-0.5 bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]" />
                       </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
+                    )}
+
+                    {/* Événements du jour (layout côte-à-côte) */}
+                    {layouts.map(({ event: e, col, totalCols }) => {
+                      const color = EVENT_COLORS[e.type] || EVENT_COLORS.autre
+                      return (
+                        <div
+                          key={e.id}
+                          className={`absolute rounded-md px-1.5 py-0.5 text-[11px] overflow-hidden border ${color.bg} ${color.text} ${color.border} shadow-sm hover:shadow-md hover:z-20 transition-shadow cursor-default`}
+                          style={{
+                            top: topPxForHeure(e.heure),
+                            height: heightPxForDuree(e.dureeMin),
+                            left: `calc(2px + ${(col / totalCols) * 100}%)`,
+                            width: `calc(${100 / totalCols}% - 4px)`,
+                            zIndex: 10,
+                          }}
+                          title={`${e.heure} — ${e.titre}${e.assigneA ? ` (${e.assigneA})` : ''}`}
+                        >
+                          <div className="flex items-start justify-between gap-1 h-full">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold truncate leading-tight">{e.titre}</p>
+                              <p className="text-[10px] opacity-80 leading-tight tabular-nums">
+                                {e.heure}{e.assigneA ? ` · ${e.assigneA}` : ''}
+                              </p>
+                            </div>
+                            <button
+                              onClick={ev => { ev.stopPropagation(); handleDeletePlanningEvent(e.id) }}
+                              disabled={deleting === e.id}
+                              className="flex-shrink-0 opacity-60 hover:opacity-100 font-bold text-xs leading-none disabled:cursor-default"
+                              title={t('syndicDash.common.delete')}
+                              aria-label={t('syndicDash.common.delete')}
+                            >
+                              {deleting === e.id ? '…' : '×'}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
