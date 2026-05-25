@@ -53,4 +53,33 @@ describe('Multi-user cabinet resolution — Finding 1.2 fix', () => {
     // Pattern précis du bug : .eq('syndic_id', user.id) sur les tables OAuth/emails.
     expect(content).not.toMatch(/\.eq\(\s*['"]syndic_id['"]\s*,\s*user\.id\s*\)/)
   })
+
+  // ── Self-verification de la regex (red-green safe sans toucher au code prod) ──
+  // Le harness auto-deploy interdit de revert un fix sur disque pour faire un
+  // red-green. À la place, on prouve que la regex catche bien le pattern bugué.
+  describe('regex sanity — la garde anti-régression détecte vraiment le bug', () => {
+    const cabinetIdBugRegex = /\.eq\(\s*['"]cabinet_id['"]\s*,\s*user\.id\s*\)/
+    const syndicIdBugRegex = /\.eq\(\s*['"]syndic_id['"]\s*,\s*user\.id\s*\)/
+
+    it('matche le pattern bugué cabinet_id', () => {
+      expect(`.eq('cabinet_id', user.id)`).toMatch(cabinetIdBugRegex)
+      expect(`.eq("cabinet_id", user.id)`).toMatch(cabinetIdBugRegex)
+      expect(`.eq( 'cabinet_id' , user.id )`).toMatch(cabinetIdBugRegex)
+    })
+
+    it('matche le pattern bugué syndic_id', () => {
+      expect(`.eq('syndic_id', user.id)`).toMatch(syndicIdBugRegex)
+    })
+
+    it("ne matche PAS le pattern corrigé .eq('cabinet_id', cabinetId)", () => {
+      expect(`.eq('cabinet_id', cabinetId)`).not.toMatch(cabinetIdBugRegex)
+      expect(`.eq('cabinet_id', cabinet_id)`).not.toMatch(cabinetIdBugRegex)
+    })
+
+    it("ne matche PAS les usages légitimes (uploaded_by/created_by: user.id)", () => {
+      expect(`uploaded_by: user.id`).not.toMatch(cabinetIdBugRegex)
+      expect(`created_by: user.id`).not.toMatch(cabinetIdBugRegex)
+      expect(`user_id: user.id`).not.toMatch(cabinetIdBugRegex)
+    })
+  })
 })
