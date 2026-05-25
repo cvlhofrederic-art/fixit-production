@@ -68,20 +68,19 @@ async function executeChatTool(
   args: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  user: any,
+  cabinetId: string,
   syndicRole: SyndicRole,
   locale: Locale,
 ): Promise<unknown> {
   switch (toolName) {
     case 'search_emails':
-      return searchEmails(client, user, args)
+      return searchEmails(client, cabinetId, args)
     case 'regenerate_draft':
-      return regenerateDraft(client, user, { ...args, syndicRole, locale })
+      return regenerateDraft(client, cabinetId, { ...args, syndicRole, locale })
     case 'bulk_action':
-      return bulkAction(client, user, { ...args, syndicRole, locale })
+      return bulkAction(client, cabinetId, { ...args, syndicRole, locale })
     case 'summarize_inbox':
-      return summarizeInbox(client, user, args)
+      return summarizeInbox(client, cabinetId, args)
     default:
       return { error: `unknown_tool: ${toolName}` }
   }
@@ -102,9 +101,10 @@ export async function POST(req: NextRequest) {
   if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   // Résolution du cabinet — un team_member voit l'inbox du cabinet, pas la sienne.
-  // Note Phase 3 : le tool dispatch (searchEmails / regenerateDraft / …) utilise
-  // encore le client RLS via `user.id`. Il faudra étendre la RLS de syndic_emails_analysed
-  // pour accepter les team_members OU passer supabaseAdmin aux tools.
+  // Phase 3a : le tool dispatch reçoit maintenant `cabinetId` + `supabaseAdmin`
+  // (la RLS de syndic_emails_analysed est strictement `syndic_id = auth.uid()`
+  // donc un team_member ne pourrait pas accéder via le client RLS — bypass
+  // via service_role est nécessaire jusqu'à extension RLS Phase 5).
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   if (!cabinetId) return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
 
@@ -183,8 +183,8 @@ export async function POST(req: NextRequest) {
         toolResult = await executeChatTool(
           toolCall.name,
           toolCall.args,
-          supabase,
-          user,
+          supabaseAdmin, // service_role bypass RLS — voir commentaire Phase 3a
+          cabinetId,
           userRole,
           locale,
         )
