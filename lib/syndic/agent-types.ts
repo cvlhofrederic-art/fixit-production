@@ -3,13 +3,14 @@
 export type AgentId = 'fixy' | 'max' | 'lea' | 'alfredo' | 'tempo'
 
 export type SyndicRole =
-  | 'syndic'
-  | 'syndic_admin'
-  | 'syndic_tech'
-  | 'syndic_secretaire'
-  | 'syndic_gestionnaire'
-  | 'syndic_comptable'
-  | 'syndic_juriste'
+  | 'syndic'             // master account (= cabinet owner, legacy alias de syndic_admin)
+  | 'syndic_admin'       // administrateur cabinet — toutes permissions
+  | 'syndic_tech'        // gestionnaire technique — interventions, missions, planning, AG en lecture
+  | 'syndic_technicien'  // technicien terrain — sous-ensemble strict de syndic_tech, sans planning/copros
+  | 'syndic_secretaire'  // accueil — copros, planning, AG, gestion inbox
+  | 'syndic_gestionnaire' // gestion courante — quasi tout sauf recouvrement
+  | 'syndic_comptable'   // comptabilité & facturation uniquement
+  | 'syndic_juriste'     // juridique — AG, recouvrement, sinistres, documents
 
 export type Locale = 'fr' | 'pt'
 

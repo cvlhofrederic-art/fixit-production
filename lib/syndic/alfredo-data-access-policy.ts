@@ -48,6 +48,16 @@ const POLICY: Policy = {
     'syndic_alertes', 'syndic_immeubles', 'syndic_carnet_entretien',
     'syndic_pppt',
   ],
+  // Technicien terrain : sous-ensemble strict de syndic_tech. Pas de planning
+  // (gestion par le tech), pas d'emails/messages (lecture des chats du cabinet
+  // non pertinente), pas de copros (le secrétariat gère le contact résident).
+  syndic_technicien: [
+    'syndic_artisans', 'syndic_locataires',
+    'syndic_missions',
+    'syndic_sinistres', 'syndic_signalements', 'syndic_ocorrencias',
+    'syndic_alertes', 'syndic_immeubles', 'syndic_carnet_entretien',
+    'syndic_pppt',
+  ],
   syndic_juriste: [
     'coproprios', 'syndic_artisans', 'syndic_locataires',
     'syndic_emails_analysed', 'syndic_messages', 'syndic_documents',

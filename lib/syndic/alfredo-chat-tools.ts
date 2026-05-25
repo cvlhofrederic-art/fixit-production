@@ -10,6 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateDraftReply } from '@/lib/syndic/alfredo-draft'
 import { loadClientContext } from '@/lib/syndic/alfredo-load-client-context'
+import { canInvokeAlfredoTool, type AlfredoToolAction } from '@/lib/syndic/alfredo-tools-policy'
 import type { Locale, SyndicRole } from '@/lib/syndic/agent-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -202,6 +203,19 @@ export async function bulkAction(
   cabinetId: string,
   args: BulkActionArgs,
 ): Promise<BulkActionResult> {
+  // Phase 3b — RBAC sous-rôle : archive/mark_spam/flag_priority sont restreints
+  // à admin/secretaire/gestionnaire. draft_reply reste accessible à tous (création).
+  const actionKey = `bulk_${args.action}` as AlfredoToolAction
+  const role: SyndicRole = args.syndicRole ?? 'syndic'
+  if (!canInvokeAlfredoTool(role, actionKey)) {
+    return {
+      matched: 0,
+      succeeded: 0,
+      failed: 0,
+      errors: [`rbac_denied: role ${role} cannot invoke ${actionKey}`],
+    }
+  }
+
   const search = await searchEmails(client, cabinetId, { ...args.filter, limit: 100 })
   const emails = search.emails
   let succeeded = 0
