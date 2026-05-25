@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
 import { logger } from '@/lib/logger'
@@ -90,6 +90,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Résolution du cabinet — un team_member (syndic_comptable, syndic_tech…)
+    // doit voir les données du cabinet, pas son user.id propre.
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) {
+      return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { message, syndic_context: clientContext = {}, conversation_history = [], locale, stream } = body
 
@@ -124,7 +131,7 @@ export async function POST(request: NextRequest) {
     // normalement avec son contexte comptable structuré.
     let ragBlock = ''
     try {
-      const hits = await searchDocuments(supabaseAdmin, user.id, message, {
+      const hits = await searchDocuments(supabaseAdmin, cabinetId, message, {
         locale: isPt ? 'pt' : 'fr',
         matchCount: 5,
       })
@@ -142,7 +149,7 @@ export async function POST(request: NextRequest) {
       const { data: templates } = await supabaseAdmin
         .from('syndic_pdf_templates')
         .select('id, name, type, locale, placeholders')
-        .eq('cabinet_id', user.id)
+        .eq('cabinet_id', cabinetId)
         .eq('is_active', true)
         .limit(20)
       if (templates && templates.length > 0) {

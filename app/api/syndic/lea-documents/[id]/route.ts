@@ -2,7 +2,7 @@
 // P1 Léa Documents — GET (détails + signed URL 10 min) et DELETE (Storage + row).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -15,7 +15,9 @@ async function requireSyndicUser(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return { error: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
   if (!isSyndicRole(user)) return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
-  return { user }
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return { error: NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 }) }
+  return { user, cabinetId }
 }
 
 export async function GET(
@@ -23,7 +25,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { user, error: authError } = await requireSyndicUser(request)
+    const { cabinetId, error: authError } = await requireSyndicUser(request)
     if (authError) return authError
 
     const ip = getClientIP(request)
@@ -38,7 +40,7 @@ export async function GET(
       .from('syndic_documents')
       .select('*')
       .eq('id', parsed.data)
-      .eq('cabinet_id', user!.id)
+      .eq('cabinet_id', cabinetId!)
       .maybeSingle()
 
     if (queryError) {
@@ -72,7 +74,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { user, error: authError } = await requireSyndicUser(request)
+    const { cabinetId, error: authError } = await requireSyndicUser(request)
     if (authError) return authError
 
     const ip = getClientIP(request)
@@ -87,7 +89,7 @@ export async function DELETE(
       .from('syndic_documents')
       .select('id, storage_path')
       .eq('id', parsed.data)
-      .eq('cabinet_id', user!.id)
+      .eq('cabinet_id', cabinetId!)
       .maybeSingle()
 
     if (queryError) {
@@ -108,7 +110,7 @@ export async function DELETE(
       .from('syndic_documents')
       .delete()
       .eq('id', parsed.data)
-      .eq('cabinet_id', user!.id)
+      .eq('cabinet_id', cabinetId!)
 
     if (deleteError) {
       logger.error('[lea-documents/delete] db delete failed:', deleteError)

@@ -1,7 +1,7 @@
 // P4 Léa Documents — Liste + création de templates PDF (upload PDF source).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -33,13 +33,16 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`lea-tpl-list:${ip}`, 120, 60_000))) return rateLimitResponse()
 
     const { data, error } = await supabaseAdmin
       .from('syndic_pdf_templates')
       .select('id, name, type, description, locale, placeholders, is_active, created_at, updated_at')
-      .eq('cabinet_id', user.id)
+      .eq('cabinet_id', cabinetId)
       .order('updated_at', { ascending: false })
 
     if (error) {
@@ -58,6 +61,9 @@ export async function POST(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     if (!isSyndicRole(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
 
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`lea-tpl-create:${ip}`, 20, 60_000))) return rateLimitResponse()
@@ -86,7 +92,8 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: 'invalid_metadata', details: parsed.error.flatten() }, { status: 400 })
 
     const tplId = crypto.randomUUID()
-    const storagePath = `${user.id}/${tplId}.pdf`
+    // Storage path scopé cabinet (et non uploader) — toute l'équipe accède aux templates.
+    const storagePath = `${cabinetId}/${tplId}.pdf`
 
     const { error: upErr } = await supabaseAdmin.storage
       .from('syndic-pdf-templates')
@@ -100,14 +107,14 @@ export async function POST(request: NextRequest) {
       .from('syndic_pdf_templates')
       .insert({
         id: tplId,
-        cabinet_id: user.id,
+        cabinet_id: cabinetId,
         name: parsed.data.name,
         type: parsed.data.type,
         description: parsed.data.description ?? null,
         locale: parsed.data.locale,
         placeholders: parsed.data.placeholders ?? {},
         storage_path: storagePath,
-        created_by: user.id,
+        created_by: user.id, // qui a créé (per-user, intentionnel)
       })
       .select('id, name, type, locale, placeholders, created_at')
       .single()
