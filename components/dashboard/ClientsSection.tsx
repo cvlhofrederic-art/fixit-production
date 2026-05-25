@@ -105,10 +105,11 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const manualStorageKey = `fixit_manual_clients_${artisan?.id}`
 
   const [authClients, setAuthClients] = useState<ClientRecord[]>([])
-  const [manualClients, setManualClients] = useState<ClientRecord[]>(() => {
-    if (typeof window === 'undefined') return []
-    try { return JSON.parse(localStorage.getItem(`fixit_manual_clients_${artisan?.id}`) || '[]') } catch { return [] }
-  })
+  // Manual clients : lus en useEffect dès que artisan?.id devient disponible
+  // (pas en lazy useState car artisan peut être null au premier render → la clé
+  // deviendrait `fixit_manual_clients_undefined` et la liste resterait vide
+  // jusqu'à un refresh manuel — cf. incident Sud travaux 2026-05-25)
+  const [manualClients, setManualClients] = useState<ClientRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'tous' | 'particuliers' | 'entreprises'>('tous')
@@ -117,6 +118,17 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [clientForm, setClientForm] = useState({ ...EMPTY_CLIENT_FORM })
   const [saving, setSaving] = useState(false)
+
+  // Re-read manual clients chaque fois que artisan?.id change (et au mount si dispo)
+  useEffect(() => {
+    if (!artisan?.id || typeof window === 'undefined') return
+    try {
+      const stored = JSON.parse(localStorage.getItem(`fixit_manual_clients_${artisan.id}`) || '[]')
+      setManualClients(Array.isArray(stored) ? stored : [])
+    } catch {
+      // Private browsing / corrupted JSON : on garde le state actuel plutôt que de l'écraser
+    }
+  }, [artisan?.id])
 
   // Fetch auth clients from API
   useEffect(() => {
@@ -132,10 +144,17 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
           return r.json()
         })
         .then(data => {
-          setAuthClients(data.clients || [])
+          // Ne remplace le state QUE si on a reçu une vraie liste (même vide est OK,
+          // c'est une réponse 200 — l'absence de clé `clients` est anormale)
+          if (Array.isArray(data?.clients)) setAuthClients(data.clients)
           setLoading(false)
         })
-        .catch((e) => { console.error('Clients fetch failed:', e); setAuthClients([]); setLoading(false) })
+        .catch((e) => {
+          // Erreur transitoire (401, timeout, network) : on PRÉSERVE le state existant
+          // plutôt que de réafficher une liste vide. L'utilisateur garde sa vue.
+          console.error('Clients fetch failed (state preserved):', e)
+          setLoading(false)
+        })
     }).catch(() => setLoading(false))
   }, [artisan?.id])
 
