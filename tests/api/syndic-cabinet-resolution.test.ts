@@ -88,6 +88,15 @@ describe('Multi-user cabinet resolution — Finding 1.2 fix', () => {
     expect(content).toMatch(/rbac_denied/)
   })
 
+  it('alfredo-chat-tools importe et utilise logAiAudit (Phase 4 RGPD)', () => {
+    const content = readFileSync(resolve(process.cwd(), 'lib/syndic/alfredo-chat-tools.ts'), 'utf-8')
+    expect(content).toContain("from '@/lib/syndic/ai-audit'")
+    expect(content).toContain('logAiAudit')
+    // Au moins 3 appels (denied_rbac dans bulkAction, success/error dans bulkAction, success/error dans regenerateDraft)
+    const occurrences = (content.match(/await\s+logAiAudit\(/g) ?? []).length
+    expect(occurrences).toBeGreaterThanOrEqual(3)
+  })
+
   // ── Self-verification de la regex (red-green safe sans toucher au code prod) ──
   // Le harness auto-deploy interdit de revert un fix sur disque pour faire un
   // red-green. À la place, on prouve que la regex catche bien le pattern bugué.

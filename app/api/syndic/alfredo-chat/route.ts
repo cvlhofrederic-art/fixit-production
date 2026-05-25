@@ -71,14 +71,16 @@ async function executeChatTool(
   cabinetId: string,
   syndicRole: SyndicRole,
   locale: Locale,
+  userId: string,
+  conversationId?: string,
 ): Promise<unknown> {
   switch (toolName) {
     case 'search_emails':
       return searchEmails(client, cabinetId, args)
     case 'regenerate_draft':
-      return regenerateDraft(client, cabinetId, { ...args, syndicRole, locale })
+      return regenerateDraft(client, cabinetId, { ...args, syndicRole, locale, userId, conversationId })
     case 'bulk_action':
-      return bulkAction(client, cabinetId, { ...args, syndicRole, locale })
+      return bulkAction(client, cabinetId, { ...args, syndicRole, locale, userId, conversationId })
     case 'summarize_inbox':
       return summarizeInbox(client, cabinetId, args)
     default:
@@ -187,6 +189,8 @@ export async function POST(req: NextRequest) {
           cabinetId,
           userRole,
           locale,
+          user.id, // Phase 4 — audit RGPD : qui (team_member) a déclenché
+          parsed.data.conversation_id,
         )
       } catch (toolErr) {
         logger.error('alfredo-chat tool execution error', {
