@@ -2,22 +2,30 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { searchEmails, summarizeInbox, bulkAction } from '@/lib/syndic/alfredo-chat-tools'
 
 // Phase 3a — preuve que les 4 tools utilisent bien `cabinetId` et non `user.id`.
-// Mock minimal du client Supabase : enregistre tous les .eq(col, val) appelés.
+// Phase 4 — preuve que bulkAction logge dans syndic_ai_audit (RBAC refus + résultats).
+// Mock minimal du client Supabase : enregistre les .eq() et les .insert().
 
 interface RecordedCall {
   table: string
   filters: Array<{ column: string; value: unknown }>
 }
 
+interface RecordedInsert {
+  table: string
+  payload: unknown
+}
+
 function createMockClient() {
   const calls: RecordedCall[] = []
+  const inserts: RecordedInsert[] = []
   let currentCall: RecordedCall | null = null
+  let currentTable: string = ''
 
   function makeChain(returnValue: unknown) {
     const chain = {
       select: vi.fn(() => chain),
       eq: vi.fn((column: string, value: unknown) => {
-        currentCall!.filters.push({ column, value })
+        if (currentCall) currentCall.filters.push({ column, value })
         return chain
       }),
       gte: vi.fn(() => chain),
@@ -26,6 +34,11 @@ function createMockClient() {
       order: vi.fn(() => chain),
       limit: vi.fn(() => chain),
       single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+      insert: vi.fn((payload: unknown) => {
+        inserts.push({ table: currentTable, payload })
+        return Promise.resolve({ data: null, error: null })
+      }),
+      update: vi.fn(() => chain),
       // Awaitable — résout avec un payload minimal compatible
       then: (resolve: (v: { data: unknown; count: number }) => void) => {
         resolve({ data: returnValue, count: 0 })
@@ -36,7 +49,9 @@ function createMockClient() {
 
   return {
     calls,
+    inserts,
     from: vi.fn((table: string) => {
+      currentTable = table
       currentCall = { table, filters: [] }
       calls.push(currentCall)
       return makeChain([])
@@ -102,8 +117,10 @@ describe('bulkAction — RBAC sous-rôle (Phase 3b)', () => {
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toMatch(/rbac_denied/)
     expect(result.errors[0]).toMatch(/syndic_comptable/)
-    // Pas d'appel Supabase quand RBAC refuse (court-circuit)
-    expect(mockClient.from).not.toHaveBeenCalled()
+    // Pas d'appel à syndic_emails_analysed quand RBAC refuse (court-circuit).
+    // Phase 4 : un appel à syndic_ai_audit est attendu (log RGPD du refus).
+    expect(mockClient.from).not.toHaveBeenCalledWith('syndic_emails_analysed')
+    expect(mockClient.from).toHaveBeenCalledWith('syndic_ai_audit')
   })
 
   it("refuse bulk_mark_spam pour un syndic_tech (rbac_denied)", async () => {
@@ -116,7 +133,9 @@ describe('bulkAction — RBAC sous-rôle (Phase 3b)', () => {
       locale: 'fr',
     })
     expect(result.errors[0]).toMatch(/rbac_denied/)
-    expect(mockClient.from).not.toHaveBeenCalled()
+    // Phase 4 : audit RGPD écrit même en cas de refus.
+    expect(mockClient.from).not.toHaveBeenCalledWith('syndic_emails_analysed')
+    expect(mockClient.from).toHaveBeenCalledWith('syndic_ai_audit')
   })
 
   it("autorise bulk_archive pour un syndic_secretaire (passe le RBAC)", async () => {
@@ -145,5 +164,58 @@ describe('bulkAction — RBAC sous-rôle (Phase 3b)', () => {
     })
     expect(result.errors.filter((e) => e.startsWith('rbac_denied'))).toHaveLength(0)
     expect(mockClient.from).toHaveBeenCalledWith('syndic_emails_analysed')
+  })
+})
+
+// Phase 4 — audit RGPD : bulkAction écrit dans syndic_ai_audit pour traçabilité.
+describe('bulkAction — audit RGPD (Phase 4)', () => {
+  const CABINET_ID = 'cabinet-uuid-AAAAAAAA'
+  const USER_ID = 'team-member-uuid-XXXX'
+
+  it("écrit denied_rbac dans syndic_ai_audit quand RBAC refuse", async () => {
+    const mockClient = createMockClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await bulkAction(mockClient as any, CABINET_ID, {
+      filter: { urgence: 'haute' },
+      action: 'archive',
+      syndicRole: 'syndic_comptable',
+      locale: 'fr',
+      userId: USER_ID,
+      conversationId: 'conv-1',
+    })
+
+    const auditInserts = mockClient.inserts.filter((i) => i.table === 'syndic_ai_audit')
+    expect(auditInserts).toHaveLength(1)
+    const row = auditInserts[0].payload as Record<string, unknown>
+    expect(row.syndic_id).toBe(CABINET_ID)
+    expect(row.agent_id).toBe('alfredo')
+    expect(row.action).toBe('bulk_archive')
+    expect(row.status).toBe('denied_rbac')
+    expect(row.conversation_id).toBe('conv-1')
+    const payload = row.tool_payload as Record<string, unknown>
+    expect(payload.user_id).toBe(USER_ID)
+    expect(payload.role).toBe('syndic_comptable')
+  })
+
+  it("écrit success dans syndic_ai_audit quand bulk passe (0 email à traiter)", async () => {
+    const mockClient = createMockClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await bulkAction(mockClient as any, CABINET_ID, {
+      filter: {},
+      action: 'archive',
+      syndicRole: 'syndic_secretaire',
+      locale: 'fr',
+      userId: USER_ID,
+    })
+
+    const auditInserts = mockClient.inserts.filter((i) => i.table === 'syndic_ai_audit')
+    // 1 write (résultat global), pas de denied_rbac car la secretaire est autorisée
+    expect(auditInserts).toHaveLength(1)
+    const row = auditInserts[0].payload as Record<string, unknown>
+    expect(row.status).toBe('success')
+    expect(row.action).toBe('bulk_archive')
+    const payload = row.tool_payload as Record<string, unknown>
+    expect(payload.matched).toBe(0)
+    expect(payload.succeeded).toBe(0)
   })
 })

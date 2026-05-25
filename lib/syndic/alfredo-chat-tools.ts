@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateDraftReply } from '@/lib/syndic/alfredo-draft'
 import { loadClientContext } from '@/lib/syndic/alfredo-load-client-context'
 import { canInvokeAlfredoTool, type AlfredoToolAction } from '@/lib/syndic/alfredo-tools-policy'
+import { logAiAudit } from '@/lib/syndic/ai-audit'
 import type { Locale, SyndicRole } from '@/lib/syndic/agent-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,6 +104,9 @@ export interface RegenerateDraftArgs {
   tone?: 'formel' | 'cordial' | 'ferme'
   locale: Locale
   syndicRole: SyndicRole
+  // Audit RGPD (Phase 4) — optionnels pour rétrocompat des callers internes.
+  userId?: string
+  conversationId?: string
 }
 
 export async function regenerateDraft(
@@ -117,7 +121,20 @@ export async function regenerateDraft(
     .eq('syndic_id', cabinetId)
     .single()
 
-  if (error || !email) return { ok: false, email_id: args.email_id, error: 'email_not_found' }
+  if (error || !email) {
+    // Phase 4 — log RGPD : tentative de regénération sur email inexistant ou inaccessible.
+    await logAiAudit(client, {
+      cabinetId,
+      agentId: 'alfredo',
+      action: 'regenerate_draft',
+      status: 'error',
+      conversationId: args.conversationId,
+      userId: args.userId,
+      toolPayload: { email_id: args.email_id },
+      errorMessage: 'email_not_found',
+    })
+    return { ok: false, email_id: args.email_id, error: 'email_not_found' }
+  }
 
   const typedEmail = email as {
     id: string
@@ -174,6 +191,22 @@ export async function regenerateDraft(
     .eq('id', args.email_id)
     .eq('syndic_id', cabinetId)
 
+  // Phase 4 — log RGPD du succès.
+  await logAiAudit(client, {
+    cabinetId,
+    agentId: 'alfredo',
+    action: 'regenerate_draft',
+    status: 'success',
+    conversationId: args.conversationId,
+    userId: args.userId,
+    toolPayload: {
+      email_id: args.email_id,
+      tone: args.tone,
+      had_instructions: !!args.instructions,
+      confidence: draft.confidence,
+    },
+  })
+
   return {
     ok: true,
     email_id: args.email_id,
@@ -189,6 +222,9 @@ export interface BulkActionArgs {
   action: 'archive' | 'mark_spam' | 'flag_priority' | 'draft_reply'
   syndicRole?: SyndicRole
   locale?: Locale
+  // Audit RGPD (Phase 4) — optionnels pour rétrocompat des callers internes.
+  userId?: string
+  conversationId?: string
 }
 
 export interface BulkActionResult {
@@ -208,6 +244,16 @@ export async function bulkAction(
   const actionKey = `bulk_${args.action}` as AlfredoToolAction
   const role: SyndicRole = args.syndicRole ?? 'syndic'
   if (!canInvokeAlfredoTool(role, actionKey)) {
+    // Phase 4 — log RGPD du refus avant de retourner.
+    await logAiAudit(client, {
+      cabinetId,
+      agentId: 'alfredo',
+      action: actionKey,
+      status: 'denied_rbac',
+      conversationId: args.conversationId,
+      userId: args.userId,
+      toolPayload: { role, attempted_filter: args.filter },
+    })
     return {
       matched: 0,
       succeeded: 0,
@@ -250,6 +296,9 @@ export async function bulkAction(
           email_id: email.id,
           locale: args.locale,
           syndicRole: args.syndicRole,
+          // Propage userId/conversationId pour que regenerateDraft écrive son propre audit.
+          userId: args.userId,
+          conversationId: args.conversationId,
         })
       }
       succeeded++
@@ -258,6 +307,24 @@ export async function bulkAction(
       errors.push(`${email.id}: ${err instanceof Error ? err.message : 'unknown'}`)
     }
   }
+
+  // Phase 4 — log RGPD du résultat global du bulk (un write par bulkAction).
+  await logAiAudit(client, {
+    cabinetId,
+    agentId: 'alfredo',
+    action: actionKey,
+    status: failed === 0 ? 'success' : 'error',
+    conversationId: args.conversationId,
+    userId: args.userId,
+    toolPayload: {
+      matched: emails.length,
+      succeeded,
+      failed,
+      errors_sample: errors.slice(0, 5),
+      filter: args.filter,
+    },
+    errorMessage: failed > 0 ? `${failed}/${emails.length} actions ont échoué` : undefined,
+  })
 
   return { matched: emails.length, succeeded, failed, errors: errors.slice(0, 10) }
 }
