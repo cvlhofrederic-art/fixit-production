@@ -65,6 +65,29 @@ describe('Multi-user cabinet resolution — Finding 1.2 fix', () => {
     expect(content).toMatch(/export async function summarizeInbox\s*\(\s*client:[^,]+,\s*cabinetId:\s*string/)
   })
 
+  it('SyndicRole inclut syndic_technicien (Phase 3b — canonisation)', () => {
+    const content = readFileSync(resolve(process.cwd(), 'lib/syndic/agent-types.ts'), 'utf-8')
+    expect(content).toMatch(/['"]?syndic_technicien['"]?/)
+    // Le type doit lister 8 rôles : syndic + 7 syndic_*
+    const matches = content.match(/\|\s*'syndic[a-z_]*'/g) ?? []
+    expect(matches.length).toBe(8)
+  })
+
+  it('alfredo-data-access-policy couvre les 8 rôles SyndicRole (pas de undefined silencieux)', () => {
+    const content = readFileSync(resolve(process.cwd(), 'lib/syndic/alfredo-data-access-policy.ts'), 'utf-8')
+    // Chaque rôle doit avoir une clé dans POLICY (sinon canAccessSource retourne [])
+    for (const role of ['syndic', 'syndic_admin', 'syndic_tech', 'syndic_technicien',
+      'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']) {
+      expect(content).toContain(`${role}:`)
+    }
+  })
+
+  it('bulkAction enforce RBAC avant query (Phase 3b)', () => {
+    const content = readFileSync(resolve(process.cwd(), 'lib/syndic/alfredo-chat-tools.ts'), 'utf-8')
+    expect(content).toContain('canInvokeAlfredoTool')
+    expect(content).toMatch(/rbac_denied/)
+  })
+
   // ── Self-verification de la regex (red-green safe sans toucher au code prod) ──
   // Le harness auto-deploy interdit de revert un fix sur disque pour faire un
   // red-green. À la place, on prouve que la regex catche bien le pattern bugué.
