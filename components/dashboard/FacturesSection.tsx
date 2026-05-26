@@ -507,15 +507,15 @@ function FacturesSectionV5({
                     tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
                   })),
               })
-              let totalTTC = tva.totalTTC
-              // For acompte invoices, display the acompte amount instead of the full total
-              const docAny = doc as unknown as Record<string, unknown>
-              if (docAny.factureSubType === 'acompte' && Array.isArray(docAny.acomptes) && (docAny.acomptes as Array<{ pourcentage?: number }>).length > 0) {
-                const firstAcompte = (docAny.acomptes as Array<{ pourcentage?: number }>)[0]
-                if (firstAcompte?.pourcentage && firstAcompte.pourcentage > 0 && firstAcompte.pourcentage < 100) {
-                  totalTTC = totalTTC * firstAcompte.pourcentage / 100
-                }
-              }
+              // FR-V1.3 — Affiche le total brut des lignes, identique au PDF generator V3
+              // et à `total_ttc_cents` en DB (source de vérité légale, art. L441-9 C. com.).
+              // L'ancienne multiplication `totalTTC * firstAcompte.pourcentage / 100`
+              // divergeait du PDF : incident Gourdon/Plessis 2026-05-26 (UI = 50% du PDF
+              // car les acomptes[] persistaient en raw_data même quand acomptesEnabled=false).
+              // Pour un acompte propre, l'utilisateur édite les lignes pour qu'elles
+              // représentent directement l'acompte consolidé par TVA (workflow Gourdon :
+              // "Acompte 50% — Travaux d'amélioration (TVA 10%)" + "(TVA 20%)", art. 269-2-c CGI).
+              const totalTTC = tva.totalTTC
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
