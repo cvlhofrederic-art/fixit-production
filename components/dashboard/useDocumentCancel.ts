@@ -42,8 +42,9 @@ interface UseDocumentCancelOptions<T extends CancellableDoc> {
   isSameDoc?: (a: T, b: T) => boolean
   /** Confirme la suppression brouillon ; retourner false annule. */
   confirmDraftDelete: (doc: T) => boolean
-  /** Callback pour rafraîchir la liste après mutation. */
-  setSavedDocuments: (docs: T[]) => void
+  /** Callback pour rafraîchir la liste après mutation.
+   *  Accepte un array OU un functional updater (préservation entrées DB-only). */
+  setSavedDocuments: (docs: T[] | ((prev: T[]) => T[])) => void
 }
 
 interface UseDocumentCancelReturn<T extends CancellableDoc> {
@@ -74,13 +75,17 @@ export function useDocumentCancel<T extends CancellableDoc>(
   const handleRemoveDoc = useCallback((doc: T) => {
     if (isDocDraftStatus(doc.status, docType)) {
       if (!confirmDraftDelete(doc)) return
+      // FR-V1.2 — Sync write-through cache localStorage avec la mutation.
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]') as T[]
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]') as T[]
-      const updDocs = docs.filter(d => !matchDoc(d, doc))
-      const updDrafts = drafts.filter(d => !matchDoc(d, doc))
-      localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(updDocs))
-      localStorage.setItem(`fixit_drafts_${artisanId}`, JSON.stringify(updDrafts))
-      setSavedDocuments([...updDocs, ...updDrafts])
+      localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(docs.filter(d => !matchDoc(d, doc))))
+      localStorage.setItem(`fixit_drafts_${artisanId}`, JSON.stringify(drafts.filter(d => !matchDoc(d, doc))))
+      // CRITIQUE : functional update sur `prev` qui contient déjà le merge
+      // localStorage + DB. Ne PAS faire `setSavedDocuments([...updDocs, ...updDrafts])`
+      // car ça écraserait les entrées DB-only — incident Sud travaux 2026-05-26 :
+      // 10 factures DB ont disparu de l'UI après une annulation parce que ce pattern
+      // tronquait le state au contenu localStorage uniquement.
+      setSavedDocuments(prev => prev.filter(d => !matchDoc(d, doc)))
       return
     }
     setCancellingDoc(doc)
@@ -89,14 +94,14 @@ export function useDocumentCancel<T extends CancellableDoc>(
 
   const handleCancelled = useCallback(() => {
     if (!cancellingDoc) return
+    // FR-V1.2 — Sync write-through cache localStorage avec la mutation.
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]') as T[]
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]') as T[]
     const mark = (d: T): T => matchDoc(d, cancellingDoc) ? ({ ...d, status: 'annule' } as T) : d
-    const updDocs = docs.map(mark)
-    const updDrafts = drafts.map(mark)
-    localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(updDocs))
-    localStorage.setItem(`fixit_drafts_${artisanId}`, JSON.stringify(updDrafts))
-    setSavedDocuments([...updDocs, ...updDrafts])
+    localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(docs.map(mark)))
+    localStorage.setItem(`fixit_drafts_${artisanId}`, JSON.stringify(drafts.map(mark)))
+    // CRITIQUE : functional update préserve les entrées DB-only du state.
+    setSavedDocuments(prev => prev.map(mark))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancellingDoc, artisanId, setSavedDocuments])
 
