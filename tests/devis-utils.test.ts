@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { titleCaseAddress } from '../lib/devis-utils'
+import { titleCaseAddress, getDocSeq } from '../lib/devis-utils'
 
 describe('titleCaseAddress', () => {
   it('returns input unchanged when not all-caps (already normalised)', () => {
@@ -47,5 +47,59 @@ describe('titleCaseAddress', () => {
 
   it('preserves comma separators', () => {
     expect(titleCaseAddress('12 RUE DE LA PAIX, 75001 PARIS')).toBe('12 Rue de la Paix, 75001 Paris')
+  })
+})
+
+describe('getDocSeq — tri factures par numéro émis', () => {
+  // Régression incident Sud travaux 2026-05-26 : la facture FACT-2026-001 créée
+  // pendant le bug avait un created_at plus récent que les autres, et apparaissait
+  // donc en tête de liste alors qu'elle a le plus petit numéro. Le tri doit se
+  // baser sur la séquence du numéro, pas sur la date de création.
+
+  it("retourne une valeur ordonnable pour le format FACT-YYYY-NNN", () => {
+    expect(getDocSeq({ docNumber: 'FACT-2026-001' })).toBe(2026000001)
+    expect(getDocSeq({ docNumber: 'FACT-2026-009' })).toBe(2026000009)
+    expect(getDocSeq({ docNumber: 'DEV-2026-012' })).toBe(2026000012)
+  })
+
+  it("trie correctement une liste mixte FACT/DEV par numéro décroissant", () => {
+    const docs = [
+      { docNumber: 'FACT-2026-001' },
+      { docNumber: 'FACT-2026-009' },
+      { docNumber: 'FACT-2026-002' },
+      { docNumber: 'FACT-2026-008' },
+    ]
+    const sorted = [...docs].sort((a, b) => getDocSeq(b) - getDocSeq(a))
+    expect(sorted.map(d => d.docNumber)).toEqual([
+      'FACT-2026-009',
+      'FACT-2026-008',
+      'FACT-2026-002',
+      'FACT-2026-001',
+    ])
+  })
+
+  it("place les brouillons (BR-timestamp) en tête en ordre décroissant", () => {
+    const docs = [
+      { docNumber: 'FACT-2026-005' },
+      { docNumber: 'BR-1779749904726' },
+      { docNumber: 'FACT-2026-002' },
+    ]
+    const sorted = [...docs].sort((a, b) => getDocSeq(b) - getDocSeq(a))
+    // BR-... → MAX_SAFE_INTEGER → en tête
+    expect(sorted[0].docNumber).toBe('BR-1779749904726')
+    expect(sorted[1].docNumber).toBe('FACT-2026-005')
+    expect(sorted[2].docNumber).toBe('FACT-2026-002')
+  })
+
+  it("traite l'année comme partie ordonnable (2027 > 2026)", () => {
+    expect(getDocSeq({ docNumber: 'FACT-2027-001' })).toBeGreaterThan(
+      getDocSeq({ docNumber: 'FACT-2026-999' }),
+    )
+  })
+
+  it("renvoie MAX_SAFE_INTEGER pour un docNumber absent ou malformé", () => {
+    expect(getDocSeq({})).toBe(Number.MAX_SAFE_INTEGER)
+    expect(getDocSeq({ docNumber: '' })).toBe(Number.MAX_SAFE_INTEGER)
+    expect(getDocSeq({ docNumber: 'truc-bidule' })).toBe(Number.MAX_SAFE_INTEGER)
   })
 })

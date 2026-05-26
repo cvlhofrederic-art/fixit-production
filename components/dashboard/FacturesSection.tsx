@@ -11,6 +11,7 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { getDocSeq } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -228,7 +229,7 @@ export default function FacturesSection({
                 </tr>
               </thead>
               <tbody>
-                {factureDocs.sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime()).map((doc, i) => {
+                {[...factureDocs].sort((a, b) => getDocSeq(b) - getDocSeq(a)).map((doc, i) => {
                   const totalHT = computeDocumentTotalHT(doc)
                   const isOverdue = !!(doc.paymentDue && new Date(doc.paymentDue) < new Date())
                   const status = getStatusTag(doc, isOverdue)
@@ -381,7 +382,7 @@ function FacturesSectionV5({
         d.clientName?.toLowerCase().includes(q)
       )
     })
-    .sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime())
+    .sort((a, b) => getDocSeq(b) - getDocSeq(a))
 
   const getV5Badge = (doc: PersistedDocument) => {
     // Accepte les statuts FR (localStorage) ET EN (DB Supabase).
