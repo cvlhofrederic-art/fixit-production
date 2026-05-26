@@ -61,7 +61,7 @@ interface DevisSectionProps {
   services: Service[]
   bookings: Booking[]
   savedDocuments: DevisDocument[]
-  setSavedDocuments: (docs: DevisDocument[]) => void
+  setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   showDevisForm: boolean
   setShowDevisForm: (v: boolean) => void
   convertingDevis: DevisDocument | null
@@ -82,10 +82,27 @@ export default function DevisSection({
   const { orgRole, isV5, useBtpDesign } = useOrgRoleContext()
   const tv = useThemeVars(isV5)
 
+  // FR-V1.2 — Merge localStorage dans le state existant (qui contient déjà
+  // le merge DB+local depuis le mount du dashboard). NE PAS écraser avec
+  // [...docs, ...drafts] seul, sinon les entrées DB-only disparaissent.
+  // Incident Sud travaux 2026-05-26 : factures DB perdues de l'UI après mutation.
   const refreshDocuments = () => {
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    setSavedDocuments([...docs, ...drafts])
+    const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as DevisDocument[]
+    const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
+    const localById = new Map<string, DevisDocument>(
+      [...localDocs, ...localDrafts].filter(d => d?.docNumber).map(d => [d.docNumber as string, d])
+    )
+    setSavedDocuments(prev => {
+      const seen = new Set<string>()
+      const updated = prev.map(d => {
+        if (d.docNumber) seen.add(d.docNumber)
+        return d.docNumber && localById.has(d.docNumber) ? localById.get(d.docNumber)! : d
+      })
+      for (const [num, d] of localById) {
+        if (!seen.has(num)) updated.push(d)
+      }
+      return updated
+    })
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
@@ -312,7 +329,8 @@ export default function DevisSection({
                               const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}
                               className="v22-btn v22-btn-sm" style={{ color: tv.green }} title={t('proDash.devis.marquerEnvoye')}>
                               {'✅'}
@@ -330,7 +348,8 @@ export default function DevisSection({
                               const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}
                               className="v22-btn v22-btn-sm" title={t('proDash.devis.envoyerEmail')}>
                               {'📧'}
@@ -402,7 +421,7 @@ function DevisSectionV5({
   openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
   artisan: Artisan | null
-  setSavedDocuments: (docs: DevisDocument[]) => void
+  setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   dateLocale: string
   locale: string
   t: (k: string) => string
@@ -475,11 +494,10 @@ function DevisSectionV5({
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const mark = (d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: localStatus } : d
-      const updDocs = docs.map(mark)
-      const updDrafts = drafts.map(mark)
-      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-      setSavedDocuments([...updDocs, ...updDrafts])
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs.map(mark)))
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts.map(mark)))
+      // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+      setSavedDocuments(prev => prev.map(mark))
       toast.success(`${label} : ${doc.docNumber}`)
     } catch (e) {
       console.error('[updateDevisStatus] failed:', e)
@@ -557,7 +575,8 @@ function DevisSectionV5({
                             const uDrafts = allDrafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                            setSavedDocuments([...uDocs, ...uDrafts])
+                            // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                            setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                           }}
                         >
                           Email
