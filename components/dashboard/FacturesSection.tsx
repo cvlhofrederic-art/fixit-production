@@ -36,7 +36,7 @@ interface FacturesSectionProps {
   services: Service[]
   bookings: Booking[]
   savedDocuments: PersistedDocument[]
-  setSavedDocuments: (docs: PersistedDocument[]) => void
+  setSavedDocuments: (docs: PersistedDocument[] | ((prev: PersistedDocument[]) => PersistedDocument[])) => void
   showFactureForm: boolean
   setShowFactureForm: (v: boolean) => void
   convertingDevis: PersistedDocument | null
@@ -55,10 +55,28 @@ export default function FacturesSection({
   const { orgRole, isV5, useBtpDesign } = useOrgRoleContext()
   const tv = useThemeVars(isV5)
 
+  // FR-V1.2 — Merge localStorage dans le state existant (qui contient déjà
+  // le merge DB+local depuis le mount du dashboard). NE PAS écraser avec
+  // [...docs, ...drafts] seul, sinon les entrées DB-only disparaissent.
+  // Incident Sud travaux 2026-05-26 : 10 factures DB perdues de l'UI.
   const refreshDocuments = () => {
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    setSavedDocuments([...docs, ...drafts])
+    const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as PersistedDocument[]
+    const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as PersistedDocument[]
+    const localById = new Map<string, PersistedDocument>(
+      [...localDocs, ...localDrafts].filter(d => d?.docNumber).map(d => [d.docNumber as string, d])
+    )
+    setSavedDocuments(prev => {
+      const seen = new Set<string>()
+      const updated = prev.map(d => {
+        if (d.docNumber) seen.add(d.docNumber)
+        return d.docNumber && localById.has(d.docNumber) ? localById.get(d.docNumber)! : d
+      })
+      // Append new localStorage entries not yet in state (= just-saved docs)
+      for (const [num, d] of localById) {
+        if (!seen.has(num)) updated.push(d)
+      }
+      return updated
+    })
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<PersistedDocument | null>(null)
@@ -253,7 +271,8 @@ export default function FacturesSection({
                               const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}>
                               {t('proDash.factures.marquerEnvoyee')}
                             </button>
@@ -293,7 +312,8 @@ export default function FacturesSection({
                               const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}>
                               {t('proDash.factures.envoyerEmail')}
                             </button>
@@ -362,7 +382,7 @@ function FacturesSectionV5({
   setConvertingDevis: (v: PersistedDocument | null) => void
   openFactureForm: (doc?: PersistedDocument | null) => void
   artisan: Artisan
-  setSavedDocuments: (docs: PersistedDocument[]) => void
+  setSavedDocuments: (docs: PersistedDocument[] | ((prev: PersistedDocument[]) => PersistedDocument[])) => void
   dateLocale: string
   locale: string
   t: (k: string) => string
@@ -516,7 +536,8 @@ function FacturesSectionV5({
                           const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                          setSavedDocuments([...updDocs, ...updDrafts])
+                          // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                          setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.marquerEnvoyee')}
                         </button>
@@ -534,7 +555,8 @@ function FacturesSectionV5({
                           const uDrafts = (allDrafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                          setSavedDocuments([...uDocs, ...uDrafts])
+                          // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                          setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.envoyerEmail')}
                         </button>

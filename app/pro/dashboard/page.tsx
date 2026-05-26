@@ -573,14 +573,11 @@ function DashboardPage() {
         const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
         drafts.push(draftFacture)
         localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(drafts))
-        const persisted = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-        // Purge auto : on filtre toute entrée corrompue (non-objet, ou sans
-        // docNumber et sans id) avant de rafraîchir le state — évite que
-        // FacturesSection re-render avec un null hérité d'un flow antérieur.
-        const isValidDoc = (d: unknown): d is Record<string, unknown> =>
-          d !== null && typeof d === 'object' && (Boolean((d as { docNumber?: unknown }).docNumber) || Boolean((d as { id?: unknown }).id))
-        const merged = [...persisted, ...drafts].filter(isValidDoc)
-        setSavedDocuments(merged as typeof savedDocuments)
+        // FR-V1.2 — functional update : append le nouveau brouillon au state mergé
+        // (DB + localStorage), sans écraser. Avant : setSavedDocuments([...persisted, ...drafts])
+        // tronquait à localStorage uniquement, faisant disparaître les factures DB-only.
+        // Incident Sud travaux 2026-05-26.
+        setSavedDocuments(prev => [...prev, draftFacture as typeof savedDocuments[number]])
       }
     } catch (err) {
       console.warn('[ConvertDevisToFacture] Pré-enregistrement échoué:', err)
