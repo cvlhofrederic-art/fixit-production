@@ -7,6 +7,20 @@ import type { ProductLine } from '@/lib/devis-types'
 import { UNITE_VALUES } from '@/lib/devis-types'
 import type { Locale } from '@/lib/i18n/config'
 
+/**
+ * Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
+ * Permet le tri "du plus récent émis au plus ancien émis" basé sur le numéro de séquence
+ * (et non sur created_at, qui peut être trompé par un document recréé tardivement).
+ *
+ * Les docs sans numéro valide (brouillons "BR-1779..." ou autres) reçoivent MAX_SAFE_INTEGER
+ * et apparaissent en tête d'une liste triée descendante (action requise).
+ */
+export const getDocSeq = (doc: { docNumber?: string }): number => {
+  const m = (doc.docNumber || '').match(/-(\d{4})-(\d+)$/)
+  if (!m) return Number.MAX_SAFE_INTEGER
+  return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
+}
+
 /** Convertit la valeur stockée en affichage PDF lisible (m2→m², m3→m³) */
 export const formatUnitForPdf = (unit: string, customUnit?: string): string => {
   if (unit === 'autre') return customUnit || 'u'

@@ -13,6 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { getDocSeq } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
@@ -52,13 +53,8 @@ const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
   return false
 }
 
-// Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
-// Les docs sans numéro valide vont à la fin (MAX_SAFE_INTEGER).
-const getDocSeq = (doc: DevisDocument): number => {
-  const m = (doc.docNumber || '').match(/-(\d{4})-(\d+)$/)
-  if (!m) return Number.MAX_SAFE_INTEGER
-  return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
-}
+// getDocSeq déplacé dans lib/devis-utils.ts pour réutilisation par FacturesSection
+// (fix tri "du dernier émis au premier" cohérent sur devis + factures)
 
 interface DevisSectionProps {
   artisan: Artisan | null
