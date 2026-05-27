@@ -33,13 +33,14 @@ const fs = require('fs')
       telephone: '912 014 971',
       email: 'cvlho.frederic@gmail.com',
       rc_pro: null,
-      insurance_name: 'Fidelidade',
-      insurance_number: 'RC-2026-PT',
-      insurance_coverage: 'Portugal continental',
-      insurance_type: 'rc_pro',
+      insurance_name: null,
+      insurance_number: null,
+      insurance_coverage: null,
+      insurance_type: null,
       tva_mention: 'IVA aplicável',
       mode_paiement: 'Transferência bancária faseada',
       condition_paiement: 'IBAN : PT50 0033 0000 4576 3682 866 05 — BIC : BCOMPTPL',
+      cae: '81210, 38112',
     },
     client: {
       nom: 'Julieta Isabel Santos Rocha Peixoto Vieira',
@@ -58,16 +59,18 @@ const fs = require('fs')
       titre: 'Montagem portão e chapa zincada',
       date_emission: new Date('2026-05-23'),
       validite_jours: 30,
-      delai_execution: 'No próprio dia',
+      delai_execution: '2 dias',
       date_prestation: new Date('2026-06-02'),
       docType: 'devis',
     },
-    mode_affichage: 'bloc',
+    mode_affichage: 'sections',
     lignes: [
+      // ── MÃO DE OBRA ──
       {
         designation: 'Deslocação e entrega de materiais',
         lineDetail: 'Deslocação ao local de obra e entrega dos materiais necessários à execução dos trabalhos.',
-        quantite: 1, unite: 'Serviço', prix_unitaire: 120, total: 120,
+        quantite: 1, unite: 'Serviço', prix_unitaire: 80, total: 80,
+        section: 'main_oeuvre',
         etapes: [
           { ordre: 1, designation: 'Carregamento e transporte dos materiais para o local' },
           { ordre: 2, designation: 'Descarregamento e organização em obra' },
@@ -77,7 +80,8 @@ const fs = require('fs')
       {
         designation: 'Afinação do vão e criação de pontos de ancoragem',
         lineDetail: 'Afinação do vão existente para acolhimento do novo portão e chapa zincada. Criação de pontos de fixação ao longo de aproximadamente 3,50 m.',
-        quantite: 1, unite: 'Serviço', prix_unitaire: 150, total: 150,
+        quantite: 1, unite: 'Serviço', prix_unitaire: 75, total: 75,
+        section: 'main_oeuvre',
         etapes: [
           { ordre: 1, designation: 'Afinação e ajuste do vão existente' },
           { ordre: 2, designation: 'Furação e instalação dos pontos de ancoragem' },
@@ -85,38 +89,54 @@ const fs = require('fs')
         ],
       },
       {
-        designation: 'Reparação do vão e regularização',
-        lineDetail: 'Reparação das faces do vão e regularização com argamassa de cimento, de forma a obter um acabamento rectilíneo e nivelado.',
-        quantite: 1, unite: 'Serviço', prix_unitaire: 150, total: 150,
-        etapes: [
-          { ordre: 1, designation: 'Limpeza e preparação das superfícies do vão' },
-          { ordre: 2, designation: 'Aplicação de argamassa de cimento e regularização' },
-          { ordre: 3, designation: 'Controlo de planeza e acabamento' },
-        ],
-      },
-      {
-        designation: 'Corte, montagem de chapa e portão de entrada',
-        lineDetail: 'Corte e colocação da chapa zincada ao nível do portão de entrada, com fixação nos pontos de ancoragem previamente criados.',
-        quantite: 1, unite: 'Serviço', prix_unitaire: 290, total: 290,
+        designation: 'Corte e montagem da chapa zincada + colocação do portão de entrada',
+        lineDetail: 'Corte e colocação da chapa zincada ao nível do portão de entrada, com fixação nos pontos de ancoragem previamente criados. Inclui a colocação e instalação do portão de entrada, alinhamento e verificação do correto funcionamento.',
+        quantite: 1, unite: 'Serviço', prix_unitaire: 300, total: 300,
+        section: 'main_oeuvre',
         etapes: [
           { ordre: 1, designation: 'Corte e ajuste da chapa zincada ao nível do portão' },
-          { ordre: 2, designation: 'Posicionamento e alinhamento do portão e chapa' },
-          { ordre: 3, designation: 'Fixação nos pontos de ancoragem e verificação do funcionamento' },
+          { ordre: 2, designation: 'Colocação e instalação do portão de entrada' },
+          { ordre: 3, designation: 'Posicionamento e alinhamento do portão e chapa' },
+          { ordre: 4, designation: 'Fixação nos pontos de ancoragem e verificação do funcionamento' },
         ],
       },
       {
         designation: 'Limpeza do local e evacuação de entulhos',
         lineDetail: 'Limpeza geral da zona de obra e evacuação de todos os entulhos e resíduos gerados, com deposição em centro de resíduos profissional.',
-        quantite: 1, unite: 'Serviço', prix_unitaire: 100, total: 100,
+        quantite: 1, unite: 'Serviço', prix_unitaire: 80, total: 80,
+        section: 'main_oeuvre',
         etapes: [
           { ordre: 1, designation: 'Recolha e ensacamento dos entulhos e resíduos de obra' },
           { ordre: 2, designation: 'Carregamento e transporte para ecocentro profissional' },
           { ordre: 3, designation: 'Limpeza final do local de intervenção' },
         ],
       },
+
+      // ── MATERIAIS ──
+      { designation: 'Bucha química Fischer VS 300ml',              quantite: 2, unite: 'un',  prix_unitaire: 26.76, total: 53.52, section: 'materiaux' },
+      { designation: 'Bucha química c/ rosca interior M8 (cx 10)',  quantite: 1, unite: 'cx',  prix_unitaire: 15.00, total: 15.00, section: 'materiaux' },
+      { designation: 'Tubo aço galv. retangular 6m',                quantite: 2, unite: 'un',  prix_unitaire: 24.84, total: 49.68, section: 'materiaux' },
+      { designation: 'Parafusaria inox M8/M10 sortida',             quantite: 1, unite: 'kit', prix_unitaire: 12.00, total: 12.00, section: 'materiaux' },
     ],
     // IVA 23% Portugal continental — un seul taux, breakdown = subtotal × 23%
-    tvaBreakdown: [{ rate: 23, base: 810, amount: 186.30 }],
+    // Mão de obra : 80 + 75 + 300 + 80                 = 535,00 €
+    // Materiais   : 53,52 + 15 + 49,68 + 12            = 130,20 €
+    // Subtotal    : 665,20 € s/IVA → IVA 23% = 152,996 → 153,00 € → Total c/IVA 818,20 €
+    tvaBreakdown: [{ rate: 23, base: 665.20, amount: 153.00 }],
+    // Plano de pagamento : 30% antes do início dos trabalhos, 70% na entrega.
+    // 30% × 818,20 = 245,46 (ROUND_HALF_UP)
+    // 70% × 818,20 = 572,74 — ajusté pour matcher exactement le total :
+    //   818,20 − 245,46 = 572,74 €
+    acomptes: [
+      { label: 'Adiantamento',    pourcentage: 30, declencheur: 'Antes do início dos trabalhos', montant: 245.46, statut: 'en attente' },
+      { label: 'Pagamento final', pourcentage: 70, declencheur: 'Na entrega',                     montant: 572.74, statut: 'en attente' },
+    ],
+    // Clauses adicionais — material fornecido pelo cliente + imprevistos em
+    // furação. Renderizadas em itálico abaixo das CONDIÇÕES standard.
+    notes: [
+      'Materiais fornecidos pelo cliente: portão Maurice e 4 chapas zincadas. A responsabilidade por danos eventuais nestes elementos durante a montagem fica limitada a defeitos imputáveis à execução do prestador.',
+      'Imprevistos durante a furação em pedra (fissuras, cavidades, armaduras ou estruturas ocultas): podem dar origem a aditamento ao orçamento mediante acordo prévio com o cliente.',
+    ].join(' '),
     isHorsEtablissement: true,
   }
 

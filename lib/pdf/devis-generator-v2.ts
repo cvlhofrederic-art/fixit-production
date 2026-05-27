@@ -32,6 +32,16 @@ export interface DevisGeneratorInput {
     tva_mention: string
     mode_paiement: string
     condition_paiement?: string | null
+    /** Nom commercial / marque affiché au-dessus du nom dans l'encadré EMETTEUR.
+     *  PT : "Empresa : Vitfix" — FR : "Enseigne : MonEntreprise".
+     *  Si null/vide, la ligne n'est pas affichée. */
+    company_name?: string | null
+    /** Codes d'activité affichés dans la boîte EMETTEUR.
+     *  PT : CAE (Classificação Portuguesa das Atividades Económicas), ex: "81210, 38112".
+     *  FR : APE/NAF (legacy non rendu pour l'instant côté V2, peut être ajouté).
+     *  Affiché à la place de la ligne Assurance en PT — le seguro reste dans
+     *  les mentions légales en pied de page. */
+    cae?: string | null
   }
   client: {
     nom: string
@@ -172,8 +182,10 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)]
 }
 
-function formatUnitForPdf(unit: string): string {
-  const MAP: Record<string, string> = { m2: 'm\u00B2', m3: 'm\u00B3', ml: 'ml', h: 'h', j: 'j', f: 'Forfait', u: 'u', L: 'L', kg: 'kg', t: 't', pce: 'pce', ens: 'ens', pt: 'pt', lot: 'Lot', m: 'm' }
+function formatUnitForPdf(unit: string, locale: 'fr' | 'pt' = 'fr'): string {
+  const MAP_FR: Record<string, string> = { m2: 'm\u00B2', m3: 'm\u00B3', ml: 'ml', h: 'h', j: 'j', f: 'Forfait', u: 'u', L: 'L', kg: 'kg', t: 't', pce: 'pce', ens: 'ens', pt: 'pt', lot: 'Lot', m: 'm' }
+  const MAP_PT: Record<string, string> = { m2: 'm\u00B2', m3: 'm\u00B3', ml: 'ml', h: 'h', j: 'j', f: 'Servi\u00E7o', u: 'u', L: 'L', kg: 'kg', t: 't', pce: 'pce', ens: 'ens', pt: 'pt', lot: 'Lote', m: 'm' }
+  const MAP = locale === 'pt' ? MAP_PT : MAP_FR
   return MAP[unit] || unit
 }
 
@@ -402,6 +414,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     formAddress:    isPt ? 'Morada :'              : 'Adresse :',
     formDate:       isPt ? 'Data : ___ / ___ / ______' : 'Date : ___ / ___ / ______',
     formSignature:  isPt ? 'Assinatura :'          : 'Signature :',
+    companyName:    isPt ? 'Empresa'                : 'Enseigne',
     insuranceCoverDefault: isPt ? 'Portugal continental' : 'France métropolitaine',
     contractWord:   isPt ? 'apólice n.º'           : 'contrat n°',
     coverageWord:   isPt ? 'cobertura'             : 'couverture',
@@ -523,18 +536,20 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   let emContentH = boxPadTop + ptToMm(18) // label
   emContentH += ptToMm(14) // nom
   if (input.artisan.siret) emContentH += ptToMm(14)
+  if (input.artisan.company_name) emContentH += ptToMm(14)
   if (input.artisan.rm && !isPt) emContentH += ptToMm(14)
   if (input.artisan.adresse) { emContentH += ptToMm(14); if (splitAddress(input.artisan.adresse)?.ville) emContentH += ptToMm(14) }
   if (input.artisan.telephone) emContentH += ptToMm(14)
   if (input.artisan.email) emContentH += ptToMm(14)
-  if (input.artisan.insurance_name) emContentH += ptToMm(14)
+  if (isPt && input.artisan.cae) emContentH += ptToMm(14)
+  if (!isPt && input.artisan.insurance_name) emContentH += ptToMm(14)
   emContentH += boxPadTop
 
   let destContentH = boxPadTop + ptToMm(18) + ptToMm(14) // label + nom
   if (input.client.adresse) { destContentH += ptToMm(14); if (splitAddress(input.client.adresse)?.ville) destContentH += ptToMm(14) }
   if (input.client.siret) destContentH += ptToMm(14)
   if (input.client.intervention_adresse) {
-    destContentH += ptToMm(12) + ptToMm(14) // label + adresse
+    destContentH += ptToMm(15) + ptToMm(14) // label (+3pt respiration) + adresse
     if (input.client.intervention_batiment) destContentH += ptToMm(14)
     if (input.client.intervention_etage) destContentH += ptToMm(14)
     if (input.client.intervention_espaces_communs) destContentH += ptToMm(14)
@@ -558,16 +573,23 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   ey += ptToMm(18)
 
   pdf.setFontSize(10); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
-  // Mention "EI" accolée au nom — art. L.526-22 C. com. (loi n°2022-172).
-  // PT : on n'ajoute pas " — EI" (le pendant Trabalhador independente est dans
-  // les mentions légales du pied de page, pas dans le nom).
-  const nomAvecEI = isPt
+
+  // Nom commercial / marque — affiché au-dessus du nom civil si renseigné.
+  if (input.artisan.company_name) {
+    pdf.text(`${T.companyName} : ${input.artisan.company_name}`, TEXT_X_EM, ey)
+    ey += ptToMm(14)
+  }
+
+  // Suffixe " — EI" accolé au nom : FR L.526-22 C. com. (loi n°2022-172) +
+  // PT lecture officielle "Empresário em Nome Individual". On l'ajoute si le
+  // nom ne contient pas déjà une forme juridique (SAS/SARL/SCI/EI/etc.).
+  const nomAvecEI = /\b(EI|EIRL|SAS|SASU|SARL|EURL|SA|SCI|SNC)\b/i.test(input.artisan.nom)
     ? input.artisan.nom
-    : /\b(EI|EIRL|SAS|SASU|SARL|EURL|SA|SCI|SNC)\b/i.test(input.artisan.nom)
-      ? input.artisan.nom
-      : `${input.artisan.nom} — EI`
-  // PT artisan = Trabalhador independente (pessoa singular) → label "Nome".
-  // FR artisan = EI/société → label "Société".
+    : `${input.artisan.nom} - EI`
+  // PT : label "Nome" (Trabalhador independente / Empresário em Nome Individual).
+  // FR : label "Société" (EI ou société commerciale).
+  // Le suffixe "— EI" s'applique aux deux locales : en FR c'est l'obligation
+  // L.526-22 C. com., en PT c'est la lecture officielle du sigle EI.
   pdf.text(`${isPt ? T.name : T.society} : ${nomAvecEI}`, TEXT_X_EM, ey)
   ey += ptToMm(14)
   if (input.artisan.siret) { pdf.text(`${T.siret} : ${input.artisan.siret}`, TEXT_X_EM, ey); ey += ptToMm(14) }
@@ -604,8 +626,15 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (input.artisan.telephone) { pdf.text(`${T.phone} : ${input.artisan.telephone}`, TEXT_X_EM, ey); ey += ptToMm(14) }
   if (input.artisan.email) { pdf.text(`${T.email} : ${input.artisan.email}`, TEXT_X_EM, ey); ey += ptToMm(14) }
 
-  // Assurance (même espacement 14pt que les lignes au-dessus)
-  if (input.artisan.insurance_name) {
+  // PT : CAE (Classificação Portuguesa das Atividades Económicas) — affichée à
+  // la place de la ligne Assurance dans la boîte (le seguro reste dans les
+  // mentions légales du pied de page).
+  if (isPt && input.artisan.cae) {
+    pdf.text(`CAE : ${input.artisan.cae}`, TEXT_X_EM, ey); ey += ptToMm(14)
+  }
+
+  // Assurance (FR uniquement dans la boîte ; PT garde uniquement le pied légal)
+  if (!isPt && input.artisan.insurance_name) {
     const insLabel = input.artisan.insurance_type === 'rc_pro' ? T.rcPro
       : input.artisan.insurance_type === 'decennale' ? T.decennale
       : input.artisan.insurance_type === 'both' ? T.rcProAndDec : T.insurance
@@ -628,8 +657,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   dy += ptToMm(18)
 
   pdf.setFontSize(10); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
-  // FIX FINAL #3: "Société/Empresa" si SIRET/NIF client (B2B), "Nom/Nome" sinon (B2C)
-  const clientLabel = input.client.siret ? T.society : T.name
+  // FIX FINAL #3: "Société/Empresa" si SIRET/NIF client (B2B), "Nom/Nome" sinon (B2C).
+  // PT exception : en Portugal, les particuliers ont aussi un NIF — utiliser
+  // toujours "Nome" sauf si un flag explicite indique une entreprise.
+  const clientLabel = (input.client.siret && !isPt) ? T.society : T.name
   pdf.text(`${clientLabel} : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
   dy += ptToMm(14)
 
@@ -645,7 +676,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (input.client.siret) { pdf.text(`${T.siret} : ${input.client.siret}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
   if (input.client.intervention_adresse) {
     pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
-    pdf.text(T.interventionAt, TEXT_X_DEST, dy); dy += ptToMm(12)
+    pdf.text(T.interventionAt, TEXT_X_DEST, dy); dy += ptToMm(15)
     pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
     pdf.text(input.client.intervention_adresse, TEXT_X_DEST, dy); dy += ptToMm(14)
     if (input.client.intervention_batiment) { pdf.text(`${T.building} ${input.client.intervention_batiment}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
@@ -812,7 +843,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     const numY = y + 5
     pdf.setFont(FONT, 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
     pdf.text(String(line.quantite), 121.92, numY, { align: 'center' })
-    pdf.text(formatUnitForPdf(line.unite), 135.41, numY, { align: 'center' })
+    pdf.text(formatUnitForPdf(line.unite, input.locale || 'fr'), 135.41, numY, { align: 'center' })
     pdf.text(formatPrice(line.prix_unitaire), 162.26, numY, { align: 'right' })
     pdf.setFont(FONT, 'bold')
     pdf.text(formatPrice(line.total), 188.71, numY, { align: 'right' })
@@ -958,17 +989,22 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const payModeDisplay = isPt
     ? input.artisan.mode_paiement
     : (input.artisan.mode_paiement === 'Transferência bancária' ? 'Virement bancaire' : input.artisan.mode_paiement)
+  // Éclater mode_paiement multi-ligne (ex: "Transferência bancária.\nIBAN: …\nTitular: …")
+  // en lignes séparées pour le rendu dans le bloc CONDITIONS.
+  const payModeLines = payModeDisplay.includes('\n')
+    ? payModeDisplay.split('\n').map((l, i) => i === 0 ? `${T.payMode} : ${l}` : l)
+    : [`${T.payMode} : ${payModeDisplay}.`]
   const condLines = isFacture
     ? [
         `${T.docDate} : ${formatDate(input.devis.date_emission, dateLocale)}.`,
-        `${T.payMode} : ${payModeDisplay}.`,
+        ...payModeLines,
         ...(input.artisan.condition_paiement ? [`${T.payTerms} : ${input.artisan.condition_paiement}.`] : []),
       ]
     : [
         `${T.quoteValidity} : ${input.devis.validite_jours} ${T.days} ${T.fromEmission}.`,
         `${T.execDelayCond} : ${input.devis.delai_execution || T.toBeAgreed}.`,
         T.amendmentNote,
-        `${T.payMode} : ${payModeDisplay}.`,
+        ...payModeLines,
         ...(input.artisan.condition_paiement ? [`${T.payTerms} : ${input.artisan.condition_paiement}.`] : []),
         ...(input.dechets_chantier ? [input.dechets_chantier] : []), // FIX FINAL #6
       ]
@@ -1078,8 +1114,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       const ac = input.acomptes[aci]
       const label = input.locale === 'pt' ? ac.label : normLabel(ac.label, aci)
       const trigger = input.locale === 'pt' ? ac.declencheur : normTrigger(ac.declencheur)
-      // FIX FINAL #4: afficher pourcentage si disponible
-      const pctStr = ac.pourcentage ? `${ac.pourcentage}% ` : ''
+      // FIX FINAL #4: afficher pourcentage si disponible — mais pas si le label
+      // le contient déjà (ex: "Adiantamento 30%" → ne pas redoubler "30% 30%").
+      const labelHasPct = ac.pourcentage && label.includes(`${ac.pourcentage}%`)
+      const pctStr = (ac.pourcentage && !labelHasPct) ? `${ac.pourcentage}% ` : ''
       pdf.text(`${label} : ${pctStr}${trigger}`, DEST_X0 + boxPadX, ay)
       pdf.setFont(FONT, 'bold')
       pdf.text(formatPrice(ac.montant), DEST_X0 + DEST_W - boxPadX, ay, { align: 'right' })
@@ -1100,21 +1138,27 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const insCoverage = input.artisan.insurance_coverage || T.insuranceCoverDefault
   const insTypeLabel = input.artisan.insurance_type === 'decennale' ? T.decennale
     : input.artisan.insurance_type === 'both' ? T.rcProAndDec : T.rcPro
-  let insuranceLine: string
+  // FR : RC Pro obligatoire (art. L243-2 C. assurances) — throw si manquant.
+  // PT : pas d'obligation légale équivalente pour ENI / Trabalhador independente
+  //   → on tolère l'absence et on n'affiche pas de ligne assurance.
+  let insuranceLine: string | null
   if (insName && insNumber) {
     insuranceLine = `${insTypeLabel} ${insName}, ${T.contractWord} ${insNumber}, ${T.coverageWord} ${insCoverage}.`
   } else if (insName) {
     insuranceLine = `${insTypeLabel} ${insName}, ${T.coverageWord} ${insCoverage}.`
   } else if (input.artisan.rc_pro) {
     insuranceLine = `${T.rcPro} ${input.artisan.rc_pro}, ${T.coverageWord} ${insCoverage}.`
+  } else if (isPt) {
+    insuranceLine = null
   } else {
-    throw new Error(isPt
-      ? 'Seguro RC Pro obrigatório para gerar um orçamento.'
-      : 'Assurance RC Pro obligatoire pour générer un devis (art. L243-2 C. assurances)')
+    throw new Error('Assurance RC Pro obligatoire pour générer un devis (art. L243-2 C. assurances)')
   }
   // Rétractation et délai 7 jours : applicables UNIQUEMENT B2C hors établissement
-  // et seulement pour un devis (pas sur une facture émise après prestation)
-  const showRetractation = !isFacture && input.isHorsEtablissement !== false && !input.client.siret
+  // et seulement pour un devis (pas sur une facture émise après prestation).
+  // PT : un NIF ne signifie pas B2B (tous les particuliers ont un NIF).
+  // On exclut la rétractation uniquement si le client a un SIRET FR (pas NIF PT).
+  const clientIsB2B = !isPt && !!input.client.siret
+  const showRetractation = !isFacture && input.isHorsEtablissement !== false && !clientIsB2B
   // isFranchise293B d\u00E9j\u00E0 d\u00E9clar\u00E9 ligne 501 (coh\u00E9rence avec en-t\u00EAte tableau).
   const legalParagraph = [
     T.eiMention,
@@ -1123,6 +1167,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     isFacture ? null : T.quoteFree,
     showRetractation ? T.retractionLegal1 : null,
     showRetractation ? T.retractionLegal2 : null,
+    // PT : Livro de Reclamações obligatoire (DL 156/2005) + CNIACC (Lei 144/2015).
+    isPt ? 'Livro de Reclamações disponível em formato eletrónico em www.livroreclamacoes.pt (DL 156/2005).' : null,
+    isPt && !input.mediateur
+      ? `${T.mediationLabel} (sem adesão voluntária): CNIACC — www.cniacc.pt (Lei 144/2015 art. 18.º).`
+      : null,
     input.mediateur
       ? `${T.mediationLabel} : ${input.mediateur}${input.mediateur_url ? ', ' + input.mediateur_url : ''}.`
       : null,
@@ -1146,7 +1195,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // PAGE 2: DROIT DE RÉTRACTATION (B2C uniquement — art. L. 221-18 C. conso.)
   // ═══════════════════════════════════════════════════════════
 
-  if (!isFacture && input.isHorsEtablissement !== false && !input.client.siret) {
+  if (!isFacture && input.isHorsEtablissement !== false && !clientIsB2B) {
   pdf.addPage()
   let ry = 8
   pdf.setFillColor(COLOR.ACCENT); pdf.rect(ML, ry, contentW, ptToMm(3), 'F')
@@ -1173,13 +1222,16 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   const formAttn = T.attentionTo
-  pdf.text(formAttn, ML + boxPadX, ry)
-  const atW = pdf.getTextWidth(formAttn)
   pdf.setFont(FONT, 'bold')
-  // Utiliser l'adresse normalisée pour le formulaire aussi
-  const artAddr = titleCaseAddress(input.artisan.adresse)
-  pdf.text(`${input.artisan.nom}, ${artAddr}`, ML + boxPadX + atW, ry)
-  ry += 6
+  // Adresse artisan normalisée — remplacer \n par ", " pour une ligne continue,
+  // puis wrapper si trop long pour éviter le chevauchement.
+  const artAddr = titleCaseAddress(input.artisan.adresse).replace(/\n/g, ', ')
+  const attnPhone = input.artisan.telephone ? ` — Tel.: ${input.artisan.telephone}` : ''
+  const attnEmail = input.artisan.email ? ` — Email: ${input.artisan.email}` : ''
+  const attnFull = `${formAttn}${input.artisan.nom}, ${artAddr}${attnPhone}${attnEmail}`
+  const attnWrapped = pdf.splitTextToSize(attnFull, contentW - boxPadX * 2)
+  pdf.text(attnWrapped, ML + boxPadX, ry)
+  ry += attnWrapped.length * ptToMm(13) + 2
 
   pdf.setFont(FONT, 'normal')
   pdf.text(T.retractionNotify, ML + boxPadX, ry)
