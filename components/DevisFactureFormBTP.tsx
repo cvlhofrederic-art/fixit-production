@@ -531,17 +531,42 @@ export default function DevisFactureFormBTP({
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<string>(initialData?.executionDelayType || 'ouvres')
   // Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
-  // 'standard' = après prestation (cas général)
-  // 'acompte'  = versement avant prestation (TVA exigible à l'encaissement)
+  // 'standard'  = après prestation (cas général)
+  // 'acompte'   = versement avant prestation (TVA exigible à l'encaissement)
   // 'situation' = facturation à l'avancement (BTP chantier long)
-  const [factureSubType, setFactureSubType] = useState<'standard' | 'acompte' | 'situation'>(
-    ((initialData as { factureSubType?: 'standard' | 'acompte' | 'situation' } | undefined)?.factureSubType) || 'standard'
-  )
+  // 'avoir'     = note de crédit annulant tout ou partie d'une facture émise
+  type FactureSubType = 'standard' | 'acompte' | 'situation' | 'avoir'
+  const initialSubType = ((initialData as { factureSubType?: FactureSubType } | undefined)?.factureSubType) || 'standard'
+  const [factureSubType, setFactureSubType] = useState<FactureSubType>(initialSubType)
   const [situationNumber, setSituationNumber] = useState<number | undefined>(
     (initialData as { situationNumber?: number } | undefined)?.situationNumber
   )
   const [situationAvancement, setSituationAvancement] = useState<number | undefined>(
     (initialData as { situationAvancement?: number } | undefined)?.situationAvancement
+  )
+  // ─── Champs spécifiques acompte fractionné ───
+  const [acompteOrdre, setAcompteOrdre] = useState<number | undefined>(
+    (initialData as { acompteOrdre?: number } | undefined)?.acompteOrdre
+  )
+  const [acompteTotal, setAcompteTotal] = useState<number | undefined>(
+    (initialData as { acompteTotal?: number } | undefined)?.acompteTotal
+  )
+  const [acomptePourcentage, setAcomptePourcentage] = useState<number | undefined>(
+    (initialData as { acomptePourcentage?: number } | undefined)?.acomptePourcentage
+  )
+  // ─── Champs spécifiques avoir ───
+  const [parentInvoiceNumber, setParentInvoiceNumber] = useState<string>(
+    ((initialData as { parentInvoiceNumber?: string } | undefined)?.parentInvoiceNumber) || ''
+  )
+  const [avoirMotif, setAvoirMotif] = useState<string>(
+    ((initialData as { avoirMotif?: string } | undefined)?.avoirMotif) || ''
+  )
+  // Parser prix HT — autorise les valeurs négatives en mode AVOIR (annulation).
+  // Référencé par tous les inputs de prix unitaire HT (labor, matériaux, frais,
+  // custom tables) pour respecter la sémantique de l'avoir (montants négatifs).
+  const priceHtParser = React.useMemo(
+    () => (v: string | number) => parseDecimalInput4(v, undefined, { allowNegative: factureSubType === 'avoir' }),
+    [factureSubType],
   )
   // Date de prestation = jour effectif des travaux (différente de la date d'émission
   // qui est la date de rédaction du devis). Optionnelle : si vide, le PDF affiche
@@ -843,6 +868,11 @@ export default function DevisFactureFormBTP({
   const fetchDocNumber = useCallback(async (): Promise<string> => {
     if (docNumberRef.current) return docNumberRef.current
     const year = new Date().getFullYear()
+    // Sous-type 'avoir' (méthode pro BTP 2026) → préfixe AV-YYYY-NNN même si
+    // docType reste 'facture' côté form. Sinon préfixe FACT-/DEV- selon docType.
+    const rpcDocType: 'devis' | 'facture' | 'avoir' = factureSubType === 'avoir' && docType === 'facture'
+      ? 'avoir'
+      : docType
 
     // 1) API HTTP avec Bearer token
     try {
@@ -853,7 +883,7 @@ export default function DevisFactureFormBTP({
       const res = await fetch('/api/doc-number', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ docType, year }),
+        body: JSON.stringify({ docType: rpcDocType, year }),
       })
       if (res.ok) {
         const { number } = await res.json()
@@ -868,7 +898,7 @@ export default function DevisFactureFormBTP({
       if (artisan?.id) {
         const { data, error } = await supabase.rpc('next_doc_number', {
           p_artisan_user_id: artisan.id,
-          p_doc_type: docType,
+          p_doc_type: rpcDocType,
           p_year: year,
         })
         if (!error && data) {
@@ -881,20 +911,32 @@ export default function DevisFactureFormBTP({
     } catch { /* fallthrough */ }
 
     // 3) Fallback localStorage (compatible préfixes DEV/FACT/AV)
-    const fallback = localFallbackDocNumber(artisan?.id, docType)
+    const fallback = localFallbackDocNumber(artisan?.id, rpcDocType)
     docNumberRef.current = fallback
     setDocNumber(fallback)
     return fallback
-  }, [artisan?.id, docType])
+  }, [artisan?.id, docType, factureSubType])
 
   // Auto-fetch du numéro à l'init si pas déjà fourni par initialData. Évite
   // que le formulaire affiche un numéro vide avant la première sauvegarde.
+  // Re-fetch quand l'utilisateur bascule en mode 'avoir' depuis le selector
+  // de type de facture (préfixe FACT- → AV-).
   useEffect(() => {
-    if (!docNumber && artisan?.id) {
-      void fetchDocNumber()
+    if (artisan?.id) {
+      const wantsAvoirPrefix = factureSubType === 'avoir' && docType === 'facture'
+      const hasAvoirPrefix = (docNumber || '').toUpperCase().startsWith('AV-')
+      if (!docNumber) {
+        void fetchDocNumber()
+      } else if (wantsAvoirPrefix && !hasAvoirPrefix) {
+        // Bascule vers AV- en mode avoir
+        void fetchDocNumber()
+      } else if (!wantsAvoirPrefix && hasAvoirPrefix && docType === 'facture') {
+        // Re-bascule vers FACT- si l'utilisateur change d'avis
+        void fetchDocNumber()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisan?.id, docType])
+  }, [artisan?.id, docType, factureSubType])
 
   const totaux = useMemo(() => {
     // Source unique de vérité : `buildDocumentLines` (lib/devis-totals.ts)
@@ -1320,6 +1362,13 @@ export default function DevisFactureFormBTP({
       factureSubType,
       situationNumber,
       situationAvancement,
+      // Acompte fractionné (méthode pro BTP 2026)
+      acompteOrdre,
+      acompteTotal,
+      acomptePourcentage,
+      // Avoir / note de crédit
+      parentInvoiceNumber: parentInvoiceNumber || undefined,
+      avoirMotif: avoirMotif || undefined,
       // Entreprise
       companyStatus: statutJuridique,
       companyName,
@@ -1425,6 +1474,10 @@ export default function DevisFactureFormBTP({
     paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva,
     profileIban, profileBic,
     notes, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
+    // Sous-type facture + champs acompte fractionné + avoir (méthode pro BTP 2026)
+    factureSubType, situationNumber, situationAvancement,
+    acompteOrdre, acompteTotal, acomptePourcentage,
+    parentInvoiceNumber, avoirMotif,
   ])
 
   /* ──────── Validation régime TVA (garde-fous légaux) ──────── */
@@ -1497,8 +1550,25 @@ export default function DevisFactureFormBTP({
   const saveAndSend = () => {
     if (!artisan?.id) return
     if (!clientName.trim()) { toast.error('Renseignez le nom du client'); return }
-    if (![...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
-      toast.error('Ajoutez au moins une prestation ou un matériau chiffré'); return
+    // Avoir : prix négatifs autorisés (annulation). Le check ≠ 0 reste.
+    const isAvoir = factureSubType === 'avoir'
+    const hasChiffredLine = [...lines, ...materialLines, ...fraisLines].some((l) =>
+      l.description.trim().length > 0 && (isAvoir ? l.priceHT !== 0 : l.priceHT > 0),
+    )
+    if (!hasChiffredLine) {
+      toast.error(isAvoir
+        ? 'Ajoutez au moins une ligne avec un montant négatif (annulation)'
+        : 'Ajoutez au moins une prestation ou un matériau chiffré',
+      )
+      return
+    }
+    if (isAvoir) {
+      if (!parentInvoiceNumber.trim()) {
+        toast.error('Renseignez le numéro de la facture annulée par cet avoir'); return
+      }
+      if (avoirMotif.trim().length < 5 || avoirMotif.trim().length > 500) {
+        toast.error('Motif d\'annulation requis (5–500 caractères, preuve fiscale L123-22)'); return
+      }
     }
     // Hard block : régime TVA incohérent (autoliquidation B2C, SIREN absent, etc.)
     // Bloque l'émission pour éviter une redevabilité indue (art. 283-3 CGI).
@@ -1766,6 +1836,10 @@ export default function DevisFactureFormBTP({
         executionDelay: delayStr,
         // Sous-type facture (méthode pro 2026) — pilote label PDF
         factureSubType, situationNumber, situationAvancement,
+        // Acompte fractionné + avoir (label PDF, mentions légales)
+        acompteOrdre, acompteTotal, acomptePourcentage,
+        parentInvoiceNumber: parentInvoiceNumber || undefined,
+        avoirMotif: avoirMotif || undefined,
         companyStatus: statusCode,
         companyName, companySiret, companyAddress, companyRCS: companyRCS || '', companyCapital: companyCapital || '',
         companyPhone, companyEmail,
@@ -2449,19 +2523,21 @@ export default function DevisFactureFormBTP({
           <div className="dv-section">
             <div className="dv-section-t">INFORMATIONS DOCUMENT</div>
             {/* Sous-type facture (méthode pro 2026) — visible uniquement
-                en mode facture. Trois cas légalement distincts :
-                standard / acompte / situation BTP. */}
+                en mode facture. Quatre cas légalement distincts :
+                standard / acompte / situation BTP / avoir (note de crédit). */}
             {docType === 'facture' && (
               <div className="dv-fg" style={{ marginBottom: '.85rem' }}>
                 <label>Type de facture <span className="req">*</span></label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  {(['standard', 'acompte', 'situation'] as const).map((st) => {
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                  {(['standard', 'acompte', 'situation', 'avoir'] as const).map((st) => {
                     const labels = {
                       standard: { title: 'Facture standard', hint: 'Émise après prestation (cas général, art. 289 CGI)' },
                       acompte: { title: 'Facture d’acompte', hint: 'Versement reçu avant prestation — TVA exigible à l’encaissement' },
                       situation: { title: 'Facture de situation', hint: 'BTP chantier long — facturation à l’avancement' },
+                      avoir: { title: 'Avoir (note de crédit)', hint: 'Annulation totale ou partielle d’une facture — montants négatifs (art. 272 CGI)' },
                     }
                     const isActive = factureSubType === st
+                    const isAvoir = st === 'avoir'
                     return (
                       <button
                         key={st}
@@ -2470,8 +2546,8 @@ export default function DevisFactureFormBTP({
                         style={{
                           padding: '10px 12px',
                           borderRadius: 6,
-                          border: `1.5px solid ${isActive ? 'var(--primary-yellow, #FFC107)' : '#E0E0E0'}`,
-                          background: isActive ? 'rgba(255, 193, 7, 0.08)' : '#fff',
+                          border: `1.5px solid ${isActive ? (isAvoir ? '#D32F2F' : 'var(--primary-yellow, #FFC107)') : '#E0E0E0'}`,
+                          background: isActive ? (isAvoir ? 'rgba(211, 47, 47, 0.06)' : 'rgba(255, 193, 7, 0.08)') : '#fff',
                           cursor: 'pointer',
                           textAlign: 'left',
                           fontSize: 12,
@@ -2509,6 +2585,70 @@ export default function DevisFactureFormBTP({
                       />
                     </div>
                   </div>
+                )}
+                {factureSubType === 'acompte' && (
+                  <div className="dv-row" style={{ marginTop: 10 }}>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>N° d&apos;acompte</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={acompteOrdre ?? ''}
+                        onChange={(e) => setAcompteOrdre(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        placeholder="Ex : 1, 2…"
+                      />
+                    </div>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>Sur (total)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={acompteTotal ?? ''}
+                        onChange={(e) => setAcompteTotal(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        placeholder="Ex : 3"
+                      />
+                    </div>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>Pourcentage</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        step="0.01"
+                        value={acomptePourcentage ?? ''}
+                        onChange={(e) => setAcomptePourcentage(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        placeholder="Ex : 30"
+                      />
+                    </div>
+                  </div>
+                )}
+                {factureSubType === 'avoir' && (
+                  <>
+                    <div className="dv-row" style={{ marginTop: 10 }}>
+                      <div className="dv-fg" style={{ marginBottom: 0 }}>
+                        <label>Facture annulée (référence) <span className="req">*</span></label>
+                        <input
+                          type="text"
+                          value={parentInvoiceNumber}
+                          onChange={(e) => setParentInvoiceNumber(e.target.value)}
+                          placeholder="Ex : FACT-2026-013"
+                        />
+                      </div>
+                    </div>
+                    <div className="dv-fg" style={{ marginTop: 10, marginBottom: 0 }}>
+                      <label>Motif d&apos;annulation <span className="req">*</span> <span style={{ color: '#999', fontWeight: 'normal', fontSize: '11px' }}>(5–500 chars, preuve fiscale L123-22)</span></label>
+                      <textarea
+                        rows={2}
+                        value={avoirMotif}
+                        onChange={(e) => setAvoirMotif(e.target.value)}
+                        placeholder="Ex : erreur de facturation client, retour matériel, sortie comptable annulée…"
+                        style={{ width: '100%', resize: 'vertical', padding: 8, border: '1px solid #E0E0E0', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}
+                      />
+                    </div>
+                    <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(211, 47, 47, 0.05)', borderRadius: 4, fontSize: 11, color: '#7A1F1F', lineHeight: 1.4 }}>
+                      <strong>Mode AVOIR :</strong> les prix unitaires négatifs sont autorisés. Le total final sera négatif (créance en faveur du client). Référence légale : art. 272 CGI + BOI-TVA-DECLA-30-20-20-30 §70 (rectification TVA collectée par l&apos;émetteur / déductible par le preneur). Le PDF affichera la mention « AVOIR sur facture {parentInvoiceNumber || 'FACT-...'} ».
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -2663,7 +2803,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2776,7 +2916,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -2881,7 +3021,7 @@ export default function DevisFactureFormBTP({
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateFraisLine(l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateFraisLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -3015,7 +3155,7 @@ export default function DevisFactureFormBTP({
                             {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                           </select>
                         </td>
-                        <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={parseDecimalInput4} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                        <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                         <td>
                           <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}

@@ -140,15 +140,21 @@ export const sumMoney = (values: number[]): number => {
  *
  * Sortie toujours arrondie à 2 décimales (round2).
  */
-export const parseDecimalInput = (v: string | number, max = 999_999_999.99): number => {
+export const parseDecimalInput = (
+  v: string | number,
+  max = 999_999_999.99,
+  opts?: { allowNegative?: boolean },
+): number => {
+  const allowNeg = opts?.allowNegative === true
+  const min = allowNeg ? -max : 0
   if (typeof v === 'number') {
-    return Number.isFinite(v) && v >= 0 && v <= max ? round2(v) : 0
+    return Number.isFinite(v) && v >= min && v <= max ? round2(v) : 0
   }
   if (typeof v !== 'string') return 0
   const cleaned = v.trim().replace(/\s/g, '').replace(',', '.')
-  if (cleaned === '') return 0
+  if (cleaned === '' || cleaned === '-') return 0
   const n = parseFloat(cleaned)
-  if (!Number.isFinite(n) || n < 0 || n > max) return 0
+  if (!Number.isFinite(n) || n < min || n > max) return 0
   return round2(n)
 }
 
@@ -163,15 +169,21 @@ export const parseDecimalInput = (v: string | number, max = 999_999_999.99): num
  * donc le PDF affiche toujours du 2 décimales — seule la base de calcul
  * conserve la précision.
  */
-export const parseDecimalInput4 = (v: string | number, max = 999_999_999.99): number => {
+export const parseDecimalInput4 = (
+  v: string | number,
+  max = 999_999_999.99,
+  opts?: { allowNegative?: boolean },
+): number => {
+  const allowNeg = opts?.allowNegative === true
+  const min = allowNeg ? -max : 0
   if (typeof v === 'number') {
-    return Number.isFinite(v) && v >= 0 && v <= max ? round4(v) : 0
+    return Number.isFinite(v) && v >= min && v <= max ? round4(v) : 0
   }
   if (typeof v !== 'string') return 0
   const cleaned = v.trim().replace(/\s/g, '').replace(',', '.')
-  if (cleaned === '') return 0
+  if (cleaned === '' || cleaned === '-') return 0
   const n = parseFloat(cleaned)
-  if (!Number.isFinite(n) || n < 0 || n > max) return 0
+  if (!Number.isFinite(n) || n < min || n > max) return 0
   return round4(n)
 }
 
