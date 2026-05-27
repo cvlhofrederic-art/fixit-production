@@ -8,7 +8,7 @@ import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
 import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
-import { DevisFactureData } from '@/lib/devis-types'
+import { DevisFactureData, ProductLine } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
 import { getDocSeq } from '@/lib/devis-utils'
@@ -470,12 +470,14 @@ function FacturesSectionV5({
     p: { percentage: number; ordre: number; total: number; declencheur: string },
   ): PersistedDocument => {
     const r = p.percentage / 100
-    type Line = { description?: string; priceHT?: number; totalHT?: number; [k: string]: unknown }
-    const scaleLines = (arr?: Line[]) => (arr || []).map(l => ({
-      ...l,
-      priceHT: round2(((l.priceHT as number) || 0) * r),
-      totalHT: round2(((l.totalHT as number) || 0) * r),
-    }))
+    // Cast lâche : PersistedDocument.lines est une union loose, mais à
+    // l'exécution les lignes parent ont la forme complète ProductLine.
+    const scaleProductLines = (arr?: ProductLine[]): ProductLine[] =>
+      (arr || []).map(l => ({
+        ...l,
+        priceHT: round2((l.priceHT || 0) * r),
+        totalHT: round2((l.totalHT || 0) * r),
+      }))
     const parentAny = parent as unknown as Record<string, unknown>
     return {
       ...parent,
@@ -487,8 +489,8 @@ function FacturesSectionV5({
       sentAt: undefined,
       docDate: new Date().toISOString().slice(0, 10),
       docTitle: `Acompte N°${p.ordre} sur ${p.total} (${p.percentage}%) — ${parent.docTitle || parent.docNumber}`,
-      lines: scaleLines(parent.lines as Line[] | undefined),
-      materialLines: scaleLines(parentAny.materialLines as Line[] | undefined),
+      lines: scaleProductLines(parent.lines as unknown as ProductLine[]),
+      materialLines: scaleProductLines(parentAny.materialLines as ProductLine[] | undefined),
       fraisAnnexes: parentAny.fraisAnnexes as unknown as never,
       factureSubType: 'acompte',
       acompteOrdre: p.ordre,
@@ -498,19 +500,19 @@ function FacturesSectionV5({
       parentInvoiceNumber: parent.docNumber,
       notes: `Acompte ${p.percentage}% (N°${p.ordre} sur ${p.total}) sur facture ${parent.docNumber}. ` +
              `Déclencheur : ${p.declencheur}. TVA exigible à l'encaissement (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).`,
-    } as PersistedDocument
+    } as unknown as PersistedDocument
   }
 
   const buildAvoirPrefill = (
     parent: PersistedDocument,
     p: { motif: string; type: 'totale' | 'partielle' },
   ): PersistedDocument => {
-    type Line = { description?: string; priceHT?: number; totalHT?: number; [k: string]: unknown }
-    const negateLines = (arr?: Line[]) => (arr || []).map(l => ({
-      ...l,
-      priceHT: -(((l.priceHT as number) || 0)),
-      totalHT: -(((l.totalHT as number) || 0)),
-    }))
+    const negateProductLines = (arr?: ProductLine[]): ProductLine[] =>
+      (arr || []).map(l => ({
+        ...l,
+        priceHT: -(l.priceHT || 0),
+        totalHT: -(l.totalHT || 0),
+      }))
     const parentAny = parent as unknown as Record<string, unknown>
     return {
       ...parent,
@@ -522,8 +524,8 @@ function FacturesSectionV5({
       sentAt: undefined,
       docDate: new Date().toISOString().slice(0, 10),
       docTitle: `AVOIR sur facture ${parent.docNumber}${p.type === 'partielle' ? ' (annulation partielle)' : ''}`,
-      lines: negateLines(parent.lines as Line[] | undefined),
-      materialLines: negateLines(parentAny.materialLines as Line[] | undefined),
+      lines: negateProductLines(parent.lines as unknown as ProductLine[]),
+      materialLines: negateProductLines(parentAny.materialLines as ProductLine[] | undefined),
       fraisAnnexes: parentAny.fraisAnnexes as unknown as never,
       factureSubType: 'avoir',
       parentInvoiceNumber: parent.docNumber,
@@ -534,7 +536,7 @@ function FacturesSectionV5({
       notes: `Avoir (note de crédit) émis en annulation ${p.type} de la facture ${parent.docNumber}. ` +
              `Motif : ${p.motif}. Conformément à l'art. 272 CGI + BOI-TVA-DECLA-30-20-20-30 §70 ` +
              `(rectification TVA collectée par l'émetteur / déductible par le preneur).`,
-    } as PersistedDocument
+    } as unknown as PersistedDocument
   }
 
   return (
