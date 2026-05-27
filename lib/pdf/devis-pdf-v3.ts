@@ -259,7 +259,7 @@ function splitAddress(addr: string): { street: string; city: string | null } {
 
 // ─── Main generator ──────────────────────────────────────
 
-export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string }> {
+export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string; pdfArrayBuffer: ArrayBuffer }> {
   // FR-V8 audit fix : garde stricte sur ptFiscalData. Vitfix n'est PAS certifié
   // AT (Decreto-Lei 28/2019). Émettre un PDF avec un certNumber arbitraire =
   // délit fiscal PT (1500-150 000€). Tant que la certification n'est pas
