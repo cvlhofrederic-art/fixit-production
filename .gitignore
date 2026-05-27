@@ -51,3 +51,4 @@ security/outputs/*
 
 # supabase CLI cache (project-ref, version pins)
 supabase/.temp/
+tmp/lighthouse-v54/
