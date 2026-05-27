@@ -344,13 +344,20 @@ export async function POST(request: NextRequest) {
           messages,
           temperature: 0.25,
           max_tokens: 4000,
-        }, { apiKey: GROQ_API_KEY }),
+        }, { apiKey: GROQ_API_KEY, maxRetries: 2, disableCerebrasFallback: true }),
       )
     } catch (err) {
-      logger.error('Groq Fixy error:', err)
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logger.error('Groq Fixy error:', { error: errMsg })
+      // Différencier "clé manquante" (déjà géré ligne 247) du vrai échec LLM :
+      // ici la clé est présente mais l'appel a échoué (429, timeout, etc.).
+      const errorMessage = locale === 'pt'
+        ? `⚠️ O serviço IA está temporariamente sobrecarregado. Tente novamente dentro de alguns segundos.\n\n_Detalhe técnico: ${errMsg.slice(0, 120)}_`
+        : `⚠️ Le service IA est temporairement surchargé. Réessayez dans quelques secondes.\n\n_Détail technique : ${errMsg.slice(0, 120)}_`
       return NextResponse.json({
-        response: generateFallback(message, syndic_context, userRole, locale),
+        response: errorMessage,
         fallback: true,
+        error: 'llm_unreachable',
       })
     }
     let response: string = groqData.choices?.[0]?.message?.content || (locale === 'pt' ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
@@ -399,7 +406,7 @@ export async function POST(request: NextRequest) {
             messages: messagesWithToolResult,
             temperature: 0.25,
             max_tokens: 4000,
-          }, { apiKey: GROQ_API_KEY })
+          }, { apiKey: GROQ_API_KEY, maxRetries: 2, disableCerebrasFallback: true })
           const response2 = groqData2.choices?.[0]?.message?.content
           if (response2) {
             response = response2.replace(/##TOOL##[\s\S]*?##/g, '').trim()
