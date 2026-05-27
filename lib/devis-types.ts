@@ -190,19 +190,36 @@ export interface DevisFactureData {
   executionDelay: string
   executionDelayDays: number
   executionDelayType: 'ouvres' | 'calendaires'
-  // Sous-type facture (méthode pro 2026) — distingue les trois cas légaux :
+  // Sous-type facture (méthode pro 2026) — distingue les quatre cas légaux :
   //  - 'standard' : facture finale émise après prestation (art. 289 CGI)
   //  - 'acompte'  : facture d'acompte émise à l'encaissement, avant prestation
   //                 (TVA exigible à l'encaissement depuis 01/01/2023)
   //  - 'situation': facture de situation BTP (chantier long, avancement)
-  // Sur docType='devis', toujours undefined. Numérotation FACT- partagée pour
-  // toutes les factures (séquence chronologique unique par artisan, conforme
-  // Bpifrance / art. 242 nonies A annexe II CGI).
-  factureSubType?: 'standard' | 'acompte' | 'situation'
+  //  - 'avoir'    : note de crédit annulant tout ou partie d'une facture émise
+  //                 (BOI-TVA-DECLA-30-20-20-30 §70 ; art. 272 CGI). Montants
+  //                 négatifs. Préfixe AV- via RPC next_doc_number. Référence
+  //                 facture parente dans avoirDeFactureId.
+  // Sur docType='devis', toujours undefined. Numérotation FACT-/AV- séparée
+  // par RPC next_doc_number (séquence chronologique par préfixe et par artisan,
+  // conforme Bpifrance / art. 242 nonies A annexe II CGI).
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
   /** Numéro de situation pour facture de situation BTP (1, 2, 3...) */
   situationNumber?: number
   /** Pourcentage d'avancement pour facture de situation BTP (0-100) */
   situationAvancement?: number
+  /** Numéro d'ordre dans une série d'acomptes fractionnés (1, 2, 3...). */
+  acompteOrdre?: number
+  /** Nombre total d'acomptes prévus dans la série (ex. 3 pour "Acompte 2 sur 3"). */
+  acompteTotal?: number
+  /** Pourcentage de la base TTC représenté par cet acompte (1-100). */
+  acomptePourcentage?: number
+  /** ID de la facture parente sur laquelle s'impute cet acompte. */
+  acompteDeFactureId?: string
+  /** ID de la facture parente annulée (totalement ou partiellement) par cet avoir. */
+  avoirDeFactureId?: string
+  /** Motif d'annulation/correction (5-500 chars) — obligatoire pour les avoirs.
+   *  Preuve fiscale (Code commerce L123-22, conservation 10 ans). */
+  avoirMotif?: string
   // Payment (facture only)
   paymentMode: string
   paymentDue: string

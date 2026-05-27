@@ -71,12 +71,23 @@ export interface PdfV3Input {
    *  Pilote le titre du PDF et les mentions légales :
    *    - 'standard' (défaut) : facture finale après prestation
    *    - 'acompte'           : versement avant prestation (TVA exigible à l'encaissement)
-   *    - 'situation'         : facturation à l'avancement (BTP chantier long) */
-  factureSubType?: 'standard' | 'acompte' | 'situation'
+   *    - 'situation'         : facturation à l'avancement (BTP chantier long)
+   *    - 'avoir'             : note de crédit (montants négatifs) sur facture émise */
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
   /** N° de situation BTP (1, 2, 3...) — affiché dans le titre si fourni. */
   situationNumber?: number
   /** Pourcentage d'avancement (0-100) — affiché en mention si fourni. */
   situationAvancement?: number
+  /** N° d'ordre dans une série d'acomptes fractionnés (affiché « Acompte N°X sur Y »). */
+  acompteOrdre?: number
+  /** Nombre total d'acomptes prévus (« sur Y »). */
+  acompteTotal?: number
+  /** Pourcentage de la base TTC représenté par l'acompte (1-100). */
+  acomptePourcentage?: number
+  /** Numéro de la facture parente (FACT-YYYY-NNN) que l'acompte/avoir référence. */
+  parentInvoiceNumber?: string
+  /** Motif d'annulation/correction pour avoir (5-500 chars). */
+  avoirMotif?: string
 
   // Company
   companyStatus: string
@@ -348,6 +359,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     docType, docNumber, docTitle, docDate, docValidity,
     prestationDate, executionDelay,
     factureSubType, situationNumber, situationAvancement,
+    acompteOrdre, acompteTotal, acomptePourcentage, parentInvoiceNumber, avoirMotif,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
@@ -562,18 +574,46 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += 3
 
   // Label sous-type facture (méthode pro 2026) — mention légalement requise
-  // pour acompte / situation (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).
+  // pour acompte / situation / avoir :
+  //  - acompte  : art. 289 CGI + BOFIP-TVA-DECLA-30-10-20 (TVA exigible à
+  //               l'encaissement). Mention « FACTURE D'ACOMPTE » + N°X/Y si
+  //               fractionnement (méthode pro BTP 2026).
+  //  - situation: BOFIP BOI-TVA-CHAMP-10-30 §240 (chantier long, avancement %).
+  //  - avoir    : BOI-TVA-DECLA-30-20-20-30 §70 + art. 272 CGI (rectification
+  //               TVA collectée / déductible). Mention « AVOIR » + référence
+  //               facture parente (méthode pro BTP 2026).
   // Standard et devis : aucun label additionnel.
-  const subTypeLabel = docType === 'facture' && factureSubType && factureSubType !== 'standard'
-    ? factureSubType === 'acompte'
-      ? (locale === 'pt' ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE')
-      : `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
-    : null
+  let subTypeLabel: string | null = null
+  if (docType === 'facture' && factureSubType && factureSubType !== 'standard') {
+    if (factureSubType === 'acompte') {
+      const base = locale === 'pt' ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE'
+      const ordreSuffix = (acompteOrdre && acompteTotal)
+        ? ` N°${acompteOrdre} ${locale === 'pt' ? 'de' : 'sur'} ${acompteTotal}`
+        : ''
+      const pctSuffix = acomptePourcentage != null ? ` — ${acomptePourcentage}%` : ''
+      subTypeLabel = `${base}${ordreSuffix}${pctSuffix}`
+    } else if (factureSubType === 'situation') {
+      subTypeLabel = `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
+    } else if (factureSubType === 'avoir') {
+      const base = locale === 'pt' ? 'NOTA DE CRÉDITO (AVOIR)' : 'AVOIR'
+      subTypeLabel = parentInvoiceNumber
+        ? `${base} ${locale === 'pt' ? 'sobre fatura' : 'sur facture'} ${parentInvoiceNumber}`
+        : base
+    }
+  }
   if (subTypeLabel) {
     y += 2
     pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
     y += 3
+    // Pour les avoirs, on affiche aussi le motif d'annulation en petit gris
+    // sous le label (preuve fiscale Code commerce L123-22).
+    if (factureSubType === 'avoir' && avoirMotif) {
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      const motifLines = pdf.splitTextToSize(`Motif : ${avoirMotif}`, pageW * 0.7) as string[]
+      pdf.text(motifLines, pageW / 2, y, { align: 'center' })
+      y += motifLines.length * 2.6 + 1
+    }
   }
 
   // ── PT Fiscal: ATCUD + Hash ──
@@ -1254,8 +1294,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Le TOTAL affiché DÉDUIT effectivement la remise — sinon le client lit
   // "Remise -500€" puis "TOTAL 12 500€" alors qu'il devrait payer 12 000€
   // (bug audit 03/05/2026 finding CRITIQUE #6 + ÉLEVÉ).
+  // NB : pas de Math.max(0, …) — un avoir (note de crédit) a un total négatif
+  // par construction (cf. Task #1 intégration mode AVOIR BTP).
   const totalRaw = showTva ? totalTTC : subtotalHT
-  const totalVal = Math.max(0, Math.round((totalRaw - discountAmount) * 100) / 100)
+  const totalVal = Math.round((totalRaw - discountAmount) * 100) / 100
   const totBoxX = boxX_dest
   const totBoxW = destBoxW
   // totH déjà déclaré plus haut (estimation totalsBlockH)
@@ -1791,8 +1833,92 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(legalWrapped, mL, pageH - legalBottomMargin - legalHeight)
   y = pageH - legalBottomMargin
 
-  // ═══ PAGE 2 — RÉTRACTATION ═══
-  // Page rétractation — FR uniquement, particuliers seulement (art. L. 221-18 C. conso.)
+  // ═══ PAGE — RÉTRACTATION PT (DL 24/2014) ═══
+  if (docType === 'devis' && isHorsEtablissement && isParticulier && locale === 'pt') {
+    pdf.addPage()
+    let ry = 8
+
+    pdf.setFillColor(COLOR_ACCENT)
+    pdf.rect(mL, ry, contentW, ptToMm(3), 'F')
+    ry += ptToMm(3) + 8
+
+    pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('DIREITO DE LIVRE RESOLUCAO', mL, ry)
+    ry += 5
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('Art. 10.o do Decreto-Lei n.o 24/2014', mL, ry)
+    ry += 8
+
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    const ptRetTexts = [
+      'O cliente dispoe de um prazo de 14 dias de calendario, a contar da assinatura do presente orcamento, para exercer o seu direito de livre resolucao, sem necessidade de justificacao nem de pagamento de penalidades.',
+      'Para exercer este direito, o cliente pode utilizar o formulario abaixo ou enviar qualquer declaracao inequivoca em que manifeste a sua vontade de resolver o contrato.',
+      'Nenhum pagamento pode ser exigido antes do termo do prazo de 7 dias a contar da assinatura, salvo trabalhos urgentes expressamente solicitados pelo cliente.',
+    ]
+    ptRetTexts.forEach(txt => {
+      const wrapped = pdf.splitTextToSize(txt, contentW)
+      pdf.text(wrapped, mL, ry)
+      ry += wrapped.length * ptToMm(13) + 4
+    })
+
+    ry += 2
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('Renuncia ao prazo de livre resolucao (art. 17.o DL 24/2014)', mL, ry)
+    ry += 5
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    const renunciaText = 'Caso o cliente solicite expressamente o inicio dos trabalhos antes do termo do prazo de 14 dias de livre resolucao, declara reconhecer que perdera esse direito assim que o servico for integralmente prestado (art. 17.o n.o 1 al. a) DL 24/2014).'
+    const renunciaWrapped = pdf.splitTextToSize(renunciaText, contentW)
+    pdf.text(renunciaWrapped, mL, ry)
+    ry += renunciaWrapped.length * ptToMm(13) + 6
+
+    // Checkboxes
+    pdf.setDrawColor(COLOR_TEXT); pdf.setLineWidth(0.3)
+    pdf.rect(mL, ry - 2.5, 3, 3)
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold')
+    pdf.text('Sim, solicito o inicio imediato e renuncio ao prazo.', mL + 5, ry)
+    pdf.rect(xRight - 18, ry - 2.5, 3, 3)
+    pdf.text('Nao.', xRight - 14, ry)
+    ry += 12
+
+    // Formulário
+    pdf.setFillColor(COLOR_ACCENT)
+    pdf.rect(mL, ry, contentW, 8, 'F')
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_WHITE)
+    pdf.text('FORMULARIO DE LIVRE RESOLUCAO', mL + boxPadX, ry + 5.5)
+    ry += 12
+
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    const ptFormAttention = `A atencao de: ${companyName}, ${companyAddress}`
+    if (companyPhone) {
+      pdf.text(`${ptFormAttention} -- Tel.: ${companyPhone}`, mL + boxPadX, ry)
+      ry += 5
+      if (companyEmail) { pdf.text(`Email: ${companyEmail}`, mL + boxPadX, ry); ry += 6 }
+    } else {
+      pdf.text(ptFormAttention, mL + boxPadX, ry); ry += 6
+    }
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.text('Pela presente notifico a minha resolucao do contrato relativo a prestacao de servicos supra.', mL + boxPadX, ry)
+    ry += 8
+
+    const ptFormFields = [
+      'Encomendado em / recebido em :',
+      'Nome do cliente :',
+      'Morada :',
+      'Data : ___ / ___ / ______',
+      'Assinatura :',
+    ]
+    ptFormFields.forEach(f => {
+      pdf.text(f, mL + boxPadX, ry)
+      if (!f.startsWith('Data') && !f.startsWith('Assinatura')) {
+        const fw = pdf.getTextWidth(f) + 2
+        drawHLine(mL + boxPadX + fw, ry + 0.5, xRight - boxPadX, COLOR_BORDER, 0.2)
+      }
+      ry += 8
+    })
+  }
+
+  // ═══ PAGE — RÉTRACTATION FR (L. 221-18 C. conso.) ═══
   if (docType === 'devis' && isHorsEtablissement && isParticulier && locale !== 'pt') {
     pdf.addPage()
     let ry = 8
@@ -2107,5 +2233,5 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.save(filename)
   }
 
-  return { filename }
+  return { filename, pdfArrayBuffer: pdf.output('arraybuffer') as ArrayBuffer }
 }

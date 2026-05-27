@@ -57,9 +57,14 @@ export interface BuildV2InputParams {
   executionDelay: string
   prestationDate: string
   /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
-  factureSubType?: 'standard' | 'acompte' | 'situation'
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
   situationNumber?: number
   situationAvancement?: number
+  acompteOrdre?: number
+  acompteTotal?: number
+  acomptePourcentage?: number
+  parentInvoiceNumber?: string
+  avoirMotif?: string
 
   // Lines
   lines: ProductLine[]

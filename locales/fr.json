@@ -2617,6 +2617,12 @@
       "typeSituation": "Situation",
       "typeAcompte": "Acompte",
       "typeSolde": "Solde",
+      "typeAvoir": "Avoir",
+      "toAcompte": "→ Acompte",
+      "toAvoir": "→ Avoir",
+      "toAcompteTitle": "Créer une facture d'acompte sur cette facture (méthode pro BTP 2026, art. 289 CGI)",
+      "toAvoirTitle": "Créer un avoir (note de crédit) sur cette facture — art. 272 CGI",
+      "toAvoirAlreadyTitle": "Un avoir a déjà été émis sur cette facture",
       "emailSalutation": "Bonjour",
       "emailCorps": "Veuillez trouver ci-joint votre facture N°{docNumber} d'un montant de {montant} € HT.",
       "emailFormule": "Cordialement"

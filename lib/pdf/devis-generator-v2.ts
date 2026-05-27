@@ -54,11 +54,17 @@ export interface DevisGeneratorInput {
     date_prestation: Date | null
     docType?: 'devis' | 'facture'
     /** Sous-type facture (méthode pro 2026). Affiche un label explicite sous le
-     *  numéro pour les types "acompte" et "situation" (mentions légalement
-     *  requises, art. 289 CGI + BOFIP-TVA-DECLA-30-10-20). */
-    factureSubType?: 'standard' | 'acompte' | 'situation'
+     *  numéro pour les types "acompte", "situation" et "avoir" (mentions
+     *  légalement requises, art. 289 CGI / BOI-TVA-DECLA-30-20-20-30 §70 pour
+     *  les avoirs). V2 cible artisan/EI ; pour la méthode pro BTP, utiliser V3. */
+    factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
     situationNumber?: number
     situationAvancement?: number
+    acompteOrdre?: number
+    acompteTotal?: number
+    acomptePourcentage?: number
+    parentInvoiceNumber?: string
+    avoirMotif?: string
     /** Source unique de vérité pour la date d'échéance facture (art. L441-10
      *  C. com.). Trois formats supportés via lib/pdf/payment-due.ts :
      *   - ISO date (YYYY-MM-DD) → override manuel direct
