@@ -1,0 +1,15 @@
+/* VitFix Syndic Dashboard V5.4 — Font tokens mapping
+ *
+ * Le chargement des fontes (next/font/local) est fait en étape a dans
+ * components/syndic-dashboard/v54/tokens/fonts.ts, qui expose les CSS
+ * variables --font-manrope, --font-cormorant, --font-jetbrains-mono.
+ *
+ * Ici on les remappe vers les noms v54-scopés. Les fallbacks empêchent
+ * un FOUT inacceptable avant que next/font soit câblé (étape a).
+ */
+
+#syndic-dashboard-v54 {
+  --v54-font-sans:  var(--font-manrope, system-ui), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --v54-font-serif: var(--font-cormorant, 'Times New Roman'), 'Times New Roman', serif;
+  --v54-font-mono:  var(--font-jetbrains-mono, 'Courier New'), 'Courier New', ui-monospace, monospace;
+}
