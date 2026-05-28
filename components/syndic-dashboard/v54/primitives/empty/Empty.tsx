@@ -32,6 +32,9 @@ export default function Empty({ icon, kind, title, desc, action, illustration, c
   return (
     <div className={clsx(styles.empty, className)}>
       {svg ? (
+        // Safe: `svg` vient de EMPTY_ILLUSTRATIONS (const statique), clé typée
+        // EmptyIllustration (compile-time) → aucun input utilisateur n'atteint __html.
+        // title/desc/action ci-dessous sont du JSX normal (pas de dangerouslySet).
         <div className={styles.illus} aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />
       ) : (
         <div className={clsx(styles.badgeCircle, kind && styles[kind])}>

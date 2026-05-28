@@ -6,6 +6,7 @@
   border-radius: 14px;
   box-shadow: var(--v54-shadow-card);
   overflow: hidden;
+  margin-bottom: 16px;
 }
 
 .panelHead {
