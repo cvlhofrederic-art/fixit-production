@@ -1,0 +1,7 @@
+# Syndic v54 — régénère le type IconName si le registre d'icônes change.
+# Idempotent : ne fait rien si registry.tsx n'est pas dans les fichiers staged.
+if git diff --cached --name-only | grep -q "components/syndic-dashboard/v54/primitives/icon/registry.tsx"; then
+  echo "[husky] registry.tsx modifié → régénération de lib/syndic/icon-names.ts"
+  node scripts/codegen-icon-names.mjs
+  git add lib/syndic/icon-names.ts
+fi
