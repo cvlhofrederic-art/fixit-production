@@ -25,7 +25,7 @@ const PRIMITIVES: PrimitiveLink[] = [
   { slug: 'tabs', label: 'Tabs', batch: 5, ready: true },
   { slug: 'modal', label: 'Modal', batch: 6, ready: true },
   { slug: 'toast', label: 'Toast', batch: 7, ready: true },
-  { slug: 'agent-chat-page', label: 'AgentChatPage', batch: 8, ready: false },
+  { slug: 'agent-chat-page', label: 'AgentChatPage', batch: 8, ready: true },
 ]
 
 export default function PrimitivesShowcaseLayout({ children }: { children: React.ReactNode }) {
