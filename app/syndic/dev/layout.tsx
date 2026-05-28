@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import '@/components/syndic-dashboard/v54/tokens/tokens.css'
@@ -12,25 +13,40 @@ import { v54FontVariables } from '@/components/syndic-dashboard/v54/tokens/fonts
  * next/font/local bindings (--font-manrope, --font-cormorant,
  * --font-jetbrains-mono) resolve.
  *
- * Gating : bloqué (`notFound()`) UNIQUEMENT sur le domaine de production
- * (vitfix.io et ses sous-domaines). Rendu partout ailleurs — localhost,
- * preview deployments Cloudflare (*.workers.dev), et CI E2E (qui tourne
- * `npm run start` en build prod sur 127.0.0.1).
+ * GATING — allowlist fail-closed.
+ * On ne REND la sandbox QUE sur des hôtes de développement explicites :
+ * localhost, 127.0.0.1, 0.0.0.0 et *.localhost. Tout le reste renvoie 404 :
+ *   - production custom domain (vitfix.io, *.vitfix.io)
+ *   - production worker brut (vitfix.<account>.workers.dev — workers_dev=true
+ *     par défaut dans wrangler.toml, donc potentiellement joignable)
+ *   - preview deployments Cloudflare (*.workers.dev)
  *
- * Pourquoi hostname et pas NODE_ENV : la CI E2E build en production
- * (NODE_ENV=production) mais sert sur 127.0.0.1 — un gate NODE_ENV
- * renverrait 404 et rendrait la sandbox non-testable. Le gate hostname
- * fail closed sur le vrai domaine public (objectif sécurité/propreté) tout
- * en restant joignable pour le QA visuel et les tests automatisés.
+ * Pourquoi allowlist et pas blocklist : on ne connaît pas avec certitude le
+ * hostname .workers.dev exact du worker prod. Un blocklist sur vitfix.io
+ * seul laisserait une porte ouverte si la prod est aussi servie en
+ * .workers.dev. L'allowlist fail-closed élimine ce risque : worst case, la
+ * sandbox ne s'affiche pas là où on voudrait — jamais l'inverse (exposée en
+ * prod). La CI E2E sert sur 127.0.0.1 et reste donc couverte.
+ *
+ * Note : le gate est UNIQUEMENT sur cette route /syndic/dev/*. Les vraies
+ * pages dashboard (app/syndic/dashboard/...) n'ont PAS ce gate — elles sont
+ * la prod légitime.
  */
-const PRODUCTION_HOSTS = ['vitfix.io', 'www.vitfix.io']
+const DEV_SANDBOX_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0'])
+
+// Empêche toute indexation même si une URL preview/dev fuite (ceinture en
+// plus du 404 prod). Le X-Robots-Tag HTTP est posé en complément via
+// next.config headers() pour /syndic/dev/:path*.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+}
 
 export default async function SyndicV54DevLayout({ children }: { children: React.ReactNode }) {
   const headersList = await headers()
   const host = (headersList.get('host') || '').toLowerCase().split(':')[0]
-  const isProductionDomain = PRODUCTION_HOSTS.includes(host) || host.endsWith('.vitfix.io')
+  const isLocalDevHost = DEV_SANDBOX_HOSTS.has(host) || host.endsWith('.localhost')
 
-  if (isProductionDomain) {
+  if (!isLocalDevHost) {
     notFound()
   }
 
