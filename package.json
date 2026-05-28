@@ -27,7 +27,7 @@
     "analyze": "ANALYZE=true next build",
     "build:cloudflare": "npx @opennextjs/cloudflare build",
     "seed:legal-corpus": "tsx scripts/seed-max-legal-corpus.ts",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
