@@ -26,7 +26,8 @@
     "scan:lighthouse": "lhci autorun",
     "analyze": "ANALYZE=true next build",
     "build:cloudflare": "npx @opennextjs/cloudflare build",
-    "seed:legal-corpus": "tsx scripts/seed-max-legal-corpus.ts"
+    "seed:legal-corpus": "tsx scripts/seed-max-legal-corpus.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -94,6 +95,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.2",
     "exceljs": "^4.4.0",
+    "husky": "^9.1.7",
     "jsdom": "^28.1.0",
     "pg": "^8.18.0",
     "pixelmatch": "^7.2.0",

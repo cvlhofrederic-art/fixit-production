@@ -37,6 +37,12 @@ jobs:
       - name: Vérifier les types TypeScript
         run: npx tsc --noEmit
 
+      - name: Syndic v54 — type IconName synchronisé avec le registre
+        # Gate non-bypassable (vs husky --no-verify) : lib/syndic/icon-names.ts
+        # doit être à jour vs registry.tsx. Si un dev ajoute une icône sans
+        # régénérer, ce check échoue.
+        run: node scripts/codegen-icon-names.mjs --check
+
   # ── actionlint — Audit statique des workflows GitHub Actions ──────────────
   # Détecte script-injection (${{ inputs.* }}/${{ github.event.* }} dans run:),
   # expressions invalides, refs de jobs cassées, shellcheck sur les `run:`.
