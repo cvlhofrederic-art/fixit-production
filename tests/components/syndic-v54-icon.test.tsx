@@ -17,6 +17,41 @@ function renderIcon(props: React.ComponentProps<typeof Icon>) {
   return container.querySelector('svg') as SVGSVGElement
 }
 
+/**
+ * Normalise un path data (sous-ensemble M/m/L/l + paires implicites, Z ignoré)
+ * en liste de points absolus. Permet de comparer deux glyphes géométriquement
+ * même si leur syntaxe diffère (ex `m` relatif vs `M`+`l`).
+ */
+function toAbsolutePoints(d: string): string {
+  const tokens = d.match(/[MmLlZz]|-?\d*\.?\d+/g) ?? []
+  const pts: string[] = []
+  let cx = 0
+  let cy = 0
+  let cmd = ''
+  let k = 0
+  while (k < tokens.length) {
+    const tok = tokens[k]
+    if (/[MmLlZz]/.test(tok)) {
+      cmd = tok
+      k++
+      if (cmd === 'Z' || cmd === 'z') continue
+    }
+    const nx = parseFloat(tokens[k++])
+    const ny = parseFloat(tokens[k++])
+    if (cmd === 'M' || cmd === 'L') {
+      cx = nx
+      cy = ny
+    } else {
+      cx += nx
+      cy += ny
+    }
+    pts.push(`${cx},${cy}`)
+    if (cmd === 'M') cmd = 'L'
+    if (cmd === 'm') cmd = 'l'
+  }
+  return pts.join(' ')
+}
+
 describe('syndic v54 — Icon primitive', () => {
   it('renders an svg without crashing', () => {
     const svg = renderIcon({ name: 'bell' })
@@ -82,5 +117,20 @@ describe('syndic v54 — Icon primitive', () => {
     cleanup()
     const kebab = renderIcon({ name: 'chevron-down' }).innerHTML
     expect(camel).toBe(kebab)
+  })
+
+  it('chevron and chevron-right are geometric aliases — same absolute points (issue #244)', () => {
+    // Byte-différents (m9 6 6 6-6 6 relatif vs M9 6l6 6-6 6) MAIS géométrie
+    // identique : (9,6)→(15,12)→(9,18) = ">". On compare les points absolus
+    // normalisés, pas l'innerHTML brut. Verrou Phase 2 : si un des deux paths
+    // diverge géométriquement, ce test pète.
+    const dOf = (name: React.ComponentProps<typeof Icon>['name']) => {
+      const d = renderIcon({ name }).querySelector('path')?.getAttribute('d') ?? ''
+      cleanup()
+      return toAbsolutePoints(d)
+    }
+    const chevron = dOf('chevron')
+    expect(chevron).toBe('9,6 15,12 9,18')
+    expect(chevron).toBe(dOf('chevron-right'))
   })
 })
