@@ -104,9 +104,17 @@ export default function Modal({ open, onClose, labelledBy, size = 'md', children
         }
       }
     }
+    // Clic backdrop ferme (clic DIRECT sur le backdrop, pas sur le dialog).
+    // Listener impératif plutôt qu'un onClick JSX : le backdrop est un élément
+    // non-interactif, le chemin clavier équivalent est ESC (ci-dessus).
+    const onBackdropClick = (e: MouseEvent) => {
+      if (e.target === backdrop) onCloseRef.current()
+    }
+    backdrop?.addEventListener('click', onBackdropClick)
     document.addEventListener('keydown', onKeyDown)
 
     return () => {
+      backdrop?.removeEventListener('click', onBackdropClick)
       document.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = prevOverflow
       document.body.style.paddingRight = prevPadding
@@ -124,13 +132,7 @@ export default function Modal({ open, onClose, labelledBy, size = 'md', children
   if (!open || !mounted) return null
 
   return createPortal(
-    <div
-      ref={backdropRef}
-      className={styles.backdrop}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCloseRef.current()
-      }}
-    >
+    <div ref={backdropRef} className={styles.backdrop}>
       <div
         ref={dialogRef}
         className={clsx(styles.modal, styles[size], className)}
