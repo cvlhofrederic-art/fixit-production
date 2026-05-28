@@ -10,9 +10,9 @@ type PrimitiveLink = { slug: string; label: string; batch: number; ready: boolea
 
 const PRIMITIVES: PrimitiveLink[] = [
   { slug: 'icon', label: 'Icon', batch: 1, ready: true },
-  { slug: 'pill', label: 'Pill', batch: 2, ready: false },
-  { slug: 'skeleton', label: 'Skeleton', batch: 2, ready: false },
-  { slug: 'pulse', label: 'Pulse', batch: 2, ready: false },
+  { slug: 'pill', label: 'Pill', batch: 2, ready: true },
+  { slug: 'skeleton', label: 'Skeleton', batch: 2, ready: true },
+  { slug: 'pulse', label: 'Pulse', batch: 2, ready: true },
   { slug: 'toggle', label: 'Toggle', batch: 3, ready: false },
   { slug: 'segmented-control', label: 'SegmentedControl', batch: 3, ready: false },
   { slug: 'field', label: 'Field', batch: 3, ready: false },

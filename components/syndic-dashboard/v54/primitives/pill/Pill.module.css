@@ -1,0 +1,50 @@
+/* Pill v54 — port pixel-perfect du .pill du bundle V5.7.
+ * Variables --v54-* résolues depuis le wrapper #syndic-dashboard-v54. */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--v54-cream);
+  color: var(--v54-navy-500);
+}
+
+/* Dot : 5×5, hérite de la couleur du texte (currentColor), opacity 0.7. */
+.pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.sage {
+  background: var(--v54-sage-50);
+  color: var(--v54-sage-700);
+}
+.amber {
+  background: var(--v54-amber-50);
+  color: var(--v54-amber-700);
+}
+.rust {
+  background: var(--v54-rust-50);
+  color: var(--v54-rust-700);
+}
+.gold {
+  background: var(--v54-gold-50);
+  color: var(--v54-gold-700);
+}
+.dark {
+  background: var(--v54-navy-900);
+  color: var(--v54-gold-400);
+}
+
+/* noDot : retire le point (doit suivre .pill::before pour override). */
+.noDot::before {
+  display: none;
+}
