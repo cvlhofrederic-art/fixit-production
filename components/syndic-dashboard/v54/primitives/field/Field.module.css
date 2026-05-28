@@ -88,4 +88,6 @@
   transform: translateY(-50%);
   font-size: 13px;
   color: var(--v54-navy-300);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
