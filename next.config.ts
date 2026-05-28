@@ -189,6 +189,21 @@ const nextConfig: NextConfig = {
           ].join('; ') },
         ],
       },
+      // Syndic v54 dev sandbox : jamais indexable. Ceinture en plus du gate
+      // hostname (404 hors localhost) et du <meta robots noindex>. Couvre le
+      // cas où une URL preview/dev fuiterait à un crawler.
+      {
+        source: '/syndic/dev/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+      {
+        source: '/fr/syndic/dev/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
     ]
   },
 };
