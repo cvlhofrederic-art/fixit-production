@@ -43,6 +43,14 @@ test.describe('Syndic v54 — Pill showcase', () => {
     expect(withDotDisplay).not.toBe('none')
     expect(noDotDisplay).toBe('none')
   })
+
+  test('dark kind dot is visible — ::before resolves to gold-400 on navy-900, not navy', async ({ page }) => {
+    // .dark : fond navy-900, texte gold-400 → le dot ::before (currentColor) doit
+    // être gold-400 (visible), pas navy (invisible sur navy).
+    const darkPill = page.locator('#syndic-dashboard-v54 span', { hasText: /^dark$/ }).first()
+    const dotColor = await darkPill.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)
+    expect(dotColor).toBe('rgb(217, 188, 146)') // gold-400 #D9BC92
+  })
 })
 
 test.describe('Syndic v54 — Skeleton showcase', () => {
