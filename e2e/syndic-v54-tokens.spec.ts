@@ -1,10 +1,11 @@
-import { test, expect, devices } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 /**
  * Visual regression + responsive checks for the syndic v54 tokens sandbox.
  *
- * Cible : http://localhost:3000/syndic/dev/tokens (gated `notFound()` en prod —
- * ces tests ne tournent qu'en CI preview / dev local).
+ * Cible : /syndic/dev/tokens. Gated `notFound()` UNIQUEMENT sur le domaine
+ * de production (vitfix.io). En CI (build prod servi sur 127.0.0.1) et en
+ * local dev, la sandbox est rendue — ces tests s'y exécutent.
  *
  * Couvre :
  * - Caveat 2 Claude Chat : viewport mobile 375 doit rebasculer en 1 col
@@ -12,9 +13,28 @@ import { test, expect, devices } from '@playwright/test'
  * - Tokens CSS scopés sous #syndic-dashboard-v54 (G1 garde-fou)
  */
 
+// En dev, Turbopack compile la route au premier hit (~30s). On utilise
+// `domcontentloaded` (et PAS `networkidle`, jamais atteint à cause du
+// websocket HMR) + un timeout large, puis on attend explicitement le
+// wrapper namespace avant toute assertion.
+// On navigue explicitement vers le chemin locale-préfixé /fr/. Sans préfixe,
+// le middleware i18n négocie la locale via Accept-Language : Chrome headless
+// (Playwright) envoie en-US → redirect vers /en/syndic/dev/tokens qui n'existe
+// pas (404). Le préfixe /fr/ explicite évite cette négociation et matche la
+// route servie (DEFAULT_LOCALE = 'fr').
+async function gotoTokens(page: Page) {
+  await page.goto('/fr/syndic/dev/tokens/', { waitUntil: 'domcontentloaded', timeout: 120_000 })
+  await page.locator('#syndic-dashboard-v54').waitFor({ state: 'attached', timeout: 60_000 })
+}
+
+// En dev, Turbopack peut compiler la route au premier hit (~30s) — le timeout
+// par test par défaut (30s) ne suffit pas. On le pousse à 120s pour ces specs.
+// Inoffensif en CI (build prod, aucun délai de compilation).
+test.describe.configure({ timeout: 120_000 })
+
 test.describe('Syndic v54 — Tokens sandbox', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/syndic/dev/tokens/', { waitUntil: 'networkidle' })
+    await gotoTokens(page)
   })
 
   test('namespace wrapper #syndic-dashboard-v54 is rendered', async ({ page }) => {
@@ -69,19 +89,24 @@ test.describe('Syndic v54 — Tokens sandbox', () => {
 })
 
 test.describe('Syndic v54 — Mobile 375 responsive (Caveat 2)', () => {
-  test.use({ ...devices['iPhone 13'], viewport: { width: 375, height: 812 } })
+  // Viewport mobile only — on n'utilise PAS devices['iPhone 13'] car son
+  // descriptor active isMobile/hasTouch/defaultBrowserType:webkit, non
+  // supportés cross-browser (Firefox rejette isMobile). Le viewport seul
+  // suffit pour valider le responsive CSS (media query 540px).
+  test.use({ viewport: { width: 375, height: 812 } })
 
   test('viewport 375 collapses swatches grid to 1 column', async ({ page }) => {
-    await page.goto('/syndic/dev/tokens/', { waitUntil: 'networkidle' })
+    await gotoTokens(page)
 
     // La grille des swatches utilise auto-fill minmax(180px, 1fr) — à 375px
     // de viewport il ne reste qu'une colonne au plus (180 + gap + paddings >
-    // 375/2 = 187.5).
+    // 375/2 = 187.5). gridTemplateColumns résout en une seule track.
     const swatchesGrid = page
       .locator('#syndic-dashboard-v54 section')
       .first()
       .locator('> div')
       .first()
+    await swatchesGrid.waitFor({ state: 'attached', timeout: 30_000 })
     const cols = await swatchesGrid.evaluate((el) => {
       const cs = getComputedStyle(el)
       return cs.gridTemplateColumns.split(' ').length
@@ -90,7 +115,7 @@ test.describe('Syndic v54 — Mobile 375 responsive (Caveat 2)', () => {
   })
 
   test('page screenshot at 375×812 is archived as artifact', async ({ page }, testInfo) => {
-    await page.goto('/syndic/dev/tokens/', { waitUntil: 'networkidle' })
+    await gotoTokens(page)
     const buf = await page.screenshot({ fullPage: true })
     await testInfo.attach('tokens-375x812', { body: buf, contentType: 'image/png' })
   })
@@ -100,7 +125,7 @@ test.describe('Syndic v54 — Desktop 1440 baseline', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('page screenshot at 1440×900 is archived as artifact', async ({ page }, testInfo) => {
-    await page.goto('/syndic/dev/tokens/', { waitUntil: 'networkidle' })
+    await gotoTokens(page)
     const buf = await page.screenshot({ fullPage: true })
     await testInfo.attach('tokens-1440x900', { body: buf, contentType: 'image/png' })
   })
