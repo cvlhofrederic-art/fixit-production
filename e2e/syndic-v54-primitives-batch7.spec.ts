@@ -5,6 +5,10 @@ import { test, expect, type Page } from '@playwright/test'
  * pause au survol / focus-within, dismiss clavier, et surtout le test critique
  * #253 — le viewport (inline dans le wrapper) est neutralisé par l'inert d'un
  * Modal ouvert. Spec validée en build prod (cf. .claude/rules/testing.md).
+ *
+ * NB : toutes les requêtes role=status/alert sont SCOPÉES au viewport toast.
+ * Next.js injecte un `#__next-route-announcer__` (role=alert) global qu'il ne
+ * faut pas confondre avec nos toasts.
  */
 
 test.describe.configure({ timeout: 120_000 })
@@ -14,6 +18,8 @@ async function gotoPrimitive(page: Page, slug: string) {
   await page.locator('#syndic-dashboard-v54').waitFor({ state: 'attached', timeout: 60_000 })
 }
 
+const viewportOf = (page: Page) => page.getByRole('region', { name: 'Notificações' })
+
 test.describe('Syndic v54 — Toast showcase', () => {
   test.beforeEach(async ({ page }) => {
     await gotoPrimitive(page, 'toast')
@@ -21,13 +27,14 @@ test.describe('Syndic v54 — Toast showcase', () => {
   })
 
   test('viewport role=region + aria-label ; push kinds -> role/aria-live corrects', async ({ page }) => {
-    await expect(page.getByRole('region', { name: 'Notificações' })).toBeAttached()
+    const viewport = viewportOf(page)
+    await expect(viewport).toBeAttached()
     await page.getByTestId('push-success').click()
-    const status = page.getByRole('status')
+    const status = viewport.getByRole('status')
     await expect(status).toBeVisible()
     await expect(status).toHaveAttribute('aria-live', 'polite')
     await page.getByTestId('push-error').click()
-    const alert = page.getByRole('alert')
+    const alert = viewport.getByRole('alert')
     await expect(alert).toBeVisible()
     await expect(alert).toHaveAttribute('aria-live', 'assertive')
   })
@@ -41,13 +48,13 @@ test.describe('Syndic v54 — Toast showcase', () => {
   test('cap 3 FIFO : empiler 4 -> 3 visibles, le plus ancien tombe', async ({ page }) => {
     await page.getByTestId('push-flood').click()
     // 4 poussés, cap 3 -> le 1er (success #1) tombe immédiatement.
-    await expect(page.locator('[role="status"], [role="alert"]')).toHaveCount(3)
+    await expect(viewportOf(page).locator('[role="status"], [role="alert"]')).toHaveCount(3)
     await expect(page.getByText('Intervenção criada #1')).toHaveCount(0)
   })
 
   test('pause au survol : le timer est figé tant que la souris survole', async ({ page }) => {
     await page.getByTestId('push-success').click()
-    const toast = page.getByRole('status')
+    const toast = viewportOf(page).getByRole('status')
     await toast.hover()
     await page.waitForTimeout(5000) // > 4s : sans pause, il aurait disparu
     await expect(toast).toBeVisible()
@@ -59,19 +66,20 @@ test.describe('Syndic v54 — Toast showcase', () => {
     await page.getByTestId('push-success').click()
     await page.getByRole('button', { name: 'Fechar notificação' }).focus()
     await page.waitForTimeout(5000)
-    await expect(page.getByRole('status')).toBeVisible() // toujours là (focus pause)
+    await expect(viewportOf(page).getByRole('status')).toBeVisible() // toujours là (focus pause)
   })
 
   test('dismiss : clic X et touche Espace ferment', async ({ page }) => {
+    const viewport = viewportOf(page)
     await page.getByTestId('push-error').click()
     await page.getByRole('button', { name: 'Fechar notificação' }).click()
-    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(viewport.getByRole('alert')).toHaveCount(0)
     // Espace sur le X focalisé
     await page.getByTestId('push-error').click()
     const close = page.getByRole('button', { name: 'Fechar notificação' })
     await close.focus()
     await page.keyboard.press('Space')
-    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(viewport.getByRole('alert')).toHaveCount(0)
   })
 
   test('CRITIQUE #253: viewport inerté pendant un Modal ouvert, restauré à la fermeture', async ({ page }) => {
