@@ -24,9 +24,10 @@ test.describe('Syndic v54 — AgentChatPage showcase', () => {
   })
 
   test('rend la page : sidebar Conversas + main (nom + badge IA)', async ({ page }) => {
-    await expect(page.getByText('CONVERSAS')).toBeVisible()
-    await expect(page.getByText('Max Lavandeira')).toBeVisible()
-    await expect(page.getByText('IA', { exact: true })).toBeVisible()
+    // Locators role+name uniques (le paragraphe d'intro contient « Conversas » → on
+    // cible le <h3> via le rôle heading, pas un getByText substring insensible casse).
+    await expect(page.getByRole('heading', { name: 'CONVERSAS', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Max Lavandeira/ })).toBeVisible()
     await expect(page.getByRole('combobox')).toBeVisible()
   })
 
