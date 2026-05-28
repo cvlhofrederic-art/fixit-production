@@ -1,0 +1,59 @@
+/* Alert v54 — port byte-exact du bundle V5.7. 4 kinds : amber (défaut) / rust / sage / gold.
+ * Les kinds (placés après la base, même spécificité) overrident bg/border + icône/titre. */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--v54-amber-50);
+  border: 1px solid var(--v54-amber-100);
+  margin-bottom: 18px;
+}
+
+.alert svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--v54-amber-700);
+  margin-top: 1px;
+}
+
+.alert b {
+  font-weight: 600;
+  color: var(--v54-amber-700);
+}
+
+.alert p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--v54-navy-500);
+}
+
+.rust {
+  background: var(--v54-rust-50);
+  border-color: var(--v54-rust-100);
+}
+.rust svg,
+.rust b {
+  color: var(--v54-rust-700);
+}
+
+.sage {
+  background: var(--v54-sage-50);
+  border-color: var(--v54-sage-100);
+}
+.sage svg,
+.sage b {
+  color: var(--v54-sage-700);
+}
+
+.gold {
+  background: var(--v54-gold-50);
+  border-color: var(--v54-gold-100);
+}
+.gold svg,
+.gold b {
+  color: var(--v54-gold-700);
+}
