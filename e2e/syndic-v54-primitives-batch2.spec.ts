@@ -48,15 +48,32 @@ test.describe('Syndic v54 — Pill showcase', () => {
 test.describe('Syndic v54 — Skeleton showcase', () => {
   test.beforeEach(({ page }) => gotoPrimitive(page, 'skeleton'))
 
-  test('renders text/card/circle skeletons', async ({ page }) => {
-    const skeletons = page.locator('#syndic-dashboard-v54 span[aria-hidden="true"]')
-    expect(await skeletons.count()).toBeGreaterThanOrEqual(6)
+  test('renders base bars + card/row/kpi containers', async ({ page }) => {
+    const bars = page.locator('#syndic-dashboard-v54 span[aria-hidden="true"]')
+    expect(await bars.count()).toBeGreaterThanOrEqual(6)
   })
 
-  test('skeleton has a shimmer animation', async ({ page }) => {
-    const first = page.getByTestId('skeleton-text').locator('> span').first()
+  test('base skeleton bar has the shimmer animation', async ({ page }) => {
+    const first = page.getByTestId('skeleton-bars').locator('> span').first()
     const animName = await first.evaluate((el) => getComputedStyle(el).animationName)
     expect(animName).not.toBe('none')
+  })
+
+  test('card container resolves to white bg + 1px line border + radius 10px', async ({ page }) => {
+    const card = page.getByTestId('skeleton-card')
+    const { bg, borderW, radius } = await card.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return { bg: cs.backgroundColor, borderW: cs.borderTopWidth, radius: cs.borderTopLeftRadius }
+    })
+    expect(bg).toBe('rgb(255, 255, 255)') // #fff
+    expect(borderW).toBe('1px')
+    expect(radius).toBe('10px') // --v54-r-md
+  })
+
+  test('kpi forces its descendant bars to display:block', async ({ page }) => {
+    const innerBar = page.getByTestId('skeleton-kpi').locator('> span').first()
+    const display = await innerBar.evaluate((el) => getComputedStyle(el).display)
+    expect(display).toBe('block')
   })
 })
 

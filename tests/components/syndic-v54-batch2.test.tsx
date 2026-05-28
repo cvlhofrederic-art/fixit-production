@@ -49,27 +49,41 @@ describe('syndic v54 — Pill', () => {
 })
 
 describe('syndic v54 — Skeleton', () => {
-  it('renders with default text variant', () => {
+  it('renders the base shimmer atom (no variant), aria-hidden', () => {
     const { container } = render(<Skeleton />)
     const el = container.querySelector('span')!
     expect(el).toBeTruthy()
     expect(el.getAttribute('aria-hidden')).toBe('true')
-    expect(el.className).toMatch(/text/)
+    expect(el.className).toMatch(/skeleton/)
   })
 
-  it('applies card and circle variants', () => {
-    const { container: c1 } = render(<Skeleton variant="card" />)
-    expect(c1.querySelector('span')!.className).toMatch(/card/)
-    cleanup()
-    const { container: c2 } = render(<Skeleton variant="circle" />)
-    expect(c2.querySelector('span')!.className).toMatch(/circle/)
+  it('renders card / row / kpi containers as aria-hidden divs', () => {
+    for (const variant of ['card', 'row', 'kpi'] as const) {
+      const { container } = render(<Skeleton variant={variant} />)
+      const el = container.querySelector('div')!
+      expect(el).toBeTruthy()
+      expect(el.getAttribute('aria-hidden')).toBe('true')
+      expect(el.className).toMatch(new RegExp(variant))
+      cleanup()
+    }
   })
 
-  it('applies width and height via inline style', () => {
-    const { container } = render(<Skeleton width="60%" height={40} />)
+  it('applies width / height / radius on the base atom via inline style', () => {
+    const { container } = render(<Skeleton width="60%" height={40} radius="50%" />)
     const el = container.querySelector('span') as HTMLElement
     expect(el.style.width).toBe('60%')
     expect(el.style.height).toBe('40px')
+    expect(el.style.borderRadius).toBe('50%')
+  })
+
+  it('renders inner bars inside a container variant', () => {
+    const { container } = render(
+      <Skeleton variant="card">
+        <Skeleton width={10} height={10} />
+      </Skeleton>,
+    )
+    const card = container.querySelector('div')!
+    expect(card.querySelector('span')).toBeTruthy()
   })
 })
 
