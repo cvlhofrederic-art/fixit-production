@@ -17,33 +17,59 @@ export default function SkeletonShowcasePage() {
       </p>
       <h1 style={{ fontFamily: 'var(--v54-font-serif)', fontWeight: 500, fontSize: 32, margin: 0 }}>Skeleton</h1>
       <p style={{ fontSize: 14, color: 'var(--v54-navy-300)', marginTop: 8, maxWidth: 640 }}>
-        Placeholder de chargement, shimmer 1.6s (gradient cream→#ece4d2→cream). 3 variantes.
+        Placeholder de chargement, shimmer 1.6s (gradient cream→#ece4d2→cream). Atome `.vfx-skeleton` +
+        conteneurs card / row / kpi du bundle V5.7.
       </p>
 
-      <h2 style={sectionHeader}>Text (lignes)</h2>
-      <div style={{ display: 'grid', gap: 8, maxWidth: 480 }} data-testid="skeleton-text">
-        <Skeleton variant="text" width="100%" />
-        <Skeleton variant="text" width="80%" />
-        <Skeleton variant="text" width="60%" />
+      <h2 style={sectionHeader}>Barres (atome)</h2>
+      <div data-testid="skeleton-bars" style={{ display: 'grid', gap: 8, maxWidth: 480 }}>
+        <Skeleton width="100%" height={12} />
+        <Skeleton width="80%" height={12} />
+        <Skeleton width="60%" height={12} />
       </div>
 
       <h2 style={sectionHeader}>Card</h2>
-      <Skeleton variant="card" width={320} height={120} />
-
-      <h2 style={sectionHeader}>Circle (avatar)</h2>
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-        <Skeleton variant="circle" width={34} height={34} />
-        <Skeleton variant="circle" width={48} height={48} />
-        <Skeleton variant="circle" width={64} height={64} />
+      <div style={{ maxWidth: 360 }}>
+        <Skeleton variant="card" data-testid="skeleton-card">
+          <div style={{ display: 'grid', gap: 10 }}>
+            <Skeleton width="40%" height={12} />
+            <Skeleton width="100%" height={10} />
+            <Skeleton width="90%" height={10} />
+            <Skeleton width="70%" height={10} />
+          </div>
+        </Skeleton>
       </div>
 
-      <h2 style={sectionHeader}>Composition (ex : list-row chargement)</h2>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', maxWidth: 480 }}>
-        <Skeleton variant="circle" width={40} height={40} />
-        <div style={{ display: 'grid', gap: 6, flex: 1 }}>
-          <Skeleton variant="text" width="50%" />
-          <Skeleton variant="text" width="80%" />
-        </div>
+      <h2 style={sectionHeader}>Row (ligne de liste)</h2>
+      <div style={{ maxWidth: 480 }}>
+        {[0, 1].map((i) => (
+          <Skeleton key={i} variant="row">
+            <Skeleton width={40} height={40} radius="50%" />
+            <div style={{ flex: 1, display: 'grid', gap: 6 }}>
+              <Skeleton width="50%" height={10} />
+              <Skeleton width="80%" height={10} />
+            </div>
+          </Skeleton>
+        ))}
+      </div>
+
+      <h2 style={sectionHeader}>KPI</h2>
+      <div style={{ display: 'flex', gap: 16 }}>
+        <Skeleton
+          variant="kpi"
+          data-testid="skeleton-kpi"
+          style={{ minWidth: 160, border: '1px solid var(--v54-line)', borderRadius: 'var(--v54-r-md)' }}
+        >
+          <Skeleton width="50%" height={10} />
+          <Skeleton width="70%" height={26} style={{ marginTop: 12 }} />
+        </Skeleton>
+        <Skeleton
+          variant="kpi"
+          style={{ minWidth: 160, border: '1px solid var(--v54-line)', borderRadius: 'var(--v54-r-md)' }}
+        >
+          <Skeleton width="60%" height={10} />
+          <Skeleton width="50%" height={26} style={{ marginTop: 12 }} />
+        </Skeleton>
       </div>
     </div>
   )
