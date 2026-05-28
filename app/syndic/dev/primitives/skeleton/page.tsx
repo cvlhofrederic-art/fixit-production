@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/syndic-dashboard/v54/primitives/skeleton'
+import { Skeleton, V54SectionSkeleton } from '@/components/syndic-dashboard/v54/primitives/skeleton'
 
 const sectionHeader: React.CSSProperties = {
   fontSize: 10,
@@ -70,6 +70,14 @@ export default function SkeletonShowcasePage() {
           <Skeleton width="60%" height={10} />
           <Skeleton width="50%" height={26} style={{ marginTop: 12 }} />
         </Skeleton>
+      </div>
+
+      <h2 style={sectionHeader}>V54SectionSkeleton (fallback Suspense générique)</h2>
+      <p style={{ fontSize: 13, color: 'var(--v54-navy-300)', marginBottom: 14, maxWidth: 480 }}>
+        Composite prêt-à-l'emploi pour les frontières Suspense des sections (header + N lignes).
+      </p>
+      <div style={{ maxWidth: 420 }}>
+        <V54SectionSkeleton rows={4} />
       </div>
     </div>
   )

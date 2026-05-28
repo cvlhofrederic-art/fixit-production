@@ -10,6 +10,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import Pill from '@/components/syndic-dashboard/v54/primitives/pill/Pill'
 import Skeleton from '@/components/syndic-dashboard/v54/primitives/skeleton/Skeleton'
+import V54SectionSkeleton from '@/components/syndic-dashboard/v54/primitives/skeleton/SectionSkeleton'
 import Pulse from '@/components/syndic-dashboard/v54/primitives/pulse/Pulse'
 
 afterEach(cleanup)
@@ -84,6 +85,14 @@ describe('syndic v54 — Skeleton', () => {
     )
     const card = container.querySelector('div')!
     expect(card.querySelector('span')).toBeTruthy()
+  })
+
+  it('V54SectionSkeleton renders a card with a header + N row atoms (fallback Suspense)', () => {
+    const { container } = render(<V54SectionSkeleton rows={3} />)
+    const card = container.querySelector('div')!
+    expect(card.getAttribute('aria-hidden')).toBe('true')
+    // 1 header + 3 lignes = 4 atomes shimmer
+    expect(container.querySelectorAll('span').length).toBe(4)
   })
 })
 
