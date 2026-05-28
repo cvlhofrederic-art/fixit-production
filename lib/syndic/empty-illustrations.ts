@@ -1,5 +1,12 @@
 // GÉNÉRÉ depuis le bundle V5.7 — illustrations Empty (port byte-exact, 12 SVG).
 // Ne pas éditer à la main ; ré-extraire du bundle si besoin.
+//
+// SÉCURITÉ : contenu 100 % statique (généré, aucun input utilisateur). Les valeurs
+// sont injectées via dangerouslySetInnerHTML dans Empty.tsx — c'est SÛR uniquement
+// parce que (1) cet objet est figé, (2) la clé d'accès est typée `EmptyIllustration`
+// (compile-time), donc aucune chaîne arbitraire/utilisateur ne peut atteindre __html.
+// Ne JAMAIS y faire entrer du contenu dynamique. Phase 2 : porter en composants JSX
+// pour supprimer le dangerouslySetInnerHTML.
 /* eslint-disable */
 export const EMPTY_ILLUSTRATIONS = {
   documentos: `<svg viewBox="0 0 160 120" fill="none" stroke="#0B1828" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"> <ellipse cx="80" cy="56" rx="36" ry="30" fill="#F1E6D2" stroke="none"/> <path d="M16 96h128" stroke="#5A6D82" stroke-width="1.2"/> <path d="M52 90V30a2 2 0 0 1 2-2h36l10 10v52" /> <path d="M90 28v10h10" /> <path d="M60 46h26M60 54h26M60 62h18" /> <circle cx="90" cy="78" r="8" stroke="#C9A574" stroke-width="1.8"/> <path d="M86 78l3 3 5-6" stroke="#C9A574" stroke-width="1.8"/> <path d="M108 92l18-18 4 4-18 18zM126 74l3-3" />

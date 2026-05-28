@@ -23,7 +23,7 @@ export interface PanelProps {
  */
 export default function Panel({ title, sub, icon, right, children, flush, className }: PanelProps) {
   return (
-    <div className={clsx(styles.panel, className)} style={{ marginBottom: 16 }}>
+    <div className={clsx(styles.panel, className)}>
       {(title || right) && (
         <div className={styles.panelHead}>
           {icon && (
