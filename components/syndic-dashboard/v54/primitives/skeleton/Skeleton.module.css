@@ -1,0 +1,42 @@
+/* Skeleton v54 — port du .vfx-skeleton (shimmer) du bundle V5.7.
+ * Le mid-tone #ece4d2 est la valeur exacte du bundle (entre cream et cream-2,
+ * non tokenisée à l'origine) — conservée telle quelle pour fidélité pixel. */
+
+.skeleton {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--v54-cream) 0%, #ece4d2 50%, var(--v54-cream) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Variante ligne de texte : hauteur ~1em, coins légers. */
+.text {
+  height: 1em;
+  border-radius: var(--v54-r-sm);
+}
+
+/* Variante carte : rectangle, coins larges. */
+.card {
+  border-radius: var(--v54-r-lg);
+}
+
+/* Variante avatar : cercle (le consommateur fixe width == height). */
+.circle {
+  border-radius: 50%;
+}
+
+/* Respecte prefers-reduced-motion : fige le shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
