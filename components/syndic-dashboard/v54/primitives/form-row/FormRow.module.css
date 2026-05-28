@@ -1,0 +1,7 @@
+/* FormRow v54 — port du `.field-row` du bundle V5.7 (grille 2 colonnes). */
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
