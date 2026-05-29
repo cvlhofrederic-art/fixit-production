@@ -55,9 +55,15 @@ test.describe('Syndic v54 — Toast showcase', () => {
   test('pause au survol : le timer est figé tant que la souris survole', async ({ page }) => {
     await page.getByTestId('push-success').click()
     const toast = viewportOf(page).getByRole('status')
-    await toast.hover()
-    await page.waitForTimeout(5000) // > 4s : sans pause, il aurait disparu
     await expect(toast).toBeVisible()
+    // Firefox CI : l'animation d'entrée + un mouseleave parasite peuvent relancer le
+    // timer d'auto-dismiss (~4s). On force le survol (sans attendre la stabilité de
+    // l'animation) et on le ré-affirme à mi-parcours pour garder la pause active > 4s.
+    await toast.hover({ force: true })
+    await page.waitForTimeout(2500)
+    await toast.hover({ force: true }) // ré-affirme le survol (contre un mouseleave parasite firefox)
+    await page.waitForTimeout(2500)
+    await expect(toast).toBeVisible() // toujours là : le survol a bien figé le timer
     await page.mouse.move(0, 0) // relâche le survol -> relance le timer
     await expect(page.getByText('Intervenção criada')).toHaveCount(0, { timeout: 6000 })
   })
