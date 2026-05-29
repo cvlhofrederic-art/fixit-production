@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
+import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 
@@ -29,11 +30,6 @@ const ORDERS = [
   ['Pendente', '#ORD-2026-009', 'Residencial Cedofeita', 'Manutenção corrente · Reparação de campainha avariada no R/C esquerdo', 'Bl. A · And. R/C', 'Tiago Mendes', '21/05/2026'],
 ] as const
 
-const btnBase = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' } as const
-const btnDefault = { ...btnBase, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)' } as const
-const btnGold = { ...btnBase, border: '1px solid var(--v54-gold-700)', background: 'linear-gradient(155deg, var(--v54-gold-500), var(--v54-gold-700))', color: 'var(--v54-navy-900)' } as const
-const btnSm = { padding: '6px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' } as const
-
 const statusKind = (s: string): PillKind => (s === 'Pendente' ? 'amber' : 'sage')
 
 export default function ModOrdens() {
@@ -45,8 +41,8 @@ export default function ModOrdens() {
         title="Ordens de serviço"
         lede="Acompanhamento das missões em curso, pedidos pendentes e histórico"
         actions={<>
-          <button type="button" style={btnDefault}><Icon name="search" />Filtros</button>
-          <button type="button" style={btnGold}><Icon name="plus" />Nova missão</button>
+          <Button><Icon name="search" />Filtros</Button>
+          <Button variant="gold"><Icon name="plus" />Nova missão</Button>
         </>}
       />
       <div className={m.chipRow}>
@@ -65,8 +61,8 @@ export default function ModOrdens() {
               <span className={m.mono} style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{o[1]}</span>
               {o[4] && <span style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', marginLeft: 4 }}>{o[4]}</span>}
               <div style={{ flex: 1 }} />
-              {o[0] !== 'Concluída' && o[5] === '—' && <button type="button" style={{ ...btnSm, background: 'var(--v54-sage-500)', color: '#fff', border: 'none' }}>Validar</button>}
-              <button type="button" style={{ ...btnSm, background: 'transparent', border: '1px solid var(--v54-line-strong)', color: 'var(--v54-ink)' }}>Abrir</button>
+              {o[0] !== 'Concluída' && o[5] === '—' && <Button size="sm" style={{ background: 'var(--v54-sage-500)', color: '#fff', border: 'none' }}>Validar</Button>}
+              <Button variant="ghost" size="sm">Abrir</Button>
             </div>
             <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, fontWeight: 500, marginBottom: 4 }}>{o[2]}</div>
             <div style={{ fontSize: 12.5, color: 'var(--v54-navy-500)' }}>{o[3]}</div>
