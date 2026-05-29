@@ -6,7 +6,7 @@ import { EMPTY_ILLUSTRATIONS, type EmptyIllustration } from '@/lib/syndic/empty-
 import styles from './Empty.module.css'
 
 /** Couleur du badge-circle (mode fallback sans illustration). */
-export type EmptyBadgeKind = 'sage' | 'gold'
+export type EmptyBadgeKind = 'sage' | 'gold' | 'rust'
 
 export interface EmptyProps {
   /** Icône du badge-circle (fallback). Défaut `check`. */
