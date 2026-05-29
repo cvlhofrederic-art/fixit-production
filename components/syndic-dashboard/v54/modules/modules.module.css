@@ -66,6 +66,7 @@
 .tbl tbody tr { transition: background var(--v54-dur) var(--v54-ease-std); }
 .tbl tbody tr:hover { background: var(--v54-paper); }
 .tbl b { font-weight: 600; }
+.numCell { font-family: var(--v54-font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* Avatar (initiales) — port byte-exact de `.av` du bundle (decoded.html L1056-1062). */
 .av {
