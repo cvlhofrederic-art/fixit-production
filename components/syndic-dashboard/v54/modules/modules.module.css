@@ -1,0 +1,39 @@
+/* Utilitaires partagés des pages-modules dashboard v54 — port byte-exact des
+ * classes globales du bundle (.chip, .card-grid, .mono). Variables → --v54-*. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #fff;
+  color: var(--v54-navy-700);
+  border: 1px solid var(--v54-line-strong);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--v54-gold-700); }
+.chipActive {
+  background: var(--v54-navy-900);
+  color: var(--v54-gold-400);
+  border-color: var(--v54-navy-900);
+}
+
+.cardGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 1024px) {
+  .cardGrid { grid-template-columns: 1fr; }
+}
+
+.mono {
+  font-family: var(--v54-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.chipCount { opacity: 0.6; }
+.chipRow { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
