@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
 import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
+import ModDashboard from '@/components/syndic-dashboard/v54/modules/ModDashboard'
 
 const MASCOT =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Ccircle%20cx='32'%20cy='32'%20r='30'%20fill='%23C9A574'/%3E%3Ccircle%20cx='24'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Ccircle%20cx='40'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Cpath%20d='M22%2040%20q10%2010%2020%200'%20stroke='%230B1828'%20stroke-width='3'%20fill='none'%20stroke-linecap='round'/%3E%3C/svg%3E"
@@ -30,6 +31,7 @@ function Placeholder({ route }: Readonly<{ route: string }>) {
 }
 
 function renderModule(route: string): ReactNode {
+  if (route === 'dashboard') return <ModDashboard />
   if (AGENT_ROUTES.has(route)) {
     const a = AGENTS[route]
     return (
