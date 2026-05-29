@@ -16,7 +16,7 @@ const AGENTS: Record<string, { name: string; title: string; intro: string }> = {
   tempo: { name: 'Tempo', title: 'Planeamento IA', intro: 'Organizo a sua agenda, prazos e calendário.' },
 }
 
-function Placeholder({ route }: { route: string }) {
+function Placeholder({ route }: Readonly<{ route: string }>) {
   return (
     <div>
       <p style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-gold-700)', fontWeight: 600 }}>Módulo</p>

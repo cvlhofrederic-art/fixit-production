@@ -26,7 +26,7 @@ export interface DashboardShellProps {
  * /récents persistés. Les en-têtes de section et le backdrop sont des <button>
  * (équivalence clavier — évite jsx-a11y S1082 du clic sur élément non-interactif).
  */
-export default function DashboardShell({ defaultRoute = 'dashboard', renderModule, onLogout }: DashboardShellProps) {
+export default function DashboardShell({ defaultRoute = 'dashboard', renderModule, onLogout }: Readonly<DashboardShellProps>) {
   const [route, setRoute] = useState(defaultRoute)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -72,10 +72,10 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
                 <span>{sec.title}</span>
                 <span className={styles.caret} aria-hidden>▼</span>
               </button>
-              {sec.entries.map((e, i) => {
+              {sec.entries.map((e) => {
                 if (!isItem(e)) {
                   return (
-                    <div key={`h-${i}`} className={styles.navSubheader} role="presentation">
+                    <div key={e.header} className={styles.navSubheader}>
                       <span>{e.header}</span>
                     </div>
                   )
@@ -121,7 +121,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
       />
 
       <main className={styles.main}>
-        <div className={styles.topbar} role="banner">
+        <header className={styles.topbar}>
           <button type="button" className={styles.hamburger} aria-label="Abrir menu" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -147,11 +147,11 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
           <button type="button" className={clsx(styles.btn, styles.gold, styles.novaMissao)}>
             <Icon name="plus" aria-hidden />Nova missão
           </button>
-        </div>
+        </header>
 
-        <div className={styles.content} role="region" aria-label="Página">
+        <section className={styles.content} aria-label="Página">
           {renderModule ? renderModule(route) : <p className={styles.placeholderTitle}>{SIDE_TITLES[route] ?? route}</p>}
-        </div>
+        </section>
       </main>
     </div>
   )
