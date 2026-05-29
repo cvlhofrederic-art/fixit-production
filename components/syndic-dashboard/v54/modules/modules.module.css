@@ -30,6 +30,16 @@
   .cardGrid { grid-template-columns: 1fr; }
 }
 
+/* Grille 3 colonnes (port `.card-grid.cols-3` du bundle, collapse ≤1024px). */
+.cardGrid3 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 1024px) {
+  .cardGrid3 { grid-template-columns: 1fr; }
+}
+
 .mono {
   font-family: var(--v54-font-mono);
   font-variant-numeric: tabular-nums;
@@ -92,6 +102,31 @@
 /* Vignette-icône d'un document — port `.doc-icon-thumb` du bundle (decoded.html L4026-4037). */
 .docIconThumb { width: 38px; height: 38px; border-radius: var(--v54-r-md); background: var(--v54-cream); border: 1px solid var(--v54-line); display: grid; place-items: center; color: var(--v54-gold-700); flex-shrink: 0; }
 .docIconThumb svg { width: 18px; height: 18px; }
+
+/* Zone de dépôt (upload) — port byte-exact de `.drop-zone` du bundle (decoded.html L1138-1154). */
+.dropZone {
+  border: 2px dashed var(--v54-line-strong);
+  border-radius: 14px;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--v54-paper);
+  transition: all var(--v54-dur-med) var(--v54-ease-std);
+}
+.dropZone:hover { border-color: var(--v54-gold-700); background: var(--v54-gold-50); }
+.icoLg {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  color: var(--v54-navy-500);
+  border: 1px solid var(--v54-line);
+}
+.icoLg svg { width: 24px; height: 24px; }
+.dropZone h4 { font-family: var(--v54-font-serif); font-size: 20px; margin: 0 0 4px; font-weight: 500; }
+.dropZone p { font-size: 12.5px; color: var(--v54-navy-300); margin: 0 0 14px; }
 
 /* Tableaux scrollables horizontalement sur petit écran (port @media bundle L1463-1465). */
 .tblWrap { width: 100%; }
