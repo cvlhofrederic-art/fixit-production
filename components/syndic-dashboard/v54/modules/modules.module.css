@@ -47,3 +47,48 @@
 }
 .statKey { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--v54-navy-300); font-weight: 600; }
 .statBig { font-family: var(--v54-font-serif); font-size: 28px; font-weight: 500; }
+
+/* Tableau de données — port byte-exact de `.tbl` du bundle (decoded.html L991-1007). */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl thead th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--v54-navy-300);
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--v54-line);
+  background: var(--v54-paper);
+}
+.tbl tbody td { padding: 14px 22px; border-bottom: 1px solid var(--v54-line); vertical-align: middle; }
+.tbl tbody tr:last-child td { border-bottom: none; }
+.tbl tbody tr { transition: background var(--v54-dur) var(--v54-ease-std); }
+.tbl tbody tr:hover { background: var(--v54-paper); }
+.tbl b { font-weight: 600; }
+
+/* Avatar (initiales) — port byte-exact de `.av` du bundle (decoded.html L1056-1062). */
+.av {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--v54-cream);
+  color: var(--v54-navy-700);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.avGold { background: linear-gradient(155deg, var(--v54-gold-400), var(--v54-gold-600)); color: var(--v54-navy-900); }
+.avSage { background: var(--v54-sage-100); color: var(--v54-sage-700); }
+
+/* Pastille d'état — port `.dot-status` du bundle (decoded.html L1271-1273). */
+.dotStatus { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--v54-sage-500); }
+
+/* Tableaux scrollables horizontalement sur petit écran (port @media bundle L1463-1465). */
+.tblWrap { width: 100%; }
+@media (max-width: 1024px) {
+  .tblWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--v54-r-md); }
+  .tbl { min-width: 720px; }
+}
