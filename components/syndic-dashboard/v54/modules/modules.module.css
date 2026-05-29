@@ -37,3 +37,13 @@
 
 .chipCount { opacity: 0.6; }
 .chipRow { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+
+/* Carte « panel » nue (port du .panel global du bundle) pour les pages-modules
+ * qui composent leur propre contenu (ex. Edifícios). */
+.card {
+  background: var(--v54-paper);
+  border: 1px solid var(--v54-line);
+  border-radius: var(--v54-r-lg);
+}
+.statKey { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--v54-navy-300); font-weight: 600; }
+.statBig { font-family: var(--v54-font-serif); font-size: 28px; font-weight: 500; }
