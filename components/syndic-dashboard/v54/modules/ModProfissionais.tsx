@@ -1,0 +1,73 @@
+'use client'
+
+import { PageHead } from '../primitives/page-head'
+import { Pill } from '../primitives/pill'
+import { Panel } from '../primitives/panel'
+import Icon from '../primitives/icon/Icon'
+import m from './modules.module.css'
+
+/** Profissionais — port byte-exact du ModProfissionais du bundle V5.7. */
+
+type Pro = readonly [string, string, string, string, number, string, string, string | null, string | null, boolean?]
+const PROS: Pro[] = [
+  ['Silva', 'Canalizador', 'check', '4.7', 23, '912 345 678', 'joao.silva@canaliz-norte.pt', '31/12/2026', '30/06/2027'],
+  ['Ferreira', 'Eletricista', 'check', '4.5', 17, '935 421 098', 'carlos.ferreira@eletro-porto.pt', '15/08/2026', '20/11/2026'],
+  ['Santos', 'Pedreiro', '', '4.3', 12, '928 765 432', 'miguel.santos@construsantos.pt', '01/10/2026', '15/03/2028'],
+  ['Pereira', 'Pintor', 'check', '4.8', 9, '917 654 321', 'ana.pereira@pinturas-portugal.pt', '28/02/2027', '30/09/2027'],
+  ['Costa', 'Jardineiro', '', '4.2', 6, '961 234 567', 'rui.costa@espacos-verdes.pt', '31/07/2026', null],
+  ['Martins', 'Serralheiro', 'check', '4.6', 8, '942 876 543', 'pedro.martins@serralharia-douro.pt', '30/11/2026', '22/04/2027'],
+  ['Bruno Tavares', 'Técnico interno', 'check', '5', 0, '935 100 002', 'bruno.tavares@gabinete-vitfix.pt', null, null, true],
+  ['Diogo Pereira', 'Técnico interno', 'check', '5', 0, '935 100 006', 'diogo.pereira@gabinete-vitfix.pt', null, null, true],
+  ['Tiago Mendes', 'Técnico interno', 'check', '5', 0, '935 100 007', 'tiago.mendes@gabinete-vitfix.pt', null, null, true],
+]
+
+const badge = (bg: string, color: string): React.CSSProperties => ({ padding: '8px 12px', background: bg, borderRadius: 8, fontSize: 12, color, marginBottom: 6 })
+const btnBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' } as const
+
+export default function ModProfissionais() {
+  return (
+    <>
+      <PageHead
+        title="Profissionais"
+        lede={`${PROS.length} prestadores registados · 7 certificados Vitfix · 9 com Seguro RC válido · 8 com garantia decenal`}
+        actions={<>
+          <button type="button" style={{ ...btnBase, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)' }}><Icon name="check" />Sincro conformidade</button>
+          <button type="button" style={{ ...btnBase, border: '1px solid var(--v54-gold-700)', background: 'linear-gradient(155deg, var(--v54-gold-500), var(--v54-gold-700))', color: 'var(--v54-navy-900)' }}><Icon name="plus" />Adicionar um profissional</button>
+        </>}
+      />
+      <div className={m.cardGrid}>
+        {PROS.map((p) => (
+          <Panel key={p[6]}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 22, fontWeight: 500 }}>{p[0]}</div>
+                  {p[2] === '' && <Pill kind="gold" noDot>Certificado</Pill>}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-500)', marginTop: 2 }}>{p[1]}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: 'var(--v54-gold-600)', fontWeight: 600, fontSize: 13 }}>{p[3]}</div>
+                <Pill kind="sage" noDot>Ativo</Pill>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12.5, marginBottom: 12 }}>
+              <div style={{ color: 'var(--v54-navy-500)' }}>{p[5]}</div>
+              <div style={{ color: 'var(--v54-navy-500)' }}>{p[6]}</div>
+              <div style={{ color: 'var(--v54-navy-500)' }}>{p[4]} intervenções</div>
+              <div><Pill kind="sage" noDot>Seguro RC válido</Pill></div>
+            </div>
+            {p[7] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Seguro RC válido até {p[7]}</div>}
+            {p[8] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido até {p[8]}</div>}
+            {p[9] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button type="button" style={{ ...btnBase, flex: 1, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)' }}><Icon name="chat" />Sem conta ligada</button>
+              <button type="button" style={{ ...btnBase, flex: 1, border: '1px solid var(--v54-navy-900)', background: 'var(--v54-navy-900)', color: '#fff' }}>Criar missão</button>
+              <button type="button" style={{ ...btnBase, background: 'transparent', border: '1px solid var(--v54-line-strong)', color: 'var(--v54-ink)' }} aria-label="Eliminar profissional" title="Eliminar"><Icon name="trash" /></button>
+            </div>
+          </Panel>
+        ))}
+      </div>
+    </>
+  )
+}
