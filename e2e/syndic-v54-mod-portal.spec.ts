@@ -15,6 +15,7 @@ test.describe('Syndic v54 — Portal do Condómino', () => {
     await page.getByRole('button', { name: 'Portal do Condómino', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Portal do Condómino', level: 1 })).toBeVisible()
     await expect(page.getByText('Ações rápidas')).toBeVisible()
-    await expect(page.getByText('Assembleia Geral Ordinária')).toBeVisible()
+    // exact: le titre de l'avis est aussi sous-chaîne d'un autre desc → éviter la collision substring Playwright.
+    await expect(page.getByText('Assembleia Geral Ordinária', { exact: true })).toBeVisible()
   })
 })
