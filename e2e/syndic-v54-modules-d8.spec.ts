@@ -20,7 +20,8 @@ test.describe('Syndic v54 — modules d8', () => {
   test('Processamentos Lote (titre + cartes)', async ({ page }) => {
     await page.getByRole('button', { name: 'Processamentos Lote', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Processamentos em Lote', level: 1 })).toBeVisible()
-    await expect(page.getByText('Emissão de Quotas')).toBeVisible()
+    // exact: getByText est substring/insensible à la casse → éviter la collision avec le lede (« …emissão de quotas… »).
+    await expect(page.getByText('Emissão de Quotas', { exact: true })).toBeVisible()
   })
 
   test('AG Live Digital (titre + état vide)', async ({ page }) => {
