@@ -3,6 +3,7 @@
 import { PageHead } from '../primitives/page-head'
 import { Pill } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
+import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 
@@ -22,7 +23,6 @@ const PROS: Pro[] = [
 ]
 
 const badge = (bg: string, color: string): React.CSSProperties => ({ padding: '8px 12px', background: bg, borderRadius: 8, fontSize: 12, color, marginBottom: 6 })
-const btnBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' } as const
 
 export default function ModProfissionais() {
   return (
@@ -31,8 +31,8 @@ export default function ModProfissionais() {
         title="Profissionais"
         lede={`${PROS.length} prestadores registados · 7 certificados Vitfix · 9 com Seguro RC válido · 8 com garantia decenal`}
         actions={<>
-          <button type="button" style={{ ...btnBase, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)' }}><Icon name="check" />Sincro conformidade</button>
-          <button type="button" style={{ ...btnBase, border: '1px solid var(--v54-gold-700)', background: 'linear-gradient(155deg, var(--v54-gold-500), var(--v54-gold-700))', color: 'var(--v54-navy-900)' }}><Icon name="plus" />Adicionar um profissional</button>
+          <Button><Icon name="check" />Sincro conformidade</Button>
+          <Button variant="gold"><Icon name="plus" />Adicionar um profissional</Button>
         </>}
       />
       <div className={m.cardGrid}>
@@ -61,9 +61,9 @@ export default function ModProfissionais() {
             {p[8] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido até {p[8]}</div>}
             {p[9] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" style={{ ...btnBase, flex: 1, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)' }}><Icon name="chat" />Sem conta ligada</button>
-              <button type="button" style={{ ...btnBase, flex: 1, border: '1px solid var(--v54-navy-900)', background: 'var(--v54-navy-900)', color: '#fff' }}>Criar missão</button>
-              <button type="button" style={{ ...btnBase, background: 'transparent', border: '1px solid var(--v54-line-strong)', color: 'var(--v54-ink)' }} aria-label="Eliminar profissional" title="Eliminar"><Icon name="trash" /></button>
+              <Button style={{ flex: 1, justifyContent: 'center' }}><Icon name="chat" />Sem conta ligada</Button>
+              <Button variant="primary" style={{ flex: 1, justifyContent: 'center' }}>Criar missão</Button>
+              <Button variant="ghost" aria-label="Eliminar profissional" title="Eliminar"><Icon name="trash" /></Button>
             </div>
           </Panel>
         ))}

@@ -6,6 +6,7 @@ import { Pill } from '../primitives/pill'
 import { KPIGrid } from '../primitives/kpi'
 import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
+import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import styles from './ModDashboard.module.css'
 
@@ -109,7 +110,7 @@ export default function ModDashboard() {
       <Panel
         title="Orçamento global — Exercício 2026"
         sub="Repartição orçamental por categoria · atualizado há 2 horas"
-        right={<><Pill kind="sage">Em curso</Pill><button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 8, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}><Icon name="download" />Exportar</button></>}
+        right={<><Pill kind="sage">Em curso</Pill><Button><Icon name="download" />Exportar</Button></>}
       >
         <div className={styles.budgetFigures}>
           <div><div style={eyebrowStyle}>Orçamento total</div><div style={figVal}>188 000<span style={{ color: 'var(--v54-gold-700)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>Exercício 2026</div></div>

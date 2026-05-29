@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import Icon from '../primitives/icon/Icon'
+import { Button } from '../primitives/button'
 import { SIDEBAR, SIDE_TITLES, isItem } from './sidebar-config'
 import styles from './Shell.module.css'
 
@@ -144,9 +145,9 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
             <Icon name="bell" aria-hidden />
             <span className={styles.pulse} aria-hidden />
           </button>
-          <button type="button" className={clsx(styles.btn, styles.gold, styles.novaMissao)}>
+          <Button variant="gold" className={styles.novaMissao}>
             <Icon name="plus" aria-hidden />Nova missão
-          </button>
+          </Button>
         </header>
 
         <section className={styles.content} aria-label="Página">
