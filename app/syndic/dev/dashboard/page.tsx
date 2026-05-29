@@ -8,6 +8,8 @@ import ModDashboard from '@/components/syndic-dashboard/v54/modules/ModDashboard
 import ModOrdens from '@/components/syndic-dashboard/v54/modules/ModOrdens'
 import ModProfissionais from '@/components/syndic-dashboard/v54/modules/ModProfissionais'
 import ModEdificios from '@/components/syndic-dashboard/v54/modules/ModEdificios'
+import ModEquipa from '@/components/syndic-dashboard/v54/modules/ModEquipa'
+import ModCondominos from '@/components/syndic-dashboard/v54/modules/ModCondominos'
 
 const MASCOT =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Ccircle%20cx='32'%20cy='32'%20r='30'%20fill='%23C9A574'/%3E%3Ccircle%20cx='24'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Ccircle%20cx='40'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Cpath%20d='M22%2040%20q10%2010%2020%200'%20stroke='%230B1828'%20stroke-width='3'%20fill='none'%20stroke-linecap='round'/%3E%3C/svg%3E"
@@ -38,6 +40,8 @@ function renderModule(route: string): ReactNode {
   if (route === 'ordens') return <ModOrdens />
   if (route === 'profissionais') return <ModProfissionais />
   if (route === 'edificios') return <ModEdificios />
+  if (route === 'equipa') return <ModEquipa />
+  if (route === 'condominos') return <ModCondominos />
   if (AGENT_ROUTES.has(route)) {
     const a = AGENTS[route]
     return (
