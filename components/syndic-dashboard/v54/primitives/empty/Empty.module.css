@@ -58,3 +58,10 @@
   color: var(--v54-gold-700);
   border: 1px dashed var(--v54-gold-500);
 }
+/* Badge d'erreur (utilisé par le primitive ErrorState) — port du badge rust du
+ * ErrorState bundle (rust-50 / rust-700 / bord rust-500). */
+.rust {
+  background: var(--v54-rust-50);
+  color: var(--v54-rust-700);
+  border: 1px solid var(--v54-rust-500);
+}

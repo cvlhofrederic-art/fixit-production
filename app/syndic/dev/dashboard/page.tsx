@@ -35,6 +35,7 @@ import ModSinistros from '@/components/syndic-dashboard/v54/modules/ModSinistros
 import ModPreparadorAG from '@/components/syndic-dashboard/v54/modules/ModPreparadorAG'
 import ModLancamentoFat from '@/components/syndic-dashboard/v54/modules/ModLancamentoFat'
 import ModEmailsFixy from '@/components/syndic-dashboard/v54/modules/ModEmailsFixy'
+import ModMultiImoveis from '@/components/syndic-dashboard/v54/modules/ModMultiImoveis'
 
 const MASCOT =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Ccircle%20cx='32'%20cy='32'%20r='30'%20fill='%23C9A574'/%3E%3Ccircle%20cx='24'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Ccircle%20cx='40'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Cpath%20d='M22%2040%20q10%2010%2020%200'%20stroke='%230B1828'%20stroke-width='3'%20fill='none'%20stroke-linecap='round'/%3E%3C/svg%3E"
@@ -92,6 +93,7 @@ function renderModule(route: string): ReactNode {
   if (route === 'preparadorAG') return <ModPreparadorAG />
   if (route === 'lancFat') return <ModLancamentoFat />
   if (route === 'emailsFixy') return <ModEmailsFixy />
+  if (route === 'multiImoveis') return <ModMultiImoveis />
   if (AGENT_ROUTES.has(route)) {
     const a = AGENTS[route]
     return (
