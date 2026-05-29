@@ -224,30 +224,10 @@
   border: 2px solid #fff;
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--v54-line-strong);
-  background: #fff;
-  color: var(--v54-ink);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--v54-dur) var(--v54-ease-std);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.btn svg { width: 14px; height: 14px; }
-.gold {
-  background: linear-gradient(155deg, var(--v54-gold-500), var(--v54-gold-700));
-  color: var(--v54-navy-900);
-  border: 1px solid var(--v54-gold-700);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.gold:hover { filter: brightness(1.05); }
+/* Bouton « Nova missão » de la topbar — style de base désormais porté par le
+ * primitive `Button` (variant gold). On ne garde ici que les contraintes de
+ * layout propres à la topbar (le primitive ne les impose pas). */
+.novaMissao { white-space: nowrap; flex-shrink: 0; }
 
 .content { padding: 24px 32px 60px; }
 .placeholderTitle { font-family: var(--v54-font-serif); font-size: 24px; color: var(--v54-ink); }

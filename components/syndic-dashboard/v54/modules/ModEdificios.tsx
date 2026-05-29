@@ -4,6 +4,7 @@ import { PageHead } from '../primitives/page-head'
 import { Pill } from '../primitives/pill'
 import { KPIGrid } from '../primitives/kpi'
 import { Progress } from '../primitives/progress'
+import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 
@@ -19,16 +20,13 @@ const BUILDINGS = [
 const pct = (a: number, b: number) => (b > 0 ? Math.min(100, Math.max(0, (a / b) * 100)) : 0)
 const eur = (n: number) => n.toLocaleString('pt-PT')
 
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)' } as const
-const btnGold = { ...btn, border: '1px solid var(--v54-gold-700)', background: 'linear-gradient(155deg, var(--v54-gold-500), var(--v54-gold-700))', color: 'var(--v54-navy-900)' } as const
-
 export default function ModEdificios() {
   return (
     <>
       <PageHead
         title="Edifícios"
         lede={`${BUILDINGS.length} edifícios na sua carteira · 40 frações totais`}
-        actions={<button type="button" style={btnGold}><Icon name="plus" />Adicionar um edifício</button>}
+        actions={<Button variant="gold"><Icon name="plus" />Adicionar um edifício</Button>}
       />
       <KPIGrid items={[
         { icon: 'building', num: 4, lbl: 'Edifícios geridos', sub: 'Carteira ativa' },
@@ -50,9 +48,9 @@ export default function ModEdificios() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" style={btn}><Icon name="pencil" />Editar</button>
-              <button type="button" style={btn} aria-label="Suspender edifício" title="Suspender"><Icon name="ban" /></button>
-              <button type="button" style={btnGold}><Icon name="plus" />Nova missão</button>
+              <Button><Icon name="pencil" />Editar</Button>
+              <Button aria-label="Suspender edifício" title="Suspender"><Icon name="ban" /></Button>
+              <Button variant="gold"><Icon name="plus" />Nova missão</Button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18, marginBottom: 18 }}>
