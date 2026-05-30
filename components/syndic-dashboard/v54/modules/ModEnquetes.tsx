@@ -61,7 +61,7 @@ export default function ModEnquetes() {
             {s.options.map((o, j) => (
               <div key={j}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}><span>{o[0]}</span><span><b>{o[1]} ({o[2]}%)</b></span></div>
-                <Progress pct={o[2]} kind="gold" />
+                <Progress pct={o[2]} />
               </div>
             ))}
           </div>
