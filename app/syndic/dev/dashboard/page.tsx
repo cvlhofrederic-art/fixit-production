@@ -75,6 +75,8 @@ import ModFCR from '@/components/syndic-dashboard/v54/modules/ModFCR'
 import ModObrigPrazos from '@/components/syndic-dashboard/v54/modules/ModObrigPrazos'
 import ModSeguroObr from '@/components/syndic-dashboard/v54/modules/ModSeguroObr'
 import ModExtranet from '@/components/syndic-dashboard/v54/modules/ModExtranet'
+import ModWhatsapp from '@/components/syndic-dashboard/v54/modules/ModWhatsapp'
+import ModEnquetes from '@/components/syndic-dashboard/v54/modules/ModEnquetes'
 
 const MASCOT =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Ccircle%20cx='32'%20cy='32'%20r='30'%20fill='%23C9A574'/%3E%3Ccircle%20cx='24'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Ccircle%20cx='40'%20cy='28'%20r='4'%20fill='%230B1828'/%3E%3Cpath%20d='M22%2040%20q10%2010%2020%200'%20stroke='%230B1828'%20stroke-width='3'%20fill='none'%20stroke-linecap='round'/%3E%3C/svg%3E"
@@ -170,6 +172,8 @@ function renderModule(route: string): ReactNode {
   if (route === 'obrigPrazos') return <ModObrigPrazos />
   if (route === 'seguroObr') return <ModSeguroObr />
   if (route === 'extranet') return <ModExtranet />
+  if (route === 'whatsapp') return <ModWhatsapp />
+  if (route === 'enquetes') return <ModEnquetes />
   if (route === 'cctv') return <ModCCTV />
   if (route === 'npsPosIntervencao') return <ModNPSPosIntervencao />
   if (AGENT_ROUTES.has(route)) {
