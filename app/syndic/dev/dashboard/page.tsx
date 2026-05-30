@@ -78,6 +78,7 @@ import ModExtranet from '@/components/syndic-dashboard/v54/modules/ModExtranet'
 import ModWhatsapp from '@/components/syndic-dashboard/v54/modules/ModWhatsapp'
 import ModEnquetes from '@/components/syndic-dashboard/v54/modules/ModEnquetes'
 import ModOcorrencias from '@/components/syndic-dashboard/v54/modules/ModOcorrencias'
+import ModAGDigit from '@/components/syndic-dashboard/v54/modules/ModAGDigit'
 import ModQuadroAvisos from '@/components/syndic-dashboard/v54/modules/ModQuadroAvisos'
 
 const MASCOT =
@@ -178,6 +179,7 @@ function renderModule(route: string): ReactNode {
   if (route === 'ocorrencias') return <ModOcorrencias />
   if (route === 'avisos') return <ModQuadroAvisos />
   if (route === 'enquetes') return <ModEnquetes />
+  if (route === 'agDigit') return <ModAGDigit />
   if (route === 'cctv') return <ModCCTV />
   if (route === 'npsPosIntervencao') return <ModNPSPosIntervencao />
   if (AGENT_ROUTES.has(route)) {
