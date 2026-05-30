@@ -103,6 +103,7 @@
 }
 .avGold { background: linear-gradient(155deg, var(--v54-gold-400), var(--v54-gold-600)); color: var(--v54-navy-900); }
 .avSage { background: var(--v54-sage-100); color: var(--v54-sage-700); }
+.avLg { width: 44px; height: 44px; font-size: 14px; }
 
 /* Pastille d'état — port `.dot-status` du bundle (decoded.html L1271-1273). */
 .dotStatus { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--v54-sage-500); }
