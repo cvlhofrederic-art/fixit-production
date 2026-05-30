@@ -1,0 +1,21 @@
+import { test, expect, type Page } from '@playwright/test'
+
+/** Étape d (batch d41) — navigation shell vers Certificação Energética (stateful). Build prod, gated. */
+
+test.describe.configure({ timeout: 120_000 })
+
+test.describe('Syndic v54 — Certificação Energética', () => {
+  test.beforeEach(async ({ page }: { page: Page }) => {
+    await page.goto('/fr/syndic/dev/dashboard/', { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await page.locator('#syndic-dashboard-v54').waitFor({ state: 'attached', timeout: 60_000 })
+    await page.locator('[data-hydrated="true"]').waitFor({ state: 'attached', timeout: 30_000 })
+  })
+
+  test('Certificação Energética (titre + état vide + ouverture modal)', async ({ page }) => {
+    await page.getByRole('button', { name: 'Certificação Energética', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Certificação Energética', level: 1 })).toBeVisible()
+    await expect(page.getByText('Nenhum certificado registado', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '+ Adicionar certificado' }).first().click()
+    await expect(page.getByText('Adicionar certificado energético', { exact: true })).toBeVisible()
+  })
+})
