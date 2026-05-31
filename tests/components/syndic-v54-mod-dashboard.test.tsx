@@ -5,7 +5,7 @@
 // rapide (toast). Le rendu visuel est en Playwright.
 
 import React from 'react'
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent, screen } from '@testing-library/react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
 import ModDashboard from '@/components/syndic-dashboard/v54/modules/ModDashboard'
@@ -46,5 +46,12 @@ describe('syndic v54 — ModDashboard (Painel de controlo)', () => {
     renderDash()
     expect(screen.getByText(/Orçamento global/)).toBeTruthy()
     expect(screen.getByText('188 000')).toBeTruthy()
+  })
+
+  it('6. clic action rapide → navigue vers le module cible', () => {
+    const onNavigate = vi.fn()
+    render(<ToastProvider><ModDashboard onNavigate={onNavigate} /></ToastProvider>)
+    fireEvent.click(screen.getByRole('button', { name: /Criar missão/ }))
+    expect(onNavigate).toHaveBeenCalledWith('ordens')
   })
 })
