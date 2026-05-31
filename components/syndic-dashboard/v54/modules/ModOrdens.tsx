@@ -8,6 +8,8 @@ import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { Mission } from '@/components/syndic-dashboard/types'
 
 /** Ordens de serviço — port byte-exact du ModOrdens du bundle V5.7. */
 
@@ -32,8 +34,43 @@ const ORDERS = [
 
 const statusKind = (s: string): PillKind => (s === 'Pendente' ? 'amber' : 'sage')
 
+type Row = readonly [string, string, string, string, string, string, string]
+
+/** Statut mission Supabase → libellé PT affiché (Phase 2). */
+function missionStatusLabel(statut: string): string {
+  switch (statut) {
+    case 'en_cours': case 'acceptee': return 'Em curso'
+    case 'terminee': return 'Concluída'
+    default: return 'Pendente'
+  }
+}
+
+function missionToRow(mi: Mission): Row {
+  return [
+    missionStatusLabel(mi.statut),
+    `#${(mi.id || '').slice(0, 8)}`,
+    mi.immeuble,
+    [mi.type, mi.description].filter(Boolean).join(' · '),
+    mi.numLot ? `Fração ${mi.numLot}` : (mi.batiment || mi.etage || ''),
+    mi.artisan || '—',
+    mi.dateIntervention || mi.dateCreation || '—',
+  ]
+}
+
 export default function ModOrdens() {
   const [tab, setTab] = useState<string>('todas')
+  // Phase 2 : vraies missions du cabinet si syndic connecté, sinon mock (preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const orders: ReadonlyArray<Row> = real ? data.missions.map(missionToRow) : ORDERS
+  const tabs = real
+    ? [
+        { id: 'todas', label: 'Todas', count: data.missions.length },
+        { id: 'urg', label: 'Urgentes', count: data.missions.filter((mi) => mi.priorite === 'urgente').length },
+        { id: 'curso', label: 'Em curso', count: data.missions.filter((mi) => mi.statut === 'en_cours' || mi.statut === 'acceptee').length },
+        { id: 'conc', label: 'Concluídas', count: data.missions.filter((mi) => mi.statut === 'terminee').length },
+      ]
+    : TABS
 
   return (
     <>
@@ -46,14 +83,14 @@ export default function ModOrdens() {
         </>}
       />
       <div className={m.chipRow}>
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} type="button" className={clsx(m.chip, tab === t.id && m.chipActive)} onClick={() => setTab(t.id)}>
             {t.label}{t.count != null && <span className={m.chipCount}> {t.count}</span>}
           </button>
         ))}
       </div>
       <Panel flush>
-        {ORDERS.map((o) => (
+        {orders.map((o) => (
           <div key={o[1]} style={{ padding: '18px 22px', borderBottom: '1px solid var(--v54-line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <Pill noDot>Normal</Pill>
