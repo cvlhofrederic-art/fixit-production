@@ -119,8 +119,8 @@ function Placeholder({ route }: Readonly<{ route: string }>) {
   )
 }
 
-function renderModule(route: string): ReactNode {
-  if (route === 'dashboard') return <ModDashboard />
+function renderModule(route: string, navigate: (id: string) => void): ReactNode {
+  if (route === 'dashboard') return <ModDashboard onNavigate={navigate} />
   if (route === 'ordens') return <ModOrdens />
   if (route === 'profissionais') return <ModProfissionais />
   if (route === 'edificios') return <ModEdificios />
