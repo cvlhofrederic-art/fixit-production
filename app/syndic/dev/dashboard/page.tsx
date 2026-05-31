@@ -86,6 +86,11 @@ import ModPlaneamento from '@/components/syndic-dashboard/v54/modules/ModPlaneam
 import ModContabCond from '@/components/syndic-dashboard/v54/modules/ModContabCond'
 import ModReservaEsp from '@/components/syndic-dashboard/v54/modules/ModReservaEsp'
 import ModArquivoDigital from '@/components/syndic-dashboard/v54/modules/ModArquivoDigital'
+import ModUrgencias from '@/components/syndic-dashboard/v54/modules/ModUrgencias'
+import ModHistEdificio from '@/components/syndic-dashboard/v54/modules/ModHistEdificio'
+import ModChatbot from '@/components/syndic-dashboard/v54/modules/ModChatbot'
+import ModInfracoes from '@/components/syndic-dashboard/v54/modules/ModInfracoes'
+import ModBenchmarking from '@/components/syndic-dashboard/v54/modules/ModBenchmarking'
 import ModQuadroAvisos from '@/components/syndic-dashboard/v54/modules/ModQuadroAvisos'
 
 const MASCOT =
@@ -194,6 +199,11 @@ function renderModule(route: string): ReactNode {
   if (route === 'contabCond') return <ModContabCond />
   if (route === 'reserva') return <ModReservaEsp />
   if (route === 'arquivoDig') return <ModArquivoDigital />
+  if (route === 'urgencias') return <ModUrgencias />
+  if (route === 'histEdificio') return <ModHistEdificio />
+  if (route === 'chatbot') return <ModChatbot />
+  if (route === 'infracoes') return <ModInfracoes />
+  if (route === 'benchmarking') return <ModBenchmarking />
   if (route === 'cctv') return <ModCCTV />
   if (route === 'npsPosIntervencao') return <ModNPSPosIntervencao />
   if (AGENT_ROUTES.has(route)) {
