@@ -1,0 +1,596 @@
+/* Canal de Comunicações — CSS bespoke porté byte-exact du bundle V5.7 (décodé L2867-3464).
+ * Sélecteurs scopés sous #syndic-dashboard-v54 (isolation G1). Tokens → --v54-*.
+ * Règles .btn.sm exclues (déjà dans le primitive Button). */
+#syndic-dashboard-v54 .canal-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  gap: 12px;
+  align-items: stretch;
+  min-height: 640px;
+}
+@media (max-width: 1500px) {
+  #syndic-dashboard-v54 .canal-grid { grid-template-columns: 280px minmax(0, 1fr) 280px; }
+}
+@media (max-width: 1280px) {
+  #syndic-dashboard-v54 .canal-grid { grid-template-columns: 280px minmax(0, 1fr); }
+  #syndic-dashboard-v54 .canal-details-col { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  #syndic-dashboard-v54 .canal-grid { grid-template-columns: 1fr; }
+  #syndic-dashboard-v54 .canal-missions-col { order: 1; max-height: 420px; }
+  #syndic-dashboard-v54 .canal-chat-col { order: 2; }
+  #syndic-dashboard-v54 .canal-details-col { order: 3; }
+}
+
+#syndic-dashboard-v54 .canal-missions-col,
+#syndic-dashboard-v54 .canal-chat-col,
+#syndic-dashboard-v54 .canal-details-col {
+  background: var(--v54-paper);
+  border: 1px solid var(--v54-line);
+  border-radius: var(--v54-r-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ----- Col 1 : Missions list ----- */
+#syndic-dashboard-v54 .canal-missions-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--v54-line);
+  background: var(--v54-cream);
+}
+#syndic-dashboard-v54 .canal-missions-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--v54-navy-300);
+  margin-bottom: 10px;
+}
+#syndic-dashboard-v54 .canal-missions-subtabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+#syndic-dashboard-v54 .canal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--v54-line);
+  background: #fff;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v54-navy-500);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+#syndic-dashboard-v54 .canal-chip:hover { background: var(--v54-cream); }
+#syndic-dashboard-v54 .canal-chip.active {
+  background: var(--v54-navy-900);
+  color: var(--v54-paper);
+  border-color: var(--v54-navy-900);
+}
+#syndic-dashboard-v54 .canal-chip.active .canal-chip-count { color: var(--v54-gold-400); }
+#syndic-dashboard-v54 .canal-chip:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+#syndic-dashboard-v54 .canal-chip svg { width: 13px; height: 13px; }
+#syndic-dashboard-v54 .canal-chip-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v54-navy-300);
+  margin-left: 2px;
+}
+
+#syndic-dashboard-v54 .canal-search {
+  position: relative;
+  margin-bottom: 10px;
+}
+#syndic-dashboard-v54 .canal-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--v54-navy-300);
+  pointer-events: none;
+}
+#syndic-dashboard-v54 .canal-search input {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  border: 1px solid var(--v54-line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--v54-navy-900);
+}
+#syndic-dashboard-v54 .canal-search input:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+
+#syndic-dashboard-v54 .canal-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#syndic-dashboard-v54 .canal-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--v54-line);
+  background: #fff;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--v54-navy-500);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+#syndic-dashboard-v54 .canal-filter:hover { background: var(--v54-cream); }
+#syndic-dashboard-v54 .canal-filter.active { background: var(--v54-navy-900); color: var(--v54-paper); border-color: var(--v54-navy-900); }
+#syndic-dashboard-v54 .canal-filter:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+#syndic-dashboard-v54 .canal-filter-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+#syndic-dashboard-v54 .canal-filter.rust  .canal-filter-dot { background: var(--v54-rust-500); }
+#syndic-dashboard-v54 .canal-filter.amber .canal-filter-dot { background: var(--v54-amber-500); }
+#syndic-dashboard-v54 .canal-filter.gold  .canal-filter-dot { background: var(--v54-gold-500); }
+
+#syndic-dashboard-v54 .canal-missions-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+#syndic-dashboard-v54 .canal-mission-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-bottom: 1px solid var(--v54-line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s;
+}
+#syndic-dashboard-v54 .canal-mission-card:hover { background: var(--v54-cream); }
+#syndic-dashboard-v54 .canal-mission-card.active {
+  background: var(--v54-cream);
+  box-shadow: inset 3px 0 0 var(--v54-gold-500);
+}
+#syndic-dashboard-v54 .canal-mission-card:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: -2px; }
+#syndic-dashboard-v54 .canal-mission-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--v54-navy-900);
+  margin-bottom: 4px;
+}
+#syndic-dashboard-v54 .canal-mission-sub {
+  font-size: 12px;
+  color: var(--v54-navy-500);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#syndic-dashboard-v54 .canal-mission-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--v54-gold-500);
+  flex-shrink: 0;
+}
+#syndic-dashboard-v54 .canal-mission-tags {
+  margin-top: 7px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+#syndic-dashboard-v54 .canal-mission-unread {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--v54-rust-500);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+#syndic-dashboard-v54 .canal-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--v54-navy-300);
+  font-size: 12.5px;
+  margin: 0;
+}
+
+/* ----- Col 2 : Chat ----- */
+#syndic-dashboard-v54 .canal-chat-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--v54-line);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#syndic-dashboard-v54 .canal-chat-head-info { flex: 1; min-width: 220px; }
+#syndic-dashboard-v54 .canal-chat-head-actions { flex-shrink: 0; }
+#syndic-dashboard-v54 .canal-chat-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+#syndic-dashboard-v54 .canal-chat-title-sep { color: var(--v54-navy-300); margin: 0 6px; }
+#syndic-dashboard-v54 .canal-chat-meta {
+  font-size: 12.5px;
+  color: var(--v54-navy-500);
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+#syndic-dashboard-v54 .canal-chat-meta-sep { color: var(--v54-navy-300); margin: 0 4px; }
+#syndic-dashboard-v54 .canal-chat-meta-id {
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  background: var(--v54-cream);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--v54-navy-700);
+}
+#syndic-dashboard-v54 .canal-chat-link {
+  color: var(--v54-gold-700);
+  text-decoration: none;
+  font-weight: 600;
+}
+#syndic-dashboard-v54 .canal-chat-link:hover { text-decoration: underline; }
+#syndic-dashboard-v54 .canal-chat-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#syndic-dashboard-v54 .canal-chat-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  min-height: 320px;
+  overflow-y: auto;
+}
+#syndic-dashboard-v54 .canal-chat-empty {
+  text-align: center;
+  max-width: 380px;
+}
+#syndic-dashboard-v54 .canal-chat-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid var(--v54-line);
+  display: grid;
+  place-items: center;
+  color: var(--v54-gold-700);
+  margin: 0 auto 18px;
+  box-shadow: var(--v54-shadow-card);
+}
+#syndic-dashboard-v54 .canal-chat-empty-icon svg { width: 36px; height: 36px; }
+#syndic-dashboard-v54 .canal-chat-empty h4 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+  margin: 0 0 8px;
+}
+#syndic-dashboard-v54 .canal-chat-empty p {
+  font-size: 13px;
+  color: var(--v54-navy-500);
+  line-height: 1.55;
+  margin: 0;
+}
+
+#syndic-dashboard-v54 .canal-chat-footer {
+  border-top: 1px solid var(--v54-line);
+  padding: 14px 20px 16px;
+  background: var(--v54-cream);
+}
+#syndic-dashboard-v54 .canal-chat-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#syndic-dashboard-v54 .canal-chat-iconbtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--v54-line);
+  background: #fff;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--v54-navy-500);
+  transition: background 0.12s, color 0.12s;
+}
+#syndic-dashboard-v54 .canal-chat-iconbtn:hover { background: var(--v54-cream); color: var(--v54-navy-900); }
+#syndic-dashboard-v54 .canal-chat-iconbtn:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+#syndic-dashboard-v54 .canal-chat-iconbtn svg { width: 16px; height: 16px; }
+#syndic-dashboard-v54 .canal-chat-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--v54-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: var(--v54-navy-900);
+}
+#syndic-dashboard-v54 .canal-chat-input:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+#syndic-dashboard-v54 .canal-chat-send {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+#syndic-dashboard-v54 .canal-chat-send svg { width: 16px; height: 16px; }
+#syndic-dashboard-v54 .canal-chat-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+#syndic-dashboard-v54 .canal-chat-footer-row {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#syndic-dashboard-v54 .canal-chat-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--v54-navy-300);
+}
+#syndic-dashboard-v54 .canal-chat-quickactions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ----- Col 3 : Mission details ----- */
+#syndic-dashboard-v54 .canal-details-col {
+  overflow-y: auto;
+  padding: 20px 18px;
+  gap: 18px;
+  background: var(--v54-paper);
+}
+#syndic-dashboard-v54 .canal-details-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#syndic-dashboard-v54 .canal-details-section + .canal-details-section {
+  padding-top: 18px;
+  border-top: 1px solid var(--v54-line);
+}
+#syndic-dashboard-v54 .canal-details-label {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--v54-navy-300);
+  text-transform: uppercase;
+}
+#syndic-dashboard-v54 .canal-details-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+  margin: 0;
+  line-height: 1.3;
+}
+#syndic-dashboard-v54 .canal-details-id {
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--v54-navy-500);
+  margin: 0;
+}
+#syndic-dashboard-v54 .canal-details-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+#syndic-dashboard-v54 .canal-info-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#syndic-dashboard-v54 .canal-info-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+#syndic-dashboard-v54 .canal-info-list svg {
+  width: 16px;
+  height: 16px;
+  color: var(--v54-navy-300);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+#syndic-dashboard-v54 .canal-info-k {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v54-navy-500);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 1px;
+}
+#syndic-dashboard-v54 .canal-info-v {
+  font-size: 13px;
+  color: var(--v54-navy-900);
+}
+#syndic-dashboard-v54 .canal-info-link {
+  font-size: 13px;
+  color: var(--v54-gold-700);
+  font-weight: 600;
+  text-decoration: none;
+}
+#syndic-dashboard-v54 .canal-info-link:hover { text-decoration: underline; }
+
+#syndic-dashboard-v54 .canal-progress {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+}
+#syndic-dashboard-v54 .canal-progress::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--v54-line);
+}
+#syndic-dashboard-v54 .canal-progress-step {
+  position: relative;
+  padding-left: 24px;
+  padding-bottom: 14px;
+}
+#syndic-dashboard-v54 .canal-progress-step:last-child { padding-bottom: 0; }
+#syndic-dashboard-v54 .canal-progress-marker {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--v54-paper);
+  border: 2px solid var(--v54-line);
+}
+#syndic-dashboard-v54 .canal-progress-step.state-done .canal-progress-marker {
+  background: var(--v54-sage-500);
+  border-color: var(--v54-sage-500);
+}
+#syndic-dashboard-v54 .canal-progress-step.state-current .canal-progress-marker {
+  background: var(--v54-gold-500);
+  border-color: var(--v54-gold-500);
+  box-shadow: 0 0 0 3px var(--v54-gold-100);
+}
+#syndic-dashboard-v54 .canal-progress-step.state-pending .canal-progress-marker {
+  background: var(--v54-paper);
+}
+#syndic-dashboard-v54 .canal-progress-step-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v54-navy-900);
+  margin-bottom: 2px;
+}
+#syndic-dashboard-v54 .canal-progress-step.state-pending .canal-progress-step-name { color: var(--v54-navy-300); font-weight: 500; }
+#syndic-dashboard-v54 .canal-progress-step-date {
+  font-size: 11.5px;
+  color: var(--v54-navy-300);
+}
+
+#syndic-dashboard-v54 .canal-participants {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#syndic-dashboard-v54 .canal-participant {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#syndic-dashboard-v54 .canal-participant-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--v54-navy-900);
+  color: var(--v54-gold-500);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: 'Manrope', sans-serif;
+  flex-shrink: 0;
+}
+#syndic-dashboard-v54 .canal-participant-info { flex: 1; min-width: 0; }
+#syndic-dashboard-v54 .canal-participant-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v54-navy-900);
+  margin-bottom: 1px;
+}
+#syndic-dashboard-v54 .canal-participant-role {
+  font-size: 11.5px;
+  color: var(--v54-navy-500);
+}
+#syndic-dashboard-v54 .canal-participant-online {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v54-sage-500);
+  box-shadow: 0 0 0 2px var(--v54-paper);
+  flex-shrink: 0;
+}
+
+#syndic-dashboard-v54 .canal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#syndic-dashboard-v54 .canal-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--v54-line);
+  background: #fff;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v54-navy-900);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+#syndic-dashboard-v54 .canal-action:hover { background: var(--v54-cream); border-color: var(--v54-line-strong); }
+#syndic-dashboard-v54 .canal-action:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+#syndic-dashboard-v54 .canal-action svg { width: 16px; height: 16px; flex-shrink: 0; }
+#syndic-dashboard-v54 .canal-action.sage {
+  background: var(--v54-sage-50);
+  color: var(--v54-sage-700);
+  border-color: var(--v54-sage-100);
+}
+#syndic-dashboard-v54 .canal-action.sage:hover { background: var(--v54-sage-100); }
+#syndic-dashboard-v54 .canal-action.gold {
+  background: var(--v54-gold-50);
+  color: var(--v54-gold-700);
+  border-color: var(--v54-gold-100);
+}
+#syndic-dashboard-v54 .canal-action.gold:hover { background: var(--v54-gold-100); }
+#syndic-dashboard-v54 .canal-action.rust {
+  background: var(--v54-rust-50);
+  color: var(--v54-rust-700);
+  border-color: var(--v54-rust-100);
+}
+#syndic-dashboard-v54 .canal-action.rust:hover { background: var(--v54-rust-100); }

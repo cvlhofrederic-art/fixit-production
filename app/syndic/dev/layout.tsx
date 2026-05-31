@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import '@/components/syndic-dashboard/v54/tokens/tokens.css'
 import '@/components/syndic-dashboard/v54/tokens/fonts.css'
+import '@/components/syndic-dashboard/v54/modules/canal.css'
 import { v54FontVariables } from '@/components/syndic-dashboard/v54/tokens/fonts'
 
 /**
