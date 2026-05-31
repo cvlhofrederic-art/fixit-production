@@ -28,7 +28,8 @@ export interface SyndicData {
 
 const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [] }
 
-const SyndicDataContext = createContext<SyndicData>(EMPTY)
+/** Exporté pour les tests (injection d'un value mock) — l'app utilise SyndicDataProvider. */
+export const SyndicDataContext = createContext<SyndicData>(EMPTY)
 
 /** Hook d'accès aux données syndic réelles (vide + authenticated:false hors auth). */
 export const useSyndicData = (): SyndicData => useContext(SyndicDataContext)

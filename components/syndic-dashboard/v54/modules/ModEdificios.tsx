@@ -7,6 +7,8 @@ import { Progress } from '../primitives/progress'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { Immeuble } from '@/components/syndic-dashboard/types'
 
 /** Edifícios — port byte-exact du ModEdificios du bundle V5.7 (utilise Progress). */
 
@@ -20,21 +22,43 @@ const BUILDINGS = [
 const pct = (a: number, b: number) => (b > 0 ? Math.min(100, Math.max(0, (a / b) * 100)) : 0)
 const eur = (n: number) => n.toLocaleString('pt-PT')
 
+type Row = readonly [string, string, number, number, string, string, number, number, string]
+
+/** Mappe un immeuble réel vers la tuple de rendu d'une carte (Phase 2). */
+function immToRow(i: Immeuble): Row {
+  return [
+    i.nom,
+    [i.adresse, i.codePostal, i.ville].filter(Boolean).join(', '),
+    i.nbLots ?? 0,
+    i.anneeConstruction ?? 0,
+    i.prochainControle ?? '—',
+    String(i.nbInterventions ?? 0),
+    i.depensesAnnee ?? 0,
+    i.budgetAnnuel ?? 0,
+    i.reglementTexte ? 'Regulamento OK' : 'Regulamento em falta',
+  ]
+}
+
 export default function ModEdificios() {
+  // Phase 2 : vraies données du cabinet si syndic connecté, sinon mock (preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const buildings: ReadonlyArray<Row> = real ? data.immeubles.map(immToRow) : BUILDINGS
+  const totalFracoes = buildings.reduce((acc, b) => acc + b[2], 0)
   return (
     <>
       <PageHead
         title="Edifícios"
-        lede={`${BUILDINGS.length} edifícios na sua carteira · 40 frações totais`}
+        lede={`${buildings.length} edifícios na sua carteira · ${real ? totalFracoes : 40} frações totais`}
         actions={<Button variant="gold"><Icon name="plus" />Adicionar um edifício</Button>}
       />
       <KPIGrid items={[
-        { icon: 'building', num: 4, lbl: 'Edifícios geridos', sub: 'Carteira ativa' },
-        { icon: 'grid', num: 40, lbl: 'Frações totais', sub: 'Total de frações', accent: 'gold' },
-        { icon: 'clipboard', num: 25, lbl: 'Intervenções ativas', sub: 'Em curso', accent: 'sage' },
-        { icon: 'alert', num: 4, lbl: 'Documentos em falta', sub: 'Regulamentos a adicionar', accent: 'amber' },
+        { icon: 'building', num: real ? data.immeubles.length : 4, lbl: 'Edifícios geridos', sub: 'Carteira ativa' },
+        { icon: 'grid', num: real ? totalFracoes : 40, lbl: 'Frações totais', sub: 'Total de frações', accent: 'gold' },
+        { icon: 'clipboard', num: real ? data.missions.filter((mi) => mi.statut === 'en_cours' || mi.statut === 'acceptee').length : 25, lbl: 'Intervenções ativas', sub: 'Em curso', accent: 'sage' },
+        { icon: 'alert', num: real ? data.immeubles.filter((i) => !i.reglementTexte).length : 4, lbl: 'Documentos em falta', sub: 'Regulamentos a adicionar', accent: 'amber' },
       ]} />
-      {BUILDINGS.map((b) => (
+      {buildings.map((b) => (
         <div key={b[0]} className={m.card} style={{ marginBottom: 16, padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, marginBottom: 18 }}>
             <div style={{ width: 52, height: 52, borderRadius: 12, background: 'var(--v54-cream)', display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}><Icon name="building" style={{ width: 24, height: 24 }} /></div>
@@ -44,7 +68,7 @@ export default function ModEdificios() {
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <Pill noDot>{b[2]} frações</Pill>
                 <Pill noDot>Construído em {b[3]}</Pill>
-                <Pill kind="amber" noDot>{b[8]}</Pill>
+                <Pill kind={b[8] === 'Regulamento OK' ? 'sage' : 'amber'} noDot>{b[8]}</Pill>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
