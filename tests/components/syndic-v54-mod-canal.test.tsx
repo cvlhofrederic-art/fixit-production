@@ -18,7 +18,7 @@ describe('ModCanal', () => {
   it('filtre les missions (Urgente)', () => {
     render(<ModCanal />)
     expect(screen.getByText('Residencial Cedofeita — Bloco A')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Urgente', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: /^Urgente$/ }))
     expect(screen.queryByText('Residencial Cedofeita — Bloco A')).not.toBeInTheDocument()
     cleanup()
   })
