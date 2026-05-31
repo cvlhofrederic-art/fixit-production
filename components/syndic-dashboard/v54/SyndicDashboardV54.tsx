@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
+import { SyndicDataProvider } from '@/lib/syndic/v54/data-context'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
 import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
 import ModDashboard from '@/components/syndic-dashboard/v54/modules/ModDashboard'
@@ -238,7 +239,9 @@ export default function SyndicDashboardV54() {
   return (
     <div data-hydrated={hydrated ? 'true' : undefined} style={{ margin: -32 }}>
       <ToastProvider>
-        <DashboardShell defaultRoute="dashboard" renderModule={renderModule} />
+        <SyndicDataProvider>
+          <DashboardShell defaultRoute="dashboard" renderModule={renderModule} />
+        </SyndicDataProvider>
       </ToastProvider>
     </div>
   )
