@@ -23,11 +23,16 @@ export interface SyndicSession {
   role: string | null
 }
 
-/** Rôle syndic (miroir client de lib/auth-helpers.isSyndicRole). */
+/**
+ * Rôle déclenchant l'affichage des VRAIES données (cabinet du syndic).
+ * Uniquement les vrais rôles syndic (qui ont un cabinet + des données).
+ * super_admin / admin n'ont pas de cabinet propre → ils restent sur les
+ * données mock (preview/démo peuplée) plutôt que des KPIs vides.
+ */
 function isSyndicRoleValue(role: unknown): role is string {
   return (
     typeof role === 'string' &&
-    (role === 'syndic' || role.startsWith('syndic_') || role === 'super_admin' || role === 'admin')
+    (role === 'syndic' || role.startsWith('syndic_'))
   )
 }
 
