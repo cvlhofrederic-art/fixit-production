@@ -5,6 +5,7 @@ import '@/components/syndic-dashboard/v54/tokens/tokens.css'
 import '@/components/syndic-dashboard/v54/tokens/fonts.css'
 import '@/components/syndic-dashboard/v54/modules/canal.css'
 import '@/components/syndic-dashboard/v54/modules/planeamento.css'
+import '@/components/syndic-dashboard/v54/modules/reservaesp.css'
 import { v54FontVariables } from '@/components/syndic-dashboard/v54/tokens/fonts'
 
 /**
