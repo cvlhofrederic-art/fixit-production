@@ -11,7 +11,7 @@ export interface DashboardShellProps {
   /** Route active initiale (id de module). */
   defaultRoute?: string
   /** Rend le module actif. Si absent, un placeholder titre est affiché. */
-  renderModule?: (route: string) => ReactNode
+  renderModule?: (route: string, navigate: (id: string) => void) => ReactNode
   onLogout?: () => void
 }
 
@@ -151,7 +151,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
         </header>
 
         <section className={styles.content} aria-label="Página">
-          {renderModule ? renderModule(route) : <p className={styles.placeholderTitle}>{SIDE_TITLES[route] ?? route}</p>}
+          {renderModule ? renderModule(route, go) : <p className={styles.placeholderTitle}>{SIDE_TITLES[route] ?? route}</p>}
         </section>
       </main>
     </div>

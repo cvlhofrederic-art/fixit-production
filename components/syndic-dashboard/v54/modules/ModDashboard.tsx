@@ -17,16 +17,16 @@ import styles from './ModDashboard.module.css'
  * Réutilise les primitives v54 Pill / KPIGrid / Panel / Empty / Icon.
  */
 
-interface QuickAction { id: string; title: string; desc: string; svgD: string; toast: Parameters<ReturnType<typeof useToast>['push']>[0] }
+interface QuickAction { id: string; title: string; desc: string; svgD: string; route: string; toast: Parameters<ReturnType<typeof useToast>['push']>[0] }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: 'criar-missao', title: 'Criar missão', desc: 'Novo pedido de intervenção', svgD: 'M12 5v14M5 12h14',
+  { id: 'criar-missao', title: 'Criar missão', desc: 'Novo pedido de intervenção', svgD: 'M12 5v14M5 12h14', route: 'ordens',
     toast: { kind: 'info', title: 'Criar missão', desc: 'Abertura do formulário de nova missão' } },
-  { id: 'gerar-relat', title: 'Gerar relatório', desc: 'Síntese mensal de exercício', svgD: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z|M14 3v6h6M9 13h6M9 17h4',
+  { id: 'gerar-relat', title: 'Gerar relatório', desc: 'Síntese mensal de exercício', svgD: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z|M14 3v6h6M9 13h6M9 17h4', route: 'relGestao',
     toast: { kind: 'info', title: 'Gerar relatório', desc: 'A preparar o relatório mensal' } },
-  { id: 'convidar-prof', title: 'Convidar profissional', desc: 'Adicionar à equipa VitFix', svgD: 'CIRCLE 9 8 3|M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6|CIRCLE 17 6 2.5|M14 17c2-1.5 4.5-1.5 7 0',
+  { id: 'convidar-prof', title: 'Convidar profissional', desc: 'Adicionar à equipa VitFix', svgD: 'CIRCLE 9 8 3|M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6|CIRCLE 17 6 2.5|M14 17c2-1.5 4.5-1.5 7 0', route: 'equipa',
     toast: { kind: 'info', title: 'Convidar profissional', desc: 'Envio do convite por email' } },
-  { id: 'agendar-insp', title: 'Agendar inspeção', desc: 'Visita técnica anual', svgD: 'RECT 3 5 18 16 2|M3 9h18M8 3v4M16 3v4',
+  { id: 'agendar-insp', title: 'Agendar inspeção', desc: 'Visita técnica anual', svgD: 'RECT 3 5 18 16 2|M3 9h18M8 3v4M16 3v4', route: 'vistoria',
     toast: { kind: 'info', title: 'Agendar inspeção', desc: 'Abertura do planificador' } },
 ]
 
@@ -52,7 +52,7 @@ const RECENT = [
 const eyebrowStyle = { fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-navy-300)', fontWeight: 600 } as const
 const figVal = { fontFamily: 'var(--v54-font-serif)', fontSize: 34, marginTop: 6 } as const
 
-export default function ModDashboard() {
+export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { push } = useToast()
   const [dateStr, setDateStr] = useState('')
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function ModDashboard() {
       <div className={styles.sectionEyebrow}><span>Ações rápidas</span><div className={styles.eyebrowLine} /></div>
       <div className={styles.quick}>
         {QUICK_ACTIONS.map((qa) => (
-          <button key={qa.id} type="button" className={styles.qa} onClick={() => push(qa.toast)}>
+          <button key={qa.id} type="button" className={styles.qa} onClick={() => { onNavigate?.(qa.route); push(qa.toast) }}>
             <div className={styles.qaIco}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 {qa.svgD.split('|').map(renderSvgChild)}
