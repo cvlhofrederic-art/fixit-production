@@ -82,6 +82,7 @@ import ModAGDigit from '@/components/syndic-dashboard/v54/modules/ModAGDigit'
 import ModValoresDivida from '@/components/syndic-dashboard/v54/modules/ModValoresDivida'
 import ModCadernetaMan from '@/components/syndic-dashboard/v54/modules/ModCadernetaMan'
 import ModCanal from '@/components/syndic-dashboard/v54/modules/ModCanal'
+import ModPlaneamento from '@/components/syndic-dashboard/v54/modules/ModPlaneamento'
 import ModQuadroAvisos from '@/components/syndic-dashboard/v54/modules/ModQuadroAvisos'
 
 const MASCOT =
@@ -186,6 +187,7 @@ function renderModule(route: string): ReactNode {
   if (route === 'valoresDiv') return <ModValoresDivida />
   if (route === 'caderneta') return <ModCadernetaMan />
   if (route === 'canal') return <ModCanal />
+  if (route === 'planeamento') return <ModPlaneamento />
   if (route === 'cctv') return <ModCCTV />
   if (route === 'npsPosIntervencao') return <ModNPSPosIntervencao />
   if (AGENT_ROUTES.has(route)) {
