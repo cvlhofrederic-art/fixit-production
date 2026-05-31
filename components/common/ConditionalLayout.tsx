@@ -32,6 +32,13 @@ const DASHBOARD_PATH_PREFIXES = [
    * isolé, sans pollution par la nav marketing publique.
    */
   '/syndic/dev',
+  /**
+   * Route LIVE en production du dashboard v54 (/syndic/v54, flag SYNDIC_V54_LIVE).
+   * Même traitement que les autres dashboards : son propre shell, donc PAS de
+   * Header/Footer marketing public (sinon le footer « PARA PARTICULARES / LEGAL »
+   * et le header public se superposent au dashboard).
+   */
+  '/syndic/v54',
   // Copropriétaire (dormant)
   '/coproprietaire/',
   // Admin
