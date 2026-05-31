@@ -1,0 +1,52 @@
+/* SectionDivider — séparateur de section avec eyebrow + titre serif + sous-titre.
+ * Port byte-exact de window.UI.SectionDivider du bundle V5.7 (assets L39192-39201).
+ * Tokens --* → --v54-*. */
+
+.divider {
+  margin: 48px 0 20px;
+  padding-top: 24px;
+  /* NB byte-exact : le bundle référence var(--gold-200), token NON défini (ni
+   * bundle ni v54). La règle border-top devient « invalid at computed-value
+   * time » → border-style:none → AUCUNE bordure rendue, seul le tick gold-500
+   * s'affiche. On reproduit ce comportement à l'identique (ne pas « corriger »
+   * en définissant --v54-gold-200 : cela divergerait du rendu original). */
+  border-top: 2px solid var(--v54-gold-200);
+  position: relative;
+}
+.tick {
+  position: absolute;
+  top: -9px;
+  left: 0;
+  width: 48px;
+  height: 16px;
+  background: var(--v54-paper);
+  display: flex;
+  align-items: center;
+}
+.tickBar {
+  width: 100%;
+  height: 2px;
+  background: var(--v54-gold-500);
+}
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--v54-gold-700);
+  margin-bottom: 6px;
+}
+.title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+  line-height: 1.15;
+}
+.titleGap { margin-bottom: 6px; }
+.sub {
+  font-size: 13px;
+  color: var(--v54-navy-500);
+  line-height: 1.5;
+  max-width: 740px;
+}
