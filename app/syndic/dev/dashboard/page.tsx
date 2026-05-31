@@ -85,6 +85,7 @@ import ModCanal from '@/components/syndic-dashboard/v54/modules/ModCanal'
 import ModPlaneamento from '@/components/syndic-dashboard/v54/modules/ModPlaneamento'
 import ModContabCond from '@/components/syndic-dashboard/v54/modules/ModContabCond'
 import ModReservaEsp from '@/components/syndic-dashboard/v54/modules/ModReservaEsp'
+import ModArquivoDigital from '@/components/syndic-dashboard/v54/modules/ModArquivoDigital'
 import ModQuadroAvisos from '@/components/syndic-dashboard/v54/modules/ModQuadroAvisos'
 
 const MASCOT =
@@ -192,6 +193,7 @@ function renderModule(route: string): ReactNode {
   if (route === 'planeamento') return <ModPlaneamento />
   if (route === 'contabCond') return <ModContabCond />
   if (route === 'reserva') return <ModReservaEsp />
+  if (route === 'arquivoDig') return <ModArquivoDigital />
   if (route === 'cctv') return <ModCCTV />
   if (route === 'npsPosIntervencao') return <ModNPSPosIntervencao />
   if (AGENT_ROUTES.has(route)) {
