@@ -23,3 +23,42 @@ export const fetchImmeubles = (token: string): Promise<Immeuble[]> =>
 
 export const fetchArtisans = (token: string): Promise<Artisan[]> =>
   getList<Artisan>('/api/syndic/artisans', token, 'artisans')
+
+/**
+ * Copropriétaire/lot — forme v54 (camelCase). La route /api/syndic/coproprios
+ * renvoie le brut Supabase en snake_case (`select('*')`), donc on mappe ici.
+ */
+export interface Coprop {
+  id: string
+  immeuble: string
+  batiment: string
+  etage: number
+  numeroPorte: string
+  proprietario: string
+  email: string
+  telefone: string
+  ocupado: boolean
+}
+
+function rowToCoprop(r: Record<string, unknown>): Coprop {
+  const s = (k: string) => (typeof r[k] === 'string' ? (r[k] as string) : '')
+  return {
+    id: s('id'),
+    immeuble: s('immeuble'),
+    batiment: s('batiment'),
+    etage: typeof r['etage'] === 'number' ? (r['etage'] as number) : 0,
+    numeroPorte: s('numero_porte'),
+    proprietario: [s('prenom_proprietaire'), s('nom_proprietaire')].filter(Boolean).join(' ').trim(),
+    email: s('email_proprietaire'),
+    telefone: s('tel_proprietaire'),
+    ocupado: r['est_occupe'] === true,
+  }
+}
+
+export async function fetchCoproprios(token: string): Promise<Coprop[]> {
+  const res = await fetch('/api/syndic/coproprios', { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`/api/syndic/coproprios → HTTP ${res.status}`)
+  const json: unknown = await res.json()
+  const list = (json as Record<string, unknown>)?.coproprios
+  return Array.isArray(list) ? list.map((r) => rowToCoprop(r as Record<string, unknown>)) : []
+}
