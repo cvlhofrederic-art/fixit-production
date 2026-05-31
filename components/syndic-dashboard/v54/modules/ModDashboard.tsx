@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useToast } from '../primitives/toast'
-import { Pill } from '../primitives/pill'
+import { Pill, type PillKind } from '../primitives/pill'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { Mission } from '@/components/syndic-dashboard/types'
 import { KPIGrid } from '../primitives/kpi'
 import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
@@ -52,8 +54,36 @@ const RECENT = [
 const eyebrowStyle = { fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-navy-300)', fontWeight: 600 } as const
 const figVal = { fontFamily: 'var(--v54-font-serif)', fontSize: 34, marginTop: 6 } as const
 
+type RecentRow = readonly [string, string, string, string, string, string, PillKind]
+
+/** Initiales (2 lettres) depuis un nom d'immeuble. */
+function initials(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean)
+  return parts.slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '—'
+}
+
+/** Statut mission → libellé PT + couleur Pill (Phase 2, données réelles). */
+function missionStatus(statut: string): { label: string; color: PillKind } {
+  switch (statut) {
+    case 'en_cours': return { label: 'Em curso', color: 'sage' }
+    case 'acceptee': return { label: 'Aceite', color: 'sage' }
+    case 'terminee': return { label: 'Concluída', color: 'sage' }
+    case 'en_attente': return { label: 'Pendente', color: 'amber' }
+    case 'annulee': case 'refusee': return { label: 'Anulada', color: 'rust' }
+    default: return { label: statut || '—', color: 'gold' }
+  }
+}
+
+function missionToRow(m: Mission): RecentRow {
+  const st = missionStatus(m.statut)
+  return [initials(m.immeuble), m.immeuble, m.type, m.artisan || '—', m.dateIntervention || m.dateCreation || '', st.label, st.color]
+}
+
 export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { push } = useToast()
+  // Phase 2 : données réelles du cabinet si syndic connecté, sinon mock (preview).
+  const data = useSyndicData()
+  const real = data.authenticated
   const [dateStr, setDateStr] = useState('')
   useEffect(() => {
     setDateStr(new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()))
@@ -101,10 +131,10 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
       </div>
 
       <KPIGrid items={[
-        { icon: 'building', num: 4, lbl: 'Edifícios geridos', sub: '40 frações no total', trend: { kind: 'flat', label: '+0%' } },
-        { icon: 'wrench', num: 9, lbl: 'Profissionais ativos', sub: '7 certificados VitFix', accent: 'sage', trend: { kind: 'ok', label: '+2 este mês' } },
-        { icon: 'clipboard', num: 4, lbl: 'Missões em curso', sub: 'Prazo médio · 3,2 dias', accent: 'amber', trend: { kind: 'warn', label: '6 pendentes' } },
-        { icon: 'check', num: 0, lbl: 'Alertas ativos', sub: '0 urgentes · 0 hoje', accent: 'sage', trend: { kind: 'ok', label: 'Tudo OK' } },
+        { icon: 'building', num: real ? data.immeubles.length : 4, lbl: 'Edifícios geridos', sub: real ? `${data.immeubles.reduce((a, i) => a + (i.nbLots || 0), 0)} frações no total` : '40 frações no total', trend: real ? undefined : { kind: 'flat', label: '+0%' } },
+        { icon: 'wrench', num: real ? data.artisans.filter((a) => a.statut === 'actif').length : 9, lbl: 'Profissionais ativos', sub: real ? `${data.artisans.filter((a) => a.vitfixCertifie).length} certificados VitFix` : '7 certificados VitFix', accent: 'sage', trend: real ? undefined : { kind: 'ok', label: '+2 este mês' } },
+        { icon: 'clipboard', num: real ? data.missions.filter((m) => m.statut === 'en_cours' || m.statut === 'acceptee').length : 4, lbl: 'Missões em curso', sub: real ? `${data.missions.filter((m) => m.statut === 'en_attente').length} pendentes` : 'Prazo médio · 3,2 dias', accent: 'amber', trend: real ? undefined : { kind: 'warn', label: '6 pendentes' } },
+        { icon: 'check', num: 0, lbl: 'Alertas ativos', sub: real ? 'Tudo sob controlo' : '0 urgentes · 0 hoje', accent: 'sage', trend: real ? undefined : { kind: 'ok', label: 'Tudo OK' } },
       ]} />
 
       <Panel
@@ -139,7 +169,7 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
           <Empty kind="sage" illustration="ocorrencias" title="Nenhum alerta urgente" desc="Tudo sob controlo · operação nominal" />
         </Panel>
         <Panel title="Missões recentes" icon="clipboard" flush>
-          {RECENT.map((r, i) => (
+          {(real ? data.missions.slice(0, 4).map(missionToRow) : RECENT).map((r, i) => (
             <div key={i} className={styles.listRow}>
               <div className={styles.thumb}>{r[0]}</div>
               <div className={styles.info}><b>{r[1]}</b><div className={styles.meta}><span>{r[2]}</span><span className={styles.metaDot} /><span style={{ color: 'var(--v54-navy-500)', fontWeight: 500 }}>{r[3]}</span><span className={styles.metaDot} /><span>{r[4]}</span></div></div>
