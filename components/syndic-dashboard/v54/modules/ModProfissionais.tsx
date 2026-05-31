@@ -6,6 +6,8 @@ import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { Artisan } from '@/components/syndic-dashboard/types'
 
 /** Profissionais — port byte-exact du ModProfissionais du bundle V5.7. */
 
@@ -24,19 +26,42 @@ const PROS: Pro[] = [
 
 const badge = (bg: string, color: string): React.CSSProperties => ({ padding: '8px 12px', background: bg, borderRadius: 8, fontSize: 12, color, marginBottom: 6 })
 
+/** Mappe un artisan réel vers la tuple de rendu d'une carte (Phase 2). */
+function artisanToPro(a: Artisan): Pro {
+  const name = [a.prenom, a.nom].filter(Boolean).join(' ').trim() || a.nom
+  return [
+    name,
+    a.metier,
+    a.vitfixCertifie ? '' : 'check',
+    String(a.note ?? ''),
+    a.nbInterventions ?? 0,
+    a.telephone ?? '',
+    a.email ?? '',
+    a.rcProValide ? (a.rcProExpiration ?? null) : null,
+    a.decennaleValide ? (a.decennaleExpiration ?? null) : null,
+  ]
+}
+
 export default function ModProfissionais() {
+  // Phase 2 : vrais artisans du cabinet si syndic connecté, sinon mock (preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const pros: ReadonlyArray<Pro> = real ? data.artisans.map(artisanToPro) : PROS
+  const lede = real
+    ? `${data.artisans.length} prestadores registados · ${data.artisans.filter((a) => a.vitfixCertifie).length} certificados Vitfix · ${data.artisans.filter((a) => a.rcProValide).length} com Seguro RC válido · ${data.artisans.filter((a) => a.decennaleValide).length} com garantia decenal`
+    : `${PROS.length} prestadores registados · 7 certificados Vitfix · 9 com Seguro RC válido · 8 com garantia decenal`
   return (
     <>
       <PageHead
         title="Profissionais"
-        lede={`${PROS.length} prestadores registados · 7 certificados Vitfix · 9 com Seguro RC válido · 8 com garantia decenal`}
+        lede={lede}
         actions={<>
           <Button><Icon name="check" />Sincro conformidade</Button>
           <Button variant="gold"><Icon name="plus" />Adicionar um profissional</Button>
         </>}
       />
       <div className={m.cardGrid}>
-        {PROS.map((p) => (
+        {pros.map((p) => (
           <Panel key={p[6]}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
               <div>
