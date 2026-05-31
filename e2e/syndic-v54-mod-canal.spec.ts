@@ -14,7 +14,7 @@ test.describe('Syndic v54 — Canal de Comunicações', () => {
   test('Canal (titre + missions + chat)', async ({ page }) => {
     await page.getByRole('button', { name: /Canal de Comunicações/ }).first().click()
     await expect(page.getByRole('heading', { name: 'Canal de Comunicações', level: 1 })).toBeVisible()
-    await expect(page.getByText('Condomínio Boavista Center', { exact: true })).toBeVisible()
+    await expect(page.getByText('Condomínio Boavista Center', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('Canal profissional aberto', { exact: true })).toBeVisible()
   })
 })
