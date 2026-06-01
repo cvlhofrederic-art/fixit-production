@@ -38,10 +38,15 @@ export interface Coprop {
   email: string
   telefone: string
   ocupado: boolean
+  /** Permilagem (tantième). Optionnel : consommateurs `?? 0`. */
+  tantieme?: number
+  /** Solde du condómino. Convention (ancien dashboard) : < 0 = doit/em dívida. */
+  solde?: number
 }
 
 function rowToCoprop(r: Record<string, unknown>): Coprop {
   const s = (k: string) => (typeof r[k] === 'string' ? (r[k] as string) : '')
+  const n = (k: string) => (typeof r[k] === 'number' ? (r[k] as number) : 0)
   return {
     id: s('id'),
     immeuble: s('immeuble'),
@@ -52,6 +57,8 @@ function rowToCoprop(r: Record<string, unknown>): Coprop {
     email: s('email_proprietaire'),
     telefone: s('tel_proprietaire'),
     ocupado: r['est_occupe'] === true,
+    tantieme: n('tantieme'),
+    solde: n('solde'),
   }
 }
 
