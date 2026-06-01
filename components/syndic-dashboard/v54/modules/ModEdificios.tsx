@@ -50,38 +50,50 @@ export default function ModEdificios() {
   // Phase 2 : vraies données du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
-  const buildings: ReadonlyArray<Row> = real ? data.immeubles.map(immToRow) : BUILDINGS
+  const items: ReadonlyArray<{ row: Row; im: Immeuble | null }> = real
+    ? data.immeubles.map((i) => ({ row: immToRow(i), im: i }))
+    : BUILDINGS.map((r) => ({ row: r, im: null }))
+  const buildings = items.map((it) => it.row)
   const totalFracoes = buildings.reduce((acc, b) => acc + b[2], 0)
 
   // Phase 2 écritures : « Adicionar edifício » → POST /api/syndic/immeubles.
   const { push } = useToast()
   const blank = { nom: '', adresse: '', ville: '', codePostal: '', nbLots: '', budgetAnnuel: '' }
   const [open, setOpen] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState(blank)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const upd = (k: string, v: string) => setForm((s) => ({ ...s, [k]: v }))
-  const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
+  const openNew = () => { setEditId(null); setForm(blank); setErrors({}); setOpen(true) }
+  const openEdit = (im: Immeuble | null) => {
+    setEditId(im?.id ?? null)
+    setForm(im
+      ? { nom: im.nom ?? '', adresse: im.adresse ?? '', ville: im.ville ?? '', codePostal: im.codePostal ?? '', nbLots: im.nbLots != null ? String(im.nbLots) : '', budgetAnnuel: im.budgetAnnuel != null ? String(im.budgetAnnuel) : '' }
+      : blank)
+    setErrors({}); setOpen(true)
+  }
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
     if (!form.nom.trim()) errs.nom = 'O nome é obrigatório.'
     if (Object.keys(errs).length) { setErrors(errs); return }
+    const fields = { nom: form.nom, adresse: form.adresse, ville: form.ville, codePostal: form.codePostal, nbLots: Number(form.nbLots) || 1, budgetAnnuel: Number(form.budgetAnnuel) || 0 }
     if (real && data.token) {
       setBusy(true)
       fetch('/api/syndic/immeubles', {
-        method: 'POST',
+        method: editId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ nom: form.nom, adresse: form.adresse, ville: form.ville, codePostal: form.codePostal, nbLots: Number(form.nbLots) || 1, budgetAnnuel: Number(form.budgetAnnuel) || 0 }),
+        body: JSON.stringify(editId ? { id: editId, ...fields } : fields),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Edifício adicionado', desc: form.nom }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: editId ? 'Edifício atualizado' : 'Edifício adicionado', desc: form.nom }) })
+        .catch(() => push({ kind: 'error', title: editId ? 'Erro ao atualizar' : 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Edifício adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: editId ? 'Edifício atualizado (demo)' : 'Edifício adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
   return (
     <>
@@ -96,7 +108,7 @@ export default function ModEdificios() {
         { icon: 'clipboard', num: real ? data.missions.filter((mi) => mi.statut === 'en_cours' || mi.statut === 'acceptee').length : 25, lbl: 'Intervenções ativas', sub: 'Em curso', accent: 'sage' },
         { icon: 'alert', num: real ? data.immeubles.filter((i) => !i.reglementTexte).length : 4, lbl: 'Documentos em falta', sub: 'Regulamentos a adicionar', accent: 'amber' },
       ]} />
-      {buildings.map((b) => (
+      {items.map(({ row: b, im }) => (
         <div key={b[0]} className={m.card} style={{ marginBottom: 16, padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, marginBottom: 18 }}>
             <div style={{ width: 52, height: 52, borderRadius: 12, background: 'var(--v54-cream)', display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}><Icon name="building" style={{ width: 24, height: 24 }} /></div>
@@ -110,7 +122,7 @@ export default function ModEdificios() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button><Icon name="pencil" />Editar</Button>
+              <Button onClick={() => openEdit(im)}><Icon name="pencil" />Editar</Button>
               <Button aria-label="Suspender edifício" title="Suspender"><Icon name="ban" /></Button>
               <Button variant="gold"><Icon name="plus" />Nova missão</Button>
             </div>
@@ -134,7 +146,7 @@ export default function ModEdificios() {
       ))}
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="ne-title" size="md">
-        <ModalHead icon="building" id="ne-title" title="Adicionar edifício" onClose={() => setOpen(false)} />
+        <ModalHead icon="building" id="ne-title" title={editId ? 'Editar edifício' : 'Adicionar edifício'} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
             <Field label="Nome do edifício" required full name="ne-nom" error={errors.nom}>
@@ -162,7 +174,7 @@ export default function ModEdificios() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{editId ? 'Guardar' : 'Adicionar'}</button>
           </ModalFoot>
         </form>
       </Modal>

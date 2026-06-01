@@ -60,4 +60,30 @@ describe('ModEdificios (Phase 2)', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 écriture : « Editar » → PATCH /api/syndic/immeubles {id} + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ immeuble: {} }), { status: 200 }))
+    const editData: SyndicData = {
+      authenticated: true, loading: false, missions: [], artisans: [], team: [], coproprios: [],
+      immeubles: [immeuble({ id: 'b-55', nom: 'Edifício a Editar', nbLots: 9 })],
+      token: 'tok-e', refresh,
+    }
+    render(
+      <SyndicDataContext.Provider value={editData}>
+        <ModEdificios />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Editar/ }))
+    // le modal s'ouvre pré-rempli avec le nom existant
+    expect((screen.getByPlaceholderText('Ex.: Edifício Aurora') as HTMLInputElement).value).toBe('Edifício a Editar')
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Edifício Aurora'), { target: { value: 'Edifício Renovado' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/immeubles', expect.objectContaining({ method: 'PATCH' })))
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({ id: 'b-55', nom: 'Edifício Renovado' })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
