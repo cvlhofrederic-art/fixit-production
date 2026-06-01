@@ -243,9 +243,10 @@ function DecimalInput(props: {
  * rupture, par séquence chronologique unique. Cette fonction est un
  * fallback temporaire — la source de vérité reste la RPC serveur.
  */
-const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' | 'facture' | 'avoir'): string => {
+const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' | 'facture' | 'avoir' | 'acompte'): string => {
   const year = new Date().getFullYear()
-  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : 'AV'
+  // Séries dédiées par type : DEV- (devis), FACT- (facture), AC- (acompte), AV- (avoir).
+  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : docType === 'acompte' ? 'AC' : 'AV'
   try {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]')
@@ -870,8 +871,13 @@ export default function DevisFactureFormBTP({
     const year = new Date().getFullYear()
     // Sous-type 'avoir' (méthode pro BTP 2026) → préfixe AV-YYYY-NNN même si
     // docType reste 'facture' côté form. Sinon préfixe FACT-/DEV- selon docType.
-    const rpcDocType: 'devis' | 'facture' | 'avoir' = factureSubType === 'avoir' && docType === 'facture'
-      ? 'avoir'
+    // Série de numérotation dédiée selon le sous-type (méthode pro) :
+    //   facture + avoir   → 'avoir'   (AV-)
+    //   facture + acompte → 'acompte' (AC-)  ← ne consomme plus la séquence FACT-
+    //   sinon             → docType   (DEV-/FACT-)
+    const rpcDocType: 'devis' | 'facture' | 'avoir' | 'acompte' =
+      docType === 'facture' && factureSubType === 'avoir' ? 'avoir'
+      : docType === 'facture' && factureSubType === 'acompte' ? 'acompte'
       : docType
 
     // 1) API HTTP avec Bearer token
