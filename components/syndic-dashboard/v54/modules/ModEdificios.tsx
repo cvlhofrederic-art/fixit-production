@@ -14,6 +14,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { NovaMissaoModal } from './NovaMissaoModal'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
 
@@ -95,6 +96,9 @@ export default function ModEdificios() {
     setOpen(false)
     push({ kind: 'info', title: editId ? 'Edifício atualizado (demo)' : 'Edifício adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
+
+  // Phase 2 raccourci : « Nova missão » sur une carte → Nova missão pré-remplie pour cet edifício.
+  const [missaoImovel, setMissaoImovel] = useState<string | null>(null)
   return (
     <>
       <PageHead
@@ -124,7 +128,7 @@ export default function ModEdificios() {
             <div style={{ display: 'flex', gap: 8 }}>
               <Button onClick={() => openEdit(im)}><Icon name="pencil" />Editar</Button>
               <Button aria-label="Suspender edifício" title="Suspender"><Icon name="ban" /></Button>
-              <Button variant="gold"><Icon name="plus" />Nova missão</Button>
+              <Button variant="gold" onClick={() => setMissaoImovel(b[0])}><Icon name="plus" />Nova missão</Button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18, marginBottom: 18 }}>
@@ -178,6 +182,8 @@ export default function ModEdificios() {
           </ModalFoot>
         </form>
       </Modal>
+
+      <NovaMissaoModal open={missaoImovel != null} onClose={() => setMissaoImovel(null)} prefillImmeuble={missaoImovel ?? ''} lockImmeuble />
     </>
   )
 }

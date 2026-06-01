@@ -89,4 +89,27 @@ describe('ModProfissionais (Phase 2)', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 raccourci : « Criar missão » sur une carte → POST /api/syndic/missions {artisan} + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ mission: {} }), { status: 200 }))
+    const d: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], team: [], coproprios: [],
+      artisans: [artisan({ id: 'a9', nom: 'Silva Pro' })],
+      token: 'tok-m', refresh,
+    }
+    render(<SyndicDataContext.Provider value={d}><ModProfissionais /></SyndicDataContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar missão' })) // bouton de la carte
+    fireEvent.change(screen.getByPlaceholderText('Nome do edifício'), { target: { value: 'Edifício K' } })
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Canalização'), { target: { value: 'Eletricidade' } })
+    fireEvent.change(screen.getByPlaceholderText('Descreva a intervenção…'), { target: { value: 'Quadro elétrico' } })
+    const btns = screen.getAllByRole('button', { name: 'Criar missão' })
+    fireEvent.click(btns[btns.length - 1]) // bouton submit du modal
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({ artisan: 'Silva Pro', immeuble: 'Edifício K', type: 'Eletricidade' })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
