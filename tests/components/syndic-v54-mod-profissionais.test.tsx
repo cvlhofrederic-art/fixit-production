@@ -65,4 +65,28 @@ describe('ModProfissionais (Phase 2)', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 écriture : « Adicionar um profissional » → POST /api/syndic/artisans + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ artisan: {} }), { status: 200 }))
+    const writeData: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], artisans: [], team: [], coproprios: [],
+      token: 'tok-c', refresh,
+    }
+    render(
+      <SyndicDataContext.Provider value={writeData}>
+        <ModProfissionais />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar um profissional/ }))
+    fireEvent.change(screen.getByPlaceholderText('Apelido / empresa'), { target: { value: 'Novo Canalizador' } })
+    fireEvent.change(screen.getByPlaceholderText('nome@exemplo.pt'), { target: { value: 'novo@teste.pt' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/artisans', expect.objectContaining({ method: 'POST' })))
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({ nom: 'Novo Canalizador', email: 'novo@teste.pt', action: 'create' })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
