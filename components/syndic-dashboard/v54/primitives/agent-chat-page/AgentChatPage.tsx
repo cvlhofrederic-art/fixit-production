@@ -30,6 +30,8 @@ export interface AgentChatPageProps {
   inputPlaceholder?: string
   /** Overrides optionnels ; par défaut → toast (comportement byte-exact bundle). */
   onSend?: (value: string) => void
+  /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2). */
+  onAsk?: (message: string) => Promise<string>
   onNewConversation?: () => void
   onOpenDocs?: () => void
   onSelectConversation?: (conv: AgentConversation) => void
@@ -59,9 +61,11 @@ export default function AgentChatPage({
   mascot, name, title, intro, introDetail,
   suggestions = [], conversations = [], alert, contextSelector, showDocsBtn,
   inputPlaceholder = 'Faça uma pergunta…',
-  onSend, onNewConversation, onOpenDocs, onSelectConversation,
+  onSend, onAsk, onNewConversation, onOpenDocs, onSelectConversation,
 }: AgentChatPageProps) {
   const [inputVal, setInputVal] = useState('')
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [busy, setBusy] = useState(false)
   const [ctxVal, setCtxVal] = useState(contextSelector?.options?.[0] ?? '')
   const { push } = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -73,8 +77,19 @@ export default function AgentChatPage({
   }
   const handleSend = (e?: FormEvent) => {
     e?.preventDefault()
-    if (!inputVal.trim()) return
-    if (onSend) onSend(inputVal)
+    const v = inputVal.trim()
+    if (!v || busy) return
+    if (onAsk) {
+      setMessages((prev) => [...prev, { role: 'user', content: v }])
+      setInputVal('')
+      setBusy(true)
+      onAsk(v)
+        .then((resp) => setMessages((prev) => [...prev, { role: 'assistant', content: resp }]))
+        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: 'Desculpe, ocorreu um erro ao contactar o assistente. Tente novamente.' }]))
+        .finally(() => setBusy(false))
+      return
+    }
+    if (onSend) onSend(v)
     else push({ kind: 'info', title: `Pergunta enviada a ${shortName}`, desc: 'Em breve a resposta IA (em desenvolvimento)' })
     setInputVal('')
   }
@@ -167,19 +182,45 @@ export default function AgentChatPage({
 
         {alert && <Alert {...alert} />}
 
-        <div className={styles.welcome}>
-          {mascot && <img className={styles.mascotLg} src={mascot} alt="" />}
-          <h3 className={styles.intro}>{intro}</h3>
-          {introDetail && <p className={styles.introDetail}>{introDetail}</p>}
-        </div>
+        {messages.length === 0 ? (
+          <>
+            <div className={styles.welcome}>
+              {mascot && <img className={styles.mascotLg} src={mascot} alt="" />}
+              <h3 className={styles.intro}>{intro}</h3>
+              {introDetail && <p className={styles.introDetail}>{introDetail}</p>}
+            </div>
 
-        {suggestions.length > 0 && (
-          <div className={styles.suggestions}>
-            {suggestions.map((s, i) => (
-              <button key={i} type="button" className={styles.suggestion} onClick={() => applySuggestion(s)}>
-                {s}
-              </button>
+            {suggestions.length > 0 && (
+              <div className={styles.suggestions}>
+                {suggestions.map((s, i) => (
+                  <button key={i} type="button" className={styles.suggestion} onClick={() => applySuggestion(s)}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0 8px', flex: 1, overflowY: 'auto' }} aria-live="polite" aria-busy={busy}>
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                style={{
+                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '78%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  fontSize: 13.5,
+                  lineHeight: 1.55,
+                  whiteSpace: 'pre-wrap',
+                  background: msg.role === 'user' ? 'var(--v54-gold-500)' : 'var(--v54-cream)',
+                  color: msg.role === 'user' ? '#fff' : 'var(--v54-ink)',
+                }}
+              >
+                {msg.content}
+              </div>
             ))}
+            {busy && <div style={{ alignSelf: 'flex-start', padding: '10px 14px', color: 'var(--v54-navy-300)', fontSize: 13 }}>A escrever…</div>}
           </div>
         )}
 
@@ -193,7 +234,7 @@ export default function AgentChatPage({
             onChange={(e) => setInputVal(e.target.value)}
             aria-label={`Pergunta a ${name}`}
           />
-          <button type="submit" className={clsx(styles.btn, styles.gold, styles.send)} disabled={!inputVal.trim()}>
+          <button type="submit" className={clsx(styles.btn, styles.gold, styles.send)} disabled={!inputVal.trim() || busy}>
             Enviar
           </button>
         </form>

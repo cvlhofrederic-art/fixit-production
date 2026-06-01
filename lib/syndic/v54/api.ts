@@ -76,3 +76,31 @@ export async function fetchCoproprios(token: string): Promise<Coprop[]> {
 /** Équipe du cabinet — TeamMember correspond déjà aux colonnes DB (full_name, is_active…). */
 export const fetchTeam = (token: string): Promise<TeamMember[]> =>
   getList<TeamMember>('/api/syndic/team', token, 'members')
+
+/** Endpoints des 5 agents IA syndic (route id → API). */
+const AGENT_ENDPOINTS: Record<string, string> = {
+  fixy: '/api/syndic/fixy-syndic',
+  max: '/api/syndic/max-ai',
+  lea: '/api/syndic/lea-comptable',
+  alfredo: '/api/syndic/alfredo-chat',
+  tempo: '/api/syndic/tempo-ai',
+}
+
+/**
+ * Envoie un message à un agent IA syndic et retourne sa réponse texte.
+ * Réponse : clé `response` (fixy/max/lea/tempo) ou `content` (alfredo).
+ * Ne modifie aucun prompt (conforme ai-agents.md) — pur câblage UI → endpoint.
+ */
+export async function askAgent(route: string, message: string, token: string): Promise<string> {
+  const endpoint = AGENT_ENDPOINTS[route]
+  if (!endpoint) throw new Error(`Agent inconnu: ${route}`)
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message }),
+  })
+  if (!res.ok) throw new Error(`${endpoint} → HTTP ${res.status}`)
+  const j = (await res.json()) as Record<string, unknown>
+  const text = typeof j.response === 'string' ? j.response : typeof j.content === 'string' ? j.content : ''
+  return text || 'Sem resposta.'
+}
