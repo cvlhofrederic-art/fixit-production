@@ -265,9 +265,17 @@ function calculateConformiteScorePt(
   const rawLower = rawText.toLowerCase()
   const nifStr = String(extracted.artisan_siret || '').replace(/\s/g, '')
   const nifStartsWithPerson = /^[12]/.test(nifStr) && nifStr.length === 9
-  const isEni = /recibos\s*verdes|trabalhador\s+independente|empresario.+nome\s+individual|\beni\b/.test(statutJuridique)
+  // Une pessoa coletiva (sociedade/LDA/SA/unipessoal) déclarée dans le statut
+  // structuré PRIME sur les heuristiques rawText/NIF : sinon le devis d'une
+  // société dont le rawText mentionne « recibos verdes » (ou dont le NIF est mal
+  // lu) serait classé ENI à tort → seguro RC 'partial' au lieu de 'missing' et
+  // matrícula ignorée.
+  const isPessoaColetiva = /sociedade|unipessoal|\blda\b|an[óo]nima|por\s+quotas|pessoa\s+coletiva|\bs\.?a\.?\b|\bnipc\b/.test(statutJuridique)
+  const isEni = !isPessoaColetiva && (
+    /recibos\s*verdes|trabalhador\s+independente|empresario.+nome\s+individual|\beni\b/.test(statutJuridique)
     || /recibos\s*verdes|trabalhador\s+independente|empresário\s+em\s+nome\s+individual/.test(rawLower)
     || nifStartsWithPerson
+  )
 
   const prestations = (extracted.prestations || []) as Array<{ prix_unitaire_ht?: number; total_ht?: number }>
   const hasPrestations = prestations.length > 0 && prestations.some(p => (p.prix_unitaire_ht || p.total_ht || 0) > 0)
