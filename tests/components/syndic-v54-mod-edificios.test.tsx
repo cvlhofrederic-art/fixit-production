@@ -86,4 +86,25 @@ describe('ModEdificios (Phase 2)', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 raccourci : « Nova missão » sur une carte → POST /api/syndic/missions {immeuble verrouillé} + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ mission: {} }), { status: 200 }))
+    const d: SyndicData = {
+      authenticated: true, loading: false, missions: [], artisans: [], team: [], coproprios: [],
+      immeubles: [immeuble({ id: 'b-9', nom: 'Edifício Z' })],
+      token: 'tok-m', refresh,
+    }
+    render(<SyndicDataContext.Provider value={d}><ModEdificios /></SyndicDataContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: 'Nova missão' })) // bouton de la carte
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Canalização'), { target: { value: 'Telhado' } })
+    fireEvent.change(screen.getByPlaceholderText('Descreva a intervenção…'), { target: { value: 'Infiltração' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Criar missão' })) // submit du modal
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({ immeuble: 'Edifício Z', type: 'Telhado' })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
