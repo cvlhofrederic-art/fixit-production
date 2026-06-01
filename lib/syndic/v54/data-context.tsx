@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { Mission, Immeuble, Artisan } from '@/components/syndic-dashboard/types'
+import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
 import { useSyndicSession } from './session'
-import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, type Coprop } from './api'
+import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, type Coprop } from './api'
 
 /**
  * Provider data du dashboard syndic v54 (Phase 2).
@@ -24,11 +24,12 @@ export interface SyndicData {
   missions: Mission[]
   immeubles: Immeuble[]
   artisans: Artisan[]
-  /** Optionnel : ajouté en P2.2 ; les consommateurs utilisent `?? []`. */
+  /** Optionnels : ajoutés en P2.2 ; les consommateurs utilisent `?? []`. */
   coproprios?: Coprop[]
+  team?: TeamMember[]
 }
 
-const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [] }
+const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [], team: [] }
 
 /** Exporté pour les tests (injection d'un value mock) — l'app utilise SyndicDataProvider. */
 export const SyndicDataContext = createContext<SyndicData>(EMPTY)
@@ -54,8 +55,8 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
     const token = session.token
     setData({ ...EMPTY, authenticated: true, loading: true })
 
-    Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token)]).then(
-      ([m, i, a, c]) => {
+    Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token)]).then(
+      ([m, i, a, c, t]) => {
         if (!active) return
         setData({
           authenticated: true,
@@ -64,6 +65,7 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
           immeubles: i.status === 'fulfilled' ? i.value : [],
           artisans: a.status === 'fulfilled' ? a.value : [],
           coproprios: c.status === 'fulfilled' ? c.value : [],
+          team: t.status === 'fulfilled' ? t.value : [],
         })
       },
     )
