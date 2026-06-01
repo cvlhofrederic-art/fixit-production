@@ -136,7 +136,11 @@ export default function DevisSection({
   if (showDevisForm) {
     if (orgRole === 'pro_societe') {
       return (
-        <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
+        // key par document : remonte le form à chaque doc ouvert pour éviter
+        // que les useState(initialData?…) conservent les valeurs du précédent.
+        <DevisFactureFormBTP
+          key={`btp-devis-${(convertingDevis as { docNumber?: string; id?: string } | null)?.docNumber || (convertingDevis as { id?: string } | null)?.id || 'new'}`}
+          artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
           initialData={convertingDevis as any}
           onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
           onSave={() => { setConvertingDevis(null); refreshDocuments() }}

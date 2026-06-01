@@ -1510,6 +1510,69 @@ export default function DevisFactureFormBTP({
     return true
   }, [regimeValidationErrors])
 
+  /* ──────── Conversion acompte (auto X %, méthode pro) ────────
+     Clic « Acompte » dans le sélecteur de type → pourcentage 50 % par défaut +
+     lignes mises à l'échelle (×%) + numéro en série dédiée AC-. On mémorise les
+     lignes PLEINES avant mise à l'échelle pour pouvoir restaurer (zéro double-
+     scaling, zéro dérive d'arrondi) si l'utilisateur ressort du mode acompte. */
+  const acompteScaledRef = React.useRef(false)
+  const acompteOriginalRef = React.useRef<{
+    lines: ProductLine[]; materialLines: ProductLine[]; fraisLines: ProductLine[]
+    customTables: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
+  } | null>(null)
+
+  const scaleLinesBy = (arr: ProductLine[], r: number): ProductLine[] =>
+    arr.map((l) => ({ ...l, priceHT: round2((l.priceHT || 0) * r), totalHT: round2((l.totalHT || 0) * r) }))
+
+  // Met les lignes à l'échelle pct/100 à partir des lignes PLEINES mémorisées.
+  const applyAcompteScale = useCallback((pct: number) => {
+    if (!acompteOriginalRef.current) {
+      acompteOriginalRef.current = {
+        lines: lines.map((l) => ({ ...l })),
+        materialLines: materialLines.map((l) => ({ ...l })),
+        fraisLines: fraisLines.map((l) => ({ ...l })),
+        customTables: customTables.map((t) => ({ ...t, lines: t.lines.map((l) => ({ ...l })) })),
+      }
+    }
+    const o = acompteOriginalRef.current
+    const r = (pct || 0) / 100
+    setLines(scaleLinesBy(o.lines, r))
+    setMaterialLines(scaleLinesBy(o.materialLines, r))
+    setFraisLines(scaleLinesBy(o.fraisLines, r))
+    setCustomTables(o.customTables.map((t) => ({ ...t, lines: scaleLinesBy(t.lines, r) })))
+    acompteScaledRef.current = true
+  }, [lines, materialLines, fraisLines, customTables])
+
+  const restoreAcompteOriginal = useCallback(() => {
+    const o = acompteOriginalRef.current
+    if (!o) return
+    setLines(o.lines); setMaterialLines(o.materialLines); setFraisLines(o.fraisLines); setCustomTables(o.customTables)
+    acompteScaledRef.current = false
+    acompteOriginalRef.current = null
+  }, [])
+
+  const handleSelectSubType = useCallback((st: FactureSubType) => {
+    const wasAcompte = factureSubType === 'acompte'
+    if (st === 'acompte' && !wasAcompte) {
+      const pct = acomptePourcentage ?? 50
+      if (acomptePourcentage == null) setAcomptePourcentage(50)
+      applyAcompteScale(pct)
+      // Mention du document source : le doc ouvert (facture/devis) devient le
+      // parent de l'acompte → rendu PDF « (sur facture …) » + traçabilité.
+      const sourceNum = (initialData as { docNumber?: string } | undefined)?.docNumber
+      if (sourceNum && !parentInvoiceNumber) setParentInvoiceNumber(sourceNum)
+      // Nouveau numéro en série AC- : on crée une facture d'acompte DISTINCTE.
+      // La source (émise ou non) garde son propre numéro — « Valider » produit
+      // un acompte indépendant, sans renuméroter ni écraser la facture source.
+      // (Purge → l'effet d'init re-fetch le numéro avec le sous-type à jour.)
+      docNumberRef.current = ''; setDocNumber('')
+    } else if (st !== 'acompte' && wasAcompte) {
+      if (acompteScaledRef.current) restoreAcompteOriginal()
+      docNumberRef.current = ''; setDocNumber('') // re-bascule hors série AC-
+    }
+    setFactureSubType(st)
+  }, [factureSubType, acomptePourcentage, applyAcompteScale, restoreAcompteOriginal, initialData, parentInvoiceNumber])
+
   const saveDraft = () => {
     if (!artisan?.id) {
       toast.error('Compte non identifié')
@@ -2548,7 +2611,7 @@ export default function DevisFactureFormBTP({
                       <button
                         key={st}
                         type="button"
-                        onClick={() => setFactureSubType(st)}
+                        onClick={() => handleSelectSubType(st)}
                         style={{
                           padding: '10px 12px',
                           borderRadius: 6,
@@ -2622,7 +2685,15 @@ export default function DevisFactureFormBTP({
                         max={100}
                         step="0.01"
                         value={acomptePourcentage ?? ''}
-                        onChange={(e) => setAcomptePourcentage(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        onChange={(e) => {
+                          const v = e.target.value ? parseFloat(e.target.value) : undefined
+                          setAcomptePourcentage(v)
+                          // Si les lignes ont été mises à l'échelle dans cette session
+                          // (transition → acompte), on re-applique depuis les lignes
+                          // pleines mémorisées. Sinon le % reste une métadonnée (doc
+                          // déjà ouvert en acompte avec lignes déjà à la bonne échelle).
+                          if (acompteScaledRef.current && v != null) applyAcompteScale(v)
+                        }}
                         placeholder="Ex : 30"
                       />
                     </div>

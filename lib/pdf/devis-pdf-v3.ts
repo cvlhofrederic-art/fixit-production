@@ -591,7 +591,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         ? ` N°${acompteOrdre} ${locale === 'pt' ? 'de' : 'sur'} ${acompteTotal}`
         : ''
       const pctSuffix = acomptePourcentage != null ? ` — ${acomptePourcentage}%` : ''
-      subTypeLabel = `${base}${ordreSuffix}${pctSuffix}`
+      // Mention du document source (méthode pro : un acompte référence toujours
+      // la facture/le devis auquel il se rattache). Idem avoir → parentInvoiceNumber.
+      const refSuffix = parentInvoiceNumber
+        ? ` (${locale === 'pt' ? 'sobre fatura' : 'sur facture'} ${parentInvoiceNumber})`
+        : ''
+      subTypeLabel = `${base}${ordreSuffix}${pctSuffix}${refSuffix}`
     } else if (factureSubType === 'situation') {
       subTypeLabel = `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
     } else if (factureSubType === 'avoir') {
