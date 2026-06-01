@@ -62,4 +62,28 @@ describe('ModOrdens (Phase 2)', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 écriture : « Abrir » → édition statut → PATCH /api/syndic/missions + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ mission: {} }), { status: 200 }))
+    const editData: SyndicData = {
+      authenticated: true, loading: false,
+      missions: [mission({ id: 'm-777', statut: 'en_attente' })],
+      immeubles: [], artisans: [], team: [], coproprios: [], token: 'tok-z', refresh,
+    }
+    render(
+      <SyndicDataContext.Provider value={editData}>
+        <ModOrdens />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir' }))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'terminee' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'PATCH' })))
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({ id: 'm-777', statut: 'terminee' })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
