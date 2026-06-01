@@ -8,6 +8,8 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { TeamMember } from '@/components/syndic-dashboard/types'
 
 /** A Minha Equipa — port byte-exact du ModEquipa du bundle V5.7 (table + avatars). */
 
@@ -42,12 +44,47 @@ const roleKind = (role: string): PillKind | undefined => {
 
 const eliminarStyle = { color: 'var(--v54-rust-700)', marginLeft: 6, borderColor: 'var(--v54-rust-100)', background: 'var(--v54-rust-50)' } as const
 
+type Row = readonly [string, string, string, string, string, string]
+
+/** Rôle DB (clé) → libellé PT affiché (fallback = valeur brute si déjà un libellé). */
+const ROLE_LABELS: Record<string, string> = {
+  syndic_admin: 'Administrador', admin: 'Administrador',
+  syndic_gestionnaire: 'Gestor Técnico', gestionnaire: 'Gestor Técnico', gestor_tecnico: 'Gestor Técnico',
+  syndic_tech: 'Técnico', tech: 'Técnico', tecnico: 'Técnico',
+  syndic_secretaire: 'Secretária', secretaire: 'Secretária', secretaria: 'Secretária',
+  syndic_comptable: 'Contabilista', comptable: 'Contabilista', contabilista: 'Contabilista',
+  syndic_juriste: 'Jurista', juriste: 'Jurista', jurista: 'Jurista',
+  syndic_gestor_condominio: 'Gestor de Condomínio',
+}
+const roleLabel = (role: string): string => ROLE_LABELS[role] ?? role
+
+const teamInitials = (name: string): string => {
+  const parts = (name || '').split(/\s+/).filter(Boolean)
+  return parts.slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '—'
+}
+
+function memberToRow(member: TeamMember): Row {
+  const label = roleLabel(member.role)
+  return [
+    teamInitials(member.full_name),
+    member.full_name || member.email,
+    member.email,
+    label,
+    member.custom_modules ? `${member.custom_modules.length} módulos` : 'Todos os módulos',
+    label === 'Administrador' ? 'gold' : 'sage',
+  ]
+}
+
 export default function ModEquipa() {
+  // Phase 2 : vraie équipe du cabinet si syndic connecté, sinon mock (preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const team: ReadonlyArray<Row> = real ? (data.team ?? []).map(memberToRow) : TEAM
   return (
     <>
       <PageHead
         title="A Minha Equipa"
-        lede={`${TEAM.length} membros no seu gabinete`}
+        lede={`${team.length} membros no seu gabinete`}
         actions={<Button variant="gold"><Icon name="plus" />Convidar um membro</Button>}
       />
       <Panel flush>
@@ -57,7 +94,7 @@ export default function ModEquipa() {
               <tr><th>Membro</th><th>Função</th><th>Módulos</th><th>Estado</th><th aria-label="Ações" /></tr>
             </thead>
             <tbody>
-              {TEAM.map((member) => (
+              {team.map((member) => (
                 <tr key={member[2]}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
