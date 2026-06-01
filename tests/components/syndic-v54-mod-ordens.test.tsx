@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import ModOrdens from '@/components/syndic-dashboard/v54/modules/ModOrdens'
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import type { Mission } from '@/components/syndic-dashboard/types'
@@ -38,6 +38,28 @@ describe('ModOrdens (Phase 2)', () => {
     expect(screen.getByText('Edifício Real Teste')).toBeInTheDocument()
     expect(screen.getByText('Canalização · Fuga de água na garagem')).toBeInTheDocument()
     expect(screen.queryByText('Edifício Foz Douro')).toBeNull()
+    cleanup()
+  })
+
+  it('Phase 2 écriture : « Nova missão » → POST /api/syndic/missions + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ mission: {} }), { status: 200 }))
+    const writeData: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], artisans: [], team: [], coproprios: [], token: 'tok-x', refresh,
+    }
+    render(
+      <SyndicDataContext.Provider value={writeData}>
+        <ModOrdens />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Nova missão/ }))
+    fireEvent.change(screen.getByPlaceholderText('Nome do edifício'), { target: { value: 'Edifício X' } })
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Canalização'), { target: { value: 'Eletricidade' } })
+    fireEvent.change(screen.getByPlaceholderText('Descreva a intervenção…'), { target: { value: 'Curto-circuito' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Criar missão' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
     cleanup()
   })
 })
