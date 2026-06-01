@@ -1,11 +1,15 @@
 'use client'
 
+import { useState } from 'react'
 import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
+import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import btnCss from '../primitives/button/Button.module.css'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -79,12 +83,52 @@ export default function ModEquipa() {
   // Phase 2 : vraie équipe du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
-  const team: ReadonlyArray<Row> = real ? (data.team ?? []).map(memberToRow) : TEAM
+  const items: ReadonlyArray<{ row: Row; id: string | null; active: boolean }> = real
+    ? (data.team ?? []).map((mt) => ({ row: memberToRow(mt), id: mt.id, active: mt.is_active }))
+    : TEAM.map((r) => ({ row: r, id: null, active: true }))
+
+  // Phase 2 écritures : « Suspender » → PATCH is_active=false ; « Eliminar » → DELETE.
+  const { push } = useToast()
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [delTarget, setDelTarget] = useState<{ id: string | null; name: string } | null>(null)
+  const [busyDel, setBusyDel] = useState(false)
+  const suspend = (id: string | null, name: string) => {
+    if (real && data.token && id) {
+      setBusyId(id)
+      fetch('/api/syndic/team', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ member_id: id, is_active: false }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); push({ kind: 'success', title: 'Membro suspenso', desc: name }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao suspender', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusyId(null))
+      return
+    }
+    push({ kind: 'info', title: 'Membro suspenso (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
+  const confirmDelete = () => {
+    if (real && data.token && delTarget?.id) {
+      setBusyDel(true)
+      fetch(`/api/syndic/team?member_id=${encodeURIComponent(delTarget.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${data.token}` },
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); const n = delTarget?.name; setDelTarget(null); push({ kind: 'success', title: 'Membro eliminado', desc: n }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao eliminar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusyDel(false))
+      return
+    }
+    setDelTarget(null)
+    push({ kind: 'info', title: 'Membro eliminado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
   return (
     <>
       <PageHead
         title="A Minha Equipa"
-        lede={`${team.length} membros no seu gabinete`}
+        lede={`${items.length} membros no seu gabinete`}
         actions={<Button variant="gold"><Icon name="plus" />Convidar um membro</Button>}
       />
       <Panel flush>
@@ -94,7 +138,7 @@ export default function ModEquipa() {
               <tr><th>Membro</th><th>Função</th><th>Módulos</th><th>Estado</th><th aria-label="Ações" /></tr>
             </thead>
             <tbody>
-              {team.map((member) => (
+              {items.map(({ row: member, id, active }) => (
                 <tr key={member[2]}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -104,10 +148,12 @@ export default function ModEquipa() {
                   </td>
                   <td><Pill kind={roleKind(member[3])} noDot>{member[3]}</Pill></td>
                   <td><Pill kind="sage" noDot>{member[4]}</Pill></td>
-                  <td><span className={m.dotStatus} /> <span style={{ fontSize: 12.5, color: 'var(--v54-sage-700)' }}>Ativo</span></td>
+                  <td>{active
+                    ? <><span className={m.dotStatus} /> <span style={{ fontSize: 12.5, color: 'var(--v54-sage-700)' }}>Ativo</span></>
+                    : <span style={{ fontSize: 12.5, color: 'var(--v54-rust-700)' }}>Suspenso</span>}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <Button variant="ghost" size="sm">Suspender</Button>
-                    <Button size="sm" style={eliminarStyle}>Eliminar</Button>
+                    <Button variant="ghost" size="sm" disabled={busyId === id} onClick={() => suspend(id, member[1])}>Suspender</Button>
+                    <Button size="sm" style={eliminarStyle} onClick={() => setDelTarget({ id, name: member[1] })}>Eliminar</Button>
                   </td>
                 </tr>
               ))}
@@ -125,6 +171,19 @@ export default function ModEquipa() {
           ))}
         </div>
       </Panel>
+
+      <Modal open={delTarget != null} onClose={() => setDelTarget(null)} labelledBy="dm-title" size="sm">
+        <ModalHead icon="trash" id="dm-title" title="Eliminar membro" onClose={() => setDelTarget(null)} />
+        <ModalBody>
+          <p style={{ fontSize: 13.5, color: 'var(--v54-navy-500)', lineHeight: 1.5, margin: 0 }}>
+            Tem a certeza que pretende eliminar <b>{delTarget?.name}</b> da sua equipa? Esta ação é irreversível.
+          </p>
+        </ModalBody>
+        <ModalFoot>
+          <Button variant="ghost" onClick={() => setDelTarget(null)}>Cancelar</Button>
+          <button type="button" onClick={confirmDelete} disabled={busyDel} className={btnCss.btn} style={{ color: 'var(--v54-rust-700)', borderColor: 'var(--v54-rust-100)', background: 'var(--v54-rust-50)' }}>Eliminar</button>
+        </ModalFoot>
+      </Modal>
     </>
   )
 }
