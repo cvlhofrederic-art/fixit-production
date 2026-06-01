@@ -13,6 +13,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { NovaMissaoModal } from './NovaMissaoModal'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Artisan } from '@/components/syndic-dashboard/types'
 
@@ -111,6 +112,9 @@ export default function ModProfissionais() {
     setOpen(false)
     push({ kind: 'info', title: 'Profissional adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
+
+  // Phase 2 raccourci : « Criar missão » sur une carte → Nova missão pré-assignée à ce profissional.
+  const [missaoArtisan, setMissaoArtisan] = useState<string | null>(null)
   return (
     <>
       <PageHead
@@ -148,7 +152,7 @@ export default function ModProfissionais() {
             {p[9] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <Button style={{ flex: 1, justifyContent: 'center' }}><Icon name="chat" />Sem conta ligada</Button>
-              <Button variant="primary" style={{ flex: 1, justifyContent: 'center' }}>Criar missão</Button>
+              <Button variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMissaoArtisan(p[0])}>Criar missão</Button>
               <Button variant="ghost" aria-label="Eliminar profissional" title="Eliminar" onClick={() => setDelTarget({ id, name: p[0] })}><Icon name="trash" /></Button>
             </div>
           </Panel>
@@ -201,6 +205,8 @@ export default function ModProfissionais() {
           </ModalFoot>
         </form>
       </Modal>
+
+      <NovaMissaoModal open={missaoArtisan != null} onClose={() => setMissaoArtisan(null)} prefillArtisan={missaoArtisan ?? ''} lockArtisan />
     </>
   )
 }
