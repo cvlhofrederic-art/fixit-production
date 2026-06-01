@@ -105,7 +105,7 @@ describe('validateMaxResponse — defense en profondeur', () => {
     expect(result.citations[0].chunk_id).toBe('chunk-real')
   })
 
-  it('rejette une réponse longue sans aucune citation (hallucination suspecte)', () => {
+  it('signale (soft) une réponse longue sans aucune citation sans la rejeter', () => {
     const raw = JSON.stringify({
       answer:
         'Uma resposta longa sem nenhuma citação que descreve um regime jurídico fictício e que deveria conter pelo menos uma referência aos artigos pertinentes do Código Civil ou do DL 268/94 para ser considerada legítima.',
@@ -113,7 +113,10 @@ describe('validateMaxResponse — defense en profondeur', () => {
       refusal: false,
     })
     const result = validateMaxResponse(raw, [fakeChunk()], 'pt')
-    expect(result.ok).toBe(false)
+    // Soft validation (commit 99592871) : on NE rejette PAS une réponse longue
+    // non citée (un refus déclencherait une régénération → timeout). On la laisse
+    // passer mais on signale le risque d'hallucination dans `reasons` pour audit.
+    expect(result.ok).toBe(true)
     expect(result.reasons.some((r) => r.includes('long answer without any citation'))).toBe(true)
   })
 
