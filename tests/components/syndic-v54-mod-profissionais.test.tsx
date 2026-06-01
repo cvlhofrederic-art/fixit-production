@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import ModProfissionais from '@/components/syndic-dashboard/v54/modules/ModProfissionais'
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import type { Artisan } from '@/components/syndic-dashboard/types'
@@ -38,6 +38,31 @@ describe('ModProfissionais (Phase 2)', () => {
     )
     expect(screen.getByText('Real Canalizador')).toBeInTheDocument()
     expect(screen.queryByText('Serralheiro')).toBeNull()
+    cleanup()
+  })
+
+  it('Phase 2 écriture : « Eliminar » → confirmation → DELETE /api/syndic/artisans + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    const delData: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], team: [], coproprios: [],
+      artisans: [artisan({ id: 'a-del', nom: 'Apagar Silva' })],
+      token: 'tok-d', refresh,
+    }
+    render(
+      <SyndicDataContext.Provider value={delData}>
+        <ModProfissionais />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar profissional' }))
+    // le modal de confirmation s'ouvre
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/syndic/artisans?artisan_id=a-del'),
+      expect.objectContaining({ method: 'DELETE' }),
+    ))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
     cleanup()
   })
 })
