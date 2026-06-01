@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
+import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { Pill } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { Field } from '../primitives/field'
+import { FormRow } from '../primitives/form-row'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
@@ -77,6 +80,37 @@ export default function ModProfissionais() {
     setDelTarget(null)
     push({ kind: 'info', title: 'Profissional eliminado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
+
+  // Phase 2 écritures : « Adicionar um profissional » → POST /api/syndic/artisans.
+  const blank = { email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState(blank)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const upd = (k: string, v: string) => setForm((s) => ({ ...s, [k]: v }))
+  const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const errs: Record<string, string> = {}
+    if (!form.nom.trim()) errs.nom = 'O nome é obrigatório.'
+    if (!form.email.trim()) errs.email = 'O e-mail é obrigatório.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/artisans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ email: form.email, nom: form.nom, prenom: form.prenom, telephone: form.telephone, metier: form.metier, siret: form.siret, action: 'create' }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Profissional adicionado', desc: form.nom }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Verifique os dados e tente novamente' }))
+        .finally(() => setBusy(false))
+      return
+    }
+    setOpen(false)
+    push({ kind: 'info', title: 'Profissional adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
   return (
     <>
       <PageHead
@@ -84,7 +118,7 @@ export default function ModProfissionais() {
         lede={lede}
         actions={<>
           <Button><Icon name="check" />Sincro conformidade</Button>
-          <Button variant="gold"><Icon name="plus" />Adicionar um profissional</Button>
+          <Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar um profissional</Button>
         </>}
       />
       <div className={m.cardGrid}>
@@ -132,6 +166,40 @@ export default function ModProfissionais() {
           <Button variant="ghost" onClick={() => setDelTarget(null)}>Cancelar</Button>
           <button type="button" onClick={confirmDelete} disabled={busyDel} className={btnCss.btn} style={{ color: 'var(--v54-rust-700)', borderColor: 'var(--v54-rust-100)', background: 'var(--v54-rust-50)' }}>Eliminar</button>
         </ModalFoot>
+      </Modal>
+
+      <Modal open={open} onClose={() => setOpen(false)} labelledBy="np-title" size="md">
+        <ModalHead icon="plus" id="np-title" title="Adicionar um profissional" onClose={() => setOpen(false)} />
+        <form onSubmit={submit} noValidate>
+          <ModalBody>
+            <FormRow>
+              <Field label="Nome" required name="np-nom" error={errors.nom}>
+                <input type="text" placeholder="Apelido / empresa" value={form.nom} onChange={(e) => upd('nom', e.target.value)} />
+              </Field>
+              <Field label="Primeiro nome" name="np-prenom">
+                <input type="text" placeholder="Opcional" value={form.prenom} onChange={(e) => upd('prenom', e.target.value)} />
+              </Field>
+            </FormRow>
+            <Field label="E-mail" required full name="np-email" error={errors.email}>
+              <input type="email" placeholder="nome@exemplo.pt" value={form.email} onChange={(e) => upd('email', e.target.value)} />
+            </Field>
+            <FormRow>
+              <Field label="Telefone" name="np-tel">
+                <input type="tel" placeholder="912 345 678" value={form.telephone} onChange={(e) => upd('telephone', e.target.value)} />
+              </Field>
+              <Field label="Ofício" name="np-metier">
+                <input type="text" placeholder="Ex.: Canalizador" value={form.metier} onChange={(e) => upd('metier', e.target.value)} />
+              </Field>
+            </FormRow>
+            <Field label="NIF / SIRET" full name="np-siret">
+              <input type="text" placeholder="Opcional" value={form.siret} onChange={(e) => upd('siret', e.target.value)} />
+            </Field>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
+          </ModalFoot>
+        </form>
       </Modal>
     </>
   )
