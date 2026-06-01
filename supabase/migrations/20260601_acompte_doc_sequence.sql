@@ -10,10 +10,19 @@
 -- modifier le numéro d'une facture émise). La séparation vaut pour les nouveaux.
 
 -- 1) Autoriser le nouveau doc_type dans la table de séquences gapless.
-ALTER TABLE doc_sequences DROP CONSTRAINT IF EXISTS doc_sequences_doc_type_check;
-ALTER TABLE doc_sequences
-  ADD CONSTRAINT doc_sequences_doc_type_check
-  CHECK (doc_type IN ('devis', 'facture', 'avoir', 'acompte'));
+--    GARDE-FOU : sur certains environnements (dont la prod actuelle) la table
+--    doc_sequences n'existe pas — la numérotation y est assurée par le fallback
+--    client. On ne touche la contrainte QUE si la table existe, pour ne jamais
+--    faire planter ce script (un ALTER sur une table absente échouerait).
+DO $$
+BEGIN
+  IF to_regclass('public.doc_sequences') IS NOT NULL THEN
+    ALTER TABLE doc_sequences DROP CONSTRAINT IF EXISTS doc_sequences_doc_type_check;
+    ALTER TABLE doc_sequences
+      ADD CONSTRAINT doc_sequences_doc_type_check
+      CHECK (doc_type IN ('devis', 'facture', 'avoir', 'acompte'));
+  END IF;
+END $$;
 
 -- 2) Réémettre next_doc_number avec le préfixe 'acompte' → 'AC'.
 --    Le corps d'autorisation est repris VERBATIM de 20260522_rls_critical_fixes.sql
