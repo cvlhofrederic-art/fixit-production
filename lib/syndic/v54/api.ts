@@ -42,6 +42,8 @@ export interface Coprop {
   tantieme?: number
   /** Solde du condómino. Convention (ancien dashboard) : < 0 = doit/em dívida. */
   solde?: number
+  /** Accès au portail condómino activé. */
+  acessoPortal?: boolean
 }
 
 function rowToCoprop(r: Record<string, unknown>): Coprop {
@@ -59,6 +61,7 @@ function rowToCoprop(r: Record<string, unknown>): Coprop {
     ocupado: r['est_occupe'] === true,
     tantieme: n('tantieme'),
     solde: n('solde'),
+    acessoPortal: r['acces_portail'] === true,
   }
 }
 
