@@ -1,12 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
+import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { Field } from '../primitives/field'
+import { FormRow } from '../primitives/form-row'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Mission } from '@/components/syndic-dashboard/types'
@@ -72,6 +77,39 @@ export default function ModOrdens() {
       ]
     : TABS
 
+  // Phase 2 écritures : « Nova missão » → POST /api/syndic/missions (réel si connecté).
+  const { push } = useToast()
+  const blank = { immeuble: '', type: '', description: '', priorite: 'normale', artisan: '' }
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState(blank)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const upd = (k: string, v: string) => setForm((s) => ({ ...s, [k]: v }))
+  const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const errs: Record<string, string> = {}
+    if (!form.immeuble.trim()) errs.immeuble = 'O edifício é obrigatório.'
+    if (!form.type.trim()) errs.type = 'O tipo é obrigatório.'
+    if (!form.description.trim()) errs.description = 'A descrição é obrigatória.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/missions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ immeuble: form.immeuble, type: form.type, description: form.description, priorite: form.priorite, artisan: form.artisan }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Missão criada', desc: form.type }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao criar a missão', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
+    setOpen(false)
+    push({ kind: 'info', title: 'Missão criada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
+
   return (
     <>
       <PageHead
@@ -79,7 +117,7 @@ export default function ModOrdens() {
         lede="Acompanhamento das missões em curso, pedidos pendentes e histórico"
         actions={<>
           <Button><Icon name="search" />Filtros</Button>
-          <Button variant="gold"><Icon name="plus" />Nova missão</Button>
+          <Button variant="gold" onClick={openNew}><Icon name="plus" />Nova missão</Button>
         </>}
       />
       <div className={m.chipRow}>
@@ -107,6 +145,47 @@ export default function ModOrdens() {
           </div>
         ))}
       </Panel>
+
+      <Modal open={open} onClose={() => setOpen(false)} labelledBy="nm-title" size="md">
+        <ModalHead icon="plus" id="nm-title" title="Nova missão" onClose={() => setOpen(false)} />
+        <form onSubmit={submit} noValidate>
+          <ModalBody>
+            <Field label="Edifício" required full name="nm-imovel" error={errors.immeuble}>
+              {real && data.immeubles.length > 0 ? (
+                <select value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)}>
+                  <option value="">Selecione…</option>
+                  {data.immeubles.map((im) => <option key={im.id} value={im.nom}>{im.nom}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="Nome do edifício" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+              )}
+            </Field>
+            <FormRow>
+              <Field label="Tipo" required name="nm-tipo" error={errors.type}>
+                <input type="text" placeholder="Ex.: Canalização" value={form.type} onChange={(e) => upd('type', e.target.value)} />
+              </Field>
+              <Field label="Prioridade" name="nm-prio">
+                <select value={form.priorite} onChange={(e) => upd('priorite', e.target.value)}>
+                  <option value="basse">Baixa</option>
+                  <option value="normale">Normal</option>
+                  <option value="haute">Alta</option>
+                  <option value="urgente">Urgente</option>
+                </select>
+              </Field>
+            </FormRow>
+            <Field label="Descrição" required full name="nm-desc" error={errors.description}>
+              <textarea rows={3} placeholder="Descreva a intervenção…" value={form.description} onChange={(e) => upd('description', e.target.value)} />
+            </Field>
+            <Field label="Profissional (opcional)" full name="nm-art">
+              <input type="text" placeholder="Nome do profissional" value={form.artisan} onChange={(e) => upd('artisan', e.target.value)} />
+            </Field>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar missão</button>
+          </ModalFoot>
+        </form>
+      </Modal>
     </>
   )
 }
