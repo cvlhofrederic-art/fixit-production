@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios } from '@/lib/syndic/v54/api'
+import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, askAgent } from '@/lib/syndic/v54/api'
 
 /** Phase 2 — couche data v54 : fetchers typés sur /api/syndic/* (auth Bearer). */
 
@@ -37,5 +37,17 @@ describe('syndic v54 — api fetchers (Phase 2)', () => {
     expect(res[0].proprietario).toBe('Ana Silva')
     expect(res[0].numeroPorte).toBe('2B')
     expect(res[0].ocupado).toBe(true)
+  })
+
+  it('askAgent : POST le bon endpoint et lit la clé `response`', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ response: 'Olá!' }), { status: 200 }))
+    const r = await askAgent('fixy', 'oi', 'tok')
+    expect(r).toBe('Olá!')
+    expect(spy).toHaveBeenCalledWith('/api/syndic/fixy-syndic', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('askAgent : lit la clé `content` (alfredo)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ content: 'Email tratado' }), { status: 200 }))
+    expect(await askAgent('alfredo', 'oi', 'tok')).toBe('Email tratado')
   })
 })

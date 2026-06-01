@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
-import { SyndicDataProvider } from '@/lib/syndic/v54/data-context'
+import { SyndicDataProvider, useSyndicData } from '@/lib/syndic/v54/data-context'
+import { askAgent } from '@/lib/syndic/v54/api'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
 import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
 import ModDashboard from '@/components/syndic-dashboard/v54/modules/ModDashboard'
@@ -209,24 +210,33 @@ function renderModule(route: string, navigate: (id: string) => void): ReactNode 
   if (route === 'benchmarking') return <ModBenchmarking />
   if (route === 'cctv') return <ModCCTV />
   if (route === 'npsPosIntervencao') return <ModNPSPosIntervencao />
-  if (AGENT_ROUTES.has(route)) {
-    const a = AGENTS[route]
-    return (
-      <AgentChatPage
-        mascot={a.avatar || MASCOT}
-        name={a.name}
-        title={a.title}
-        intro={a.intro}
-        introDetail="Demo do design system v54 — as respostas IA serão ligadas na Phase 2."
-        suggestions={['Resumir a última ata', 'Quotas em atraso este mês', 'Estado das obras em curso']}
-        conversations={[
-          { id: '1', title: 'Orçamento elevador', bucket: 'ontem' },
-          { id: '2', title: 'Infiltração garagem -2', bucket: 'esta-semana' },
-        ]}
-      />
-    )
-  }
+  if (AGENT_ROUTES.has(route)) return <AgentRoute route={route} />
   return <Placeholder route={route} />
+}
+
+/**
+ * Page agent IA — branche onAsk au vrai endpoint Groq quand le cabinet est
+ * authentifié (token présent) ; sinon onAsk absent → fallback démo (toast).
+ * Ne touche aucun prompt (conforme ai-agents.md) : pur câblage UI → endpoint.
+ */
+function AgentRoute({ route }: Readonly<{ route: string }>) {
+  const a = AGENTS[route]
+  const { token } = useSyndicData()
+  return (
+    <AgentChatPage
+      mascot={a.avatar || MASCOT}
+      name={a.name}
+      title={a.title}
+      intro={a.intro}
+      introDetail={token ? undefined : 'Demo do design system v54 — as respostas IA serão ligadas na Phase 2.'}
+      suggestions={['Resumir a última ata', 'Quotas em atraso este mês', 'Estado das obras em curso']}
+      conversations={[
+        { id: '1', title: 'Orçamento elevador', bucket: 'ontem' },
+        { id: '2', title: 'Infiltração garagem -2', bucket: 'esta-semana' },
+      ]}
+      onAsk={token ? (msg) => askAgent(route, msg, token) : undefined}
+    />
+  )
 }
 
 export default function SyndicDashboardV54() {
