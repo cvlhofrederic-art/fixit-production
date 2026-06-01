@@ -17,6 +17,7 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 /** Valores em dívida — port byte-exact du ModValoresDivida du bundle V5.7 (stateful : Modal + Toast). */
 
@@ -32,6 +33,13 @@ export default function ModValoresDivida() {
   const [form, setForm] = useState<DivForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof DivForm, string>>>({})
   const { push } = useToast()
+  // Phase 2 : vrais débiteurs du cabinet (solde < 0) si syndic connecté, sinon état local (mock/preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const realDebtors: Div[] = (data.coproprios ?? [])
+    .filter((c) => (c.solde ?? 0) < 0)
+    .map((c, i) => ({ id: i, condomino: c.proprietario || '—', fracao: [c.batiment, c.numeroPorte].filter(Boolean).join(' ') || '—', montante: Math.abs(c.solde ?? 0), edificio: c.immeuble || '—', vencimento: '—', notas: '', estado: 'inc' }))
+  const displayItems = real ? realDebtors : items
 
   const upd = (k: keyof DivForm, v: string) => setForm(s => ({ ...s, [k]: v }))
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
@@ -46,8 +54,8 @@ export default function ModValoresDivida() {
     push({ kind: 'warning', title: 'Incumprimento registado', desc: `${form.condomino} · ${fmtEUR(Number(form.montante))}` })
   }
 
-  const total = items.reduce((s, i) => s + (Number(i.montante) || 0), 0)
-  const counts = { inc: items.filter(i => i.estado === 'inc').length, n1: items.filter(i => i.estado === 'n1').length, n2: items.filter(i => i.estado === 'n2').length, ct: items.filter(i => i.estado === 'ct').length, liq: items.filter(i => i.estado === 'liq').length }
+  const total = displayItems.reduce((s, i) => s + (Number(i.montante) || 0), 0)
+  const counts = { inc: displayItems.filter(i => i.estado === 'inc').length, n1: displayItems.filter(i => i.estado === 'n1').length, n2: displayItems.filter(i => i.estado === 'n2').length, ct: displayItems.filter(i => i.estado === 'ct').length, liq: displayItems.filter(i => i.estado === 'liq').length }
 
   return (
     <>
@@ -65,7 +73,7 @@ export default function ModValoresDivida() {
         <KPI icon="scale" num={counts.ct} lbl="Contencioso" />
       </div>
       <Tabs defaultActive="all" tabs={[
-        { id: 'all', label: 'Todos', badge: items.length },
+        { id: 'all', label: 'Todos', badge: displayItems.length },
         { id: 'inc', label: `● Em incumprimento (${counts.inc})` },
         { id: 'n1', label: `● Notificação 1 (${counts.n1})` },
         { id: 'n2', label: `● Notificação 2 (${counts.n2})` },
@@ -73,13 +81,13 @@ export default function ModValoresDivida() {
         { id: 'liq', icon: 'check', label: `Liquidado (${counts.liq})` },
       ]} />
       <Panel>
-        {items.length === 0 ? (
+        {displayItems.length === 0 ? (
           <Empty kind="sage" illustration="ocorrencias" title="Nenhum incumprimento" desc="Operação nominal" />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Condómino</th><th>Fração</th><th>Edifício</th><th>Vencimento</th><th>Montante</th><th>Estado</th></tr></thead>
-              <tbody>{items.map(it => (
+              <tbody>{displayItems.map(it => (
                 <tr key={it.id}>
                   <td>{it.condomino}</td>
                   <td>{it.fracao || '—'}</td>
