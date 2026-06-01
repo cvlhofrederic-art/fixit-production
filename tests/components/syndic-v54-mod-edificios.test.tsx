@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import ModEdificios from '@/components/syndic-dashboard/v54/modules/ModEdificios'
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
@@ -38,6 +38,26 @@ describe('ModEdificios (Phase 2)', () => {
     expect(screen.getByText('Edifício Teste Real')).toBeInTheDocument()
     // le mock ne doit PLUS apparaître
     expect(screen.queryByText('Edifício Atlântico')).toBeNull()
+    cleanup()
+  })
+
+  it('Phase 2 écriture : Adicionar edifício → POST /api/syndic/immeubles + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ immeuble: {} }), { status: 200 }))
+    const writeData: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], artisans: [], team: [], coproprios: [], token: 'tok-y', refresh,
+    }
+    render(
+      <SyndicDataContext.Provider value={writeData}>
+        <ModEdificios />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: /Adicionar um edifício/ })[0])
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Edifício Aurora'), { target: { value: 'Edifício Novo Real' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/immeubles', expect.objectContaining({ method: 'POST' })))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
     cleanup()
   })
 })
