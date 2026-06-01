@@ -1,4 +1,4 @@
-import type { Mission, Immeuble, Artisan } from '@/components/syndic-dashboard/types'
+import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
 
 /**
  * Fetchers typés du dashboard syndic v54 (Phase 2) — réutilisent les routes
@@ -62,3 +62,7 @@ export async function fetchCoproprios(token: string): Promise<Coprop[]> {
   const list = (json as Record<string, unknown>)?.coproprios
   return Array.isArray(list) ? list.map((r) => rowToCoprop(r as Record<string, unknown>)) : []
 }
+
+/** Équipe du cabinet — TeamMember correspond déjà aux colonnes DB (full_name, is_active…). */
+export const fetchTeam = (token: string): Promise<TeamMember[]> =>
+  getList<TeamMember>('/api/syndic/team', token, 'members')
