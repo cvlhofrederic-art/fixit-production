@@ -568,7 +568,9 @@ export const stripeCheckoutSchema = z.object({
 })
 
 export const docNumberSchema = z.object({
-  docType: z.enum(['devis', 'facture', 'avoir']),
+  // 'acompte' = série dédiée AC- (méthode pro : un compteur par type de doc,
+  // l'acompte ne consomme plus la séquence FACT-). Cf. migration 20260601.
+  docType: z.enum(['devis', 'facture', 'avoir', 'acompte']),
   year: z.number().int().min(2024).max(2100).optional(),
 })
 
