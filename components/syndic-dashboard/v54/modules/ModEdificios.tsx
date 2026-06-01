@@ -1,11 +1,18 @@
 'use client'
 
+import { useState, type FormEvent } from 'react'
+import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { Pill } from '../primitives/pill'
 import { KPIGrid } from '../primitives/kpi'
 import { Progress } from '../primitives/progress'
 import { Button } from '../primitives/button'
+import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { Field } from '../primitives/field'
+import { FormRow } from '../primitives/form-row'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
@@ -45,12 +52,43 @@ export default function ModEdificios() {
   const real = data.authenticated
   const buildings: ReadonlyArray<Row> = real ? data.immeubles.map(immToRow) : BUILDINGS
   const totalFracoes = buildings.reduce((acc, b) => acc + b[2], 0)
+
+  // Phase 2 écritures : « Adicionar edifício » → POST /api/syndic/immeubles.
+  const { push } = useToast()
+  const blank = { nom: '', adresse: '', ville: '', codePostal: '', nbLots: '', budgetAnnuel: '' }
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState(blank)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const upd = (k: string, v: string) => setForm((s) => ({ ...s, [k]: v }))
+  const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const errs: Record<string, string> = {}
+    if (!form.nom.trim()) errs.nom = 'O nome é obrigatório.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/immeubles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ nom: form.nom, adresse: form.adresse, ville: form.ville, codePostal: form.codePostal, nbLots: Number(form.nbLots) || 1, budgetAnnuel: Number(form.budgetAnnuel) || 0 }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Edifício adicionado', desc: form.nom }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
+    setOpen(false)
+    push({ kind: 'info', title: 'Edifício adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
   return (
     <>
       <PageHead
         title="Edifícios"
         lede={`${buildings.length} edifícios na sua carteira · ${real ? totalFracoes : 40} frações totais`}
-        actions={<Button variant="gold"><Icon name="plus" />Adicionar um edifício</Button>}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar um edifício</Button>}
       />
       <KPIGrid items={[
         { icon: 'building', num: real ? data.immeubles.length : 4, lbl: 'Edifícios geridos', sub: 'Carteira ativa' },
@@ -94,6 +132,40 @@ export default function ModEdificios() {
           </div>
         </div>
       ))}
+
+      <Modal open={open} onClose={() => setOpen(false)} labelledBy="ne-title" size="md">
+        <ModalHead icon="building" id="ne-title" title="Adicionar edifício" onClose={() => setOpen(false)} />
+        <form onSubmit={submit} noValidate>
+          <ModalBody>
+            <Field label="Nome do edifício" required full name="ne-nom" error={errors.nom}>
+              <input type="text" placeholder="Ex.: Edifício Aurora" value={form.nom} onChange={(e) => upd('nom', e.target.value)} />
+            </Field>
+            <Field label="Morada" full name="ne-adr">
+              <input type="text" placeholder="Rua, número" value={form.adresse} onChange={(e) => upd('adresse', e.target.value)} />
+            </Field>
+            <FormRow>
+              <Field label="Cidade" name="ne-ville">
+                <input type="text" placeholder="Porto" value={form.ville} onChange={(e) => upd('ville', e.target.value)} />
+              </Field>
+              <Field label="Código postal" name="ne-cp">
+                <input type="text" placeholder="4000-000" value={form.codePostal} onChange={(e) => upd('codePostal', e.target.value)} />
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="N.º de frações" name="ne-lots">
+                <input type="number" min="1" inputMode="numeric" placeholder="1" value={form.nbLots} onChange={(e) => upd('nbLots', e.target.value)} />
+              </Field>
+              <Field label="Orçamento anual (€)" name="ne-budget">
+                <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={form.budgetAnnuel} onChange={(e) => upd('budgetAnnuel', e.target.value)} />
+              </Field>
+            </FormRow>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
+          </ModalFoot>
+        </form>
+      </Modal>
     </>
   )
 }
