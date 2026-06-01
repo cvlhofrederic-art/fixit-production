@@ -40,6 +40,7 @@ const ORDERS = [
 const statusKind = (s: string): PillKind => (s === 'Pendente' ? 'amber' : 'sage')
 
 type Row = readonly [string, string, string, string, string, string, string]
+type OrderItem = { row: Row; id?: string; statut?: string; artisan?: string }
 
 /** Statut mission Supabase → libellé PT affiché (Phase 2). */
 function missionStatusLabel(statut: string): string {
@@ -67,7 +68,9 @@ export default function ModOrdens() {
   // Phase 2 : vraies missions du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
-  const orders: ReadonlyArray<Row> = real ? data.missions.map(missionToRow) : ORDERS
+  const orders: ReadonlyArray<OrderItem> = real
+    ? data.missions.map((mi) => ({ row: missionToRow(mi), id: mi.id, statut: mi.statut, artisan: mi.artisan }))
+    : ORDERS.map((r) => ({ row: r }))
   const tabs = real
     ? [
         { id: 'todas', label: 'Todas', count: data.missions.length },
@@ -110,6 +113,37 @@ export default function ModOrdens() {
     push({ kind: 'info', title: 'Missão criada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
+  // Phase 2 écritures : « Abrir » / « Validar » → édition du statut + profissional via PATCH.
+  const STATUT_OPTS = [
+    { v: 'en_attente', l: 'Pendente' },
+    { v: 'en_cours', l: 'Em curso' },
+    { v: 'terminee', l: 'Concluída' },
+  ] as const
+  const normStatut = (s?: string) => (s === 'acceptee' ? 'en_cours' : s === 'terminee' || s === 'en_cours' ? s : 'en_attente')
+  const [editing, setEditing] = useState<OrderItem | null>(null)
+  const [estado, setEstado] = useState('en_attente')
+  const [artisanEdit, setArtisanEdit] = useState('')
+  const [busyEdit, setBusyEdit] = useState(false)
+  const openEdit = (it: OrderItem) => { setEditing(it); setEstado(normStatut(it.statut)); setArtisanEdit(it.artisan && it.artisan !== '—' ? it.artisan : '') }
+  const saveEdit = (e: FormEvent) => {
+    e.preventDefault()
+    if (real && data.token && editing?.id) {
+      setBusyEdit(true)
+      fetch('/api/syndic/missions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ id: editing.id, statut: estado, artisan: artisanEdit }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setEditing(null); push({ kind: 'success', title: 'Missão atualizada', desc: STATUT_OPTS.find((o) => o.v === estado)?.l }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao atualizar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusyEdit(false))
+      return
+    }
+    setEditing(null)
+    push({ kind: 'info', title: 'Missão atualizada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
+
   return (
     <>
       <PageHead
@@ -128,7 +162,7 @@ export default function ModOrdens() {
         ))}
       </div>
       <Panel flush>
-        {orders.map((o) => (
+        {orders.map((it) => { const o = it.row; return (
           <div key={o[1]} style={{ padding: '18px 22px', borderBottom: '1px solid var(--v54-line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <Pill noDot>Normal</Pill>
@@ -136,14 +170,14 @@ export default function ModOrdens() {
               <span className={m.mono} style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{o[1]}</span>
               {o[4] && <span style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', marginLeft: 4 }}>{o[4]}</span>}
               <div style={{ flex: 1 }} />
-              {o[0] !== 'Concluída' && o[5] === '—' && <Button size="sm" style={{ background: 'var(--v54-sage-500)', color: '#fff', border: 'none' }}>Validar</Button>}
-              <Button variant="ghost" size="sm">Abrir</Button>
+              {o[0] !== 'Concluída' && o[5] === '—' && <Button size="sm" onClick={() => openEdit(it)} style={{ background: 'var(--v54-sage-500)', color: '#fff', border: 'none' }}>Validar</Button>}
+              <Button variant="ghost" size="sm" onClick={() => openEdit(it)}>Abrir</Button>
             </div>
             <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, fontWeight: 500, marginBottom: 4 }}>{o[2]}</div>
             <div style={{ fontSize: 12.5, color: 'var(--v54-navy-500)' }}>{o[3]}</div>
             {o[5] !== '—' && <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 11.5, color: 'var(--v54-navy-300)' }}><span>{o[5]}</span><span>{o[6]}</span></div>}
           </div>
-        ))}
+        ) })}
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="nm-title" size="md">
@@ -183,6 +217,34 @@ export default function ModOrdens() {
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
             <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar missão</button>
+          </ModalFoot>
+        </form>
+      </Modal>
+
+      <Modal open={editing != null} onClose={() => setEditing(null)} labelledBy="me-title" size="md">
+        <ModalHead icon="clipboard" id="me-title" title="Gerir a missão" onClose={() => setEditing(null)} />
+        <form onSubmit={saveEdit} noValidate>
+          <ModalBody>
+            {editing && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, fontWeight: 500 }}>{editing.row[2]}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-500)', marginTop: 2 }}>{editing.row[3]}</div>
+              </div>
+            )}
+            <FormRow>
+              <Field label="Estado" name="me-estado">
+                <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+                  {STATUT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
+              </Field>
+              <Field label="Profissional" name="me-art">
+                <input type="text" placeholder="Nome do profissional" value={artisanEdit} onChange={(e) => setArtisanEdit(e.target.value)} />
+              </Field>
+            </FormRow>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busyEdit}>Guardar</button>
           </ModalFoot>
         </form>
       </Modal>
