@@ -120,7 +120,12 @@ export default function FacturesSection({
         : null
     if (orgRole === 'pro_societe') {
       return (
-        <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="facture"
+        // key par document : force le remontage du form quand on ouvre une AUTRE
+        // facture, sinon les useState(initialData?…) gardent les valeurs du doc
+        // précédent (bug « ancien client qui reste »). 'new' pour une création.
+        <DevisFactureFormBTP
+          key={`btp-fact-${(safeInitial as { docNumber?: string; id?: string } | null)?.docNumber || (safeInitial as { id?: string } | null)?.id || 'new'}`}
+          artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="facture"
           initialData={safeInitial as any}
           onBack={() => { setShowFactureForm(false); setConvertingDevis(null); refreshDocuments() }}
           onSave={() => { setConvertingDevis(null); refreshDocuments() }}

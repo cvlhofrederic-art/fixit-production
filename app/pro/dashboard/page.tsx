@@ -519,10 +519,16 @@ function DashboardPage() {
     setShowFactureConvModal(false)
     if (!devis) return
     const newId = Date.now().toString()
-    // docNumber temporaire visible jusqu'au save (où next_doc_number RPC
-    // attribue le vrai numéro F-AAAA-NNN). Évite les rows sans clé d'identité
-    // dans la liste factures (cf. plan magical-mapping-karp Phase 3).
-    const tempDocNumber = `BR-${newId}`
+    // docNumber brouillon AU MÊME FORMAT que les autres séries : BR-AAAA-NNN
+    // (compteur local par an), au lieu de l'ancien BR-<timestamp> illisible.
+    // C'est une série DISTINCTE : un brouillon ne consomme aucun numéro
+    // FACT-/AC-/AV-. Le vrai numéro définitif est attribué à la validation
+    // via next_doc_number RPC (art. 242 nonies A I 2° CGI).
+    const _brYear = new Date().getFullYear()
+    const _brKey = `fixit_br_seq_${artisan?.id || 'x'}_${_brYear}`
+    const _brSeq = (parseInt(localStorage.getItem(_brKey) || '0', 10) || 0) + 1
+    try { localStorage.setItem(_brKey, String(_brSeq)) } catch { /* quota localStorage */ }
+    const tempDocNumber = `BR-${_brYear}-${String(_brSeq).padStart(3, '0')}`
     // Pré-enregistre immédiatement une facture brouillon dans localStorage
     // pour qu'elle apparaisse dans la liste même si l'utilisateur ferme
     // le formulaire sans valider l'envoi.
