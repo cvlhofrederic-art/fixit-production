@@ -16,6 +16,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 /** Extranet Condóminos — port byte-exact du ModExtranet du bundle V5.7 (stateful : Modal + copy URL). */
 
@@ -32,6 +33,12 @@ export default function ModExtranet() {
   const [form, setForm] = useState<ExtForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof ExtForm, string>>>({})
   const { push } = useToast()
+  // Phase 2 : vrais condóminos du cabinet si syndic connecté, sinon état local (mock/preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const displayItems: Cond[] = real
+    ? (data.coproprios ?? []).map((c, i) => ({ id: i, nome: c.proprietario || '—', email: c.email, telefone: c.telefone, fracao: [c.batiment, c.numeroPorte].filter(Boolean).join(' '), edificio: c.immeuble, notas: '', acessoAtivo: c.acessoPortal ?? false, saldo: c.solde ?? 0 }))
+    : items
 
   const upd = (k: keyof ExtForm, v: string) => setForm(s => ({ ...s, [k]: v }))
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
@@ -46,9 +53,9 @@ export default function ModExtranet() {
     push({ kind: 'success', title: 'Condómino adicionado', desc: form.nome })
   }
 
-  const acessosAtivos = items.filter(i => i.acessoAtivo).length
-  const saldoGlobal = items.reduce((s, i) => s + (i.saldo || 0), 0)
-  const emAtraso = items.filter(i => (i.saldo || 0) < 0).length
+  const acessosAtivos = displayItems.filter(i => i.acessoAtivo).length
+  const saldoGlobal = displayItems.reduce((s, i) => s + (i.saldo || 0), 0)
+  const emAtraso = displayItems.filter(i => (i.saldo || 0) < 0).length
   const copyPortalUrl = () => {
     if (navigator.clipboard) navigator.clipboard.writeText('https://vitfix.io/copropriétaire/portail')
     push({ kind: 'info', title: 'Link copiado', desc: 'URL do portal copiado para o clipboard' })
@@ -59,24 +66,24 @@ export default function ModExtranet() {
       <PageHead title="Extranet Condóminos" lede="Registo · Acesso ao portal · Pedidos de intervenção"
         actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />+ Condómino</Button>} />
       <Tabs defaultActive="cd" tabs={[
-        { id: 'cd', icon: 'users', label: `Condóminos (${items.length})` },
+        { id: 'cd', icon: 'users', label: `Condóminos (${displayItems.length})` },
         { id: 'pi', icon: 'bell', label: `Pedidos de intervenção (${pedidos.length})` },
       ]} />
       <KPIGrid items={[
-        { icon: 'users', num: items.length, lbl: 'Condóminos', accent: items.length ? 'sage' : undefined },
+        { icon: 'users', num: displayItems.length, lbl: 'Condóminos', accent: displayItems.length ? 'sage' : undefined },
         { icon: 'check', num: acessosAtivos, lbl: 'Acessos ativos', accent: acessosAtivos ? 'sage' : undefined },
         { icon: 'coin', num: fmtEUR(saldoGlobal), lbl: 'Saldo global' },
         { icon: 'alert', num: emAtraso, lbl: 'Em atraso', accent: emAtraso ? 'rust' : undefined },
       ]} />
       <Panel>
-        {items.length === 0 ? (
+        {displayItems.length === 0 ? (
           <Empty icon="users" title="Registo vazio" desc="Adicione os seus condóminos para lhes dar acesso ao portal"
             action={<Button variant="primary" onClick={openNew}><Icon name="plus" />+ Primeiro condómino</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Nome</th><th>Email</th><th>Telefone</th><th>Fração</th><th>Saldo</th><th>Acesso</th></tr></thead>
-              <tbody>{items.map(it => (
+              <tbody>{displayItems.map(it => (
                 <tr key={it.id}>
                   <td>{it.nome}</td>
                   <td>{it.email || '—'}</td>
