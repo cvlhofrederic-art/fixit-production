@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { Field } from '../primitives/field'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
@@ -124,12 +125,51 @@ export default function ModEquipa() {
     setDelTarget(null)
     push({ kind: 'info', title: 'Membro eliminado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
+
+  // Phase 2 écritures : « Convidar um membro » → POST /api/syndic/team (invitation).
+  const INVITE_ROLES = [
+    { v: 'syndic_gestionnaire', l: 'Gestor Técnico' },
+    { v: 'syndic_tech', l: 'Técnico' },
+    { v: 'syndic_secretaire', l: 'Secretária' },
+    { v: 'syndic_comptable', l: 'Contabilista' },
+    { v: 'syndic_juriste', l: 'Jurista' },
+    { v: 'syndic_admin', l: 'Administrador' },
+  ] as const
+  const blankInvite = { email: '', full_name: '', memberRole: 'syndic_tech' }
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [invite, setInvite] = useState(blankInvite)
+  const [inviteErr, setInviteErr] = useState<Record<string, string>>({})
+  const [busyInvite, setBusyInvite] = useState(false)
+  const updInvite = (k: string, v: string) => setInvite((s) => ({ ...s, [k]: v }))
+  const openInvite = () => { setInvite(blankInvite); setInviteErr({}); setInviteOpen(true) }
+  const submitInvite = (e: FormEvent) => {
+    e.preventDefault()
+    const errs: Record<string, string> = {}
+    if (!invite.full_name.trim()) errs.full_name = 'O nome é obrigatório.'
+    if (!invite.email.trim()) errs.email = 'O e-mail é obrigatório.'
+    if (Object.keys(errs).length) { setInviteErr(errs); return }
+    if (real && data.token) {
+      setBusyInvite(true)
+      fetch('/api/syndic/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ email: invite.email, full_name: invite.full_name, memberRole: invite.memberRole }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setInviteOpen(false); push({ kind: 'success', title: 'Convite enviado', desc: invite.full_name }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao convidar', desc: 'Verifique o e-mail e tente novamente' }))
+        .finally(() => setBusyInvite(false))
+      return
+    }
+    setInviteOpen(false)
+    push({ kind: 'info', title: 'Convite enviado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
   return (
     <>
       <PageHead
         title="A Minha Equipa"
         lede={`${items.length} membros no seu gabinete`}
-        actions={<Button variant="gold"><Icon name="plus" />Convidar um membro</Button>}
+        actions={<Button variant="gold" onClick={openInvite}><Icon name="plus" />Convidar um membro</Button>}
       />
       <Panel flush>
         <div className={m.tblWrap}>
@@ -183,6 +223,29 @@ export default function ModEquipa() {
           <Button variant="ghost" onClick={() => setDelTarget(null)}>Cancelar</Button>
           <button type="button" onClick={confirmDelete} disabled={busyDel} className={btnCss.btn} style={{ color: 'var(--v54-rust-700)', borderColor: 'var(--v54-rust-100)', background: 'var(--v54-rust-50)' }}>Eliminar</button>
         </ModalFoot>
+      </Modal>
+
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} labelledBy="nm-title" size="md">
+        <ModalHead icon="plus" id="nm-title" title="Convidar um membro" onClose={() => setInviteOpen(false)} />
+        <form onSubmit={submitInvite} noValidate>
+          <ModalBody>
+            <Field label="Nome completo" required full name="nm-nom" error={inviteErr.full_name}>
+              <input type="text" placeholder="Nome do membro" value={invite.full_name} onChange={(e) => updInvite('full_name', e.target.value)} />
+            </Field>
+            <Field label="E-mail" required full name="nm-email" error={inviteErr.email}>
+              <input type="email" placeholder="nome@gabinete.pt" value={invite.email} onChange={(e) => updInvite('email', e.target.value)} />
+            </Field>
+            <Field label="Função" full name="nm-role">
+              <select value={invite.memberRole} onChange={(e) => updInvite('memberRole', e.target.value)}>
+                {INVITE_ROLES.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
+              </select>
+            </Field>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setInviteOpen(false)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busyInvite}>Enviar convite</button>
+          </ModalFoot>
+        </form>
       </Modal>
     </>
   )
