@@ -1,10 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { PageHead } from '../primitives/page-head'
 import { Pill } from '../primitives/pill'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
+import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Artisan } from '@/components/syndic-dashboard/types'
@@ -46,10 +50,33 @@ export default function ModProfissionais() {
   // Phase 2 : vrais artisans du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
-  const pros: ReadonlyArray<Pro> = real ? data.artisans.map(artisanToPro) : PROS
+  const items: ReadonlyArray<{ pro: Pro; id: string | null }> = real
+    ? data.artisans.map((a) => ({ pro: artisanToPro(a), id: a.id }))
+    : PROS.map((p) => ({ pro: p, id: null }))
   const lede = real
     ? `${data.artisans.length} prestadores registados · ${data.artisans.filter((a) => a.vitfixCertifie).length} certificados Vitfix · ${data.artisans.filter((a) => a.rcProValide).length} com Seguro RC válido · ${data.artisans.filter((a) => a.decennaleValide).length} com garantia decenal`
     : `${PROS.length} prestadores registados · 7 certificados Vitfix · 9 com Seguro RC válido · 8 com garantia decenal`
+
+  // Phase 2 écritures : « Eliminar » → DELETE /api/syndic/artisans (avec confirmation).
+  const { push } = useToast()
+  const [delTarget, setDelTarget] = useState<{ id: string | null; name: string } | null>(null)
+  const [busyDel, setBusyDel] = useState(false)
+  const confirmDelete = () => {
+    if (real && data.token && delTarget?.id) {
+      setBusyDel(true)
+      fetch(`/api/syndic/artisans?artisan_id=${encodeURIComponent(delTarget.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${data.token}` },
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); const n = delTarget?.name; setDelTarget(null); push({ kind: 'success', title: 'Profissional eliminado', desc: n }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao eliminar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusyDel(false))
+      return
+    }
+    setDelTarget(null)
+    push({ kind: 'info', title: 'Profissional eliminado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
   return (
     <>
       <PageHead
@@ -61,7 +88,7 @@ export default function ModProfissionais() {
         </>}
       />
       <div className={m.cardGrid}>
-        {pros.map((p) => (
+        {items.map(({ pro: p, id }) => (
           <Panel key={p[6]}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
               <div>
@@ -88,11 +115,24 @@ export default function ModProfissionais() {
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <Button style={{ flex: 1, justifyContent: 'center' }}><Icon name="chat" />Sem conta ligada</Button>
               <Button variant="primary" style={{ flex: 1, justifyContent: 'center' }}>Criar missão</Button>
-              <Button variant="ghost" aria-label="Eliminar profissional" title="Eliminar"><Icon name="trash" /></Button>
+              <Button variant="ghost" aria-label="Eliminar profissional" title="Eliminar" onClick={() => setDelTarget({ id, name: p[0] })}><Icon name="trash" /></Button>
             </div>
           </Panel>
         ))}
       </div>
+
+      <Modal open={delTarget != null} onClose={() => setDelTarget(null)} labelledBy="dp-title" size="sm">
+        <ModalHead icon="trash" id="dp-title" title="Eliminar profissional" onClose={() => setDelTarget(null)} />
+        <ModalBody>
+          <p style={{ fontSize: 13.5, color: 'var(--v54-navy-500)', lineHeight: 1.5, margin: 0 }}>
+            Tem a certeza que pretende eliminar <b>{delTarget?.name}</b> da sua lista de profissionais? Esta ação é irreversível.
+          </p>
+        </ModalBody>
+        <ModalFoot>
+          <Button variant="ghost" onClick={() => setDelTarget(null)}>Cancelar</Button>
+          <button type="button" onClick={confirmDelete} disabled={busyDel} className={btnCss.btn} style={{ color: 'var(--v54-rust-700)', borderColor: 'var(--v54-rust-100)', background: 'var(--v54-rust-50)' }}>Eliminar</button>
+        </ModalFoot>
+      </Modal>
     </>
   )
 }
