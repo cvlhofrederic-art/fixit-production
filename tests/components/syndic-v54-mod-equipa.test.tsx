@@ -92,4 +92,24 @@ describe('ModEquipa (Phase 2)', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 écriture : « Convidar um membro » → POST /api/syndic/team + refresh', async () => {
+    const refresh = vi.fn()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ member: {} }), { status: 200 }))
+    const inviteData: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [],
+      team: [], token: 'tok-i', refresh,
+    }
+    render(<SyndicDataContext.Provider value={inviteData}><ModEquipa /></SyndicDataContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: /Convidar um membro/ }))
+    fireEvent.change(screen.getByPlaceholderText('Nome do membro'), { target: { value: 'Nova Secretária' } })
+    fireEvent.change(screen.getByPlaceholderText('nome@gabinete.pt'), { target: { value: 'nova@gab.pt' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar convite' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/team', expect.objectContaining({ method: 'POST' })))
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({ full_name: 'Nova Secretária', email: 'nova@gab.pt', memberRole: 'syndic_tech' })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
