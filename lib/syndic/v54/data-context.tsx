@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
 import { useSyndicSession } from './session'
 import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, type Coprop } from './api'
@@ -27,6 +27,10 @@ export interface SyndicData {
   /** Optionnels : ajoutés en P2.2 ; les consommateurs utilisent `?? []`. */
   coproprios?: Coprop[]
   team?: TeamMember[]
+  /** Token Bearer pour les écritures POST (Phase 2 écritures). */
+  token?: string
+  /** Refetch des datasets après une écriture réussie. */
+  refresh?: () => void
 }
 
 const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [], team: [] }
@@ -41,23 +45,12 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
   const session = useSyndicSession()
   const [data, setData] = useState<SyndicData>(EMPTY)
 
-  useEffect(() => {
-    if (session.status === 'loading') {
-      setData({ ...EMPTY, loading: true })
-      return
-    }
-    if (session.status === 'anon' || !session.token) {
-      setData(EMPTY)
-      return
-    }
-
-    let active = true
+  const load = useCallback(() => {
     const token = session.token
-    setData({ ...EMPTY, authenticated: true, loading: true })
-
+    if (session.status !== 'authed' || !token) return
+    setData((d) => ({ ...d, authenticated: true, loading: true }))
     Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token)]).then(
       ([m, i, a, c, t]) => {
-        if (!active) return
         setData({
           authenticated: true,
           loading: false,
@@ -69,11 +62,25 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
         })
       },
     )
-
-    return () => {
-      active = false
-    }
   }, [session.status, session.token])
 
-  return <SyndicDataContext.Provider value={data}>{children}</SyndicDataContext.Provider>
+  useEffect(() => {
+    if (session.status === 'loading') {
+      setData({ ...EMPTY, loading: true })
+      return
+    }
+    if (session.status === 'anon' || !session.token) {
+      setData(EMPTY)
+      return
+    }
+    load()
+  }, [session.status, session.token, load])
+
+  // `token` + `refresh` exposés en plus des datasets pour les écritures Phase 2.
+  const value = useMemo<SyndicData>(
+    () => ({ ...data, token: session.token ?? undefined, refresh: load }),
+    [data, session.token, load],
+  )
+
+  return <SyndicDataContext.Provider value={value}>{children}</SyndicDataContext.Provider>
 }

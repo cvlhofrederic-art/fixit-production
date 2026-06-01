@@ -48,6 +48,18 @@ export default function ModExtranet() {
     if (!form.nome.trim()) errs.nome = 'O nome é obrigatório.'
     if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) errs.email = 'Email inválido.'
     if (Object.keys(errs).length) { setErrors(errs); return }
+    if (real && data.token) {
+      // Écriture réelle : POST /api/syndic/coproprios (mapping vérifié sur le contrat), puis refresh.
+      fetch('/api/syndic/coproprios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ coproprio: { nomProprietaire: form.nome, emailProprietaire: form.email, telephoneProprietaire: form.telefone, numeroPorte: form.fracao, immeuble: form.edificio, notes: form.notas, accesPortail: true } }),
+      })
+        .then((res) => { if (!res.ok) throw new Error('POST failed') })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Condómino adicionado', desc: form.nome }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+      return
+    }
     setItems(prev => [...prev, { ...form, id: Date.now(), acessoAtivo: true, saldo: 0 }])
     setOpen(false)
     push({ kind: 'success', title: 'Condómino adicionado', desc: form.nome })
