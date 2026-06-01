@@ -7,6 +7,8 @@ import { Panel } from '../primitives/panel'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Button } from '../primitives/button'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { Coprop } from '@/lib/syndic/v54/api'
 
 /** Mapa de Quotas — port byte-exact du ModMapaQuotas du bundle V5.7. */
 
@@ -24,11 +26,45 @@ const ROWS: Row[] = [
   { frac: 'Fração G - 3.° Esq.', cond: 'Gabriela Almeida', perm: 92, area: 88, quota: '0,00 €', fcr: '0,00 €', total: '0,00 €', estado: 'Dívida', kind: 'rust', detalhe: '120d atraso | 1450,00 €' },
 ]
 
+const fmtEUR = (v: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(v)
+
+/** Statut depuis le solde (convention ancien dashboard : < 0 = doit). */
+function soldeEstado(solde: number): { estado: string; kind: PillKind } {
+  if (solde <= -1000) return { estado: 'Dívida', kind: 'rust' }
+  if (solde < 0) return { estado: 'Atraso', kind: 'amber' }
+  return { estado: 'Em dia', kind: 'sage' }
+}
+
+function coproToRow(c: Coprop): Row {
+  const solde = c.solde ?? 0
+  const st = soldeEstado(solde)
+  return {
+    frac: [c.immeuble, c.batiment, c.numeroPorte].filter(Boolean).join(' · ') || '—',
+    cond: c.proprietario || '—',
+    perm: c.tantieme ?? 0,
+    area: 0,
+    quota: '0,00 €',
+    fcr: '0,00 €',
+    total: '0,00 €',
+    estado: st.estado,
+    kind: st.kind,
+    detalhe: solde < 0 ? `${fmtEUR(Math.abs(solde))} em dívida` : undefined,
+  }
+}
+
 export default function ModMapaQuotas() {
+  // Phase 2 : quotas réelles du cabinet si syndic connecté, sinon mock (preview).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const copros = data.coproprios ?? []
+  const rows: Row[] = real ? copros.map(coproToRow) : ROWS
+  const dividaTotal = real ? copros.filter((c) => (c.solde ?? 0) < 0).reduce((s, c) => s + Math.abs(c.solde ?? 0), 0) : 3960
+  const emDia = real ? copros.filter((c) => (c.solde ?? 0) >= 0).length : 8
+  const taxaCobranca = real ? (copros.length ? Math.round((emDia / copros.length) * 100) : 100) : 66.7
   return (
     <>
       <PageHead title="Mapa de Quotas" lede="Gestão inteligente de quotas do condomínio"
-        actions={<Pill kind="rust" noDot>Dívida total: 3960,00 €</Pill>} />
+        actions={<Pill kind={dividaTotal > 0 ? 'rust' : 'sage'} noDot>Dívida total: {fmtEUR(dividaTotal)}</Pill>} />
       <Tabs defaultActive="map" tabs={[
         { id: 'map', icon: 'coin', label: 'Mapa de Quotas' },
         { id: 'sim', label: 'Simulador' },
@@ -39,7 +75,7 @@ export default function ModMapaQuotas() {
         { icon: 'coin', num: '48 000,00 €', lbl: 'Orçamento anual', sub: '4000,00 €/mês' },
         { icon: 'bank', num: '0,00 €', lbl: 'FCR anual', sub: '10% (min. 10% DL 268/94)', accent: 'gold' },
         { icon: 'chart', num: '0,00 €', lbl: 'Quota média', sub: '12 frações' },
-        { icon: 'chart', num: '66.7%', lbl: 'Taxa cobrança', sub: '8 em dia / 4 irregulares', accent: 'sage' },
+        { icon: 'chart', num: `${taxaCobranca}%`, lbl: 'Taxa cobrança', sub: real ? `${emDia} em dia / ${copros.length - emDia} irregulares` : '8 em dia / 4 irregulares', accent: 'sage' },
       ]} />
       <Panel>
         <div className={m.cardGrid3} style={{ marginBottom: 14 }}>
@@ -53,7 +89,7 @@ export default function ModMapaQuotas() {
           <table className={m.tbl}>
             <thead><tr><th>Fração</th><th>Condómino</th><th>Permilagem</th><th>Área (m²)</th><th>Quota mensal</th><th>FCR</th><th>Total mensal</th><th>Estado</th></tr></thead>
             <tbody>
-              {ROWS.map((q, i) => (
+              {rows.map((q, i) => (
                 <tr key={i}>
                   <td><b>{q.frac}</b></td>
                   <td>{q.cond}</td>
