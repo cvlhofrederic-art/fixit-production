@@ -499,8 +499,31 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // ═══════════════════════════════════════════════════════════
 
   y = ptToMm(71)
-  pdf.setFont(FONT, 'bold'); pdf.setFontSize(16); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(input.devis.titre, pageW / 2, y, { align: 'center' })
+  pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
+  // Auto-fit du titre (méthode pro) : 16pt si le titre tient dans la largeur
+  // utile (= largeur de la ligne d'accent, contentW). Sinon réduction par
+  // paliers jusqu'à 13pt pour tenir sur une ligne ; si toujours trop long,
+  // passage à 14pt + wrap sur plusieurs lignes. Jamais de débordement.
+  const titleMaxW = contentW
+  let titleSize = 16
+  pdf.setFontSize(titleSize)
+  while (titleSize > 13 && pdf.getTextWidth(input.devis.titre) > titleMaxW) {
+    titleSize -= 1
+    pdf.setFontSize(titleSize)
+  }
+  let titleLines: string[]
+  if (pdf.getTextWidth(input.devis.titre) <= titleMaxW) {
+    titleLines = [input.devis.titre]
+  } else {
+    titleSize = 14
+    pdf.setFontSize(titleSize)
+    titleLines = pdf.splitTextToSize(input.devis.titre, titleMaxW)
+  }
+  const titleLineH = ptToMm(titleSize + 3)
+  for (let i = 0; i < titleLines.length; i++) {
+    pdf.text(titleLines[i], pageW / 2, y + i * titleLineH, { align: 'center' })
+  }
+  y += (titleLines.length - 1) * titleLineH
 
   y += ptToMm(20)
   pdf.setFont(FONT, 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT_LIGHT)
