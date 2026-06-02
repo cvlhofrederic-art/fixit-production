@@ -403,6 +403,19 @@ export const syndicImmeubleSchema = z.object({
   reglementFondsRoulementPct: z.number().min(0).max(100).optional(),
 })
 
+// ── Syndic Contrat schema (Phase 3 — ModContratos) ────────────────────────
+export const syndicContratSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  fornecedor: z.string().min(1, 'Fornecedor requis').max(200),
+  categoria: z.enum(['limpezas', 'elevadores', 'seguranca', 'jardinagem', 'outros']).optional().default('outros'),
+  custoMensal: z.number().min(0).max(99_999_999).optional().default(0),
+  custoAnual: z.number().min(0).max(99_999_999).optional().default(0),
+  dataInicio: z.string().max(20).optional(),
+  dataFim: z.string().max(20).optional(),
+  statut: z.enum(['ativo', 'expirado', 'renovacao']).optional().default('ativo'),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
