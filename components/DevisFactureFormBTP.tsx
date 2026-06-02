@@ -263,6 +263,23 @@ const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' 
   }
 }
 
+// Numéro de brouillon PROVISOIRE (méthode pro) : BR-AAAA-NNN, série NON
+// comptable et locale. Le vrai numéro (DEV-/FACT-/AV-/AC-) n'est attribué qu'à
+// la VALIDATION (saveAndSend → next_doc_number serveur), jamais à l'ouverture
+// d'un formulaire : un brouillon ouvert puis abandonné ne consomme donc aucun
+// numéro de la série légale (continuité art. 242 nonies A I 2° CGI).
+const localBrouillonNumber = (artisanId: string | undefined): string => {
+  const year = new Date().getFullYear()
+  try {
+    const k = `fixit_br_seq_${artisanId || 'x'}_${year}`
+    const n = (parseInt(localStorage.getItem(k) || '0', 10) || 0) + 1
+    localStorage.setItem(k, String(n))
+    return `BR-${year}-${String(n).padStart(3, '0')}`
+  } catch {
+    return `BR-${year}-001`
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────
    COMPOSANT
    ───────────────────────────────────────────────────────────────── */
@@ -923,26 +940,18 @@ export default function DevisFactureFormBTP({
     return fallback
   }, [artisan?.id, docType, factureSubType])
 
-  // Auto-fetch du numéro à l'init si pas déjà fourni par initialData. Évite
-  // que le formulaire affiche un numéro vide avant la première sauvegarde.
-  // Re-fetch quand l'utilisateur bascule en mode 'avoir' depuis le selector
-  // de type de facture (préfixe FACT- → AV-).
+  // Numéro PROVISOIRE à l'init : tant que le document n'est pas validé, il porte
+  // un numéro brouillon BR-AAAA-NNN (série non comptable). On NE consomme JAMAIS
+  // un vrai numéro de séquence à l'ouverture (sinon ouvrir puis abandonner un
+  // formulaire creuserait un trou dans la numérotation légale). Le numéro
+  // définitif (DEV-/FACT-/AV-/AC-) est attribué uniquement à la validation
+  // (saveAndSend), avec le préfixe correspondant au sous-type retenu.
   useEffect(() => {
-    if (artisan?.id) {
-      const wantsAvoirPrefix = factureSubType === 'avoir' && docType === 'facture'
-      const hasAvoirPrefix = (docNumber || '').toUpperCase().startsWith('AV-')
-      if (!docNumber) {
-        void fetchDocNumber()
-      } else if (wantsAvoirPrefix && !hasAvoirPrefix) {
-        // Bascule vers AV- en mode avoir
-        void fetchDocNumber()
-      } else if (!wantsAvoirPrefix && hasAvoirPrefix && docType === 'facture') {
-        // Re-bascule vers FACT- si l'utilisateur change d'avis
-        void fetchDocNumber()
-      }
+    if (artisan?.id && !docNumber) {
+      setDocNumber(localBrouillonNumber(artisan.id))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisan?.id, docType, factureSubType])
+  }, [artisan?.id])
 
   const totaux = useMemo(() => {
     // Source unique de vérité : `buildDocumentLines` (lib/devis-totals.ts)
@@ -1561,14 +1570,13 @@ export default function DevisFactureFormBTP({
       // parent de l'acompte → rendu PDF « (sur facture …) » + traçabilité.
       const sourceNum = (initialData as { docNumber?: string } | undefined)?.docNumber
       if (sourceNum && !parentInvoiceNumber) setParentInvoiceNumber(sourceNum)
-      // Nouveau numéro en série AC- : on crée une facture d'acompte DISTINCTE.
-      // La source (émise ou non) garde son propre numéro — « Valider » produit
-      // un acompte indépendant, sans renuméroter ni écraser la facture source.
-      // (Purge → l'effet d'init re-fetch le numéro avec le sous-type à jour.)
-      docNumberRef.current = ''; setDocNumber('')
+      // Acompte = document INDÉPENDANT : on lui attribue un nouveau numéro
+      // provisoire BR- (la facture/devis source garde le sien, jamais écrasé).
+      // Le vrai numéro AC- est attribué à la validation (saveAndSend).
+      docNumberRef.current = ''; setDocNumber(localBrouillonNumber(artisan?.id))
     } else if (st !== 'acompte' && wasAcompte) {
       if (acompteScaledRef.current) restoreAcompteOriginal()
-      docNumberRef.current = ''; setDocNumber('') // re-bascule hors série AC-
+      docNumberRef.current = ''; setDocNumber(localBrouillonNumber(artisan?.id))
     }
     setFactureSubType(st)
   }, [factureSubType, acomptePourcentage, applyAcompteScale, restoreAcompteOriginal, initialData, parentInvoiceNumber])
@@ -1616,7 +1624,7 @@ export default function DevisFactureFormBTP({
     }
   }
 
-  const saveAndSend = () => {
+  const saveAndSend = async () => {
     if (!artisan?.id) return
     if (!clientName.trim()) { toast.error('Renseignez le nom du client'); return }
     // Avoir : prix négatifs autorisés (annulation). Le check ≠ 0 reste.
@@ -1644,15 +1652,28 @@ export default function DevisFactureFormBTP({
     if (blockSaveOnRegimeErrors()) return
     setSaving(true)
     try {
-      const payload = { ...buildPayload(), status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
+      // ── Attribution du numéro DÉFINITIF (méthode pro) ──
+      // Jusqu'ici le document portait un numéro provisoire BR-AAAA-NNN (non
+      // comptable). C'est SEULEMENT ici, à la validation, qu'on consomme le vrai
+      // numéro de séquence (next_doc_number serveur ; fallback local sinon) —
+      // d'où une numérotation comptable continue, sans trou (242 nonies A I 2°).
+      // Un brouillon ouvert puis abandonné ne consomme donc aucun numéro légal.
+      const provisional = docNumberRef.current || docNumber
+      let finalNumber = provisional
+      if (!provisional || provisional.toUpperCase().startsWith('BR-')) {
+        docNumberRef.current = '' // purge le provisoire pour forcer le vrai numéro
+        finalNumber = await fetchDocNumber()
+      }
+      const payload = { ...buildPayload(), docNumber: finalNumber, status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-      const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+      // retire l'ancien brouillon (numéro provisoire) ET tout doublon du n° final
+      const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber && d.docNumber !== provisional)
       filtered.push(payload)
       localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
       syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
-      // Retire des brouillons s'il y était
+      // Retire des brouillons (numéro provisoire + n° final s'il y était)
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
-      const newDrafts = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+      const newDrafts = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber && d.docNumber !== provisional)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(newDrafts))
       toast.success('Devis validé')
       onSave?.(payload as never)
