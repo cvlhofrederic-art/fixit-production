@@ -96,6 +96,26 @@ export interface Contrato {
 export const fetchContratos = (token: string): Promise<Contrato[]> =>
   getList<Contrato>('/api/syndic/contratos', token, 'contratos')
 
+/** Apólice de seguro (Phase 3 — ModSeguros). camelCase renvoyé par l'API. */
+export interface Seguro {
+  id: string
+  immeuble: string
+  seguradora: string
+  /** multirriscos | responsabilidade_civil | incendio | outros */
+  tipo: string
+  apolice: string
+  premioAnual: number
+  capital: number
+  dataInicio: string
+  dataFim: string
+  /** ativa | expirada | renovacao */
+  statut: string
+  notes: string
+}
+
+export const fetchSeguros = (token: string): Promise<Seguro[]> =>
+  getList<Seguro>('/api/syndic/seguros', token, 'seguros')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',

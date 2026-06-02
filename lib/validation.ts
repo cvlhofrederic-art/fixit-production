@@ -416,6 +416,20 @@ export const syndicContratSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Seguro schema (Phase 3 — ModSeguros) ───────────────────────────
+export const syndicSeguroSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  seguradora: z.string().min(1, 'Seguradora requise').max(200),
+  tipo: z.enum(['multirriscos', 'responsabilidade_civil', 'incendio', 'outros']).optional().default('multirriscos'),
+  apolice: z.string().max(100).optional(),
+  premioAnual: z.number().min(0).max(99_999_999).optional().default(0),
+  capital: z.number().min(0).max(9_999_999_999).optional().default(0),
+  dataInicio: z.string().max(20).optional(),
+  dataFim: z.string().max(20).optional(),
+  statut: z.enum(['ativa', 'expirada', 'renovacao']).optional().default('ativa'),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
