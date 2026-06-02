@@ -1229,7 +1229,14 @@ export const devisSyncSchema = z.object({
     // Sert de clé d'upsert (onConflict='id'). Optionnel pour rétro-compat des
     // docs legacy sans id local (identité par numero, voir route). Le route
     // exige id OU docNumber (au moins une identité non vide).
-    id: z.string().uuid('id doit être un UUID valide').optional(),
+    //
+    // NE PAS valider en .uuid() ici : les docs LEGACY portent un id horodaté
+    // Date.now() (ex "1779539827817") ou vide ("" / null). Les rejeter cassait
+    // la sync de TOUS les docs legacy (« doc.id: id doit être un UUID valide » —
+    // même classe de bug que clientEmail/chantierId ci-dessous). La route
+    // (app/api/devis/sync/route.ts) ne retient `id` comme clé d'upsert que s'il
+    // passe isStableDocId() (UUID), sinon elle retombe sur `docNumber`.
+    id: z.union([z.string().max(64), z.null()]).optional(),
     // docNumber : OPTIONNEL/nullable. Un brouillon n'a pas de numéro tant qu'il
     // n'est pas validé — le numéro légal est tiré de next_doc_number à l'émission.
     docNumber: z.union([z.string().max(100), z.literal(''), z.null()]).optional(),

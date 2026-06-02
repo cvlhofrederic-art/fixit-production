@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createBookingSchema, fixyAiSchema, validateBody, siretSchema, isValidSiret } from '@/lib/validation'
+import { createBookingSchema, fixyAiSchema, validateBody, siretSchema, isValidSiret, devisSyncSchema } from '@/lib/validation'
 
 describe('Zod Validation Schemas', () => {
   describe('createBookingSchema', () => {
@@ -126,5 +126,37 @@ describe('Zod Validation Schemas', () => {
       // Sum digits = 3+5+6+0+0+0+0+0+0+0+0+1+4+6 = 25 ; 25 mod 5 = 0 ✓
       expect(isValidSiret('35600000000146')).toBe(true)
     })
+  })
+})
+
+describe('devisSyncSchema — id de document legacy (fix sync UUID)', () => {
+  const base = { docType: 'devis' as const, artisanId: '550e8400-e29b-41d4-a716-446655440000' }
+
+  it('accepte un id legacy horodaté (Date.now()) — la route l\'identifie par numero', () => {
+    const result = validateBody(devisSyncSchema, {
+      ...base,
+      doc: { id: '1779539827817', docNumber: 'DEV-2026-010', status: 'brouillon' },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepte un id vide ou null (doc legacy sans id canonique)', () => {
+    expect(validateBody(devisSyncSchema, { ...base, doc: { id: '', docNumber: 'DEV-2026-009' } }).success).toBe(true)
+    expect(validateBody(devisSyncSchema, { ...base, doc: { id: null, docNumber: 'DEV-2026-009' } }).success).toBe(true)
+  })
+
+  it('accepte un id UUID canonique (doc créé via stableDocId)', () => {
+    const result = validateBody(devisSyncSchema, {
+      ...base,
+      doc: { id: '50e30094-3af7-442b-b2b0-4e8c8fc12b64', docNumber: null, status: 'brouillon' },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejette toujours un artisanId non-UUID (garde-fou ownership)', () => {
+    const result = validateBody(devisSyncSchema, {
+      artisanId: 'not-a-uuid', docType: 'devis', doc: { docNumber: 'DEV-2026-001' },
+    })
+    expect(result.success).toBe(false)
   })
 })
