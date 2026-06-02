@@ -77,9 +77,13 @@ export async function syncDocumentToSupabase(
   artisanId: string,
 ): Promise<SyncResult> {
   const docType: 'devis' | 'facture' = doc.docType === 'facture' ? 'facture' : 'devis'
+  // Identité : id UUID stable (brouillon / nouveau modèle) OU numero (legacy
+  // émis). Un brouillon n'a pas de numéro → on exige au moins l'id pour
+  // pouvoir synchroniser (le serveur upsert onConflict='id').
+  const id = (doc.id as string) || ''
   const numero = (doc.docNumber as string) || ''
-  if (!numero) {
-    return { ok: false, status: 0, body: 'missing docNumber', kind: 'validation' }
+  if (!id && !numero) {
+    return { ok: false, status: 0, body: 'missing id and docNumber', kind: 'validation' }
   }
 
   let token = await ensureFreshSession()
@@ -295,8 +299,12 @@ export async function fetchDocumentsFromSupabase(): Promise<Record<string, unkno
       if (raw && typeof raw === 'object') {
         return {
           ...raw,
+          // id canonique DB (placé APRÈS ...raw pour primer sur un éventuel id
+          // local) → le client adopte l'identité stable au hydrate (dédup
+          // cross-device + upsert onConflict='id' côté serveur).
+          id: r.id as string,
           docType: type,
-          docNumber: (r.numero as string) || (raw.docNumber as string),
+          docNumber: (r.numero as string) || (raw.docNumber as string) || null,
           status: (r.status as string) || (raw.status as string),
           chantierId: (r.chantier_id as string) || (raw.chantierId as string) || null,
           docDate: (raw.docDate as string) || ((r.created_at as string) || '').slice(0, 10),
@@ -304,6 +312,7 @@ export async function fetchDocumentsFromSupabase(): Promise<Record<string, unkno
         }
       }
       return {
+        id: r.id,
         docType: type,
         docNumber: r.numero,
         clientName: r.client_name,
