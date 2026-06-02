@@ -41,6 +41,7 @@ import {
   getCompanyStatuses,
   isSocieteStatus,
   isSmallBusinessStatus,
+  stableDocId,
 } from '@/lib/devis-utils'
 import { toast } from 'sonner'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
@@ -514,8 +515,11 @@ export default function DevisFactureForm({
   const [docNumber, setDocNumber] = useState(initialDocNumber)
   const docNumberRef = useRef(initialDocNumber)
   // Stable id across all saves of this form session : garantit que brouillon et
-  // document final partagent le même id (évite les doublons en liste).
-  const docIdRef = useRef<string>((initialData as { id?: string })?.id || Date.now().toString())
+  // document final partagent le même id (évite les doublons en liste). UUID via
+  // stableDocId car le schéma serveur (devisSyncSchema) valide l'id en uuid.
+  const docIdRef = useRef<string>((initialData as { id?: string })?.id || stableDocId())
+  // Autosave : timestamp du dernier enregistrement automatique du brouillon.
+  const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
 
   // Fetch next sequential number from server (atomic DB sequence)
   // 3 niveaux de fallback : API HTTP → RPC Supabase direct → compteur localStorage
@@ -588,14 +592,11 @@ export default function DevisFactureForm({
     }
   }
 
-  // Récupère le numéro de document dès l'ouverture du formulaire (new/duplicate/conversion)
-  // pour que la colonne N° et le PDF l'affichent même si on sauvegarde sans générer le PDF
-  useEffect(() => {
-    if (!docNumberRef.current && artisan?.id) {
-      fetchDocNumber().catch(() => { /* fallback localStorage utilisé dans fetchDocNumber */ })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisan?.id])
+  // Méthode pro (modèle Stripe) : AUCUN numéro à l'ouverture. Un brouillon reste
+  // sans numéro (docNumber vide) ; le numéro légal est tiré de next_doc_number
+  // UNIQUEMENT à l'émission (validation) ou à la génération PDF. Évite de
+  // consommer puis abandonner un numéro de séquence en ouvrant un formulaire
+  // (continuité art. 242 nonies A I 2° CGI). L'identité reste l'id stable.
 
   // ─── Signature: sign + SVG→PNG conversion ───
   const handleSignDocument = useCallback(async () => {
@@ -1402,9 +1403,8 @@ export default function DevisFactureForm({
   }
 
   // ─── Actions ───
-  const handleSaveDraft = async () => {
-    // Garantir un numéro de document avant la sauvegarde (évite les N° vides en liste)
-    if (!docNumberRef.current) await fetchDocNumber().catch(() => {})
+  const handleSaveDraft = async (opts?: { silent?: boolean }) => {
+    // Méthode pro : un brouillon n'a PAS de numéro (attribué à la validation).
     const data = buildData()
     // Save to localStorage as draft
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -1414,14 +1414,34 @@ export default function DevisFactureForm({
     else drafts.push(draftEntry)
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
     if (artisan?.id) syncDocumentSafe(draftEntry as Record<string, unknown>, artisan.id)
-    setSavedMsg(`💾 ${t('devis.draftSaved')}`)
-    setTimeout(() => setSavedMsg(''), 3000)
+    if (opts?.silent) {
+      setLastAutosaveAt(Date.now())
+    } else {
+      setSavedMsg(`💾 ${t('devis.draftSaved')}`)
+      setTimeout(() => setSavedMsg(''), 3000)
+    }
     onSave?.(draftEntry as DevisFactureData)
   }
 
+  // ── Autosave (méthode pro) ── enregistre le brouillon 1,5 s après la dernière
+  // modification, en silence. Jamais de saisie perdue. Ignore les docs déjà émis
+  // et les formulaires vides.
+  const saveDraftRef = useRef(handleSaveDraft)
+  saveDraftRef.current = handleSaveDraft
+  useEffect(() => {
+    const st = (initialData as { status?: string })?.status
+    const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
+    if (isEmitted || !artisan?.id) return
+    const hasContent = clientName.trim().length > 0 ||
+      [...lines, ...materialLines].some((l) => (l.description || '').trim().length > 0)
+    if (!hasContent) return
+    const tmr = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
+    return () => clearTimeout(tmr)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientName, lines, materialLines, docTitle])
+
   const handleConvertToFacture = async () => {
     if (!onConvertToFacture) return
-    if (!docNumberRef.current) await fetchDocNumber().catch(() => {})
     const data = buildData()
     // Persiste d'abord le devis courant (brouillon) pour ne rien perdre
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -4090,8 +4110,13 @@ export default function DevisFactureForm({
                     {savedMsg}
                   </div>
                 )}
+                {!savedMsg && lastAutosaveAt && (
+                  <div style={{ fontSize: 11, color: '#059669', fontWeight: 500, textAlign: 'center' }}>
+                    ✓ Brouillon enregistré automatiquement
+                  </div>
+                )}
                 <button
-                  onClick={handleSaveDraft}
+                  onClick={() => handleSaveDraft()}
                   className="v22-btn"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px' }}
                 >

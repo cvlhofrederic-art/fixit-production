@@ -13,7 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq } from '@/lib/devis-utils'
+import { getDocSeq, docIdentityKey } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
@@ -89,17 +89,21 @@ export default function DevisSection({
   const refreshDocuments = () => {
     const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as DevisDocument[]
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
+    // Identité STABLE = id (les brouillons n'ont PAS de numéro). Fallback
+    // docNumber pour les docs legacy sans id. Ne pas filtrer sur docNumber
+    // sinon les brouillons (sans numéro) disparaîtraient de la liste.
     const localById = new Map<string, DevisDocument>(
-      [...localDocs, ...localDrafts].filter(d => d?.docNumber).map(d => [d.docNumber as string, d])
+      [...localDocs, ...localDrafts].filter(d => docIdentityKey(d)).map(d => [docIdentityKey(d), d])
     )
     setSavedDocuments(prev => {
       const seen = new Set<string>()
       const updated = prev.map(d => {
-        if (d.docNumber) seen.add(d.docNumber)
-        return d.docNumber && localById.has(d.docNumber) ? localById.get(d.docNumber)! : d
+        const k = docIdentityKey(d)
+        if (k) seen.add(k)
+        return k && localById.has(k) ? localById.get(k)! : d
       })
-      for (const [num, d] of localById) {
-        if (!seen.has(num)) updated.push(d)
+      for (const [k, d] of localById) {
+        if (!seen.has(k)) updated.push(d)
       }
       return updated
     })
@@ -267,7 +271,7 @@ export default function DevisSection({
                   const totalHT = computeDevisTotalHT(doc)
                   return (
                     <tr key={`saved-dev-${i}`}>
-                      <td><span className="v22-ref">{doc.docNumber}</span></td>
+                      <td><span className="v22-ref">{doc.docNumber || 'Brouillon'}</span></td>
                       <td><span className="v22-client-name">{doc.clientName || t('proDash.devis.clientNonRenseigne')}</span></td>
                       <td>{doc.docTitle || '-'}</td>
                       <td className="v22-amount" style={{ textAlign: 'right' }}>{totalHT.toFixed(2)} €</td>
@@ -549,7 +553,7 @@ function DevisSectionV5({
                 : (doc.savedAt ? new Date(doc.savedAt).toLocaleDateString(dateLocale) : '-')
               return (
                 <tr key={`v5-dev-${i}`}>
-                  <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
+                  <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
                   <td>{dateStr}</td>
                   <td>{doc.clientName || t('proDash.devis.nonRenseigne')}</td>
                   <td>{doc.docTitle || '-'}</td>

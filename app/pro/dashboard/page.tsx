@@ -337,9 +337,11 @@ function DashboardPage() {
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
           setSavedDocuments(prev => {
-            const byNumber = new Map(prev.map(d => [d.docNumber, d]))
-            for (const d of sbDocs) byNumber.set(d.docNumber as string, d as Record<string, unknown>)
-            return Array.from(byNumber.values())
+            // Dédup par identité STABLE (id) ; fallback docNumber (legacy). Cloud prime.
+            const keyOf = (x: { id?: string; docNumber?: string }) => x.id || x.docNumber || ''
+            const byId = new Map(prev.map(d => [keyOf(d as { id?: string; docNumber?: string }), d]))
+            for (const d of sbDocs) byId.set(keyOf(d as { id?: string; docNumber?: string }), d as Record<string, unknown>)
+            return Array.from(byId.values())
           })
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
@@ -377,9 +379,11 @@ function DashboardPage() {
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
       setSavedDocuments(prev => {
-        const byNumber = new Map(prev.map(d => [d.docNumber, d]))
-        for (const d of sbDocs) byNumber.set(d.docNumber as string, d as Record<string, unknown>)
-        return Array.from(byNumber.values())
+        // Dédup par identité STABLE (id) ; fallback docNumber (legacy). Cloud prime.
+        const keyOf = (x: { id?: string; docNumber?: string }) => x.id || x.docNumber || ''
+        const byId = new Map(prev.map(d => [keyOf(d as { id?: string; docNumber?: string }), d]))
+        for (const d of sbDocs) byId.set(keyOf(d as { id?: string; docNumber?: string }), d as Record<string, unknown>)
+        return Array.from(byId.values())
       })
     }).catch(() => {})
 
