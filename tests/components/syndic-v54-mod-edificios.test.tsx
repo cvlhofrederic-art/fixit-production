@@ -80,7 +80,7 @@ describe('ModEdificios (Phase 2)', () => {
     fireEvent.change(screen.getByPlaceholderText('Ex.: Edifício Aurora'), { target: { value: 'Edifício Renovado' } })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/immeubles', expect.objectContaining({ method: 'PATCH' })))
-    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    const body = JSON.parse((fetchSpy.mock.calls.find(c => c[0] !== '/api/user-storage' && (c[1] as RequestInit)?.body)![1] as RequestInit).body as string)
     expect(body).toMatchObject({ id: 'b-55', nom: 'Edifício Renovado' })
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     vi.restoreAllMocks()
@@ -101,7 +101,7 @@ describe('ModEdificios (Phase 2)', () => {
     fireEvent.change(screen.getByPlaceholderText('Descreva a intervenção…'), { target: { value: 'Infiltração' } })
     fireEvent.click(screen.getByRole('button', { name: 'Criar missão' })) // submit du modal
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
-    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    const body = JSON.parse((fetchSpy.mock.calls.find(c => c[0] !== '/api/user-storage' && (c[1] as RequestInit)?.body)![1] as RequestInit).body as string)
     expect(body).toMatchObject({ immeuble: 'Edifício Z', type: 'Telhado' })
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     vi.restoreAllMocks()
