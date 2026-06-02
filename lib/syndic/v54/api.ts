@@ -154,6 +154,25 @@ export interface Elevador {
 export const fetchElevadores = (token: string): Promise<Elevador[]> =>
   getList<Elevador>('/api/syndic/elevadores', token, 'elevadores')
 
+/** Sinistre assurance (Phase 3 — ModSinistros). camelCase renvoyé par l'API. */
+export interface Sinistro {
+  id: string
+  immeuble: string
+  tipo: string
+  descricao: string
+  seguradora: string
+  /** declarado | atribuido | peritagem | resolucao | indemnizado | encerrado */
+  statut: string
+  montanteEstimado: number
+  indemnizacao: number
+  dataDeclaracao: string
+  urgente: boolean
+  notes: string
+}
+
+export const fetchSinistros = (token: string): Promise<Sinistro[]> =>
+  getList<Sinistro>('/api/syndic/sinistros', token, 'sinistros')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
