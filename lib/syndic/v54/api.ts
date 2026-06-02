@@ -116,6 +116,26 @@ export interface Seguro {
 export const fetchSeguros = (token: string): Promise<Seguro[]> =>
   getList<Seguro>('/api/syndic/seguros', token, 'seguros')
 
+/**
+ * Ocorrência / signalement (Phase 3 — ModOcorrencias). Lecture de la table
+ * existante via /api/syndic/signalements (déjà mappée camelCase côté serveur).
+ * Les occurrences proviennent des condóminos → module en lecture (KPIs + liste).
+ */
+export interface Signalement {
+  id: string
+  immeuble: string
+  demandeurNom: string
+  typeIntervention: string
+  description: string
+  /** basse | normale | haute | urgente */
+  priorite: string
+  /** en_attente | en_cours | en_reparation | resolu … */
+  statut: string
+}
+
+export const fetchSignalements = (token: string): Promise<Signalement[]> =>
+  getList<Signalement>('/api/syndic/signalements', token, 'signalements')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
