@@ -13,7 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, docIdentityKey } from '@/lib/devis-utils'
+import { getDocSeq, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
@@ -89,24 +89,10 @@ export default function DevisSection({
   const refreshDocuments = () => {
     const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as DevisDocument[]
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
-    // Identité STABLE = id (les brouillons n'ont PAS de numéro). Fallback
-    // docNumber pour les docs legacy sans id. Ne pas filtrer sur docNumber
-    // sinon les brouillons (sans numéro) disparaîtraient de la liste.
-    const localById = new Map<string, DevisDocument>(
-      [...localDocs, ...localDrafts].filter(d => docIdentityKey(d)).map(d => [docIdentityKey(d), d])
-    )
-    setSavedDocuments(prev => {
-      const seen = new Set<string>()
-      const updated = prev.map(d => {
-        const k = docIdentityKey(d)
-        if (k) seen.add(k)
-        return k && localById.has(k) ? localById.get(k)! : d
-      })
-      for (const [k, d] of localById) {
-        if (!seen.has(k)) updated.push(d)
-      }
-      return updated
-    })
+    // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
+    // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)

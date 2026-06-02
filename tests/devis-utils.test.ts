@@ -1,5 +1,47 @@
 import { describe, it, expect } from 'vitest'
-import { titleCaseAddress, getDocSeq } from '../lib/devis-utils'
+import { titleCaseAddress, getDocSeq, stableDocId, docIdentityKey, dedupeDocsByIdentity } from '../lib/devis-utils'
+
+describe('stableDocId', () => {
+  it('génère un UUID v4 valide', () => {
+    expect(stableDocId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+  })
+  it('génère des identifiants uniques', () => {
+    const ids = new Set(Array.from({ length: 200 }, () => stableDocId()))
+    expect(ids.size).toBe(200)
+  })
+})
+
+describe('docIdentityKey', () => {
+  it('priorise id sur docNumber', () => {
+    expect(docIdentityKey({ id: 'abc', docNumber: 'FACT-2026-001' })).toBe('abc')
+  })
+  it('retombe sur docNumber quand id absent (legacy)', () => {
+    expect(docIdentityKey({ docNumber: 'FACT-2026-001' })).toBe('FACT-2026-001')
+  })
+  it('chaîne vide si ni id ni docNumber, ou null', () => {
+    expect(docIdentityKey({})).toBe('')
+    expect(docIdentityKey(null)).toBe('')
+  })
+})
+
+describe('dedupeDocsByIdentity', () => {
+  it('incoming prime sur existing à id égal, ordre d\'existing préservé', () => {
+    const existing = [{ id: 'a', v: 1 }, { id: 'b', v: 1 }]
+    const incoming = [{ id: 'b', v: 2 }, { id: 'c', v: 2 }]
+    expect(dedupeDocsByIdentity(existing, incoming)).toEqual([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'c', v: 2 }])
+  })
+  it('deux brouillons sans numéro mais id distincts ne fusionnent pas', () => {
+    expect(dedupeDocsByIdentity([], [{ id: 'x', docNumber: '' }, { id: 'y', docNumber: '' }])).toHaveLength(2)
+  })
+  it('fusionne brouillon puis émis (même id, numéro attribué à la validation)', () => {
+    const draft = { id: 'k', docNumber: '', status: 'draft' }
+    const emitted = { id: 'k', docNumber: 'FACT-2026-017', status: 'envoye' }
+    expect(dedupeDocsByIdentity([draft], [emitted])).toEqual([emitted])
+  })
+  it('les docs sans identité ne sont jamais écrasés entre eux', () => {
+    expect(dedupeDocsByIdentity([{ x: 1 }, { x: 2 }], [{ x: 3 }])).toHaveLength(3)
+  })
+})
 
 describe('titleCaseAddress', () => {
   it('returns input unchanged when not all-caps (already normalised)', () => {
