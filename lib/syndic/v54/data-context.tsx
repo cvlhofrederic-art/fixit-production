@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
 import { useSyndicSession } from './session'
-import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, fetchContratos, fetchSeguros, fetchSignalements, fetchElevadores, fetchSinistros, fetchVistorias, fetchPrazos, type Coprop, type Contrato, type Seguro, type Signalement, type Elevador, type Sinistro, type Vistoria, type PrazoLegal } from './api'
+import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, fetchContratos, fetchSeguros, fetchSignalements, fetchElevadores, fetchSinistros, fetchVistorias, fetchPrazos, fetchAvisos, type Coprop, type Contrato, type Seguro, type Signalement, type Elevador, type Sinistro, type Vistoria, type PrazoLegal, type Aviso } from './api'
 
 /**
  * Provider data du dashboard syndic v54 (Phase 2).
@@ -41,13 +41,15 @@ export interface SyndicData {
   vistorias?: Vistoria[]
   /** Obligations légales / échéances (Phase 3 — ModPrazosLegais). */
   prazos?: PrazoLegal[]
+  /** Quadro de avisos (Phase 3 — ModQuadroAvisos). */
+  avisos?: Aviso[]
   /** Token Bearer pour les écritures POST (Phase 2 écritures). */
   token?: string
   /** Refetch des datasets après une écriture réussie. */
   refresh?: () => void
 }
 
-const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [], team: [], contratos: [], seguros: [], signalements: [], elevadores: [], sinistros: [], vistorias: [], prazos: [] }
+const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [], team: [], contratos: [], seguros: [], signalements: [], elevadores: [], sinistros: [], vistorias: [], prazos: [], avisos: [] }
 
 /** Exporté pour les tests (injection d'un value mock) — l'app utilise SyndicDataProvider. */
 export const SyndicDataContext = createContext<SyndicData>(EMPTY)
@@ -63,8 +65,8 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
     const token = session.token
     if (session.status !== 'authed' || !token) return
     setData((d) => ({ ...d, authenticated: true, loading: true }))
-    Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token), fetchContratos(token), fetchSeguros(token), fetchSignalements(token), fetchElevadores(token), fetchSinistros(token), fetchVistorias(token), fetchPrazos(token)]).then(
-      ([m, i, a, c, t, k, g, sg, el, si, vi, pz]) => {
+    Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token), fetchContratos(token), fetchSeguros(token), fetchSignalements(token), fetchElevadores(token), fetchSinistros(token), fetchVistorias(token), fetchPrazos(token), fetchAvisos(token)]).then(
+      ([m, i, a, c, t, k, g, sg, el, si, vi, pz, av]) => {
         setData({
           authenticated: true,
           loading: false,
@@ -80,6 +82,7 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
           sinistros: si.status === 'fulfilled' ? si.value : [],
           vistorias: vi.status === 'fulfilled' ? vi.value : [],
           prazos: pz.status === 'fulfilled' ? pz.value : [],
+          avisos: av.status === 'fulfilled' ? av.value : [],
         })
       },
     )

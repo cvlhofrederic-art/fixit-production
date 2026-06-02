@@ -477,6 +477,17 @@ export const syndicPrazoSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Aviso schema (Phase 3 — ModQuadroAvisos) ───────────────────────
+export const syndicAvisoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  titulo: z.string().min(1, 'Título requis').max(300),
+  descricao: z.string().max(5000).optional(),
+  categoria: z.enum(['manutencao', 'assembleia', 'financeiro', 'seguranca', 'social', 'outro']).optional().default('outro'),
+  prioridade: z.enum(['normal', 'importante', 'urgente']).optional().default('normal'),
+  fixado: z.boolean().optional().default(false),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,

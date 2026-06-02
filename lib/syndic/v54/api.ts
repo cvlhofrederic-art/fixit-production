@@ -204,6 +204,24 @@ export interface PrazoLegal {
 export const fetchPrazos = (token: string): Promise<PrazoLegal[]> =>
   getList<PrazoLegal>('/api/syndic/prazos', token, 'prazos')
 
+/** Aviso / annonce quadro (Phase 3 — ModQuadroAvisos). camelCase. */
+export interface Aviso {
+  id: string
+  immeuble: string
+  titulo: string
+  descricao: string
+  /** manutencao | assembleia | financeiro | seguranca | social | outro */
+  categoria: string
+  /** normal | importante | urgente */
+  prioridade: string
+  fixado: boolean
+  views: number
+  createdAt: string
+}
+
+export const fetchAvisos = (token: string): Promise<Aviso[]> =>
+  getList<Aviso>('/api/syndic/avisos', token, 'avisos')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
