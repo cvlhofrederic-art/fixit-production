@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     alternates: { canonical: `https://vitfix.io/fr/ville/${slug}/` },
-    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }] },
+    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-fr.png', width: 1200, height: 630 }] },
   }
 }
 
@@ -42,8 +42,8 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
         name: `VITFIX : Artisans à ${city.name}`,
         description: `Services artisans à ${city.name} : plombier, électricien, peintre, serrurier, chauffagiste. Professionnels vérifiés, devis gratuit, réponse en 2h.`,
         url: `https://vitfix.io/fr/ville/${slug}/`,
-        image: 'https://vitfix.io/og-image.png',
-        logo: 'https://vitfix.io/og-image.png',
+        image: 'https://vitfix.io/og-fr.png',
+        logo: 'https://vitfix.io/og-fr.png',
         areaServed: { '@type': 'City', name: city.name },
         telephone: PHONE_FR,
         address: {
