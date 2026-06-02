@@ -83,7 +83,7 @@ describe('ModProfissionais (Phase 2)', () => {
     fireEvent.change(screen.getByPlaceholderText('nome@exemplo.pt'), { target: { value: 'novo@teste.pt' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/artisans', expect.objectContaining({ method: 'POST' })))
-    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    const body = JSON.parse((fetchSpy.mock.calls.find(c => c[0] !== '/api/user-storage' && (c[1] as RequestInit)?.body)![1] as RequestInit).body as string)
     expect(body).toMatchObject({ nom: 'Novo Canalizador', email: 'novo@teste.pt', action: 'create' })
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     vi.restoreAllMocks()
@@ -106,7 +106,7 @@ describe('ModProfissionais (Phase 2)', () => {
     const btns = screen.getAllByRole('button', { name: 'Criar missão' })
     fireEvent.click(btns[btns.length - 1]) // bouton submit du modal
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
-    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    const body = JSON.parse((fetchSpy.mock.calls.find(c => c[0] !== '/api/user-storage' && (c[1] as RequestInit)?.body)![1] as RequestInit).body as string)
     expect(body).toMatchObject({ artisan: 'Silva Pro', immeuble: 'Edifício K', type: 'Eletricidade' })
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     vi.restoreAllMocks()
