@@ -467,6 +467,16 @@ export const syndicVistoriaSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Prazo Legal schema (Phase 3 — ModPrazosLegais) ─────────────────
+export const syndicPrazoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  titulo: z.string().min(1, 'Título requis').max(300),
+  tipo: z.string().max(100).optional(),
+  dataLimite: z.string().max(20).optional(),
+  statut: z.enum(['pendente', 'realizado']).optional().default('pendente'),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
