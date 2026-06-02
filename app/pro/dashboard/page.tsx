@@ -15,6 +15,7 @@ import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
+import { dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -336,13 +337,8 @@ function DashboardPage() {
         // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
-          setSavedDocuments(prev => {
-            // Dédup par identité STABLE (id) ; fallback docNumber (legacy). Cloud prime.
-            const keyOf = (x: { id?: string; docNumber?: string }) => x.id || x.docNumber || ''
-            const byId = new Map(prev.map(d => [keyOf(d as { id?: string; docNumber?: string }), d]))
-            for (const d of sbDocs) byId.set(keyOf(d as { id?: string; docNumber?: string }), d as Record<string, unknown>)
-            return Array.from(byId.values())
-          })
+          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity).
+          setSavedDocuments(prev => dedupeDocsByIdentity(prev, sbDocs as typeof prev))
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
@@ -379,11 +375,7 @@ function DashboardPage() {
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
       setSavedDocuments(prev => {
-        // Dédup par identité STABLE (id) ; fallback docNumber (legacy). Cloud prime.
-        const keyOf = (x: { id?: string; docNumber?: string }) => x.id || x.docNumber || ''
-        const byId = new Map(prev.map(d => [keyOf(d as { id?: string; docNumber?: string }), d]))
-        for (const d of sbDocs) byId.set(keyOf(d as { id?: string; docNumber?: string }), d as Record<string, unknown>)
-        return Array.from(byId.values())
+        return dedupeDocsByIdentity(prev, sbDocs as typeof prev)
       })
     }).catch(() => {})
 

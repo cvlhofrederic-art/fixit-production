@@ -11,7 +11,7 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, ProductLine } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, docIdentityKey } from '@/lib/devis-utils'
+import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -62,25 +62,10 @@ export default function FacturesSection({
   const refreshDocuments = () => {
     const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as PersistedDocument[]
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as PersistedDocument[]
-    // Identité STABLE = id (les brouillons n'ont PAS de numéro). Fallback
-    // docNumber pour les docs legacy sans id. NE PAS filtrer sur docNumber
-    // sinon les brouillons (sans numéro) disparaîtraient de la liste.
-    const localById = new Map<string, PersistedDocument>(
-      [...localDocs, ...localDrafts].filter(d => docIdentityKey(d)).map(d => [docIdentityKey(d), d])
-    )
-    setSavedDocuments(prev => {
-      const seen = new Set<string>()
-      const updated = prev.map(d => {
-        const k = docIdentityKey(d)
-        if (k) seen.add(k)
-        return k && localById.has(k) ? localById.get(k)! : d
-      })
-      // Append new localStorage entries not yet in state (= just-saved docs)
-      for (const [k, d] of localById) {
-        if (!seen.has(k)) updated.push(d)
-      }
-      return updated
-    })
+    // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
+    // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<PersistedDocument | null>(null)
