@@ -189,6 +189,21 @@ export interface Vistoria {
 export const fetchVistorias = (token: string): Promise<Vistoria[]> =>
   getList<Vistoria>('/api/syndic/vistorias', token, 'vistorias')
 
+/** Obligation légale / échéance (Phase 3 — ModPrazosLegais). camelCase. */
+export interface PrazoLegal {
+  id: string
+  immeuble: string
+  titulo: string
+  tipo: string
+  dataLimite: string
+  /** pendente | realizado */
+  statut: string
+  notes: string
+}
+
+export const fetchPrazos = (token: string): Promise<PrazoLegal[]> =>
+  getList<PrazoLegal>('/api/syndic/prazos', token, 'prazos')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
