@@ -77,6 +77,25 @@ export async function fetchCoproprios(token: string): Promise<Coprop[]> {
 export const fetchTeam = (token: string): Promise<TeamMember[]> =>
   getList<TeamMember>('/api/syndic/team', token, 'members')
 
+/** Contrat prestataire (Phase 3 — ModContratos). camelCase renvoyé par l'API. */
+export interface Contrato {
+  id: string
+  immeuble: string
+  fornecedor: string
+  /** limpezas | elevadores | seguranca | jardinagem | outros */
+  categoria: string
+  custoMensal: number
+  custoAnual: number
+  dataInicio: string
+  dataFim: string
+  /** ativo | expirado | renovacao */
+  statut: string
+  notes: string
+}
+
+export const fetchContratos = (token: string): Promise<Contrato[]> =>
+  getList<Contrato>('/api/syndic/contratos', token, 'contratos')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
