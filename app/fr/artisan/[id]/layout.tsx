@@ -95,7 +95,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       siteName,
       locale: ogLocale,
       type: 'profile',
-      ...(artisan.profile_photo_url ? { images: [{ url: artisan.profile_photo_url, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }] }),
+      ...(artisan.profile_photo_url ? { images: [{ url: artisan.profile_photo_url, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/og-fr.png', width: 1200, height: 630 }] }),
     },
     alternates: {
       canonical: `https://vitfix.io${canonicalPath}/`,
