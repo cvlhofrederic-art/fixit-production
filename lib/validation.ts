@@ -430,6 +430,18 @@ export const syndicSeguroSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Elevador schema (Phase 3 — ModElevadores) ──────────────────────
+export const syndicElevadorSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  marca: z.string().max(200).optional(),
+  categoria: z.enum(['comercial', 'misto', 'habitacional']).optional().default('habitacional'),
+  ema: z.string().max(200).optional(),
+  ultimaInspecao: z.string().max(20).optional(),
+  proximaInspecao: z.string().max(20).optional(),
+  estado: z.enum(['conforme', 'prazo', 'atraso']).optional().default('conforme'),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,

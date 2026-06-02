@@ -136,6 +136,24 @@ export interface Signalement {
 export const fetchSignalements = (token: string): Promise<Signalement[]> =>
   getList<Signalement>('/api/syndic/signalements', token, 'signalements')
 
+/** Ascenseur (Phase 3 — ModElevadores). camelCase renvoyé par l'API. */
+export interface Elevador {
+  id: string
+  immeuble: string
+  marca: string
+  /** comercial | misto | habitacional */
+  categoria: string
+  ema: string
+  ultimaInspecao: string
+  proximaInspecao: string
+  /** conforme | prazo | atraso */
+  estado: string
+  notes: string
+}
+
+export const fetchElevadores = (token: string): Promise<Elevador[]> =>
+  getList<Elevador>('/api/syndic/elevadores', token, 'elevadores')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
