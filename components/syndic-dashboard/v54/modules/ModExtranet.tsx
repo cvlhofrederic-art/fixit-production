@@ -32,6 +32,7 @@ export default function ModExtranet() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<ExtForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof ExtForm, string>>>({})
+  const [busy, setBusy] = useState(false)
   const { push } = useToast()
   // Phase 2 : vrais condóminos du cabinet si syndic connecté, sinon état local (mock/preview).
   const data = useSyndicData()
@@ -50,6 +51,8 @@ export default function ModExtranet() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       // Écriture réelle : POST /api/syndic/coproprios (mapping vérifié sur le contrat), puis refresh.
+      // setBusy + disabled empêchent la double-soumission (sinon doublons de condómino).
+      setBusy(true)
       fetch('/api/syndic/coproprios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
@@ -58,6 +61,7 @@ export default function ModExtranet() {
         .then((res) => { if (!res.ok) throw new Error('POST failed') })
         .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Condómino adicionado', desc: form.nome }) })
         .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
       return
     }
     setItems(prev => [...prev, { ...form, id: Date.now(), acessoAtivo: true, saldo: 0 }])
@@ -148,7 +152,7 @@ export default function ModExtranet() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Adicionar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
           </ModalFoot>
         </form>
       </Modal>
