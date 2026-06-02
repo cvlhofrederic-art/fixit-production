@@ -173,6 +173,22 @@ export interface Sinistro {
 export const fetchSinistros = (token: string): Promise<Sinistro[]> =>
   getList<Sinistro>('/api/syndic/sinistros', token, 'sinistros')
 
+/** Vistoria technique (Phase 3 — ModVistoria). camelCase renvoyé par l'API. */
+export interface Vistoria {
+  id: string
+  immeuble: string
+  titulo: string
+  /** em_curso | concluida | enviada */
+  statut: string
+  pontosVigiar: number
+  pontosDeficientes: number
+  dataVistoria: string
+  notes: string
+}
+
+export const fetchVistorias = (token: string): Promise<Vistoria[]> =>
+  getList<Vistoria>('/api/syndic/vistorias', token, 'vistorias')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
