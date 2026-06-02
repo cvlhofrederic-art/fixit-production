@@ -222,6 +222,24 @@ export interface Aviso {
 export const fetchAvisos = (token: string): Promise<Aviso[]> =>
   getList<Aviso>('/api/syndic/avisos', token, 'avisos')
 
+/** Reembolso pro-rata (Phase 3 — ModReembolsos). camelCase renvoyé par l'API. */
+export interface Reembolso {
+  id: string
+  immeuble: string
+  antigoProprietario: string
+  fracao: string
+  dataVenda: string
+  quotasPagas: number
+  montanteReembolso: number
+  metodo: string
+  /** pendente | liquidado | bloqueado */
+  statut: string
+  notes: string
+}
+
+export const fetchReembolsos = (token: string): Promise<Reembolso[]> =>
+  getList<Reembolso>('/api/syndic/reembolsos', token, 'reembolsos')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',

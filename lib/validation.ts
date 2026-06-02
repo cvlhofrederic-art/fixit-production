@@ -488,6 +488,19 @@ export const syndicAvisoSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Reembolso schema (Phase 3 — ModReembolsos) ─────────────────────
+export const syndicReembolsoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  antigoProprietario: z.string().min(1, 'Proprietário requis').max(200),
+  fracao: z.string().max(100).optional(),
+  dataVenda: z.string().max(20).optional(),
+  quotasPagas: z.number().min(0).max(99_999_999).optional().default(0),
+  montanteReembolso: z.number().min(0).max(99_999_999).optional().default(0),
+  metodo: z.string().max(100).optional(),
+  statut: z.enum(['pendente', 'liquidado', 'bloqueado']).optional().default('pendente'),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
