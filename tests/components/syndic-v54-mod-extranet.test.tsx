@@ -60,4 +60,25 @@ describe('ModExtranet', () => {
     vi.restoreAllMocks()
     cleanup()
   })
+
+  it('Phase 2 : bouton « Adicionar » désactivé pendant le POST (anti double-soumission)', async () => {
+    // fetch jamais résolu → la requête reste en cours → busy reste vrai.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise<Response>(() => {}))
+    const realData: SyndicData = {
+      authenticated: true, loading: false, missions: [], immeubles: [], artisans: [], team: [], coproprios: [], token: 'tok-123', refresh: vi.fn(),
+    }
+    render(
+      <SyndicDataContext.Provider value={realData}>
+        <ModExtranet />
+      </SyndicDataContext.Provider>,
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: /Condómino/ })[0])
+    fireEvent.change(screen.getByPlaceholderText('Nome completo'), { target: { value: 'Condómino Único' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    // une seule requête, et le bouton est désormais désactivé → pas de doublon possible
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Adicionar' })).toBeDisabled())
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
+    cleanup()
+  })
 })
