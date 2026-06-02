@@ -16,6 +16,13 @@ export default function AdminLoginPage() {
       // SECURITE : seul app_metadata.role est fiable (non forgeable)
       if (user.app_metadata?.role === 'super_admin') {
         window.location.href = '/admin/dashboard'
+        return
+      }
+      // AUTO-HEAL : super_admin piege en mode impersonation (role ecrase, marqueur conserve)
+      // -> /admin/exit restaure le role automatiquement. Gate cote API : _original_role === 'super_admin'
+      // donc aucune elevation possible pour un compte qui ne fut jamais super_admin.
+      if (user.app_metadata?._original_role === 'super_admin') {
+        window.location.href = '/admin/exit'
       }
     }
     check()
@@ -30,13 +37,19 @@ export default function AdminLoginPage() {
       if (signInError) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
       // SECURITE : verification via app_metadata uniquement
       const role = data.user?.app_metadata?.role
-      if (role !== 'super_admin') {
-        await supabase.auth.signOut()
-        setError('Ce compte n\'est pas un compte Super Admin.')
-        setLoading(false)
+      if (role === 'super_admin') {
+        window.location.href = '/admin/dashboard'
         return
       }
-      window.location.href = '/admin/dashboard'
+      // AUTO-HEAL : super_admin piege en impersonation -> /admin/exit restaure le role
+      if (data.user?.app_metadata?._original_role === 'super_admin') {
+        window.location.href = '/admin/exit'
+        return
+      }
+      await supabase.auth.signOut()
+      setError('Ce compte n\'est pas un compte Super Admin.')
+      setLoading(false)
+      return
     } catch {
       setError('Erreur inattendue.')
       setLoading(false)
