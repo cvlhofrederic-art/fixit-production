@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { docIdentityKey } from '@/lib/devis-utils'
 
 // FR-V1 — Hook partagé entre FacturesSection et DevisSection pour gérer le
 // flow d'annulation : brouillon → hard delete localStorage ; émis → modal.
 // Évite de dupliquer la logique de manipulation localStorage et d'état.
 
 export interface CancellableDoc {
+  id?: string
   docNumber?: string
   status?: string
 }
@@ -69,7 +71,11 @@ export function useDocumentCancel<T extends CancellableDoc>(
 
   const matchDoc = (a: T, b: T): boolean => {
     if (isSameDoc) return isSameDoc(a, b)
-    return Boolean(a.docNumber) && a.docNumber === b.docNumber
+    // Identité STABLE : id d'abord (les brouillons n'ont pas de numéro),
+    // fallback docNumber pour les docs legacy sans id.
+    const ka = docIdentityKey(a)
+    const kb = docIdentityKey(b)
+    return Boolean(ka) && ka === kb
   }
 
   const handleRemoveDoc = useCallback((doc: T) => {

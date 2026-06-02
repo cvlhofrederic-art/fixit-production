@@ -15,6 +15,7 @@ import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
+import { dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -336,11 +337,8 @@ function DashboardPage() {
         // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
-          setSavedDocuments(prev => {
-            const byNumber = new Map(prev.map(d => [d.docNumber, d]))
-            for (const d of sbDocs) byNumber.set(d.docNumber as string, d as Record<string, unknown>)
-            return Array.from(byNumber.values())
-          })
+          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity).
+          setSavedDocuments(prev => dedupeDocsByIdentity(prev, sbDocs as typeof prev))
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
@@ -377,9 +375,7 @@ function DashboardPage() {
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
       setSavedDocuments(prev => {
-        const byNumber = new Map(prev.map(d => [d.docNumber, d]))
-        for (const d of sbDocs) byNumber.set(d.docNumber as string, d as Record<string, unknown>)
-        return Array.from(byNumber.values())
+        return dedupeDocsByIdentity(prev, sbDocs as typeof prev)
       })
     }).catch(() => {})
 

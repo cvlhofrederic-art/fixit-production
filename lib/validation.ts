@@ -1110,7 +1110,10 @@ export const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{
 // et 'rejected' (refus explicite du client). 'signed' reste pour signature
 // électronique canvas.
 export const devisStatusEnum = z.enum(['draft', 'sent', 'signed', 'accepted', 'rejected', 'expired', 'cancelled'])
-export const factureStatusEnum = z.enum(['pending', 'paid', 'overdue', 'cancelled', 'refunded'])
+// 'draft' ajouté (migration 20260602) : modèle pro Stripe — un brouillon de
+// facture est un VRAI draft (sans numéro, non hashé, exclu des agrégats), émis
+// via draft→pending au moment de la validation (numéro + hash-chain attribués).
+export const factureStatusEnum = z.enum(['draft', 'pending', 'paid', 'overdue', 'cancelled', 'refunded'])
 export type DevisStatus = z.infer<typeof devisStatusEnum>
 export type FactureStatus = z.infer<typeof factureStatusEnum>
 
@@ -1125,6 +1128,7 @@ const DEVIS_TRANSITIONS: Record<DevisStatus, ReadonlyArray<DevisStatus>> = {
 }
 
 const FACTURE_TRANSITIONS: Record<FactureStatus, ReadonlyArray<FactureStatus>> = {
+  draft: ['pending', 'cancelled'],
   pending: ['paid', 'overdue', 'cancelled'],
   paid: ['refunded', 'cancelled'],
   overdue: ['paid', 'cancelled'],
@@ -1156,7 +1160,15 @@ export const devisSyncSchema = z.object({
   docType: z.enum(['devis', 'facture']),
   artisanId: z.string().uuid('artisanId doit être un UUID valide'),
   doc: z.object({
-    docNumber: z.string().min(1, 'docNumber requis').max(100),
+    // Identité STABLE de la ligne (méthode pro Stripe/QuickBooks) : UUID généré
+    // client-side à la création, stable sur tout le cycle brouillon → émis.
+    // Sert de clé d'upsert (onConflict='id'). Optionnel pour rétro-compat des
+    // docs legacy sans id local (identité par numero, voir route). Le route
+    // exige id OU docNumber (au moins une identité non vide).
+    id: z.string().uuid('id doit être un UUID valide').optional(),
+    // docNumber : OPTIONNEL/nullable. Un brouillon n'a pas de numéro tant qu'il
+    // n'est pas validé — le numéro légal est tiré de next_doc_number à l'émission.
+    docNumber: z.union([z.string().max(100), z.literal(''), z.null()]).optional(),
     docType: z.enum(['devis', 'facture']).optional(),
     clientName: z.string().max(500).optional(),
     // clientEmail : accepte email valide OU chaîne vide (cas fréquent : le

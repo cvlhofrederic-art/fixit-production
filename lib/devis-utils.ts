@@ -8,6 +8,70 @@ import { UNITE_VALUES } from '@/lib/devis-types'
 import type { Locale } from '@/lib/i18n/config'
 
 /**
+ * Identité STABLE d'un document (UUID v4). Générée une seule fois à la création
+ * d'un devis/facture, immuable de brouillon → émis. Sert de clé d'upsert serveur
+ * (onConflict='id', cf. app/api/devis/sync/route.ts) ET de clé localStorage.
+ * Le format DOIT être un UUID valide (le schéma Zod `devisSyncSchema` le valide),
+ * y compris le fallback pour les WebViews Capacitor anciens sans crypto.randomUUID.
+ * Conséquence : un brouillon n'a PAS de numéro (numéro légal tiré de
+ * next_doc_number UNIQUEMENT à la validation) et deux brouillons ne peuvent
+ * jamais s'écraser via un numéro réémis.
+ */
+export function stableDocId(): string {
+  // WebCrypto uniquement (PRNG fort) : crypto.randomUUID en priorité, sinon
+  // construction d'un UUID v4 via crypto.getRandomValues (dispo bien plus
+  // largement, y compris WebViews Capacitor anciens). Aucun Math.random.
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      const b = crypto.getRandomValues(new Uint8Array(16))
+      b[6] = (b[6] & 0x0f) | 0x40 // version 4
+      b[8] = (b[8] & 0x3f) | 0x80 // variant RFC 4122
+      const h = Array.from(b, (x) => x.toString(16).padStart(2, '0'))
+      return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`
+    }
+  } catch { /* environnement sans WebCrypto (très improbable) : fallback ci-dessous */ }
+  // Dernier recours : horodatage + compteur de module (unicité intra-session).
+  // Pas de Math.random (PRNG faible). Cas quasi-mort : tout WebView cible a WebCrypto.
+  _idFallbackCounter = (_idFallbackCounter + 1) % 0xffffff
+  const t = Date.now().toString(16).padStart(12, '0').slice(-12)
+  const c = _idFallbackCounter.toString(16).padStart(6, '0')
+  return `${t.slice(0, 8)}-${t.slice(8, 12)}-4${c.slice(0, 3)}-8${c.slice(3, 6)}-${t.slice(0, 8)}${c.slice(0, 4)}`
+}
+let _idFallbackCounter = 0
+
+/**
+ * Clé d'identité d'un document pour dédup / match / suppression côté UI :
+ * `id` stable en priorité (un brouillon n'a PAS de numéro), fallback `docNumber`
+ * pour les docs legacy sans id. Chaîne vide seulement si aucun des deux (ne
+ * devrait pas arriver : tout doc créé après la refonte porte un id stable).
+ */
+export function docIdentityKey(
+  d: { id?: string | null; docNumber?: string | null } | null | undefined,
+): string {
+  return (d?.id as string) || (d?.docNumber as string) || ''
+}
+
+/**
+ * Fusionne deux listes de documents par identité stable (docIdentityKey) :
+ * `incoming` prime sur `existing` à clé égale, l'ordre de `existing` est
+ * préservé, et les entrées de `incoming` absentes sont ajoutées. Les docs sans
+ * identité ne sont jamais fusionnés (clé de repli unique). Mutualise la dédup
+ * du merge cloud (dashboard) ET du refresh localStorage des listes V5.
+ */
+export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
+  const byKey = new Map<string, T>()
+  let noId = 0
+  const keyOf = (d: T): string =>
+    docIdentityKey(d as { id?: string | null; docNumber?: string | null }) || `__noid_${noId++}`
+  for (const d of existing) byKey.set(keyOf(d), d)
+  for (const d of incoming) byKey.set(keyOf(d), d)
+  return Array.from(byKey.values())
+}
+
+/**
  * Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
  * Permet le tri "du plus récent émis au plus ancien émis" basé sur le numéro de séquence
  * (et non sur created_at, qui peut être trompé par un document recréé tardivement).
