@@ -8,6 +8,41 @@ import { UNITE_VALUES } from '@/lib/devis-types'
 import type { Locale } from '@/lib/i18n/config'
 
 /**
+ * Identité STABLE d'un document (UUID v4). Générée une seule fois à la création
+ * d'un devis/facture, immuable de brouillon → émis. Sert de clé d'upsert serveur
+ * (onConflict='id', cf. app/api/devis/sync/route.ts) ET de clé localStorage.
+ * Le format DOIT être un UUID valide (le schéma Zod `devisSyncSchema` le valide),
+ * y compris le fallback pour les WebViews Capacitor anciens sans crypto.randomUUID.
+ * Conséquence : un brouillon n'a PAS de numéro (numéro légal tiré de
+ * next_doc_number UNIQUEMENT à la validation) et deux brouillons ne peuvent
+ * jamais s'écraser via un numéro réémis.
+ */
+export function stableDocId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch { /* WebView ancien : fallback RFC4122 ci-dessous */ }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16)
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+/**
+ * Clé d'identité d'un document pour dédup / match / suppression côté UI :
+ * `id` stable en priorité (un brouillon n'a PAS de numéro), fallback `docNumber`
+ * pour les docs legacy sans id. Chaîne vide seulement si aucun des deux (ne
+ * devrait pas arriver : tout doc créé après la refonte porte un id stable).
+ */
+export function docIdentityKey(
+  d: { id?: string | null; docNumber?: string | null } | null | undefined,
+): string {
+  return (d?.id as string) || (d?.docNumber as string) || ''
+}
+
+/**
  * Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
  * Permet le tri "du plus récent émis au plus ancien émis" basé sur le numéro de séquence
  * (et non sur created_at, qui peut être trompé par un document recréé tardivement).

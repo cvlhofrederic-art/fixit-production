@@ -27,7 +27,7 @@ import {
   type DevisFactureFormProps,
   type ServiceBasic,
 } from '@/lib/devis-types'
-import { mapLegalFormToCode, titleCaseAddress } from '@/lib/devis-utils'
+import { mapLegalFormToCode, titleCaseAddress, stableDocId } from '@/lib/devis-utils'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
@@ -263,22 +263,9 @@ const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' 
   }
 }
 
-// Numéro de brouillon PROVISOIRE (méthode pro) : BR-AAAA-NNN, série NON
-// comptable et locale. Le vrai numéro (DEV-/FACT-/AV-/AC-) n'est attribué qu'à
-// la VALIDATION (saveAndSend → next_doc_number serveur), jamais à l'ouverture
-// d'un formulaire : un brouillon ouvert puis abandonné ne consomme donc aucun
-// numéro de la série légale (continuité art. 242 nonies A I 2° CGI).
-const localBrouillonNumber = (artisanId: string | undefined): string => {
-  const year = new Date().getFullYear()
-  try {
-    const k = `fixit_br_seq_${artisanId || 'x'}_${year}`
-    const n = (parseInt(localStorage.getItem(k) || '0', 10) || 0) + 1
-    localStorage.setItem(k, String(n))
-    return `BR-${year}-${String(n).padStart(3, '0')}`
-  } catch {
-    return `BR-${year}-001`
-  }
-}
+// Identité document : UUID stable via stableDocId() (lib/devis-utils). Un
+// brouillon n'a PAS de numéro (numéro légal tiré à la validation seulement) ;
+// l'identité de la ligne EST l'id, donc deux brouillons ne s'écrasent jamais.
 
 /* ─────────────────────────────────────────────────────────────────
    COMPOSANT
@@ -307,6 +294,9 @@ export default function DevisFactureFormBTP({
   // la séquence (art. 242 nonies A I 2° CGI), préfixes mélangés DEV/FACT.
   const [docNumber, setDocNumber] = useState<string>(initialData?.docNumber || '')
   const docNumberRef = React.useRef<string>(initialData?.docNumber || '')
+  // Identité stable de la ligne (UUID). initialData.id prime (doc existant, ou
+  // adopté depuis le cloud au hydrate) ; sinon nouvel UUID = nouveau document.
+  const docIdRef = React.useRef<string>((initialData as { id?: string } | undefined)?.id || stableDocId())
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
@@ -776,6 +766,9 @@ export default function DevisFactureFormBTP({
 
   // Saving / loading flags
   const [saving, setSaving] = useState(false)
+  // Autosave : timestamp du dernier enregistrement automatique du brouillon
+  // (affiché en libellé discret « Enregistré » près du bouton brouillon).
+  const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
 
   // Modals
@@ -940,18 +933,12 @@ export default function DevisFactureFormBTP({
     return fallback
   }, [artisan?.id, docType, factureSubType])
 
-  // Numéro PROVISOIRE à l'init : tant que le document n'est pas validé, il porte
-  // un numéro brouillon BR-AAAA-NNN (série non comptable). On NE consomme JAMAIS
-  // un vrai numéro de séquence à l'ouverture (sinon ouvrir puis abandonner un
-  // formulaire creuserait un trou dans la numérotation légale). Le numéro
-  // définitif (DEV-/FACT-/AV-/AC-) est attribué uniquement à la validation
-  // (saveAndSend), avec le préfixe correspondant au sous-type retenu.
-  useEffect(() => {
-    if (artisan?.id && !docNumber) {
-      setDocNumber(localBrouillonNumber(artisan.id))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisan?.id])
+  // Méthode pro (modèle Stripe) : un brouillon n'a PAS de numéro. docNumber reste
+  // vide tant que le document n'est pas validé ; le numéro légal (DEV-/FACT-/AV-/
+  // AC-) est tiré de next_doc_number UNIQUEMENT à l'émission (saveAndSend).
+  // L'identité de la ligne est portée par docIdRef (UUID stable) → aucun numéro
+  // provisoire nécessaire. L'affichage « Brouillon » (docNumber vide) est géré
+  // par les listes V5 (DevisSection / FacturesSection).
 
   const totaux = useMemo(() => {
     // Source unique de vérité : `buildDocumentLines` (lib/devis-totals.ts)
@@ -1365,7 +1352,7 @@ export default function DevisFactureFormBTP({
 
   const buildPayload = useCallback(() => {
     return {
-      id: initialData?.docNumber === docNumber && (initialData as { id?: string })?.id ? (initialData as { id?: string }).id : Date.now().toString(),
+      id: docIdRef.current,
       docType,
       docNumber,
       docTitle,
@@ -1573,20 +1560,20 @@ export default function DevisFactureFormBTP({
       // Acompte = document INDÉPENDANT : on lui attribue un nouveau numéro
       // provisoire BR- (la facture/devis source garde le sien, jamais écrasé).
       // Le vrai numéro AC- est attribué à la validation (saveAndSend).
-      docNumberRef.current = ''; setDocNumber(localBrouillonNumber(artisan?.id))
+      docNumberRef.current = ''; setDocNumber('')
     } else if (st !== 'acompte' && wasAcompte) {
       if (acompteScaledRef.current) restoreAcompteOriginal()
-      docNumberRef.current = ''; setDocNumber(localBrouillonNumber(artisan?.id))
+      docNumberRef.current = ''; setDocNumber('')
     }
     setFactureSubType(st)
   }, [factureSubType, acomptePourcentage, applyAcompteScale, restoreAcompteOriginal, initialData, parentInvoiceNumber])
 
-  const saveDraft = () => {
+  const saveDraft = (opts?: { silent?: boolean }) => {
     if (!artisan?.id) {
-      toast.error('Compte non identifié')
+      if (!opts?.silent) toast.error('Compte non identifié')
       return
     }
-    setSaving(true)
+    if (!opts?.silent) setSaving(true)
     try {
       // Statut effectif :
       //   - Nouveau doc (jamais émis)        → 'brouillon'
@@ -1604,25 +1591,48 @@ export default function DevisFactureFormBTP({
         // Mise à jour d'un devis déjà émis : écrit dans `fixit_documents_<id>`
         // (pas dans drafts) pour rester cohérent avec la liste affichée.
         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-        const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+        const filtered = docs.filter((d: { id?: string }) => d.id !== payload.id)
         filtered.push(payload)
         localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
       } else {
         const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
-        const filtered = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+        const filtered = drafts.filter((d: { id?: string }) => d.id !== payload.id)
         filtered.push(payload)
         localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
       }
       syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
-      toast.success(isExistingEmitted ? 'Devis mis à jour' : 'Brouillon enregistré')
+      if (opts?.silent) {
+        setLastAutosaveAt(Date.now())
+      } else {
+        toast.success(isExistingEmitted ? 'Devis mis à jour' : 'Brouillon enregistré')
+      }
       onSave?.(payload as never)
     } catch (err) {
       console.error('[DevisBTP] saveDraft failed', err)
-      toast.error('Impossible d\'enregistrer le brouillon')
+      if (!opts?.silent) toast.error('Impossible d\'enregistrer le brouillon')
     } finally {
-      setSaving(false)
+      if (!opts?.silent) setSaving(false)
     }
   }
+
+  // ── Autosave (méthode pro Stripe) ──
+  // Enregistre le brouillon 1,5 s après la dernière modification, en silence
+  // (ni toast ni spinner). Jamais de saisie perdue, même sans clic « Enregistrer ».
+  // Ne touche JAMAIS un document déjà émis (status ≠ brouillon/draft) ni un
+  // formulaire vide. saveDraft écrit localStorage + sync cloud via l'id stable.
+  const saveDraftRef = React.useRef(saveDraft)
+  saveDraftRef.current = saveDraft
+  useEffect(() => {
+    const st = (initialData as { status?: string } | undefined)?.status
+    const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
+    if (isEmitted || !artisan?.id) return
+    const hasContent = clientName.trim().length > 0 ||
+      [...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0)
+    if (!hasContent) return
+    const t = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientName, lines, materialLines, fraisLines, docTitle, factureSubType, acomptePourcentage, parentInvoiceNumber, avoirMotif])
 
   const saveAndSend = async () => {
     if (!artisan?.id) return
@@ -1665,15 +1675,16 @@ export default function DevisFactureFormBTP({
         finalNumber = await fetchDocNumber()
       }
       const payload = { ...buildPayload(), docNumber: finalNumber, status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
+      // Identité = id stable : le doc passe de brouillon (sans numéro) à émis
+      // (numéro légal attribué). On déduplique par id — retiré des brouillons,
+      // (ré)inséré dans les documents émis.
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-      // retire l'ancien brouillon (numéro provisoire) ET tout doublon du n° final
-      const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber && d.docNumber !== provisional)
+      const filtered = docs.filter((d: { id?: string }) => d.id !== payload.id)
       filtered.push(payload)
       localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
       syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
-      // Retire des brouillons (numéro provisoire + n° final s'il y était)
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
-      const newDrafts = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber && d.docNumber !== provisional)
+      const newDrafts = drafts.filter((d: { id?: string }) => d.id !== payload.id)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(newDrafts))
       toast.success('Devis validé')
       onSave?.(payload as never)
@@ -3868,9 +3879,14 @@ export default function DevisFactureFormBTP({
           {/* ACTIONS */}
           <div className="dv-sidebar-card">
             <div className="dv-sidebar-t">ACTIONS</div>
-            <button className="dv-sidebar-btn" type="button" disabled={saving} onClick={saveDraft}>
+            <button className="dv-sidebar-btn" type="button" disabled={saving} onClick={() => saveDraft()}>
               {saving ? 'Enregistrement…' : 'Enregistrer brouillon'}
             </button>
+            {lastAutosaveAt && !saving && (
+              <div style={{ fontSize: 10, color: '#4CAF50', textAlign: 'center', marginTop: '-.2rem', marginBottom: '.4rem' }}>
+                ✓ Brouillon enregistré automatiquement
+              </div>
+            )}
             <button className="dv-sidebar-btn yellow" type="button" disabled={pdfLoading} onClick={() => generatePdf('download')}>
               {pdfLoading ? 'Génération…' : 'Télécharger PDF'}
             </button>

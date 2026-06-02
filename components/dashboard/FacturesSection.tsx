@@ -11,7 +11,7 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, ProductLine } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq } from '@/lib/devis-utils'
+import { getDocSeq, docIdentityKey } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -62,18 +62,22 @@ export default function FacturesSection({
   const refreshDocuments = () => {
     const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as PersistedDocument[]
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as PersistedDocument[]
+    // Identité STABLE = id (les brouillons n'ont PAS de numéro). Fallback
+    // docNumber pour les docs legacy sans id. NE PAS filtrer sur docNumber
+    // sinon les brouillons (sans numéro) disparaîtraient de la liste.
     const localById = new Map<string, PersistedDocument>(
-      [...localDocs, ...localDrafts].filter(d => d?.docNumber).map(d => [d.docNumber as string, d])
+      [...localDocs, ...localDrafts].filter(d => docIdentityKey(d)).map(d => [docIdentityKey(d), d])
     )
     setSavedDocuments(prev => {
       const seen = new Set<string>()
       const updated = prev.map(d => {
-        if (d.docNumber) seen.add(d.docNumber)
-        return d.docNumber && localById.has(d.docNumber) ? localById.get(d.docNumber)! : d
+        const k = docIdentityKey(d)
+        if (k) seen.add(k)
+        return k && localById.has(k) ? localById.get(k)! : d
       })
       // Append new localStorage entries not yet in state (= just-saved docs)
-      for (const [num, d] of localById) {
-        if (!seen.has(num)) updated.push(d)
+      for (const [k, d] of localById) {
+        if (!seen.has(k)) updated.push(d)
       }
       return updated
     })
@@ -261,7 +265,7 @@ export default function FacturesSection({
                   const status = getStatusTag(doc, isOverdue)
                   return (
                     <tr key={`saved-fact-${i}`} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
-                      <td><span className="v22-ref">{doc.docNumber}</span></td>
+                      <td><span className="v22-ref">{doc.docNumber || 'Brouillon'}</span></td>
                       <td><span className="v22-client-name">{doc.clientName || t('proDash.factures.clientNonRenseigne')}</span></td>
                       <td><span className="v22-amount">{totalHT.toFixed(2)} €</span></td>
                       <td><span className="v22-mono" style={{ fontSize: 12 }}>{doc.docDate ? new Date(doc.docDate).toLocaleDateString(dateLocale) : '-'}</span></td>
@@ -275,12 +279,12 @@ export default function FacturesSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = (docs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = (docs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = (drafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                              setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
+                              setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}>
                               {t('proDash.factures.marquerEnvoyee')}
                             </button>
@@ -316,12 +320,12 @@ export default function FacturesSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = (docs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = (docs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = (drafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                              setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
+                              setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}>
                               {t('proDash.factures.envoyerEmail')}
                             </button>
@@ -627,7 +631,7 @@ function FacturesSectionV5({
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
-                  <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
+                  <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
                   <td>{doc.clientName || t('proDash.factures.nonRenseigne')}</td>
                   <td>{guessType(doc)}</td>
                   <td>{totalTTC.toLocaleString(dateLocale, { maximumFractionDigits: 0 })} €</td>
@@ -640,12 +644,12 @@ function FacturesSectionV5({
                           const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
-                          const updDocs = (docs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                          const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDocs = (docs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDrafts = (drafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                           // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                          setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
+                          setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.marquerEnvoyee')}
                         </button>
@@ -659,12 +663,12 @@ function FacturesSectionV5({
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
-                          const uDocs = (allDocs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDocs = (allDocs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                           // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                          setSavedDocuments(prev => prev.map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d))
+                          setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.envoyerEmail')}
                         </button>

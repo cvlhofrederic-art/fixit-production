@@ -28,13 +28,18 @@ function mapStatus(rawStatus: string, table: 'factures' | 'devis'): string {
     if (['draft', 'sent', 'signed', 'accepted', 'rejected', 'expired', 'cancelled'].includes(rawStatus)) return rawStatus
     return 'draft'
   }
-  // factures : pending | paid | overdue | cancelled | refunded
-  if (rawStatus === 'brouillon' || rawStatus === 'envoye') return 'pending'
+  // factures : draft | pending | paid | overdue | cancelled | refunded
+  // brouillon = 'draft' (pas de numéro, non hashé, hors agrégats financiers) ;
+  // 'envoye' = émission → 'pending' (numéro légal + hash-chain attribués).
+  if (rawStatus === 'brouillon') return 'draft'
+  if (rawStatus === 'envoye') return 'pending'
   if (rawStatus === 'paye') return 'paid'
   if (rawStatus === 'en_retard') return 'overdue'
   if (rawStatus === 'annule') return 'cancelled'
   if (rawStatus === 'rembourse') return 'refunded'
-  if (['pending', 'paid', 'overdue', 'cancelled', 'refunded'].includes(rawStatus)) return rawStatus
+  if (['draft', 'pending', 'paid', 'overdue', 'cancelled', 'refunded'].includes(rawStatus)) return rawStatus
+  // Défaut conservateur : 'pending' (et non 'draft') pour ne pas rétrograder un
+  // doc legacy au statut inconnu/vide. Seul 'brouillon' explicite → 'draft'.
   return 'pending'
 }
 
@@ -68,6 +73,18 @@ export async function POST(request: NextRequest) {
 
   const { docType, artisanId, doc } = v.data
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
+
+  // Identité document (méthode pro Stripe) : `id` UUID stable si fourni
+  // (brouillon / nouveau modèle), sinon `numero` (legacy émis dont le client
+  // n'a pas encore adopté l'id canonique via le hydrate). Au moins une identité
+  // non vide est requise. Un brouillon a un id mais numero = null (le numéro
+  // légal n'est tiré de next_doc_number qu'à l'émission).
+  const docRec = doc as Record<string, unknown>
+  const docId = (typeof docRec.id === 'string' && docRec.id) ? docRec.id : null
+  const numeroIn = (typeof docRec.docNumber === 'string' && docRec.docNumber) ? docRec.docNumber : null
+  if (!docId && !numeroIn) {
+    return NextResponse.json({ error: 'doc.id or doc.docNumber required' }, { status: 400 })
+  }
 
   // 3bis. Vérification ownership artisanId.
   //
@@ -128,9 +145,8 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Build DB payload
-  const totalHtCents = computeDocumentTotalHtCents(doc as Record<string, unknown>)
+  const totalHtCents = computeDocumentTotalHtCents(docRec)
 
-  const docRec = doc as Record<string, unknown>
   // Source unique de vérité : `buildDocumentLines` applique le filtrage
   // canonique des sections masquées (materialLinesEnabled/fraisLinesEnabled),
   // le fallback laborLines → lines, et l'aplatissement customTables avec
@@ -167,22 +183,18 @@ export async function POST(request: NextRequest) {
   let currentStatus: string | null = null
   let existingContentHash: string | null = null
   {
-    const { data: existing, error: lookupErr } = await supabaseAdmin
-      .from(table)
-      .select('status, content_hash')
-      .eq('numero', docRec.docNumber as string)
-      .eq('artisan_user_id', user.id)
-      .maybeSingle()
+    const sel = supabaseAdmin.from(table).select('status, content_hash')
+    const { data: existing, error: lookupErr } = await (
+      docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
+    ).maybeSingle()
     if (lookupErr) {
       // Fallback si la colonne content_hash n'existe pas (migration 081 non appliquée).
       // Ne JAMAIS swallow silently une vraie erreur DB : retour 500.
       if (/column .*content_hash.* does not exist/i.test(lookupErr.message || '')) {
-        const fb = await supabaseAdmin
-          .from(table)
-          .select('status')
-          .eq('numero', docRec.docNumber as string)
-          .eq('artisan_user_id', user.id)
-          .maybeSingle()
+        const selFb = supabaseAdmin.from(table).select('status')
+        const fb = await (
+          docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
+        ).maybeSingle()
         if (fb.error) {
           logger.error(`[devis-sync] status lookup fallback failed ${docRec.docNumber}:`, fb.error.message)
           Sentry.captureException(fb.error, {
@@ -217,9 +229,13 @@ export async function POST(request: NextRequest) {
   }
 
   const payload: Record<string, unknown> = {
+    // id : identité stable → permet onConflict='id' (update in-place sur tout le
+    // cycle brouillon→émis). Absent pour les docs legacy → onConflict tombe sur
+    // numero+artisan_user_id. numero = null pour un brouillon (pas encore émis).
+    ...(docId ? { id: docId } : {}),
     artisan_user_id: user.id,
     artisan_id: artisanId,
-    numero: docRec.docNumber as string,
+    numero: numeroIn,
     client_name: (docRec.clientName as string) || '',
     client_email: (docRec.clientEmail as string) || null,
     chantier_id: (docRec.chantierId as string) || null,
@@ -258,7 +274,7 @@ export async function POST(request: NextRequest) {
   if (isFirstIssuance && process.env.DOC_HASH_SECRET) {
     try {
       const canonical: CanonicalDocPayload = {
-        numero: docRec.docNumber as string,
+        numero: numeroIn as string,
         artisan_user_id: user.id,
         client_name: (docRec.clientName as string) || '',
         total_ht_cents: totalHtCents,
@@ -299,9 +315,13 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 5. Upsert (idempotent via natural PK numero+artisan_user_id)
+  // 5. Upsert idempotent. Clé de conflit = `id` (identité stable, update in-place
+  //    brouillon→émis) si fourni ; sinon `numero,artisan_user_id` (legacy émis).
+  //    La contrainte UNIQUE(numero, artisan_user_id) reste un garde-fou contre
+  //    deux numéros émis identiques même via le chemin id.
+  const conflictTarget = docId ? 'id' : 'numero,artisan_user_id'
   const tryUpsert = async (p: Record<string, unknown>) =>
-    supabaseAdmin.from(table).upsert(p, { onConflict: 'numero,artisan_user_id' }).select('id').single()
+    supabaseAdmin.from(table).upsert(p, { onConflict: conflictTarget }).select('id').single()
 
   let result = await tryUpsert(payload)
 
