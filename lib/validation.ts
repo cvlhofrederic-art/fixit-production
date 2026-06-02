@@ -456,6 +456,17 @@ export const syndicSinistroSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Vistoria schema (Phase 3 — ModVistoria) ────────────────────────
+export const syndicVistoriaSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  titulo: z.string().min(1, 'Título requis').max(300),
+  statut: z.enum(['em_curso', 'concluida', 'enviada']).optional().default('em_curso'),
+  pontosVigiar: z.number().int().min(0).max(99_999).optional().default(0),
+  pontosDeficientes: z.number().int().min(0).max(99_999).optional().default(0),
+  dataVistoria: z.string().max(20).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
