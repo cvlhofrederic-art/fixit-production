@@ -501,6 +501,18 @@ export const syndicReembolsoSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Procuração schema (Phase 3 — ModProcuracoes) ───────────────────
+export const syndicProcuracaoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  condomino: z.string().min(1, 'Condómino requis').max(200),
+  procurador: z.string().max(200).optional(),
+  fracao: z.string().max(100).optional(),
+  dataValidade: z.string().max(20).optional(),
+  agRef: z.string().max(200).optional(),
+  statut: z.enum(['valida', 'expirada']).optional().default('valida'),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
