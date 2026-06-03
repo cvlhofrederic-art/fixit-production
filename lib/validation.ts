@@ -477,6 +477,16 @@ export const syndicPrazoSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// PATCH d'une obligation : id requis + champs modifiables bornés (revue sécurité).
+export const syndicPrazoUpdateSchema = z.object({
+  id: z.string().uuid('id invalide'),
+  statut: z.enum(['pendente', 'realizado']).optional(),
+  titulo: z.string().max(300).optional(),
+  dataLimite: z.string().max(20).optional(),
+  immeuble: z.string().max(200).optional(),
+  tipo: z.string().max(100).optional(),
+})
+
 // ── Syndic Aviso schema (Phase 3 — ModQuadroAvisos) ───────────────────────
 export const syndicAvisoSchema = z.object({
   immeuble: z.string().max(200).optional(),

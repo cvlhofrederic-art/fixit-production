@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
-import { syndicPrazoSchema, validateBody } from '@/lib/validation'
+import { syndicPrazoSchema, syndicPrazoUpdateSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -94,8 +94,11 @@ export async function PATCH(request: NextRequest) {
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
     const body = await request.json()
-    const { id, statut, titulo, dataLimite, immeuble, tipo } = body
-    if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
+    const validation = validateBody(syndicPrazoUpdateSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
+    }
+    const { id, statut, titulo, dataLimite, immeuble, tipo } = validation.data
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (statut !== undefined) updates.statut = statut
