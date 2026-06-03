@@ -15,7 +15,7 @@ import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
-import { dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
+import { dedupeDocsByIdentity, stableDocId, reconcileDocLists } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -333,7 +333,13 @@ function DashboardPage() {
       try {
         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${user.id}`) || '[]')
         const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${user.id}`) || '[]')
-        setSavedDocuments([...docs, ...drafts])
+        // Nettoyage one-shot des doublons historiques + réécriture localStorage.
+        const rec = reconcileDocLists(docs, drafts)
+        if (rec.removed > 0) {
+          localStorage.setItem(`fixit_documents_${user.id}`, JSON.stringify(rec.documents))
+          localStorage.setItem(`fixit_drafts_${user.id}`, JSON.stringify(rec.drafts))
+        }
+        setSavedDocuments([...rec.documents, ...rec.drafts])
         // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
@@ -369,7 +375,13 @@ function DashboardPage() {
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${aid}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${aid}`) || '[]')
-      setSavedDocuments([...docs, ...drafts])
+      // Nettoyage one-shot des doublons historiques + réécriture localStorage.
+      const rec = reconcileDocLists(docs, drafts)
+      if (rec.removed > 0) {
+        localStorage.setItem(`fixit_documents_${aid}`, JSON.stringify(rec.documents))
+        localStorage.setItem(`fixit_drafts_${aid}`, JSON.stringify(rec.drafts))
+      }
+      setSavedDocuments([...rec.documents, ...rec.drafts])
     } catch { console.warn('fixit_documents/drafts: JSON.parse failed (private browsing?)') }
     // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
     fetchDocumentsFromSupabase().then(sbDocs => {
