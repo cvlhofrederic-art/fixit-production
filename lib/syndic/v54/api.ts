@@ -373,6 +373,20 @@ export interface AgV54 {
 export const fetchAgV54 = (token: string): Promise<AgV54[]> =>
   getList<AgV54>('/api/syndic/ag-v54', token, 'assembleias')
 
+/** Contabilidade Condomínio (Phase 3 — ModContabCond) — 4 entités, route consolidée /api/syndic/contab. */
+export interface ContabFracao { id: string; identificacao: string; permilagem: number; proprietario: string; tipo: string; notas: string }
+export interface ContabChamada { id: string; titulo: string; edificio: string; dataEmissao: string; dataVencimento: string; montante: number; distribuicao: string; notas: string; liquidadas: number }
+export interface ContabDiario { id: string; data: string; tipo: string; conta: string; montante: number; descricao: string }
+export interface ContabOrcamento { id: string; ano: string; edificio: string; totalPrevisto: number; rubricas: string; notas: string; aprovado: boolean }
+export interface ContabData { fracoes: ContabFracao[]; chamadas: ContabChamada[]; diario: ContabDiario[]; orcamentos: ContabOrcamento[] }
+
+export async function fetchContab(token: string): Promise<ContabData> {
+  const res = await fetch('/api/syndic/contab', { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`/api/syndic/contab → HTTP ${res.status}`)
+  const j = (await res.json()) as Partial<ContabData>
+  return { fracoes: j.fracoes ?? [], chamadas: j.chamadas ?? [], diario: j.diario ?? [], orcamentos: j.orcamentos ?? [] }
+}
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
