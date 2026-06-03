@@ -293,6 +293,22 @@ export interface Caderneta {
 export const fetchCaderneta = (token: string): Promise<Caderneta[]> =>
   getList<Caderneta>('/api/syndic/caderneta', token, 'caderneta')
 
+/** Certificat énergétique SCE (Phase 3 — ModCertEnerg). camelCase renvoyé par l'API. */
+export interface CertEnergetico {
+  id: string
+  numero: string
+  edificio: string
+  perito: string
+  /** A+ | A | B | B- | C | D | E | F */
+  classe: string
+  dataEmissao: string
+  dataValidade: string
+  notas: string
+}
+
+export const fetchCertEnerg = (token: string): Promise<CertEnergetico[]> =>
+  getList<CertEnergetico>('/api/syndic/cert-energ', token, 'certificados')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
