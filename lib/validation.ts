@@ -587,6 +587,18 @@ export const syndicFcrMovimentoSchema = z.object({
   descricao: z.string().min(1, 'Description requise').max(2000),
 })
 
+// ── Syndic AG v54 (Phase 3 — ModAGDigit, réutilise syndic_assemblees, PT↔FR) ─
+export const syndicAgV54Schema = z.object({
+  titulo: z.string().min(1, 'Titre requis').max(200),
+  edificio: z.string().max(200).optional(),
+  dataHora: z.string().max(40).optional(),
+  tipo: z.enum(['ordinaria', 'extraordinaria', 'urgente']).optional().default('ordinaria'),
+  local: z.string().max(500).optional(),
+  quorum: z.coerce.number().min(0).max(100).optional().default(50),
+  milesimos: z.coerce.number().int().min(0).max(100_000_000).optional().default(10000),
+  ordem: z.string().max(10000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
