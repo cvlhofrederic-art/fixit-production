@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title,
     description,
-    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-fr.png', width: 1200, height: 630 }] },
+    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-home-fr.png', width: 1200, height: 630 }] },
     alternates: {
       canonical: `https://vitfix.io/fr/urgence/${slug}/`,
       languages: {
@@ -49,8 +49,8 @@ export default async function FrUrgenceCityPage({ params }: { params: Promise<{ 
         name: `VITFIX : ${service.name} urgence à ${city.name}`,
         description: service.urgencyData.urgencyMetaDesc.replace('{city}', city.name),
         url: `https://vitfix.io/fr/urgence/${slug}/`,
-        image: 'https://vitfix.io/og-fr.png',
-        logo: 'https://vitfix.io/og-fr.png',
+        image: 'https://vitfix.io/og-home-fr.png',
+        logo: 'https://vitfix.io/og-home-fr.png',
         telephone: PHONE_FR,
         areaServed: { '@type': 'City', name: city.name },
         address: {
