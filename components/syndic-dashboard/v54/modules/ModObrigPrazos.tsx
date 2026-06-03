@@ -16,11 +16,13 @@ import type { IconName } from '@/lib/syndic/icon-names'
 import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** Obrigações Legais — port byte-exact du ModObrigPrazos du bundle V5.7 (stateful : Modal + Toast). */
+/** Obrigações Legais — port byte-exact V5.7 + Phase 3 : réutilise la table syndic_prazos.
+ * Une obligation ↔ un prazo (edificio↔immeuble, descricao↔titulo, prazo↔dataLimite, notas↔notes).
+ * Syndic connecté → vrais prazos du cabinet + création POST /api/syndic/prazos ; anonyme → preview byte-exact. */
 
 type OPForm = { edificio: string; tipo: string; descricao: string; prazo: string; notas: string }
-type OP = OPForm & { id: number }
 type Bucket = 'expirado' | 'urgente' | 'proximo' | 'emdia'
 type Cor = 'sage' | 'gold' | 'amber' | 'rust'
 
@@ -53,12 +55,19 @@ const status = (prazo: string): { kind: PillKind; label: string; bucket: Bucket 
 }
 
 export default function ModObrigPrazos() {
+  // Phase 3 : une obligation = un prazo (table syndic_prazos, partagée avec ModPrazosLegais).
+  const data = useSyndicData()
+  const real = data.authenticated
+  const items = (real ? (data.prazos ?? []) : []).map((p) => ({
+    id: p.id, edificio: p.immeuble, tipo: p.tipo, descricao: p.titulo, prazo: p.dataLimite, notas: p.notes,
+  }))
+
   const today = new Date().toISOString().slice(0, 10)
   const blank: OPForm = { edificio: '', tipo: 'conservacao', descricao: '', prazo: today, notas: '' }
-  const [items, setItems] = useState<OP[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<OPForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof OPForm, string>>>({})
+  const [busy, setBusy] = useState(false)
   const { push } = useToast()
 
   const upd = (k: keyof OPForm, v: string) => setForm(s => ({ ...s, [k]: v }))
@@ -70,13 +79,25 @@ export default function ModObrigPrazos() {
     if (!form.descricao.trim()) errs.descricao = 'Descreva a obrigação.'
     if (!form.prazo) errs.prazo = 'O prazo é obrigatório.'
     if (Object.keys(errs).length) { setErrors(errs); return }
-    setItems(prev => [...prev, { ...form, id: Date.now() }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/prazos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ immeuble: form.edificio, titulo: form.descricao, tipo: form.tipo, dataLimite: form.prazo, notes: form.notas, statut: 'pendente' }),
+      })
+        .then((r) => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Obrigação registada', desc: TIPO_LABEL[form.tipo] || form.tipo }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpen(false)
-    push({ kind: 'success', title: 'Obrigação registada', desc: TIPO_LABEL[form.tipo] })
+    push({ kind: 'info', title: 'Obrigação registada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
   const counts: Record<Bucket, number> = { expirado: 0, urgente: 0, proximo: 0, emdia: 0 }
-  items.forEach(i => { counts[status(i.prazo).bucket]++ })
+  items.forEach((i) => { if (i.prazo) counts[status(i.prazo).bucket]++ })
 
   return (
     <>
@@ -103,7 +124,7 @@ export default function ModObrigPrazos() {
                 return (
                   <tr key={it.id}>
                     <td>{it.edificio}</td>
-                    <td>{TIPO_LABEL[it.tipo].split(' (')[0]}</td>
+                    <td>{(TIPO_LABEL[it.tipo] || it.tipo).split(' (')[0]}</td>
                     <td>{it.descricao}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{it.prazo}</td>
                     <td><Pill kind={st.kind}>{st.label}</Pill></td>
@@ -149,7 +170,7 @@ export default function ModObrigPrazos() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Adicionar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
           </ModalFoot>
         </form>
       </Modal>
