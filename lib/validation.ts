@@ -533,6 +533,20 @@ export const syndicSegEdificioSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Caderneta de Manutenção schema (Phase 3 — ModCadernetaMan) ─────
+export const syndicCadernetaSchema = z.object({
+  data: z.string().max(20).optional(),
+  estado: z.enum(['realizado', 'planeado', 'em-curso', 'cancelado']).optional().default('realizado'),
+  natureza: z.string().min(1, 'Natureza requise').max(100),
+  edificio: z.string().max(200).optional(),
+  localizacao: z.string().max(200).optional(),
+  prestador: z.string().max(200).optional(),
+  custo: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  garantia: z.string().max(200).optional(),
+  cee: z.string().max(10).optional().default('na'),
+  notas: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
