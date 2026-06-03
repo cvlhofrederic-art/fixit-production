@@ -309,6 +309,24 @@ export interface CertEnergetico {
 export const fetchCertEnerg = (token: string): Promise<CertEnergetico[]> =>
   getList<CertEnergetico>('/api/syndic/cert-energ', token, 'certificados')
 
+/** Déclaration d'encargos (Phase 3 — ModDeclEncargos, Lei 8/2022). camelCase. */
+export interface DeclEncargo {
+  id: string
+  fracao: string
+  condomino: string
+  edificio: string
+  dataPedido: string
+  prazoLimite: string
+  encargosCorrentes: number
+  divida: number
+  /** pendente | emitida | concluida */
+  estado: string
+  notas: string
+}
+
+export const fetchDeclEncargos = (token: string): Promise<DeclEncargo[]> =>
+  getList<DeclEncargo>('/api/syndic/decl-encargos', token, 'declaracoes')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
