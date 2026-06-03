@@ -272,6 +272,27 @@ export interface SegEdificio {
 export const fetchSegEdificio = (token: string): Promise<SegEdificio[]> =>
   getList<SegEdificio>('/api/syndic/seg-edificio', token, 'segEdificios')
 
+/** Intervention de la caderneta de manutenção (Phase 3 — ModCadernetaMan). camelCase. */
+export interface Caderneta {
+  id: string
+  data: string
+  /** realizado | planeado | em-curso | cancelado */
+  estado: string
+  /** manutencao-corrente | reparacao | diagnostico | obra-conservacao | obra-beneficiacao | inspeccao-legal */
+  natureza: string
+  edificio: string
+  localizacao: string
+  prestador: string
+  custo: number
+  garantia: string
+  /** na | A+ | A | B | B- | C | D | E | F */
+  cee: string
+  notas: string
+}
+
+export const fetchCaderneta = (token: string): Promise<Caderneta[]> =>
+  getList<Caderneta>('/api/syndic/caderneta', token, 'caderneta')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
