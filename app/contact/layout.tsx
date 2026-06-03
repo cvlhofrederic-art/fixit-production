@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
       type: 'website',
       siteName: 'VITFIX',
       locale: 'pt_PT',
-      images: [{ url: 'https://vitfix.io/og-fr.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/og-home-fr.png', width: 1200, height: 630 }],
     },
     alternates: { canonical: 'https://vitfix.io/pt/contact/' },
   } : {
@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
       type: 'website',
       siteName: 'VITFIX',
       locale: 'fr_FR',
-      images: [{ url: 'https://vitfix.io/og-fr.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/og-home-fr.png', width: 1200, height: 630 }],
     },
     alternates: { canonical: 'https://vitfix.io/fr/contact/' },
   }

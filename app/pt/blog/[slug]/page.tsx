@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'article',
-      images: [{ url: 'https://vitfix.io/og-pt.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/og-home-pt.png', width: 1200, height: 630 }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -91,7 +91,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
         url: `https://vitfix.io/pt/blog/${slug}/`,
         headline: article.title,
         description: article.metaDesc,
-        image: 'https://vitfix.io/og-pt.png',
+        image: 'https://vitfix.io/og-home-pt.png',
         datePublished: article.datePublished,
         dateModified: article.dateModified,
         author: { name: 'Equipa editorial Vitfix', url: 'https://vitfix.io/pt/sobre/' },

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'VITFIX',
     locale: 'en_GB',
-    images: [{ url: 'https://vitfix.io/og-en.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/og-home-en.png', width: 1200, height: 630 }],
   },
   alternates: {
     canonical: 'https://vitfix.io/en/',
