@@ -599,6 +599,42 @@ export const syndicAgV54Schema = z.object({
   ordem: z.string().max(10000).optional(),
 })
 
+// ── Syndic Contabilidade Condomínio (Phase 3 — ModContabCond, 4 entités) ──
+export const syndicContabFracaoSchema = z.object({
+  entity: z.literal('frac'),
+  identificacao: z.string().min(1, 'Identification requise').max(100),
+  permilagem: z.coerce.number().min(0).max(100000).optional().default(0),
+  proprietario: z.string().max(200).optional(),
+  tipo: z.enum(['habitacao', 'comercio', 'garagem', 'arrecadacao']).optional().default('habitacao'),
+  notas: z.string().max(2000).optional(),
+})
+export const syndicContabChamadaSchema = z.object({
+  entity: z.literal('cham'),
+  titulo: z.string().min(1, 'Titre requis').max(200),
+  edificio: z.string().max(200).optional(),
+  dataEmissao: z.string().max(20).optional(),
+  dataVencimento: z.string().max(20).optional(),
+  montante: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  distribuicao: z.enum(['milesimos', 'igualitaria']).optional().default('milesimos'),
+  notas: z.string().max(2000).optional(),
+})
+export const syndicContabDiarioSchema = z.object({
+  entity: z.literal('diar'),
+  data: z.string().max(20).optional(),
+  tipo: z.enum(['debito', 'credito']).optional().default('debito'),
+  conta: z.string().min(1, 'Compte requis').max(100),
+  montante: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  descricao: z.string().min(1, 'Description requise').max(2000),
+})
+export const syndicContabOrcamentoSchema = z.object({
+  entity: z.literal('orc'),
+  ano: z.string().min(4).max(4),
+  edificio: z.string().max(200).optional(),
+  totalPrevisto: z.coerce.number().min(0).max(1_000_000_000).optional().default(0),
+  rubricas: z.string().max(5000).optional(),
+  notas: z.string().max(2000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
