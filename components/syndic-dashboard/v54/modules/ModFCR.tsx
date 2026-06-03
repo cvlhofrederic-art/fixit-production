@@ -16,27 +16,33 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** Fundo Comum de Reserva — port byte-exact du ModFCR du bundle V5.7 (stateful : 2 modals + Toast). */
+/** Fundo Comum de Reserva — port byte-exact V5.7 + Phase 3 : édifices & mouvements réels.
+ * Syndic connecté → vrais édifices/mouvements du cabinet (data.fcrEdificios/fcrMovimentos) + création POST ;
+ * anonyme → preview (Empty byte-exact + toast démo). */
 
 type EdifForm = { nome: string; endereco: string; orcamentoAnual: string; percentagemFCR: number | string; saldoInicial: string }
-type Edif = { id: number; nome: string; endereco: string; orcamentoAnual: number; percentagemFCR: number; saldoInicial: number }
 type MovForm = { edificio: string; tipo: string; data: string; montante: string; descricao: string }
-type Mov = { id: number; edificio: string; tipo: string; data: string; montante: number; descricao: string }
 
 const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
 
 export default function ModFCR() {
+  // Phase 3 : vrais édifices/mouvements FCR du cabinet si syndic connecté, sinon preview vide.
+  const data = useSyndicData()
+  const real = data.authenticated
+  const edificios = real ? (data.fcrEdificios ?? []) : []
+  const movimentos = real ? (data.fcrMovimentos ?? []) : []
+
   const today = new Date().toISOString().slice(0, 10)
   const blankE: EdifForm = { nome: '', endereco: '', orcamentoAnual: '', percentagemFCR: 10, saldoInicial: '' }
   const blankM: MovForm = { edificio: '', tipo: 'entrada', data: today, montante: '', descricao: '' }
-  const [edificios, setEdificios] = useState<Edif[]>([])
-  const [movimentos, setMovimentos] = useState<Mov[]>([])
   const [openMod, setOpenMod] = useState<'edificio' | 'movimento' | null>(null)
   const [formE, setFormE] = useState<EdifForm>(blankE)
   const [formM, setFormM] = useState<MovForm>(blankM)
   const [errE, setErrE] = useState<Partial<Record<keyof EdifForm, string>>>({})
   const [errM, setErrM] = useState<Partial<Record<keyof MovForm, string>>>({})
+  const [busy, setBusy] = useState(false)
   const { push } = useToast()
 
   const updE = (k: keyof EdifForm, v: string) => setFormE(s => ({ ...s, [k]: v }))
@@ -50,9 +56,21 @@ export default function ModFCR() {
     if (!formE.nome.trim()) errs.nome = 'O nome do edifício é obrigatório.'
     if (Number(formE.percentagemFCR) < 10) errs.percentagemFCR = 'O FCR não pode ser inferior a 10 % (DL 268/94 art. 4.°).'
     if (Object.keys(errs).length) { setErrE(errs); return }
-    setEdificios(prev => [...prev, { id: Date.now(), nome: formE.nome, endereco: formE.endereco, orcamentoAnual: Number(formE.orcamentoAnual) || 0, percentagemFCR: Number(formE.percentagemFCR), saldoInicial: Number(formE.saldoInicial) || 0 }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/fcr-edificios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ nome: formE.nome, endereco: formE.endereco, orcamentoAnual: Number(formE.orcamentoAnual) || 0, percentagemFCR: Number(formE.percentagemFCR) || 10, saldoInicial: Number(formE.saldoInicial) || 0 }),
+      })
+        .then(r => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpenMod(null); push({ kind: 'success', title: 'Edifício adicionado', desc: `${formE.nome} · FCR ${formE.percentagemFCR} %` }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpenMod(null)
-    push({ kind: 'success', title: 'Edifício adicionado', desc: `${formE.nome} · FCR ${formE.percentagemFCR} %` })
+    push({ kind: 'info', title: 'Edifício adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
   const submitMov = (e: FormEvent) => {
     e.preventDefault()
@@ -60,9 +78,21 @@ export default function ModFCR() {
     if (!formM.descricao.trim()) errs.descricao = 'Descreva o movimento.'
     if (!formM.montante || Number(formM.montante) <= 0) errs.montante = 'Indique o montante.'
     if (Object.keys(errs).length) { setErrM(errs); return }
-    setMovimentos(prev => [...prev, { id: Date.now(), edificio: formM.edificio, tipo: formM.tipo, data: formM.data, montante: Number(formM.montante), descricao: formM.descricao }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/fcr-movimentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ edificio: formM.edificio, tipo: formM.tipo, data: formM.data, montante: Number(formM.montante), descricao: formM.descricao }),
+      })
+        .then(r => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpenMod(null); push({ kind: 'success', title: formM.tipo === 'entrada' ? 'Entrada registada' : 'Saída registada', desc: fmtEUR(Number(formM.montante)) }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpenMod(null)
-    push({ kind: 'success', title: formM.tipo === 'entrada' ? 'Entrada registada' : 'Saída registada', desc: fmtEUR(Number(formM.montante)) })
+    push({ kind: 'info', title: formM.tipo === 'entrada' ? 'Entrada registada (demo)' : 'Saída registada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
   const entradas = movimentos.filter(mv => mv.tipo === 'entrada').reduce((s, mv) => s + mv.montante, 0)
@@ -135,7 +165,7 @@ export default function ModFCR() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Adicionar edifício</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar edifício</button>
           </ModalFoot>
         </form>
       </Modal>
@@ -170,7 +200,7 @@ export default function ModFCR() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Registar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
           </ModalFoot>
         </form>
       </Modal>
