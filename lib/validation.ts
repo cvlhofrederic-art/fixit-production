@@ -570,6 +570,23 @@ export const syndicDeclEncargosSchema = z.object({
   notas: z.string().max(5000).optional(),
 })
 
+// ── Syndic FCR — Fundo Comum de Reserva (Phase 3 — ModFCR, 2 entités) ─────
+export const syndicFcrEdificioSchema = z.object({
+  nome: z.string().min(1, 'Nom requis').max(200),
+  endereco: z.string().max(300).optional(),
+  orcamentoAnual: z.coerce.number().min(0).max(1_000_000_000).optional().default(0),
+  percentagemFCR: z.coerce.number().min(0).max(100).optional().default(10),
+  saldoInicial: z.coerce.number().min(-1_000_000_000).max(1_000_000_000).optional().default(0),
+})
+
+export const syndicFcrMovimentoSchema = z.object({
+  edificio: z.string().max(200).optional(),
+  tipo: z.enum(['entrada', 'saida']).optional().default('entrada'),
+  data: z.string().max(20).optional(),
+  montante: z.coerce.number().min(0).max(1_000_000_000).optional().default(0),
+  descricao: z.string().min(1, 'Description requise').max(2000),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,

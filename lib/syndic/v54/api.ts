@@ -327,6 +327,33 @@ export interface DeclEncargo {
 export const fetchDeclEncargos = (token: string): Promise<DeclEncargo[]> =>
   getList<DeclEncargo>('/api/syndic/decl-encargos', token, 'declaracoes')
 
+/** Édifice configuré au FCR (Phase 3 — ModFCR). camelCase renvoyé par l'API. */
+export interface FcrEdificio {
+  id: string
+  nome: string
+  endereco: string
+  orcamentoAnual: number
+  percentagemFCR: number
+  saldoInicial: number
+}
+
+/** Mouvement FCR (Phase 3 — ModFCR). camelCase renvoyé par l'API. */
+export interface FcrMovimento {
+  id: string
+  edificio: string
+  /** entrada | saida */
+  tipo: string
+  data: string
+  montante: number
+  descricao: string
+}
+
+export const fetchFcrEdificios = (token: string): Promise<FcrEdificio[]> =>
+  getList<FcrEdificio>('/api/syndic/fcr-edificios', token, 'edificios')
+
+export const fetchFcrMovimentos = (token: string): Promise<FcrMovimento[]> =>
+  getList<FcrMovimento>('/api/syndic/fcr-movimentos', token, 'movimentos')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
