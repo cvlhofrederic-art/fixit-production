@@ -267,8 +267,22 @@ export async function POST(request: NextRequest) {
   }
 
   // Avoir : référence à la facture corrigée (factures uniquement, pas sur devis)
-  if (table === 'factures' && docRec.avoirDeFactureId) {
-    payload.avoir_de_facture_id = docRec.avoirDeFactureId
+  // #16 : lien FK avoir → facture corrigée (factures uniquement). On accepte
+  // l'UUID direct (avoirDeFactureId) OU on le résout depuis le numéro de la
+  // facture parente (parentInvoiceNumber) — le formulaire BTP n'envoie que le
+  // numéro. Sans ça, l'avoir n'avait aucun lien structuré vers sa facture.
+  if (table === 'factures') {
+    if (docRec.avoirDeFactureId) {
+      payload.avoir_de_facture_id = docRec.avoirDeFactureId
+    } else if (typeof docRec.parentInvoiceNumber === 'string' && docRec.parentInvoiceNumber.trim()) {
+      const { data: parentFacture } = await supabaseAdmin
+        .from('factures')
+        .select('id')
+        .eq('numero', docRec.parentInvoiceNumber)
+        .eq('artisan_user_id', user.id)
+        .maybeSingle()
+      if (parentFacture?.id) payload.avoir_de_facture_id = parentFacture.id
+    }
   }
 
   // 4ter. Hash chain (FR-V1.1) — calcul si :

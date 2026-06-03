@@ -92,6 +92,9 @@ export interface DevisGeneratorInput {
   mediateur?: string
   mediateur_url?: string
   penalite_retard?: string
+  /** Escompte pour paiement anticipé (art. L.441-9). Si présent, remplace la
+   *  mention « aucun escompte accordé » sur le PDF. */
+  escompte?: string | null
   dechets_chantier?: string // FIX FINAL #6: mention optionnelle déchets
   isHorsEtablissement?: boolean // Rétractation B2C hors établissement uniquement
   locale?: 'fr' | 'pt'
@@ -386,6 +389,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     defaultRate:    isPt ? 'taxa de juro legal em vigor' : "3 fois le taux d'intérêt légal",
     b2bIndemnity:   isPt ? null                    : 'Indemnité forfaitaire de recouvrement : 40 € (art. D.441-5 C. com.).',
     noEarlyDiscount: isPt ? 'Sem desconto por pagamento antecipado.' : 'Aucun escompte accordé pour paiement anticipé (art. L.441-9 C. com.).',
+    earlyDiscountLabel: isPt ? 'Desconto por pagamento antecipado' : 'Escompte pour paiement anticipé (art. L.441-9 C. com.)',
     quoteFree:      isPt ? 'Orçamento gratuito.'   : 'Devis gratuit.',
     eiMention:      isPt ? 'Trabalhador independente (Recibos Verdes). Atividade declarada nas Finanças.' : 'Entrepreneur individuel (EI). Loi n°2022-172 du 14 février 2022.',
     tvaExempt:      isPt ? null                    : 'TVA non applicable, article 293 B du CGI.',
@@ -1052,10 +1056,14 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFontSize(7); pdf.setFont(FONT, 'normal'); pdf.setTextColor('#888888')
   const penaltyRate = input.penalite_retard || T.defaultRate
   const isB2B = !!input.client.siret
+  // #9 : si l'artisan a saisi un escompte pour paiement anticipé, on l'affiche
+  // au lieu de la mention « aucun escompte accordé » (imprimée à tort même quand
+  // un escompte était offert → mention légale contradictoire).
+  const escompteStr = (input.escompte || '').trim()
   const penaltyLines = [
     `${T.penaltyLabel} : ${penaltyRate}.`,
     ...(isB2B && T.b2bIndemnity ? [T.b2bIndemnity] : []),
-    T.noEarlyDiscount,
+    escompteStr ? `${T.earlyDiscountLabel} : ${escompteStr}.` : T.noEarlyDiscount,
   ]
   penaltyLines.forEach(line => {
     pdf.text(line, ML, cy)

@@ -28,9 +28,16 @@ interface SavedDevis {
   docValidity?: number
   prestationDate?: string
   /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
-  factureSubType?: 'standard' | 'acompte' | 'situation'
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
   situationNumber?: number
   situationAvancement?: number
+  // Acompte fractionné + avoir (#12) : indispensables aux mentions légales du PDF
+  // (« FACTURE D'ACOMPTE N°X sur Y », « AVOIR sur facture … — Motif : … »).
+  acompteOrdre?: number
+  acompteTotal?: number
+  acomptePourcentage?: number
+  parentInvoiceNumber?: string
+  avoirMotif?: string
   executionDelay?: string
   executionDelayDays?: number
   executionDelayType?: string
@@ -220,6 +227,8 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     tvaEnabled: doc.tvaEnabled !== false,
     paymentMode: doc.paymentMode || 'Virement bancaire',
     paymentCondition: doc.paymentCondition || doc.escompte || '',
+    // #9 : escompte persisté → mention correcte au téléchargement (et non « aucun escompte »).
+    escompte: doc.discount || doc.escompte || '',
 
     // Client
     clientName: doc.clientName || '',
@@ -428,6 +437,12 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     factureSubType: doc.factureSubType,
     situationNumber: doc.situationNumber,
     situationAvancement: doc.situationAvancement,
+    // #12 : mentions légales acompte fractionné / avoir au téléchargement V3
+    acompteOrdre: doc.acompteOrdre,
+    acompteTotal: doc.acompteTotal,
+    acomptePourcentage: doc.acomptePourcentage,
+    parentInvoiceNumber: doc.parentInvoiceNumber,
+    avoirMotif: doc.avoirMotif,
     executionDelay: delayStr,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',

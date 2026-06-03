@@ -110,4 +110,12 @@ describe('buildV2Input — matériaux & frais annexes rendus dans les lignes', (
     expect(out.lignes).toHaveLength(1)
     expect(out.lignes[0].section).toBeNull()
   })
+
+  it('transmet l\'escompte au générateur quand saisi (#9)', () => {
+    expect(buildV2Input(base({ escompte: '2 % sous 10 jours' })).escompte).toBe('2 % sous 10 jours')
+  })
+
+  it('sans escompte : champ escompte undefined (mention « aucun escompte » par défaut)', () => {
+    expect(buildV2Input(base()).escompte).toBeUndefined()
+  })
 })

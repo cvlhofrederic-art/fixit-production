@@ -1665,6 +1665,8 @@ export default function DevisFactureForm({
       tvaBreakdown: tvaEnabled ? tvaBreakdown : undefined,
       acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
       isHorsEtablissement,
+      // #9 : escompte saisi → mention correcte sur le PDF (et non « aucun escompte »).
+      escompte: discount,
     })
   }
 
