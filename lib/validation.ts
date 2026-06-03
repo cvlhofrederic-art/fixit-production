@@ -1240,7 +1240,10 @@ export const devisSyncSchema = z.object({
     // docNumber : OPTIONNEL/nullable. Un brouillon n'a pas de numéro tant qu'il
     // n'est pas validé — le numéro légal est tiré de next_doc_number à l'émission.
     docNumber: z.union([z.string().max(100), z.literal(''), z.null()]).optional(),
-    docType: z.enum(['devis', 'facture']).optional(),
+    // 'avoir' (note de crédit) accepté : c'est une facture (table factures) avec
+    // factureSubType='avoir'. document-sync route le docType de tête vers
+    // 'facture' ; ce champ interne preserve le sous-type pour le label/PDF. (#2)
+    docType: z.enum(['devis', 'facture', 'avoir']).optional(),
     clientName: z.string().max(500).optional(),
     // clientEmail : accepte email valide OU chaîne vide (cas fréquent : le
     // client n'a pas d'email saisi) OU null/undefined. Avant fix 04/05/2026 :

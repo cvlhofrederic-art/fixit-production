@@ -35,6 +35,8 @@ export interface BuildV2InputParams {
    *  parse paymentCondition (ex: "60 jours") pour calculer l'échéance.
    *  Source unique de vérité : lib/pdf/payment-due.ts. */
   paymentDue?: string | null
+  /** Escompte pour paiement anticipé (art. L.441-9) — affiché sur le PDF si saisi. */
+  escompte?: string
 
   // Client
   clientName: string
@@ -275,6 +277,8 @@ export function buildV2Input(
       statut: 'en attente' as const,
     })) : undefined,
     notes: notes || undefined,
+    // #9 : escompte saisi par l'artisan → remplace « aucun escompte accordé ».
+    escompte: params.escompte || undefined,
     mediateur: mediatorName || undefined,
     mediateur_url: mediatorUrl || undefined,
     isHorsEtablissement,

@@ -76,7 +76,13 @@ export async function syncDocumentToSupabase(
   doc: Record<string, unknown>,
   artisanId: string,
 ): Promise<SyncResult> {
-  const docType: 'devis' | 'facture' = doc.docType === 'facture' ? 'facture' : 'devis'
+  // #2 : un avoir (note de crédit) est juridiquement une FACTURE → table
+  // `factures`. Il porte docType:'avoir' à la création (label PDF + numéro AV-).
+  // Sans cette coercition il tombait côté `devis` : perte du lien
+  // avoir_de_facture_id ET contamination de la chaîne de hash légale des devis
+  // avec des montants négatifs. Le sous-type reste porté par factureSubType.
+  const docType: 'devis' | 'facture' =
+    (doc.docType === 'facture' || doc.docType === 'avoir') ? 'facture' : 'devis'
   // Identité : id UUID stable (brouillon / nouveau modèle) OU numero (legacy
   // émis). Un brouillon n'a pas de numéro → on exige au moins l'id pour
   // pouvoir synchroniser (le serveur upsert onConflict='id').

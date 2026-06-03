@@ -159,4 +159,13 @@ describe('devisSyncSchema — id de document legacy (fix sync UUID)', () => {
     })
     expect(result.success).toBe(false)
   })
+
+  it('accepte un doc.docType "avoir" (note de crédit → table factures) (#2)', () => {
+    const result = validateBody(devisSyncSchema, {
+      docType: 'facture',
+      artisanId: '550e8400-e29b-41d4-a716-446655440000',
+      doc: { docType: 'avoir', factureSubType: 'avoir', docNumber: 'AV-2026-001', parentInvoiceNumber: 'FACT-2026-009' },
+    })
+    expect(result.success).toBe(true)
+  })
 })
