@@ -17,22 +17,29 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** Certificação Energética — port byte-exact du ModCertEnerg du bundle V5.7 (stateful : Modal + form + Toast). */
+/** Certificação Energética — port byte-exact V5.7 + Phase 3 : certificats SCE réels.
+ * Syndic connecté → vrais certificats du cabinet (data.certificados) + création POST ;
+ * anonyme → preview (Empty byte-exact + toast démo). */
 
 type CertForm = { numero: string; edificio: string; perito: string; classe: string; dataEmissao: string; dataValidade: string; notas: string }
-type Cert = CertForm & { id: number }
 
 const validityIso = (d: string) => { const dt = new Date(d); dt.setFullYear(dt.getFullYear() + 10); return dt.toISOString().slice(0, 10) }
 const classePill = (c: string): PillKind => (['A+', 'A', 'B', 'B-'].includes(c) ? 'sage' : ['E', 'F'].includes(c) ? 'rust' : 'amber')
 
 export default function ModCertEnerg() {
+  // Phase 3 : vrais certificats SCE du cabinet si syndic connecté, sinon preview vide.
+  const data = useSyndicData()
+  const real = data.authenticated
+  const all = real ? (data.certificados ?? []) : []
+
   const today = new Date().toISOString().slice(0, 10)
   const blank: CertForm = { numero: '', edificio: '', perito: '', classe: 'C', dataEmissao: today, dataValidade: validityIso(today), notas: '' }
-  const [items, setItems] = useState<Cert[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<CertForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof CertForm, string>>>({})
+  const [busy, setBusy] = useState(false)
   const { push } = useToast()
 
   const upd = (k: keyof CertForm, v: string) => {
@@ -50,15 +57,27 @@ export default function ModCertEnerg() {
     if (!form.edificio.trim()) errs.edificio = 'O edifício é obrigatório.'
     if (!form.dataEmissao) errs.dataEmissao = 'A data de emissão é obrigatória.'
     if (Object.keys(errs).length) { setErrors(errs); return }
-    setItems(prev => [...prev, { ...form, id: Date.now() }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/cert-energ', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ numero: form.numero, edificio: form.edificio, perito: form.perito, classe: form.classe, dataEmissao: form.dataEmissao, dataValidade: form.dataValidade, notas: form.notas }),
+      })
+        .then(r => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Certificado registado', desc: `${form.numero} · classe ${form.classe}` }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpen(false)
-    push({ kind: 'success', title: 'Certificado registado', desc: `${form.numero} · classe ${form.classe}` })
+    push({ kind: 'info', title: 'Certificado registado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
-  const efficient = items.filter(i => ['A+', 'A', 'B', 'B-'].includes(i.classe)).length
-  const inefficient = items.filter(i => ['E', 'F'].includes(i.classe)).length
-  const expired = items.filter(i => new Date(i.dataValidade) < new Date()).length
-  const renovate = items.filter(i => { const v = new Date(i.dataValidade).getTime(); const diff = (v - Date.now()) / 86400000; return diff > 0 && diff < 365 }).length
+  const efficient = all.filter(i => ['A+', 'A', 'B', 'B-'].includes(i.classe)).length
+  const inefficient = all.filter(i => ['E', 'F'].includes(i.classe)).length
+  const expired = all.filter(i => new Date(i.dataValidade) < new Date()).length
+  const renovate = all.filter(i => { const v = new Date(i.dataValidade).getTime(); const diff = (v - Date.now()) / 86400000; return diff > 0 && diff < 365 }).length
 
   return (
     <>
@@ -68,21 +87,21 @@ export default function ModCertEnerg() {
         O certificado energético é obrigatório para todos os edifícios. Validade de 10 anos. Diretiva EPBD 2024: todos os edifícios devem atingir classe E até 2030 e classe D até 2033. Frações classe F ficam impedidas de arrendamento (MEPS).
       </Alert>
       <div className={kpiCss.kpiGrid} style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>
-        <KPI num={items.length} lbl="Certificados" />
+        <KPI num={all.length} lbl="Certificados" />
         <KPI num={efficient} lbl="Eficientes (A+ a B-)" accent={efficient ? 'sage' : undefined} />
         <KPI num={inefficient} lbl="Ineficientes (E & F)" accent={inefficient ? 'rust' : undefined} />
         <KPI num={expired} lbl="Expirados" accent={expired ? 'amber' : undefined} />
         <KPI num={renovate} lbl="A renovar <1 ano" accent={renovate ? 'gold' : undefined} />
       </div>
       <Panel>
-        {items.length === 0 ? (
+        {all.length === 0 ? (
           <Empty kind="gold" illustration="documentos" title="Nenhum certificado registado" desc="Comece por registar o certificado energético dos seus edifícios."
             action={<Button variant="primary" onClick={openNew}><Icon name="plus" />+ Adicionar certificado</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Nº</th><th>Edifício</th><th>Classe</th><th>Emissão</th><th>Validade</th><th>Perito</th></tr></thead>
-              <tbody>{items.map(it => (
+              <tbody>{all.map(it => (
                 <tr key={it.id}>
                   <td>{it.numero}</td>
                   <td>{it.edificio}</td>
@@ -131,7 +150,7 @@ export default function ModCertEnerg() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Registar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
           </ModalFoot>
         </form>
       </Modal>
