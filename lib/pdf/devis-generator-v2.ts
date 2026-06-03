@@ -582,13 +582,20 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       if (cParts.ville && cParts.ville.trim().length > 1) clientVilleText = `${T.city} : ${cParts.ville}`
     }
   }
+  // Local de intervenção (si distinct du client) : même traitement multi-ligne
+  // que la rue du destinataire (sinon une adresse longue déborde du cadre).
+  let interventionLines: string[] = []
+  if (input.client.intervention_adresse) {
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(10)
+    interventionLines = pdf.splitTextToSize(input.client.intervention_adresse, destTextMaxW) as string[]
+  }
 
   let destContentH = boxPadTop + ptToMm(18) + ptToMm(14) // label + nom
   destContentH += clientRueLines.length * ptToMm(14)
   if (clientVilleText) destContentH += ptToMm(14)
   if (input.client.siret) destContentH += ptToMm(14)
   if (input.client.intervention_adresse) {
-    destContentH += ptToMm(15) + ptToMm(14) // label (+3pt respiration) + adresse
+    destContentH += ptToMm(15) + interventionLines.length * ptToMm(14) // label (+3pt) + adresse multi-ligne
     if (input.client.intervention_batiment) destContentH += ptToMm(14)
     if (input.client.intervention_etage) destContentH += ptToMm(14)
     if (input.client.intervention_espaces_communs) destContentH += ptToMm(14)
@@ -716,7 +723,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
     pdf.text(T.interventionAt, TEXT_X_DEST, dy); dy += ptToMm(15)
     pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
-    pdf.text(input.client.intervention_adresse, TEXT_X_DEST, dy); dy += ptToMm(14)
+    for (const il of interventionLines) { pdf.text(il, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_batiment) { pdf.text(`${T.building} ${input.client.intervention_batiment}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_etage) { pdf.text(`${T.floor} : ${input.client.intervention_etage}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_espaces_communs) { pdf.text(`${T.commonAreas}, ${input.client.intervention_espaces_communs}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
