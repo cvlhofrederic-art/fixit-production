@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllFrPageCombos, getFrPageCombo, FR_SERVICES } from '@/lib/data/fr-seo-pages-data'
@@ -31,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'fr_FR',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-home-fr.png', width: 1200, height: 630 }],
+      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'fr' }),
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: {
@@ -79,8 +80,8 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
         },
         serviceType: service.name,
         priceRange: '€€',
-        image: 'https://vitfix.io/og-home-fr.png',
-        logo: 'https://vitfix.io/og-home-fr.png',
+        image: 'https://vitfix.io/api/og/?locale=fr',
+        logo: 'https://vitfix.io/api/og/?locale=fr',
         telephone: PHONE_FR,
         inLanguage: 'fr-FR',
         address: {
