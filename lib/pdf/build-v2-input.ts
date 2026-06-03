@@ -125,6 +125,12 @@ export function buildV2Input(
     lines: t.lines.filter(l => l.description.trim()),
   })).filter(t => t.lines.length > 0)
   const validCustomLines = validCustomTables.flatMap(t => t.lines)
+  // Mode 'sections' dès qu'il y a des matériaux, des frais annexes OU des tables
+  // custom → le PDF groupe par section (Prestations / Matériaux / Frais annexes /
+  // tables custom) avec sous-totaux. Avant : matériaux & frais étaient comptés
+  // dans totalNet (acomptes) mais ABSENTS du tableau et du total recalculé par le
+  // générateur (qui somme input.lignes) → PDF incohérent et sous-facturé.
+  const sectionsMode = validCustomTables.length > 0 || validMaterials.length > 0 || validFrais.length > 0
   const totalNet = sumMoney([
     ...validLabor.map(l => l.totalHT || 0),
     ...validMaterials.map(l => l.totalHT || 0),
@@ -188,9 +194,9 @@ export function buildV2Input(
     // mode_affichage : passe en 'sections' s'il y a des tables custom non vides
     // → le PDF V2 groupe les lignes par section (cf. devis-generator-v2.ts).
     // Sinon, comportement classique 'bloc' (toutes les lignes dans une seule table).
-    mode_affichage: validCustomTables.length > 0 ? ('sections' as const) : ('bloc' as const),
+    mode_affichage: sectionsMode ? ('sections' as const) : ('bloc' as const),
     lignes: [
-      // Lignes principales (labor) — section null/'labor' selon mode
+      // Lignes principales (labor) — section null en bloc, 'labor' (PRESTATIONS) en sections
       ...lines.filter(l => l.description.trim()).map(l => ({
         designation: l.description,
         lineDetail: l.lineDetail || undefined,
@@ -198,11 +204,38 @@ export function buildV2Input(
         unite: l.unit || 'u',
         prix_unitaire: l.priceHT,
         total: l.totalHT,
-        section: validCustomTables.length > 0 ? 'labor' : null,
+        section: sectionsMode ? 'labor' : null,
         etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
           ordre: e.ordre,
           designation: e.designation,
         })),
+      })),
+      // Matériaux — section 'materiaux' (libellé via SECTION_LABELS du générateur).
+      // Indispensable : sans ça, les matériaux n'apparaissaient pas au PDF et
+      // étaient exclus du total (mais comptés dans les acomptes → incohérence).
+      ...validMaterials.map(l => ({
+        designation: l.description,
+        lineDetail: l.lineDetail || undefined,
+        quantite: l.qty,
+        unite: l.unit || 'u',
+        prix_unitaire: l.priceHT,
+        total: l.totalHT,
+        section: 'materiaux',
+        etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
+          ordre: e.ordre,
+          designation: e.designation,
+        })),
+      })),
+      // Frais annexes — section 'frais_annexes' (libellé fourni via customSectionLabels).
+      ...validFrais.map(f => ({
+        designation: f.designation,
+        lineDetail: undefined,
+        quantite: f.quantite || 1,
+        unite: f.unite || 'forfait',
+        prix_unitaire: f.prix_unitaire_ht || 0,
+        total: f.total_ht || 0,
+        section: 'frais_annexes',
+        etapes: [],
       })),
       // Lignes des tables custom — flattenées avec marker section `custom_<id>`.
       // Le generator V2 lit ce marker dans SECTION_LABELS pour afficher le nom
@@ -223,11 +256,19 @@ export function buildV2Input(
     ],
     // Custom section labels — utilisés par le PDF V2 pour libeller les sections
     // dynamiques (au-delà des labels figés labor/material/frais).
-    customSectionLabels: validCustomTables.length > 0
-      ? Object.fromEntries(validCustomTables.map(t => [`custom_${t.id}`, t.name]))
-      : undefined,
+    // Libellés de sections : tables custom + « Frais annexes » (les sections
+    // figées materiaux/labor sont déjà libellées par SECTION_LABELS du générateur).
+    customSectionLabels: (() => {
+      const labels: Record<string, string> = {
+        ...Object.fromEntries(validCustomTables.map(t => [`custom_${t.id}`, t.name])),
+        ...(validFrais.length > 0 ? { frais_annexes: 'Frais annexes' } : {}),
+      }
+      return Object.keys(labels).length > 0 ? labels : undefined
+    })(),
     acomptes: acomptesEnabled ? acomptes.map((ac, i) => ({
       label: ac.label,
+      // #14 : transmettre le pourcentage pour l'afficher dans l'échéancier PDF.
+      pourcentage: ac.pourcentage,
       // Le dernier acompte absorbe le résidu d'arrondi (cf. acomptesAmounts).
       montant: acomptesAmounts[i] ?? 0,
       declencheur: ac.declencheur,

@@ -85,6 +85,18 @@ export function docIdentityKey(
  * préservé, et les entrées de `incoming` absentes sont ajoutées. Les docs sans
  * identité ne sont jamais fusionnés (clé de repli unique). Mutualise la dédup
  * du merge cloud (dashboard) ET du refresh localStorage des listes V5.
+ *
+ * SECONDE PASSE — convergence par docNumber (fix doublons local-id / cloud-UUID) :
+ * un même document peut survivre en double à la passe id quand sa copie
+ * localStorage porte un id legacy horodaté (`Date.now()`) et sa copie cloud le
+ * vrai UUID DB : deux clés distinctes (`id || docNumber`) → deux lignes. Après
+ * la passe id, on regroupe donc les entrées qui partagent un `docNumber` NON
+ * VIDE en une seule : l'entrée dont l'id est CANONIQUE (UUID, cf. isStableDocId)
+ * gagne l'identité (id du cloud), et on conserve l'union des champs (donnée la
+ * plus complète, le canonique primant sur conflit). La position de la première
+ * occurrence du docNumber est préservée (stabilité de la liste UI).
+ * Les brouillons SANS docNumber ne fusionnent jamais ici (un numéro légal n'est
+ * tiré qu'à la validation) — ils restent identifiés par leur id seul.
  */
 export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
   const byKey = new Map<string, T>()
@@ -93,7 +105,60 @@ export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
     docIdentityKey(d as { id?: string | null; docNumber?: string | null }) || `__noid_${noId++}`
   for (const d of existing) byKey.set(keyOf(d), d)
   for (const d of incoming) byKey.set(keyOf(d), d)
-  return Array.from(byKey.values())
+
+  // Passe id terminée. On replie maintenant les doublons de même docNumber.
+  const idDeduped = Array.from(byKey.values())
+  const docNumberOf = (d: T): string =>
+    ((d as { docNumber?: string | null })?.docNumber as string) || ''
+  const idOf = (d: T): string | null | undefined =>
+    (d as { id?: string | null })?.id
+  // Index de la ligne survivante pour chaque docNumber non vide rencontré.
+  const slotByDocNumber = new Map<string, number>()
+  const out: T[] = []
+  for (const d of idDeduped) {
+    const dn = docNumberOf(d)
+    // Pas de docNumber → jamais de fusion (brouillon) : on pousse tel quel.
+    if (!dn) {
+      out.push(d)
+      continue
+    }
+    const slot = slotByDocNumber.get(dn)
+    if (slot === undefined) {
+      // Première occurrence de ce docNumber : on réserve sa place.
+      slotByDocNumber.set(dn, out.length)
+      out.push(d)
+      continue
+    }
+    // Doublon du même docNumber : fusionner avec la ligne déjà en place.
+    out[slot] = mergeSameDocNumber(out[slot], d, idOf, isStableDocId)
+  }
+  return out
+}
+
+/**
+ * Fusionne deux entrées d'un MÊME docNumber (cf. dedupeDocsByIdentity, 2nde passe).
+ * Règle : l'id CANONIQUE (UUID) gagne l'identité ; les champs sont unifiés et,
+ * sur conflit, c'est l'entrée la plus récente (incoming = `next`) qui prime,
+ * sauf l'id qui reste canonique si l'un des deux l'est.
+ */
+function mergeSameDocNumber<T>(
+  prev: T,
+  next: T,
+  idOf: (d: T) => string | null | undefined,
+  isCanonical: (id: unknown) => boolean,
+): T {
+  const prevId = idOf(prev)
+  const nextId = idOf(next)
+  // Union des champs : `next` (incoming, plus récent) prime sur conflit.
+  const merged = { ...(prev as object), ...(next as object) } as T & { id?: string | null }
+  // Identité : préférer l'id canonique (UUID cloud) s'il existe d'un côté.
+  if (isCanonical(prevId) && !isCanonical(nextId)) {
+    merged.id = prevId
+  } else if (isCanonical(nextId)) {
+    merged.id = nextId
+  }
+  // Sinon (aucun canonique) : `merged.id` garde l'id de `next` via le spread.
+  return merged
 }
 
 /**

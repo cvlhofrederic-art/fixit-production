@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { parseServiceRange } from '@/lib/service-utils'
+import { stableDocId } from '@/lib/devis-utils'
 import type { Booking, Service } from '@/lib/types'
 
 export function useBookings(
@@ -213,7 +214,12 @@ export function useBookings(
     const factureDocDate = new Date().toISOString().split('T')[0]
     setConvertingDevis({
       ...rest,
-      id: overrideId,
+      // Identité UUID canonique : `overrideId` (fourni par handleGoToConvertedFacture
+      // = stableDocId, partagé avec le brouillon localStorage pré-enregistré) sinon
+      // un UUID frais. Jamais d'id non-UUID ni undefined : garantit que la copie
+      // localStorage et la copie cloud convergent sur la même clé d'upsert (id),
+      // évitant la ligne dupliquée (id horodaté local ≠ UUID DB).
+      id: overrideId || stableDocId(),
       docType: 'facture',
       docDate: factureDocDate,
       // Sous-type suggéré par le garde-fou prestation future (méthode pro 2026)

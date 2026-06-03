@@ -60,6 +60,103 @@ describe('dedupeDocsByIdentity', () => {
   })
 })
 
+describe('dedupeDocsByIdentity — convergence par docNumber (fix doublons local-id / cloud-UUID)', () => {
+  const UUID = '50e30094-3af7-442b-b2b0-4e8c8fc12b64'
+  const UUID2 = 'a1b2c3d4-e5f6-4789-8abc-def012345678'
+  // Forme souple pour des entrées hétérogènes (champs présents d'un seul côté)
+  // sans que l'inférence de T contraigne les deux listes à la même forme.
+  type Doc = { id?: string; docNumber?: string; status?: string; sentAt?: string; savedAt?: string; clientPhone?: string }
+
+  it('collapse une paire (id horodaté legacy) + (UUID cloud) de MÊME docNumber en une seule entrée', () => {
+    const local = { id: '1779539827817', docNumber: 'FACT-2026-017', status: 'envoye' }
+    const cloud = { id: UUID, docNumber: 'FACT-2026-017', status: 'envoye' }
+    const out = dedupeDocsByIdentity([local], [cloud])
+    expect(out).toHaveLength(1)
+    // L'entrée survivante porte l'id canonique (UUID cloud), pas l'id horodaté.
+    expect(out[0].id).toBe(UUID)
+  })
+
+  it('préfère l\'id canonique (UUID) quel que soit l\'ordre existing/incoming', () => {
+    const local = { id: '1779539827817', docNumber: 'DEV-2026-003' }
+    const cloud = { id: UUID, docNumber: 'DEV-2026-003' }
+    // UUID dans existing, legacy dans incoming → survivant = UUID
+    const a = dedupeDocsByIdentity([cloud], [local])
+    expect(a).toHaveLength(1)
+    expect(a[0].id).toBe(UUID)
+    // legacy dans existing, UUID dans incoming → survivant = UUID
+    const b = dedupeDocsByIdentity([local], [cloud])
+    expect(b).toHaveLength(1)
+    expect(b[0].id).toBe(UUID)
+  })
+
+  it('conserve les données les plus complètes (union des champs, le canonique prime sur conflit)', () => {
+    // Le local a un champ que le cloud n'a pas (clientPhone) ; le cloud a un statut frais.
+    const local: Doc = { id: '1779539827817', docNumber: 'FACT-2026-018', status: 'brouillon', clientPhone: '0600000000' }
+    const cloud: Doc = { id: UUID, docNumber: 'FACT-2026-018', status: 'envoye', sentAt: '2026-06-01T10:00:00Z' }
+    const out = dedupeDocsByIdentity([local], [cloud])
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe(UUID)
+    // Champ cloud-only conservé
+    expect(out[0].sentAt).toBe('2026-06-01T10:00:00Z')
+    // Champ local-only conservé (donnée la plus complète)
+    expect(out[0].clientPhone).toBe('0600000000')
+    // Conflit (status) résolu en faveur du canonique cloud
+    expect(out[0].status).toBe('envoye')
+  })
+
+  it('NE fusionne PAS deux docs sans docNumber (brouillons) même si présents des deux côtés', () => {
+    // Régression : drafts sans numéro doivent rester distincts (clé id only).
+    const d1 = { id: '1779000000001', docNumber: '' }
+    const d2 = { id: '1779000000002', docNumber: '' }
+    const d3 = { id: '1779000000003' } // pas de docNumber du tout
+    expect(dedupeDocsByIdentity([d1, d2], [d3])).toHaveLength(3)
+  })
+
+  it('NE fusionne PAS deux docNumbers différents', () => {
+    const a = { id: UUID, docNumber: 'FACT-2026-001' }
+    const b = { id: UUID2, docNumber: 'FACT-2026-002' }
+    expect(dedupeDocsByIdentity([a], [b])).toHaveLength(2)
+  })
+
+  it('préserve la position de la première occurrence du docNumber (stabilité de liste UI)', () => {
+    const x = { id: 'x', docNumber: '' }
+    const localPair = { id: '1779539827817', docNumber: 'FACT-2026-020' }
+    const y = { id: 'y', docNumber: '' }
+    const cloudPair = { id: UUID, docNumber: 'FACT-2026-020' }
+    // existing = [x, localPair, y], incoming = [cloudPair]
+    // localPair et cloudPair convergent ; le survivant garde la place de localPair (index 1)
+    const out = dedupeDocsByIdentity([x, localPair, y], [cloudPair])
+    expect(out).toHaveLength(3)
+    expect(out.map(d => d.id)).toEqual(['x', UUID, 'y'])
+  })
+
+  it('si AUCUN des deux n\'est un UUID canonique, collapse quand même par docNumber (incoming prime)', () => {
+    // Deux copies legacy du même doc (avant migration UUID) : on en garde une.
+    const oldLocal = { id: '1779000000010', docNumber: 'FACT-2026-021', status: 'brouillon' }
+    const newLocal = { id: '1779000000011', docNumber: 'FACT-2026-021', status: 'envoye' }
+    const out = dedupeDocsByIdentity([oldLocal], [newLocal])
+    expect(out).toHaveLength(1)
+    // Pas de UUID dispo → incoming prime (donnée la plus récente)
+    expect(out[0].status).toBe('envoye')
+  })
+
+  it('legacy SANS id mais avec docNumber + UUID même docNumber → un seul, id canonique', () => {
+    const legacyNoId: Doc = { docNumber: 'FACT-2026-022', status: 'envoye', savedAt: '2026-05-01T08:00:00Z' }
+    const cloud: Doc = { id: UUID, docNumber: 'FACT-2026-022', status: 'envoye' }
+    const out = dedupeDocsByIdentity([legacyNoId], [cloud])
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe(UUID)
+    expect(out[0].savedAt).toBe('2026-05-01T08:00:00Z')
+  })
+
+  it('ne casse PAS le merge brouillon→émis par id égal (cas existant) quand un docNumber apparaît', () => {
+    // Même id 'k' : géré par la passe id, jamais par la passe docNumber.
+    const draft = { id: 'k', docNumber: '', status: 'draft' }
+    const emitted = { id: 'k', docNumber: 'FACT-2026-017', status: 'envoye' }
+    expect(dedupeDocsByIdentity([draft], [emitted])).toEqual([emitted])
+  })
+})
+
 describe('titleCaseAddress', () => {
   it('returns input unchanged when not all-caps (already normalised)', () => {
     expect(titleCaseAddress('12 Rue de la Paix')).toBe('12 Rue de la Paix')
