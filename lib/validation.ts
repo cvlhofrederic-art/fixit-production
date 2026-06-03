@@ -547,6 +547,17 @@ export const syndicCadernetaSchema = z.object({
   notas: z.string().max(5000).optional(),
 })
 
+// ── Syndic Certificação Energética schema (Phase 3 — ModCertEnerg) ────────
+export const syndicCertEnergSchema = z.object({
+  numero: z.string().min(1, 'Numéro requis').max(100),
+  edificio: z.string().min(1, 'Edifício requis').max(200),
+  perito: z.string().max(200).optional(),
+  classe: z.string().max(10).optional().default('C'),
+  dataEmissao: z.string().max(20).optional(),
+  dataValidade: z.string().max(20).optional(),
+  notas: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
