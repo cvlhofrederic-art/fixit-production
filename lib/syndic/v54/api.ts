@@ -354,6 +354,25 @@ export const fetchFcrEdificios = (token: string): Promise<FcrEdificio[]> =>
 export const fetchFcrMovimentos = (token: string): Promise<FcrMovimento[]> =>
   getList<FcrMovimento>('/api/syndic/fcr-movimentos', token, 'movimentos')
 
+/** Assemblée générale v54 (Phase 3 — ModAGDigit). Réutilise syndic_assemblees (route /api/syndic/ag-v54, mapping PT↔FR côté serveur). */
+export interface AgV54 {
+  id: string
+  titulo: string
+  edificio: string
+  dataHora: string
+  /** ordinaria | extraordinaria | urgente */
+  tipo: string
+  local: string
+  quorum: number
+  milesimos: number
+  ordem: string
+  /** em-curso | encerrada */
+  estado: string
+}
+
+export const fetchAgV54 = (token: string): Promise<AgV54[]> =>
+  getList<AgV54>('/api/syndic/ag-v54', token, 'assembleias')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
