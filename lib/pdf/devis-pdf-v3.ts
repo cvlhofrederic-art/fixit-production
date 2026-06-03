@@ -242,19 +242,42 @@ function sanitizeForHelvetica(s: string | null | undefined): string {
 }
 
 /**
- * Découpe une adresse française en rue + code postal/ville.
- * Ex : "12 Boulevard Longchamp, 13001 Marseille"
+ * Découpe une adresse en rue + code postal/ville.
+ * Ex FR : "12 Boulevard Longchamp, 13001 Marseille"
  *   → { street: "12 Boulevard Longchamp", city: "13001 Marseille" }
- * Retourne city=null si aucun code postal 5 chiffres détecté.
+ * Ex PT : "Rua de Santa Catarina 100, 4430-319 Vila Nova de Gaia"
+ *   → { street: "Rua de Santa Catarina 100", city: "4430-319 Vila Nova de Gaia" }
+ * Retourne city=null si aucun code postal (FR 5 chiffres / PT XXXX-XXX) détecté.
+ *
+ * Fonction pure exportée pour test unitaire (hardening bug #1). Le contrat de
+ * retour { street, city: string | null } est conservé : les call sites V3
+ * gardent une ligne « Ville » distincte uniquement si city !== null.
+ * Logique miroir du générateur V2 (lib/pdf/devis-generator-v2.ts splitAddress),
+ * mais adaptée à la forme de retour V3 (pas de normalisation de casse interne :
+ * elle est faite par les call sites).
  */
-function splitAddress(addr: string): { street: string; city: string | null } {
+export function splitAddressV3(addr: string): { street: string; city: string | null } {
   if (!addr) return { street: '', city: null }
-  // Cherche un code postal 5 chiffres + ville (avec ou sans virgule avant)
+  // 1) PT en premier : code postal 4-3 (XXXX-XXX). Un préfixe « 4430- » ne
+  //    matcherait PAS le regex FR (\d{5} exige 5 chiffres consécutifs), mais on
+  //    aligne l'ordre sur V2 par cohérence et robustesse.
+  const ptMatch = addr.match(/^(.+?)[\s,]+(\d{4}-\d{3}\s+.+?)$/)
+  if (ptMatch) {
+    const street = ptMatch[1].replace(/[\s,]+$/, '').trim()
+    const city = ptMatch[2].trim()
+    return { street, city }
+  }
+  // 2) FR : code postal 5 chiffres + ville (avec ou sans virgule avant)
   const m = addr.match(/^(.+?)[\s,]+(\d{5}\s+.+?)$/)
   if (!m) return { street: addr, city: null }
   const street = m[1].replace(/[\s,]+$/, '').trim()
   const city = m[2].trim()
   return { street, city }
+}
+
+/** Wrapper interne historique — délègue à la fonction pure exportée. */
+function splitAddress(addr: string): { street: string; city: string | null } {
+  return splitAddressV3(addr)
 }
 
 // ─── Main generator ──────────────────────────────────────

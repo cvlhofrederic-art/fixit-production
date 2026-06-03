@@ -173,7 +173,10 @@ export async function POST(request: NextRequest) {
     .filter((l): l is Record<string, unknown> => l != null && typeof l === 'object')
     .map(l => ({
       totalHT: Number(l.totalHT ?? l.total_ht ?? l.total ?? 0),
-      tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0),
+      // #3 : les frais annexes portent leur taux dans `tva_applicable` (et non
+      // tvaRate/tva_rate). Sans ce fallback ils étaient agrégés à 0 % → TVA et
+      // TTC enregistrés en base sous-évalués (le HT restait correct via total_ht).
+      tvaRate: Number(l.tvaRate ?? l.tva_rate ?? l.tva_applicable ?? 0),
     }))
   const tva = computeTva({ regime: regimeTva, lines: tvaLines })
   const totalTaxCents = toCents(tva.totalTVA)

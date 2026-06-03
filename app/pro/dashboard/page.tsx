@@ -15,7 +15,7 @@ import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
-import { dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -514,7 +514,12 @@ function DashboardPage() {
     const devis = pendingConvDevisRef.current
     setShowFactureConvModal(false)
     if (!devis) return
-    const newId = Date.now().toString()
+    // id UUID canonique (stableDocId) — pas Date.now() : sert d'identité à la
+    // fois pour le brouillon localStorage pré-enregistré ci-dessous ET pour le
+    // form (overrideId → convertDevisToFacture). Un id non-UUID forçait l'upsert
+    // serveur par numéro → UUID DB différent → la copie locale (id horodaté) et
+    // la copie cloud (UUID) divergeaient → ligne dupliquée persistante.
+    const newId = stableDocId()
     // docNumber brouillon AU MÊME FORMAT que les autres séries : BR-AAAA-NNN
     // (compteur local par an), au lieu de l'ancien BR-<timestamp> illisible.
     // C'est une série DISTINCTE : un brouillon ne consomme aucun numéro

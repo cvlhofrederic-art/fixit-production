@@ -9,7 +9,7 @@
  */
 
 import type { Locale } from '@/lib/i18n/config'
-import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, FraisAnnexeItem, CustomTable } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
@@ -181,10 +181,19 @@ async function fetchFreshArtisanData(
 // ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
 async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   const { artisan } = ctx
-  const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
+  // #1 : matériaux, frais annexes et tables custom sont persistés dans des
+  // champs SÉPARÉS (le form artisan ne les fusionne pas dans `lines`). Avant, le
+  // téléchargement ne passait que `lines` (main d'œuvre) → PDF téléchargé sans
+  // matériaux/frais/tables custom et total sous-évalué vs la liste dashboard.
+  // On les transmet désormais à buildV2Input qui les rend + les somme.
+  const laborOnly: ProductLine[] = (doc.lines as ProductLine[])?.length
+    ? (doc.lines as ProductLine[])
+    : ((doc.laborLines as ProductLine[]) || [])
   const materialLines = (doc.materialLines as ProductLine[]) || []
-  const laborLines = (doc.laborLines as ProductLine[]) || []
-  const mergedLines = lines.length > 0 ? lines : [...laborLines, ...materialLines]
+  const fraisAnnexes = ((doc as { fraisAnnexes?: FraisAnnexeItem[] }).fraisAnnexes)?.length
+    ? (doc as { fraisAnnexes?: FraisAnnexeItem[] }).fraisAnnexes!
+    : ((doc as { fraisLines?: FraisAnnexeItem[] }).fraisLines || [])
+  const customTables = ((doc as { customTables?: CustomTable[] }).customTables) || []
 
   const fresh = await fetchFreshArtisanData(artisan?.id, doc, artisan?.logo_url ?? null)
 
@@ -250,8 +259,11 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     situationNumber: doc.situationNumber,
     situationAvancement: doc.situationAvancement,
 
-    // Lines
-    lines: mergedLines,
+    // Lines — main d'œuvre + matériaux + frais annexes + tables custom (#1)
+    lines: laborOnly,
+    materialLines,
+    fraisAnnexes,
+    customTables,
 
     // Acomptes
     acomptesEnabled: doc.acomptesEnabled || false,

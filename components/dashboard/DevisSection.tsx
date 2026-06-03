@@ -13,7 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { getDocSeq, dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
@@ -42,12 +42,19 @@ interface DevisDocument {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const computeDevisTotalHT = (doc: DevisDocument): number => computeDocumentTotalHT(doc as any)
 
-// Identifie un document unique
-// 1) id (Date.now() par save) — nouveaux docs
-// 2) savedAt (ISO timestamp unique par save) — anciens docs sans id
-// Pas de fallback par docNumber : plusieurs docs peuvent partager un numéro
-// (brouillon + doublons historiques) — utiliser docNumber ferait tout supprimer.
+// Identifie un document unique.
+// 1) MÊME docNumber NON VIDE ⇒ même document — y compris quand les id diffèrent
+//    (copie localStorage à id legacy horodaté vs copie cloud à UUID DB : c'est
+//    LE doublon que l'on doit réconcilier, cf. dedupeDocsByIdentity). Ce test
+//    passe AVANT la comparaison d'id, sinon deux id différents du même doc
+//    seraient jugés distincts et la maj de statut / suppression raterait la copie.
+// 2) Sinon, id stable (UUID via stableDocId, ou id legacy) — couvre les brouillons
+//    qui n'ont PAS encore de numéro (numéro légal tiré à la validation).
+// 3) Sinon, savedAt (ISO timestamp unique par save) — très anciens docs sans id.
+// Un docNumber VIDE ne matche jamais par numéro : deux brouillons distincts
+// restent distincts (ils diffèrent par leur id).
 const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
+  if (a.docNumber && b.docNumber && a.docNumber === b.docNumber) return true
   if (a.id && b.id) return a.id === b.id
   if (a.savedAt && b.savedAt) return a.savedAt === b.savedAt
   return false
@@ -281,7 +288,11 @@ export default function DevisSection({
                           </button>
                           <button onClick={() => {
                             const { docNumber: _dn, id: _id, status: _st, sentAt: _sa, savedAt: _svd, signatureData: _sig, ...rest } = doc
-                            setConvertingDevis({ ...rest, id: Date.now().toString(), docType: 'devis', isDuplicate: true })
+                            // id UUID canonique (stableDocId) — pas Date.now() :
+                            // un id non-UUID force l'upsert serveur par numéro et
+                            // crée un UUID DB différent → ligne dupliquée à chaque
+                            // reload (cf. bug doublons documents).
+                            setConvertingDevis({ ...rest, id: stableDocId(), docType: 'devis', isDuplicate: true })
                             setShowDevisForm(true)
                           }}
                             className="v22-btn v22-btn-sm" title={t('proDash.devis.dupliquerDevis')}>
@@ -581,9 +592,12 @@ function DevisSectionV5({
                         title={t('proDash.devis.dupliquerDevis')}
                         onClick={() => {
                           // Strip les champs liés à l'identité/état du devis d'origine
-                          // pour que le nouveau reçoive un numéro chrono frais via fetchDocNumber
+                          // pour que le nouveau reçoive un numéro chrono frais via fetchDocNumber.
+                          // id UUID canonique (stableDocId) — pas Date.now() : un id
+                          // non-UUID force l'upsert serveur par numéro → UUID DB
+                          // différent → ligne dupliquée à chaque reload.
                           const { docNumber: _dn, id: _id, status: _st, sentAt: _sa, savedAt: _svd, signatureData: _sig, ...rest } = doc
-                          setConvertingDevis({ ...rest, id: Date.now().toString(), docType: 'devis', isDuplicate: true })
+                          setConvertingDevis({ ...rest, id: stableDocId(), docType: 'devis', isDuplicate: true })
                           setShowDevisForm(true)
                         }}
                       >

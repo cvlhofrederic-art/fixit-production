@@ -118,6 +118,138 @@ function DecimalInput(props: {
 }
 
 // ═══════════════════════════════════════════════
+// HELPERS PURS — testés isolément (tests/devis-form-artisan.test.ts).
+// Côté ARTISAN uniquement (franchise 293 B). Extraits pour le hardening :
+// logique de numérotation, toggle TVA, ids de lignes, régime TVA, gardes
+// autosave/émission, conversion devis→facture, formatage défensif.
+// ═══════════════════════════════════════════════
+
+type ArtisanFactureSubType = 'standard' | 'acompte' | 'situation'
+
+/**
+ * Bug #1 — Série de numérotation effective selon le sous-type (méthode pro,
+ * parité DevisFactureFormBTP). Une facture d'acompte tire sa propre séquence
+ * AC- (RPC next_doc_number accepte 'acompte') au lieu de consommer FACT-.
+ * 'situation' reste sur la série FACT- (avancement = même chrono que la finale).
+ * Côté artisan : pas de sous-type 'avoir' (réservé BTP).
+ */
+export function computeRpcDocType(
+  docType: 'devis' | 'facture',
+  factureSubType?: ArtisanFactureSubType,
+): 'devis' | 'facture' | 'acompte' {
+  if (docType === 'facture' && factureSubType === 'acompte') return 'acompte'
+  return docType
+}
+
+/** Bug #1 — Préfixe localStorage cohérent avec computeRpcDocType (fallback hors-ligne). */
+export function localFallbackDocPrefix(
+  docType: 'devis' | 'facture',
+  factureSubType?: ArtisanFactureSubType,
+): 'DEV' | 'FACT' | 'AC' {
+  const rpc = computeRpcDocType(docType, factureSubType)
+  if (rpc === 'devis') return 'DEV'
+  if (rpc === 'acompte') return 'AC'
+  return 'FACT'
+}
+
+/** Bug #4 — Taux de TVA à appliquer selon l'état du toggle et la locale (FR 20, PT 23, 0 si OFF). */
+export function tvaRateForLocale(enabled: boolean, locale: string): number {
+  if (!enabled) return 0
+  return locale === 'pt' ? 23 : 20
+}
+
+/** Bug #4 — Remappe le taux TVA de chaque ligne (main d'œuvre / matériaux / table custom). Immutable. */
+export function applyTvaRateToLines<T extends { tvaRate: number }>(lines: T[], rate: number): T[] {
+  return lines.map((l) => ({ ...l, tvaRate: rate }))
+}
+
+/** Bug #4 — Remappe le taux des frais annexes (champ `tva_applicable`). Immutable. */
+export function applyTvaRateToFrais<T extends { tva_applicable: number }>(frais: T[], rate: number): T[] {
+  return frais.map((f) => ({ ...f, tva_applicable: rate }))
+}
+
+/** Bug #4 — Remappe le taux de chaque ligne de chaque table custom. Immutable. */
+export function applyTvaRateToCustomTables<T extends { lines: { tvaRate: number }[] }>(tables: T[], rate: number): T[] {
+  return tables.map((t) => ({ ...t, lines: applyTvaRateToLines(t.lines, rate) }))
+}
+
+/**
+ * Bug #8 — Prochain id numérique de ligne SANS collision. Date.now() pouvait
+ * renvoyer la même valeur sur deux ajouts rapprochés (clés React dupliquées) ;
+ * on dérive `max(ids existants, 0) + 1`. Ignore NaN/négatifs (plancher 0).
+ */
+export function nextNumericLineId(existing: { id: number }[]): number {
+  const max = existing.reduce((m, l) => {
+    const v = Number(l?.id)
+    return Number.isFinite(v) && v > m ? v : m
+  }, 0)
+  return max + 1
+}
+
+/** Bug #8 — Id de table custom unique : `custom_<n>` avec n = max suffixe existant + 1. */
+export function nextCustomTableId(existing: { id: string }[]): string {
+  const max = existing.reduce((m, t) => {
+    const mt = /^custom_(\d+)$/.exec(t?.id || '')
+    const v = mt ? parseInt(mt[1], 10) : NaN
+    return Number.isFinite(v) && v > m ? v : m
+  }, 0)
+  return `custom_${max + 1}`
+}
+
+/**
+ * Bug #9 — Régime TVA du document à persister. Artisan EI/auto/micro sans TVA
+ * = franchise art. 293 B ; sinon assujetti classique. Lu par
+ * app/api/devis/sync (defaut 'classique' sinon) et par l'agrégation TVA.
+ */
+export function regimeTvaForArtisan(tvaEnabled: boolean): 'classique' | 'franchise_293b' {
+  return tvaEnabled ? 'classique' : 'franchise_293b'
+}
+
+/** Bug #2 — Vrai si le statut correspond à un document déjà émis (≠ brouillon/draft/vide). */
+export function isDocEmittedStatus(status: unknown): boolean {
+  return typeof status === 'string' && status !== '' && status !== 'brouillon' && status !== 'draft'
+}
+
+/**
+ * Bug #2 — Purge le brouillon de même id après émission (évite que la dédup au
+ * reload laisse le brouillon écraser le doc émis). id vide/undefined ne purge
+ * RIEN (sinon on effacerait tous les brouillons legacy sans id). Immutable.
+ */
+export function purgeDraftById<T extends { id?: unknown }>(drafts: T[], id: unknown): T[] {
+  if (!id || typeof id !== 'string') return drafts.slice()
+  return drafts.filter((d) => d.id !== id)
+}
+
+/**
+ * Bug #3 — Identité d'une facture issue d'une conversion devis→facture in-place.
+ * On NE réutilise PAS l'id ni le numéro DEV- du devis (sinon la facture écrase
+ * le devis et hérite de DEV-…). Nouvel UUID stable + numéro vide → un FACT-
+ * frais sera tiré au prochain fetchDocNumber. Le devis d'origine reste intact.
+ */
+export function prepareConversionIdentity(_previousDevisId: string): { id: string; docNumber: string } {
+  return { id: stableDocId(), docNumber: '' }
+}
+
+/** Bug #6 — Montant défensif : tolère totalHT manquant sur une ligne legacy (évite `.toFixed` sur undefined). */
+export function safeMoney(n: number | null | undefined): number {
+  return Number.isFinite(n as number) ? (n as number) : 0
+}
+
+/**
+ * Bug #7 — Faut-il afficher le champ de saisie libre de la désignation ?
+ * Vrai uniquement quand l'utilisateur a choisi "Saisie libre" (ligne marquée
+ * custom) ET que la désignation est encore vide. Dès qu'un texte est saisi, le
+ * bloc titre standard prend le relais (description non vide).
+ */
+export function shouldShowFreeTextInput(
+  lineId: number,
+  customLineIds: Set<number>,
+  description: string,
+): boolean {
+  return customLineIds.has(lineId) && (description || '').trim().length === 0
+}
+
+// ═══════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════
 
@@ -319,6 +451,11 @@ export default function DevisFactureForm({
   })
   const [chantierId, setChantierId] = useState<string>(initialData?.chantierId ?? '')
   const [editingDescLineId, setEditingDescLineId] = useState<number | null>(null)
+  // Bug #7 : lignes pour lesquelles l'utilisateur a choisi "Saisie libre".
+  // Le champ texte libre de la désignation n'est visible que pour ces lignes
+  // (tant que la description est vide) — sinon il restait masqué (display:none)
+  // et une ligne libre était impossible à créer.
+  const [customLineIds, setCustomLineIds] = useState<Set<number>>(new Set())
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
   const [notes, setNotes] = useState(initialData?.notes || '')
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
@@ -520,12 +657,23 @@ export default function DevisFactureForm({
   const docIdRef = useRef<string>((initialData as { id?: string })?.id || stableDocId())
   // Autosave : timestamp du dernier enregistrement automatique du brouillon.
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
+  // Bug #2 : émission suivie via un ref VIVANT (≠ initialData.status figé au
+  // mount). Passe à true dès qu'on émet en session (handleGeneratePDF /
+  // saveAndFinalize). L'autosave s'y réfère pour ne JAMAIS ré-écrire un doc
+  // émis comme 'brouillon' (sinon la dédup au reload laisse le brouillon
+  // écraser le doc émis — régression status 'envoye' → 'brouillon').
+  const emittedRef = useRef<boolean>(isDocEmittedStatus((initialData as { status?: string })?.status))
 
   // Fetch next sequential number from server (atomic DB sequence)
   // 3 niveaux de fallback : API HTTP → RPC Supabase direct → compteur localStorage
   const fetchDocNumber = async (): Promise<string> => {
     if (docNumberRef.current) return docNumberRef.current
     const year = new Date().getFullYear()
+    // Bug #1 : une facture d'acompte tire sa propre série AC- (pas FACT-).
+    // computeRpcDocType mappe facture+acompte → 'acompte' (accepté par la RPC
+    // next_doc_number et docNumberSchema), sinon docType brut. Le préfixe du
+    // fallback localStorage est dérivé de la même règle pour rester cohérent.
+    const rpcDocType = computeRpcDocType(docType, factureSubType)
 
     // 1) Essai via API HTTP (avec Bearer token)
     try {
@@ -536,7 +684,7 @@ export default function DevisFactureForm({
       const res = await fetch('/api/doc-number', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ docType, year }),
+        body: JSON.stringify({ docType: rpcDocType, year }),
       })
       if (res.ok) {
         const { number } = await res.json()
@@ -554,7 +702,7 @@ export default function DevisFactureForm({
       if (artisan?.id) {
         const { data, error } = await supabase.rpc('next_doc_number', {
           p_artisan_user_id: artisan.id,
-          p_doc_type: docType,
+          p_doc_type: rpcDocType,
           p_year: year,
         })
         if (!error && data) {
@@ -573,7 +721,7 @@ export default function DevisFactureForm({
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const prefix = docType === 'devis' ? 'DEV' : 'FACT'
+      const prefix = localFallbackDocPrefix(docType, factureSubType)
       const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
       const maxSeq = [...docs, ...drafts]
         .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
@@ -586,7 +734,7 @@ export default function DevisFactureForm({
       return number
     } catch (err) {
       console.error('[DevisFactureForm] All doc-number fallbacks failed:', err)
-      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${year}-DRAFT`
+      const fallback = `${localFallbackDocPrefix(docType, factureSubType)}-${year}-DRAFT`
       setDocNumber(fallback)
       return fallback
     }
@@ -758,8 +906,10 @@ export default function DevisFactureForm({
   const defaultTvaRate = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
 
   const addLine = () => {
+    // Bug #8 : id dérivé de max(ids)+1 (pas Date.now() qui collisionne sur
+    // ajouts rapides → clés React dupliquées).
     setLines(prev => [...prev, {
-      id: Date.now(),
+      id: nextNumericLineId(prev),
       description: '',
       qty: 1,
       unit: 'u',
@@ -780,12 +930,15 @@ export default function DevisFactureForm({
 
   const removeLine = (id: number) => {
     setLines(prev => prev.filter(l => l.id !== id))
+    // Bug #7 : nettoyer le marqueur "saisie libre" de la ligne supprimée.
+    setCustomLineIds(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next })
   }
 
   // ─── Material Lines ───
   const addMaterialLine = () => {
+    // Bug #8 : id sans collision (cf. addLine).
     setMaterialLines(prev => [...prev, {
-      id: Date.now(),
+      id: nextNumericLineId(prev),
       description: '',
       qty: 1,
       unit: 'u',
@@ -811,8 +964,9 @@ export default function DevisFactureForm({
   // ─── Frais annexes helpers ───
   const addFraisAnnexe = () => {
     const defaultTva = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
+    // Bug #8 : id sans collision (même classe de bug que les lignes).
     setFraisAnnexes(prev => [...prev, {
-      id: Date.now(),
+      id: nextNumericLineId(prev),
       designation: '',
       categorie: 'deplacement',
       quantite: 1,
@@ -848,12 +1002,13 @@ export default function DevisFactureForm({
   const addCustomTable = (name: string, category: 'labor' | 'material' | 'frais') => {
     const cleanName = (name || '').trim()
     if (!cleanName) return
+    // Bug #8 : id de table dérivé du max suffixe existant (pas Date.now()).
     setCustomTables(prev => [...prev, {
-      id: `custom_${Date.now()}`,
+      id: nextCustomTableId(prev),
       name: cleanName,
       category,
       lines: [{
-        id: Date.now() + 1,
+        id: 1,
         description: '',
         qty: 1,
         unit: 'u',
@@ -872,10 +1027,11 @@ export default function DevisFactureForm({
   const addCustomLine = (tableId: string) => {
     setCustomTables(prev => prev.map(t => {
       if (t.id !== tableId) return t
+      // Bug #8 : id de ligne unique au sein de la table (max+1, pas Date.now()).
       return {
         ...t,
         lines: [...t.lines, {
-          id: Date.now(),
+          id: nextNumericLineId(t.lines),
           description: '',
           qty: 1,
           unit: 'u',
@@ -964,6 +1120,9 @@ export default function DevisFactureForm({
 
   const selectMotif = async (lineId: number, serviceId: string) => {
     if (serviceId === 'custom') {
+      // Bug #7 : marquer la ligne comme "saisie libre" → le champ texte libre
+      // devient visible (cf. shouldShowFreeTextInput dans le rendu).
+      setCustomLineIds(prev => { const next = new Set(prev); next.add(lineId); return next })
       updateLine(lineId, 'description', '')
       return
     }
@@ -1429,16 +1588,20 @@ export default function DevisFactureForm({
   const saveDraftRef = useRef(handleSaveDraft)
   saveDraftRef.current = handleSaveDraft
   useEffect(() => {
-    const st = (initialData as { status?: string })?.status
-    const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
-    if (isEmitted || !artisan?.id) return
+    // Bug #2 : garde basée sur l'émission VIVANTE (emittedRef), pas sur
+    // initialData.status (figé au mount). Après une émission en session, éditer
+    // un champ tracké ne doit PAS re-sauvegarder le doc en 'brouillon'.
+    if (emittedRef.current || !artisan?.id) return
     const hasContent = clientName.trim().length > 0 ||
       [...lines, ...materialLines].some((l) => (l.description || '').trim().length > 0)
     if (!hasContent) return
     const tmr = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
     return () => clearTimeout(tmr)
+    // Bug #5 : déclencher l'autosave sur TOUS les champs persistés (sinon des
+    // édits — frais annexes, tables custom, acomptes, notes, coordonnées
+    // client — étaient perdus faute de re-déclenchement).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, lines, materialLines, docTitle])
+  }, [clientName, lines, materialLines, docTitle, fraisAnnexes, customTables, acomptes, notes, clientEmail, clientPhone, clientAddress])
 
   const handleConvertToFacture = async () => {
     if (!onConvertToFacture) return
@@ -1810,6 +1973,13 @@ export default function DevisFactureForm({
         docs.push(docEntry)
       }
       localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
+      // Bug #2 : marquer l'émission (ref vivant) ET purger le brouillon de même
+      // id, comme saveAndFinalize. Sans ça, un édit ultérieur ré-écrit le doc en
+      // 'brouillon' dans fixit_drafts et la dédup au reload le laisse écraser le
+      // doc émis (status 'envoye' perdu).
+      emittedRef.current = true
+      const draftsAfterEmit = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(purgeDraftById(draftsAfterEmit, data.id)))
       if (artisan?.id) syncDocumentSafe(docEntry as Record<string, unknown>, artisan.id)
       onSave?.(data)
 
@@ -1858,6 +2028,8 @@ export default function DevisFactureForm({
       else docs.push(docEntry)
       localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
       if (artisan?.id) syncDocumentSafe(docEntry as Record<string, unknown>, artisan.id)
+      // Bug #2 : émission validée → flag vivant (stoppe l'autosave 'brouillon').
+      emittedRef.current = true
       // Retire le brouillon correspondant (mêmes id ou docNumber) pour éviter les doublons
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const cleanedDrafts = drafts.filter((d: Record<string, unknown>) => {
@@ -1994,11 +2166,15 @@ export default function DevisFactureForm({
     }
   }
 
-  const buildData = (): DevisFactureData => ({
+  const buildData = (): DevisFactureData & { regimeTva: 'classique' | 'franchise_293b' } => ({
     id: docIdRef.current,
     docType,
     docNumber: docNumberRef.current || docNumber,
     docTitle,
+    // Bug #9 : régime TVA explicite. Sans ce champ, app/api/devis/sync retombe
+    // sur 'classique' (défaut) → un artisan en franchise 293 B (TVA off) était
+    // persisté comme assujetti normal. franchise_293b quand la TVA est désactivée.
+    regimeTva: regimeTvaForArtisan(tvaEnabled),
     companyStatus,
     companyName,
     companySiret,
@@ -2098,11 +2274,37 @@ export default function DevisFactureForm({
             <button
               onClick={() => {
                 if (confirm(t('devis.convertConfirm'))) {
+                  // Bug #3 : conversion in-place devis → facture. Le devis NE
+                  // doit PAS être écrasé et la facture NE doit PAS hériter du
+                  // numéro DEV-. On (1) capture la réf. du devis pour la note,
+                  // (2) persiste le devis sous SON id courant pour le préserver,
+                  // (3) bascule sur une identité de facture neuve (nouvel UUID +
+                  // numéro vide) → un FACT- frais sera tiré au prochain fetch.
+                  const devisRef = docNumberRef.current || docNumber
+                  // Persister le devis d'origine (snapshot brouillon) avant le swap.
+                  try {
+                    const data = buildData()
+                    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                    const idx = drafts.findIndex((d: Record<string, unknown>) => d.id && d.id === data.id)
+                    const devisSnapshot = { ...data, docType: 'devis', savedAt: new Date().toISOString(), status: 'brouillon' }
+                    if (idx >= 0) drafts[idx] = devisSnapshot
+                    else drafts.push(devisSnapshot)
+                    localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
+                    if (artisan?.id) syncDocumentSafe(devisSnapshot as Record<string, unknown>, artisan.id)
+                  } catch (err) {
+                    console.warn('[DevisFactureForm] snapshot devis avant conversion échoué:', err)
+                  }
+                  // Identité neuve pour la facture (devis préservé sous l'ancien id).
+                  const fresh = prepareConversionIdentity(docIdRef.current)
+                  docIdRef.current = fresh.id
+                  docNumberRef.current = fresh.docNumber
+                  setDocNumber(fresh.docNumber)
+                  emittedRef.current = false
                   setDocType('facture')
                   if (!prestationDate) setPrestationDate(today)
                   const devisRefLabel = locale === 'pt' ? 'Ref. orçamento' : 'Réf. devis'
                   if (!notes.includes('Réf. devis') && !notes.includes('Ref. orçamento')) {
-                    setNotes((prev: string) => `${devisRefLabel}: ${docNumber}${prev ? '\n' + prev : ''}`)
+                    setNotes((prev: string) => `${devisRefLabel}: ${devisRef}${prev ? '\n' + prev : ''}`)
                   }
                 }
               }}
@@ -2427,8 +2629,16 @@ export default function DevisFactureForm({
                     onClick={() => {
                       const next = !tvaEnabled
                       setTvaEnabled(next)
-                      const rate = locale === 'pt' ? 23 : 20
-                      setLines(prev => prev.map(l => ({ ...l, tvaRate: next ? rate : 0 })))
+                      // Bug #4 : appliquer le taux à TOUTES les familles de lignes
+                      // (main d'œuvre, matériaux, frais annexes, tables custom),
+                      // et à 0 à la désactivation. Avant, seules les lignes main
+                      // d'œuvre étaient remappées → matériaux/frais gardaient un
+                      // taux incohérent avec le régime affiché.
+                      const rate = tvaRateForLocale(next, locale)
+                      setLines(prev => applyTvaRateToLines(prev, rate))
+                      setMaterialLines(prev => applyTvaRateToLines(prev, rate))
+                      setFraisAnnexes(prev => applyTvaRateToFrais(prev, rate))
+                      setCustomTables(prev => applyTvaRateToCustomTables(prev, rate))
                     }}
                     className={`v22-toggle ${tvaEnabled ? 'v22-toggle-on' : 'v22-toggle-off'}`}
                   >
@@ -2991,13 +3201,19 @@ export default function DevisFactureForm({
                                   ))}
                                   <option value="custom">{t('devis.freeEntry')}</option>
                                 </select>
-                                {line.description === '' && (
+                                {/* Bug #7 : champ texte libre VISIBLE quand l'utilisateur a choisi
+                                    "Saisie libre" (ligne marquée custom) et que la désignation est
+                                    encore vide. Avant : display:none → champ inutilisable, impossible
+                                    de créer une ligne libre. Dès qu'un texte est saisi, le bloc titre
+                                    standard prend le relais (description non vide). */}
+                                {shouldShowFreeTextInput(line.id, customLineIds, line.description) && (
                                   <input
                                     type="text"
+                                    autoFocus
                                     placeholder={t('devis.freeEntryPlaceholder')}
                                     onChange={(e) => updateLine(line.id, 'description', e.target.value)}
                                     className="v22-form-input"
-                                    style={{ display: 'none', marginTop: 4 }}
+                                    style={{ marginTop: 4 }}
                                   />
                                 )}
                               </div>
@@ -3178,7 +3394,8 @@ export default function DevisFactureForm({
                             {tvaEnabled && (
                               <td><DecimalInput value={line.tvaRate || 0} onChangeNumber={(n) => updateMaterialLine(line.id, 'tvaRate', n)} format={fmtQty} parse={parseDecimalInput} className="v22-input" style={{ textAlign: 'center' }} /></td>
                             )}
-                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{line.totalHT.toFixed(2)}</td>
+                            {/* Bug #6 : ligne matériau legacy sans totalHT → safeMoney évite le crash écran blanc (.toFixed sur undefined). */}
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{safeMoney(line.totalHT).toFixed(2)}</td>
                             <td>
                               <button onClick={() => removeMaterialLine(line.id)} className="v22-btn v22-btn-danger v22-btn-sm" style={{ width: '100%' }}>✕</button>
                             </td>
@@ -4324,17 +4541,22 @@ export default function DevisFactureForm({
           onInject={(receiptLines: DevisReceiptLine[]) => {
             setShowReceiptScanner(false)
             const defaultTva = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
-            const newLines: ProductLine[] = receiptLines.map((rl, i) => ({
-              id: Date.now() + i,
-              description: rl.description,
-              qty: rl.qty,
-              unit: rl.unit,
-              priceHT: rl.priceHT,
-              tvaRate: defaultTva,
-              totalHT: rl.totalHT,
-              source: 'manual' as const,
-            }))
-            setLines(prev => [...prev, ...newLines])
+            // Bug #8 : ids dérivés du max courant + offset (pas Date.now()+i,
+            // qui pouvait collisionner entre deux injections rapprochées).
+            setLines(prev => {
+              const base = nextNumericLineId(prev)
+              const newLines: ProductLine[] = receiptLines.map((rl, i) => ({
+                id: base + i,
+                description: rl.description,
+                qty: rl.qty,
+                unit: rl.unit,
+                priceHT: rl.priceHT,
+                tvaRate: defaultTva,
+                totalHT: rl.totalHT,
+                source: 'manual' as const,
+              }))
+              return [...prev, ...newLines]
+            })
           }}
         />
       )}
