@@ -257,6 +257,21 @@ export interface Procuracao {
 export const fetchProcuracoes = (token: string): Promise<Procuracao[]> =>
   getList<Procuracao>('/api/syndic/procuracoes', token, 'procuracoes')
 
+/** Sécurité incendie / SCIE (Phase 3 — ModSegEdificio). camelCase. */
+export interface SegEdificio {
+  id: string
+  immeuble: string
+  /** 1 | 2 | 3 | 4 (catégorie de risque RT-SCIE) */
+  categoria: string
+  encarregado: string
+  planoEmergencia: boolean
+  ultimoExercicio: string
+  notes: string
+}
+
+export const fetchSegEdificio = (token: string): Promise<SegEdificio[]> =>
+  getList<SegEdificio>('/api/syndic/seg-edificio', token, 'segEdificios')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
