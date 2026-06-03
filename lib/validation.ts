@@ -558,6 +558,18 @@ export const syndicCertEnergSchema = z.object({
   notas: z.string().max(5000).optional(),
 })
 
+// ── Syndic Declaração de Encargos schema (Phase 3 — ModDeclEncargos) ──────
+export const syndicDeclEncargosSchema = z.object({
+  fracao: z.string().min(1, 'Fração requise').max(100),
+  condomino: z.string().min(1, 'Condómino requis').max(200),
+  edificio: z.string().max(200).optional(),
+  dataPedido: z.string().max(20).optional(),
+  prazoLimite: z.string().max(20).optional(),
+  encargosCorrentes: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  divida: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  notas: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
