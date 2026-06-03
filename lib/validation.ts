@@ -523,6 +523,16 @@ export const syndicProcuracaoSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Segurança Edifício schema (Phase 3 — ModSegEdificio) ───────────
+export const syndicSegEdificioSchema = z.object({
+  immeuble: z.string().min(1, 'Edifício requis').max(200),
+  categoria: z.enum(['1', '2', '3', '4']).optional().default('1'),
+  encarregado: z.string().max(200).optional(),
+  planoEmergencia: z.boolean().optional().default(false),
+  ultimoExercicio: z.string().max(20).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
