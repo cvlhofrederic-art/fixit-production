@@ -568,8 +568,24 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (!isPt && input.artisan.insurance_name) emContentH += ptToMm(14)
   emContentH += boxPadTop
 
+  // Adresse destinataire : on pré-calcule les lignes (avec retour à la ligne
+  // si la rue dépasse la largeur de la boîte) pour les réutiliser à l'identique
+  // dans le calcul de hauteur ET le rendu — sinon la rue déborde du cadre.
+  const destTextMaxW = DEST_W - boxPadX * 2
+  let clientRueLines: string[] = []
+  let clientVilleText = ''
+  if (input.client.adresse && input.client.adresse.trim().length > 3) {
+    const cParts = splitAddress(input.client.adresse)
+    if (cParts && cParts.rue && cParts.rue.trim().length > 1) {
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(10)
+      clientRueLines = pdf.splitTextToSize(`${T.address} : ${cParts.rue}`, destTextMaxW) as string[]
+      if (cParts.ville && cParts.ville.trim().length > 1) clientVilleText = `${T.city} : ${cParts.ville}`
+    }
+  }
+
   let destContentH = boxPadTop + ptToMm(18) + ptToMm(14) // label + nom
-  if (input.client.adresse) { destContentH += ptToMm(14); if (splitAddress(input.client.adresse)?.ville) destContentH += ptToMm(14) }
+  destContentH += clientRueLines.length * ptToMm(14)
+  if (clientVilleText) destContentH += ptToMm(14)
   if (input.client.siret) destContentH += ptToMm(14)
   if (input.client.intervention_adresse) {
     destContentH += ptToMm(15) + ptToMm(14) // label (+3pt respiration) + adresse
@@ -687,13 +703,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.text(`${clientLabel} : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
   dy += ptToMm(14)
 
-  // FIX #4 + FIX FINAL #5: Adresse destinataire — ne pas afficher si vide
-  if (input.client.adresse && input.client.adresse.trim().length > 3) {
-    const parts = splitAddress(input.client.adresse)
-    if (parts && parts.rue && parts.rue.trim().length > 1) {
-      pdf.text(`${T.address} : ${parts.rue}`, TEXT_X_DEST, dy); dy += ptToMm(14)
-      if (parts.ville && parts.ville.trim().length > 1) { pdf.text(`${T.city} : ${parts.ville}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
-    }
+  // FIX #4 + FIX FINAL #5: Adresse destinataire — ne pas afficher si vide.
+  // Multi-ligne : la rue passe à la ligne si elle dépasse la largeur de boîte
+  // (clientRueLines pré-calculé plus haut, synchro avec la hauteur de boîte).
+  if (clientRueLines.length > 0) {
+    for (const rl of clientRueLines) { pdf.text(rl, TEXT_X_DEST, dy); dy += ptToMm(14) }
+    if (clientVilleText) { pdf.text(clientVilleText, TEXT_X_DEST, dy); dy += ptToMm(14) }
   }
 
   if (input.client.siret) { pdf.text(`${T.siret} : ${input.client.siret}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
