@@ -136,6 +136,37 @@ export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
 }
 
 /**
+ * Réconciliation one-shot des listes localStorage devis/factures : supprime les
+ * doublons HISTORIQUES déjà présents (copie locale à id horodaté + copie cloud à
+ * UUID de même numéro ; ou brouillon non purgé après émission — bug #6 sur des
+ * données antérieures au fix). Pur (aucune I/O) → testable et réutilisable.
+ *
+ * Règles : (1) dédup interne de chaque liste par identité (dedupeDocsByIdentity
+ * replie déjà les doublons de même docNumber en gardant l'id canonique UUID),
+ * (2) tout BROUILLON dont le docNumber correspond à un document ÉMIS est retiré
+ * (l'émis prime). Les brouillons sans numéro ne fusionnent jamais.
+ */
+export function reconcileDocLists<T extends { id?: string | null; docNumber?: string | null }>(
+  documents: T[],
+  drafts: T[],
+): { documents: T[]; drafts: T[]; removed: number } {
+  const before = documents.length + drafts.length
+  const cleanDocs = dedupeDocsByIdentity<T>([], documents)
+  const emittedNumbers = new Set(
+    cleanDocs.map(d => (d.docNumber || '').trim()).filter(Boolean),
+  )
+  const cleanDrafts = dedupeDocsByIdentity<T>([], drafts).filter(d => {
+    const n = (d.docNumber || '').trim()
+    return !(n && emittedNumbers.has(n))
+  })
+  return {
+    documents: cleanDocs,
+    drafts: cleanDrafts,
+    removed: before - (cleanDocs.length + cleanDrafts.length),
+  }
+}
+
+/**
  * Fusionne deux entrées d'un MÊME docNumber (cf. dedupeDocsByIdentity, 2nde passe).
  * Règle : l'id CANONIQUE (UUID) gagne l'identité ; les champs sont unifiés et,
  * sur conflit, c'est l'entrée la plus récente (incoming = `next`) qui prime,

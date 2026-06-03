@@ -230,6 +230,22 @@ export function prepareConversionIdentity(_previousDevisId: string): { id: strin
   return { id: stableDocId(), docNumber: '' }
 }
 
+/**
+ * Bug #7 (onglets) — Faut-il réinitialiser l'identité en basculant de type via
+ * les onglets Devis/Facture ? Oui dès que le doc a une identité établie (numéro
+ * attribué OU déjà émis) : sinon la bascule écraserait le doc et hériterait du
+ * mauvais préfixe de numéro. Pour un doc neuf (sans numéro), on bascule sans reset.
+ */
+export function shouldResetIdentityOnTypeSwitch(
+  currentType: string,
+  target: string,
+  docNumber: string | null | undefined,
+  emitted: boolean,
+): boolean {
+  if (target === currentType) return false
+  return (docNumber || '').trim() !== '' || emitted
+}
+
 /** Bug #6 — Montant défensif : tolère totalHT manquant sur une ligne legacy (évite `.toFixed` sur undefined). */
 export function safeMoney(n: number | null | undefined): number {
   return Number.isFinite(n as number) ? (n as number) : 0
@@ -2245,6 +2261,34 @@ export default function DevisFactureForm({
   // Are legal fields locked? (verified = data comes from official source)
   const isLegalLocked = companyVerified || !!verifiedCompany?.legalForm
 
+  // #7 (onglets) — Bascule de type via les onglets Devis/Facture : si le doc a
+  // une identité établie, on lui donne une identité neuve (et on préserve
+  // l'original) au lieu d'écraser/hériter du mauvais numéro — même garantie que
+  // le bouton « Convertir en facture ».
+  const switchDocType = (target: 'devis' | 'facture') => {
+    if (target === docType) return
+    if (shouldResetIdentityOnTypeSwitch(docType, target, docNumberRef.current || docNumber, emittedRef.current)) {
+      try {
+        const data = buildData()
+        const key = emittedRef.current ? `fixit_documents_${artisan?.id}` : `fixit_drafts_${artisan?.id}`
+        const arr = JSON.parse(localStorage.getItem(key) || '[]')
+        const idx = arr.findIndex((d: Record<string, unknown>) => d.id && d.id === data.id)
+        const snap = { ...data, savedAt: new Date().toISOString() }
+        if (idx >= 0) arr[idx] = snap; else arr.push(snap)
+        localStorage.setItem(key, JSON.stringify(arr))
+        if (artisan?.id) syncDocumentSafe(snap as Record<string, unknown>, artisan.id)
+      } catch (e) {
+        console.warn('[DevisFactureForm] snapshot avant bascule de type échoué:', e)
+      }
+      const fresh = prepareConversionIdentity(docIdRef.current)
+      docIdRef.current = fresh.id
+      docNumberRef.current = fresh.docNumber
+      setDocNumber(fresh.docNumber)
+      emittedRef.current = false
+    }
+    setDocType(target)
+  }
+
   return (
     <div className="devis-create">
       {/* Top bar */}
@@ -2260,13 +2304,13 @@ export default function DevisFactureForm({
         <div className="devis-top-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="devis-doc-tabs">
             <button
-              onClick={() => setDocType('devis')}
+              onClick={() => switchDocType('devis')}
               className={`devis-doc-tab ${docType === 'devis' ? 'active' : ''}`}
             >
               {t('devis.devisTab')}
             </button>
             <button
-              onClick={() => setDocType('facture')}
+              onClick={() => switchDocType('facture')}
               className={`devis-doc-tab ${docType === 'facture' ? 'active' : ''}`}
             >
               {t('devis.factureTab')}
