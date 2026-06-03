@@ -240,6 +240,23 @@ export interface Reembolso {
 export const fetchReembolsos = (token: string): Promise<Reembolso[]> =>
   getList<Reembolso>('/api/syndic/reembolsos', token, 'reembolsos')
 
+/** Procuration AG (Phase 3 — ModProcuracoes). camelCase renvoyé par l'API. */
+export interface Procuracao {
+  id: string
+  immeuble: string
+  condomino: string
+  procurador: string
+  fracao: string
+  dataValidade: string
+  agRef: string
+  /** valida | expirada */
+  statut: string
+  notes: string
+}
+
+export const fetchProcuracoes = (token: string): Promise<Procuracao[]> =>
+  getList<Procuracao>('/api/syndic/procuracoes', token, 'procuracoes')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
