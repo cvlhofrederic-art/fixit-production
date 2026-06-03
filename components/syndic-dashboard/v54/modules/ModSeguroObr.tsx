@@ -16,23 +16,38 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** Seguro Obrigatório de Condomínio — port byte-exact du ModSeguroObr du bundle V5.7 (stateful : 2 modals). */
+/** Seguro Obrigatório de Condomínio — port byte-exact V5.7 + Phase 3 : réutilise syndic_seguros + syndic_sinistros.
+ * Apólices = assurance incêndio obligatoire (seguros tipo='incendio') ; sinistros = syndic_sinistros.
+ * Syndic connecté → données réelles + création POST ; anonyme → preview byte-exact. */
 
 type ApForm = { seguradora: string; numero: string; edificio: string; dataInicio: string; dataFim: string; premio: string; cobertura: string; notas: string }
-type Apolice = { id: number; seguradora: string; numero: string; edificio: string; dataInicio: string; dataFim: string; premio: number; cobertura: number; notas: string; estado: string }
 type SinForm = { apolice: string; dataSinistro: string; tipo: string; montante: string; descricao: string }
-type Sinistro = { id: number; apolice: string; dataSinistro: string; tipo: string; montante: number; descricao: string; estado: string }
 
 const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
 const yearLater = (d: string) => { const dt = new Date(d); dt.setFullYear(dt.getFullYear() + 1); return dt.toISOString().slice(0, 10) }
 
 export default function ModSeguroObr() {
+  // Phase 3 : apólices = assurance incêndio obligatoire (syndic_seguros tipo='incendio'),
+  // sinistros = syndic_sinistros. Les autres polices restent dans ModSeguros.
+  const data = useSyndicData()
+  const real = data.authenticated
+  const apolices = (real ? (data.seguros ?? []) : []).filter((s) => s.tipo === 'incendio').map((s) => ({
+    id: s.id, seguradora: s.seguradora, numero: s.apolice, edificio: s.immeuble,
+    dataInicio: s.dataInicio, dataFim: s.dataFim, premio: s.premioAnual, cobertura: s.capital,
+    notas: s.notes, estado: s.statut,
+  }))
+  const sinistros = (real ? (data.sinistros ?? []) : []).map((s) => ({
+    id: s.id, apolice: '', dataSinistro: s.dataDeclaracao, tipo: s.tipo,
+    montante: s.montanteEstimado, descricao: s.descricao,
+    estado: s.statut === 'encerrado' || s.statut === 'indemnizado' ? 'fechado' : 'aberto',
+  }))
+
   const today = new Date().toISOString().slice(0, 10)
   const blankA: ApForm = { seguradora: '', numero: '', edificio: '', dataInicio: today, dataFim: yearLater(today), premio: '', cobertura: '', notas: '' }
   const blankS: SinForm = { apolice: '', dataSinistro: today, tipo: 'agua', montante: '', descricao: '' }
-  const [apolices, setApolices] = useState<Apolice[]>([])
-  const [sinistros, setSinistros] = useState<Sinistro[]>([])
+  const [busy, setBusy] = useState(false)
   const [openMod, setOpenMod] = useState<'apolice' | 'sinistro' | null>(null)
   const [formA, setFormA] = useState<ApForm>(blankA)
   const [formS, setFormS] = useState<SinForm>(blankS)
@@ -53,9 +68,21 @@ export default function ModSeguroObr() {
     if (!formA.edificio.trim()) errs.edificio = 'O edifício é obrigatório.'
     if (!formA.premio || Number(formA.premio) <= 0) errs.premio = 'Indique o prémio anual.'
     if (Object.keys(errs).length) { setErrA(errs); return }
-    setApolices(prev => [...prev, { id: Date.now(), seguradora: formA.seguradora, numero: formA.numero, edificio: formA.edificio, dataInicio: formA.dataInicio, dataFim: formA.dataFim, premio: Number(formA.premio), cobertura: Number(formA.cobertura) || 0, notas: formA.notas, estado: 'ativa' }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/seguros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ immeuble: formA.edificio, seguradora: formA.seguradora, tipo: 'incendio', apolice: formA.numero, premioAnual: Number(formA.premio) || 0, capital: Number(formA.cobertura) || 0, dataInicio: formA.dataInicio, dataFim: formA.dataFim, statut: 'ativa', notes: formA.notas }),
+      })
+        .then((r) => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpenMod(null); push({ kind: 'success', title: 'Apólice registada', desc: `${formA.seguradora} · ${formA.numero}` }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpenMod(null)
-    push({ kind: 'success', title: 'Apólice registada', desc: `${formA.seguradora} · ${formA.numero}` })
+    push({ kind: 'info', title: 'Apólice registada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
   const submitSinistro = (e: FormEvent) => {
     e.preventDefault()
@@ -63,9 +90,22 @@ export default function ModSeguroObr() {
     if (!formS.descricao.trim()) errs.descricao = 'Descreva o sinistro.'
     if (!formS.montante || Number(formS.montante) <= 0) errs.montante = 'Indique o montante estimado.'
     if (Object.keys(errs).length) { setErrS(errs); return }
-    setSinistros(prev => [...prev, { id: Date.now(), apolice: formS.apolice, dataSinistro: formS.dataSinistro, tipo: formS.tipo, montante: Number(formS.montante), descricao: formS.descricao, estado: 'aberto' }])
+    if (real && data.token) {
+      setBusy(true)
+      const ap = apolices.find((a) => a.numero === formS.apolice)
+      fetch('/api/syndic/sinistros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ immeuble: ap?.edificio || '', tipo: formS.tipo, descricao: formS.descricao, seguradora: ap?.seguradora || '', montanteEstimado: Number(formS.montante) || 0, indemnizacao: 0, dataDeclaracao: formS.dataSinistro, urgente: false, statut: 'declarado', notes: formS.apolice ? `Apólice: ${formS.apolice}` : '' }),
+      })
+        .then((r) => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpenMod(null); push({ kind: 'warning', title: 'Sinistro participado', desc: `${formS.tipo} · ${fmtEUR(Number(formS.montante))}` }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao participar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpenMod(null)
-    push({ kind: 'warning', title: 'Sinistro participado', desc: `${formS.tipo} · ${fmtEUR(Number(formS.montante))}` })
+    push({ kind: 'warning', title: 'Sinistro participado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
   const ativas = apolices.filter(a => a.estado === 'ativa')
@@ -152,7 +192,7 @@ export default function ModSeguroObr() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Registar apólice</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar apólice</button>
           </ModalFoot>
         </form>
       </Modal>
@@ -192,7 +232,7 @@ export default function ModSeguroObr() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.danger)}>Participar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.danger)} disabled={busy}>Participar</button>
           </ModalFoot>
         </form>
       </Modal>
