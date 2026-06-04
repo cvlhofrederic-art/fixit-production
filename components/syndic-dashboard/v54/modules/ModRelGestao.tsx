@@ -8,7 +8,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { downloadReportPdf, type ReportModel } from '@/lib/syndic/v54/report-pdf'
+import type { ReportModel } from '@/lib/syndic/v54/report-pdf'
 
 const MES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
@@ -87,6 +87,8 @@ export default function ModRelGestao() {
   const baixarPdf = async () => {
     if (!real) { push({ kind: 'info', title: 'Pré-visualização', desc: 'Conecte-se como síndico para gerar o PDF com os seus dados.' }); return }
     try {
+      // Import dynamique : garde pdf-lib hors du bundle Worker (limite 10 MiB) — chargé côté navigateur.
+      const { downloadReportPdf } = await import('@/lib/syndic/v54/report-pdf')
       await downloadReportPdf(buildModel(), 'relatorio-gestao.pdf')
       push({ kind: 'success', title: 'PDF gerado', desc: 'Relatório de gestão descarregado.' })
     } catch (err) {

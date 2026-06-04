@@ -17,7 +17,6 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 
 /** Caderneta de Manutenção & Técnica — port byte-exact V5.7 + Phase 3 : interventions réelles.
  * Syndic connecté → vraies interventions du cabinet (data.caderneta) + création POST ;
@@ -76,6 +75,8 @@ export default function ModCadernetaMan() {
   const exportarPdf = async () => {
     if (!real || all.length === 0) { push({ kind: 'info', title: 'Export PDF', desc: real ? 'Registe a primeira intervenção para exportar.' : 'Conecte-se como síndico para exportar' }); return }
     try {
+      // Import dynamique : garde pdf-lib hors du bundle Worker (limite 10 MiB) — chargé côté navigateur.
+      const { downloadReportPdf } = await import('@/lib/syndic/v54/report-pdf')
       const now = new Date()
       await downloadReportPdf({
         docTitle: 'Caderneta de Manutenção',
