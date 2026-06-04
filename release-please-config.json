@@ -1,8 +1,8 @@
 {
-  "last-release-sha": "27e52468310e46e1b0ceff4cc2af047ff228909e",
   "packages": {
     ".": {
       "release-type": "node",
+      "include-component-in-tag": false,
       "changelog-sections": [
         { "type": "feat", "section": "Nouvelles fonctionnalités" },
         { "type": "fix", "section": "Corrections de bugs" },
