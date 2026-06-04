@@ -635,6 +635,26 @@ export const syndicContabOrcamentoSchema = z.object({
   notas: z.string().max(2000).optional(),
 })
 
+// ── Syndic Impayés (Phase 3 — ModCobrAuto, table syndic_impayes existante) ─
+const IMPAYE_NATURE = ['charges_courantes', 'travaux', 'fonds_reserve', 'interets_retard', 'frais_relance', 'autre'] as const
+const IMPAYE_STATUT = ['ouvert', 'en_recouvrement', 'solde', 'passe_perte'] as const
+export const syndicImpayeSchema = z.object({
+  immeubleId: z.string().max(40).optional(),
+  coproprioId: z.string().max(40).optional(),
+  montant: z.coerce.number().positive('Montant > 0 requis').max(100_000_000),
+  nature: z.enum(IMPAYE_NATURE).optional().default('charges_courantes'),
+  depuis: z.string().min(1, 'Date requise').max(20),
+  statut: z.enum(IMPAYE_STATUT).optional().default('ouvert'),
+  notes: z.string().max(5000).optional(),
+})
+export const syndicImpayeUpdateSchema = z.object({
+  id: z.string().uuid(),
+  statut: z.enum(IMPAYE_STATUT).optional(),
+  nbRelances: z.coerce.number().int().min(0).max(100).optional(),
+  derniereRelanceAt: z.string().max(40).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
