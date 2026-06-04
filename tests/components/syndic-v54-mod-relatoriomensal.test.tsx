@@ -1,8 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import ModRelatorioMensal from '@/components/syndic-dashboard/v54/modules/ModRelatorioMensal'
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import type { Mission, Immeuble } from '@/components/syndic-dashboard/types'
+import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
+
+vi.mock('@/lib/syndic/v54/report-pdf', () => ({ downloadReportPdf: vi.fn().mockResolvedValue(undefined) }))
 
 /** Phase 3 — ModRelatorioMensal : aperçu calculé (lecture seule) depuis data.missions filtrées par mois. */
 
@@ -55,6 +58,23 @@ describe('ModRelatorioMensal', () => {
     const d: SyndicData = { ...base(), missions: [] }
     render(<SyndicDataContext.Provider value={d}><ModRelatorioMensal /></SyndicDataContext.Provider>)
     expect(screen.getByText('Nenhuma intervenção neste mês.')).toBeInTheDocument()
+    cleanup()
+  })
+
+  it('Phase 3 : « Descarregar PDF » génère le PDF du mois sélectionné', async () => {
+    vi.mocked(downloadReportPdf).mockClear()
+    const d: SyndicData = {
+      ...base(), immeubles: [imm({})],
+      missions: [mission({ id: 'mai', immeuble: 'EDIF-MAI', type: 'Maio interv', dateIntervention: '2026-05-10' })],
+    }
+    render(<SyndicDataContext.Provider value={d}><ModRelatorioMensal /></SyndicDataContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: /Descarregar PDF/ }))
+    await waitFor(() => expect(downloadReportPdf).toHaveBeenCalled())
+    const [model, filename] = vi.mocked(downloadReportPdf).mock.calls[0]
+    expect(model.periodLabel).toBe('Maio 2026')
+    expect(model.rows).toHaveLength(1)
+    expect(model.rows[0].label).toBe('EDIF-MAI — Maio interv')
+    expect(filename).toContain('2026-05')
     cleanup()
   })
 })
