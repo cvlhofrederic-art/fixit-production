@@ -387,6 +387,25 @@ export async function fetchContab(token: string): Promise<ContabData> {
   return { fracoes: j.fracoes ?? [], chamadas: j.chamadas ?? [], diario: j.diario ?? [], orcamentos: j.orcamentos ?? [] }
 }
 
+/** Impayé (Phase 3 — ModCobrAuto, table syndic_impayes relationnelle). camelCase. */
+export interface Impaye {
+  id: string
+  immeubleId: string
+  coproprioId: string
+  montant: number
+  /** charges_courantes | travaux | fonds_reserve | interets_retard | frais_relance | autre */
+  nature: string
+  depuis: string
+  derniereRelanceAt: string
+  nbRelances: number
+  /** ouvert | en_recouvrement | solde | passe_perte */
+  statut: string
+  notes: string
+}
+
+export const fetchImpayes = (token: string): Promise<Impaye[]> =>
+  getList<Impaye>('/api/syndic/impayes', token, 'impayes')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
