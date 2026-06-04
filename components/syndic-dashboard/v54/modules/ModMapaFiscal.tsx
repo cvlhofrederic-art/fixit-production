@@ -10,6 +10,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { downloadCsv } from '@/lib/syndic/v54/export-csv'
 
 /** Mapa Fiscal Anual — port byte-exact V5.7 + Phase 3 : rapport calculé (lecture seule) depuis
  * data.contratos (dépenses par catégorie) + data.faturas (recettes). Aucune nouvelle table/route. */
@@ -53,7 +54,16 @@ export default function ModMapaFiscal() {
 
   const rows = real ? computedRows : ROWS
   const { push } = useToast()
-  const exportar = () => push({ kind: 'info', title: 'Exportação', desc: real ? `${contratos.length} contratos · ${fmtEUR(totalDespesas)} despesas prontos para export` : 'Conecte-se como síndico para exportar' })
+  const exportar = () => {
+    if (!real) { push({ kind: 'info', title: 'Exportação', desc: 'Conecte-se como síndico para exportar' }); return }
+    try {
+      downloadCsv('mapa-fiscal.csv', ['Categoria', 'CAE típico', 'Lançamentos', 'Total ano', '% Total', 'Dedutível IRC'], rows)
+      push({ kind: 'success', title: 'Exportação concluída', desc: `${contratos.length} contratos · ${fmtEUR(totalDespesas)} despesas` })
+    } catch (err) {
+      console.error('[ModMapaFiscal] export CSV falhou', err)
+      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível exportar.' })
+    }
+  }
 
   return (
     <>
