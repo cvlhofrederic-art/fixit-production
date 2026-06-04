@@ -16,6 +16,7 @@ import { FormRow } from '../primitives/form-row'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
+import { downloadCsv } from '@/lib/syndic/v54/export-csv'
 import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
@@ -127,6 +128,16 @@ export default function ModContabCond() {
   const totalCreditos = diario.filter(d => d.tipo === 'credito').reduce((s, d) => s + d.montante, 0)
   const totalDebitos = diario.filter(d => d.tipo === 'debito').reduce((s, d) => s + d.montante, 0)
   const saldoTesouraria = totalCreditos - totalDebitos
+  const exportarDiario = () => {
+    if (!real || diario.length === 0) { push({ kind: 'info', title: 'Exportar CSV', desc: real ? 'Nenhum lançamento para exportar.' : 'Conecte-se como síndico para exportar' }); return }
+    try {
+      downloadCsv('diario-contabilistico.csv', ['Data', 'Tipo', 'Conta', 'Descrição', 'Montante'], diario.map(d => [d.data, d.tipo, d.conta, d.descricao, d.montante]))
+      push({ kind: 'success', title: 'Exportação concluída', desc: `${diario.length} lançamentos` })
+    } catch (err) {
+      console.error('[ModContabCond] export CSV falhou', err)
+      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível exportar.' })
+    }
+  }
   const chamadasEnviadas = chamadas.length
   const chamadasLiquidadas = chamadas.filter(c => c.liquidadas > 0).length
 
@@ -223,7 +234,7 @@ export default function ModContabCond() {
             <div style={{ fontSize: 12, color: 'var(--v54-navy-500)', marginTop: 4 }}>Saldo : {fmtEUR(saldoTesouraria)}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button><Icon name="download" />Exportar CSV</Button>
+            <Button onClick={exportarDiario}><Icon name="download" />Exportar CSV</Button>
             <Button variant="gold" onClick={openDiar}><Icon name="plus" />+ Lançamento</Button>
           </div>
         </div>
