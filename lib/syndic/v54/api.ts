@@ -406,6 +406,28 @@ export interface Impaye {
 export const fetchImpayes = (token: string): Promise<Impaye[]> =>
   getList<Impaye>('/api/syndic/impayes', token, 'impayes')
 
+/** Procédure de recouvrement (Phase 3 — ModCobrJud, table syndic_recouvrement). camelCase. */
+export interface Recouvrement {
+  id: string
+  immeubleId: string
+  coproprioId: string
+  impayeId: string
+  /** amiable | mise_en_demeure | huissier | tribunal | saisie | accord_paiement */
+  procedure: string
+  /** en_cours | suspendu | cloture_succes | cloture_echec */
+  statut: string
+  montantInitial: number
+  montantRecouvre: number
+  dateOuverture: string
+  dateCloture: string
+  avocatHuissier: string
+  prochaineEcheance: string
+  notes: string
+}
+
+export const fetchRecouvrement = (token: string): Promise<Recouvrement[]> =>
+  getList<Recouvrement>('/api/syndic/recouvrement', token, 'recouvrements')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
