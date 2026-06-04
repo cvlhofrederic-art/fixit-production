@@ -3,11 +3,14 @@
 // Module d19 : ModRelGestao (Alert + formulaire période + aperçu PDF).
 
 import React from 'react'
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, cleanup, screen } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react'
 import ModRelGestao from '@/components/syndic-dashboard/v54/modules/ModRelGestao'
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import type { Mission, Immeuble } from '@/components/syndic-dashboard/types'
+import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
+
+vi.mock('@/lib/syndic/v54/report-pdf', () => ({ downloadReportPdf: vi.fn().mockResolvedValue(undefined) }))
 
 afterEach(cleanup)
 
@@ -55,6 +58,24 @@ describe('syndic v54 — ModRelGestao (Phase 3)', () => {
     expect((screen.getByLabelText('Montante obras (€)') as HTMLInputElement).value).toBe('2000')
     expect((screen.getByLabelText('Orçamento consumido') as HTMLInputElement).value).toBe('50%')
     expect(screen.getAllByText('50%').length).toBeGreaterThan(0) // preview STAT
+    cleanup()
+  })
+
+  it('« Descarregar PDF » génère le PDF avec les agrégats réels', async () => {
+    vi.mocked(downloadReportPdf).mockClear()
+    const d: SyndicData = {
+      ...base(),
+      immeubles: [imm({ id: 'a' }), imm({ id: 'b' })], // budget 20000 · dépenses 10000 → 50%
+      missions: [mission({ id: 'm1', montantFacture: 1000 }), mission({ id: 'm2', montantFacture: 1000 })],
+    }
+    render(<SyndicDataContext.Provider value={d}><ModRelGestao /></SyndicDataContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: /Descarregar PDF/ }))
+    await waitFor(() => expect(downloadReportPdf).toHaveBeenCalled())
+    const [model, filename] = vi.mocked(downloadReportPdf).mock.calls[0]
+    expect(model.docTitle).toBe('Relatório de Gestão')
+    expect(model.stats).toHaveLength(4)
+    expect(model.rows.some((r) => r.label === 'Despesas do ano')).toBe(true)
+    expect(filename).toBe('relatorio-gestao.pdf')
     cleanup()
   })
 })

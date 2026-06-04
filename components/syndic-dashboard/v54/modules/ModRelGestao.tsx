@@ -4,9 +4,13 @@ import { PageHead } from '../primitives/page-head'
 import { Alert } from '../primitives/alert'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { downloadReportPdf, type ReportModel } from '@/lib/syndic/v54/report-pdf'
+
+const MES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 /** Relatório de Gestão — port byte-exact du ModRelGestao du bundle V5.7 + Phase 3 :
  * pré-remplissage du formulaire + preview avec les agrégats réels (lecture seule) depuis
@@ -63,6 +67,34 @@ export default function ModRelGestao() {
   // Remount des inputs non-contrôlés quand les données async arrivent (defaultValue ne se met pas à jour seul).
   const formKey = real ? `r-${nEdif}-${nInterv}-${despAno}-${orcAnual}-${montantObras}` : 'anon'
 
+  const { push } = useToast()
+  // Modèle PDF = reproduction fidèle de l'aperçu (4 KPIs + détail orçamental), période = mois courant.
+  const buildModel = (): ReportModel => {
+    const now = new Date()
+    return {
+      docTitle: 'Relatório de Gestão',
+      periodLabel: `${MES_PT[now.getMonth()]} ${now.getFullYear()}`,
+      geradoA: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`,
+      stats: stats.map((s, i) => ({ value: s[0], label: s[1], tone: i < 2 ? 'gold' : 'sage' })),
+      sectionTitle: 'Detalhe orçamental',
+      rows: [
+        { label: 'Orçamento anual', sub: 'Aprovado em assembleia', montante: fmtEUR(orcAnual) },
+        { label: 'Despesas do ano', sub: `${consumido} do orçamento consumido`, montante: fmtEUR(despAno) },
+      ],
+      legal: 'Documento gerado por Vitfix.io · Prestação de contas (Art.º 1436.º CC · Lei 8/2022)',
+    }
+  }
+  const baixarPdf = async () => {
+    if (!real) { push({ kind: 'info', title: 'Pré-visualização', desc: 'Conecte-se como síndico para gerar o PDF com os seus dados.' }); return }
+    try {
+      await downloadReportPdf(buildModel(), 'relatorio-gestao.pdf')
+      push({ kind: 'success', title: 'PDF gerado', desc: 'Relatório de gestão descarregado.' })
+    } catch (err) {
+      console.error('[ModRelGestao] geração do PDF falhou', err)
+      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível gerar o PDF.' })
+    }
+  }
+
   return (
     <>
       <PageHead title="Relatório de Gestão" lede="Relatório anual · Prestação de contas · Art.° 1436.° CC · Lei 8/2022" />
@@ -74,7 +106,7 @@ export default function ModRelGestao() {
         right={<>
           <select aria-label="Mês" style={selectStyle}><option>Abril</option></select>
           <select aria-label="Ano" style={selectStyle}><option>2026</option></select>
-          <Button variant="gold"><Icon name="download" />Descarregar PDF</Button>
+          <Button variant="gold" onClick={baixarPdf}><Icon name="download" />Descarregar PDF</Button>
         </>}
       >
         <div className={m.cardGrid3} key={formKey}>
