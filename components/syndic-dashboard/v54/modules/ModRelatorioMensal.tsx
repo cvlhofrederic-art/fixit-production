@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { PageHead } from '../primitives/page-head'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -37,6 +38,8 @@ const serif = { fontFamily: 'var(--v54-font-serif)' } as const
 export default function ModRelatorioMensal() {
   const data = useSyndicData()
   const real = data.authenticated
+  const { push } = useToast()
+  const emDesenvolvimento = (title: string) => push({ kind: 'info', title, desc: 'Funcionalidade em desenvolvimento.' })
   const missions = real ? (data.missions ?? []) : []
   const immeubles = real ? (data.immeubles ?? []) : []
   const valOf = (mi: { montantFacture?: number; montantDevis?: number }) => mi.montantFacture ?? mi.montantDevis ?? 0
@@ -93,8 +96,8 @@ export default function ModRelatorioMensal() {
               <select id="rm-ano" style={fieldSelect}><option>2026</option></select>
             )}
           </div>
-          <Button><Icon name="mail" />Enviar aos condóminos</Button>
-          <Button variant="gold"><Icon name="download" />Descarregar PDF</Button>
+          <Button onClick={() => emDesenvolvimento('Envio por email')}><Icon name="mail" />Enviar aos condóminos</Button>
+          <Button variant="gold" onClick={() => emDesenvolvimento('Geração de PDF')}><Icon name="download" />Descarregar PDF</Button>
         </div>
       </Panel>
       <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--v54-navy-300)', margin: '8px 0 14px' }}>Pré-visualização do relatório — este conteúdo será gerado em PDF</div>
