@@ -655,6 +655,30 @@ export const syndicImpayeUpdateSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+// ── Syndic Recouvrement (Phase 3 — ModCobrJud, table syndic_recouvrement) ──
+const RECOUVR_PROC = ['amiable', 'mise_en_demeure', 'huissier', 'tribunal', 'saisie', 'accord_paiement'] as const
+const RECOUVR_STATUT = ['en_cours', 'suspendu', 'cloture_succes', 'cloture_echec'] as const
+export const syndicRecouvrementSchema = z.object({
+  immeubleId: z.string().max(40).optional(),
+  coproprioId: z.string().max(40).optional(),
+  procedure: z.enum(RECOUVR_PROC).optional().default('amiable'),
+  statut: z.enum(RECOUVR_STATUT).optional().default('en_cours'),
+  montantInitial: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  montantRecouvre: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  dateOuverture: z.string().max(20).optional(),
+  avocatHuissier: z.string().max(300).optional(),
+  prochaineEcheance: z.string().max(20).optional(),
+  notes: z.string().max(5000).optional(),
+})
+export const syndicRecouvrementUpdateSchema = z.object({
+  id: z.string().uuid(),
+  procedure: z.enum(RECOUVR_PROC).optional(),
+  statut: z.enum(RECOUVR_STATUT).optional(),
+  montantRecouvre: z.coerce.number().min(0).max(100_000_000).optional(),
+  avocatHuissier: z.string().max(300).optional(),
+  prochaineEcheance: z.string().max(20).optional(),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
