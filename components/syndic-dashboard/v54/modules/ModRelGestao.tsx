@@ -4,6 +4,7 @@ import { PageHead } from '../primitives/page-head'
 import { Alert } from '../primitives/alert'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -34,6 +35,7 @@ const STATS = [['0', 'Edifícios'], ['0', 'Intervenções'], ['0 €', 'Montante
 export default function ModRelGestao() {
   const data = useSyndicData()
   const real = data.authenticated
+  const { push } = useToast()
   const immeubles = real ? (data.immeubles ?? []) : []
   const missions = real ? (data.missions ?? []) : []
   const valOf = (mi: { montantFacture?: number; montantDevis?: number }) => mi.montantFacture ?? mi.montantDevis ?? 0
@@ -74,7 +76,7 @@ export default function ModRelGestao() {
         right={<>
           <select aria-label="Mês" style={selectStyle}><option>Abril</option></select>
           <select aria-label="Ano" style={selectStyle}><option>2026</option></select>
-          <Button variant="gold"><Icon name="download" />Descarregar PDF</Button>
+          <Button variant="gold" onClick={() => push({ kind: 'info', title: 'Geração de PDF', desc: 'Funcionalidade em desenvolvimento.' })}><Icon name="download" />Descarregar PDF</Button>
         </>}
       >
         <div className={m.cardGrid3} key={formKey}>
