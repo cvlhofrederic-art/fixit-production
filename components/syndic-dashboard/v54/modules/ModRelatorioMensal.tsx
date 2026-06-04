@@ -4,11 +4,9 @@ import { useState } from 'react'
 import { PageHead } from '../primitives/page-head'
 import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
-import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import type { ReportModel } from '@/lib/syndic/v54/report-pdf'
 
 /** Relatório Mensal — port byte-exact du ModRelatorioMensal du bundle V5.7 (aperçu PDF) + Phase 3 :
  * aperçu calculé (lecture seule) depuis data.missions filtrées par mois, avec sélecteurs Mês/Ano
@@ -70,31 +68,6 @@ export default function ModRelatorioMensal() {
   const periodLabel = real ? `${monthName(selMonth)} ${selYear}` : 'Abril 2026'
   const geradoA = real ? isoToBR(fallback + '-' + String(new Date().getDate()).padStart(2, '0')) : '24/05/2026'
 
-  const { push } = useToast()
-  // Modèle PDF = reproduction fidèle de l'aperçu à l'écran (mêmes données, mêmes libellés).
-  const buildModel = (): ReportModel => ({
-    docTitle: 'Relatório Mensal de Gestão',
-    periodLabel,
-    geradoA,
-    stats: stats.map((s) => ({ value: s[0], label: s[1], tone: s[2] === 'sage' ? 'sage' : 'gold' })),
-    sectionTitle: 'Intervenções do mês',
-    rows: interv.map((r) => ({ label: r[0], sub: `${r[1]} · ${r[2]}`, montante: r[3] })),
-    legal: 'Documento gerado por Vitfix.io · Relatório mensal de gestão (Art.º 1436.º CC · Lei 8/2022)',
-  })
-  const baixarPdf = async () => {
-    if (!real) { push({ kind: 'info', title: 'Pré-visualização', desc: 'Conecte-se como síndico para gerar o PDF com os seus dados.' }); return }
-    try {
-      // Import dynamique : garde pdf-lib hors du bundle Worker (limite 10 MiB) — chargé côté navigateur.
-      const { downloadReportPdf } = await import('@/lib/syndic/v54/report-pdf')
-      await downloadReportPdf(buildModel(), `relatorio-mensal-${period}.pdf`)
-      push({ kind: 'success', title: 'PDF gerado', desc: `Relatório de ${periodLabel} descarregado.` })
-    } catch (err) {
-      console.error('[ModRelatorioMensal] geração do PDF falhou', err)
-      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível gerar o PDF.' })
-    }
-  }
-  const enviarEmail = () => push({ kind: 'info', title: 'Envio por email', desc: 'O envio aos condóminos requer a configuração do serviço de email (em breve).' })
-
   return (
     <>
       <PageHead title="Relatório Mensal" lede="Síntese mensal de gestão — descarregar PDF ou enviar aos condóminos" />
@@ -120,8 +93,8 @@ export default function ModRelatorioMensal() {
               <select id="rm-ano" style={fieldSelect}><option>2026</option></select>
             )}
           </div>
-          <Button onClick={enviarEmail}><Icon name="mail" />Enviar aos condóminos</Button>
-          <Button variant="gold" onClick={baixarPdf}><Icon name="download" />Descarregar PDF</Button>
+          <Button><Icon name="mail" />Enviar aos condóminos</Button>
+          <Button variant="gold"><Icon name="download" />Descarregar PDF</Button>
         </div>
       </Panel>
       <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--v54-navy-300)', margin: '8px 0 14px' }}>Pré-visualização do relatório — este conteúdo será gerado em PDF</div>
