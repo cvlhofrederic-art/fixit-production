@@ -8,7 +8,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { downloadReportPdf, type ReportModel } from '@/lib/syndic/v54/report-pdf'
+import type { ReportModel } from '@/lib/syndic/v54/report-pdf'
 
 /** Relatório Mensal — port byte-exact du ModRelatorioMensal du bundle V5.7 (aperçu PDF) + Phase 3 :
  * aperçu calculé (lecture seule) depuis data.missions filtrées par mois, avec sélecteurs Mês/Ano
@@ -84,6 +84,8 @@ export default function ModRelatorioMensal() {
   const baixarPdf = async () => {
     if (!real) { push({ kind: 'info', title: 'Pré-visualização', desc: 'Conecte-se como síndico para gerar o PDF com os seus dados.' }); return }
     try {
+      // Import dynamique : garde pdf-lib hors du bundle Worker (limite 10 MiB) — chargé côté navigateur.
+      const { downloadReportPdf } = await import('@/lib/syndic/v54/report-pdf')
       await downloadReportPdf(buildModel(), `relatorio-mensal-${period}.pdf`)
       push({ kind: 'success', title: 'PDF gerado', desc: `Relatório de ${periodLabel} descarregado.` })
     } catch (err) {
