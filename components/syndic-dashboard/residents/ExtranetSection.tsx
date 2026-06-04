@@ -17,37 +17,77 @@ type Signalement = {
 const PRIORITE_COLORS: Record<string, string> = {
   urgente: 'bg-red-100 text-red-700',
   haute: 'bg-orange-100 text-orange-700',
-  normale: 'bg-blue-100 text-blue-700',
+  normale: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',
   basse: 'bg-gray-100 text-gray-500',
 }
 const STATUT_COLORS: Record<string, string> = {
   en_attente: 'bg-amber-100 text-amber-700',
-  en_cours: 'bg-blue-100 text-blue-700',
+  en_cours: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',
   traite: 'bg-green-100 text-green-700',
   rejete: 'bg-gray-100 text-gray-500',
 }
-const STATUT_LABELS: Record<string, string> = {
+const STATUT_LABELS_FR: Record<string, string> = {
   en_attente: '⏳ En attente',
   en_cours: '🔄 En cours',
   traite: '✅ Traité',
   rejete: '⛔ Rejeté',
 }
-const PRIORITE_LABELS: Record<string, string> = {
+const STATUT_LABELS_PT: Record<string, string> = {
+  en_attente: '⏳ Em espera',
+  en_cours: '🔄 Em curso',
+  traite: '✅ Tratado',
+  rejete: '⛔ Rejeitado',
+}
+const PRIORITE_LABELS_FR: Record<string, string> = {
   urgente: '🔴 Urgente',
   haute: '🟠 Haute',
   normale: '🔵 Normale',
   basse: '⚪ Basse',
 }
+const PRIORITE_LABELS_PT: Record<string, string> = {
+  urgente: '🔴 Urgente',
+  haute: '🟠 Alta',
+  normale: '🔵 Normal',
+  basse: '⚪ Baixa',
+}
 
 export default function ExtranetSection({ user, userRole }: { user: User; userRole: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
+  const STATUT_LABELS = isPt ? STATUT_LABELS_PT : STATUT_LABELS_FR
+  const PRIORITE_LABELS = isPt ? PRIORITE_LABELS_PT : PRIORITE_LABELS_FR
   const uid = user?.id || 'demo'
 
   type Coproprietaire = { id: string; nom: string; email: string; lot: string; tantieme: number; telephone: string; solde: number; dateAdhesion: string; accesActif: boolean }
 
+  // Normalise une entrée copro venant de localStorage : tolère le schéma legacy
+  // (nomProprietaire/emailProprietaire/numeroPorte…) et les champs manquants.
+  const normalizeCopro = (raw: Record<string, unknown>): Coproprietaire => {
+    const r = raw as Record<string, any>
+    const prenom = typeof r.prenomProprietaire === 'string' ? r.prenomProprietaire : ''
+    const nomLegacy = typeof r.nomProprietaire === 'string' ? r.nomProprietaire : ''
+    const fullLegacy = [prenom, nomLegacy].filter(Boolean).join(' ').trim()
+    return {
+      id: String(r.id ?? Date.now()),
+      nom: typeof r.nom === 'string' && r.nom ? r.nom : fullLegacy,
+      email: typeof r.email === 'string' ? r.email : (typeof r.emailProprietaire === 'string' ? r.emailProprietaire : ''),
+      lot: typeof r.lot === 'string' ? r.lot : (typeof r.numeroPorte === 'string' ? r.numeroPorte : ''),
+      tantieme: typeof r.tantieme === 'number' ? r.tantieme : (Number(r.tantieme) || 0),
+      telephone: typeof r.telephone === 'string' ? r.telephone : (typeof r.telephoneProprietaire === 'string' ? r.telephoneProprietaire : ''),
+      solde: typeof r.solde === 'number' ? r.solde : (Number(r.solde) || 0),
+      dateAdhesion: typeof r.dateAdhesion === 'string' ? r.dateAdhesion : '',
+      accesActif: typeof r.accesActif === 'boolean' ? r.accesActif : true,
+    }
+  }
+
   // ── Copros state ──
-  const [copros, setCopros] = useState<Coproprietaire[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]') } catch { return [] } })
+  const [copros, setCopros] = useState<Coproprietaire[]>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]')
+      return Array.isArray(parsed) ? parsed.map(normalizeCopro) : []
+    } catch { return [] }
+  })
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ nom: '', email: '', lot: '', tantieme: '', telephone: '', solde: '' })
   const [showInvite, setShowInvite] = useState<Coproprietaire | null>(null)
@@ -90,7 +130,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
       const data = await res.json()
       setSignalements(data.signalements || [])
     } catch {
-      setSignalementError('Impossible de charger les demandes. Vérifiez votre connexion.')
+      setSignalementError(isPt ? 'Impossível carregar os pedidos. Verifique a sua ligação.' : 'Impossible de charger les demandes. Vérifiez votre connexion.')
     } finally {
       setLoadingSignalements(false)
     }
@@ -123,11 +163,11 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
       const res = await fetch('/api/syndic/signalements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signalementId: selected.id, auteur: user?.email || 'Gestionnaire', role: 'gestionnaire', texte: replyText.trim() }),
+        body: JSON.stringify({ signalementId: selected.id, auteur: user?.email || (isPt ? 'Gestor' : 'Gestionnaire'), role: 'gestionnaire', texte: replyText.trim() }),
       })
       if (res.ok) {
         const data = await res.json()
-        const newMsg = { id: data.message?.id || Date.now().toString(), auteur: user?.email || 'Gestionnaire', role: 'gestionnaire', texte: replyText.trim(), createdAt: new Date().toISOString() }
+        const newMsg = { id: data.message?.id || Date.now().toString(), auteur: user?.email || (isPt ? 'Gestor' : 'Gestionnaire'), role: 'gestionnaire', texte: replyText.trim(), createdAt: new Date().toISOString() }
         setSignalements(prev => prev.map(s => s.id === selected.id ? { ...s, messages: [...s.messages, newMsg] } : s))
         setSelected(prev => prev ? { ...prev, messages: [...prev.messages, newMsg] } : null)
         setReplyText('')
@@ -146,24 +186,24 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
     <div className="animate-fadeIn">
       <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-[#C9A84C] shadow-sm flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">👥 Extranet Copropriétaires</h1>
-          <p className="text-sm text-gray-500">Registre · Accès portail · Demandes d'intervention</p>
+          <h1 className="text-2xl font-semibold">👥 {isPt ? 'Extranet Condóminos' : 'Extranet Copropriétaires'}</h1>
+          <p className="text-sm text-gray-500">{isPt ? 'Registo · Acesso ao portal · Pedidos de intervenção' : 'Registre · Accès portail · Demandes d\'intervention'}</p>
         </div>
         {activeSection === 'copros' && (
-          <button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#152338]">+ Copropriétaire</button>
+          <button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#152338]">+ {isPt ? 'Condómino' : 'Copropriétaire'}</button>
         )}
         {activeSection === 'signalements' && (
-          <button onClick={fetchSignalements} disabled={loadingSignalements} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#152338] disabled:opacity-60">{loadingSignalements ? '⏳' : '🔄 Actualiser'}</button>
+          <button onClick={fetchSignalements} disabled={loadingSignalements} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#152338] disabled:opacity-60">{loadingSignalements ? '⏳' : (isPt ? '🔄 Atualizar' : '🔄 Actualiser')}</button>
         )}
       </div>
 
       {/* Tab bar */}
       <div className="bg-white border-b flex">
         <button onClick={() => setActiveSection('copros')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeSection === 'copros' ? 'border-[#C9A84C] text-[#C9A84C]' : 'border-transparent text-gray-500'}`}>
-          👥 Copropriétaires {copros.length > 0 && <span className="ml-1 bg-[#F7F4EE] text-[#0D1B2E] text-xs px-1.5 rounded-full">{copros.length}</span>}
+          👥 {isPt ? 'Condóminos' : 'Copropriétaires'} {copros.length > 0 && <span className="ml-1 bg-[#F7F4EE] text-[#0D1B2E] text-xs px-1.5 rounded-full">{copros.length}</span>}
         </button>
         <button onClick={() => setActiveSection('signalements')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeSection === 'signalements' ? 'border-[#C9A84C] text-[#C9A84C]' : 'border-transparent text-gray-500'}`}>
-          🔔 Demandes d'intervention
+          🔔 {isPt ? 'Pedidos de intervenção' : 'Demandes d\'intervention'}
           {pending > 0 && <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pending}</span>}
         </button>
       </div>
@@ -172,18 +212,18 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
       {activeSection === 'copros' && (
         <div className="p-6 lg:p-8">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">Copropriétaires</div><div className="text-3xl font-bold text-[#C9A84C]">{copros.length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Accès actifs</div><div className="text-3xl font-bold text-green-600">{copros.filter(c => c.accesActif).length}</div></div>
-            <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${totalSolde >= 0 ? 'border-green-400' : 'border-red-400'}`}><div className="text-sm text-gray-500">Solde global</div><div className={`text-3xl font-bold ${totalSolde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalSolde.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">En retard</div><div className="text-3xl font-bold text-red-600">{enRetard}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{isPt ? 'Condóminos' : 'Copropriétaires'}</div><div className="text-3xl font-bold text-[#C9A84C]">{copros.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{isPt ? 'Acessos ativos' : 'Accès actifs'}</div><div className="text-3xl font-bold text-green-600">{copros.filter(c => c.accesActif).length}</div></div>
+            <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${totalSolde >= 0 ? 'border-green-400' : 'border-red-400'}`}><div className="text-sm text-gray-500">{isPt ? 'Saldo global' : 'Solde global'}</div><div className={`text-3xl font-bold ${totalSolde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalSolde.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">{isPt ? 'Em atraso' : 'En retard'}</div><div className="text-3xl font-bold text-red-600">{enRetard}</div></div>
           </div>
 
           {copros.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">👥</div><h3 className="text-xl font-bold mb-2">Registre vide</h3><p className="text-gray-500 mb-6">Ajoutez vos copropriétaires pour leur donner accès au portail</p><button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ Premier copropriétaire</button></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">👥</div><h3 className="text-xl font-bold mb-2">{isPt ? 'Registo vazio' : 'Registre vide'}</h3><p className="text-gray-500 mb-6">{isPt ? 'Adicione os seus condóminos para lhes dar acesso ao portal' : 'Ajoutez vos copropriétaires pour leur donner accès au portail'}</p><button onClick={() => setShowModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ {isPt ? 'Primeiro condómino' : 'Premier copropriétaire'}</button></div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-[#F7F4EE] text-gray-500 uppercase text-xs"><tr><th className="px-5 py-3 text-left">Copropriétaire</th><th className="px-5 py-3 text-left">Lot</th><th className="px-5 py-3 text-right">Tantièmes</th><th className="px-5 py-3 text-right">Solde</th><th className="px-5 py-3 text-center">Accès</th><th className="px-5 py-3 text-center">Actions</th></tr></thead>
+                <thead className="bg-[#F7F4EE] text-gray-500 uppercase text-xs"><tr><th className="px-5 py-3 text-left">{isPt ? 'Condómino' : 'Copropriétaire'}</th><th className="px-5 py-3 text-left">{isPt ? 'Fração' : 'Lot'}</th><th className="px-5 py-3 text-right">{isPt ? 'Permilagem' : 'Tantièmes'}</th><th className="px-5 py-3 text-right">{isPt ? 'Saldo' : 'Solde'}</th><th className="px-5 py-3 text-center">{isPt ? 'Acesso' : 'Accès'}</th><th className="px-5 py-3 text-center">{isPt ? 'Ações' : 'Actions'}</th></tr></thead>
                 <tbody>
                   {copros.map(c => (
                     <tr key={c.id} className="border-t hover:bg-[#F7F4EE]">
@@ -191,8 +231,8 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                       <td className="px-5 py-4 text-gray-600">{c.lot || '—'}</td>
                       <td className="px-5 py-4 text-right">{c.tantieme}</td>
                       <td className={`px-5 py-4 text-right font-bold ${c.solde < 0 ? 'text-red-600' : 'text-green-600'}`}>{c.solde.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</td>
-                      <td className="px-5 py-4 text-center"><button onClick={() => toggleAcces(c.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${c.accesActif ? 'bg-green-100 text-green-700' : 'bg-[#F7F4EE] text-gray-500'}`}>{c.accesActif ? '✅ Actif' : '⏸ Inactif'}</button></td>
-                      <td className="px-5 py-4 text-center"><button onClick={() => setShowInvite(c)} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold">📧 Inviter</button></td>
+                      <td className="px-5 py-4 text-center"><button onClick={() => toggleAcces(c.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${c.accesActif ? 'bg-green-100 text-green-700' : 'bg-[#F7F4EE] text-gray-500'}`}>{c.accesActif ? (isPt ? '✅ Ativo' : '✅ Actif') : (isPt ? '⏸ Inativo' : '⏸ Inactif')}</button></td>
+                      <td className="px-5 py-4 text-center"><button onClick={() => setShowInvite(c)} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold">📧 {isPt ? 'Convidar' : 'Inviter'}</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -201,11 +241,11 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
           )}
 
           <div className="mt-6 bg-[#F7F4EE] border border-[#E4DDD0] rounded-2xl p-5">
-            <h3 className="font-bold text-[#0D1B2E] mb-2">🌐 Portail Copropriétaires</h3>
-            <p className="text-sm text-[#C9A84C] mb-3">Chaque copropriétaire peut accéder à son espace personnel pour consulter ses charges, PV d'AG et documents.</p>
+            <h3 className="font-bold text-[#0D1B2E] mb-2">🌐 {isPt ? 'Portal Condóminos' : 'Portail Copropriétaires'}</h3>
+            <p className="text-sm text-[#C9A84C] mb-3">{isPt ? 'Cada condómino pode aceder à sua área pessoal para consultar as suas quotas, atas de AG e documentos.' : 'Chaque copropriétaire peut accéder à son espace personnel pour consulter ses charges, PV d\'AG et documents.'}</p>
             <div className="flex gap-2">
               <input readOnly value={`${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail`} className="flex-1 bg-white border-2 border-[#E4DDD0] rounded-xl px-4 py-2 text-sm font-mono" />
-              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/coproprietaire/portail`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${copied ? 'bg-green-500 text-white' : 'bg-[#0D1B2E] text-white hover:bg-[#152338]'}`}>{copied ? '✅ Copié' : '📋 Copier'}</button>
+              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/coproprietaire/portail`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${copied ? 'bg-green-500 text-white' : 'bg-[#0D1B2E] text-white hover:bg-[#152338]'}`}>{copied ? (isPt ? '✅ Copiado' : '✅ Copié') : (isPt ? '📋 Copiar' : '📋 Copier')}</button>
             </div>
           </div>
         </div>
@@ -216,10 +256,10 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
         <div className="p-6 lg:p-8">
           {/* Stats */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-400"><div className="text-sm text-gray-500">En attente</div><div className="text-3xl font-bold text-amber-600">{signalements.filter(s => s.statut === 'en_attente').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">En cours</div><div className="text-3xl font-bold text-blue-600">{signalements.filter(s => s.statut === 'en_cours').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">Urgentes</div><div className="text-3xl font-bold text-red-600">{signalements.filter(s => s.priorite === 'urgente' && s.statut !== 'traite').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Traitées</div><div className="text-3xl font-bold text-green-600">{signalements.filter(s => s.statut === 'traite').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-400"><div className="text-sm text-gray-500">{isPt ? 'Em espera' : 'En attente'}</div><div className="text-3xl font-bold text-amber-600">{signalements.filter(s => s.statut === 'en_attente').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{isPt ? 'Em curso' : 'En cours'}</div><div className="text-3xl font-bold text-[#0D1B2E]">{signalements.filter(s => s.statut === 'en_cours').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">{isPt ? 'Urgentes' : 'Urgentes'}</div><div className="text-3xl font-bold text-red-600">{signalements.filter(s => s.priorite === 'urgente' && s.statut !== 'traite').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{isPt ? 'Tratadas' : 'Traitées'}</div><div className="text-3xl font-bold text-green-600">{signalements.filter(s => s.statut === 'traite').length}</div></div>
           </div>
 
           {/* Filtres */}
@@ -228,14 +268,14 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
               <div className="flex gap-1 flex-wrap">
                 {['all', 'en_attente', 'en_cours', 'traite', 'rejete'].map(st => (
                   <button key={st} onClick={() => setFilterStatut(st)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${filterStatut === st ? 'bg-[#0D1B2E] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
-                    {st === 'all' ? 'Tous statuts' : STATUT_LABELS[st]}
+                    {st === 'all' ? (isPt ? 'Todos os estados' : 'Tous statuts') : STATUT_LABELS[st]}
                   </button>
                 ))}
               </div>
               <div className="flex gap-1 flex-wrap">
                 {['all', 'urgente', 'haute', 'normale', 'basse'].map(p => (
                   <button key={p} onClick={() => setFilterPriorite(p)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${filterPriorite === p ? 'bg-[#C9A84C] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
-                    {p === 'all' ? 'Toutes priorités' : PRIORITE_LABELS[p]}
+                    {p === 'all' ? (isPt ? 'Todas as prioridades' : 'Toutes priorités') : PRIORITE_LABELS[p]}
                   </button>
                 ))}
               </div>
@@ -244,17 +284,17 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
 
           {/* Content */}
           {loadingSignalements ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-4xl mb-3 animate-pulse">⏳</div><p className="text-gray-500">Chargement des demandes...</p></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-4xl mb-3 animate-pulse">⏳</div><p className="text-gray-500">{isPt ? 'A carregar pedidos...' : 'Chargement des demandes...'}</p></div>
           ) : signalementError ? (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
               <p className="text-red-700 font-semibold mb-3">⚠️ {signalementError}</p>
-              <button onClick={fetchSignalements} className="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-red-700">Réessayer</button>
+              <button onClick={fetchSignalements} className="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-red-700">{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
               <div className="text-5xl mb-4">🔔</div>
-              <h3 className="text-xl font-bold mb-2">{signalements.length === 0 ? 'Aucune demande reçue' : 'Aucun résultat'}</h3>
-              <p className="text-gray-500">{signalements.length === 0 ? "Les demandes d'intervention des copropriétaires apparaîtront ici." : 'Essayez de modifier vos filtres.'}</p>
+              <h3 className="text-xl font-bold mb-2">{signalements.length === 0 ? (isPt ? 'Nenhum pedido recebido' : 'Aucune demande reçue') : (isPt ? 'Nenhum resultado' : 'Aucun résultat')}</h3>
+              <p className="text-gray-500">{signalements.length === 0 ? (isPt ? 'Os pedidos de intervenção dos condóminos aparecerão aqui.' : "Les demandes d'intervention des copropriétaires apparaîtront ici.") : (isPt ? 'Tente alterar os filtros.' : 'Essayez de modifier vos filtres.')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -263,7 +303,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-bold">{s.typeIntervention || 'Intervention'}</h3>
+                        <h3 className="font-bold">{s.typeIntervention || (isPt ? 'Intervenção' : 'Intervention')}</h3>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${PRIORITE_COLORS[s.priorite]}`}>{PRIORITE_LABELS[s.priorite]}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUT_COLORS[s.statut]}`}>{STATUT_LABELS[s.statut]}</span>
                         {s.messages.length > 0 && <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">💬 {s.messages.length} message{s.messages.length > 1 ? 's' : ''}</span>}
@@ -272,9 +312,9 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                       <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
                         {s.immeuble && <span>🏢 {s.immeuble}</span>}
                         {s.demandeurNom && <span>👤 {s.demandeurNom}</span>}
-                        {s.numLot && <span>🏠 Lot {s.numLot}</span>}
-                        {s.batiment && <span>🏗️ Bât. {s.batiment}{s.etage ? ` — Ét. ${s.etage}` : ''}</span>}
-                        {s.estPartieCommune && <span className="text-blue-600 font-semibold">Partie commune</span>}
+                        {s.numLot && <span>🏠 {isPt ? 'Fração' : 'Lot'} {s.numLot}</span>}
+                        {s.batiment && <span>🏗️ {isPt ? 'Bloco' : 'Bât.'} {s.batiment}{s.etage ? ` — ${isPt ? 'Andar' : 'Ét.'} ${s.etage}` : ''}</span>}
+                        {s.estPartieCommune && <span className="text-[#C9A84C] font-semibold">{isPt ? 'Parte comum' : 'Partie commune'}</span>}
                         <span>📅 {new Date(s.createdAt).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                       </div>
                     </div>
@@ -286,12 +326,12 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                         disabled={updatingId === s.id}
                         className="text-xs border-2 border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-[#C9A84C] disabled:opacity-60"
                       >
-                        <option value="en_attente">⏳ En attente</option>
-                        <option value="en_cours">🔄 En cours</option>
-                        <option value="traite">✅ Traité</option>
-                        <option value="rejete">⛔ Rejeté</option>
+                        <option value="en_attente">{isPt ? '⏳ Em espera' : '⏳ En attente'}</option>
+                        <option value="en_cours">{isPt ? '🔄 Em curso' : '🔄 En cours'}</option>
+                        <option value="traite">{isPt ? '✅ Tratado' : '✅ Traité'}</option>
+                        <option value="rejete">{isPt ? '⛔ Rejeitado' : '⛔ Rejeté'}</option>
                       </select>
-                      <button onClick={e => { e.stopPropagation(); setSelected(s); setReplyText('') }} className="text-xs bg-[#F7F4EE] text-[#0D1B2E] px-2 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold text-center">💬 Répondre</button>
+                      <button onClick={e => { e.stopPropagation(); setSelected(s); setReplyText('') }} className="text-xs bg-[#F7F4EE] text-[#0D1B2E] px-2 py-1.5 rounded-lg hover:bg-[#E4DDD0] font-semibold text-center">💬 {isPt ? 'Responder' : 'Répondre'}</button>
                     </div>
                   </div>
                 </div>
@@ -369,7 +409,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                 {selected.numLot && <div><span className="text-gray-500">Lot</span><div className="font-semibold">{selected.numLot}</div></div>}
                 {selected.batiment && <div><span className="text-gray-500">Bâtiment / Étage</span><div className="font-semibold">{selected.batiment}{selected.etage ? ` — Ét. ${selected.etage}` : ''}</div></div>}
                 {selected.zoneSignalee && <div><span className="text-gray-500">Zone</span><div className="font-semibold">{selected.zoneSignalee}</div></div>}
-                {selected.estPartieCommune && <div className="col-span-2"><span className="text-blue-600 font-semibold">📌 Partie commune</span></div>}
+                {selected.estPartieCommune && <div className="col-span-2"><span className="text-[#C9A84C] font-semibold">📌 Partie commune</span></div>}
                 <div className="col-span-2"><span className="text-gray-500">Reçue le</span><div className="font-semibold">{new Date(selected.createdAt).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</div></div>
               </div>
 

@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Services Copropriété Marseille — Nettoyage, Espaces Verts, Plomberie | VITFIX',
+  title: 'Services Copropriété Marseille : Nettoyage, Espaces Verts, Plomberie | VITFIX',
   description: 'Services pour copropriétés à Marseille : nettoyage parties communes, enlèvement encombrants, entretien espaces verts, plomberie immeuble. Devis gratuit, facturation syndic.',
   alternates: {
     canonical: 'https://vitfix.io/fr/copropriete/',
@@ -43,7 +43,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Services Copropriété Marseille',
+      name: 'VITFIX : Services Copropriété Marseille',
       description: 'Services spécialisés pour copropriétés et syndics à Marseille et dans les Bouches-du-Rhône.',
       url: 'https://vitfix.io/fr/copropriete/',
       telephone: PHONE_FR,
@@ -97,7 +97,7 @@ export default function FrCoproprieteHubPage() {
 
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
             <span>🏢</span>
-            <span className="text-dark">Syndics · Gestionnaires · Copropriétés — Marseille & 13</span>
+            <span className="text-dark">Syndics · Gestionnaires · Copropriétés, Marseille & 13</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
@@ -237,7 +237,7 @@ export default function FrCoproprieteHubPage() {
               },
               {
                 q: 'Intervenez-vous en urgence pour les immeubles ?',
-                a: 'Oui, nous avons une astreinte urgence pour les copropriétés. Fuite sur colonne montante, arbre tombé sur parties communes, cave inondée — nos équipes interviennent en priorité sous 24h à 48h. Pour les urgences vraiment critiques (fuite d\'eau active, dégât des eaux en cours), contactez-nous par WhatsApp pour une intervention rapide.',
+                a: 'Oui, nous avons une astreinte urgence pour les copropriétés. Fuite sur colonne montante, arbre tombé sur parties communes, cave inondée, nos équipes interviennent en priorité sous 24h à 48h. Pour les urgences vraiment critiques (fuite d\'eau active, dégât des eaux en cours), contactez-nous par WhatsApp pour une intervention rapide.',
               },
               {
                 q: 'Proposez-vous des contrats d\'entretien pluriannuels ?',

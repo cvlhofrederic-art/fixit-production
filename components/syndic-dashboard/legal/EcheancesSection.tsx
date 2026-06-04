@@ -8,6 +8,7 @@ import type { User } from '@supabase/supabase-js'
 export default function EcheancesSection({ user, userRole, immeubles }: { user: User; userRole: string; immeubles: Immeuble[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
   type EcheanceType = 'inspection_ascenseur' | 'ramonage' | 'controle_elec' | 'dta' | 'dtg' | 'pppt' | 'ag_annuelle' | 'verification_extincteurs' | 'controle_gaz' | 'assurance_immeuble' | 'audit_energetique' | 'revision_budget'
   interface Echeance {
     id: string; type: EcheanceType; label: string; description: string
@@ -16,18 +17,18 @@ export default function EcheancesSection({ user, userRole, immeubles }: { user: 
     date_realisation?: string; prestataire?: string; added_at: string
   }
   const TYPES: { key: EcheanceType; label: string; icon: string; desc: string; periodicite: number; obligatoire: boolean; refs: string }[] = [
-    { key: 'ag_annuelle', label: 'AG annuelle', icon: '🏛️', desc: 'Assemblée Générale ordinaire annuelle', periodicite: 1, obligatoire: true, refs: 'Art. 7 Décret n°67-223 du 17/03/1967' },
-    { key: 'revision_budget', label: 'Budget prévisionnel', icon: '💶', desc: 'Vote du budget en Assemblée Générale', periodicite: 1, obligatoire: true, refs: 'Art. 14-1 Loi n°65-557 du 10/07/1965' },
-    { key: 'verification_extincteurs', label: 'Vérification extincteurs', icon: '🧯', desc: 'Contrôle annuel obligatoire', periodicite: 1, obligatoire: true, refs: 'Code du travail R.4227-38' },
-    { key: 'assurance_immeuble', label: 'Renouvellement assurance', icon: '🛡️', desc: 'Assurance multirisque immeuble', periodicite: 1, obligatoire: true, refs: 'Loi du 13/07/1965 — Art. 9-1' },
-    { key: 'controle_gaz', label: 'Contrôle installations gaz', icon: '🔌', desc: 'Révision chaudière collective + réseau gaz', periodicite: 1, obligatoire: false, refs: 'Arrêtés 02/08/1977 et 23/06/1978' },
-    { key: 'ramonage', label: 'Ramonage cheminées', icon: '🔥', desc: 'Obligatoire 2x/an pour conduits collectifs', periodicite: 0.5, obligatoire: true, refs: 'Arrêté du 22/10/1969' },
-    { key: 'inspection_ascenseur', label: 'Inspection ascenseur', icon: '🛗', desc: 'Contrôle obligatoire quinquennal', periodicite: 5, obligatoire: true, refs: 'Décret n°2004-964 du 09/09/2004' },
-    { key: 'controle_elec', label: 'Contrôle électrique', icon: '⚡', desc: 'Parties communes — NF C 15-100', periodicite: 5, obligatoire: true, refs: 'NF C 15-100 + décret du 14/06/1969' },
-    { key: 'dta', label: 'DTA (amiante)', icon: '⚠️', desc: 'Dossier Technique Amiante — vérification', periodicite: 3, obligatoire: true, refs: 'Code de la santé pub. L.1334-13' },
-    { key: 'dtg', label: 'DTG', icon: '🏗️', desc: 'Diagnostic Technique Global', periodicite: 10, obligatoire: true, refs: 'Loi ALUR art. 58 — > 10 ans' },
-    { key: 'pppt', label: 'Plan Pluriannuel Travaux', icon: '🔨', desc: 'PPT obligatoire pour immeubles > 15 ans', periodicite: 10, obligatoire: true, refs: 'Loi Climat & Résilience 2022' },
-    { key: 'audit_energetique', label: 'Audit énergétique DPE', icon: '🌿', desc: 'DPE collectif et audit énergétique', periodicite: 10, obligatoire: false, refs: 'Loi ELAN 2018 — Décret 2021-919' },
+    { key: 'ag_annuelle', label: isPt ? 'AG anual' : 'AG annuelle', icon: '🏛️', desc: isPt ? 'Assembleia Geral ordinária anual' : 'Assemblée Générale ordinaire annuelle', periodicite: 1, obligatoire: true, refs: isPt ? 'Art.º 1431.º do Código Civil' : 'Art. 7 Décret n°67-223 du 17/03/1967' },
+    { key: 'revision_budget', label: isPt ? 'Orçamento previsional' : 'Budget prévisionnel', icon: '💶', desc: isPt ? 'Votação do orçamento em Assembleia Geral' : 'Vote du budget en Assemblée Générale', periodicite: 1, obligatoire: true, refs: isPt ? 'Art.º 1424.º do Código Civil' : 'Art. 14-1 Loi n°65-557 du 10/07/1965' },
+    { key: 'verification_extincteurs', label: isPt ? 'Verificação extintores' : 'Vérification extincteurs', icon: '🧯', desc: isPt ? 'Inspeção anual obrigatória' : 'Contrôle annuel obligatoire', periodicite: 1, obligatoire: true, refs: isPt ? 'DL 220/2008 — Regime SCIE' : 'Code du travail R.4227-38' },
+    { key: 'assurance_immeuble', label: isPt ? 'Renovação seguro' : 'Renouvellement assurance', icon: '🛡️', desc: isPt ? 'Seguro multirriscos edifício' : 'Assurance multirisque immeuble', periodicite: 1, obligatoire: true, refs: isPt ? 'Art.º 1429.º do Código Civil' : 'Loi du 13/07/1965 — Art. 9-1' },
+    { key: 'controle_gaz', label: isPt ? 'Inspeção instalações gás' : 'Contrôle installations gaz', icon: '🔌', desc: isPt ? 'Revisão caldeira coletiva + rede gás' : 'Révision chaudière collective + réseau gaz', periodicite: 1, obligatoire: false, refs: isPt ? 'Portaria 361/98 — Instalações de gás' : 'Arrêtés 02/08/1977 et 23/06/1978' },
+    { key: 'ramonage', label: isPt ? 'Limpeza de chaminés' : 'Ramonage cheminées', icon: '🔥', desc: isPt ? 'Obrigatório 2x/ano para condutas coletivas' : 'Obligatoire 2x/an pour conduits collectifs', periodicite: 0.5, obligatoire: true, refs: isPt ? 'Regulamento municipal de edificação' : 'Arrêté du 22/10/1969' },
+    { key: 'inspection_ascenseur', label: isPt ? 'Inspeção elevador' : 'Inspection ascenseur', icon: '🛗', desc: isPt ? 'Inspeção obrigatória quinquenal' : 'Contrôle obligatoire quinquennal', periodicite: 5, obligatoire: true, refs: isPt ? 'DL 320/2002 — Manutenção de elevadores' : 'Décret n°2004-964 du 09/09/2004' },
+    { key: 'controle_elec', label: isPt ? 'Inspeção elétrica' : 'Contrôle électrique', icon: '⚡', desc: isPt ? 'Partes comuns — RTIEBT' : 'Parties communes — NF C 15-100', periodicite: 5, obligatoire: true, refs: isPt ? 'RTIEBT — Portaria 949-A/2006' : 'NF C 15-100 + décret du 14/06/1969' },
+    { key: 'dta', label: isPt ? 'DTA (amianto)' : 'DTA (amiante)', icon: '⚠️', desc: isPt ? 'Dossiê Técnico Amianto — verificação' : 'Dossier Technique Amiante — vérification', periodicite: 3, obligatoire: true, refs: isPt ? 'DL 266/2007 — Amianto' : 'Code de la santé pub. L.1334-13' },
+    { key: 'dtg', label: 'DTG', icon: '🏗️', desc: isPt ? 'Diagnóstico Técnico Global' : 'Diagnostic Technique Global', periodicite: 10, obligatoire: true, refs: isPt ? 'NRAU — Lei 31/2012' : 'Loi ALUR art. 58 — > 10 ans' },
+    { key: 'pppt', label: isPt ? 'Plano Plurianual de Obras' : 'Plan Pluriannuel Travaux', icon: '🔨', desc: isPt ? 'PPO obrigatório para edifícios > 15 anos' : 'PPT obligatoire pour immeubles > 15 ans', periodicite: 10, obligatoire: true, refs: isPt ? 'DL 555/99 — RJUE' : 'Loi Climat & Résilience 2022' },
+    { key: 'audit_energetique', label: isPt ? 'Auditoria energética CEE' : 'Audit énergétique DPE', icon: '🌿', desc: isPt ? 'CEE coletivo e auditoria energética' : 'DPE collectif et audit énergétique', periodicite: 10, obligatoire: false, refs: isPt ? 'DL 118/2013 — SCE' : 'Loi ELAN 2018 — Décret 2021-919' },
   ]
   const storageKey = `fixit_echeances_${user.id}`
   const [echeances, setEcheances] = useState<Echeance[]>([])

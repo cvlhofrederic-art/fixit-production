@@ -30,15 +30,15 @@ const mockFrom = vi.fn().mockImplementation((table: string) => {
       }),
     }
   }
-  // 'devis' ou 'factures' : supporte à la fois SELECT (status lookup) et UPSERT.
+  // 'devis' ou 'factures' : supporte SELECT (status lookup) + UPSERT.
+  // Le status lookup accepte deux chaînes d'identité :
+  //   - id path     : .select().eq('id', x).maybeSingle()                    (1 eq)
+  //   - numero path : .select().eq('numero',x).eq('artisan',y).maybeSingle() (2 eq)
   return {
-    select: () => ({
-      eq: () => ({
-        eq: () => ({
-          maybeSingle: () => mockStatusLookup(),
-        }),
-      }),
-    }),
+    select: () => {
+      const leaf = { maybeSingle: () => mockStatusLookup() }
+      return { eq: () => ({ ...leaf, eq: () => leaf }) }
+    },
     upsert: (...args: unknown[]) => ({
       select: () => ({
         single: () => mockUpsert(...args),
@@ -73,6 +73,11 @@ vi.mock('@sentry/nextjs', () => ({
 
 vi.mock('@/lib/devis-totals', () => ({
   computeDocumentTotalHtCents: vi.fn().mockReturnValue(12345),
+  // `buildDocumentLines` est la source unique des lignes effectives —
+  // appelée par route.ts:138 pour construire `items` (TVA, hash, payload DB).
+  // Mock minimaliste : renvoie un tableau vide, suffisant pour les
+  // assertions de transition / autorisation / mapping de status.
+  buildDocumentLines: vi.fn().mockReturnValue([]),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -310,7 +315,9 @@ describe('POST /api/devis/sync', () => {
     mockStatusLookup.mockResolvedValue({ data: { status: 'paid' }, error: null })
 
     const { POST } = await import('@/app/api/devis/sync/route')
-    const docFact = { ...validDoc, docNumber: 'FACT-2026-001', status: 'brouillon' } // → 'pending'
+    // 'envoye' → 'pending' (méthode pro : 'brouillon' mappe désormais sur 'draft',
+    // donc on teste l'émission paid → pending, transition arrière interdite).
+    const docFact = { ...validDoc, docNumber: 'FACT-2026-001', status: 'envoye' } // → 'pending'
     const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: docFact }) as never)
     expect(res.status).toBe(409)
     const json = await res.json()
@@ -361,5 +368,100 @@ describe('POST /api/devis/sync', () => {
     // Sentry doit être notifié pour qu'on puisse débugger
     const Sentry = await import('@sentry/nextjs')
     expect(Sentry.captureException).toHaveBeenCalled()
+  })
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Méthode pro 2026 — identité stable `id` + brouillons sans numéro
+  // ══════════════════════════════════════════════════════════════════════
+  it('draft devis with stable id and no docNumber → 200, onConflict=id, numero null, status draft', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockUpsert.mockResolvedValue({ data: { id: 'row-draft-1' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const draftDoc = {
+      id: '00000000-0000-4000-8000-0000000000aa',
+      docType: 'devis',
+      docNumber: '',            // brouillon : pas de numéro légal
+      clientName: 'Client Draft',
+      status: 'brouillon',
+    }
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: draftDoc }) as never)
+    expect(res.status).toBe(200)
+    const [payload, opts] = mockUpsert.mock.calls[0]
+    expect(opts).toMatchObject({ onConflict: 'id' })
+    expect(payload.id).toBe('00000000-0000-4000-8000-0000000000aa')
+    expect(payload.numero).toBeNull()
+    expect(payload.status).toBe('draft')
+  })
+
+  it('facture brouillon maps to draft (not pending) and carries no numero', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockUpsert.mockResolvedValue({ data: { id: 'row-fac-draft' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const facDraft = {
+      id: '00000000-0000-4000-8000-0000000000bb',
+      docType: 'facture',
+      docNumber: '',
+      clientName: 'Client Acompte',
+      status: 'brouillon',
+    }
+    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: facDraft }) as never)
+    expect(res.status).toBe(200)
+    expect(mockFrom).toHaveBeenCalledWith('factures')
+    const [payload, opts] = mockUpsert.mock.calls[0]
+    expect(payload.status).toBe('draft')      // ← plus 'pending' : vrai brouillon, non hashé
+    expect(payload.numero).toBeNull()
+    expect(opts).toMatchObject({ onConflict: 'id' })
+  })
+
+  it('returns 400 when neither id nor docNumber provided (no identity)', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const noIdentity = { docType: 'devis', docNumber: '', clientName: 'x', status: 'brouillon' }
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: noIdentity }) as never)
+    expect(res.status).toBe(400)
+  })
+
+  it('legacy emitted doc (numero, no id) keeps numero-based onConflict', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockUpsert.mockResolvedValue({ data: { id: 'row-legacy' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const legacyDoc = { docType: 'devis', docNumber: 'DEV-2026-009', clientName: 'x', status: 'envoye' }
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: legacyDoc }) as never)
+    expect(res.status).toBe(200)
+    const [payload, opts] = mockUpsert.mock.calls[0]
+    expect(opts).toMatchObject({ onConflict: 'numero,artisan_user_id' })
+    expect(payload.numero).toBe('DEV-2026-009')
+    expect(payload).not.toHaveProperty('id')   // pas d'id client → pas injecté dans le payload
+  })
+
+  it('emits facture by id: draft→pending transition with numéro assigned', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    // ligne existante (brouillon) retrouvée par id
+    mockStatusLookup.mockResolvedValue({ data: { status: 'draft', content_hash: null }, error: null })
+    mockUpsert.mockResolvedValue({ data: { id: 'row-emit' }, error: null })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const emitDoc = {
+      id: '00000000-0000-4000-8000-0000000000cc',
+      docType: 'facture',
+      docNumber: 'FACT-2026-017',  // numéro attribué à l'émission
+      clientName: 'x',
+      status: 'envoye',            // → pending
+    }
+    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: emitDoc }) as never)
+    expect(res.status).toBe(200)
+    const [payload, opts] = mockUpsert.mock.calls[0]
+    expect(payload.status).toBe('pending')
+    expect(payload.numero).toBe('FACT-2026-017')
+    expect(payload.id).toBe('00000000-0000-4000-8000-0000000000cc')
+    expect(opts).toMatchObject({ onConflict: 'id' })
   })
 })

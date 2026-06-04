@@ -21,18 +21,31 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;')
 }
 
-function toIso(value: Date | string | undefined): string {
-  if (!value) return new Date().toISOString()
+/**
+ * Convertit une date en ISO 8601, ou retourne null si pas de date réelle.
+ *
+ * Pro SEO 2026 : Google ignore (et pénalise long terme) les sitemaps qui
+ * émettent un lastmod factice = date du jour à chaque crawl. Cf. John
+ * Mueller 2023 : "fake lastmod is worse than no lastmod at all". Source :
+ * https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
+ *
+ * Politique : on omet `<lastmod>` si on n'a pas de vraie date (pas de
+ * fallback `new Date()`). Google parsera l'URL sans hint de fraîcheur,
+ * ce qui est strictement préférable à un signal trompeur.
+ */
+function toIsoOrNull(value: Date | string | undefined): string | null {
+  if (!value) return null
   if (value instanceof Date) return value.toISOString()
   const d = new Date(value)
-  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 export function formatSitemapXml(urls: SitemapUrl[]): string {
   const entries = urls
     .map(({ url, lastModified, changeFrequency, priority }) => {
       const parts = [`    <loc>${escapeXml(url)}</loc>`]
-      parts.push(`    <lastmod>${toIso(lastModified)}</lastmod>`)
+      const iso = toIsoOrNull(lastModified)
+      if (iso) parts.push(`    <lastmod>${iso}</lastmod>`)
       if (changeFrequency) parts.push(`    <changefreq>${changeFrequency}</changefreq>`)
       if (typeof priority === 'number') parts.push(`    <priority>${priority.toFixed(2)}</priority>`)
       return `  <url>\n${parts.join('\n')}\n  </url>`
@@ -41,9 +54,25 @@ export function formatSitemapXml(urls: SitemapUrl[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>`
 }
 
-export function formatSitemapIndexXml(loc: string[]): string {
+/**
+ * Formate un sitemap index. Le `<lastmod>` est OPTIONNEL au niveau de chaque
+ * `<sitemap>` entry (sitemaps.org spec § 4) ; on l'omet pour ne pas envoyer
+ * la date du jour systématiquement (signal pourri pour Google).
+ *
+ * Le caller peut passer `lastModByLoc` pour fournir des dates réelles par
+ * sub-sitemap (ex: dérivées du dernier `contentUpdatedAt` de leur contenu).
+ */
+export function formatSitemapIndexXml(
+  loc: string[],
+  lastModByLoc?: Record<string, Date | string>,
+): string {
   const entries = loc
-    .map((u) => `  <sitemap>\n    <loc>${escapeXml(u)}</loc>\n    <lastmod>${new Date().toISOString()}</lastmod>\n  </sitemap>`)
+    .map((u) => {
+      const lastMod = lastModByLoc?.[u]
+      const iso = toIsoOrNull(lastMod)
+      const lastmodTag = iso ? `\n    <lastmod>${iso}</lastmod>` : ''
+      return `  <sitemap>\n    <loc>${escapeXml(u)}</loc>${lastmodTag}\n  </sitemap>`
+    })
     .join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>`
 }

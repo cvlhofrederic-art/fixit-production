@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Débarras Succession Marseille — Vide maison après décès, EHPAD | VITFIX',
+  title: 'Débarras Succession Marseille : Vide maison après décès, EHPAD | VITFIX',
   description: 'Débarras appartement succession à Marseille, La Ciotat, Aubagne et PACA. Vide maison après décès, départ en EHPAD, succession notariale. Service discret, éco-responsable, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/debarras-succession/',
@@ -15,7 +15,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Débarras Succession Marseille',
+      name: 'VITFIX : Débarras Succession Marseille',
       description: 'Service de débarras et vide maison dans le cadre de succession, après décès ou départ en EHPAD. Marseille et PACA.',
       url: 'https://vitfix.io/fr/specialites/debarras-succession/',
       telephone: PHONE_FR,

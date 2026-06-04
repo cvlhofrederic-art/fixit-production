@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useTransition } from 'react'
-import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { toast } from 'sonner'
 import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
+import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { generateMaxPDF as generateMaxPDFUtil, parseDocPDF as parseDocPDFUtil } from '@/lib/syndic-pdf'
 import type { User } from '@supabase/supabase-js'
@@ -22,12 +22,16 @@ import {
   Badge, PrioriteBadge,
 } from '@/components/syndic-dashboard/types'
 import { ROLE_PAGES, SYNDIC_MODULES, EVENT_COLORS } from '@/components/syndic-dashboard/config'
+import {
+  seedSyndicPtDemoIfEmpty,
+  seedSyndicPtMissionsToSupabaseIfEmpty,
+  SEED_PT_ARTISANS_FOR_DASHBOARD,
+} from '@/lib/seed-syndic-pt-demo'
 
 // ─── Lazy-loaded Section Components (code-splitting) ─────────────────────────
-// Dynamic import helper — cast as ComponentType<any> since loader erases prop types
-// Components with complex typed callbacks should use static imports instead (see above)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any>
+// Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
+// so a single crash (chunk loading failure on edge, runtime exception, etc.)
+// shows an in-place fallback with retry instead of destroying the shell.
 const EquipeSection = d(() => import('@/components/syndic-dashboard/misc/EquipeSection'))
 const AnalyseDevisSection = d(() => import('@/components/syndic-dashboard/reporting/AnalyseDevisSection'))
 const DocsInterventionsSection = d(() => import('@/components/syndic-dashboard/operations/DocsInterventionsSection'))
@@ -130,11 +134,16 @@ const InfractionsSection = d(() => import('@/components/syndic-dashboard/legal/I
 const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashboard/financial/ReconciliationBancaireSection'))
 const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
 const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
+const FixyAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/FixyAgentPage'))
+// MaxAgentPage retiré : unifié avec Max Expert (cf. page === 'ia' qui rend MaxExpertSection).
+const LeaAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/LeaAgentPage'))
+const AlfredoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/AlfredoAgentPage'))
+const TempoAgentPage = d(() => import('@/components/syndic-dashboard/agents-ia/pages/TempoAgentPage'))
+import { useAlfredoNotifications } from '@/components/syndic-dashboard/agents-ia/hooks/useAlfredoNotifications'
 // ── Extracted layout + misc components ──
 const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
 const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
 const MaxExpertSection = d(() => import('@/components/syndic-dashboard/pages/MaxExpertSection'))
-const FixyPanel = d(() => import('@/components/syndic-dashboard/pages/FixyPanel'))
 const PDFGenerationModal = d(() => import('@/components/syndic-dashboard/misc/PDFGenerationModal'))
 
 // ─── Web Speech API types (not in standard TS lib — no @types/dom-speech-recognition) ──
@@ -287,6 +296,29 @@ const PLANNING_EVENTS_DEMO: PlanningEvent[] = []
 const CANAL_INTERNE_DEMO: CanalInterneMsg[] = []
 const ECHEANCES_DEMO: EcheanceReglementaire[] = []
 
+// ─── Types — Citations validées Max consultor juridique ───────────────────────
+// Shape miroir du serveur (lib/syndic/max-validate.ts:MaxValidatedCitation).
+// Redéclaré ici pour éviter d'importer un module serveur côté client.
+export interface MaxClientCitation {
+  font_id: string
+  exact_quote: string
+  claim: string
+  chunk_id: string
+  source: string
+  article: string | null
+  title: string
+  parent_path: string | null
+  quote_verified: boolean
+}
+
+export interface MaxMessage {
+  role: 'user' | 'assistant'
+  content: string
+  citations?: MaxClientCitation[]
+  confidence?: number
+  refusal?: boolean
+}
+
 // ─── Dashboard Principal ───────────────────────────────────────────────────────
 
 export default function SyndicDashboard() {
@@ -301,6 +333,15 @@ export default function SyndicDashboard() {
   const [customAllowedPages, setCustomAllowedPages] = useState<string[] | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Badge "N nouveaux" sur Alfredo dans la sidebar — Supabase Realtime sur draft_status=pending_review
+  const { pendingCount: alfredoPendingCount } = useAlfredoNotifications(
+    user?.id ?? null,
+    (event) => {
+      // Toast notification quand nouveau brouillon arrive
+      toast.info(`📧 ${locale === 'pt' ? 'Novo rascunho Alfredo' : 'Nouveau brouillon Alfredo'} — ${event.subject?.slice(0, 60) ?? event.from_email}`)
+    },
+  )
   // ── Données persistées en localStorage (clé par user.id, chargées après auth) ──
   const [immeubles, setImmeubles] = useState<Immeuble[]>([])
   const [artisans, setArtisans] = useState<Artisan[]>(ARTISANS_DEMO)
@@ -352,8 +393,11 @@ export default function SyndicDashboard() {
   const [pdfSelectedCopro, setPdfSelectedCopro] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [pdfObjet, setPdfObjet] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
+  const fixyInitialMsg = locale === 'pt'
+    ? 'Olá! Sou o **Fixy** 🤖, o seu assistente de ação Vitfix Pro.\n\nTenho acesso a **todos os seus dados em tempo real** e posso **agir diretamente**: criar missões, navegar, gerar comunicações, alertas...\n\n🎙️ Carregue no microfone para os comandos por voz!\n\nO que posso fazer por si?'
+    : 'Bonjour ! Je suis **Fixy** 🤖, votre assistant d\'action Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** et je peux **agir directement** : créer missions, naviguer, générer courriers, alertes...\n\n🎙️ Cliquez sur le micro pour les commandes vocales !\n\nQue puis-je faire pour vous ?'
   const [iaMessages, setIaMessages] = useState<IaMessage[]>([
-    { role: 'assistant', content: 'Bonjour ! Je suis **Fixy** 🤖, votre assistant d\'action Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** et je peux **agir directement** : créer missions, naviguer, générer courriers, alertes...\n\n🎙️ Cliquez sur le micro pour les commandes vocales !\n\nQue puis-je faire pour vous ?' }
+    { role: 'assistant', content: fixyInitialMsg }
   ])
   const [iaInput, setIaInput] = useState('')
   const [iaLoading, setIaLoading] = useState(false)
@@ -380,9 +424,15 @@ export default function SyndicDashboard() {
   const maxInitialMsg = locale === 'pt'
     ? 'Olá! Sou o **Max** 🎓, o vosso consultor especialista IA.\n\nEspecializado em **direito do condomínio** português, regulamentação técnica, gestão de artesãos e contabilidade.\n\nPara **executar uma ação** (criar missão, navegar...), utilizem o **Fixy** 🤖 (bolha amarela no canto inferior direito).\n\nQue questão posso esclarecer?'
     : 'Bonjour ! Je suis **Max** 🎓, votre expert-conseil IA.\n\nSpécialisé en **droit de la copropriété**, réglementation technique, gestion d\'artisans et comptabilité syndic.\n\nPour **exécuter une action** (créer mission, naviguer...), utilisez **Fixy** 🤖 (bulle jaune en bas à droite).\n\nQuelle question puis-je éclaircir ?'
-  const [maxMessages, setMaxMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: maxInitialMsg }
+  const [maxMessages, setMaxMessages] = useState<MaxMessage[]>([
+    { role: 'assistant', content: maxInitialMsg },
   ])
+  // ID de la conversation Max persistée en DB (syndic_ai_conversations).
+  // Hydraté au mount via GET /api/syndic/conversations?agent_id=max — créé
+  // si absent. Tous les messages user/assistant sont POSTés vers
+  // /api/syndic/conversations/[id]/messages pour permettre la persistance
+  // entre sessions (vs l'ancien localStorage volatile).
+  const [maxConvId, setMaxConvId] = useState<string | null>(null)
   const [maxInput, setMaxInput] = useState('')
   const [maxLoading, setMaxLoading] = useState(false)
   const maxEndRef = useRef<HTMLDivElement>(null)
@@ -392,7 +442,7 @@ export default function SyndicDashboard() {
   const [maxTab, setMaxTab] = useState<'chat' | 'conformite' | 'documents'>('chat')
   const [maxFavorites, setMaxFavorites] = useState<string[]>([])
   const [maxSelectedImmeuble, setMaxSelectedImmeuble] = useState<string>('all')
-  const [fixyPanelOpen, setFixyPanelOpen] = useState(false)
+  // fixyPanelOpen supprimé (FixyPanel legacy retiré)
   // ── Token admin isolé par onglet (résout le conflit de session multi-comptes) ──
   const adminSessionRef = useRef<{ access_token: string; refresh_token: string; expires_at: number } | null>(null)
 
@@ -440,20 +490,53 @@ export default function SyndicDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [notifPanelOpen])
 
-  // ── Load persisted Max conversations & favorites ──
+  // ── Load most-recent Max conversation (multi-conv via sidebar) ──────────
+  // La sidebar de MaxExpertSection gère elle-même la liste des conversations.
+  // Ici on hydrate seulement la plus récente pour pré-remplir l'écran à
+  // l'ouverture du module Max — l'utilisateur peut ensuite naviguer entre
+  // conversations ou créer une nouvelle via la sidebar. Aucune création
+  // automatique : si zéro conversation existe, la première sera créée
+  // implicitement par sendMaxMessage au premier envoi.
   useEffect(() => {
     if (!user?.id) return
-    try {
-      const saved = localStorage.getItem(`fixit_max_history_${user.id}`)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) setMaxMessages(parsed)
-      }
-    } catch {}
+    let cancelled = false
+    void (async () => {
+      try {
+        const listRes = await fetch('/api/syndic/conversations?agent_id=max')
+        if (cancelled || !listRes.ok) return
+        const json = await listRes.json() as { conversations?: Array<{ id: string }> }
+        const convId = json.conversations?.[0]?.id ?? null
+        if (!convId) return
+        setMaxConvId(convId)
+        const msgsRes = await fetch(`/api/syndic/conversations/${convId}/messages`)
+        if (cancelled || !msgsRes.ok) return
+        const msgsJson = await msgsRes.json() as {
+          messages?: Array<{
+            role: string
+            content: string
+            metadata?: { citations?: MaxClientCitation[]; confidence?: number; refusal?: boolean } | null
+          }>
+        }
+        const dbMessages: MaxMessage[] = (msgsJson.messages ?? [])
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            citations: m.metadata?.citations,
+            confidence: m.metadata?.confidence,
+            refusal: m.metadata?.refusal,
+          }))
+        if (dbMessages.length > 0) {
+          setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
+        }
+      } catch { /* tolérance offline — la sidebar tentera son propre fetch */ }
+    })()
+
     try {
       const favs = localStorage.getItem(`fixit_max_favorites_${user.id}`)
       if (favs) setMaxFavorites(JSON.parse(favs))
     } catch {}
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
@@ -555,9 +638,11 @@ export default function SyndicDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
-      // Forcer le rafraîchissement du token pour obtenir les user_metadata à jour
-      await supabase.auth.refreshSession()
-      // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies)
+      // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies).
+      // ⚠️ Ne PAS appeler refreshSession() ici : crée une race condition avec la
+      // rotation du refresh_token du middleware SSR sur hard refresh, ce qui
+      // déconnecte l'utilisateur. Les app_metadata sont déjà à jour via le JWT
+      // (regénéré au prochain login si besoin).
       const { data: { user: freshUser } } = await supabase.auth.getUser()
       const userRole = freshUser?.app_metadata?.role || ''
       const isAdminOverride = freshUser?.app_metadata?._admin_override === true
@@ -595,6 +680,15 @@ export default function SyndicDashboard() {
       // ── Noms des faux immeubles de démo — utilisés pour filtrer partout ──────
       const FAKE_BUILDING_NAMES = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
 
+      // ── Marqueurs de contamination FR à purger en locale PT (artisan, immeuble, type) ──
+      const FR_CONTAMINATION_ARTISANS = ['Lepore Sebastien']
+      const FR_CONTAMINATION_BUILDINGS = ['La Sauvagère', 'La Sauvagère — Bât A', 'La Sauvagère - Bât A']
+      const FR_CONTAMINATION_TYPES = ['Espaces verts']
+      const isFrContaminated = (m: { artisan?: string; immeuble?: string; type?: string }) =>
+        FR_CONTAMINATION_ARTISANS.includes(String(m.artisan || '')) ||
+        FR_CONTAMINATION_BUILDINGS.some(b => String(m.immeuble || '').includes(b)) ||
+        FR_CONTAMINATION_TYPES.includes(String(m.type || ''))
+
       // ── Purge one-shot v6 : efface TOUT l'ancien localStorage syndic ─────────
       // Flag UID-spécifique → chaque utilisateur est purgé une seule fois indépendamment
       // v6 : force re-purge pour éliminer toutes les fausses données persistantes
@@ -630,6 +724,10 @@ export default function SyndicDashboard() {
         localStorage.setItem(`fixit_clean_v6_${uid}`, '1')
       }
 
+      // ── Seed démo PT : injecte fausses données cohérentes si locale PT + localStorage vide ──
+      // Idempotent (flag fixit_seed_pt-v1_${uid}). N'affecte que les utilisateurs PT.
+      seedSyndicPtDemoIfEmpty(uid, locale)
+
       try {
         const savedMissions = localStorage.getItem(`fixit_syndic_missions_${uid}`)
         if (savedMissions) {
@@ -639,7 +737,8 @@ export default function SyndicDashboard() {
             const FAKE_IDS = ['1','2','3','4','5']
             const real = parsed.filter((m: Mission) =>
               !FAKE_IDS.includes(String(m.id)) &&
-              !FAKE_BUILDING_NAMES.includes(m.immeuble)
+              !FAKE_BUILDING_NAMES.includes(m.immeuble) &&
+              !(locale === 'pt' && isFrContaminated(m))
             )
             if (real.length < parsed.length) {
               localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(real))
@@ -679,11 +778,16 @@ export default function SyndicDashboard() {
         if (savedCanalInterne) {
           try {
             const parsed = JSON.parse(savedCanalInterne)
-            // Purge si contient des IDs de démo ou des références à de faux immeubles
+            // Purge si contient des IDs de démo, refs à de faux immeubles, ou contamination FR en PT
             const hasFake = parsed.some((m: Record<string, unknown>) =>
               /^(ci|pe)-\d+$/.test(String(m.id)) ||
               ['ci-1','ci-2','ci-3'].includes(String(m.id)) ||
-              FAKE_BUILDING_NAMES.some(n => String(m.texte || '').includes(n) || String(m.sujet || '').includes(n))
+              FAKE_BUILDING_NAMES.some(n => String(m.texte || '').includes(n) || String(m.sujet || '').includes(n)) ||
+              (locale === 'pt' && (
+                FR_CONTAMINATION_ARTISANS.some(a => String(m.texte || '').includes(a) || String(m.contenu || '').includes(a) || String(m.sujet || '').includes(a)) ||
+                FR_CONTAMINATION_BUILDINGS.some(b => String(m.texte || '').includes(b) || String(m.contenu || '').includes(b) || String(m.sujet || '').includes(b)) ||
+                /ORDRE DE MISSION/i.test(String(m.texte || '') + String(m.contenu || '') + String(m.sujet || ''))
+              ))
             )
             if (hasFake) {
               localStorage.removeItem(`fixit_canal_interne_${uid}`)
@@ -778,10 +882,11 @@ export default function SyndicDashboard() {
         // Séparé des autres fetches pour ne pas être bloqué par leurs erreurs
         try {
           const artResEarly = await fetch('/api/syndic/artisans', { headers })
+          let mappedEarly: Artisan[] = []
           if (artResEarly.ok) {
             const artDataEarly = await artResEarly.json()
             if (artDataEarly.artisans && artDataEarly.artisans.length > 0) {
-              const mappedEarly: Artisan[] = artDataEarly.artisans.map((a: ArtisanAPIRow) => ({
+              mappedEarly = artDataEarly.artisans.map((a: ArtisanAPIRow) => ({
                 ...a,
                 nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
                 rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -791,13 +896,31 @@ export default function SyndicDashboard() {
                 nbInterventions: a.nb_interventions ?? a.nbInterventions ?? 0,
                 vitfixCertifie: a.vitfix_certifie ?? a.vitfixCertifie ?? false,
               }))
-              setArtisans(mappedEarly)
-              console.info(`[DASHBOARD] ✅ Artisans chargés au mount : ${mappedEarly.length} artisans`, mappedEarly.map(a => `${a.nom} <${a.email}>`))
             } else {
               if (process.env.NODE_ENV !== 'production') console.warn(`[DASHBOARD] API artisans OK mais liste vide`)
             }
           } else {
             if (process.env.NODE_ENV !== 'production') console.error(`[DASHBOARD] API artisans erreur HTTP ${artResEarly.status}`)
+          }
+          // En PT : filtrer les artisans FR hérités et fusionner les prestadores +
+          // técnicos internos PT du seed. Ainsi le formulaire "Nova ordem" présente
+          // les bonnes personnes à assigner même si Supabase ne contient encore
+          // que des artisans FR héritées (ex. Lepore Sebastien).
+          if (locale === 'pt') {
+            const LEGACY_FR_ARTISANS = ['Lepore']
+            const filtered = mappedEarly.filter(a =>
+              !LEGACY_FR_ARTISANS.some(p => (a.nom || '').includes(p) || (a.email || '').toLowerCase().includes(p.toLowerCase()))
+            )
+            const ptIds = new Set(SEED_PT_ARTISANS_FOR_DASHBOARD.map(a => a.id))
+            const merged = [
+              ...SEED_PT_ARTISANS_FOR_DASHBOARD,
+              ...filtered.filter(a => !ptIds.has(a.id)),
+            ]
+            setArtisans(merged)
+            console.info(`[DASHBOARD] ✅ Artisans PT chargés : ${merged.length} (${SEED_PT_ARTISANS_FOR_DASHBOARD.length} seed PT + ${merged.length - SEED_PT_ARTISANS_FOR_DASHBOARD.length} from API)`)
+          } else if (mappedEarly.length > 0) {
+            setArtisans(mappedEarly)
+            console.info(`[DASHBOARD] ✅ Artisans chargés au mount : ${mappedEarly.length} artisans`, mappedEarly.map(a => `${a.nom} <${a.email}>`))
           }
         } catch (artErr) {
           if (process.env.NODE_ENV !== 'production') console.error(`[DASHBOARD] Fetch artisans échoué :`, artErr)
@@ -815,11 +938,14 @@ export default function SyndicDashboard() {
         if (mRes.ok) {
           const { missions: dbMissions } = await mRes.json()
           if (dbMissions) {
-            // Séparer vraies missions des fausses missions de démo
+            // Séparer vraies missions des fausses missions de démo + contamination FR en PT
             const FAKE_BUILDING_NAMES_DB = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
-            const fakeMissions = dbMissions.filter((m: Mission) => FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
-            const realMissions = dbMissions.filter((m: Mission) => !FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
-            // AUTO-CLEANUP DB : supprimer définitivement les fausses missions de Supabase
+            const isStaleMission = (m: Mission) =>
+              FAKE_BUILDING_NAMES_DB.includes(m.immeuble) ||
+              (locale === 'pt' && isFrContaminated(m))
+            const fakeMissions = dbMissions.filter(isStaleMission)
+            let realMissions = dbMissions.filter((m: Mission) => !isStaleMission(m))
+            // AUTO-CLEANUP DB : supprimer définitivement les missions obsolètes/contaminées
             if (fakeMissions.length > 0) {
               for (const fm of fakeMissions) {
                 try {
@@ -827,8 +953,17 @@ export default function SyndicDashboard() {
                 } catch {}
               }
             }
-            setMissions(realMissions)
-            try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(realMissions)) } catch {}
+            // Si cabinet PT vide après nettoyage → seed les missions démo PT en base
+            // pour qu'elles persistent et soient visibles au refresh suivant.
+            if (locale === 'pt' && realMissions.length === 0) {
+              const seeded = await seedSyndicPtMissionsToSupabaseIfEmpty(uid, token)
+              if (seeded.length > 0) realMissions = seeded
+            }
+            // Ne pas écraser l'état avec un tableau vide : préserve le seed PT local si DB nettoyée et seed Supabase n'a rien créé
+            if (realMissions.length > 0) {
+              setMissions(realMissions)
+              try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(realMissions)) } catch {}
+            }
           }
         }
 
@@ -885,7 +1020,16 @@ export default function SyndicDashboard() {
               } catch {}
               return { id: m.id, de: m.auteur, deRole: m.auteurRole || '', type: 'message' as const, contenu: m.texte, date: m.createdAt, lu: m.lu ?? true }
             })
-            setCanalInterneMessages(converted)
+            // Filtrer la contamination FR en locale PT (Lepore Sebastien, La Sauvagère, ORDRE DE MISSION)
+            const filtered = locale === 'pt'
+              ? converted.filter(c => {
+                  const blob = `${c.contenu || ''} ${(c as { sujet?: string }).sujet || ''}`
+                  return !FR_CONTAMINATION_ARTISANS.some(a => blob.includes(a)) &&
+                    !FR_CONTAMINATION_BUILDINGS.some(b => blob.includes(b)) &&
+                    !/ORDRE DE MISSION/i.test(blob)
+                })
+              : converted
+            if (filtered.length > 0) setCanalInterneMessages(filtered)
           }
         }
 
@@ -2157,21 +2301,67 @@ export default function SyndicDashboard() {
     return checks
   }
 
-  // ── Envoi message Max (expert-conseil lecture seule) ──────────────────────
+  // ── Envoi message Max (consultor juridique strict 2026) ───────────────────
+  // Pipeline serveur : HyDE → Hybrid search → Rerank → MMR → Strict prompt
+  // → JSON mode Groq → Validation citations → réponse structurée.
+  // Réponse non-streaming (JSON mode) avec citations validées vs corpus officiel.
   const sendMaxMessage = async (directMsg?: string) => {
     const userMsg = (directMsg || maxInput).trim()
     if (!userMsg || maxLoading) return
     setMaxInput('')
     setMaxMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setMaxLoading(true)
-    // Save to localStorage for persistence
     try {
       const updated = [...maxMessages, { role: 'user' as const, content: userMsg }]
       localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60)))
     } catch {}
+
+    // ── Multi-conv : créer une conversation si aucune n'est active ──
+    // La sidebar peut être vide (premier envoi de l'utilisateur). On
+    // crée à la volée avec un titre dérivé du premier message (max 60
+    // caractères). Aucun envoi ne se perd : si la création échoue, on
+    // continue malgré tout — l'utilisateur verra la réponse en mémoire.
+    let convId = maxConvId
+    const isFirstMsg = !convId
+    if (!convId) {
+      try {
+        const createRes = await fetch('/api/syndic/conversations', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: 'max',
+            locale,
+            title: userMsg.slice(0, 60),
+          }),
+        })
+        if (createRes.ok) {
+          const created = await createRes.json() as { conversation?: { id: string } }
+          convId = created.conversation?.id ?? null
+          if (convId) setMaxConvId(convId)
+        }
+      } catch { /* tolérance offline */ }
+    }
+
+    if (convId) {
+      void fetch(`/api/syndic/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: 'user', content: userMsg }),
+      }).catch(() => { /* tolérance offline */ })
+
+      // Auto-rename au premier vrai message : si la conversation existait
+      // déjà avec un titre générique ("Nova conversa"), on remplace par les
+      // 60 premiers caractères de la question — comme ChatGPT.
+      if (!isFirstMsg && maxMessages.length <= 1) {
+        void fetch(`/api/syndic/conversations/${convId}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: userMsg.slice(0, 60) }),
+        }).catch(() => { /* silencieux */ })
+      }
+    }
     try {
       const maxToken = await getAdminToken()
-      // Build context — optionally filtered by immeuble
       const ctx = buildSyndicContext()
       if (maxSelectedImmeuble !== 'all') {
         ctx.immeubles = ctx.immeubles.filter((i: { nom: string }) => i.nom === maxSelectedImmeuble)
@@ -2183,74 +2373,42 @@ export default function SyndicDashboard() {
         body: JSON.stringify({
           message: userMsg,
           syndic_context: ctx,
-          conversation_history: maxMessages.map(m => ({ role: m.role, content: m.content })),
+          conversation_history: maxMessages.slice(-12).map(m => ({ role: m.role, content: m.content })),
           locale,
-          stream: true,
         }),
       })
-
-      const contentType = res.headers.get('content-type') || ''
-      if (res.ok && contentType.includes('text/event-stream') && res.body) {
-        // Streaming mode
-        setMaxLoading(false)
-        setMaxMessages(prev => [...prev, { role: 'assistant' as const, content: '' }])
-
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let fullText = ''
-        let buffer = ''
-
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (!trimmed || !trimmed.startsWith('data: ')) continue
-            const payload = trimmed.slice(6)
-            if (payload === '[DONE]') break
-            try {
-              const json = JSON.parse(payload)
-              if (json.text) {
-                fullText += json.text
-                const currentText = fullText
-                setMaxMessages(prev => {
-                  const updated = [...prev]
-                  updated[updated.length - 1] = { role: 'assistant', content: currentText }
-                  return updated
-                })
-                maxEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-              }
-            } catch { /* skip */ }
-          }
-        }
-
-        // Save final to localStorage
-        if (fullText) {
-          setMaxMessages(prev => {
-            const updated = [...prev]
-            updated[updated.length - 1] = { role: 'assistant', content: fullText }
-            try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(updated.slice(-60))) } catch {}
-            return updated
-          })
-        }
-      } else {
-        // Fallback non-streaming
-        const data = await res.json().catch(() => ({}))
-        const assistantMsg = data.response || (locale === 'pt' ? 'Erro, tente novamente.' : 'Erreur, réessayez.')
-        setMaxMessages(prev => {
-          const newMsgs = [...prev, { role: 'assistant' as const, content: assistantMsg }]
-          try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(newMsgs.slice(-60))) } catch {}
-          return newMsgs
-        })
-        setMaxLoading(false)
+      const data = await res.json().catch(() => ({} as Record<string, unknown>))
+      const answer = (data.response as string) || (locale === 'pt'
+        ? 'Esta questão não está coberta pelo meu corpus jurídico atual. Por favor reformule.'
+        : 'Cette question n\'est pas couverte par mon corpus juridique actuel. Veuillez reformuler.')
+      const citations = Array.isArray(data.citations) ? data.citations as MaxClientCitation[] : []
+      const confidence = typeof data.confidence === 'number' ? data.confidence : 0
+      const refusal = data.refusal === true
+      const assistantEntry: MaxMessage = { role: 'assistant', content: answer, citations, confidence, refusal }
+      setMaxMessages(prev => {
+        const newMsgs = [...prev, assistantEntry]
+        try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(newMsgs.slice(-60))) } catch {}
+        return newMsgs
+      })
+      if (convId && answer) {
+        void fetch(`/api/syndic/conversations/${convId}/messages`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            role: 'assistant',
+            content: answer,
+            metadata: { citations, confidence, refusal },
+          }),
+        }).catch(() => { /* tolérance offline */ })
       }
+      setMaxLoading(false)
     } catch {
-      setMaxMessages(prev => [...prev, { role: 'assistant', content: locale === 'pt' ? '❌ Erro de conexão. Verifique a sua rede.' : '❌ Erreur de connexion. Vérifiez votre réseau.' }])
+      setMaxMessages(prev => [...prev, {
+        role: 'assistant',
+        content: locale === 'pt'
+          ? '❌ Erro de ligação. Verifique a sua rede.'
+          : '❌ Erreur de connexion. Vérifiez votre réseau.',
+      }])
       setMaxLoading(false)
     }
   }
@@ -2321,6 +2479,7 @@ export default function SyndicDashboard() {
 
   // ── Catégories sidebar ──
   const SIDEBAR_CATEGORIES = [
+    { key: 'agents_ia', label: locale === 'pt' ? 'Agentes IA' : 'Agents IA' },
     { key: 'gestion', label: locale === 'pt' ? 'Gestão' : 'Gestion' },
     { key: 'patrimoine', label: locale === 'pt' ? 'Património' : 'Patrimoine' },
     { key: 'technique', label: locale === 'pt' ? 'Técnico' : 'Technique' },
@@ -2378,17 +2537,18 @@ export default function SyndicDashboard() {
     { id: 'sondages_fr', emoji: '📊', label: 'Sondages', category: 'copropriete_fr' },
     { id: 'reservation_espaces_fr', emoji: '📅', label: 'Réservation espaces', category: 'copropriete_fr' },
     { id: 'signalements_fr', emoji: '🔧', label: 'Signalements', category: 'copropriete_fr' },
-    { id: 'communication_demat', emoji: '📱', label: 'Communication démat.', category: 'copropriete_fr' },
     // ── OUTILS FR ──
     { id: 'vote_correspondance', emoji: '🗳️', label: 'Vote correspondance', category: 'outils_fr' },
     { id: 'pv_assemblee_ia', emoji: '📝', label: 'PV d\'AG assisté IA', category: 'outils_fr' },
-    { id: 'saisie_ia_factures', emoji: '🤖', label: 'Saisie IA Factures', category: 'outils_fr' },
     { id: 'appels_fonds', emoji: '💰', label: 'Appels de fonds', category: 'outils_fr' },
     { id: 'mise_en_concurrence', emoji: '📋', label: 'Mise en concurrence', category: 'outils_fr' },
     { id: 'recouvrement_enrichi_fr', emoji: '⚖️', label: 'Recouvrement enrichi', category: 'outils_fr' },
     { id: 'irve_bornes', emoji: '🔌', label: 'IRVE / Bornes VE', category: 'outils_fr' },
     { id: 'suivi_energetique_fr', emoji: '📈', label: 'Suivi énergétique', category: 'outils_fr' },
     { id: 'ged_certifiee', emoji: '🗄️', label: 'GED certifiée', category: 'outils_fr' },
+    // ── BILINGUES (FR + PT) ──
+    { id: 'saisie_ia_factures', emoji: '🤖', label: locale === 'pt' ? 'Lançamento IA Faturas' : 'Saisie IA Factures', category: 'outils_ia' },
+    { id: 'communication_demat', emoji: '📱', label: locale === 'pt' ? 'Comunicação digital' : 'Communication démat.', category: 'outils_ia' },
     // ── GESTÃO CONDÓMINOS (PT) ──
     { id: 'portal_condomino', emoji: '🏠', label: 'Portal do Condómino', category: 'condominios_pt' },
     { id: 'quadro_avisos', emoji: '📌', label: 'Quadro de Avisos', category: 'condominios_pt' },
@@ -2404,7 +2564,7 @@ export default function SyndicDashboard() {
     { id: 'pontuacao_saude', emoji: '🏥', label: 'Pontuação Saúde', category: 'ferramentas_pt' },
     { id: 'orcamento_anual_ia', emoji: '🤖', label: 'Orçamento IA', category: 'ferramentas_pt' },
     { id: 'contacto_proativo_ia', emoji: '📡', label: 'Contacto Proativo', category: 'ferramentas_pt' },
-    { id: 'ocorrencias_ia', emoji: '🤖', label: 'Ocorrências IA', category: 'ferramentas_pt' },
+    { id: 'ocorrencias_ia', emoji: '🤖', label: 'Ocorrências (Classificador)', category: 'ferramentas_pt' },
     { id: 'gestao_seguros', emoji: '🛡️', label: 'Gestão Seguros', category: 'ferramentas_pt' },
     { id: 'checklists_ia', emoji: '📋', label: 'Checklists IA', category: 'ferramentas_pt' },
     { id: 'processamentos_lote', emoji: '⚙️', label: 'Processamentos Lote', category: 'ferramentas_pt' },
@@ -2426,9 +2586,16 @@ export default function SyndicDashboard() {
     { id: 'carregamento_ve', emoji: '⚡', label: 'Carregamento VE', category: 'ferramentas_pt' },
     { id: 'monitorizacao_consumos', emoji: '📈', label: 'Monitorização', category: 'ferramentas_pt' },
     { id: 'arquivo_digital', emoji: '🗄️', label: 'Arquivo Digital', category: 'ferramentas_pt' },
+    // ── AGENTS IA ──
+    { id: 'fixy_agent' as const, emoji: '🤖', label: 'Fixy', category: 'agents_ia' },
+    // Max Expert (id 'ia') unifie maintenant l'ancien et le nouveau Max — déplacé
+    // dans la catégorie Agents IA et le bouton legacy 'max_agent' a été supprimé.
+    { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'agents_ia' },
+    { id: 'lea_agent' as const, emoji: '👩‍💼', label: 'Léa', category: 'agents_ia' },
+    { id: 'alfredo_agent' as const, emoji: '📧', label: 'Alfredo', badge: alfredoPendingCount > 0 ? alfredoPendingCount : undefined, category: 'agents_ia' },
+    { id: 'automation_agent' as const, emoji: '⏱️', label: 'Tempo', category: 'agents_ia' },
     // ── OUTILS IA ──
     { id: 'emails', emoji: '📧', label: t('syndicDash.sidebar.fixySyndicEmails'), category: 'outils_ia' },
-    { id: 'ia', emoji: '🎓', label: t('syndicDash.sidebar.maxExpert'), category: 'outils_ia' },
     // ── COMPTE ──
     { id: 'equipe', emoji: '👤', label: t('syndicDash.sidebar.myTeam'), category: 'gestion' },
     { id: 'modules', emoji: '🧩', label: t('syndicDash.sidebar.myModules'), category: 'compte' },
@@ -2625,6 +2792,11 @@ export default function SyndicDashboard() {
               teamMembers={teamMembers} locale={locale} t={t}
               user={user} immeubles={immeubles} userRole={userRole}
               getAdminToken={getAdminToken}
+              onOpenPlanningModal={(dateStr: string, heure?: string) => {
+                setSelectedPlanningDay(dateStr)
+                setPlanningEventForm((f) => ({ ...f, heure: heure || '09:00' }))
+                setShowPlanningModal(true)
+              }}
             />
           )}
 
@@ -2679,7 +2851,6 @@ export default function SyndicDashboard() {
               setMaxSelectedImmeuble={setMaxSelectedImmeuble}
               maxEndRef={maxEndRef}
               sendMaxMessage={sendMaxMessage}
-              setFixyPanelOpen={setFixyPanelOpen}
               setMaxMessages={setMaxMessages}
               immeubles={immeubles}
               userId={user?.id}
@@ -2691,8 +2862,20 @@ export default function SyndicDashboard() {
               setPdfSelectedImmeuble={setPdfSelectedImmeuble}
               setPdfSelectedCopro={setPdfSelectedCopro}
               setShowPdfModal={setShowPdfModal}
+              maxConvId={maxConvId}
+              setMaxConvId={setMaxConvId}
+              maxInitialMsg={maxInitialMsg}
             />
           )}
+
+          {/* ── AGENTS IA ── */}
+          {page === 'fixy_agent' && user && (
+            <FixyAgentPage user={user} onNavigate={(p: string) => setPage(p as Page)} />
+          )}
+          {/* max_agent retiré : Max Expert (page === 'ia') prend désormais sa place */}
+          {page === 'lea_agent' && user && <LeaAgentPage user={user} immeubles={immeubles} />}
+          {page === 'alfredo_agent' && user && <AlfredoAgentPage user={user} />}
+          {page === 'automation_agent' && user && <TempoAgentPage user={user} />}
 
           {/* ── MON ÉQUIPE ── */}
           {page === 'compta_copro' && user && <ComptaCoproSection user={user} userRole={userRole} immeubles={immeubles} />}
@@ -3098,35 +3281,7 @@ export default function SyndicDashboard() {
         </div>
       )}
 
-      {/* ─── Fixy — Assistant d'Action (panneau flottant) ─── */}
-      <FixyPanel
-        user={user}
-        fixyPanelOpen={fixyPanelOpen}
-        setFixyPanelOpen={setFixyPanelOpen}
-        iaMessages={iaMessages}
-        setIaMessages={setIaMessages}
-        iaInput={iaInput}
-        setIaInput={setIaInput}
-        iaLoading={iaLoading}
-        iaPendingAction={iaPendingAction}
-        iaEndRef={iaEndRef}
-        iaVoiceActive={iaVoiceActive}
-        iaVoiceSupported={iaVoiceSupported}
-        iaSpeechEnabled={iaSpeechEnabled}
-        iaSpeaking={iaSpeaking}
-        iaVoiceDuration={iaVoiceDuration}
-        iaVoiceInterim={iaVoiceInterim}
-        iaVoiceHelp={iaVoiceHelp}
-        setIaVoiceHelp={setIaVoiceHelp}
-        iaVoiceConfidence={iaVoiceConfidence}
-        sendIaMessage={sendIaMessage}
-        handleConfirmIaAction={handleConfirmIaAction}
-        handleCancelIaAction={handleCancelIaAction}
-        speakResponse={speakResponse}
-        startVoiceRecognition={startVoiceRecognition}
-        toggleSpeechEnabled={toggleSpeechEnabled}
-        stopVoiceRecognition={stopVoiceRecognition}
-      />
+      {/* FixyPanel legacy supprimé (Plan D Task 3) */}
 
       {/* ── Signature Modal ── */}
       {showSignatureModal && (

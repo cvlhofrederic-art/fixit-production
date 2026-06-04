@@ -114,7 +114,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       const headers: Record<string, string> = {}
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
       const [devisRes, membresRes] = await Promise.all([
-        supabase.from('devis').select('id, numero, client_name, client_address, total_ht_cents, items, created_at, status').eq('artisan_id', artisan?.id).order('created_at', { ascending: false }).limit(50),
+        supabase.from('devis').select('id, numero, client_name, client_address, total_ht_cents, items, created_at, status').eq('artisan_id', artisan?.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50),
         fetch('/api/btp?table=membres', { headers }),
       ])
       if (devisRes.data) setDevisList(devisRes.data as DevisSummary[])
@@ -339,8 +339,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     if (!artisan?.id) return
     try {
       const [devisRes, facturesRes] = await Promise.all([
-        supabase.from('devis').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null),
-        supabase.from('factures').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null),
+        supabase.from('devis').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null).is('deleted_at', null),
+        supabase.from('factures').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null).is('deleted_at', null),
       ])
       const grouped: Record<string, Array<{id: string, type: 'devis'|'facture', numero: string, client_name: string, total_ht: number|null, status: string}>> = {}
       for (const d of (devisRes.data || [])) {

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Remplacement Chauffe-eau Marseille — Thermodynamique, urgence 24h | VITFIX',
+  title: 'Remplacement Chauffe-eau Marseille : Thermodynamique, urgence 24h | VITFIX',
   description: 'Remplacement chauffe-eau en panne à Marseille et PACA sous 24h : électrique, thermodynamique, gaz. Éligible MaPrimeRénov. Plombier certifié, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/chauffe-eau/',
@@ -15,7 +15,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Remplacement Chauffe-eau Marseille',
+      name: 'VITFIX : Remplacement Chauffe-eau Marseille',
       description: 'Remplacement de chauffe-eau en urgence à Marseille et PACA. Tous types : électrique, thermodynamique, gaz, solaire.',
       url: 'https://vitfix.io/fr/specialites/chauffe-eau/',
       telephone: PHONE_FR,
@@ -99,7 +99,7 @@ const FAQS = [
   },
   {
     q: 'Mon chauffe-eau peut-il être réparé plutôt que remplacé ?',
-    a: 'Cela dépend de la panne et de l\'âge du chauffe-eau : si le cumulus a moins de 7 ans et que la panne est un thermostat ou une résistance (pièces à 30–80 €, main d\'œuvre 80–120 €), la réparation est rentable. Si le chauffe-eau a plus de 10 ans, que la cuve est calcifiée ou qu\'il y a une fuite de cuve (irréparable), le remplacement est préférable. En PACA, l\'eau calcaire (eau dure) accélère l\'usure des cumulus — un entretien annuel (détartrage) prolonge leur durée de vie.',
+    a: 'Cela dépend de la panne et de l\'âge du chauffe-eau : si le cumulus a moins de 7 ans et que la panne est un thermostat ou une résistance (pièces à 30–80 €, main d\'œuvre 80–120 €), la réparation est rentable. Si le chauffe-eau a plus de 10 ans, que la cuve est calcifiée ou qu\'il y a une fuite de cuve (irréparable), le remplacement est préférable. En PACA, l\'eau calcaire (eau dure) accélère l\'usure des cumulus, un entretien annuel (détartrage) prolonge leur durée de vie.',
   },
   {
     q: 'Le chauffe-eau thermodynamique est-il éligible à MaPrimeRénov ?',

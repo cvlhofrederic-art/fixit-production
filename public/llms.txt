@@ -1,4 +1,4 @@
-# Vitfix — Plataforma de profissionais BTP / Plateforme artisans BTP
+# Vitfix, Plataforma de profissionais BTP / Plateforme artisans BTP
 # https://vitfix.io
 
 > Plataforma luso-francesa que liga particulares, empresas e administradores
@@ -13,18 +13,18 @@
 
 ## Mercados / Marchés
 
-### Portugal — Grande Porto, Tâmega e Sousa, Norte
+### Portugal, Grande Porto, Tâmega e Sousa, Norte
 - Cobertura primária: Porto, Vila Nova de Gaia, Maia, Matosinhos, Gondomar
 - Tâmega e Sousa: Marco de Canaveses, Penafiel, Amarante, Baião, Castelo de Paiva
 - Norte: Braga, Felgueiras, Lousada, Paços de Ferreira, Paredes
-- Língua: português europeu (PT-PT) — NUNCA português brasileiro
+- Língua: português europeu (PT-PT), NUNCA português brasileiro
 
-### France — Marseille & PACA
+### France, Marseille & PACA
 - Couverture primaire : Marseille, Aix-en-Provence, Aubagne, La Ciotat, Cassis
 - PACA étendu : 19 villes (Martigues, Salon-de-Provence, Allauch, Bandol...)
 - Langue : français (fr-FR)
 
-### English — Porto for Expats
+### English, Porto for Expats
 - Audience: Dutch, British, German property owners in Porto
 - Renovation, plumbing, electrical, maintenance for short-term rentals
 - Language: English
@@ -58,31 +58,31 @@
 ## Serviços / Services
 
 ### Portugal (terminologie pt-PT)
-- Canalizadores / Picheleiros — fugas, entupimentos, esquentadores
-- Eletricistas — instalações, certificações, quadros elétricos
-- Pintores — interior, exterior, fachadas, humidade
-- Pedreiros / Alvenaria — muros, fundações, alvenaria
-- Carpinteiros / Marceneiros — mobiliário, remodelações
-- Serralheiros — portas, gradeamentos, portões
-- Pladur e tetos falsos — divisórias, isolamento acústico
-- Telhados — substituição, reparação, impermeabilização
-- Isolamento térmico (ETICS / Capoto) — eficiência energética
-- Obras e remodelação — renovação completa apartamentos/casas
-- Ar condicionado — instalação, manutenção
-- Jardinagem — manutenção espaços verdes, poda
-- Limpeza profissional — particulares e condomínios
+- Canalizadores / Picheleiros, fugas, entupimentos, esquentadores
+- Eletricistas, instalações, certificações, quadros elétricos
+- Pintores, interior, exterior, fachadas, humidade
+- Pedreiros / Alvenaria, muros, fundações, alvenaria
+- Carpinteiros / Marceneiros, mobiliário, remodelações
+- Serralheiros, portas, gradeamentos, portões
+- Pladur e tetos falsos, divisórias, isolamento acústico
+- Telhados, substituição, reparação, impermeabilização
+- Isolamento térmico (ETICS / Capoto), eficiência energética
+- Obras e remodelação, renovação completa apartamentos/casas
+- Ar condicionado, instalação, manutenção
+- Jardinagem, manutenção espaços verdes, poda
+- Limpeza profissional, particulares e condomínios
 
 ### France
-- Plombiers — fuites, débouchage, chauffe-eau
-- Électriciens — tableau, mise aux normes, dépannage
-- Peintres — intérieur, extérieur, façades
-- Maçons — fondations, murs, gros œuvre
-- Menuisiers — meubles sur mesure, rénovation
-- Serruriers — portes, grilles, dépannage urgence
-- Plaquistes — cloisons, isolation acoustique
-- Couvreurs — toiture, étanchéité
-- Jardiniers — débroussaillage, élagage palmier (spécialité PACA)
-- Climatiseurs — installation, maintenance
+- Plombiers, fuites, débouchage, chauffe-eau
+- Électriciens, tableau, mise aux normes, dépannage
+- Peintres, intérieur, extérieur, façades
+- Maçons, fondations, murs, gros œuvre
+- Menuisiers, meubles sur mesure, rénovation
+- Serruriers, portes, grilles, dépannage urgence
+- Plaquistes, cloisons, isolation acoustique
+- Couvreurs, toiture, étanchéité
+- Jardiniers, débroussaillage, élagage palmier (spécialité PACA)
+- Climatiseurs, installation, maintenance
 - Spécialités PACA : élagage palmier, débroussaillage obligatoire,
   débarras succession, fuite d'eau urgence
 
@@ -111,7 +111,7 @@
 - "ETICS" / "Capoto" = isolation thermique extérieure
 - "Caixilharia" = menuiseries extérieures (fenêtres)
 - "Estores" = volets roulants
-- ⚠ NUNCA usar "artesão" para profissionais BTP — em PT,
+- ⚠ NUNCA usar "artesão" para profissionais BTP, em PT,
   "artesão" = artisanat traditionnel (cerâmica, bordados)
 
 ### FR (PACA)

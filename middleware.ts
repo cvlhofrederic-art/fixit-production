@@ -94,13 +94,16 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP header ──
+  // GA4 (Google Analytics 4) : script depuis www.googletagmanager.com,
+  // beacons collectés sur www.google-analytics.com / *.analytics.google.com.
+  // Chargé UNIQUEMENT après consent dans components/common/ConsentAnalytics.tsx.
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io",
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io https://www.googletagmanager.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com https://www.google-analytics.com https://*.analytics.google.com https://*.g.doubleclick.net",
     "frame-src 'self' https://js.stripe.com https://*.stripe.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",

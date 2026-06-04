@@ -26,6 +26,12 @@ interface ProductLineLike {
   total_ht?: number
   total?: number
   description?: string
+  tvaRate?: number
+  tva_rate?: number
+  qty?: number
+  priceHT?: number
+  unit?: string
+  id?: string | number
 }
 
 interface DocumentWithLines {
@@ -35,12 +41,28 @@ interface DocumentWithLines {
   fraisLines?: ProductLineLike[]
   fraisAnnexes?: ProductLineLike[]
   customTables?: { lines?: ProductLineLike[] }[]
+  // Flags de visibilité BTP : quand une section est masquée par l'utilisateur
+  // (« Masquer cette section »), ses lignes doivent être ignorées dans le total.
+  // Sinon le montant sauvegardé inclut des sections cachées et diverge du
+  // RÉSUMÉ affiché dans le formulaire.
+  materialLinesEnabled?: boolean
+  fraisLinesEnabled?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
-const lineHT = (l: ProductLineLike): number =>
-  (l.totalHT ?? l.total_ht ?? l.total ?? 0)
+// Garde nullish : si la ligne est null/undefined (localStorage corrompu après
+// un flow Facturer interrompu), on traite comme 0 au lieu de throw
+// `Cannot read properties of null`.
+const lineHT = (l: ProductLineLike | null | undefined): number => {
+  if (!l || typeof l !== 'object') return 0
+  return (l.totalHT ?? l.total_ht ?? l.total ?? 0)
+}
+
+const safeLines = (arr: unknown): ProductLineLike[] => {
+  if (!Array.isArray(arr)) return []
+  return arr.filter((l): l is ProductLineLike => l !== null && typeof l === 'object')
+}
 
 /**
  * Total HT en euros (décimaux). Couvre les 4 sources de lignes possibles.
@@ -56,23 +78,38 @@ const lineHT = (l: ProductLineLike): number =>
  *   ce qui faisait disparaître la section DÉMOLITION du dashboard car elle
  *   est stockée dans `lines` (pas `laborLines`).
  */
-export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
-  if (!doc) return 0
-  const laborRaw = (doc.laborLines || []) as ProductLineLike[]
-  const lines = (doc.lines || []) as ProductLineLike[]
-  const material = (doc.materialLines || []) as ProductLineLike[]
-  const frais = (doc.fraisLines || []) as ProductLineLike[]
-  const fraisAnnexes = (doc.fraisAnnexes || []) as ProductLineLike[]
-  const customLines = (doc.customTables || []).flatMap(t => t.lines || [])
-  // labor : laborLines explicite si présent, sinon lines (legacy + BTP buildPayload)
+/**
+ * Source unique de vérité pour la collection de lignes effective d'un devis
+ * ou d'une facture (BTP ou artisan). Applique toutes les règles de filtrage :
+ *
+ *   - laborLines (storage explicite) priorité sur `lines` (fallback legacy)
+ *   - materialLines / fraisLines exclus si leur flag `Enabled` === false
+ *     (section masquée par l'utilisateur, ses lignes ne sont jamais sommées)
+ *   - customTables aplatis, entrées null filtrées (corruption localStorage)
+ *   - safeLines à chaque niveau (null-safe)
+ *
+ * Tout site qui calcule un sous-total HT, somme la TVA, ou itère les postes
+ * d'un document persisté DOIT passer par ce helper. Sans cette source unique,
+ * un patch sur un seul des chemins (form, dashboard, API, PDF download)
+ * laisserait les autres divergents — régression DEV-2026-005, +2 800 €.
+ */
+export function buildDocumentLines(doc: DocumentWithLines | null | undefined): ProductLineLike[] {
+  if (!doc || typeof doc !== 'object') return []
+  const laborRaw = safeLines(doc.laborLines)
+  const lines = safeLines(doc.lines)
+  const material = doc.materialLinesEnabled === false ? [] : safeLines(doc.materialLines)
+  const frais = doc.fraisLinesEnabled === false ? [] : safeLines(doc.fraisLines)
+  const fraisAnnexes = safeLines(doc.fraisAnnexes)
+  const customTablesRaw = Array.isArray(doc.customTables) ? doc.customTables : []
+  const customLines = customTablesRaw
+    .filter((t): t is { lines?: ProductLineLike[] } => t !== null && typeof t === 'object')
+    .flatMap(t => safeLines(t.lines))
   const labor = laborRaw.length > 0 ? laborRaw : lines
-  return sumMoney([
-    ...labor.map(lineHT),
-    ...material.map(lineHT),
-    ...frais.map(lineHT),
-    ...fraisAnnexes.map(lineHT),
-    ...customLines.map(lineHT),
-  ])
+  return [...labor, ...material, ...frais, ...fraisAnnexes, ...customLines]
+}
+
+export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
+  return sumMoney(buildDocumentLines(doc).map(lineHT))
 }
 
 /**

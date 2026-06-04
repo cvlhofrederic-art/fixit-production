@@ -403,6 +403,295 @@ export const syndicImmeubleSchema = z.object({
   reglementFondsRoulementPct: z.number().min(0).max(100).optional(),
 })
 
+// ── Syndic Contrat schema (Phase 3 — ModContratos) ────────────────────────
+export const syndicContratSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  fornecedor: z.string().min(1, 'Fornecedor requis').max(200),
+  categoria: z.enum(['limpezas', 'elevadores', 'seguranca', 'jardinagem', 'outros']).optional().default('outros'),
+  custoMensal: z.number().min(0).max(99_999_999).optional().default(0),
+  custoAnual: z.number().min(0).max(99_999_999).optional().default(0),
+  dataInicio: z.string().max(20).optional(),
+  dataFim: z.string().max(20).optional(),
+  statut: z.enum(['ativo', 'expirado', 'renovacao']).optional().default('ativo'),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Seguro schema (Phase 3 — ModSeguros) ───────────────────────────
+export const syndicSeguroSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  seguradora: z.string().min(1, 'Seguradora requise').max(200),
+  tipo: z.enum(['multirriscos', 'responsabilidade_civil', 'incendio', 'outros']).optional().default('multirriscos'),
+  apolice: z.string().max(100).optional(),
+  premioAnual: z.number().min(0).max(99_999_999).optional().default(0),
+  capital: z.number().min(0).max(9_999_999_999).optional().default(0),
+  dataInicio: z.string().max(20).optional(),
+  dataFim: z.string().max(20).optional(),
+  statut: z.enum(['ativa', 'expirada', 'renovacao']).optional().default('ativa'),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Elevador schema (Phase 3 — ModElevadores) ──────────────────────
+export const syndicElevadorSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  marca: z.string().max(200).optional(),
+  categoria: z.enum(['comercial', 'misto', 'habitacional']).optional().default('habitacional'),
+  ema: z.string().max(200).optional(),
+  ultimaInspecao: z.string().max(20).optional(),
+  proximaInspecao: z.string().max(20).optional(),
+  estado: z.enum(['conforme', 'prazo', 'atraso']).optional().default('conforme'),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Sinistro schema (Phase 3 — ModSinistros) ───────────────────────
+export const syndicSinistroSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  tipo: z.string().max(200).optional(),
+  descricao: z.string().max(5000).optional(),
+  seguradora: z.string().max(200).optional(),
+  statut: z.enum(['declarado', 'atribuido', 'peritagem', 'resolucao', 'indemnizado', 'encerrado']).optional().default('declarado'),
+  montanteEstimado: z.number().min(0).max(99_999_999).optional().default(0),
+  indemnizacao: z.number().min(0).max(99_999_999).optional().default(0),
+  dataDeclaracao: z.string().max(20).optional(),
+  urgente: z.boolean().optional().default(false),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Vistoria schema (Phase 3 — ModVistoria) ────────────────────────
+export const syndicVistoriaSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  titulo: z.string().min(1, 'Título requis').max(300),
+  statut: z.enum(['em_curso', 'concluida', 'enviada']).optional().default('em_curso'),
+  pontosVigiar: z.number().int().min(0).max(99_999).optional().default(0),
+  pontosDeficientes: z.number().int().min(0).max(99_999).optional().default(0),
+  dataVistoria: z.string().max(20).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Prazo Legal schema (Phase 3 — ModPrazosLegais) ─────────────────
+export const syndicPrazoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  titulo: z.string().min(1, 'Título requis').max(300),
+  tipo: z.string().max(100).optional(),
+  dataLimite: z.string().max(20).optional(),
+  statut: z.enum(['pendente', 'realizado']).optional().default('pendente'),
+  notes: z.string().max(5000).optional(),
+})
+
+// PATCH d'une obligation : id requis + champs modifiables bornés (revue sécurité).
+export const syndicPrazoUpdateSchema = z.object({
+  id: z.string().uuid('id invalide'),
+  statut: z.enum(['pendente', 'realizado']).optional(),
+  titulo: z.string().max(300).optional(),
+  dataLimite: z.string().max(20).optional(),
+  immeuble: z.string().max(200).optional(),
+  tipo: z.string().max(100).optional(),
+})
+
+// ── Syndic Aviso schema (Phase 3 — ModQuadroAvisos) ───────────────────────
+export const syndicAvisoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  titulo: z.string().min(1, 'Título requis').max(300),
+  descricao: z.string().max(5000).optional(),
+  categoria: z.enum(['manutencao', 'assembleia', 'financeiro', 'seguranca', 'social', 'outro']).optional().default('outro'),
+  prioridade: z.enum(['normal', 'importante', 'urgente']).optional().default('normal'),
+  fixado: z.boolean().optional().default(false),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Reembolso schema (Phase 3 — ModReembolsos) ─────────────────────
+export const syndicReembolsoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  antigoProprietario: z.string().min(1, 'Proprietário requis').max(200),
+  fracao: z.string().max(100).optional(),
+  dataVenda: z.string().max(20).optional(),
+  quotasPagas: z.number().min(0).max(99_999_999).optional().default(0),
+  montanteReembolso: z.number().min(0).max(99_999_999).optional().default(0),
+  metodo: z.string().max(100).optional(),
+  statut: z.enum(['pendente', 'liquidado', 'bloqueado']).optional().default('pendente'),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Procuração schema (Phase 3 — ModProcuracoes) ───────────────────
+export const syndicProcuracaoSchema = z.object({
+  immeuble: z.string().max(200).optional(),
+  condomino: z.string().min(1, 'Condómino requis').max(200),
+  procurador: z.string().max(200).optional(),
+  fracao: z.string().max(100).optional(),
+  dataValidade: z.string().max(20).optional(),
+  agRef: z.string().max(200).optional(),
+  statut: z.enum(['valida', 'expirada']).optional().default('valida'),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Segurança Edifício schema (Phase 3 — ModSegEdificio) ───────────
+export const syndicSegEdificioSchema = z.object({
+  immeuble: z.string().min(1, 'Edifício requis').max(200),
+  categoria: z.enum(['1', '2', '3', '4']).optional().default('1'),
+  encarregado: z.string().max(200).optional(),
+  planoEmergencia: z.boolean().optional().default(false),
+  ultimoExercicio: z.string().max(20).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Caderneta de Manutenção schema (Phase 3 — ModCadernetaMan) ─────
+export const syndicCadernetaSchema = z.object({
+  data: z.string().max(20).optional(),
+  estado: z.enum(['realizado', 'planeado', 'em-curso', 'cancelado']).optional().default('realizado'),
+  natureza: z.string().min(1, 'Natureza requise').max(100),
+  edificio: z.string().max(200).optional(),
+  localizacao: z.string().max(200).optional(),
+  prestador: z.string().max(200).optional(),
+  custo: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  garantia: z.string().max(200).optional(),
+  cee: z.string().max(10).optional().default('na'),
+  notas: z.string().max(5000).optional(),
+})
+
+// ── Syndic Certificação Energética schema (Phase 3 — ModCertEnerg) ────────
+export const syndicCertEnergSchema = z.object({
+  numero: z.string().min(1, 'Numéro requis').max(100),
+  edificio: z.string().min(1, 'Edifício requis').max(200),
+  perito: z.string().max(200).optional(),
+  classe: z.string().max(10).optional().default('C'),
+  dataEmissao: z.string().max(20).optional(),
+  dataValidade: z.string().max(20).optional(),
+  notas: z.string().max(5000).optional(),
+})
+
+// ── Syndic Declaração de Encargos schema (Phase 3 — ModDeclEncargos) ──────
+export const syndicDeclEncargosSchema = z.object({
+  fracao: z.string().min(1, 'Fração requise').max(100),
+  condomino: z.string().min(1, 'Condómino requis').max(200),
+  edificio: z.string().max(200).optional(),
+  dataPedido: z.string().max(20).optional(),
+  prazoLimite: z.string().max(20).optional(),
+  encargosCorrentes: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  divida: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  notas: z.string().max(5000).optional(),
+})
+
+// ── Syndic FCR — Fundo Comum de Reserva (Phase 3 — ModFCR, 2 entités) ─────
+export const syndicFcrEdificioSchema = z.object({
+  nome: z.string().min(1, 'Nom requis').max(200),
+  endereco: z.string().max(300).optional(),
+  orcamentoAnual: z.coerce.number().min(0).max(1_000_000_000).optional().default(0),
+  percentagemFCR: z.coerce.number().min(0).max(100).optional().default(10),
+  saldoInicial: z.coerce.number().min(-1_000_000_000).max(1_000_000_000).optional().default(0),
+})
+
+export const syndicFcrMovimentoSchema = z.object({
+  edificio: z.string().max(200).optional(),
+  tipo: z.enum(['entrada', 'saida']).optional().default('entrada'),
+  data: z.string().max(20).optional(),
+  montante: z.coerce.number().min(0).max(1_000_000_000).optional().default(0),
+  descricao: z.string().min(1, 'Description requise').max(2000),
+})
+
+// ── Syndic AG v54 (Phase 3 — ModAGDigit, réutilise syndic_assemblees, PT↔FR) ─
+export const syndicAgV54Schema = z.object({
+  titulo: z.string().min(1, 'Titre requis').max(200),
+  edificio: z.string().max(200).optional(),
+  dataHora: z.string().max(40).optional(),
+  tipo: z.enum(['ordinaria', 'extraordinaria', 'urgente']).optional().default('ordinaria'),
+  local: z.string().max(500).optional(),
+  quorum: z.coerce.number().min(0).max(100).optional().default(50),
+  milesimos: z.coerce.number().int().min(0).max(100_000_000).optional().default(10000),
+  ordem: z.string().max(10000).optional(),
+})
+
+// ── Syndic Contabilidade Condomínio (Phase 3 — ModContabCond, 4 entités) ──
+export const syndicContabFracaoSchema = z.object({
+  entity: z.literal('frac'),
+  identificacao: z.string().min(1, 'Identification requise').max(100),
+  permilagem: z.coerce.number().min(0).max(100000).optional().default(0),
+  proprietario: z.string().max(200).optional(),
+  tipo: z.enum(['habitacao', 'comercio', 'garagem', 'arrecadacao']).optional().default('habitacao'),
+  notas: z.string().max(2000).optional(),
+})
+export const syndicContabChamadaSchema = z.object({
+  entity: z.literal('cham'),
+  titulo: z.string().min(1, 'Titre requis').max(200),
+  edificio: z.string().max(200).optional(),
+  dataEmissao: z.string().max(20).optional(),
+  dataVencimento: z.string().max(20).optional(),
+  montante: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  distribuicao: z.enum(['milesimos', 'igualitaria']).optional().default('milesimos'),
+  notas: z.string().max(2000).optional(),
+})
+export const syndicContabDiarioSchema = z.object({
+  entity: z.literal('diar'),
+  data: z.string().max(20).optional(),
+  tipo: z.enum(['debito', 'credito']).optional().default('debito'),
+  conta: z.string().min(1, 'Compte requis').max(100),
+  montante: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  descricao: z.string().min(1, 'Description requise').max(2000),
+})
+export const syndicContabOrcamentoSchema = z.object({
+  entity: z.literal('orc'),
+  ano: z.string().min(4).max(4),
+  edificio: z.string().max(200).optional(),
+  totalPrevisto: z.coerce.number().min(0).max(1_000_000_000).optional().default(0),
+  rubricas: z.string().max(5000).optional(),
+  notas: z.string().max(2000).optional(),
+})
+
+// ── Syndic Impayés (Phase 3 — ModCobrAuto, table syndic_impayes existante) ─
+const IMPAYE_NATURE = ['charges_courantes', 'travaux', 'fonds_reserve', 'interets_retard', 'frais_relance', 'autre'] as const
+const IMPAYE_STATUT = ['ouvert', 'en_recouvrement', 'solde', 'passe_perte'] as const
+export const syndicImpayeSchema = z.object({
+  immeubleId: z.string().max(40).optional(),
+  coproprioId: z.string().max(40).optional(),
+  montant: z.coerce.number().positive('Montant > 0 requis').max(100_000_000),
+  nature: z.enum(IMPAYE_NATURE).optional().default('charges_courantes'),
+  depuis: z.string().min(1, 'Date requise').max(20),
+  statut: z.enum(IMPAYE_STATUT).optional().default('ouvert'),
+  notes: z.string().max(5000).optional(),
+})
+export const syndicImpayeUpdateSchema = z.object({
+  id: z.string().uuid(),
+  statut: z.enum(IMPAYE_STATUT).optional(),
+  nbRelances: z.coerce.number().int().min(0).max(100).optional(),
+  derniereRelanceAt: z.string().max(40).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
+// ── Syndic Recouvrement (Phase 3 — ModCobrJud, table syndic_recouvrement) ──
+const RECOUVR_PROC = ['amiable', 'mise_en_demeure', 'huissier', 'tribunal', 'saisie', 'accord_paiement'] as const
+const RECOUVR_STATUT = ['en_cours', 'suspendu', 'cloture_succes', 'cloture_echec'] as const
+export const syndicRecouvrementSchema = z.object({
+  immeubleId: z.string().max(40).optional(),
+  coproprioId: z.string().max(40).optional(),
+  procedure: z.enum(RECOUVR_PROC).optional().default('amiable'),
+  statut: z.enum(RECOUVR_STATUT).optional().default('en_cours'),
+  montantInitial: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  montantRecouvre: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  dateOuverture: z.string().max(20).optional(),
+  avocatHuissier: z.string().max(300).optional(),
+  prochaineEcheance: z.string().max(20).optional(),
+  notes: z.string().max(5000).optional(),
+})
+export const syndicRecouvrementUpdateSchema = z.object({
+  id: z.string().uuid(),
+  procedure: z.enum(RECOUVR_PROC).optional(),
+  statut: z.enum(RECOUVR_STATUT).optional(),
+  montantRecouvre: z.coerce.number().min(0).max(100_000_000).optional(),
+  avocatHuissier: z.string().max(300).optional(),
+  prochaineEcheance: z.string().max(20).optional(),
+})
+
+// ── Syndic Faturação (Phase 3 — ModFaturacao, table syndic_factures_copro) ─
+export const syndicFaturaSchema = z.object({
+  coproprioId: z.string().max(40).optional(),
+  immeubleId: z.string().max(40).optional(),
+  numeroFatura: z.string().max(100).optional(),
+  emiseLe: z.string().max(20).optional(),
+  echeance: z.string().max(20).optional(),
+  montantHt: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  tvaTaux: z.coerce.number().min(0).max(100).optional().default(23),
+  description: z.string().max(2000).optional(),
+  statut: z.enum(['a_regler', 'partiellement_regle', 'reglee', 'contestee', 'annulee']).optional().default('a_regler'),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
@@ -568,7 +857,9 @@ export const stripeCheckoutSchema = z.object({
 })
 
 export const docNumberSchema = z.object({
-  docType: z.enum(['devis', 'facture', 'avoir']),
+  // 'acompte' = série dédiée AC- (méthode pro : un compteur par type de doc,
+  // l'acompte ne consomme plus la séquence FACT-). Cf. migration 20260601.
+  docType: z.enum(['devis', 'facture', 'avoir', 'acompte']),
   year: z.number().int().min(2024).max(2100).optional(),
 })
 
@@ -1108,7 +1399,10 @@ export const VALID_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{
 // et 'rejected' (refus explicite du client). 'signed' reste pour signature
 // électronique canvas.
 export const devisStatusEnum = z.enum(['draft', 'sent', 'signed', 'accepted', 'rejected', 'expired', 'cancelled'])
-export const factureStatusEnum = z.enum(['pending', 'paid', 'overdue', 'cancelled', 'refunded'])
+// 'draft' ajouté (migration 20260602) : modèle pro Stripe — un brouillon de
+// facture est un VRAI draft (sans numéro, non hashé, exclu des agrégats), émis
+// via draft→pending au moment de la validation (numéro + hash-chain attribués).
+export const factureStatusEnum = z.enum(['draft', 'pending', 'paid', 'overdue', 'cancelled', 'refunded'])
 export type DevisStatus = z.infer<typeof devisStatusEnum>
 export type FactureStatus = z.infer<typeof factureStatusEnum>
 
@@ -1123,6 +1417,7 @@ const DEVIS_TRANSITIONS: Record<DevisStatus, ReadonlyArray<DevisStatus>> = {
 }
 
 const FACTURE_TRANSITIONS: Record<FactureStatus, ReadonlyArray<FactureStatus>> = {
+  draft: ['pending', 'cancelled'],
   pending: ['paid', 'overdue', 'cancelled'],
   paid: ['refunded', 'cancelled'],
   overdue: ['paid', 'cancelled'],
@@ -1154,7 +1449,15 @@ export const devisSyncSchema = z.object({
   docType: z.enum(['devis', 'facture']),
   artisanId: z.string().uuid('artisanId doit être un UUID valide'),
   doc: z.object({
-    docNumber: z.string().min(1, 'docNumber requis').max(100),
+    // Identité STABLE de la ligne (méthode pro Stripe/QuickBooks) : UUID généré
+    // client-side à la création, stable sur tout le cycle brouillon → émis.
+    // Sert de clé d'upsert (onConflict='id'). Optionnel pour rétro-compat des
+    // docs legacy sans id local (identité par numero, voir route). Le route
+    // exige id OU docNumber (au moins une identité non vide).
+    id: z.string().uuid('id doit être un UUID valide').optional(),
+    // docNumber : OPTIONNEL/nullable. Un brouillon n'a pas de numéro tant qu'il
+    // n'est pas validé — le numéro légal est tiré de next_doc_number à l'émission.
+    docNumber: z.union([z.string().max(100), z.literal(''), z.null()]).optional(),
     docType: z.enum(['devis', 'facture']).optional(),
     clientName: z.string().max(500).optional(),
     // clientEmail : accepte email valide OU chaîne vide (cas fréquent : le
@@ -1179,6 +1482,22 @@ export const devisSyncSchema = z.object({
     materialLines: z.array(z.unknown()).optional(),
     fraisLines: z.array(z.unknown()).optional(),
     fraisAnnexes: z.array(z.unknown()).optional(),
+    // Régime TVA — par doc (distinct de settings_btp.regime_tva qui désigne
+    // le régime fiscal de la société). Trois valeurs légales :
+    //   classique           : TVA collectée par taux (assujetti normal)
+    //   franchise_293b      : CGI art. 293 B (abrogé 1er sept 2026)
+    //   autoliquidation_btp : CGI art. 283, 2 nonies (sous-traitance BTP)
+    regimeTva: z.enum(['classique', 'franchise_293b', 'autoliquidation_btp']).optional(),
+    clientType: z.enum(['particulier', 'professionnel']).optional(),
+    clientSiren: z.string().max(20).optional(),
+    tvaIntraEmetteur: z.string().max(50).optional(),
+    tvaIntraPreneur: z.string().max(50).optional(),
+    // Avoir : si rempli, ce doc est un avoir sur la facture référencée.
+    avoirDeFactureId: z.union([
+      z.string().uuid('avoirDeFactureId doit être un UUID valide'),
+      z.literal(''),
+      z.null(),
+    ]).optional(),
   }).passthrough(),
 })
 

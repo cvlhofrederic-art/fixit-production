@@ -60,6 +60,19 @@ export default function MissionsPageSection({
       const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
       localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(stored.filter((m: Mission) => m.id !== id)))
     } catch {}
+    // Supprime aussi de Supabase pour que la suppression persiste après reload.
+    // Sinon le prochain fetch /api/syndic/missions réinjecte la mission supprimée.
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (token && id && !id.startsWith('pt-mis-')) {
+        await fetch(`/api/syndic/missions?id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      }
+    } catch {}
   }
 
   return (
@@ -74,7 +87,7 @@ export default function MissionsPageSection({
             <button key={f} onClick={() => setMissionsFilter(f)} className={`text-sm px-3 py-1.5 rounded-lg border transition ${missionsFilter === f ? 'border-[#C9A84C] bg-[#F7F4EE] text-[#C9A84C] font-semibold' : 'border-gray-200 hover:border-[#C9A84C] hover:text-[#C9A84C]'}`}>
               {filterLabel}
               {f === 'Urgentes' && <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.priorite === 'urgente').length}</span>}
-              {f === 'En cours' && <span className="ml-1.5 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee').length}</span>}
+              {f === 'En cours' && <span className="ml-1.5 bg-[#C9A84C] text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee').length}</span>}
             </button>
             )
           })}
@@ -96,17 +109,17 @@ export default function MissionsPageSection({
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <PrioriteBadge p={m.priorite} />
                   <Badge statut={m.statut} locale={locale} />
-                  <span className="text-xs text-gray-500">#{m.id}</span>
-                  {m.locataire && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
-                  {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `Bât. ${m.batiment} · ` : ''}Ét. {m.etage}</span>}
+                  <span className="text-xs text-gray-400 font-mono" title={`ID complet : ${m.id}`}>#{m.id.slice(0, 8)}</span>
+                  {m.locataire && <span className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
+                  {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `${locale === 'pt' ? 'Bl.' : 'Bât.'} ${m.batiment} · ` : ''}{locale === 'pt' ? 'And.' : 'Ét.'} {m.etage}</span>}
                 </div>
                 <h3 className="font-bold text-gray-900">{m.immeuble}</h3>
                 <p className="text-sm text-gray-600">{m.type} · {m.description}</p>
-                {m.numLot && <p className="text-xs text-gray-500 mt-0.5">Lot {m.numLot}</p>}
+                {m.numLot && <p className="text-xs text-gray-500 mt-0.5">{locale === 'pt' ? 'Fração' : 'Lot'} {m.numLot}</p>}
               </div>
               <div className="text-right ml-4 flex-shrink-0">
                 {m.montantDevis && <p className="text-sm font-semibold text-gray-900">{m.montantDevis.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</p>}
-                {m.montantFacture && <p className="text-xs text-green-600">Facturé : {m.montantFacture.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</p>}
+                {m.montantFacture && <p className="text-xs text-green-600">{locale === 'pt' ? 'Faturado' : 'Facturé'} : {m.montantFacture.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</p>}
               </div>
             </div>
             <div className="flex items-center justify-between text-sm text-gray-500">
@@ -117,12 +130,12 @@ export default function MissionsPageSection({
               </div>
               <div className="flex gap-2">
                 {m.statut === 'en_attente' && (
-                  <button onClick={() => handleValiderMission(m.id)} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">✅ Valider</button>
+                  <button onClick={() => handleValiderMission(m.id)} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">✅ {locale === 'pt' ? 'Validar' : 'Valider'}</button>
                 )}
                 {m.statut === 'terminee' && (
-                  <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">📄 Rapport</button>
+                  <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📄 {locale === 'pt' ? 'Relatório' : 'Rapport'}</button>
                 )}
-                <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📋 Ouvrir</button>
+                <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-3 py-1 rounded-lg hover:bg-[#EDE8DF] transition font-medium">📋 {locale === 'pt' ? 'Abrir' : 'Ouvrir'}</button>
                 <button onClick={(e) => { e.stopPropagation(); handleDeleteMission(m.id) }} className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-lg hover:bg-red-200 transition font-medium" title={t('syndicDash.common.delete')} aria-label={t('syndicDash.common.delete')}>🗑️</button>
               </div>
             </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,48 +44,49 @@ interface Artisan {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const TYPES_URGENCE = [
-  { key: 'inondation',     label: 'Inondation / Dégât des eaux',    icon: '💧', metiers: ['Plombier', 'plombier', 'plomberie'] },
-  { key: 'electricite',   label: 'Panne électrique / Court-circuit', icon: '⚡', metiers: ['Électricien', 'electricien', 'électricité'] },
-  { key: 'ascenseur',     label: 'Panne ascenseur',                  icon: '🛗', metiers: ['Ascensoriste', 'ascenseur', 'Maintenance'] },
-  { key: 'incendie',      label: 'Incendie / Fumée',                 icon: '🔥', metiers: ['Pompier', 'Sécurité incendie'] },
-  { key: 'gaz',           label: 'Fuite de gaz',                     icon: '💨', metiers: ['Plombier', 'plombier', 'Chauffagiste'] },
-  { key: 'serrurerie',    label: 'Porte bloquée / Serrurerie',       icon: '🔐', metiers: ['Serrurier', 'serrurier'] },
-  { key: 'chaudiere',     label: 'Panne chaudière / Chauffage',      icon: '🌡️', metiers: ['Chauffagiste', 'chauffage', 'Plombier'] },
-  { key: 'toiture',       label: 'Toiture / Infiltration',           icon: '🏚️', metiers: ['Couvreur', 'couvreur', 'Toiture'] },
-  { key: 'structure',     label: 'Problème structurel / Fissure',    icon: '🏗️', metiers: ['Maçon', 'maçon', 'Entreprise générale'] },
-  { key: 'autre',         label: 'Autre urgence',                    icon: '🚨', metiers: [] },
+const getTypesUrgence = (isPt: boolean) => [
+  { key: 'inondation',     label: isPt ? 'Inundação / Dano água'           : 'Inondation / Dégât des eaux',    icon: '💧', metiers: ['Plombier', 'plombier', 'plomberie', 'Canalizador', 'canalização'] },
+  { key: 'electricite',   label: isPt ? 'Avaria elétrica / Curto-circuito' : 'Panne électrique / Court-circuit', icon: '⚡', metiers: ['Électricien', 'electricien', 'électricité', 'Eletricista'] },
+  { key: 'ascenseur',     label: isPt ? 'Avaria elevador'                  : 'Panne ascenseur',                  icon: '🛗', metiers: ['Ascensoriste', 'ascenseur', 'Maintenance', 'Manutenção'] },
+  { key: 'incendie',      label: isPt ? 'Incêndio / Fumo'                  : 'Incendie / Fumée',                 icon: '🔥', metiers: ['Pompier', 'Sécurité incendie', 'Bombeiro'] },
+  { key: 'gaz',           label: isPt ? 'Fuga de gás'                      : 'Fuite de gaz',                     icon: '💨', metiers: ['Plombier', 'plombier', 'Chauffagiste', 'Canalizador'] },
+  { key: 'serrurerie',    label: isPt ? 'Porta bloqueada / Serralharia'    : 'Porte bloquée / Serrurerie',       icon: '🔐', metiers: ['Serrurier', 'serrurier', 'Serralheiro'] },
+  { key: 'chaudiere',     label: isPt ? 'Avaria caldeira / Aquecimento'    : 'Panne chaudière / Chauffage',      icon: '🌡️', metiers: ['Chauffagiste', 'chauffage', 'Plombier', 'Canalizador'] },
+  { key: 'toiture',       label: isPt ? 'Cobertura / Infiltração'          : 'Toiture / Infiltration',           icon: '🏚️', metiers: ['Couvreur', 'couvreur', 'Toiture', 'Telhador'] },
+  { key: 'structure',     label: isPt ? 'Problema estrutural / Fissura'    : 'Problème structurel / Fissure',    icon: '🏗️', metiers: ['Maçon', 'maçon', 'Entreprise générale', 'Pedreiro'] },
+  { key: 'autre',         label: isPt ? 'Outra urgência'                   : 'Autre urgence',                    icon: '🚨', metiers: [] },
 ]
 
-const NIVEAUX: Record<NiveauUrgence, { label: string; badge: string; dot: string; bg: string }> = {
-  critique:   { label: 'CRITIQUE',   badge: 'bg-red-100 text-red-700 border-red-300',       dot: 'bg-red-500',    bg: 'bg-red-50 border-red-200'    },
-  urgente:    { label: 'URGENTE',    badge: 'bg-orange-100 text-orange-700 border-orange-300', dot: 'bg-orange-500', bg: 'bg-orange-50 border-orange-200' },
-  importante: { label: 'IMPORTANTE', badge: 'bg-yellow-100 text-yellow-700 border-yellow-300', dot: 'bg-yellow-400', bg: 'bg-yellow-50 border-yellow-200' },
-}
+const getNiveaux = (isPt: boolean): Record<NiveauUrgence, { label: string; badge: string; dot: string; bg: string }> => ({
+  critique:   { label: isPt ? 'CRÍTICA'    : 'CRITIQUE',   badge: 'bg-red-100 text-red-700 border-red-300',       dot: 'bg-red-500',    bg: 'bg-red-50 border-red-200'    },
+  urgente:    { label: isPt ? 'URGENTE'    : 'URGENTE',    badge: 'bg-orange-100 text-orange-700 border-orange-300', dot: 'bg-orange-500', bg: 'bg-orange-50 border-orange-200' },
+  importante: { label: isPt ? 'IMPORTANTE' : 'IMPORTANTE', badge: 'bg-yellow-100 text-yellow-700 border-yellow-300', dot: 'bg-yellow-400', bg: 'bg-yellow-50 border-yellow-200' },
+})
 
-const STATUTS: Record<StatutUrgence, { label: string; icon: string; color: string }> = {
-  signale:           { label: 'Signalé',              icon: '📣', color: 'text-red-600'    },
-  artisan_contacte:  { label: 'Artisan contacté',     icon: '📞', color: 'text-orange-600' },
-  artisan_en_route:  { label: 'Artisan en route',     icon: '🚗', color: 'text-blue-600'   },
-  en_cours:          { label: 'Intervention en cours', icon: '🔧', color: 'text-purple-600' },
-  resolu:            { label: 'Résolu',                icon: '✅', color: 'text-green-600'  },
-}
+const getStatuts = (isPt: boolean): Record<StatutUrgence, { label: string; icon: string; color: string }> => ({
+  signale:           { label: isPt ? 'Reportado'              : 'Signalé',              icon: '📣', color: 'text-red-600'    },
+  artisan_contacte:  { label: isPt ? 'Profissional contactado': 'Artisan contacté',     icon: '📞', color: 'text-orange-600' },
+  artisan_en_route:  { label: isPt ? 'Profissional a caminho' : 'Artisan en route',     icon: '🚗', color: 'text-[#C9A84C]'   },
+  en_cours:          { label: isPt ? 'Intervenção em curso'   : 'Intervention en cours', icon: '🔧', color: 'text-[#C9A84C]' },
+  resolu:            { label: isPt ? 'Resolvida'              : 'Résolu',                icon: '✅', color: 'text-green-600'  },
+})
 
 const PIPELINE: StatutUrgence[] = ['signale', 'artisan_contacte', 'artisan_en_route', 'en_cours', 'resolu']
 
-const formatTime = (s: string) => {
+const formatTime = (s: string, isPt: boolean) => {
   try {
     const d = new Date(s)
-    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' ' +
-           d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    const loc = isPt ? 'pt-PT' : 'fr-FR'
+    return d.toLocaleDateString(loc, { day: '2-digit', month: 'short' }) + ' ' +
+           d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
   } catch { return s }
 }
 
-const dureeDepuis = (s: string) => {
+const dureeDepuis = (s: string, isPt: boolean) => {
   const diff = Date.now() - new Date(s).getTime()
   const h = Math.floor(diff / 3600000)
   const m = Math.floor((diff % 3600000) / 60000)
-  if (h > 24) return `${Math.floor(h / 24)}j`
+  if (h > 24) return `${Math.floor(h / 24)}${isPt ? 'd' : 'j'}`
   if (h > 0)  return `${h}h${m > 0 ? m + 'm' : ''}`
   return `${m}min`
 }
@@ -100,6 +102,11 @@ export default function UrgencesSection({
   userRole: string
   artisans?: Artisan[]
 }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const TYPES_URGENCE = useMemo(() => getTypesUrgence(isPt), [isPt])
+  const NIVEAUX = useMemo(() => getNiveaux(isPt), [isPt])
+  const STATUTS = useMemo(() => getStatuts(isPt), [isPt])
   const STORAGE_KEY = `fixit_urgences_${user.id}`
 
   const [urgences, setUrgences]         = useState<Urgence[]>([])
@@ -158,12 +165,12 @@ export default function UrgencesSection({
     const typeLabel = TYPES_URGENCE.find(t => t.key === form.typeUrgence)?.label || form.typeUrgence || ''
 
     const timeline: UrgenceEvent[] = [
-      { date: now, action: `Urgence signalée — ${typeLabel}`, par: form.signalePar || 'Syndic' }
+      { date: now, action: `${isPt ? 'Urgência reportada' : 'Urgence signalée'} — ${typeLabel}`, par: form.signalePar || (isPt ? 'Administração' : 'Syndic') }
     ]
 
     const artisan = artisans.find(a => a.id === form.artisanId)
     if (artisan) {
-      timeline.push({ date: now, action: `Artisan contacté — ${artisan.nom}${artisan.prenom ? ' ' + artisan.prenom : ''}`, par: 'Système VITFIX' })
+      timeline.push({ date: now, action: `${isPt ? 'Profissional contactado' : 'Artisan contacté'} — ${artisan.nom}${artisan.prenom ? ' ' + artisan.prenom : ''}`, par: isPt ? 'Sistema VITFIX' : 'Système VITFIX' })
     }
 
     const newUrgence: Urgence = {
@@ -206,7 +213,7 @@ export default function UrgencesSection({
       resolvedAt: nextStatut === 'resolu' ? now : undefined,
       timeline: [
         ...urgence.timeline,
-        { date: now, action: STATUTS[nextStatut].label, par: 'Syndic' }
+        { date: now, action: STATUTS[nextStatut].label, par: isPt ? 'Administração' : 'Syndic' }
       ]
     }
     const newList = urgences.map(u => u.id === urgence.id ? updated : u)
@@ -224,7 +231,7 @@ export default function UrgencesSection({
       artisanTelephone: artisan.telephone,
       statut: 'artisan_contacte',
       updatedAt: now,
-      timeline: [...urgence.timeline, { date: now, action: `Artisan assigné — ${nom}`, par: 'Syndic' }]
+      timeline: [...urgence.timeline, { date: now, action: `${isPt ? 'Profissional atribuído' : 'Artisan assigné'} — ${nom}`, par: isPt ? 'Administração' : 'Syndic' }]
     }
     const newList = urgences.map(u => u.id === urgence.id ? updated : u)
     save(newList)
@@ -250,14 +257,14 @@ export default function UrgencesSection({
       {/* En-tête */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">🚨 Urgences Techniques</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Dispatch immédiat vers l&apos;artisan VITFIX disponible</p>
+          <h1 className="text-2xl font-bold text-gray-900">🚨 {isPt ? 'Urgências Técnicas' : 'Urgences Techniques'}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{isPt ? 'Dispatch imediato para o profissional VITFIX disponível' : 'Dispatch immédiat vers l\'artisan VITFIX disponible'}</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
           className="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-sm shadow-red-200 animate-pulse"
         >
-          🚨 Déclarer une urgence
+          🚨 {isPt ? 'Declarar urgência' : 'Déclarer une urgence'}
         </button>
       </div>
 
@@ -266,7 +273,7 @@ export default function UrgencesSection({
         <div className="mb-4 bg-red-600 text-white rounded-xl p-4 flex items-center gap-3 shadow-lg">
           <span className="text-2xl animate-bounce">🔴</span>
           <div>
-            <p className="font-bold">{critiques.length} urgence{critiques.length > 1 ? 's' : ''} CRITIQUE{critiques.length > 1 ? 'S' : ''} en cours</p>
+            <p className="font-bold">{critiques.length} {isPt ? `urgência${critiques.length > 1 ? 's' : ''} CRÍTICA${critiques.length > 1 ? 'S' : ''} em curso` : `urgence${critiques.length > 1 ? 's' : ''} CRITIQUE${critiques.length > 1 ? 'S' : ''} en cours`}</p>
             <p className="text-red-100 text-sm">{critiques.map(u => u.immeuble).join(', ')}</p>
           </div>
         </div>
@@ -275,10 +282,10 @@ export default function UrgencesSection({
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Urgences actives',  value: actives.length,                                     color: actives.length > 0 ? 'text-red-600' : 'text-gray-900' },
-          { label: 'Critiques',         value: critiques.length,                                    color: critiques.length > 0 ? 'text-red-700 font-black' : 'text-gray-900' },
-          { label: 'Artisan assigné',   value: actives.filter(u => u.artisanId).length,             color: 'text-green-600' },
-          { label: 'Résolues (total)',  value: urgences.filter(u => u.statut === 'resolu').length,  color: 'text-gray-900' },
+          { label: isPt ? 'Urgências ativas'        : 'Urgences actives',  value: actives.length,                                     color: actives.length > 0 ? 'text-red-600' : 'text-gray-900' },
+          { label: isPt ? 'Críticas'                : 'Critiques',         value: critiques.length,                                    color: critiques.length > 0 ? 'text-red-700 font-black' : 'text-gray-900' },
+          { label: isPt ? 'Profissional atribuído'  : 'Artisan assigné',   value: actives.filter(u => u.artisanId).length,             color: 'text-green-600' },
+          { label: isPt ? 'Resolvidas (total)'      : 'Résolues (total)',  value: urgences.filter(u => u.statut === 'resolu').length,  color: 'text-gray-900' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -290,9 +297,9 @@ export default function UrgencesSection({
       {/* Filtres */}
       <div className="flex gap-2 mb-4">
         {[
-          { key: 'actif',  label: `En cours (${actives.length})` },
-          { key: 'resolu', label: `Résolues` },
-          { key: 'all',    label: 'Toutes' },
+          { key: 'actif',  label: isPt ? `Em curso (${actives.length})` : `En cours (${actives.length})` },
+          { key: 'resolu', label: isPt ? `Resolvidas` : `Résolues` },
+          { key: 'all',    label: isPt ? 'Todas' : 'Toutes' },
         ].map(f => (
           <button
             key={f.key}
@@ -308,8 +315,8 @@ export default function UrgencesSection({
       {filtered.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-16 text-center">
           <div className="text-5xl mb-4">✅</div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucune urgence en cours</h3>
-          <p className="text-gray-400 text-sm">Tout est calme. Utilisez le bouton rouge pour déclarer une urgence.</p>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">{isPt ? 'Nenhuma urgência em curso' : 'Aucune urgence en cours'}</h3>
+          <p className="text-gray-400 text-sm">{isPt ? 'Tudo calmo. Use o botão vermelho para declarar uma urgência.' : 'Tout est calme. Utilisez le bouton rouge pour déclarer une urgence.'}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -337,7 +344,7 @@ export default function UrgencesSection({
                         <span className={`text-xs font-medium ${statutConfig.color}`}>
                           {statutConfig.icon} {statutConfig.label}
                         </span>
-                        <span className="text-xs text-gray-400">{dureeDepuis(urgence.createdAt)}</span>
+                        <span className="text-xs text-gray-400">{dureeDepuis(urgence.createdAt, isPt)}</span>
                       </div>
                       <p className="font-bold text-gray-900 text-sm">{typeConfig?.label || urgence.typeUrgence}</p>
                       <p className="text-xs text-gray-600 truncate">📍 {urgence.immeuble}{urgence.localisation ? ` · ${urgence.localisation}` : ''}</p>
@@ -350,13 +357,13 @@ export default function UrgencesSection({
                       <div className="bg-white/60 rounded-lg px-2 py-1.5 text-xs">
                         <p className="font-semibold text-gray-900">🔧 {urgence.artisanNom}</p>
                         {urgence.artisanTelephone && (
-                          <a href={`tel:${urgence.artisanTelephone}`} onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline">
+                          <a href={`tel:${urgence.artisanTelephone}`} onClick={e => e.stopPropagation()} className="text-[#C9A84C] hover:underline">
                             {urgence.artisanTelephone}
                           </a>
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs bg-white/60 text-orange-600 px-2 py-1 rounded-lg font-medium">Sans artisan</span>
+                      <span className="text-xs bg-white/60 text-orange-600 px-2 py-1 rounded-lg font-medium">{isPt ? 'Sem profissional' : 'Sans artisan'}</span>
                     )}
                   </div>
                 </div>
@@ -384,15 +391,15 @@ export default function UrgencesSection({
                     {/* Info signalement */}
                     {(urgence.signalePar || urgence.telephone) && (
                       <div className="grid grid-cols-2 gap-3 bg-white/50 rounded-xl p-3">
-                        {urgence.signalePar && <div><p className="text-xs text-gray-400">Signalé par</p><p className="text-sm font-semibold">{urgence.signalePar}</p></div>}
-                        {urgence.telephone && <div><p className="text-xs text-gray-400">Téléphone</p><a href={`tel:${urgence.telephone}`} className="text-sm font-semibold text-blue-600">{urgence.telephone}</a></div>}
+                        {urgence.signalePar && <div><p className="text-xs text-gray-400">{isPt ? 'Reportado por' : 'Signalé par'}</p><p className="text-sm font-semibold">{urgence.signalePar}</p></div>}
+                        {urgence.telephone && <div><p className="text-xs text-gray-400">{isPt ? 'Telefone' : 'Téléphone'}</p><a href={`tel:${urgence.telephone}`} className="text-sm font-semibold text-[#C9A84C]">{urgence.telephone}</a></div>}
                       </div>
                     )}
 
                     {/* Assigner artisan si pas encore fait */}
                     {!urgence.artisanId && artisans.length > 0 && (
                       <div>
-                        <p className="text-sm font-semibold text-gray-700 mb-2">🔧 Assigner un artisan VITFIX</p>
+                        <p className="text-sm font-semibold text-gray-700 mb-2">🔧 {isPt ? 'Atribuir um profissional VITFIX' : 'Assigner un artisan VITFIX'}</p>
                         <div className="space-y-1.5 max-h-40 overflow-y-auto">
                           {artisansSuggeres.slice(0, 6).map(a => {
                             const isMatch = TYPES_URGENCE.find(t => t.key === urgence.typeUrgence)?.metiers.some(m => a.metier?.toLowerCase().includes(m.toLowerCase()))
@@ -407,8 +414,8 @@ export default function UrgencesSection({
                                   <p className="text-sm font-semibold text-gray-900">{a.nom}{a.prenom ? ` ${a.prenom}` : ''}</p>
                                   <p className="text-xs text-gray-500">{a.metier}</p>
                                 </div>
-                                {isMatch && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Recommandé</span>}
-                                <a href={`tel:${a.telephone}`} onClick={e => e.stopPropagation()} className="text-blue-600 text-xs hover:underline">{a.telephone}</a>
+                                {isMatch && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{isPt ? 'Recomendado' : 'Recommandé'}</span>}
+                                <a href={`tel:${a.telephone}`} onClick={e => e.stopPropagation()} className="text-[#C9A84C] text-xs hover:underline">{a.telephone}</a>
                               </button>
                             )
                           })}
@@ -427,24 +434,24 @@ export default function UrgencesSection({
                         </button>
                         <button
                           onClick={() => {
-                            const u = { ...urgence, statut: 'resolu' as StatutUrgence, resolvedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), timeline: [...urgence.timeline, { date: new Date().toISOString(), action: 'Résolu', par: 'Syndic' }] }
+                            const u = { ...urgence, statut: 'resolu' as StatutUrgence, resolvedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), timeline: [...urgence.timeline, { date: new Date().toISOString(), action: isPt ? 'Resolvida' : 'Résolu', par: isPt ? 'Administração' : 'Syndic' }] }
                             save(urgences.map(x => x.id === u.id ? u : x))
                             setSelected(null)
                           }}
                           className="bg-green-600 text-white font-semibold py-2 px-4 rounded-xl text-sm hover:bg-green-700 transition-colors"
                         >
-                          ✅ Marquer résolu
+                          ✅ {isPt ? 'Marcar resolvida' : 'Marquer résolu'}
                         </button>
                       </div>
                     )}
 
                     {/* Timeline */}
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Historique</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{isPt ? 'Histórico' : 'Historique'}</p>
                       <div className="space-y-1.5">
                         {[...urgence.timeline].reverse().map((ev, i) => (
                           <div key={i} className="flex gap-2 text-xs">
-                            <span className="text-gray-400 flex-shrink-0 w-32">{formatTime(ev.date)}</span>
+                            <span className="text-gray-400 flex-shrink-0 w-32">{formatTime(ev.date, isPt)}</span>
                             <span className="text-gray-700">{ev.action}</span>
                             {ev.par && <span className="text-gray-400">· {ev.par}</span>}
                           </div>
@@ -456,9 +463,9 @@ export default function UrgencesSection({
                     <button
                       onClick={() => { save(urgences.filter(u => u.id !== urgence.id)); setSelected(null) }}
                       className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                      aria-label="Supprimer cette urgence"
+                      aria-label={isPt ? 'Eliminar esta urgência' : 'Supprimer cette urgence'}
                     >
-                      🗑️ Supprimer
+                      🗑️ {isPt ? 'Eliminar' : 'Supprimer'}
                     </button>
                   </div>
                 )}
@@ -473,14 +480,14 @@ export default function UrgencesSection({
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-red-600 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between z-10">
-              <h2 className="text-lg font-bold">🚨 Déclarer une urgence</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-red-500 transition-colors" aria-label="Fermer">✕</button>
+              <h2 className="text-lg font-bold">🚨 {isPt ? 'Declarar uma urgência' : 'Déclarer une urgence'}</h2>
+              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-red-500 transition-colors" aria-label={isPt ? 'Fechar' : 'Fermer'}>✕</button>
             </div>
 
             <div className="p-6 space-y-5">
               {/* Type urgence */}
               <div>
-                <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wide">Type d&apos;urgence *</label>
+                <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wide">{isPt ? 'Tipo de urgência *' : 'Type d\'urgence *'}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {TYPES_URGENCE.map(t => (
                     <button
@@ -497,7 +504,7 @@ export default function UrgencesSection({
 
               {/* Niveau */}
               <div>
-                <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wide">Niveau d&apos;urgence *</label>
+                <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wide">{isPt ? 'Nível de urgência *' : 'Niveau d\'urgence *'}</label>
                 <div className="flex gap-2">
                   {(Object.entries(NIVEAUX) as [NiveauUrgence, typeof NIVEAUX[NiveauUrgence]][]).map(([k, v]) => (
                     <button
@@ -514,19 +521,19 @@ export default function UrgencesSection({
               {/* Immeuble & localisation */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="text-xs text-gray-500 mb-1 block">Immeuble *</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{isPt ? 'Edifício *' : 'Immeuble *'}</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                    placeholder="Résidence les Pins"
+                    placeholder={isPt ? 'Edifício Os Pinheiros' : 'Résidence les Pins'}
                     value={form.immeuble || ''}
                     onChange={e => setForm({ ...form, immeuble: e.target.value })}
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs text-gray-500 mb-1 block">Localisation précise</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{isPt ? 'Localização precisa' : 'Localisation précise'}</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                    placeholder="Couloir 3e étage, lot 12, cave B..."
+                    placeholder={isPt ? 'Corredor 3.º andar, fração 12, cave B...' : 'Couloir 3e étage, lot 12, cave B...'}
                     value={form.localisation || ''}
                     onChange={e => setForm({ ...form, localisation: e.target.value })}
                   />
@@ -535,11 +542,11 @@ export default function UrgencesSection({
 
               {/* Description */}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Description *</label>
+                <label className="text-xs text-gray-500 mb-1 block">{isPt ? 'Descrição *' : 'Description *'}</label>
                 <textarea
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
                   rows={3}
-                  placeholder="Décrivez précisément la situation..."
+                  placeholder={isPt ? 'Descreva precisamente a situação...' : 'Décrivez précisément la situation...'}
                   value={form.description || ''}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                 />
@@ -548,20 +555,20 @@ export default function UrgencesSection({
               {/* Signalé par */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Signalé par</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{isPt ? 'Reportado por' : 'Signalé par'}</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                    placeholder="M. Dupont"
+                    placeholder={isPt ? 'Sr. Silva' : 'M. Dupont'}
                     value={form.signalePar || ''}
                     onChange={e => setForm({ ...form, signalePar: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Téléphone</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{isPt ? 'Telefone' : 'Téléphone'}</label>
                   <input
                     type="tel"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                    placeholder="06 12 34 56 78"
+                    placeholder={isPt ? '9X XXX XX XX' : '06 12 34 56 78'}
                     value={form.telephone || ''}
                     onChange={e => setForm({ ...form, telephone: e.target.value })}
                   />
@@ -572,11 +579,11 @@ export default function UrgencesSection({
               {artisans.length > 0 && (
                 <div>
                   <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wide">
-                    🔧 Artisan VITFIX {form.typeUrgence ? '— recommandés en tête' : ''}
+                    🔧 {isPt ? 'Profissional VITFIX' : 'Artisan VITFIX'} {form.typeUrgence ? (isPt ? '— recomendados no topo' : '— recommandés en tête') : ''}
                   </label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-400"
-                    placeholder="Rechercher un artisan..."
+                    placeholder={isPt ? 'Pesquisar um profissional...' : 'Rechercher un artisan...'}
                     value={searchArtisan}
                     onChange={e => setSearchArtisan(e.target.value)}
                   />
@@ -585,7 +592,7 @@ export default function UrgencesSection({
                       onClick={() => setForm({ ...form, artisanId: undefined })}
                       className={`w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${!form.artisanId ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
                     >
-                      <span>—</span> Assigner plus tard
+                      <span>—</span> {isPt ? 'Atribuir mais tarde' : 'Assigner plus tard'}
                     </button>
                     {artisansFiltres.map(a => {
                       const isMatch = form.typeUrgence && TYPES_URGENCE.find(t => t.key === form.typeUrgence)?.metiers.some(m => a.metier?.toLowerCase().includes(m.toLowerCase()))
@@ -616,7 +623,7 @@ export default function UrgencesSection({
                 disabled={!form.immeuble || !form.typeUrgence || !form.description || saving}
                 className="w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? 'Création...' : '🚨 Déclarer l\'urgence' + (form.artisanId ? ' & Contacter l\'artisan' : '')}
+                {saving ? (isPt ? 'A criar...' : 'Création...') : (isPt ? '🚨 Declarar a urgência' : '🚨 Déclarer l\'urgence') + (form.artisanId ? (isPt ? ' & Contactar o profissional' : ' & Contacter l\'artisan') : '')}
               </button>
             </div>
           </div>

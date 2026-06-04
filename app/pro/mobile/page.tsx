@@ -19,6 +19,13 @@ const MobileHomeSection = dyn(() => import('@/components/pro-mobile/pages/Mobile
 const MobileDocumentsSection = dyn(() => import('@/components/pro-mobile/pages/MobileDocumentsSection'))
 const MobileSettingsSection = dyn(() => import('@/components/pro-mobile/pages/MobileSettingsSection'))
 
+// ─── API base ─────────────────────────────────────────────────────────────────
+// Vide en web (Workers SSR) — fetch reste relatif et marche normalement.
+// Hardcoded à 'https://vitfix.io' au build mobile (export Capacitor) via
+// NEXT_PUBLIC_API_URL embed à la compilation (cf. scripts/build-mobile.sh).
+// Le runtime capacitor://localhost ne peut pas résoudre les paths relatifs.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Tab = 'home' | 'agenda' | 'interventions' | 'documents' | 'settings'
 type ProofStep = 'before' | 'during' | 'after' | 'signature'
@@ -1021,7 +1028,7 @@ export default function MobileDashboard() {
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
         if (!token) return
-        const res = await fetch(`/api/syndic/notify-artisan?artisan_id=${artisan.user_id}&limit=20`, {
+        const res = await fetch(`${API_BASE}/api/syndic/notify-artisan?artisan_id=${artisan.user_id}&limit=20`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (res.ok) {
@@ -1083,13 +1090,13 @@ export default function MobileDashboard() {
 
     try {
       // Mobile ne pilote que la plage RDV directe (pas Visite & devis qui se gère sur dashboard).
-      const r = await fetch(`/api/availability?artisan_id=${artisanData.id}&slot_type=rdv`)
+      const r = await fetch(`${API_BASE}/api/availability?artisan_id=${artisanData.id}&slot_type=rdv`)
       const j = await r.json()
       setAvailability(j.data || [])
     } catch { setAvailability([]) }
 
     try {
-      const r = await fetch(`/api/availability-services?artisan_id=${artisanData.id}`)
+      const r = await fetch(`${API_BASE}/api/availability-services?artisan_id=${artisanData.id}`)
       const j = await r.json()
       if (j.data) setDayServices(j.data)
     } catch (e) {
@@ -1335,7 +1342,7 @@ export default function MobileDashboard() {
         const clientName = booking.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
         const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
         const initiales = nom.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-        fetch('/api/tracking/update', {
+        fetch(`${API_BASE}/api/tracking/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1354,7 +1361,7 @@ export default function MobileDashboard() {
       }, () => {
         // Sans GPS : envoyer quand même sans coordonnées
         const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
-        fetch('/api/tracking/update', {
+        fetch(`${API_BASE}/api/tracking/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1385,7 +1392,7 @@ export default function MobileDashboard() {
     const booking = bookings.find(b => b.id === bookingId)
     if (!booking) return
     const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
-    fetch('/api/tracking/update', {
+    fetch(`${API_BASE}/api/tracking/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1404,7 +1411,7 @@ export default function MobileDashboard() {
     if (intervalId) { clearInterval(intervalId); delete trackingIntervalsRef.current[bookingId] }
     const token = activeTrackings[bookingId]
     if (token) {
-      fetch(`/api/tracking/${token}`, { method: 'DELETE' }).catch(() => toast.error('Impossible d\'arrêter le suivi GPS'))
+      fetch(`${API_BASE}/api/tracking/${token}`, { method: 'DELETE' }).catch(() => toast.error('Impossible d\'arrêter le suivi GPS'))
     }
     setActiveTrackings(prev => { const n = { ...prev }; delete n[bookingId]; return n })
   }
@@ -1517,7 +1524,7 @@ export default function MobileDashboard() {
     setMsgList([])
     setMsgText('')
     try {
-      const res = await fetch(`/api/booking-messages?booking_id=${booking.id}`, {
+      const res = await fetch(`${API_BASE}/api/booking-messages?booking_id=${booking.id}`, {
         headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
       })
       const json = await res.json()
@@ -1529,7 +1536,7 @@ export default function MobileDashboard() {
     if (!msgModal || !msgText.trim() || msgSending) return
     setMsgSending(true)
     try {
-      const res = await fetch('/api/booking-messages', {
+      const res = await fetch(`${API_BASE}/api/booking-messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1558,13 +1565,13 @@ export default function MobileDashboard() {
     if (!artisan) return
     const token = (await supabase.auth.getSession()).data.session?.access_token
     if (!token) return
-    await fetch('/api/availability', {
+    await fetch(`${API_BASE}/api/availability`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ artisan_id: artisan.id, day_of_week: day, slot_type: 'rdv' })
     })
     // Refetch sans cache + filtre slot_type=rdv (mobile ne pilote que la plage RDV directe)
-    const r = await fetch(`/api/availability?artisan_id=${artisan.id}&slot_type=rdv`, { cache: 'no-store' })
+    const r = await fetch(`${API_BASE}/api/availability?artisan_id=${artisan.id}&slot_type=rdv`, { cache: 'no-store' })
     const { data } = await r.json()
     setAvailability(data || [])
   }
@@ -1664,7 +1671,7 @@ export default function MobileDashboard() {
 
             // 2. Génération IA du texte rapport (non-bloquant)
             try {
-              fetch('/api/rapport-ia', {
+              fetch(`${API_BASE}/api/rapport-ia`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1685,7 +1692,7 @@ export default function MobileDashboard() {
                 const photosBase64After = proof.afterPhotos.slice(0, 3).map(p => p.dataUrl)
                 const firstGps = proof.beforePhotos.find(p => p.lat && p.lng) || proof.afterPhotos.find(p => p.lat && p.lng)
 
-                await fetch('/api/syndic/mission-report', {
+                await fetch(`${API_BASE}/api/syndic/mission-report`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

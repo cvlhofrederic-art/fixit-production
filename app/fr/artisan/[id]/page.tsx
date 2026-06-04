@@ -106,7 +106,7 @@ function formatInterventionZone(
   // Fallback ancien modèle
   const city = artisan?.company_city || artisan?.city || (isPt ? 'Porto' : 'La Ciotat')
   const radius = artisan?.zone_radius_km || 30
-  return `${city} — ${t('rayon', 'raio')} ${radius} km`
+  return `${city}, ${t('rayon', 'raio')} ${radius} km`
 }
 
 export default function ArtisanProfilePage() {
@@ -205,7 +205,7 @@ export default function ArtisanProfilePage() {
         window.history.pushState(null, '')
         setStep('profile')
       } else {
-        // On profile — go back for real (leave the page)
+        // On profile - go back for real (leave the page)
         window.history.back()
       }
     }
@@ -306,7 +306,7 @@ export default function ArtisanProfilePage() {
 
   const cleanBio = (bio: string) => {
     let text = (bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
-    // Retirer les adresses physiques : "— Bâtiment X, Rés. Y, 13600 Ville."
+    // Retirer les adresses physiques: "- Bâtiment X, Rés. Y, 13600 Ville."
     text = text.replace(/\s*—\s*[\s\S]*?\d{5}\s*[^.]*\./g, '.')
     // Retirer les mentions "(rayon XX km)" redondantes avec le header
     text = text.replace(/\s*\(rayon\s*\d+\s*km\)\s*/gi, ' ')
@@ -402,7 +402,7 @@ export default function ArtisanProfilePage() {
     return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
   }
 
-  // Active days of the week (display order Mon→Sun) — filtre par slot_type du service sélectionné.
+  // Active days of the week (display order Mon→Sun) - filtre par slot_type du service sélectionné.
   // Sans service choisi, on regarde 'rdv' par défaut (parcours direct).
   const activeDayIndices = useMemo(() => {
     const displayOrder = [1, 2, 3, 4, 5, 6, 0] // Mon=1 ... Sun=0
@@ -781,12 +781,12 @@ export default function ArtisanProfilePage() {
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Code NAF', 'Código CAE')}</div>
-                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? ` — ${artisan.naf_label}` : ''}</div>
+                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? `, ${artisan.naf_label}` : ''}</div>
                           </div>
                         </div>
                       )}
 
-                      {/* Adresse — éviter la duplication CP/ville si déjà inclus dans company_address */}
+                      {/* Adresse - éviter la duplication CP/ville si déjà inclus dans company_address */}
                       {(artisan.company_address || artisan.company_city) && (() => {
                         const rawAddr = (artisan.company_address || '').trim()
                         const normalizedAddr = rawAddr && rawAddr === rawAddr.toUpperCase() ? titleCaseAddress(rawAddr) : rawAddr
@@ -974,7 +974,7 @@ export default function ArtisanProfilePage() {
             </div>
           </div>
 
-          {/* Motifs grid — élagage dédupliqué en 1 seule carte */}
+          {/* Motifs grid - élagage dédupliqué en 1 seule carte */}
           {(() => {
             const ELAGAGE_KW = ['élagage', 'elagage', 'elaguage']
             const isElag = (name: string) => ELAGAGE_KW.some(k => name.toLowerCase().includes(k))
@@ -1029,7 +1029,7 @@ export default function ArtisanProfilePage() {
                     <div className="pt-3 border-t border-gray-100">
                       {priceInfo.type === 'devis' && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">
-                          📋 {isPt ? 'Sob orçamento — entraremos em contacto' : 'Sur devis — nous vous contacterons'}
+                          📋 {isPt ? 'Sob orçamento, entraremos em contacto' : 'Sur devis, nous vous contacterons'}
                         </span>
                       )}
                       {priceInfo.type === 'per_sqm' && (
@@ -1251,7 +1251,7 @@ export default function ArtisanProfilePage() {
                     const unit = pi.type === 'per_ml' ? 'ml' : 'm²'
                     let label = pi.label
                     if (selectedPriceTier) {
-                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ' — ?'}`
+                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label}, ${selectedTreeWidth.price}` : ', ?'}`
                     } else if (isQty && quantityKnown === true && quantityValue && Number(quantityValue) > 0) {
                       const est = calculateEstimatedPrice(pi, Number(quantityValue))
                       label = `📐 ${quantityValue} ${unit} → ${est}`
@@ -1336,7 +1336,7 @@ export default function ArtisanProfilePage() {
             <div className="max-w-3xl mx-auto mb-6 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
               <span className="text-xl flex-shrink-0">🔍</span>
               <div className="text-sm text-amber-900">
-                <strong>Visite &amp; devis</strong> — Ce motif n&eacute;cessite une inspection sur place. L&rsquo;artisan vous confirmera le RDV apr&egrave;s avoir valid&eacute; votre demande, puis vous remettra un devis avant l&rsquo;intervention.
+                <strong>Visite &amp; devis</strong>, Ce motif n&eacute;cessite une inspection sur place. L&rsquo;artisan vous confirmera le RDV apr&egrave;s avoir valid&eacute; votre demande, puis vous remettra un devis avant l&rsquo;intervention.
               </div>
             </div>
           )}
@@ -1429,7 +1429,7 @@ export default function ArtisanProfilePage() {
                     </h3>
                     {selectedPriceTier && (
                       <p className="text-sm text-amber-700 font-semibold mb-3">
-                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ''}
+                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label}, ${selectedTreeWidth.price}` : ''}
                       </p>
                     )}
                     <p className="text-sm text-gray-500 mb-5">

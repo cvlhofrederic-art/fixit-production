@@ -15,12 +15,12 @@
 //  - cles trop volumineuses (>200 KB) pour rester sous la limite serveur
 //  - flags one-shot type `fixit_clean_v6_*` (non sensibles, configurables)
 
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Client applicatif partagé (cookies SSR). NE PAS recréer ici un client
+// @supabase/supabase-js : il lirait la session dans le localStorage (où elle
+// n'est jamais présente — l'auth est en cookies), donc getToken() renverrait
+// toujours null et AUCUNE donnée ne serait sauvegardée dans le cloud.
+// Régression « base clients qui disparaît » (2026-06-01).
+import { supabase } from '@/lib/supabase'
 
 const FIXIT_PREFIX = 'fixit_'
 // 5 MB max par cle pour absorber les cas legacy ou des fichiers sont

@@ -130,13 +130,13 @@ function RechercheContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  // Détection locale depuis l'URL (/pt/... ou /fr/...) — fiable dès le 1er rendu
+  // Détection locale depuis l'URL (/pt/... ou /fr/...) - fiable dès le 1er rendu
   // Le middleware garde l'URL /pt/recherche/ dans le navigateur même si next.config rewrite sert /recherche/
   const pathname = usePathname()
   const siteLocale: 'fr' | 'pt' = pathname?.startsWith('/pt') ? 'pt' : 'fr'
   const tp = (fr: string, pt: string) => siteLocale === 'pt' ? pt : fr
 
-  // Search inputs — PT: show localized label instead of raw slug (e.g. "Eletricista" not "electricite")
+  // Search inputs - PT: show localized label instead of raw slug (e.g. "Eletricista" not "electricite")
   const [categoryInput, setCategoryInput] = useState(() => {
     const raw = searchParams.get('category') || ''
     return raw && siteLocale === 'pt' ? (CATEGORY_LABELS_PT[raw] || raw) : raw
@@ -218,7 +218,7 @@ function RechercheContent() {
         }
       }
 
-      // detectedCountry = 'FR' | 'PT' — mappe vers la colonne `language` qui existe dans profiles_artisan
+      // detectedCountry = 'FR' | 'PT' - mappe vers la colonne `language` qui existe dans profiles_artisan
       const detectedLang = detectedCountry === 'PT' ? 'pt' : 'fr'
 
       let query = supabase
@@ -227,7 +227,7 @@ function RechercheContent() {
         .eq('active', true)
         .eq('language', detectedLang)
 
-      // Don't filter registered artisans at DB level — do it client-side for better fuzzy matching
+      // Don't filter registered artisans at DB level - do it client-side for better fuzzy matching
       const { data: artisanData, error } = await query
 
       if (error) {
@@ -287,7 +287,7 @@ function RechercheContent() {
             return artisanCats.some(ac => relatedSlugs.has(ac))
           })
         } else {
-          // No resolved category — free text search across all artisan fields
+          // No resolved category - free text search across all artisan fields
           registeredList = registeredList.filter((a) => {
             const artisanText = normalizeForSearch(
               [
@@ -618,14 +618,18 @@ function RechercheContent() {
   // ------------------------------------------------------------------
 
   // Filtered specialty suggestions
+  // PT: match against translated label AND original FR (so "canalizador" matches the
+  // plomberie suggestion whose label is "Plombier" in the source dataset).
   const filteredSpecialtySuggestions = useMemo(() => {
     if (!categoryInput.trim()) return SPECIALTY_SUGGESTIONS_FR.filter(s => s.type === 'primary')
-    const norm = categoryInput.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    return SPECIALTY_SUGGESTIONS_FR.filter(s =>
-      s.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm) ||
-      (s.subtitle && s.subtitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm))
-    ).slice(0, 8)
-  }, [categoryInput])
+    const norm = normalizeForSearch(categoryInput)
+    return SPECIALTY_SUGGESTIONS_FR.filter(s => {
+      const labelLocal = siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.label) : s.label
+      const subtitleLocal = siteLocale === 'pt' && s.subtitle ? (CATEGORY_LABELS_PT[s.category] || s.subtitle) : (s.subtitle || '')
+      return [s.label, s.subtitle || '', labelLocal, subtitleLocal]
+        .some(t => t && normalizeForSearch(t).includes(norm))
+    }).slice(0, 8)
+  }, [categoryInput, siteLocale])
 
   // Autocomplete local (phase test) : départements + villes depuis nos datasets
   // FR : 13 + communes 13 / PT : Porto + freguesias/concelhos Porto
@@ -660,7 +664,7 @@ function RechercheContent() {
         }
       }
     } else {
-      // Départements FR (tous les 101 pour la suggestion — phase test seul le 13 a des artisans)
+      // Départements FR (tous les 101 pour la suggestion - phase test seul le 13 a des artisans)
       for (const d of FR_DEPARTEMENTS) {
         if (d.code.startsWith(norm) || d.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm)) {
           push(`${d.code} - ${d.nom}`)
@@ -735,7 +739,7 @@ function RechercheContent() {
     setActiveCategory(categoryInput)
     setActiveLocation(locationInput)
 
-    // Update URL params
+    // Update URL params - keep the user on their locale's route (PT submitting must stay on /pt/pesquisar)
     const params = new URLSearchParams()
     if (categoryInput) params.set('category', categoryInput)
     if (locationInput) params.set('loc', locationInput)
@@ -798,7 +802,7 @@ function RechercheContent() {
         }
 
         setGeoLoading(false)
-        // Lancer la recherche automatiquement après géoloc
+        // Lancer la recherche automatiquement après géoloc - respecter la locale
         setTimeout(() => {
           setActiveCategory(categoryInput)
           const params = new URLSearchParams()
@@ -922,7 +926,7 @@ function RechercheContent() {
       return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s))
     }
 
-    // Groupe 1 — Inscrits VITFIX
+    // Groupe 1 - Inscrits VITFIX
     let sortedRegistered: Artisan[]
     if (refCoords) {
       // Coordonnées disponibles (GPS ou ville geocodée) → tri par distance croissante

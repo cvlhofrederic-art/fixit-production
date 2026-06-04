@@ -39,9 +39,9 @@ interface EncargosDeclaracao {
 
 const ESTADOS: Record<EstadoDeclaracao, { label: string; icon: string; badge: string; dot: string }> = {
   pendente:         { label: 'Pendente',          icon: '⏳', badge: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-400' },
-  emitida:          { label: 'Emitida',           icon: '📄', badge: 'bg-blue-50 text-blue-700 border-blue-200',     dot: 'bg-blue-400'   },
+  emitida:          { label: 'Emitida',           icon: '📄', badge: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]',     dot: 'bg-[#C9A84C]'   },
   entregue:         { label: 'Entregue',          icon: '✅', badge: 'bg-green-50 text-green-700 border-green-200',  dot: 'bg-green-400'  },
-  venda_concluida:  { label: 'Venda concluída',   icon: '🏠', badge: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-400' },
+  venda_concluida:  { label: 'Venda concluída',   icon: '🏠', badge: 'bg-[#F7F4EE] text-[#C9A84C] border-[#E4DDD0]', dot: 'bg-[#C9A84C]' },
 }
 
 const formatEur = (n: number) =>
@@ -184,7 +184,7 @@ export default function DeclaracaoEncargosSection({ user, userRole }: { user: { 
           <h1 className="text-2xl font-bold text-gray-900">📋 Declaração de Encargos</h1>
           <p className="text-sm text-gray-500 mt-0.5">Obrigação legal — Lei n.º 8/2022 de 10 de janeiro · Transmissão de frações</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+        <button onClick={openCreate} className="flex items-center gap-2 bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#152338] transition-colors">
           + Nova declaração
         </button>
       </div>
@@ -245,7 +245,7 @@ export default function DeclaracaoEncargosSection({ user, userRole }: { user: { 
           <div className="text-5xl mb-4">📋</div>
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Nenhuma declaração registada</h3>
           <p className="text-gray-400 text-sm mb-6">Crie uma declaração de encargos quando um condómino solicitar a venda da sua fração.</p>
-          <button onClick={openCreate} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-colors">+ Nova declaração</button>
+          <button onClick={openCreate} className="bg-[#0D1B2E] text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#152338] transition-colors">+ Nova declaração</button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -330,13 +330,13 @@ export default function DeclaracaoEncargosSection({ user, userRole }: { user: { 
                     {/* Ações */}
                     <div className="flex flex-wrap gap-2">
                       {decl.estado === 'pendente' && (
-                        <button onClick={() => updateEstado(decl, 'emitida')} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors">📄 Marcar como emitida</button>
+                        <button onClick={() => updateEstado(decl, 'emitida')} className="text-xs bg-[#0D1B2E] text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-[#152338] transition-colors">📄 Marcar como emitida</button>
                       )}
                       {decl.estado === 'emitida' && (
                         <button onClick={() => updateEstado(decl, 'entregue')} className="text-xs bg-green-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-green-700 transition-colors">✅ Marcar como entregue</button>
                       )}
                       {(decl.estado === 'entregue') && (
-                        <button onClick={() => updateEstado(decl, 'venda_concluida')} className="text-xs bg-purple-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-purple-700 transition-colors">🏠 Venda concluída</button>
+                        <button onClick={() => updateEstado(decl, 'venda_concluida')} className="text-xs bg-[#C9A84C] text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-[#B8963D] transition-colors">🏠 Venda concluída</button>
                       )}
                       <button onClick={() => openEdit(decl)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-200 transition-colors">✏️ Editar</button>
                       <button onClick={() => window.print()} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-200 transition-colors">🖨️ Imprimir</button>
@@ -363,29 +363,29 @@ export default function DeclaracaoEncargosSection({ user, userRole }: { user: { 
               <section>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">📍 Fração e vendedor</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2"><label className="text-xs text-gray-500 mb-1 block">Edifício *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Edifício Saldanha" value={form.edificioNom || ''} onChange={e => setForm({ ...form, edificioNom: e.target.value })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">Fração *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Fração A - 2.º Dto" value={form.fracaoId || ''} onChange={e => setForm({ ...form, fracaoId: e.target.value })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">Data do pedido *</label><input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.dataPedido || ''} onChange={e => setForm({ ...form, dataPedido: e.target.value })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">Condómino vendedor *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="João Silva" value={form.condominoNom || ''} onChange={e => setForm({ ...form, condominoNom: e.target.value })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">NIF vendedor</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456789" value={form.condominoNIF || ''} onChange={e => setForm({ ...form, condominoNIF: e.target.value })} /></div>
+                  <div className="col-span-2"><label className="text-xs text-gray-500 mb-1 block">Edifício *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="Edifício Saldanha" value={form.edificioNom || ''} onChange={e => setForm({ ...form, edificioNom: e.target.value })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Fração *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="Fração A - 2.º Dto" value={form.fracaoId || ''} onChange={e => setForm({ ...form, fracaoId: e.target.value })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Data do pedido *</label><input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.dataPedido || ''} onChange={e => setForm({ ...form, dataPedido: e.target.value })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Condómino vendedor *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="João Silva" value={form.condominoNom || ''} onChange={e => setForm({ ...form, condominoNom: e.target.value })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">NIF vendedor</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="123456789" value={form.condominoNIF || ''} onChange={e => setForm({ ...form, condominoNIF: e.target.value })} /></div>
                 </div>
               </section>
 
               <section>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">🏠 Comprador (opcional)</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-gray-500 mb-1 block">Nome</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Maria Santos" value={form.compradorNom || ''} onChange={e => setForm({ ...form, compradorNom: e.target.value })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">NIF</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="987654321" value={form.compradorNIF || ''} onChange={e => setForm({ ...form, compradorNIF: e.target.value })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Nome</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="Maria Santos" value={form.compradorNom || ''} onChange={e => setForm({ ...form, compradorNom: e.target.value })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">NIF</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="987654321" value={form.compradorNIF || ''} onChange={e => setForm({ ...form, compradorNIF: e.target.value })} /></div>
                 </div>
               </section>
 
               <section>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">💶 Encargos em dívida</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-gray-500 mb-1 block">Quotas em dívida (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.quotasEmDivida || ''} onChange={e => setForm({ ...form, quotasEmDivida: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">Quotas extraordinárias (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.quotasExtraordinarias || ''} onChange={e => setForm({ ...form, quotasExtraordinarias: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">Fundo de reserva (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.fundoReservaDevido || ''} onChange={e => setForm({ ...form, fundoReservaDevido: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 block">Penalizações (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.penalizacoes || ''} onChange={e => setForm({ ...form, penalizacoes: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Quotas em dívida (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.quotasEmDivida || ''} onChange={e => setForm({ ...form, quotasEmDivida: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Quotas extraordinárias (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.quotasExtraordinarias || ''} onChange={e => setForm({ ...form, quotasExtraordinarias: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Fundo de reserva (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.fundoReservaDevido || ''} onChange={e => setForm({ ...form, fundoReservaDevido: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 block">Penalizações (€)</label><input type="number" min={0} step={0.01} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={form.penalizacoes || ''} onChange={e => setForm({ ...form, penalizacoes: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
                 <div className="mt-2 bg-gray-50 rounded-xl p-3 flex justify-between">
                   <span className="font-bold text-gray-700 text-sm">Total encargos</span>
@@ -395,13 +395,13 @@ export default function DeclaracaoEncargosSection({ user, userRole }: { user: { 
 
               <section>
                 <label className="text-xs text-gray-500 mb-1 block">Observações</label>
-                <textarea className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Notas adicionais..." value={form.observacoes || ''} onChange={e => setForm({ ...form, observacoes: e.target.value })} />
+                <textarea className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" rows={2} placeholder="Notas adicionais..." value={form.observacoes || ''} onChange={e => setForm({ ...form, observacoes: e.target.value })} />
               </section>
 
               <button
                 onClick={handleSave}
                 disabled={!form.edificioNom || !form.fracaoId || !form.condominoNom || !form.dataPedido}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full bg-[#0D1B2E] text-white py-3 rounded-xl font-semibold hover:bg-[#152338] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {editing ? '💾 Guardar alterações' : '✅ Criar declaração'}
               </button>

@@ -31,7 +31,9 @@ describe('formatSitemapXml', () => {
   it('omits optional fields when not provided', () => {
     const xml = formatSitemapXml([{ url: 'https://vitfix.io/' }])
     expect(xml).toContain('<loc>https://vitfix.io/</loc>')
-    expect(xml).toContain('<lastmod>')
+    // lastmod doit être OMIS si pas de vraie date (politique SEO John Mueller :
+    // pas de fake lastmod = date du jour à chaque crawl). Cf. lib/sitemap-helpers.ts:36-41
+    expect(xml).not.toContain('<lastmod>')
     expect(xml).not.toContain('<changefreq>')
     expect(xml).not.toContain('<priority>')
   })

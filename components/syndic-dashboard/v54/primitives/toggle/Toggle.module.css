@@ -1,0 +1,64 @@
+/* Toggle v54 — port pixel-perfect du `.toggle` du bundle V5.7.
+ * Track + thumb byte-exact ; le checkbox natif est ajouté (caché) pour l'a11y. */
+
+.toggle {
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--v54-navy-100);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--v54-dur-med) var(--v54-ease-std);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--v54-dur-med) var(--v54-ease-std);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.on {
+  background: var(--v54-sage-500);
+}
+
+.on::after {
+  transform: translateX(16px);
+}
+
+/* Checkbox natif : couvre le track, caché visuellement mais focusable. */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+/* Anneau de focus clavier sur le track quand l'input est focus-visible. */
+.toggle:has(.input:focus-visible) {
+  outline: 2px solid var(--v54-gold-500);
+  outline-offset: 2px;
+}
+
+/* Désactivé (le bundle n'a pas d'état disabled — convention standard v54). */
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle,
+  .toggle::after {
+    transition: none;
+  }
+}

@@ -36,6 +36,13 @@ zone_name = "vitfix.io"
 # binding = "CACHE"
 # id = "<KV_NAMESPACE_ID>"
 
+# ── Workers AI Binding ──────────────────────────────────────────────────────
+# Permet d'appeler les modèles Cloudflare AI (BGE-M3 embeddings + BGE-reranker)
+# sans token API au runtime. Utilisé par Max consultor juridique pour le
+# retrieval sémantique multi-étapes (cf. lib/syndic/embed.ts).
+[ai]
+binding = "AI"
+
 # ── Cron Triggers ─────────��──────────────────────────────────────────────────
 # Migrated from vercel.json crons.
 # Routes < 30s CPU can be triggered directly.
@@ -52,6 +59,10 @@ crons = [
   "30 7 * * *",
   # Email agent poll — daily 8 AM UTC (must be batched < 30s)
   "0 8 * * *",
+  # Tempo automations — every 5 min (via GitHub Actions, see .github/workflows/run-automations.yml)
+  # Note: Cloudflare Workers scheduled min granularity = 1 min. GitHub Actions min = 5 min.
+  # The actual trigger is handled by GitHub Actions cron to avoid hitting Worker CPU limits.
+  # Léa documents OCR/extraction safety net — every 15 min (via GitHub Actions, see .github/workflows/run-lea-documents-process.yml)
 ]
 
 # ── Queue Bindings ─────────────────────────────────────��─────────────────────

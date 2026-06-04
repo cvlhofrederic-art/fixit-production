@@ -5,16 +5,16 @@ export const metadata: Metadata = {
   title: 'Comment ça marche ? Trouvez un artisan vérifié à Marseille | Vitfix',
   description: 'Découvrez comment Vitfix fonctionne : recherchez un artisan qualifié à Marseille et en PACA, comparez les avis, réservez en ligne. Devis gratuit, sans engagement, réponse rapide.',
   openGraph: {
-    title: 'Comment ça marche ? Artisans vérifiés à Marseille — Vitfix',
+    title: 'Comment ça marche ? Artisans vérifiés à Marseille : Vitfix',
     description: 'Cherchez, comparez et réservez un artisan vérifié à Marseille et dans toute la PACA. Devis gratuit, sans engagement.',
     siteName: 'Vitfix',
     locale: 'fr_FR',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Comment ça marche ? — Vitfix Marseille',
+    title: 'Comment ça marche ? : Vitfix Marseille',
     description: 'Cherchez, comparez et réservez un artisan vérifié. Devis gratuit.',
   },
   alternates: {
@@ -43,7 +43,7 @@ const steps = [
   {
     number: '03',
     icon: '📅',
-    title: 'Réservez en ligne — devis gratuit',
+    title: 'Réservez en ligne : devis gratuit',
     description: 'Choisissez le créneau qui vous convient. Le devis est gratuit et sans engagement. Confirmation instantanée par SMS et e-mail.',
   },
   {
@@ -78,7 +78,7 @@ const guarantees = [
   {
     icon: '⚡',
     title: 'Urgences 24h',
-    description: 'Fuite, panne électrique, serrurerie — des artisans disponibles en moins de 2h à Marseille.',
+    description: 'Fuite, panne électrique, serrurerie, des artisans disponibles en moins de 2h à Marseille.',
   },
   {
     icon: '📄',
@@ -119,7 +119,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'WebPage',
-      name: 'Comment ça marche ? — Vitfix Marseille & PACA',
+      name: 'Comment ça marche ? : Vitfix Marseille & PACA',
       description: "Guide complet pour trouver et réserver un artisan vérifié à Marseille et en PACA avec Vitfix.",
       url: 'https://vitfix.io/fr/comment-ca-marche/',
       inLanguage: 'fr-FR',

@@ -1,7 +1,7 @@
 // Plurais corretos em português europeu pour les noms de services Vitfix.
 //
 // Pour les noms de métiers (eletricista, canalizador, picheleiro, etc.),
-// retourne le pluriel direct ("eletricistas", "canalizadores", etc.) —
+// retourne le pluriel direct ("eletricistas", "canalizadores", etc.) -
 // "profissionais de eletricista" serait du français-à-portugais maladroit.
 //
 // Pour les spécialités/activités (pladur, obras, isolamento, etc.), retourne
@@ -9,7 +9,7 @@
 // activité ou un matériau, pas un métier.
 
 const PLURAIS: Record<string, string> = {
-  // Métiers — plurial direct
+  // Métiers - plurial direct
   'Eletricista': 'eletricistas',
   'Canalizador': 'canalizadores',
   'Picheleiro': 'picheleiros',
@@ -21,7 +21,7 @@ const PLURAIS: Record<string, string> = {
   'Carpinteiro': 'carpinteiros',
   'Telhador': 'telhadores',
   'Jardineiro': 'jardineiros',
-  // Spécialités / activités / matériaux — "profissionais de X" OK
+  // Spécialités / activités / matériaux - "profissionais de X" OK
   'Pladur e Tetos Falsos': 'profissionais de pladur',
   'Obras e Remodelação': 'profissionais de obras',
   'Isolamento Térmico e Capoto': 'profissionais de isolamento',

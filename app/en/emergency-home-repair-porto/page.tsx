@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'VITFIX',
     locale: 'en_GB',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=en', width: 1200, height: 630 }],
   },
   alternates: {
     canonical: 'https://vitfix.io/en/emergency-home-repair-porto/',
@@ -41,7 +41,7 @@ export default function AdsLandingPage() {
           name: 'VITFIX',
           telephone: PHONE_PT,
           address: { '@type': 'PostalAddress', addressLocality: 'Porto', addressCountry: 'PT' },
-          aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.9', reviewCount: '127' },
+          // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
         },
         areaServed: { '@type': 'City', name: 'Porto' },
         availableLanguage: ['English', 'Portuguese'],

@@ -1,0 +1,57 @@
+/* Skeleton v54 — port exact du bundle V5.7.
+ * Atome `.vfx-skeleton` (shimmer) + conteneurs `.vfx-skeleton-{card,row,kpi}`.
+ * Le mid-tone #ece4d2 est la valeur exacte du bundle (entre cream et cream-2,
+ * non tokenisée à l'origine) — conservée telle quelle pour fidélité pixel. */
+
+/* Atome : barre shimmer (.vfx-skeleton). r-sm par défaut pour des barres
+ * légèrement arrondies ; surchargeable via la prop `radius` (ex '50%'). */
+.skeleton {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--v54-cream) 0%, #ece4d2 50%, var(--v54-cream) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: var(--v54-r-sm);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Conteneur carte : carte blanche bordée (.vfx-skeleton-card). */
+.card {
+  display: block;
+  padding: 18px;
+  border: 1px solid var(--v54-line);
+  border-radius: var(--v54-r-md);
+  background: #fff;
+}
+
+/* Conteneur ligne de liste : flex avec séparateur bas (.vfx-skeleton-row). */
+.row {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  align-items: center;
+  border-bottom: 1px solid var(--v54-line);
+}
+
+/* Conteneur KPI : padding + barres descendantes en block (.vfx-skeleton-kpi). */
+.kpi {
+  padding: 18px;
+}
+
+.kpi .skeleton {
+  display: block;
+}
+
+/* Respecte prefers-reduced-motion : fige le shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

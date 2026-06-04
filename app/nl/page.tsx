@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'VITFIX',
     locale: 'nl_NL',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=en', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
