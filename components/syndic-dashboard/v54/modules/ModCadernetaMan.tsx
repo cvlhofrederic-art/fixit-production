@@ -69,40 +69,12 @@ export default function ModCadernetaMan() {
 
   const total = all.reduce((s, i) => s + (Number(i.custo) || 0), 0)
   const planeadas = all.filter(i => i.estado === 'planeado').length
-  const realizadas = all.filter(i => i.estado === 'realizado').length
   const edifSet = new Set(all.map(i => i.edificio).filter(Boolean))
-
-  const exportarPdf = async () => {
-    if (!real || all.length === 0) { push({ kind: 'info', title: 'Export PDF', desc: real ? 'Registe a primeira intervenção para exportar.' : 'Conecte-se como síndico para exportar' }); return }
-    try {
-      // Import dynamique : garde pdf-lib hors du bundle Worker (limite 10 MiB) — chargé côté navigateur.
-      const { downloadReportPdf } = await import('@/lib/syndic/v54/report-pdf')
-      const now = new Date()
-      await downloadReportPdf({
-        docTitle: 'Caderneta de Manutenção',
-        periodLabel: String(now.getFullYear()),
-        geradoA: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`,
-        stats: [
-          { value: String(all.length), label: 'Intervenções', tone: 'gold' },
-          { value: String(realizadas), label: 'Realizadas', tone: 'sage' },
-          { value: String(planeadas), label: 'Planeadas', tone: 'gold' },
-          { value: fmtEUR(total), label: 'Custo total', tone: 'sage' },
-        ],
-        sectionTitle: 'Histórico de intervenções',
-        rows: all.map(i => ({ label: `${i.edificio || '—'} — ${i.natureza || 'Intervenção'}`, sub: `${i.prestador || '—'} · ${i.data || '—'} · ${i.estado || '—'}`, montante: i.custo ? fmtEUR(i.custo) : '—' })),
-        legal: 'Caderneta de Manutenção · Vitfix.io · Art.º 1436.º CC',
-      }, 'caderneta-manutencao.pdf')
-      push({ kind: 'success', title: 'PDF gerado', desc: `${all.length} intervenções exportadas.` })
-    } catch (err) {
-      console.error('[ModCadernetaMan] export PDF falhou', err)
-      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível gerar o PDF.' })
-    }
-  }
 
   return (
     <>
       <PageHead title="Caderneta de Manutenção & Técnica" lede="Obras · Equipamentos · Contratos manutenção · Estado datado · CEE"
-        actions={<><Button onClick={exportarPdf}><Icon name="download" />Export PDF</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Intervenção</Button></>} />
+        actions={<><Button onClick={() => push({ kind: 'info', title: 'Export PDF', desc: all.length ? `${all.length} intervenções prontas para exportação` : 'Registe a primeira intervenção para exportar.' })}><Icon name="download" />Export PDF</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Intervenção</Button></>} />
       <Tabs defaultActive="cad" tabs={[
         { id: 'cad', icon: 'book', label: 'Caderneta de manutenção' },
         { id: 'eq', icon: 'cog', label: 'Equipamentos' },
