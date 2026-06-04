@@ -1,0 +1,148 @@
+/* Utilitaires partagés des pages-modules dashboard v54 — port byte-exact des
+ * classes globales du bundle (.chip, .card-grid, .mono). Variables → --v54-*. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #fff;
+  color: var(--v54-navy-700);
+  border: 1px solid var(--v54-line-strong);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--v54-gold-700); }
+.chipActive {
+  background: var(--v54-navy-900);
+  color: var(--v54-gold-400);
+  border-color: var(--v54-navy-900);
+}
+
+.cardGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 1024px) {
+  .cardGrid { grid-template-columns: 1fr; }
+}
+
+/* Grille 3 colonnes (port `.card-grid.cols-3` du bundle, collapse ≤1024px). */
+.cardGrid3 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 1024px) {
+  .cardGrid3 { grid-template-columns: 1fr; }
+}
+
+/* Grille 4 colonnes (port `.card-grid.cols-4` du bundle, collapse ≤1024px). */
+.cardGrid4 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1024px) {
+  .cardGrid4 { grid-template-columns: 1fr; }
+}
+
+.mono {
+  font-family: var(--v54-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.chipCount { opacity: 0.6; }
+.chipRow { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+
+/* Carte « panel » nue (port du .panel global du bundle) pour les pages-modules
+ * qui composent leur propre contenu (ex. Edifícios). */
+.card {
+  background: var(--v54-paper);
+  border: 1px solid var(--v54-line);
+  border-radius: var(--v54-r-lg);
+}
+.statKey { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--v54-navy-300); font-weight: 600; }
+.statBig { font-family: var(--v54-font-serif); font-size: 28px; font-weight: 500; }
+
+/* Tableau de données — port byte-exact de `.tbl` du bundle (decoded.html L991-1007). */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl thead th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--v54-navy-300);
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--v54-line);
+  background: var(--v54-paper);
+}
+.tbl tbody td { padding: 14px 22px; border-bottom: 1px solid var(--v54-line); vertical-align: middle; }
+.tbl tbody tr:last-child td { border-bottom: none; }
+.tbl tbody tr { transition: background var(--v54-dur) var(--v54-ease-std); }
+.tbl tbody tr:hover { background: var(--v54-paper); }
+.tbl b { font-weight: 600; }
+.numCell { font-family: var(--v54-font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Avatar (initiales) — port byte-exact de `.av` du bundle (decoded.html L1056-1062). */
+.av {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--v54-cream);
+  color: var(--v54-navy-700);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.avGold { background: linear-gradient(155deg, var(--v54-gold-400), var(--v54-gold-600)); color: var(--v54-navy-900); }
+.avSage { background: var(--v54-sage-100); color: var(--v54-sage-700); }
+.avLg { width: 44px; height: 44px; font-size: 14px; }
+
+/* Pastille d'état — port `.dot-status` du bundle (decoded.html L1271-1273). */
+.dotStatus { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--v54-sage-500); }
+.dotStatusAmber { background: var(--v54-amber-500); }
+.dotStatusRust { background: var(--v54-rust-500); }
+.dotStatusGold { background: var(--v54-gold-500); }
+
+/* Vignette-icône d'un document — port `.doc-icon-thumb` du bundle (decoded.html L4026-4037). */
+.docIconThumb { width: 38px; height: 38px; border-radius: var(--v54-r-md); background: var(--v54-cream); border: 1px solid var(--v54-line); display: grid; place-items: center; color: var(--v54-gold-700); flex-shrink: 0; }
+.docIconThumb svg { width: 18px; height: 18px; }
+
+/* Zone de dépôt (upload) — port byte-exact de `.drop-zone` du bundle (decoded.html L1138-1154). */
+.dropZone {
+  border: 2px dashed var(--v54-line-strong);
+  border-radius: 14px;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--v54-paper);
+  transition: all var(--v54-dur-med) var(--v54-ease-std);
+}
+.dropZone:hover { border-color: var(--v54-gold-700); background: var(--v54-gold-50); }
+.icoLg {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  color: var(--v54-navy-500);
+  border: 1px solid var(--v54-line);
+}
+.icoLg svg { width: 24px; height: 24px; }
+.dropZone h4 { font-family: var(--v54-font-serif); font-size: 20px; margin: 0 0 4px; font-weight: 500; }
+.dropZone p { font-size: 12.5px; color: var(--v54-navy-300); margin: 0 0 14px; }
+
+/* Tableaux scrollables horizontalement sur petit écran (port @media bundle L1463-1465). */
+.tblWrap { width: 100%; }
+@media (max-width: 1024px) {
+  .tblWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--v54-r-md); }
+  .tbl { min-width: 720px; }
+}

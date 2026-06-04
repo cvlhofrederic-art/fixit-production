@@ -1,6 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // lib/fr-blog-data.ts
-// Données articles blog FR — SEO programmatique marché France
+// Données articles blog FR - SEO programmatique marché France
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface FrBlogArticle {

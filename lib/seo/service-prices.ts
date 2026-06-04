@@ -44,7 +44,7 @@ export interface LocalPriceLine {
 
 /**
  * Retourne les principales lignes de prix pour un service donné, avec
- * application du coefficient zone PACA (1.05 — CAPEB PACA 2026).
+ * application du coefficient zone PACA (1.05 - CAPEB PACA 2026).
  *
  * @param serviceSlug ex: 'plombier', 'electricien', 'peintre'
  * @param limit nombre max de lignes à retourner (défaut 4)
@@ -69,7 +69,7 @@ export function getLocalPricesForService(serviceSlug: string, limit = 4): LocalP
 }
 
 /**
- * Schema.org PriceSpecification compatible — pour injection dans le
+ * Schema.org PriceSpecification compatible - pour injection dans le
  * JSON-LD des pages programmatiques (signal SEO + AI engines).
  */
 export function buildPriceSpecificationsSchema(prices: LocalPriceLine[]) {

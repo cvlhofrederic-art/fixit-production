@@ -26,12 +26,12 @@ interface RetentionRule {
 
 const CATEGORIAS = [
   { key: 'atas', label: 'Atas', icon: '📝', cor: '#C9A84C' },
-  { key: 'convocatorias', label: 'Convocatórias', icon: '📩', cor: '#3B82F6' },
-  { key: 'regulamentos', label: 'Regulamentos', icon: '📜', cor: '#8B5CF6' },
+  { key: 'convocatorias', label: 'Convocatórias', icon: '📩', cor: '#0D1B2E' },
+  { key: 'regulamentos', label: 'Regulamentos', icon: '📜', cor: '#C9A84C' },
   { key: 'orcamentos', label: 'Orçamentos', icon: '📊', cor: '#10B981' },
   { key: 'contratos', label: 'Contratos', icon: '📋', cor: '#F59E0B' },
   { key: 'seguros', label: 'Seguros', icon: '🛡️', cor: '#EF4444' },
-  { key: 'certificados', label: 'Certificados', icon: '📄', cor: '#06B6D4' },
+  { key: 'certificados', label: 'Certificados', icon: '📄', cor: '#1A7A6E' },
   { key: 'fiscal', label: 'Fiscal', icon: '💰', cor: '#84CC16' },
   { key: 'correspondencia', label: 'Correspondência', icon: '✉️', cor: '#F97316' },
 ]

@@ -1,10 +1,35 @@
 'use client'
 
-import React from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
+import type { Conversation } from '@/lib/syndic/agent-types'
+import ConversationSidebar from '../agents-ia/ConversationSidebar'
+
+// ── Web Speech API : typage minimal ─────────────────────────────────────
+// La SpeechRecognition n'est pas dans les types DOM standard. On déclare
+// un shape suffisant pour Chrome/Safari/Edge.
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((event: { results: { length: number; [i: number]: { isFinal: boolean; [j: number]: { transcript: string } } } }) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+}
+interface WindowWithSpeech extends Window {
+  SpeechRecognition?: { new (): SpeechRecognitionLike }
+  webkitSpeechRecognition?: { new (): SpeechRecognitionLike }
+}
+function getSpeechRecognitionCtor(): { new (): SpeechRecognitionLike } | undefined {
+  if (typeof window === 'undefined') return undefined
+  const w = window as WindowWithSpeech
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition
+}
 
 interface ConformiteCheck {
   id: string
@@ -30,9 +55,27 @@ interface DocPDFData {
   [key: string]: unknown
 }
 
+// Citation validée par le serveur après retrieval + vérification quote literal.
+// Shape miroir de lib/syndic/max-validate.ts:MaxValidatedCitation (redéclaré
+// ici pour éviter un import serveur côté client).
+interface MaxCitation {
+  font_id: string
+  exact_quote: string
+  claim: string
+  chunk_id: string
+  source: string
+  article: string | null
+  title: string
+  parent_path: string | null
+  quote_verified: boolean
+}
+
 interface MaxMessage {
   role: 'user' | 'assistant'
   content: string
+  citations?: MaxCitation[]
+  confidence?: number
+  refusal?: boolean
 }
 
 interface MaxExpertSectionProps {
@@ -48,7 +91,6 @@ interface MaxExpertSectionProps {
   setMaxSelectedImmeuble: (v: string) => void
   maxEndRef: React.RefObject<HTMLDivElement>
   sendMaxMessage: (msg?: string) => void
-  setFixyPanelOpen: (open: boolean) => void
   setMaxMessages: (msgs: MaxMessage[]) => void
   immeubles: Immeuble[]
   userId?: string
@@ -66,6 +108,11 @@ interface MaxExpertSectionProps {
   setPdfSelectedImmeuble: (v: string) => void
   setPdfSelectedCopro: (v: null) => void
   setShowPdfModal: (v: boolean) => void
+  // Multi-conversation : géré par parent (sendMaxMessage référence maxConvId).
+  // Hydratés au mount via /api/syndic/conversations?agent_id=max.
+  maxConvId: string | null
+  setMaxConvId: (id: string | null) => void
+  maxInitialMsg: string
 }
 
 export default function MaxExpertSection({
@@ -81,7 +128,6 @@ export default function MaxExpertSection({
   setMaxSelectedImmeuble,
   maxEndRef,
   sendMaxMessage,
-  setFixyPanelOpen,
   setMaxMessages,
   immeubles,
   userId,
@@ -93,12 +139,201 @@ export default function MaxExpertSection({
   setPdfSelectedImmeuble,
   setPdfSelectedCopro,
   setShowPdfModal,
+  maxConvId,
+  setMaxConvId,
+  maxInitialMsg,
 }: MaxExpertSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
 
+  // ── Multi-conversation : list + selection management ──────────────────
+  // Source of truth pour la liste affichée dans la sidebar. Synchronisé
+  // avec /api/syndic/conversations?agent_id=max ; le maxConvId actif
+  // remonte au parent pour que sendMaxMessage puisse persister chaque
+  // tour dans la bonne conversation.
+  const [conversations, setConversations] = useState<Conversation[]>([])
+
+  const refetchConversations = useCallback(async () => {
+    try {
+      const res = await fetch('/api/syndic/conversations?agent_id=max')
+      if (!res.ok) return
+      const json = await res.json() as { conversations?: Conversation[] }
+      setConversations(json.conversations ?? [])
+    } catch { /* tolérance offline */ }
+  }, [])
+
+  useEffect(() => { refetchConversations() }, [refetchConversations])
+
+  // Rafraîchit la liste après chaque envoi (titre auto + dernière prévisualisation
+  // mis à jour côté serveur via le trigger sur syndic_ai_messages).
+  useEffect(() => {
+    if (!maxLoading) refetchConversations()
+  }, [maxLoading, refetchConversations])
+
+  const handleNewConversation = useCallback(async () => {
+    try {
+      const res = await fetch('/api/syndic/conversations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: 'max',
+          locale,
+          title: locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation',
+        }),
+      })
+      if (!res.ok) return
+      const json = await res.json() as { conversation?: Conversation }
+      if (!json.conversation) return
+      setConversations(prev => [json.conversation!, ...prev])
+      setMaxConvId(json.conversation.id)
+      setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+    } catch { /* silencieux */ }
+  }, [locale, maxInitialMsg, setMaxConvId, setMaxMessages])
+
+  const handleSelectConversation = useCallback(async (id: string) => {
+    if (id === maxConvId) return
+    setMaxConvId(id)
+    try {
+      const res = await fetch(`/api/syndic/conversations/${id}/messages`)
+      if (!res.ok) {
+        setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+        return
+      }
+      const json = await res.json() as {
+        messages?: Array<{
+          role: string
+          content: string
+          metadata?: { citations?: MaxCitation[]; confidence?: number; refusal?: boolean } | null
+        }>
+      }
+      const dbMessages: MaxMessage[] = (json.messages ?? [])
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          citations: m.metadata?.citations,
+          confidence: m.metadata?.confidence,
+          refusal: m.metadata?.refusal,
+        }))
+      setMaxMessages([{ role: 'assistant', content: maxInitialMsg }, ...dbMessages])
+    } catch {
+      setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+    }
+  }, [maxConvId, maxInitialMsg, setMaxConvId, setMaxMessages])
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    const msg = locale === 'pt'
+      ? 'Apagar esta conversa? Esta acção é irreversível.'
+      : 'Supprimer cette conversation ? Cette action est irréversible.'
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    try {
+      const res = await fetch(`/api/syndic/conversations/${id}`, { method: 'DELETE' })
+      if (!res.ok) return
+      setConversations(prev => prev.filter(c => c.id !== id))
+      if (maxConvId === id) {
+        setMaxConvId(null)
+        setMaxMessages([{ role: 'assistant', content: maxInitialMsg }])
+      }
+    } catch { /* silencieux */ }
+  }, [locale, maxConvId, maxInitialMsg, setMaxConvId, setMaxMessages])
+
+  const handleRenameConversation = useCallback(async (id: string, newTitle: string) => {
+    try {
+      const res = await fetch(`/api/syndic/conversations/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      })
+      if (!res.ok) return
+      setConversations(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c))
+    } catch { /* silencieux */ }
+  }, [])
+
+  // ── Saisie vocale Web Speech API ───────────────────────────────────────
+  // Bouton micro à côté du send. Pendant l'écoute, le transcript final est
+  // injecté dans maxInput puis envoyé automatiquement après arrêt (parité
+  // avec AiChatBot artisan).
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const voicePendingSubmitRef = useRef(false)
+
+  useEffect(() => {
+    setVoiceSupported(!!getSpeechRecognitionCtor())
+  }, [])
+
+  const stopVoice = useCallback(() => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch { /* déjà arrêté */ }
+      recognitionRef.current = null
+    }
+    setIsRecording(false)
+  }, [])
+
+  const startVoice = useCallback(() => {
+    const Ctor = getSpeechRecognitionCtor()
+    if (!Ctor) return
+    const recognition = new Ctor()
+    recognition.lang = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event) => {
+      let finalTranscript = ''
+      let interimTranscript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        const r = event.results[i]
+        if (r.isFinal) finalTranscript += r[0].transcript
+        else interimTranscript += r[0].transcript
+      }
+      const full = (finalTranscript + interimTranscript).trim()
+      if (full) setMaxInput(full)
+    }
+    recognition.onerror = () => {
+      setIsRecording(false)
+      recognitionRef.current = null
+    }
+    recognition.onend = () => {
+      setIsRecording(false)
+      recognitionRef.current = null
+      // Auto-envoi après arrêt si on a un transcript non vide
+      if (voicePendingSubmitRef.current) {
+        voicePendingSubmitRef.current = false
+        setTimeout(() => sendMaxMessage(), 400)
+      }
+    }
+
+    try {
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsRecording(true)
+    } catch { /* déjà en écoute, ignore */ }
+  }, [locale, setMaxInput, sendMaxMessage])
+
+  const handleVoiceToggle = useCallback(() => {
+    if (isRecording) {
+      voicePendingSubmitRef.current = true
+      stopVoice()
+    } else {
+      startVoice()
+    }
+  }, [isRecording, startVoice, stopVoice])
+
+  // Cleanup au démontage
+  useEffect(() => () => stopVoice(), [stopVoice])
+
   return (
     <div className="sd-mx-zone">
+      <ConversationSidebar
+        conversations={conversations}
+        activeId={maxConvId}
+        onSelect={handleSelectConversation}
+        onNew={handleNewConversation}
+        onDelete={handleDeleteConversation}
+        onRename={handleRenameConversation}
+        immeubles={immeubles}
+        locale={locale === 'pt' ? 'pt' : 'fr'}
+      />
       <div className="sd-mx-inner">
 
         {/* ── Identity Banner ── */}
@@ -144,10 +379,10 @@ export default function MaxExpertSection({
             </div>
             <button
               className="sd-mx-clear"
-              onClick={() => { const cleared = [{ role: 'assistant' as const, content: t('syndicDash.ai.cleared') }]; setMaxMessages(cleared); try { localStorage.setItem(`fixit_max_history_${userId}`, JSON.stringify(cleared)) } catch {} }}
+              onClick={handleNewConversation}
               title={locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation'}
               aria-label={locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation'}
-            >✕</button>
+            >+</button>
           </div>
         </div>
 
@@ -201,10 +436,66 @@ export default function MaxExpertSection({
                   <div key={i} className="sd-mx-msg-max">
                     <div className="sd-mx-msg-av"><MaxAvatar size={34} /></div>
                     <div className="sd-mx-msg-inner">
-                      <div className="sd-mx-msg-label">Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}</div>
+                      <div className="sd-mx-msg-label">
+                        Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}
+                      </div>
                       <div className="sd-mx-msg-bubble" suppressHydrationWarning>
                         <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msgText) }} />
                       </div>
+                      {/* ── Citations validées (corpus officiel) ── */}
+                      {Array.isArray(msg.citations) && msg.citations.length > 0 && (
+                        <details style={{ marginTop: 10, padding: '8px 12px', background: 'var(--sd-bg-2)', border: '1px solid var(--sd-border)', borderRadius: 8 }}>
+                          <summary style={{ fontSize: 12, fontWeight: 600, color: 'var(--sd-navy)', cursor: 'pointer', userSelect: 'none' }}>
+                            📚 {locale === 'pt' ? `Fontes citadas (${msg.citations.length})` : `Sources citées (${msg.citations.length})`}
+                          </summary>
+                          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {msg.citations.map((cit, ci) => (
+                              <div key={`${cit.font_id}-${ci}`} style={{
+                                padding: 10, background: '#fff', borderRadius: 6,
+                                border: `1px solid ${cit.quote_verified ? 'var(--sd-border)' : '#fbbf24'}`,
+                                fontSize: 12,
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--sd-navy)' }}>
+                                    [{cit.font_id}]
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: 'var(--sd-gold)' }}>
+                                    {cit.source}{cit.article ? ` — Art. ${cit.article}` : ''}
+                                  </span>
+                                  <span style={{ color: 'var(--sd-ink-2)' }}>— {cit.title}</span>
+                                  {!cit.quote_verified && (
+                                    <span style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>
+                                      ⚠️ {locale === 'pt' ? 'citação não literal' : 'citation non littérale'}
+                                    </span>
+                                  )}
+                                </div>
+                                {cit.parent_path && (
+                                  <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginBottom: 4 }}>
+                                    {cit.parent_path}
+                                  </div>
+                                )}
+                                <blockquote style={{
+                                  margin: 0, padding: '6px 10px',
+                                  borderLeft: '3px solid var(--sd-gold)',
+                                  background: 'rgba(201,168,76,0.06)',
+                                  color: 'var(--sd-ink)',
+                                  fontStyle: 'italic',
+                                }}>
+                                  « {cit.exact_quote} »
+                                </blockquote>
+                                <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginTop: 4 }}>
+                                  {locale === 'pt' ? 'Suporta' : 'Soutient'} : {cit.claim}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--sd-ink-3)', marginTop: 8, fontStyle: 'italic' }}>
+                            {locale === 'pt'
+                              ? 'Citações verificadas contra o corpus jurídico oficial. Esta resposta é informativa — não substitui parecer jurídico.'
+                              : 'Citations vérifiées contre le corpus juridique officiel. Cette réponse est informative — ne remplace pas un avis juridique.'}
+                          </div>
+                        </details>
+                      )}
                       {/* ── Copy + Fixy + PDF action buttons ── */}
                       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                         <button
@@ -212,11 +503,6 @@ export default function MaxExpertSection({
                           style={{ fontSize: 11, color: 'var(--sd-ink-3)', background: 'transparent', border: '1px solid var(--sd-border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
                           title={locale === 'pt' ? 'Copiar' : 'Copier'}
                         >📋 {locale === 'pt' ? 'Copiar' : 'Copier'}</button>
-                        <button
-                          onClick={() => { setFixyPanelOpen(true); }}
-                          style={{ fontSize: 11, color: 'var(--sd-gold)', background: 'transparent', border: '1px solid var(--sd-gold)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
-                          title={locale === 'pt' ? 'Enviar ao Fixy para executar' : 'Envoyer à Fixy pour exécuter'}
-                        >🤖 {locale === 'pt' ? 'Fixy →' : 'Fixy →'}</button>
                         {docData && (
                           <button
                             onClick={() => {
@@ -287,7 +573,7 @@ export default function MaxExpertSection({
                 const ctx = buildSyndicContext()
                 const dynamicPills: { icon: string; text: string; priority: boolean }[] = []
                 const rcExpired = ctx.artisans.filter(a => !a.rcProValide)
-                if (rcExpired.length > 0) dynamicPills.push({ icon: '🔴', text: locale === 'pt' ? `${rcExpired.length} RC Pro expirado(s) — que fazer?` : `${rcExpired.length} RC Pro expirée(s) — que faire ?`, priority: true })
+                if (rcExpired.length > 0) dynamicPills.push({ icon: '🔴', text: locale === 'pt' ? `${rcExpired.length} Seguro RC expirado(s) — que fazer?` : `${rcExpired.length} RC Pro expirée(s) — que faire ?`, priority: true })
                 const urgentMissions = ctx.missions.filter(m => m.priorite === 'urgente' && m.statut !== 'terminee')
                 if (urgentMissions.length > 0) dynamicPills.push({ icon: '⚡', text: locale === 'pt' ? `${urgentMissions.length} missão(ões) urgente(s) — prioridades?` : `${urgentMissions.length} mission(s) urgente(s) — priorités ?`, priority: true })
                 const overBudget = ctx.immeubles.filter(i => i.budgetAnnuel > 0 && i.depensesAnnee / i.budgetAnnuel > 0.85)
@@ -342,6 +628,30 @@ export default function MaxExpertSection({
                   disabled={maxLoading}
                   onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 150) + 'px'; }}
                 />
+                {voiceSupported && (
+                  <button
+                    type="button"
+                    onClick={handleVoiceToggle}
+                    disabled={maxLoading}
+                    title={isRecording
+                      ? (locale === 'pt' ? 'Parar gravação' : 'Arrêter la dictée')
+                      : (locale === 'pt' ? 'Ditar pergunta' : 'Dicter la question')}
+                    aria-label={isRecording
+                      ? (locale === 'pt' ? 'Parar gravação' : 'Arrêter la dictée')
+                      : (locale === 'pt' ? 'Ditar pergunta' : 'Dicter la question')}
+                    style={{
+                      width: 38, height: 38, marginRight: 6, borderRadius: 8,
+                      border: '1px solid var(--sd-border)',
+                      background: isRecording ? '#e74c3c' : 'var(--sd-bg-2)',
+                      color: isRecording ? '#fff' : 'var(--sd-navy)',
+                      cursor: maxLoading ? 'not-allowed' : 'pointer',
+                      fontSize: 16, opacity: maxLoading ? 0.5 : 1,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    {isRecording ? '⏹' : '🎤'}
+                  </button>
+                )}
                 <button
                   className="sd-mx-compose-send"
                   onClick={() => sendMaxMessage()}
@@ -412,10 +722,6 @@ export default function MaxExpertSection({
                           onClick={() => { setMaxTab('chat'); sendMaxMessage(locale === 'pt' ? `Analisa o problema: ${check.label}. ${check.detail}` : `Analyse le problème : ${check.label}. ${check.detail}`) }}
                           style={{ fontSize: 11, color: 'var(--sd-navy)', background: 'var(--sd-cream)', border: '1px solid var(--sd-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
                         >🎓 {locale === 'pt' ? 'Perguntar ao Max' : 'Demander à Max'}</button>
-                        <button
-                          onClick={() => setFixyPanelOpen(true)}
-                          style={{ fontSize: 11, color: 'var(--sd-gold)', background: 'var(--sd-gold-dim)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
-                        >🤖 {locale === 'pt' ? 'Fixy → ação' : 'Fixy → action'}</button>
                       </div>
                     )}
                   </div>

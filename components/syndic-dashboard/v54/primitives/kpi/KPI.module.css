@@ -1,0 +1,170 @@
+/* KPI + KPIGrid v54 — port byte-exact du bundle V5.7. */
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.kpi {
+  background: #fff;
+  border: 1px solid var(--v54-line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: var(--v54-shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.accentGold {
+  border-top: 3px solid var(--v54-gold-500);
+}
+.accentSage {
+  border-top: 3px solid var(--v54-sage-500);
+}
+.accentAmber {
+  border-top: 3px solid var(--v54-amber-500);
+}
+.accentRust {
+  border-top: 3px solid var(--v54-rust-500);
+}
+
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ico {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--v54-gold-50);
+  color: var(--v54-gold-700);
+  display: grid;
+  place-items: center;
+}
+.ico svg {
+  width: 15px;
+  height: 15px;
+}
+.icoSage {
+  background: var(--v54-sage-50);
+  color: var(--v54-sage-700);
+}
+.icoAmber {
+  background: var(--v54-amber-50);
+  color: var(--v54-amber-700);
+}
+.icoRust {
+  background: var(--v54-rust-50);
+  color: var(--v54-rust-700);
+}
+
+.trend {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--v54-sage-50);
+  color: var(--v54-sage-700);
+}
+.ok {
+  background: var(--v54-sage-50);
+  color: var(--v54-sage-700);
+}
+.flat {
+  background: var(--v54-cream);
+  color: var(--v54-navy-500);
+}
+.warn {
+  background: var(--v54-amber-50);
+  color: var(--v54-amber-700);
+}
+.bad {
+  background: var(--v54-rust-50);
+  color: var(--v54-rust-700);
+}
+
+.kpiDot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--v54-navy-400);
+  flex-shrink: 0;
+}
+.kpiDotSage {
+  background: var(--v54-sage-500);
+}
+.kpiDotAmber {
+  background: var(--v54-amber-500);
+}
+.kpiDotRust {
+  background: var(--v54-rust-500);
+}
+.kpiDotGold {
+  background: var(--v54-gold-500);
+}
+
+.kpiVisual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 8px 0 6px;
+}
+.kpiWithVisual {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.num {
+  font-family: var(--v54-font-serif);
+  font-size: 36px;
+  line-height: 0.95;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--v54-ink);
+}
+.numSage {
+  color: var(--v54-sage-700);
+}
+.numRust {
+  color: var(--v54-rust-700);
+}
+.numAmber {
+  color: var(--v54-amber-700);
+}
+
+.cur {
+  color: var(--v54-gold-700);
+  font-style: italic;
+  margin-left: 2px;
+  font-size: 22px;
+  vertical-align: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.small {
+  font-size: 16px;
+  color: var(--v54-navy-300);
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lbl {
+  font-size: 12px;
+  color: var(--v54-navy-500);
+  margin-top: 6px;
+  font-weight: 500;
+}
+.sub {
+  font-size: 11px;
+  color: var(--v54-navy-300);
+  margin-top: 2px;
+}

@@ -52,7 +52,7 @@ export default function ParametresSection({
 }: ParametresSectionProps) {
   // ── Internal state ──
   const [notifSettings, setNotifSettings] = useState([
-    { label: locale === 'pt' ? 'Alertas RC Pro expirados' : 'Alertes RC Pro expirées', checked: true },
+    { label: locale === 'pt' ? 'Alertas Seguro RC expirado' : 'Alertes RC Pro expirées', checked: true },
     { label: locale === 'pt' ? 'Controlos regulamentares iminentes' : 'Contrôles réglementaires imminents', checked: true },
     { label: locale === 'pt' ? 'Novas missões criadas' : 'Nouvelles missions créées', checked: true },
     { label: locale === 'pt' ? 'Sinalizações de condóminos' : 'Signalements copropriétaires', checked: false },

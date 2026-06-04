@@ -4,15 +4,15 @@ import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Profissionais Perto de Mim — VITFIX | Tâmega e Sousa',
+  title: 'Profissionais Perto de Mim : VITFIX | Tâmega e Sousa',
   description: 'Encontre um eletricista, canalizador, pintor ou faz-tudo perto de si. Profissionais verificados em Marco de Canaveses, Penafiel, Amarante e toda a região.',
   openGraph: {
-    title: 'Profissionais Perto de Mim — VITFIX',
+    title: 'Profissionais Perto de Mim : VITFIX',
     description: 'Encontre um profissional verificado perto de si na região do Tâmega e Sousa.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
   },
   alternates: {
     canonical: 'https://vitfix.io/pt/perto-de-mim/',
@@ -25,7 +25,7 @@ export default function PertoMimHubPage() {
     '@graph': [
       {
         '@type': 'CollectionPage',
-        name: 'Profissionais Perto de Mim — VITFIX',
+        name: 'Profissionais Perto de Mim : VITFIX',
         description: 'Encontre profissionais verificados para serviços domésticos perto de si.',
         url: 'https://vitfix.io/pt/perto-de-mim/',
         publisher: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },
@@ -193,12 +193,18 @@ export default function PertoMimHubPage() {
               <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </Link>
             <a
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white font-display font-bold rounded-full px-8 py-4 text-base hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+            >
+              📞 Ligar +351 912 014 971
+            </a>
+            <a
               href={`https://wa.me/${PHONE_PT.replace('+', '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-8 py-4 text-base hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(37,211,102,0.3)]"
             >
-              WhatsApp
+              💬 WhatsApp
             </a>
           </div>
         </div>

@@ -87,7 +87,7 @@ const FORNECEDORES: Fornecedor[] = [
   { id: 'endesa', nome: 'Endesa', logo: '🟢', tarifaPonta: 0.1576, tarifaVazio: 0.0865, tarifaSuperVazio: 0.0702, potencia: 0.4050, custoFixo: 3.10, percentagemRenovavel: 58, satisfacao: 3.5, cor: '#00A651' },
   { id: 'iberdrola', nome: 'Iberdrola', logo: '🌿', tarifaPonta: 0.1610, tarifaVazio: 0.0880, tarifaSuperVazio: 0.0695, potencia: 0.3920, custoFixo: 2.85, percentagemRenovavel: 72, satisfacao: 3.9, cor: '#3C8A2E' },
   { id: 'goldenergy', nome: 'GoldEnergy', logo: '🌞', tarifaPonta: 0.1490, tarifaVazio: 0.0845, tarifaSuperVazio: 0.0680, potencia: 0.3750, custoFixo: 2.50, percentagemRenovavel: 100, satisfacao: 4.1, cor: '#FFB800' },
-  { id: 'luzboa', nome: 'Luzboa', logo: '💡', tarifaPonta: 0.1525, tarifaVazio: 0.0855, tarifaSuperVazio: 0.0690, potencia: 0.3880, custoFixo: 2.70, percentagemRenovavel: 100, satisfacao: 4.3, cor: '#0088CC' },
+  { id: 'luzboa', nome: 'Luzboa', logo: '💡', tarifaPonta: 0.1525, tarifaVazio: 0.0855, tarifaSuperVazio: 0.0690, potencia: 0.3880, custoFixo: 2.70, percentagemRenovavel: 100, satisfacao: 4.3, cor: '#0D1B2E' },
 ]
 
 const TIPO_TARIFA_LABELS: Record<TipoTarifa, string> = {

@@ -217,7 +217,7 @@ export default function DashboardCondominoRTSection({ user, userRole }: Props) {
           { emoji: '🟢', label: 'Ativos (7 dias)', value: online, color: '#22C55E' },
           { emoji: '⚠️', label: 'Com atraso', value: comAtraso, color: '#EF4444' },
           { emoji: '🔧', label: 'Interv. pendentes', value: intervencoesPendentes, color: '#F59E0B' },
-          { emoji: '💰', label: 'Total em dívida', value: `${(totalDevedor / 1000).toFixed(1)}k€`, color: '#8B5CF6' },
+          { emoji: '💰', label: 'Total em dívida', value: `${(totalDevedor / 1000).toFixed(1)}k€`, color: '#C9A84C' },
         ].map(s => (
           <div key={s.label} style={{ background: '#fff', border: '1px solid #E4DDD0', borderRadius: 12, padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -495,8 +495,8 @@ export default function DashboardCondominoRTSection({ user, userRole }: Props) {
                   </div>
                   <span style={{
                     padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                    background: interv.status === 'concluida' ? '#DCFCE7' : interv.status === 'em_curso' ? '#FEF3C7' : '#DBEAFE',
-                    color: interv.status === 'concluida' ? '#166534' : interv.status === 'em_curso' ? '#92400E' : '#1E40AF',
+                    background: interv.status === 'concluida' ? '#DCFCE7' : interv.status === 'em_curso' ? '#FEF3C7' : '#F7F4EE',
+                    color: interv.status === 'concluida' ? '#166534' : interv.status === 'em_curso' ? '#92400E' : '#0D1B2E',
                   }}>
                     {INTERVENTION_STEPS.find(s => s.key === interv.status)?.emoji} {INTERVENTION_STEPS.find(s => s.key === interv.status)?.label}
                   </span>

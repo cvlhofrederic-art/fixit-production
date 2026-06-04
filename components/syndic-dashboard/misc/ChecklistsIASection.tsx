@@ -37,12 +37,12 @@ interface Checklist {
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 const TIPO_CFG: Record<TipoChecklist, { label: string; icon: string; color: string }> = {
-  inspecao_mensal:    { label: 'Inspeção Mensal',        icon: '🔍', color: 'bg-blue-100 text-blue-700' },
-  preparacao_ag:     { label: 'Preparação AG',           icon: '🏛️', color: 'bg-purple-100 text-purple-700' },
+  inspecao_mensal:    { label: 'Inspeção Mensal',        icon: '🔍', color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
+  preparacao_ag:     { label: 'Preparação AG',           icon: '🏛️', color: 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]' },
   entrada_condomino: { label: 'Entrada Novo Condómino',  icon: '👋', color: 'bg-green-100 text-green-700' },
   saida_condomino:   { label: 'Saída de Condómino',      icon: '🚪', color: 'bg-amber-100 text-amber-700' },
   inspecao_incendio: { label: 'Inspeção Incêndio',       icon: '🔥', color: 'bg-red-100 text-red-700' },
-  inspecao_elevador: { label: 'Inspeção Elevador',       icon: '🛗', color: 'bg-indigo-100 text-indigo-700' },
+  inspecao_elevador: { label: 'Inspeção Elevador',       icon: '🛗', color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
   inspecao_gas:      { label: 'Inspeção Gás',            icon: '⛽', color: 'bg-orange-100 text-orange-700' },
   limpeza:           { label: 'Verificação Limpeza',     icon: '🧹', color: 'bg-emerald-100 text-emerald-700' },
   obras:             { label: 'Acompanhamento Obras',    icon: '🏗️', color: 'bg-yellow-100 text-yellow-700' },

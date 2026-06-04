@@ -1,4 +1,4 @@
-// IndexNow integration — Bing/Yandex/Naver instant indexation
+// IndexNow integration - Bing/Yandex/Naver instant indexation
 // Doc : https://www.indexnow.org/documentation
 //
 // La clé doit être disponible publiquement à

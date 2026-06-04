@@ -93,7 +93,7 @@ const TIPOS_PEDIDO: Record<TipoPedido, { emoji: string; label: string }> = {
 const ESTADO_PEDIDO_CONFIG: Record<EstadoPedido, { label: string; bg: string; color: string; dot: string }> = {
   submetido:  { label: 'Submetido',  bg: '#FEF5E4', color: '#D4830A', dot: '#D4830A' },
   em_analise: { label: 'Em analise', bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
-  em_curso:   { label: 'Em curso',   bg: '#EDE8FF', color: '#6C5CE7', dot: '#6C5CE7' },
+  em_curso:   { label: 'Em curso',   bg: '#F7F4EE', color: '#C9A84C', dot: '#C9A84C' },
   resolvido:  { label: 'Resolvido',  bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
 }
 

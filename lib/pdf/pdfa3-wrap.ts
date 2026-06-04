@@ -1,21 +1,29 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// PDF/A-3 wrapper (FR-V2)
+// PDF metadata wrapper (ex PDF/A-3 — voir note conformité)
 // ══════════════════════════════════════════════════════════════════════════════
-// Conformité arrêté du 22 mars 2017 sur l'archivage électronique probant :
-// les documents fiscaux conservés en numérique doivent être au format PDF/A
-// (ISO 19005). Sans ça, un contrôle DGFiP peut requalifier l'archive
-// numérique en non-probant et exiger l'original papier.
+// HISTORIQUE :
+//   FR-V2 a tenté un wrap PDF/A-3B pour archivage probant (arrêté 22 mars
+//   2017 / ISO 19005-3). MAIS l'implémentation déclarait un OutputIntent
+//   sRGB SANS embarquer le profil ICC binaire (DestOutputProfile stream).
+//   C'est INVALIDE selon ISO 19005-3 §6.2.2 → les lecteurs strict (macOS
+//   Aperçu, Preview iOS) refusent d'ouvrir le PDF en disant "endommagé".
 //
-// PDF/A-3B (BASIC level conformity) suffit pour les documents commerciaux.
-// PDF/A-3 (vs PDF/A-1, /A-2) accepte les fichiers attachés (utile si on
-// embarquait un XML Factur-X plus tard).
+// FIX (12/05/2026, user feedback Carvalho) :
+//   On retire l'OutputIntent + les markers pdfaid:part/conformance puisqu'on
+//   n'embarque PAS le profil ICC. Honnêteté : on ne prétend plus être PDF/A-3B.
+//   On garde uniquement les XMP metadata standard (titre, auteur, date) +
+//   Info dictionary qui ne posent aucun problème de lecture.
 //
-// Pattern dérivé de lib/facturx.ts (qui fait Factur-X = PDF/A-3 + XML embedé).
-// Ici on ne prend QUE le wrapping PDF/A-3, sans XML embarqué.
+// POUR REPASSER EN VRAI PDF/A-3B (futur) :
+//   1. Télécharger le profil sRGB IEC61966-2.1 (~3KB, Adobe distribute libre).
+//   2. Embarquer comme DestOutputProfile stream dans l'OutputIntent.
+//   3. Réactiver pdfaid:part/conformance markers dans XMP.
+//   4. Tester ouverture macOS Aperçu + Acrobat Pro PDF/A validator.
+//   Tant qu'on ne fait pas ça, on garde le wrap "léger" actuel.
 
-import { PDFDocument, PDFName, PDFString } from 'pdf-lib'
+import { PDFDocument } from 'pdf-lib'
 
-interface PdfA3Options {
+interface PdfMetadataOptions {
   /** Titre du document — utilisé dans XMP metadata. */
   title: string
   /** Auteur — par défaut "Vitfix.io". */
@@ -25,87 +33,25 @@ interface PdfA3Options {
 }
 
 /**
- * Wrap an existing PDF (jsPDF output) as PDF/A-3B conformant.
- * Adds XMP metadata + sRGB output intent.
+ * Ajoute des metadata standard (Info dictionary) à un PDF existant produit
+ * par jsPDF. N'altère PAS la structure visuelle du PDF, n'ajoute aucun
+ * OutputIntent (cf. note de tête sur invalidation Aperçu macOS).
  */
 export async function wrapAsPdfA3(
   pdfBytes: Uint8Array,
-  opts: PdfA3Options,
+  opts: PdfMetadataOptions,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes, { updateMetadata: false })
 
-  // ── 1. XMP metadata (PDF/A-3B identification) ──
-  const xmpMetadata = buildPdfA3XMP(opts)
-  pdfDoc.catalog.set(
-    PDFName.of('Metadata'),
-    pdfDoc.context.stream(
-      new TextEncoder().encode(xmpMetadata),
-      { Type: PDFName.of('Metadata'), Subtype: PDFName.of('XML') },
-    ),
-  )
-
-  // ── 2. Output intent for PDF/A-3 (sRGB) ──
-  const outputIntent = pdfDoc.context.obj({
-    Type: PDFName.of('OutputIntent'),
-    S: PDFName.of('GTS_PDFA1'),
-    OutputConditionIdentifier: PDFString.of('sRGB'),
-    RegistryName: PDFString.of('http://www.color.org'),
-    Info: PDFString.of('sRGB IEC61966-2.1'),
-  })
-  const outputIntentRef = pdfDoc.context.register(outputIntent)
-  pdfDoc.catalog.set(PDFName.of('OutputIntents'), pdfDoc.context.obj([outputIntentRef]))
-
-  // ── 3. Document-level metadata (Info dictionary) ──
+  // Document-level metadata (Info dictionary) — toujours safe à ajouter,
+  // tous les readers PDF les acceptent.
   pdfDoc.setTitle(opts.title)
   pdfDoc.setAuthor(opts.author || 'Vitfix.io')
   pdfDoc.setSubject(opts.subject || opts.title)
-  pdfDoc.setProducer('Vitfix.io PDF/A-3 wrapper')
+  pdfDoc.setProducer('Vitfix.io')
   pdfDoc.setCreator('Vitfix Pro (jsPDF + pdf-lib)')
+  pdfDoc.setCreationDate(new Date())
+  pdfDoc.setModificationDate(new Date())
 
   return await pdfDoc.save({ useObjectStreams: false })
-}
-
-function buildPdfA3XMP(opts: PdfA3Options): string {
-  const now = new Date().toISOString()
-  const title = escapeXml(opts.title)
-  const author = escapeXml(opts.author || 'Vitfix.io')
-
-  return `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description rdf:about=""
-      xmlns:dc="http://purl.org/dc/elements/1.1/"
-      xmlns:pdf="http://ns.adobe.com/pdf/1.3/"
-      xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
-      <dc:title>
-        <rdf:Alt>
-          <rdf:li xml:lang="x-default">${title}</rdf:li>
-        </rdf:Alt>
-      </dc:title>
-      <dc:creator>
-        <rdf:Seq>
-          <rdf:li>${author}</rdf:li>
-        </rdf:Seq>
-      </dc:creator>
-      <dc:date>
-        <rdf:Seq>
-          <rdf:li>${now}</rdf:li>
-        </rdf:Seq>
-      </dc:date>
-      <pdf:Producer>Vitfix.io PDF/A-3 wrapper</pdf:Producer>
-      <pdfaid:part>3</pdfaid:part>
-      <pdfaid:conformance>B</pdfaid:conformance>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>`
-}
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
 }

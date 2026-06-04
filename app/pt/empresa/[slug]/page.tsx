@@ -1,4 +1,4 @@
-// Rota /pt/empresa/<slug> — URL canónica das empresas (Lda, SA, Unipessoal).
+// Rota /pt/empresa/<slug> - URL canónica das empresas (Lda, SA, Unipessoal).
 // Partilha a mesma lógica de renderização com /fr/artisan/[id].
 export { default } from '@/app/fr/artisan/[id]/page'
 

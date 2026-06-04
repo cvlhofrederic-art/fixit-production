@@ -23,13 +23,13 @@ export default function robots(): MetadataRoute.Robots {
 
   return {
     rules: [
-      // Default — allow everything public
+      // Default - allow everything public
       {
         userAgent: '*',
         allow: '/',
         disallow: privateDisallow,
       },
-      // AI Crawlers — explicit allow for GEO (Generative Engine Optimization)
+      // AI Crawlers - explicit allow for GEO (Generative Engine Optimization)
       { userAgent: 'GPTBot', allow: '/', disallow: privateDisallow },
       { userAgent: 'ChatGPT-User', allow: '/', disallow: privateDisallow },
       { userAgent: 'OAI-SearchBot', allow: '/', disallow: privateDisallow },

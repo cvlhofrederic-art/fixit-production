@@ -490,6 +490,9 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
     }`}>
       <button
         type="button"
+        role="switch"
+        aria-checked={!!form[field]}
+        aria-label={label}
         onClick={() => update(field, !form[field])}
         className={`relative w-11 h-6 rounded-full transition-all shrink-0 ${form[field] ? 'bg-green-500' : 'bg-gray-300'}`}
       >
@@ -1015,10 +1018,10 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
       {/* ── Body: 2-column ── */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 max-w-[1200px] mx-auto px-[clamp(1.5rem,5%,5rem)] py-10 items-start">
 
-        {/* ═══ LEFT COLUMN — FORM ═══ */}
+        {/* ═══ LEFT COLUMN - FORM ═══ */}
         <form onSubmit={handleSubmit}>
 
-          {/* STEP 1 — Templates */}
+          {/* STEP 1 - Templates */}
           <div className={stepCardCls}>
             <div className={stepHeaderCls}>
               <div className={stepNumCls}>1</div>
@@ -1077,7 +1080,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             </div>
           </div>
 
-          {/* STEP 2 — Profile */}
+          {/* STEP 2 - Profile */}
           <div className={stepCardCls}>
             <div className={stepHeaderCls}>
               <div className={stepNumCls}>2</div>
@@ -1130,7 +1133,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             </div>
           </div>
 
-          {/* STEP 3 — Contact */}
+          {/* STEP 3 - Contact */}
           <div className={stepCardCls}>
             <div className={stepHeaderCls}>
               <div className={stepNumCls}>3</div>
@@ -1170,7 +1173,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             </div>
           </div>
 
-          {/* STEP 4 — Project details */}
+          {/* STEP 4 - Project details */}
           <div className={stepCardCls}>
             <div className={stepHeaderCls}>
               <div className={stepNumCls}>4</div>
@@ -1201,7 +1204,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                     {t('Catégorie', 'Categoria')} <span className="text-[#FFD600]">*</span>
                   </label>
                   <select className={inputCls('category')} value={form.category} onChange={e => update('category', e.target.value)}>
-                    <option value="">{t('— Choisir —', '— Escolher —')}</option>
+                    <option value="">{t('- Choisir -', '- Escolher -')}</option>
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{isPt ? c.pt : c.fr}</option>)}
                   </select>
                   {errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
@@ -1230,7 +1233,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <span className={subLabelCls}>{t('Budget prévisionnel', 'Orçamento previsto')}</span>
               <div className="flex items-center gap-3">
                 <input type="number" min="0" className={`${inputCls('budget_min')} w-40 shrink-0`} placeholder={t('Minimum (€)', 'Mínimo (€)')} value={form.budget_min} onChange={e => update('budget_min', e.target.value)} />
-                <div className="text-[#CCC] font-bold">—</div>
+                <div className="text-[#CCC] font-bold">-</div>
                 <input type="number" min="0" className={`${inputCls('budget_max')} w-40 shrink-0`} placeholder={t('Maximum (€)', 'Máximo (€)')} value={form.budget_max} onChange={e => update('budget_max', e.target.value)} />
               </div>
               {errors.budget_max && <p className="mt-1 text-xs text-red-500">{errors.budget_max}</p>}
@@ -1261,7 +1264,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             </div>
           </div>
 
-          {/* STEP 5 — Requirements */}
+          {/* STEP 5 - Requirements */}
           <div className={stepCardCls}>
             <div className={stepHeaderCls}>
               <div className={stepNumCls}>5</div>
@@ -1389,7 +1392,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                     {t('Publication en cours...', 'A publicar...')}
                   </>
                 ) : (
-                  <>⚡ {t('Publier l\'appel d\'offres — Gratuit', 'Publicar pedido de orçamento — Grátis')}</>
+                  <>⚡ {t('Publier l\'appel d\'offres, Gratuit', 'Publicar pedido de orçamento, Grátis')}</>
                 )}
               </button>
               <div className="text-center text-[0.75rem] text-[#AAA] mt-3.5 font-medium flex items-center justify-center gap-1.5">
@@ -1412,10 +1415,10 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             </div>
             <div className="flex flex-col gap-4">
               {([
-                { n: '1', text: isPt ? '<strong>Publique o seu pedido</strong> — descreva o projeto gratuitamente em menos de 5 minutos.' : '<strong>Publiez votre appel</strong> — décrivez votre projet en moins de 5 minutes.' },
-                { n: '2', text: isPt ? '<strong>Receba propostas</strong> — profissionais qualificados próximos de si respondem em menos de 2h.' : '<strong>Recevez des devis</strong> — artisans qualifiés proches de vous répondent sous 2h.' },
-                { n: '3', text: isPt ? '<strong>Compare e escolha</strong> — analise preços, perfis e avaliações antes de decidir.' : '<strong>Comparez et choisissez</strong> — analysez prix, profils et avis.' },
-                { n: '4', text: isPt ? '<strong>Avalie a obra</strong> — partilhe a sua experiência com a comunidade.' : '<strong>Évaluez</strong> — partagez votre expérience avec la communauté.' },
+                { n: '1', text: isPt ? '<strong>Publique o seu pedido</strong>, descreva o projeto gratuitamente em menos de 5 minutos.' : '<strong>Publiez votre appel</strong>, décrivez votre projet en moins de 5 minutes.' },
+                { n: '2', text: isPt ? '<strong>Receba propostas</strong>, profissionais qualificados próximos de si respondem em menos de 2h.' : '<strong>Recevez des devis</strong>, artisans qualifiés proches de vous répondent sous 2h.' },
+                { n: '3', text: isPt ? '<strong>Compare e escolha</strong>, analise preços, perfis e avaliações antes de decidir.' : '<strong>Comparez et choisissez</strong>, analysez prix, profils et avis.' },
+                { n: '4', text: isPt ? '<strong>Avalie a obra</strong>, partilhe a sua experiência com a comunidade.' : '<strong>Évaluez</strong>, partagez votre expérience avec la communauté.' },
               ]).map(step => (
                 <div key={step.n} className="flex gap-3.5 items-start">
                   <div className="w-[26px] h-[26px] rounded-full bg-[#FFD600] text-[#0D0D0D] text-[0.72rem] font-black flex items-center justify-center shrink-0 mt-px">{step.n}</div>

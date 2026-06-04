@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
           companyName: artisan?.company_name || 'Artisan',
           docNumber: meta.docNumber || '---',
           totalStr: meta.totalStr || '---',
+          locale: clientAuth.user.user_metadata?.locale === 'pt' ? 'pt' : 'fr',
         })
 
         const result = await sendEmail({ to: clientAuth.user.email, ...emailData })

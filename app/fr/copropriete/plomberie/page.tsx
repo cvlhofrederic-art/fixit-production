@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Plomberie Copropriété Marseille — Colonnes Montantes, Urgence Immeuble | VITFIX',
+  title: 'Plomberie Copropriété Marseille : Colonnes Montantes, Urgence Immeuble | VITFIX',
   description: 'Plomberie de copropriété à Marseille : maintenance colonnes montantes, réparation fuites parties communes, chaudière collective, urgence 24h. Contrat syndic.',
   alternates: { canonical: 'https://vitfix.io/fr/copropriete/plomberie/' },
 }
@@ -14,7 +14,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Plomberie Copropriété Marseille',
+      name: 'VITFIX : Plomberie Copropriété Marseille',
       description: 'Plomberie et maintenance pour copropriétés à Marseille : colonnes montantes, fuites parties communes, urgence 24h.',
       url: 'https://vitfix.io/fr/copropriete/plomberie/',
       telephone: PHONE_FR,
@@ -45,7 +45,7 @@ const jsonLd = {
         {
           '@type': 'Question',
           name: 'Intervenez-vous en urgence plomberie pour les immeubles à Marseille ?',
-          acceptedAnswer: { '@type': 'Answer', text: 'Oui, nous avons une astreinte urgence 24h/7j pour les copropriétés. Fuite sur colonne montante, cave inondée, canalisation bouchée bloquant plusieurs appartements — nos plombiers interviennent en priorité sous 30 à 60 minutes à Marseille et dans le 13. Prévenez-nous par WhatsApp ou téléphone pour un traitement en priorité.' },
+          acceptedAnswer: { '@type': 'Answer', text: 'Oui, nous avons une astreinte urgence 24h/7j pour les copropriétés. Fuite sur colonne montante, cave inondée, canalisation bouchée bloquant plusieurs appartements, nos plombiers interviennent en priorité sous 30 à 60 minutes à Marseille et dans le 13. Prévenez-nous par WhatsApp ou téléphone pour un traitement en priorité.' },
         },
       ],
     },
@@ -55,7 +55,7 @@ const jsonLd = {
 const PRESTATIONS = [
   { icon: '🏗️', title: 'Colonnes montantes', desc: 'Inspection, maintenance et réparation des colonnes d\'eau froide, chaude et d\'évacuation. Diagnostic complet avec rapport.' },
   { icon: '🔍', title: 'Détection de fuite', desc: 'Localisation non destructive des fuites cachées dans les parties communes. Rapport détaillé pour l\'assurance.' },
-  { icon: '🚨', title: 'Urgence immeuble 24h/7j', desc: 'Fuite active, cave inondée, colonne bouchée — intervention prioritaire pour les copropriétés sous contrat.' },
+  { icon: '🚨', title: 'Urgence immeuble 24h/7j', desc: 'Fuite active, cave inondée, colonne bouchée, intervention prioritaire pour les copropriétés sous contrat.' },
   { icon: '🔧', title: 'Débouchage canalisations', desc: 'Débouchage des canalisations collectives par haute pression. Inspection caméra si nécessaire.' },
   { icon: '🌡️', title: 'Chaufferie collective', desc: 'Maintenance et réparation de la chaufferie et du circuit de chauffage collectif. Contrat de maintenance annuel.' },
   { icon: '📋', title: 'Contrat de maintenance', desc: 'Visite annuelle ou semestrielle des installations de plomberie collectives. Rapport d\'état, préconisations travaux.' },
@@ -77,18 +77,18 @@ export default function FrCoproPlomberiePage() {
           </nav>
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
             <span>🔧</span>
-            <span className="text-dark">Syndics · Copropriétés — Urgence 24h/7j</span>
+            <span className="text-dark">Syndics · Copropriétés, Urgence 24h/7j</span>
           </div>
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             Plomberie copropriété<br />
-            <span className="text-yellow">à Marseille — Urgence 24h/7j</span>
+            <span className="text-yellow">à Marseille, Urgence 24h/7j</span>
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             Maintenance des colonnes montantes, réparation fuites parties communes, débouchage collectif et urgence 24h pour vos copropriétés à Marseille et dans le 13. Rapport d&apos;intervention, facturation syndic.
           </p>
           <div className="flex flex-wrap gap-3 mb-8">
             <a
-              href={`https://wa.me/${PHONE_FR.replace('+', '')}?text=${encodeURIComponent('URGENCE COPROPRIÉTÉ — J\'ai une fuite/problème plomberie dans les parties communes de mon immeuble à Marseille. Pouvez-vous intervenir rapidement ?')}`}
+              href={`https://wa.me/${PHONE_FR.replace('+', '')}?text=${encodeURIComponent('URGENCE COPROPRIÉTÉ, J\'ai une fuite/problème plomberie dans les parties communes de mon immeuble à Marseille. Pouvez-vous intervenir rapidement ?')}`}
               target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(37,211,102,0.3)]"
             >

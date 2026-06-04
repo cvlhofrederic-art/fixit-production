@@ -6,7 +6,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Toaster } from 'sonner'
 import { hydrateStorageFromServer, installStorageSync, pushAllLocalToServer } from '@/lib/storage-sync'
 import { importLocalStorageDocsToSupabase } from '@/lib/document-sync'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
 interface ProvidersProps {
   children: ReactNode
@@ -23,10 +23,17 @@ function useStorageSync() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     let cancelled = false
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+
+    // Pose le miroir localStorage IMMÉDIATEMENT et sans condition. Le patch est
+    // idempotent et ne fait QUE mettre les écritures en file d'attente ; le flush
+    // no-op tant qu'aucun token n'est disponible (cf. getToken dans storage-sync).
+    // Le poser ici garantit qu'aucune écriture fixit_* n'est perdue, même si la
+    // session est restaurée via cookies APRÈS le mount.
+    // Régression base clients 2026-06-01 : l'install était gardée derrière un
+    // getSession() d'un client @supabase/supabase-js ad hoc qui lisait le
+    // localStorage (vide → session jamais vue) → patch jamais posé → aucune
+    // sauvegarde cloud. On utilise désormais le client partagé (cookies SSR).
+    installStorageSync()
 
     async function bootstrap() {
       if (cancelled) return
@@ -54,10 +61,7 @@ function useStorageSync() {
           } catch { /* retry au prochain bootstrap */ }
         }
 
-        // 3. Installe le miroir (idempotent — pas de double install).
-        installStorageSync()
-
-        // 4. Backfill devis/factures legacy : avant le fix sync server-side,
+        // 3. Backfill devis/factures legacy : avant le fix sync server-side,
         //    chaque .catch(() => {}) avalait l'erreur silencieusement → 0
         //    inserts EVER en DB. Au premier login post-fix, on importe les
         //    documents accumules en localStorage vers Supabase via le nouvel
@@ -84,11 +88,12 @@ function useStorageSync() {
     // Bootstrap immediat (cas : deja connecte en arrivant sur la page).
     bootstrap()
 
-    // Bootstrap a chaque SIGNED_IN / TOKEN_REFRESHED (cas : utilisateur
-    // arrive sur /auth/login puis se connecte ; Providers ne se remount
-    // pas, le useEffect [] ne se re-trigger pas).
+    // Bootstrap sur INITIAL_SESSION / SIGNED_IN / TOKEN_REFRESHED. INITIAL_SESSION
+    // est crucial : avec @supabase/ssr la session est restaurée depuis les cookies
+    // et émise via cet event (getSession() peut renvoyer null au tout premier tick).
+    // SIGNED_IN couvre le passage par /auth/login (Providers ne se remount pas).
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         bootstrap()
       }
     })

@@ -5,8 +5,8 @@ export const metadata = buildSitemapMetadata({
   locale: 'pt',
   url: 'https://vitfix.io/pt/mapa-do-site/',
   altUrl: 'https://vitfix.io/fr/plan-du-site/',
-  title: 'Mapa do site VITFIX — Todas as nossas páginas serviços e cidades',
-  description: 'Mapa do site completo VITFIX: serviços de profissionais, cidades cobertas no Tâmega e Sousa, artigos do blog. Navegação rápida para todas as páginas.',
+  title: 'Mapa do site VITFIX : Todas as nossas páginas serviços e cidades',
+  description: 'Mapa do site completo VITFIX: serviços de profissionais, cidades cobertas em Portugal continental, artigos do blog. Navegação rápida para todas as páginas.',
   ogTitle: 'Mapa do site VITFIX',
   ogDescription: 'Todas as nossas páginas serviços e cidades em Portugal.',
 })
@@ -59,14 +59,14 @@ export default function MapaDoSitePage() {
           { href: '/pt/termos/', label: 'Termos e condições' },
           { href: '/pt/privacidade/', label: 'Privacidade' },
         ]}
-        servicesByCityTitle="Serviços por cidade no Tâmega e Sousa"
+        servicesByCityTitle="Serviços por cidade em Portugal"
         servicesByCityCountSuffix=" cidades"
         servicesByCityComboPrefix="em"
         servicesByCityRoot="/pt/servicos"
         servicesByCityNearMeRoot="/pt/perto-de-mim"
         servicesByCity={servicesByCity}
         defaultOpenServiceSlug="canalizador"
-        citiesTitle="Cidades cobertas no Tâmega e Sousa"
+        citiesTitle="Cidades cobertas em Portugal"
         cities={CITIES.map(c => ({ slug: c.slug, name: c.name }))}
         cityRoot="/pt/cidade"
         blogTitle="Artigos do blog"
