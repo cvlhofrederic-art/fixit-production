@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
 import { useSyndicSession } from './session'
-import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, fetchContratos, fetchSeguros, fetchSignalements, fetchElevadores, fetchSinistros, fetchVistorias, fetchPrazos, fetchAvisos, fetchReembolsos, fetchProcuracoes, fetchSegEdificio, fetchCaderneta, fetchCertEnerg, fetchDeclEncargos, fetchFcrEdificios, fetchFcrMovimentos, fetchAgV54, fetchContab, fetchImpayes, fetchRecouvrement, type Coprop, type Contrato, type Seguro, type Signalement, type Elevador, type Sinistro, type Vistoria, type PrazoLegal, type Aviso, type Reembolso, type Procuracao, type SegEdificio, type Caderneta, type CertEnergetico, type DeclEncargo, type FcrEdificio, type FcrMovimento, type AgV54, type ContabData, type Impaye, type Recouvrement } from './api'
+import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, fetchContratos, fetchSeguros, fetchSignalements, fetchElevadores, fetchSinistros, fetchVistorias, fetchPrazos, fetchAvisos, fetchReembolsos, fetchProcuracoes, fetchSegEdificio, fetchCaderneta, fetchCertEnerg, fetchDeclEncargos, fetchFcrEdificios, fetchFcrMovimentos, fetchAgV54, fetchContab, fetchImpayes, fetchRecouvrement, fetchFaturas, type Coprop, type Contrato, type Seguro, type Signalement, type Elevador, type Sinistro, type Vistoria, type PrazoLegal, type Aviso, type Reembolso, type Procuracao, type SegEdificio, type Caderneta, type CertEnergetico, type DeclEncargo, type FcrEdificio, type FcrMovimento, type AgV54, type ContabData, type Impaye, type Recouvrement, type FaturaCopro } from './api'
 
 /**
  * Provider data du dashboard syndic v54 (Phase 2).
@@ -67,13 +67,15 @@ export interface SyndicData {
   impayes?: Impaye[]
   /** Recouvrement / cobrança judicial (Phase 3 — ModCobrJud, table syndic_recouvrement). */
   recouvrements?: Recouvrement[]
+  /** Factures condomínio (Phase 3 — ModFaturacao, table syndic_factures_copro). */
+  faturas?: FaturaCopro[]
   /** Token Bearer pour les écritures POST (Phase 2 écritures). */
   token?: string
   /** Refetch des datasets après une écriture réussie. */
   refresh?: () => void
 }
 
-const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [], team: [], contratos: [], seguros: [], signalements: [], elevadores: [], sinistros: [], vistorias: [], prazos: [], avisos: [], reembolsos: [], procuracoes: [], segEdificios: [], caderneta: [], certificados: [], declaracoes: [], fcrEdificios: [], fcrMovimentos: [], assembleias: [], contab: { fracoes: [], chamadas: [], diario: [], orcamentos: [] }, impayes: [], recouvrements: [] }
+const EMPTY: SyndicData = { authenticated: false, loading: false, missions: [], immeubles: [], artisans: [], coproprios: [], team: [], contratos: [], seguros: [], signalements: [], elevadores: [], sinistros: [], vistorias: [], prazos: [], avisos: [], reembolsos: [], procuracoes: [], segEdificios: [], caderneta: [], certificados: [], declaracoes: [], fcrEdificios: [], fcrMovimentos: [], assembleias: [], contab: { fracoes: [], chamadas: [], diario: [], orcamentos: [] }, impayes: [], recouvrements: [], faturas: [] }
 
 /** Exporté pour les tests (injection d'un value mock) — l'app utilise SyndicDataProvider. */
 export const SyndicDataContext = createContext<SyndicData>(EMPTY)
@@ -89,8 +91,8 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
     const token = session.token
     if (session.status !== 'authed' || !token) return
     setData((d) => ({ ...d, authenticated: true, loading: true }))
-    Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token), fetchContratos(token), fetchSeguros(token), fetchSignalements(token), fetchElevadores(token), fetchSinistros(token), fetchVistorias(token), fetchPrazos(token), fetchAvisos(token), fetchReembolsos(token), fetchProcuracoes(token), fetchSegEdificio(token), fetchCaderneta(token), fetchCertEnerg(token), fetchDeclEncargos(token), fetchFcrEdificios(token), fetchFcrMovimentos(token), fetchAgV54(token), fetchContab(token), fetchImpayes(token), fetchRecouvrement(token)]).then(
-      ([m, i, a, c, t, k, g, sg, el, si, vi, pz, av, re, pr, se, cd, ce, de, fe, fm, ag, cc, ip, rc]) => {
+    Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token), fetchContratos(token), fetchSeguros(token), fetchSignalements(token), fetchElevadores(token), fetchSinistros(token), fetchVistorias(token), fetchPrazos(token), fetchAvisos(token), fetchReembolsos(token), fetchProcuracoes(token), fetchSegEdificio(token), fetchCaderneta(token), fetchCertEnerg(token), fetchDeclEncargos(token), fetchFcrEdificios(token), fetchFcrMovimentos(token), fetchAgV54(token), fetchContab(token), fetchImpayes(token), fetchRecouvrement(token), fetchFaturas(token)]).then(
+      ([m, i, a, c, t, k, g, sg, el, si, vi, pz, av, re, pr, se, cd, ce, de, fe, fm, ag, cc, ip, rc, ft]) => {
         setData({
           authenticated: true,
           loading: false,
@@ -119,6 +121,7 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
           contab: cc.status === 'fulfilled' ? cc.value : { fracoes: [], chamadas: [], diario: [], orcamentos: [] },
           impayes: ip.status === 'fulfilled' ? ip.value : [],
           recouvrements: rc.status === 'fulfilled' ? rc.value : [],
+          faturas: ft.status === 'fulfilled' ? ft.value : [],
         })
       },
     )

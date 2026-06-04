@@ -679,6 +679,19 @@ export const syndicRecouvrementUpdateSchema = z.object({
   prochaineEcheance: z.string().max(20).optional(),
 })
 
+// ── Syndic Faturação (Phase 3 — ModFaturacao, table syndic_factures_copro) ─
+export const syndicFaturaSchema = z.object({
+  coproprioId: z.string().max(40).optional(),
+  immeubleId: z.string().max(40).optional(),
+  numeroFatura: z.string().max(100).optional(),
+  emiseLe: z.string().max(20).optional(),
+  echeance: z.string().max(20).optional(),
+  montantHt: z.coerce.number().min(0).max(100_000_000).optional().default(0),
+  tvaTaux: z.coerce.number().min(0).max(100).optional().default(23),
+  description: z.string().max(2000).optional(),
+  statut: z.enum(['a_regler', 'partiellement_regle', 'reglee', 'contestee', 'annulee']).optional().default('a_regler'),
+})
+
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,

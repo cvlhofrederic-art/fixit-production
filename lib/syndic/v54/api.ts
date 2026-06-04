@@ -428,6 +428,26 @@ export interface Recouvrement {
 export const fetchRecouvrement = (token: string): Promise<Recouvrement[]> =>
   getList<Recouvrement>('/api/syndic/recouvrement', token, 'recouvrements')
 
+/** Facture condomínio (Phase 3 — ModFaturacao, table syndic_factures_copro). camelCase. */
+export interface FaturaCopro {
+  id: string
+  coproprioId: string
+  immeubleId: string
+  numeroFatura: string
+  emiseLe: string
+  echeance: string
+  montantHt: number
+  tvaTaux: number
+  montantTtc: number
+  description: string
+  /** a_regler | partiellement_regle | reglee | contestee | annulee */
+  statut: string
+  pdfUrl: string
+}
+
+export const fetchFaturas = (token: string): Promise<FaturaCopro[]> =>
+  getList<FaturaCopro>('/api/syndic/factures-copro', token, 'faturas')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
