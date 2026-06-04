@@ -7,9 +7,11 @@ import { Button } from '../primitives/button'
 import { Alert } from '../primitives/alert'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 /** Urgências Técnicas — page net-new (module catalogue-only en V5.7, aucune source byte-exact).
- * Composée uniquement de primitives v54. Despacho imediato para o profissional VITFIX disponível. */
+ * Phase 3 : urgences actives calculées (lecture seule) depuis data.missions (priorite urgente,
+ * non terminées). Aucune nouvelle table/route. Anonyme → preview illustratif inchangé. */
 
 type Urgencia = { tipo: string; edificio: string; prioridade: string; kind: PillKind; profissional: string; estado: string; estadoKind: PillKind; tempo: string }
 
@@ -20,7 +22,30 @@ const URGENCIAS: Urgencia[] = [
   { tipo: 'Infiltração no teto do R/C', edificio: 'Condomínio Boavista Center', prioridade: 'Média', kind: 'gold', profissional: 'ConstruFix', estado: 'Despachada', estadoKind: 'sage', tempo: '18 min' },
 ]
 
+// statut mission → [libellé estado PT, pill kind]
+const ESTADO: Record<string, [string, PillKind]> = {
+  en_attente: ['À procura', 'rust'],
+  acceptee: ['Em despacho', 'amber'],
+  en_cours: ['Em curso', 'amber'],
+  terminee: ['Concluída', 'sage'],
+  annulee: ['Anulada', 'rust'],
+}
+
 export default function ModUrgencias() {
+  const data = useSyndicData()
+  const real = data.authenticated
+  // Urgences actives = missions prioritaires non clôturées.
+  const urgentes = real
+    ? (data.missions ?? []).filter((mi) => mi.priorite === 'urgente' && mi.statut !== 'terminee' && mi.statut !== 'annulee')
+    : []
+  const emDespacho = urgentes.filter((mi) => mi.statut !== 'en_cours').length
+  const rows: Urgencia[] = real
+    ? urgentes.map((mi) => {
+        const [estado, estadoKind] = ESTADO[mi.statut] ?? [mi.statut, 'amber']
+        return { tipo: mi.type || mi.description || 'Intervenção', edificio: mi.immeuble || '—', prioridade: 'Urgente', kind: 'rust', profissional: mi.artisan || '—', estado, estadoKind, tempo: '—' }
+      })
+    : URGENCIAS
+
   return (
     <>
       <PageHead title="Urgências Técnicas" lede="Despacho imediato para o profissional VITFIX disponível"
@@ -35,17 +60,19 @@ export default function ModUrgencias() {
         As urgências críticas são despachadas automaticamente para o profissional VITFIX disponível mais próximo, com confirmação em tempo real.
       </Alert>
       <KPIGrid items={[
-        { icon: 'siren', num: 4, lbl: 'Urgências ativas', accent: 'rust' },
-        { icon: 'sat', num: 2, lbl: 'Em despacho', accent: 'amber' },
-        { icon: 'wrench', num: 9, lbl: 'Profissionais disponíveis', accent: 'sage' },
-        { icon: 'clock', num: '9 min', lbl: 'Tempo médio de resposta' },
+        { icon: 'siren', num: real ? urgentes.length : 4, lbl: 'Urgências ativas', accent: 'rust' },
+        { icon: 'sat', num: real ? emDespacho : 2, lbl: 'Em despacho', accent: 'amber' },
+        { icon: 'wrench', num: real ? (data.artisans ?? []).length : 9, lbl: 'Profissionais disponíveis', accent: 'sage' },
+        { icon: 'clock', num: real ? '—' : '9 min', lbl: 'Tempo médio de resposta' },
       ]} />
       <Panel title="Urgências ativas" flush>
         <div className={m.tblWrap}>
           <table className={m.tbl}>
             <thead><tr><th>Tipo</th><th>Edifício</th><th>Prioridade</th><th>Profissional</th><th>Estado</th><th>Tempo</th></tr></thead>
             <tbody>
-              {URGENCIAS.map((u, i) => (
+              {real && rows.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>Nenhuma urgência ativa.</td></tr>
+              ) : rows.map((u, i) => (
                 <tr key={i}>
                   <td><b>{u.tipo}</b></td>
                   <td>{u.edificio}</td>
