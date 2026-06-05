@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { attemptChunkReload } from '@/lib/chunk-reload'
 
 const texts = {
   pt: {
@@ -40,6 +41,9 @@ export default function Error({
   const [locale, setLocale] = useState('fr')
 
   useEffect(() => {
+    // Bundle périmé après déploiement : recharge une fois pour récupérer le
+    // build courant. Si ça ne déclenche pas de reload, on affiche le fallback.
+    if (attemptChunkReload(error)) return
     setLocale(getLocale())
     console.error('Application error:', error)
   }, [error])

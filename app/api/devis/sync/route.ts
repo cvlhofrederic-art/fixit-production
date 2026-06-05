@@ -9,6 +9,7 @@ import { computeTva, type TvaRegime, type TvaLineInput } from '@/lib/tva-calcula
 import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
+import { isStableDocId } from '@/lib/devis-utils'
 
 export const maxDuration = 30
 
@@ -79,8 +80,14 @@ export async function POST(request: NextRequest) {
   // n'a pas encore adopté l'id canonique via le hydrate). Au moins une identité
   // non vide est requise. Un brouillon a un id mais numero = null (le numéro
   // légal n'est tiré de next_doc_number qu'à l'émission).
+  //
+  // `id` n'est retenu comme clé d'upsert QUE s'il est un UUID canonique
+  // (isStableDocId). Les docs LEGACY portent un id horodaté Date.now()
+  // (ex "1779539827817") : on les traite comme « sans id canonique » →
+  // identité par `numero`, et on n'écrit jamais une valeur non-UUID dans la
+  // colonne `uuid` (sinon Postgres 22P02). Cf. lib/devis-utils.isStableDocId.
   const docRec = doc as Record<string, unknown>
-  const docId = (typeof docRec.id === 'string' && docRec.id) ? docRec.id : null
+  const docId = isStableDocId(docRec.id) ? docRec.id : null
   const numeroIn = (typeof docRec.docNumber === 'string' && docRec.docNumber) ? docRec.docNumber : null
   if (!docId && !numeroIn) {
     return NextResponse.json({ error: 'doc.id or doc.docNumber required' }, { status: 400 })

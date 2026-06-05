@@ -15,8 +15,8 @@ describe('syndic v54 — ModCobrJud', () => {
     render(<ModCobrJud />)
     expect(screen.getByRole('heading', { name: 'Cobrança Judicial' })).toBeTruthy()
     expect(screen.getByText('Total em dívida')).toBeTruthy()
-    expect(screen.getByText('Pipeline de cobranca')).toBeTruthy()
-    expect(screen.getByText('Carlos Miguel Pinto')).toBeTruthy()
+    expect(screen.getByText('Pipeline de cobrança')).toBeTruthy()
+    expect(screen.getAllByText('Sem processos').length).toBeGreaterThan(0)
   })
 })
 
