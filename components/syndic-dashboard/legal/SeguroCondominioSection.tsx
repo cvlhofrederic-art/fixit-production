@@ -66,7 +66,7 @@ const ESTADO_APOLICE_CONFIG: Record<EstadoApolice, { label: string; bg: string; 
   ativa:          { label: 'Ativa',          bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
   a_renovar:      { label: 'A Renovar',     bg: '#FEF5E4', color: '#D4830A', dot: '#D4830A' },
   expirada:       { label: 'Expirada',       bg: '#FDECEA', color: '#C0392B', dot: '#C0392B' },
-  em_negociacao:  { label: 'Em Negociação', bg: '#EDE8FF', color: '#6C5CE7', dot: '#6C5CE7' },
+  em_negociacao:  { label: 'Em Negociação', bg: '#F7F4EE', color: '#C9A84C', dot: '#C9A84C' },
 }
 
 const ESTADO_SINISTRO_CONFIG: Record<EstadoSinistro, { label: string; bg: string; color: string }> = {

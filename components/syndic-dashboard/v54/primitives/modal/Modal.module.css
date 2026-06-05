@@ -1,0 +1,130 @@
+/* Modal v54 — port byte-exact du bloc « Modal + Form (V5.2) » du bundle V5.7.
+ * Variables bundle → tokens --v54-* ; les rgba(11,24,40,…) du backdrop et des
+ * ombres sont conservées telles quelles (le bundle les écrit en dur).
+ * Le composant rend via createPortal vers <body> : les tokens sont définis sur
+ * :root (tokens.css), donc résolvables hors du namespace #syndic-dashboard-v54. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 24, 40, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 1000;
+  animation: modal-fade 160ms ease-out;
+}
+
+.modal {
+  background: var(--v54-paper);
+  border-radius: var(--v54-r-lg);
+  box-shadow: 0 24px 64px -16px rgba(11, 24, 40, 0.45), 0 2px 8px rgba(11, 24, 40, 0.12);
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  animation: modal-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  border: 1px solid var(--v54-line);
+}
+
+.sm { max-width: 420px; }
+.md { max-width: 580px; }
+.lg { max-width: 720px; }
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--v54-line);
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--v54-font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+  line-height: 1.15;
+}
+
+.titleIco {
+  width: 22px;
+  height: 22px;
+  color: var(--v54-gold-700);
+  flex-shrink: 0;
+}
+
+.close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--v54-navy-400);
+  transition: all var(--v54-dur, 150ms) var(--v54-ease-std, ease);
+}
+
+.close:hover {
+  background: var(--v54-cream);
+  color: var(--v54-navy-900);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--v54-gold-500);
+  outline-offset: 2px;
+}
+
+.body {
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.foot {
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--v54-line);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  background: var(--v54-cream);
+  border-bottom-left-radius: var(--v54-r-lg);
+  border-bottom-right-radius: var(--v54-r-lg);
+}
+
+/* Boutons du footer : `.btn` est une classe globale du bundle (futur primitive
+ * Button). `:global` pour matcher hors scope CSS Modules. */
+.foot :global(.btn) {
+  flex: 0 0 auto;
+  min-width: 110px;
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .modal {
+    animation: none;
+  }
+}
+
+@media (max-width: 540px) {
+  .foot :global(.btn) {
+    flex: 1 1 auto;
+  }
+}

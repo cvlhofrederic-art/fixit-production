@@ -49,9 +49,9 @@ interface Props {
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const FASES_CONFIG: Record<FaseObra, { label: string; emoji: string; bg: string; color: string; dot: string }> = {
-  orcamentacao:  { label: 'Oramentao',  emoji: '📋', bg: '#FEF5E4', color: '#D4830A', dot: '#D4830A' },
-  aprovacao_ag:   { label: 'Aprovao AG',   emoji: '🗳️', bg: '#EDE8FF', color: '#6C5CE7', dot: '#6C5CE7' },
-  em_execucao:    { label: 'Em Execuo',    emoji: '🔧', bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
+  orcamentacao:  { label: 'Orçamentação',  emoji: '📋', bg: '#FEF5E4', color: '#D4830A', dot: '#D4830A' },
+  aprovacao_ag:   { label: 'Aprovação AG',   emoji: '🗳️', bg: '#F7F4EE', color: '#C9A84C', dot: '#C9A84C' },
+  em_execucao:    { label: 'Em Execução',    emoji: '🔧', bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
   concluida:      { label: 'Concluída',      emoji: '✅', bg: '#F0F9E8', color: '#2D8A4E', dot: '#2D8A4E' },
 }
 
@@ -210,7 +210,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
   const obrasAtivas = useMemo(() => obras.filter(o => o.fase !== 'concluida'), [obras])
   const obrasArquivadas = useMemo(() => obras.filter(o => o.fase === 'concluida'), [obras])
 
-  // ── Score calculation (Preo 40%, Prazo 20%, Garantia 20%, Reputao 20%)
+  // ── Score calculation (Preço 40%, Prazo 20%, Garantia 20%, Reputação 20%)
   const calcularScores = (orcs: Orcamento[]) => {
     if (orcs.length === 0) return []
     const minPreco = Math.min(...orcs.map(o => o.valorTotal))
@@ -311,10 +311,10 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, color: 'var(--sd-navy, #0D1B2E)', margin: 0 }}>
-            📋 Oramentos &amp; Obras
+            📋 Orçamentos &amp; Obras
           </h2>
           <p style={{ fontSize: 13, color: 'var(--sd-ink-3, #8A9BB0)', marginTop: 4 }}>
-            Comparao obrigatria de 3 oramentos Lei 8/2022 Art. 1436. CC
+            Comparação obrigatória de 3 orçamentos · Lei 8/2022 Art. 1436.º CC
           </p>
         </div>
       </div>
@@ -324,7 +324,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
         {[
           { emoji: '🏗️', label: 'Obras Ativas', value: obrasAtivas.length, color: 'var(--sd-navy, #0D1B2E)' },
           { emoji: '📋', label: 'Em Orçamentação', value: obras.filter(o => o.fase === 'orcamentacao').length, color: '#D4830A' },
-          { emoji: '🗳️', label: 'Aprovação AG', value: obras.filter(o => o.fase === 'aprovacao_ag').length, color: '#6C5CE7' },
+          { emoji: '🗳️', label: 'Aprovação AG', value: obras.filter(o => o.fase === 'aprovacao_ag').length, color: '#C9A84C' },
           { emoji: '🔧', label: 'Em Execução', value: obras.filter(o => o.fase === 'em_execucao').length, color: '#1A7A6E' },
           { emoji: '✅', label: 'Concluídas', value: obrasArquivadas.length, color: '#2D8A4E' },
           { emoji: '📊', label: 'Total Orçamentos', value: orcamentos.length, color: 'var(--sd-gold, #C9A84C)' },
@@ -394,11 +394,11 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label style={sLabel}>Imvel *</label>
+                  <label style={sLabel}>Imóvel *</label>
                   <input value={formImovel} onChange={e => setFormImovel(e.target.value)} style={sInput} placeholder="Ex.: Edifício Rua Augusta, 105" />
                 </div>
                 <div>
-                  <label style={sLabel}>Valor Estimado ()</label>
+                  <label style={sLabel}>Valor Estimado (€)</label>
                   <input type="number" value={formValorEstimado} onChange={e => setFormValorEstimado(e.target.value)} style={sInput} placeholder="0.00" />
                 </div>
                 <div>
@@ -538,13 +538,13 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════════
-          TAB 2 — Comparao Oramentos
+          TAB 2 — Comparação Orçamentos
          ═══════════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'comparacao' && (
         <div>
           {/* Obra selector */}
           <div style={{ marginBottom: 20 }}>
-            <label style={sLabel}>Selecionar Obra para Comparao</label>
+            <label style={sLabel}>Selecionar Obra para Comparação</label>
             <select
               value={obraComparacao || ''}
               onChange={e => setObraComparacao(e.target.value || null)}
@@ -560,8 +560,8 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
           {!obraComparacao && (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--sd-ink-3, #8A9BB0)' }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-              <p style={{ fontSize: 16 }}>Selecione uma obra para comparar oramentos</p>
-              <p style={{ fontSize: 13 }}>Mnimo 3 oramentos obrigatrios Lei 8/2022</p>
+              <p style={{ fontSize: 16 }}>Selecione uma obra para comparar orçamentos</p>
+              <p style={{ fontSize: 13 }}>Mínimo 3 orçamentos obrigatórios · Lei 8/2022</p>
             </div>
           )}
 
@@ -627,8 +627,8 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                               <div style={{ fontWeight: 600, color: 'var(--sd-navy, #0D1B2E)' }}>{orc.fornecedor}</div>
                               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                 {isCheapest && <span style={{ fontSize: 10, background: '#E6F4F2', color: '#1A7A6E', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>💰 Mais barato</span>}
-                                {isFastest && <span style={{ fontSize: 10, background: '#EDE8FF', color: '#6C5CE7', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>⚡ Mais rpido</span>}
-                                {isBestValue && <span style={{ fontSize: 10, background: 'rgba(201,168,76,0.15)', color: '#B8941F', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>🏆 Melhor relao qualidade-preo</span>}
+                                {isFastest && <span style={{ fontSize: 10, background: '#F7F4EE', color: '#C9A84C', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>⚡ Mais rápido</span>}
+                                {isBestValue && <span style={{ fontSize: 10, background: 'rgba(201,168,76,0.15)', color: '#B8941F', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>🏆 Melhor relação qualidade-preço</span>}
                               </div>
                               <div style={{ marginTop: 4 }}>
                                 {Array.from({ length: 5 }).map((_, i) => (
@@ -639,7 +639,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                             <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: isCheapest ? '#1A7A6E' : 'var(--sd-navy, #0D1B2E)' }}>
                               {fmt(orc.valorTotal)} €
                             </td>
-                            <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: isFastest ? 700 : 400, color: isFastest ? '#6C5CE7' : 'var(--sd-ink-2, #4A5E78)' }}>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: isFastest ? 700 : 400, color: isFastest ? '#C9A84C' : 'var(--sd-ink-2, #4A5E78)' }}>
                               {orc.prazoExecucao} dias
                             </td>
                             <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--sd-ink-2, #4A5E78)' }}>
@@ -682,7 +682,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
 
                 {/* Score breakdown */}
                 <div style={{ ...sCard, borderLeft: '4px solid var(--sd-gold, #C9A84C)' }}>
-                  <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--sd-navy, #0D1B2E)' }}>📐 Critrios de Pontuao</h4>
+                  <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--sd-navy, #0D1B2E)' }}>📐 Critérios de Pontuação</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                     {[
                       { label: 'Preço', peso: '40%', desc: 'Menor valor = melhor score', emoji: '💰' },
@@ -751,7 +751,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
               </select>
             </div>
             <div>
-              <label style={sLabel}>Imvel</label>
+              <label style={sLabel}>Imóvel</label>
               <select value={filtroImovel} onChange={e => setFiltroImovel(e.target.value)} style={{ ...sInput, width: 220 }}>
                 <option value="todos">Todos</option>
                 {imoveisUnicos.map(im => <option key={im} value={im}>{im}</option>)}
@@ -763,7 +763,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--sd-ink-3, #8A9BB0)' }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📁</div>
               <p style={{ fontSize: 16 }}>Nenhuma obra arquivada</p>
-              <p style={{ fontSize: 13 }}>As obras concludas aparecero aqui</p>
+              <p style={{ fontSize: 13 }}>As obras concluídas aparecerão aqui</p>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -773,7 +773,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Data</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Obra</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Tipo</th>
-                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Imvel</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Imóvel</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Fornecedor</th>
                     <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Valor</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--sd-ink-2, #4A5E78)' }}>Resultado</th>
@@ -837,26 +837,26 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                 </div>
               </div>
               <p style={{ fontSize: 13, color: 'var(--sd-ink-2, #4A5E78)', lineHeight: 1.6, margin: 0 }}>
-                O administrador obrigado a obter, no mnimo, <strong>3 oramentos</strong> de diferentes fornecedores para obras e servios cujo valor ultrapasse o limite fixado em assembleia geral.
-                Esta obrigao visa garantir transparncia e o melhor uso dos fundos do condomnio.
+                O administrador é obrigado a obter, no mínimo, <strong>3 orçamentos</strong> de diferentes fornecedores para obras e serviços cujo valor ultrapasse o limite fixado em assembleia geral.
+                Esta obrigação visa garantir transparência e o melhor uso dos fundos do condomínio.
               </p>
             </div>
 
             {/* Seuil AG */}
-            <div style={{ ...sCard, borderLeft: '4px solid #6C5CE7' }}>
+            <div style={{ ...sCard, borderLeft: '4px solid #C9A84C' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <span style={{
                   width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(108,92,231,0.12)', fontSize: 20,
+                  background: 'rgba(201,168,76,0.12)', fontSize: 20,
                 }}>🗳️</span>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Limiar de Concorrncia</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Limiar de Concorrência</div>
                   <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Fixado em Assembleia Geral</div>
                 </div>
               </div>
               <p style={{ fontSize: 13, color: 'var(--sd-ink-2, #4A5E78)', lineHeight: 1.6, margin: 0 }}>
-                A assembleia geral deve fixar o valor a partir do qual obrigatrio solicitar mltiplos oramentos.
-                Acima deste limiar, o administrador deve apresentar pelo menos 3 propostas antes de qualquer contratao.
+                A assembleia geral deve fixar o valor a partir do qual é obrigatório solicitar múltiplos orçamentos.
+                Acima deste limiar, o administrador deve apresentar pelo menos 3 propostas antes de qualquer contratação.
               </p>
             </div>
 
@@ -868,14 +868,14 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                   background: 'rgba(26,122,110,0.12)', fontSize: 20,
                 }}>⚖️</span>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Art. 1436. CC</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Art. 1436.º CC</div>
                   <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Deveres do Administrador</div>
                 </div>
               </div>
               <p style={{ fontSize: 13, color: 'var(--sd-ink-2, #4A5E78)', lineHeight: 1.6, margin: 0 }}>
-                O administrador deve agir com diligncia e no interesse do condomnio.
-                Compete-lhe executar as deliberaes da assembleia, cobrar receitas, efetuar os pagamentos necessrios,
-                e prestar contas  assembleia geral. A gesto deve ser prudente e transparente.
+                O administrador deve agir com diligência e no interesse do condomínio.
+                Compete-lhe executar as deliberações da assembleia, cobrar receitas, efetuar os pagamentos necessários,
+                e prestar contas à assembleia geral. A gestão deve ser prudente e transparente.
               </p>
             </div>
 
@@ -887,26 +887,26 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
                   background: 'rgba(192,57,43,0.12)', fontSize: 20,
                 }}>🚨</span>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Obras Urgentes Exceo</div>
-                  <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Art. 1427. CC</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)' }}>Obras Urgentes · Exceção</div>
+                  <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Art. 1427.º CC</div>
                 </div>
               </div>
               <p style={{ fontSize: 13, color: 'var(--sd-ink-2, #4A5E78)', lineHeight: 1.6, margin: 0 }}>
-                Em caso de <strong>reparaes urgentes</strong> (risco para a segurana de pessoas ou bens),
-                o administrador pode atuar sem aguardar deliberao da assembleia geral e sem o requisito dos 3 oramentos.
-                Deve, no entanto, informar os condminos logo que possvel e justificar a urgncia.
+                Em caso de <strong>reparações urgentes</strong> (risco para a segurança de pessoas ou bens),
+                o administrador pode atuar sem aguardar deliberação da assembleia geral e sem o requisito dos 3 orçamentos.
+                Deve, no entanto, informar os condóminos logo que possível e justificar a urgência.
               </p>
             </div>
           </div>
 
           {/* Configuration: seuil value */}
           <div style={{ ...sCard, borderLeft: '4px solid var(--sd-navy, #0D1B2E)', maxWidth: 500 }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--sd-navy, #0D1B2E)' }}>⚙️ Configurao do Limiar</h4>
+            <h4 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--sd-navy, #0D1B2E)' }}>⚙️ Configuração do Limiar</h4>
             <p style={{ fontSize: 13, color: 'var(--sd-ink-3, #8A9BB0)', marginBottom: 16 }}>
-              Defina o valor a partir do qual necessrio obter 3 oramentos (conforme deliberao da AG).
+              Defina o valor a partir do qual é necessário obter 3 orçamentos (conforme deliberação da AG).
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <label style={{ ...sLabel, marginBottom: 0, whiteSpace: 'nowrap' }}>Limiar ()</label>
+              <label style={{ ...sLabel, marginBottom: 0, whiteSpace: 'nowrap' }}>Limiar (€)</label>
               <input
                 type="number"
                 value={seuilValue}
@@ -917,7 +917,7 @@ export default function OrcamentosObrasSection({ user, userRole }: Props) {
               />
             </div>
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--sd-cream, #F7F4EE)', fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)' }}>
-              Obras com valor estimado superior a <strong>{fmt(seuilValue)} €</strong> exigiro automaticamente 3 oramentos.
+              Obras com valor estimado superior a <strong>{fmt(seuilValue)} €</strong> exigirão automaticamente 3 orçamentos.
             </div>
           </div>
         </div>

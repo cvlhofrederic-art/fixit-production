@@ -297,14 +297,14 @@ Le montant restant dû s'élève à :`
         <div><h1 className="text-2xl font-semibold">⚠️ {t('syndicDash.impayes.title')}</h1><p className="text-sm text-gray-500">{t('syndicDash.impayes.subtitle')}</p></div>
         <div className="flex gap-2">
           {activeTab === 'impayés' && <button onClick={() => setShowModal(true)} className="bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition">{t('syndicDash.impayes.addImpayes')}</button>}
-          {activeTab === 'appels' && <button onClick={() => setShowAppelModal(true)} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition">{t('syndicDash.impayes.addAppel')}</button>}
+          {activeTab === 'appels' && <button onClick={() => setShowAppelModal(true)} className="bg-[#0D1B2E] text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#152338] transition">{t('syndicDash.impayes.addAppel')}</button>}
         </div>
       </div>
 
       {/* Tabs */}
       <div className="bg-white border-b flex">
         <button onClick={() => setActiveTab('impayés')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeTab === 'impayés' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500'}`}>⚠️ {t('syndicDash.impayes.tabImpayes')}</button>
-        <button onClick={() => setActiveTab('appels')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeTab === 'appels' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'}`}>📋 {t('syndicDash.impayes.tabAppels')}</button>
+        <button onClick={() => setActiveTab('appels')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeTab === 'appels' ? 'border-[#C9A84C] text-[#C9A84C]' : 'border-transparent text-gray-500'}`}>📋 {t('syndicDash.impayes.tabAppels')}</button>
       </div>
 
       {activeTab === 'impayés' && (
@@ -349,7 +349,7 @@ Le montant restant dû s'élève à :`
                         <div className="flex gap-1 justify-center flex-wrap">
                           {i.statut !== 'soldé' && i.statut !== 'contentieux' && <button onClick={() => handleRelance(i.id)} className="text-xs bg-orange-100 text-orange-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-orange-200 whitespace-nowrap">📨 {t('syndicDash.impayes.relancer')}</button>}
                           {i.statut !== 'soldé' && (
-                            <button onClick={() => handleSendRelanceEmail(i)} disabled={emailSending === i.id} className="text-xs bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg font-semibold hover:bg-blue-100 whitespace-nowrap disabled:opacity-60">{emailSending === i.id ? '⏳' : `✉️ ${locale === 'pt' ? 'Email' : 'Email'}`}{i.emailSent ? ' ✓' : ''}</button>
+                            <button onClick={() => handleSendRelanceEmail(i)} disabled={emailSending === i.id} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-2 py-1.5 rounded-lg font-semibold hover:bg-[#EDE8DF] whitespace-nowrap disabled:opacity-60">{emailSending === i.id ? '⏳' : `✉️ ${locale === 'pt' ? 'Email' : 'Email'}`}{i.emailSent ? ' ✓' : ''}</button>
                           )}
                           {(i.statut === 'relance_1' || i.statut === 'relance_2' || i.statut === 'contentieux') && (
                             <button onClick={() => exportRelatancePdf(i)} disabled={pdfLoading === `relance_${i.id}`} className="text-xs bg-[#F7F4EE] text-[#C9A84C] px-2 py-1.5 rounded-lg font-semibold hover:bg-[#F7F4EE] whitespace-nowrap disabled:opacity-60">{pdfLoading === `relance_${i.id}` ? '⏳' : `📄 ${t('syndicDash.impayes.lettrePdf')}`}</button>
@@ -369,12 +369,12 @@ Le montant restant dû s'élève à :`
       {activeTab === 'appels' && (
         <div className="p-6 lg:p-8">
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">{t('syndicDash.impayes.appelsFonds')}</div><div className="text-3xl font-bold text-blue-600">{appels.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{t('syndicDash.impayes.appelsFonds')}</div><div className="text-3xl font-bold text-[#0D1B2E]">{appels.length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{t('syndicDash.impayes.totalAppele')}</div><div className="text-2xl font-bold text-green-600">{appels.reduce((s, a) => s + a.montantTotalBudget, 0).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{t('syndicDash.impayes.lotsTotal')}</div><div className="text-3xl font-bold text-[#C9A84C]">{appels.reduce((s, a) => s + a.lots.length, 0)}</div></div>
           </div>
           {appels.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📋</div><h3 className="text-xl font-bold mb-2">{t('syndicDash.impayes.noAppels')}</h3><p className="text-gray-500 mb-6">{t('syndicDash.impayes.noAppelsDesc')}</p><button onClick={() => setShowAppelModal(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700">+ {t('syndicDash.impayes.firstAppel')}</button></div>
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📋</div><h3 className="text-xl font-bold mb-2">{t('syndicDash.impayes.noAppels')}</h3><p className="text-gray-500 mb-6">{t('syndicDash.impayes.noAppelsDesc')}</p><button onClick={() => setShowAppelModal(true)} className="bg-[#0D1B2E] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#152338]">+ {t('syndicDash.impayes.firstAppel')}</button></div>
           ) : (
             <div className="space-y-4">
               {appels.map(af => (
@@ -390,13 +390,13 @@ Le montant restant dû s'élève à :`
                         {af.dateEcheance && <span>⚠️ {t('syndicDash.impayes.deadline')} : {new Date(af.dateEcheance).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</span>}
                       </div>
                     </div>
-                    <button onClick={() => exportAppelPdf(af)} disabled={pdfLoading === `appel_${af.id}`} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 whitespace-nowrap">{pdfLoading === `appel_${af.id}` ? `⏳ ${t('syndicDash.impayes.generating')}` : `📄 ${t('syndicDash.impayes.exportPdf')}`}</button>
+                    <button onClick={() => exportAppelPdf(af)} disabled={pdfLoading === `appel_${af.id}`} className="bg-[#0D1B2E] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#152338] disabled:opacity-60 whitespace-nowrap">{pdfLoading === `appel_${af.id}` ? `⏳ ${t('syndicDash.impayes.generating')}` : `📄 ${t('syndicDash.impayes.exportPdf')}`}</button>
                   </div>
                   {af.lots.length > 0 && (
                     <div className="mt-3 overflow-x-auto">
                       <table className="text-xs w-full">
                         <thead><tr className="text-gray-500 border-b"><th className="text-left py-1 pr-4">{t('syndicDash.impayes.lotCol')}</th><th className="text-left py-1 pr-4">{t('syndicDash.impayes.coproCol')}</th><th className="text-right py-1 pr-4">{t('syndicDash.impayes.tantiemesCol')}</th><th className="text-right py-1">{t('syndicDash.impayes.amountCalledCol')}</th></tr></thead>
-                        <tbody>{af.lots.map((l, j) => <tr key={j} className="border-b border-gray-50"><td className="py-1 pr-4 font-medium">{l.lot}</td><td className="py-1 pr-4 text-gray-600">{l.copropriétaire}</td><td className="py-1 pr-4 text-right">{l.tantiemes}</td><td className="py-1 text-right font-semibold text-blue-600">{l.montant.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</td></tr>)}</tbody>
+                        <tbody>{af.lots.map((l, j) => <tr key={j} className="border-b border-gray-50"><td className="py-1 pr-4 font-medium">{l.lot}</td><td className="py-1 pr-4 text-gray-600">{l.copropriétaire}</td><td className="py-1 pr-4 text-right">{l.tantiemes}</td><td className="py-1 text-right font-semibold text-[#0D1B2E]">{l.montant.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</td></tr>)}</tbody>
                       </table>
                     </div>
                   )}
@@ -435,23 +435,23 @@ Le montant restant dû s'élève à :`
             <div className="p-6 border-b"><h2 className="text-xl font-bold">📋 {t('syndicDash.impayes.newAppel')}</h2></div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelBuilding')}</label><input value={appelForm.immeuble} onChange={e => setAppelForm({...appelForm, immeuble: e.target.value})} placeholder={t('syndicDash.impayes.appelBuildingPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelPeriod')}</label><input value={appelForm.periode} onChange={e => setAppelForm({...appelForm, periode: e.target.value})} placeholder={t('syndicDash.impayes.appelPeriodPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelBuilding')}</label><input value={appelForm.immeuble} onChange={e => setAppelForm({...appelForm, immeuble: e.target.value})} placeholder={t('syndicDash.impayes.appelBuildingPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelPeriod')}</label><input value={appelForm.periode} onChange={e => setAppelForm({...appelForm, periode: e.target.value})} placeholder={t('syndicDash.impayes.appelPeriodPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
               </div>
-              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelBudget')}</label><input type="number" value={appelForm.montantTotalBudget} onChange={e => setAppelForm({...appelForm, montantTotalBudget: e.target.value})} placeholder="50000" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelBudget')}</label><input type="number" value={appelForm.montantTotalBudget} onChange={e => setAppelForm({...appelForm, montantTotalBudget: e.target.value})} placeholder="50000" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelEmitDate')}</label><input type="date" value={appelForm.dateEmission} onChange={e => setAppelForm({...appelForm, dateEmission: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelDeadline')}</label><input type="date" value={appelForm.dateEcheance} onChange={e => setAppelForm({...appelForm, dateEcheance: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelEmitDate')}</label><input type="date" value={appelForm.dateEmission} onChange={e => setAppelForm({...appelForm, dateEmission: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelDeadline')}</label><input type="date" value={appelForm.dateEcheance} onChange={e => setAppelForm({...appelForm, dateEcheance: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none" /></div>
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('syndicDash.impayes.appelLots')}</label>
-                <textarea value={appelForm.lotsText} onChange={e => setAppelForm({...appelForm, lotsText: e.target.value})} rows={6} placeholder={"A101;Dupont Jean;450;1125.00\nB203;Martin Sophie;380;950.00\nC305;Garcia Pedro;170;425.00"} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none resize-none font-mono text-sm" />
+                <textarea value={appelForm.lotsText} onChange={e => setAppelForm({...appelForm, lotsText: e.target.value})} rows={6} placeholder={"A101;Dupont Jean;450;1125.00\nB203;Martin Sophie;380;950.00\nC305;Garcia Pedro;170;425.00"} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#C9A84C] outline-none resize-none font-mono text-sm" />
                 <p className="text-xs text-gray-500 mt-1">{t('syndicDash.impayes.appelLotsFormat')}</p>
               </div>
             </div>
             <div className="p-6 border-t flex gap-3">
               <button onClick={() => setShowAppelModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-[#F7F4EE]">{t('syndicDash.impayes.cancel')}</button>
-              <button onClick={handleCreateAppel} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">{t('syndicDash.impayes.createAppel')}</button>
+              <button onClick={handleCreateAppel} className="flex-1 py-2.5 bg-[#0D1B2E] text-white rounded-xl font-semibold hover:bg-[#152338]">{t('syndicDash.impayes.createAppel')}</button>
             </div>
           </div>
         </div>

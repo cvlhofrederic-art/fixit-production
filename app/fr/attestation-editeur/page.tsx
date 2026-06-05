@@ -1,4 +1,4 @@
-// FR-V4 — Attestation éditeur conforme art. 88 LF 2016 + LF 2026 (modèle BOFiP)
+// FR-V4 - Attestation éditeur conforme art. 88 LF 2016 + LF 2026 (modèle BOFiP)
 // Page publique téléchargeable par tout artisan client de Vitfix.io en cas de
 // contrôle DGFiP. Évite à Vitfix de devoir certifier NF525/LNE (~5-15k€) tant
 // que cette attestation existe et est tenue à jour.
@@ -27,7 +27,7 @@ export default function AttestationEditeurPage() {
 
         <article className="bg-white rounded-lg shadow-sm p-8 print:shadow-none print:p-0">
           <header className="border-b border-gray-200 pb-6 mb-6">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Document légal — opposable en cas de contrôle</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Document légal, opposable en cas de contrôle</p>
             <h1 className="text-2xl font-bold text-gray-900 mt-2">
               Attestation individuelle de l&apos;éditeur du logiciel de facturation
             </h1>
@@ -43,10 +43,11 @@ export default function AttestationEditeurPage() {
             <table className="w-full text-sm">
               <tbody>
                 <tr><td className="py-1 pr-4 text-gray-600 align-top w-1/3">Nom commercial</td><td className="py-1 font-medium">Vitfix.io</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Raison sociale</td><td className="py-1 font-medium">SAS Kinnova Group</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">SIRET</td><td className="py-1 font-medium">951 819 010 00012</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Siège social</td><td className="py-1 font-medium">115 Rue Claude Nicolas Ledoux, 13290 Aix-en-Provence, France</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Représentant légal</td><td className="py-1 font-medium">Frédéric Carvalho, Président</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Dénomination</td><td className="py-1 font-medium">VITFIX</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Forme juridique</td><td className="py-1 font-medium">Empresário em Nome Individual (entrepreneur individuel)</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">NIF</td><td className="py-1 font-medium">276 873 297</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Siège social</td><td className="py-1 font-medium">Portugal</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Représentant légal</td><td className="py-1 font-medium">Frédéric Carvalho</td></tr>
                 <tr><td className="py-1 pr-4 text-gray-600 align-top">Contact conformité</td><td className="py-1 font-medium">conformite@vitfix.io</td></tr>
               </tbody>
             </table>
@@ -56,10 +57,10 @@ export default function AttestationEditeurPage() {
             <h2 className="text-lg font-semibold text-gray-800 mb-3">2. Produit attesté</h2>
             <table className="w-full text-sm">
               <tbody>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top w-1/3">Désignation</td><td className="py-1 font-medium">Vitfix Pro — module devis &amp; facturation</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top w-1/3">Désignation</td><td className="py-1 font-medium">Vitfix Pro, module devis &amp; facturation</td></tr>
                 <tr><td className="py-1 pr-4 text-gray-600 align-top">Version</td><td className="py-1 font-medium">2026 (livraison continue, branche stable)</td></tr>
                 <tr><td className="py-1 pr-4 text-gray-600 align-top">Type</td><td className="py-1 font-medium">SaaS (logiciel en mode service, hébergement Cloudflare Workers + Supabase EU)</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Mises à jour automatiques</td><td className="py-1 font-medium">Oui — déploiement continu via GitHub Actions, application immédiate sans intervention de l&apos;utilisateur</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Mises à jour automatiques</td><td className="py-1 font-medium">Oui, déploiement continu via GitHub Actions, application immédiate sans intervention de l&apos;utilisateur</td></tr>
               </tbody>
             </table>
           </section>
@@ -74,7 +75,7 @@ export default function AttestationEditeurPage() {
 
             <div className="space-y-4 text-sm">
               <div>
-                <h3 className="font-semibold text-gray-800">3.1 — Inaltérabilité</h3>
+                <h3 className="font-semibold text-gray-800">3.1, Inaltérabilité</h3>
                 <p className="text-gray-700 mt-1">
                   Toute donnée d&apos;une opération de facturation, dès qu&apos;elle est validée par l&apos;utilisateur (passage en
                   statut <em>envoyé</em> ou <em>émis</em>), est figée techniquement par les mécanismes suivants :
@@ -86,14 +87,14 @@ export default function AttestationEditeurPage() {
                     qui rejettent toute modification de statut interdite (ex : <em>payée → en attente</em>, <em>signé → brouillon</em>)</li>
                   <li>Politique RLS Supabase interdisant tout ordre <code className="text-xs bg-gray-100 px-1 rounded">DELETE</code>
                     sur les tables <code className="text-xs bg-gray-100 px-1 rounded">devis</code> et <code className="text-xs bg-gray-100 px-1 rounded">factures</code>
-                    — aucun chemin de suppression physique d&apos;un document émis n&apos;est exposé</li>
+                   , aucun chemin de suppression physique d&apos;un document émis n&apos;est exposé</li>
                   <li>Annulation d&apos;un document : remplie via avoir/annulation soft (colonnes <code className="text-xs bg-gray-100 px-1 rounded">cancelled_at</code>, <code className="text-xs bg-gray-100 px-1 rounded">cancelled_reason</code>, <code className="text-xs bg-gray-100 px-1 rounded">cancelled_by_user_id</code>),
                     le document originel restant intégralement consultable</li>
                 </ul>
               </div>
 
               <div>
-                <h3 className="font-semibold text-gray-800">3.2 — Sécurisation</h3>
+                <h3 className="font-semibold text-gray-800">3.2, Sécurisation</h3>
                 <p className="text-gray-700 mt-1">
                   Mesures techniques et organisationnelles :
                 </p>
@@ -110,13 +111,13 @@ export default function AttestationEditeurPage() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-gray-800">3.3 — Conservation</h3>
+                <h3 className="font-semibold text-gray-800">3.3, Conservation</h3>
                 <p className="text-gray-700 mt-1">
                   Les documents fiscaux émis par Vitfix Pro sont conservés au minimum pendant la durée légale de
                   10 ans à compter de leur émission (article L. 123-22 du Code de commerce et article L102 B du Livre des procédures fiscales).
                 </p>
                 <ul className="list-disc list-inside text-gray-700 mt-1 ml-4 space-y-1">
-                  <li>Stockage primaire : base de données PostgreSQL Supabase (région UE — Frankfurt), répliquée à chaud sur 3 nœuds</li>
+                  <li>Stockage primaire : base de données PostgreSQL Supabase (région UE, Frankfurt), répliquée à chaud sur 3 nœuds</li>
                   <li>Sauvegardes Point-in-Time Recovery (PITR) Supabase avec rétention configurée à 30 jours minimum</li>
                   <li>Pipeline de rétention automatisée (via <code className="text-xs bg-gray-100 px-1 rounded">pg_cron</code>) : aucune purge avant 10 ans révolus, anonymisation des données personnelles client à 11 ans (RGPD principe de minimisation)</li>
                   <li>Mécanisme de <em>legal hold</em> permettant de suspendre l&apos;anonymisation en cas de litige actif</li>
@@ -124,7 +125,7 @@ export default function AttestationEditeurPage() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-gray-800">3.4 — Archivage</h3>
+                <h3 className="font-semibold text-gray-800">3.4, Archivage</h3>
                 <p className="text-gray-700 mt-1">
                   Conformément à l&apos;arrêté du 22 mars 2017 relatif aux modalités d&apos;archivage électronique probant :
                 </p>
@@ -177,7 +178,7 @@ export default function AttestationEditeurPage() {
               Fait à Aix-en-Provence, France, le <strong>5 mai 2026</strong>.
             </p>
             <p className="mt-2">
-              <strong>Frédéric Carvalho</strong>, Président de SAS Kinnova Group, éditeur de Vitfix.io
+              <strong>Frédéric Carvalho</strong>, responsable de VITFIX, éditeur de Vitfix.io
             </p>
             <p className="mt-4 italic">
               Document signé électroniquement et publié à l&apos;URL <code>https://vitfix.io/fr/attestation-editeur/</code>.
@@ -188,7 +189,7 @@ export default function AttestationEditeurPage() {
         </article>
 
         <div className="mt-6 text-xs text-gray-500 text-center print:hidden">
-          Document mis à jour le 5 mai 2026 — version 1.0
+          Document mis à jour le 5 mai 2026, version 1.0
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
@@ -21,8 +21,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/como-funciona/',
     languages: {
-      'pt': 'https://vitfix.io/pt/como-funciona/',
-      'fr': 'https://vitfix.io/fr/comment-ca-marche/',
+      'pt-PT': 'https://vitfix.io/pt/como-funciona/',
+      'fr-FR': 'https://vitfix.io/fr/comment-ca-marche/',
       'x-default': 'https://vitfix.io/pt/como-funciona/',
     },
   },
@@ -44,7 +44,7 @@ const steps = [
   {
     number: '03',
     icon: '📅',
-    title: 'Reserve online — gratuito',
+    title: 'Reserve online : gratuito',
     description: 'Escolha a data e hora que lhe convém. O orçamento é gratuito e sem compromisso. Confirme a reserva em 2 cliques.',
   },
   {
@@ -103,7 +103,7 @@ const faqs = [
   },
   {
     question: 'O que acontece se o trabalho não for satisfatório?',
-    answer: 'Todos os trabalhos estão cobertos pelo seguro RC Pro do profissional. Em caso de problema, a nossa equipa medeia a situação e garante uma solução — retrabalho gratuito ou reembolso.',
+    answer: 'Todos os trabalhos estão cobertos pelo seguro RC Pro do profissional. Em caso de problema, a nossa equipa medeia a situação e garante uma solução, retrabalho gratuito ou reembolso.',
   },
   {
     question: 'Qual é a zona de cobertura do VITFIX em Portugal?',
@@ -189,7 +189,7 @@ export default function ComoFuncionaPage() {
               href="/pt/pesquisar/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
-              Começar agora — gratuito
+              Começar agora, gratuito
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </Link>
             <a

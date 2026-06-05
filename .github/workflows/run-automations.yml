@@ -1,0 +1,17 @@
+name: Tempo — Run scheduled automations
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # toutes les 5 min
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger cron endpoint
+        run: |
+          curl -s -X POST https://vitfix.io/api/cron/run-automations \
+            -H "x-cron-secret: ${{ secrets.INTERNAL_API_SECRET }}" \
+            --fail-with-body

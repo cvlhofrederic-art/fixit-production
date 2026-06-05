@@ -91,7 +91,7 @@ export default function Sidebar({
           return (
             <div key={cat.key}>
               {sidebarOpen && (
-                <div style={{ padding: '20px 24px 6px', fontSize: 9, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
+                <div style={{ padding: '20px 24px 6px', fontSize: 9, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--sd-gold)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
                   {cat.label}
                 </div>
               )}
@@ -109,11 +109,11 @@ export default function Sidebar({
                       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
                       transition: 'all 0.18s ease', border: isActive ? '1px solid rgba(201,168,76,0.2)' : '1px solid transparent', textAlign: 'left',
                       background: isActive ? 'var(--sd-gold-dim)' : 'transparent',
-                      color: isActive ? 'var(--sd-gold-light)' : 'rgba(255,255,255,0.45)',
+                      color: isActive ? 'var(--sd-gold-light)' : '#ffffff',
                       position: 'relative',
                     }}
                     onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)' } }}
-                    onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' } }}
+                    onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#ffffff' } }}
                   >
                     {isActive && <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 3, height: 18, background: 'var(--sd-gold)', borderRadius: '0 3px 3px 0' }} />}
                     <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0, filter: isActive ? 'none' : 'grayscale(30%)' }}>{item.emoji}</span>
@@ -135,9 +135,9 @@ export default function Sidebar({
         })}
         <button
           onClick={handleLogout}
-          style={{ width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', margin: '1px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13, background: 'transparent', border: '1px solid transparent', color: 'rgba(255,255,255,0.45)', textAlign: 'left', transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
+          style={{ width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', margin: '1px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13, background: 'transparent', border: '1px solid transparent', color: '#ffffff', textAlign: 'left', transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(192,57,43,0.15)'; (e.currentTarget as HTMLElement).style.color = '#e74c3c' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#ffffff' }}
         >
           <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>🚪</span>
           {sidebarOpen && <span>{t('syndicDash.sidebar.logout')}</span>}

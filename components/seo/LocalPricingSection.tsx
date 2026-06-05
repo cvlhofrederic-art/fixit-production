@@ -49,7 +49,7 @@ export default function LocalPricingSection({ prices, cityName, serviceName }: P
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-baseline justify-between flex-wrap gap-4 mb-3">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight">
-            Prix indicatifs {serviceName.toLowerCase()} à {cityName} — 2026
+            Prix indicatifs {serviceName.toLowerCase()} à {cityName} : 2026
           </h2>
           <span className="text-xs text-text-muted">
             Mis à jour {new Date(lastVerified).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
@@ -86,7 +86,7 @@ export default function LocalPricingSection({ prices, cityName, serviceName }: P
           </table>
         </div>
 
-        {/* Sources — E-E-A-T 2026 : citer ses sources renforce l'autorité éditoriale. */}
+        {/* Sources - E-E-A-T 2026 : citer ses sources renforce l'autorité éditoriale. */}
         <details className="mt-4 text-xs text-text-muted">
           <summary className="cursor-pointer hover:text-dark transition select-none">
             Sources & méthodologie
@@ -101,7 +101,7 @@ export default function LocalPricingSection({ prices, cityName, serviceName }: P
                 ) : (
                   <span>{s.name}</span>
                 )}
-                <span className="ml-1 text-text-muted/70">— Tier {s.tier}</span>
+                <span className="ml-1 text-text-muted/70">- Tier {s.tier}</span>
               </li>
             ))}
           </ul>

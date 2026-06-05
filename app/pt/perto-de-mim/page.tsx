@@ -4,15 +4,15 @@ import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Profissionais Perto de Mim — VITFIX | Tâmega e Sousa',
+  title: 'Profissionais Perto de Mim : VITFIX | Tâmega e Sousa',
   description: 'Encontre um eletricista, canalizador, pintor ou faz-tudo perto de si. Profissionais verificados em Marco de Canaveses, Penafiel, Amarante e toda a região.',
   openGraph: {
-    title: 'Profissionais Perto de Mim — VITFIX',
+    title: 'Profissionais Perto de Mim : VITFIX',
     description: 'Encontre um profissional verificado perto de si na região do Tâmega e Sousa.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
   },
   alternates: {
     canonical: 'https://vitfix.io/pt/perto-de-mim/',
@@ -25,7 +25,7 @@ export default function PertoMimHubPage() {
     '@graph': [
       {
         '@type': 'CollectionPage',
-        name: 'Profissionais Perto de Mim — VITFIX',
+        name: 'Profissionais Perto de Mim : VITFIX',
         description: 'Encontre profissionais verificados para serviços domésticos perto de si.',
         url: 'https://vitfix.io/pt/perto-de-mim/',
         publisher: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },

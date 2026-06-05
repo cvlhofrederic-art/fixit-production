@@ -953,7 +953,9 @@
       "syndic_tech": "Gestionnaire Technique",
       "syndic_secretaire": "Secrétaire",
       "syndic_gestionnaire": "Gestionnaire Copropriété",
-      "syndic_comptable": "Comptable"
+      "syndic_comptable": "Comptable",
+      "syndic_juriste": "Juriste",
+      "super_admin": "Super Admin"
     },
     "accueil": {
       "managedBuildings": "Immeubles gérés",
@@ -1270,7 +1272,19 @@
       "uploadTagsPlaceholder": "Ex: plomberie, fuite, cave, urgent",
       "uploadCancel": "Annuler",
       "uploadUploading": "Upload...",
-      "uploadAddDoc": "Ajouter le document"
+      "uploadAddDoc": "Ajouter le document",
+      "typeLabels": {
+        "rapport": "Rapport intervention",
+        "facture": "Facture",
+        "devis": "Devis",
+        "contrat": "Contrat",
+        "diagnostic": "Diagnostic légal",
+        "ag": "PV Assemblée",
+        "plan": "Plan / Carnet",
+        "controle": "Contrôle réglementaire",
+        "assurance": "Assurance / RC Pro",
+        "autre": "Autre"
+      }
     },
     "coproprios": {
       "title": "Copropriétaires"
@@ -1738,6 +1752,7 @@
       "roleDesc": {
         "admin": "Accès complet : gestion, configuration, équipe, facturation",
         "tech": "Missions, artisans, planning, comptabilité technique des interventions",
+        "technicien": "Prestataire interne du cabinet (homme à tout faire) — exécute les petites réparations et la maintenance sur le terrain",
         "secretary": "Copropriétaires, planning, emails, documents",
         "manager": "Immeubles, missions, artisans, alertes, calendrier réglementaire",
         "accountant": "Facturation, rapport mensuel, documents financiers",
@@ -2602,6 +2617,12 @@
       "typeSituation": "Situation",
       "typeAcompte": "Acompte",
       "typeSolde": "Solde",
+      "typeAvoir": "Avoir",
+      "toAcompte": "→ Acompte",
+      "toAvoir": "→ Avoir",
+      "toAcompteTitle": "Créer une facture d'acompte sur cette facture (méthode pro BTP 2026, art. 289 CGI)",
+      "toAvoirTitle": "Créer un avoir (note de crédit) sur cette facture — art. 272 CGI",
+      "toAvoirAlreadyTitle": "Un avoir a déjà été émis sur cette facture",
       "emailSalutation": "Bonjour",
       "emailCorps": "Veuillez trouver ci-joint votre facture N°{docNumber} d'un montant de {montant} € HT.",
       "emailFormule": "Cordialement"
@@ -4411,6 +4432,17 @@
     "convertConfirm": "Convertir ce devis en facture ? Toutes les informations seront conservées.",
     "devisTab": "Devis",
     "factureTab": "Facture",
+    "factureSubTypeLabel": "Type de facture",
+    "factureSubTypeStandard": "Facture standard",
+    "factureSubTypeStandardHint": "Émise après prestation (cas général, art. 289 CGI)",
+    "factureSubTypeAcompte": "Facture d'acompte",
+    "factureSubTypeAcompteHint": "Versement reçu avant prestation — TVA exigible à l'encaissement (art. 269-2 CGI)",
+    "factureSubTypeSituation": "Facture de situation",
+    "factureSubTypeSituationHint": "BTP chantier long — facturation à l'avancement",
+    "situationNumberLabel": "N° de situation",
+    "situationNumberPlaceholder": "Ex : 1, 2, 3…",
+    "situationAvancementLabel": "Avancement (%)",
+    "situationAvancementPlaceholder": "Ex : 30",
     "titleLabel": "Titre / Objet du",
     "titleLabelDevis": "devis",
     "titleLabelFacture": "de la facture",
@@ -4807,7 +4839,7 @@
       "title": "Éditeur du site",
       "name": "Raison sociale",
       "form": "Forme juridique",
-      "formValue": "Société par Actions Simplifiée (SAS)",
+      "formValue": "Empresário em Nome Individual (entrepreneur individuel)",
       "capital": "Capital social",
       "hq": "Siège social",
       "siren": "SIREN",
@@ -4815,7 +4847,7 @@
       "vat": "N° TVA intracommunautaire",
       "vatValue": "En cours d'attribution",
       "director": "Directeur de la publication",
-      "directorValue": "Le Président de Vitfix SAS"
+      "directorValue": "Le responsable de VITFIX"
     },
     "hosting": {
       "title": "Hébergement",
@@ -4827,21 +4859,21 @@
     "ip": {
       "title": "Propriété intellectuelle",
       "p1": "L'ensemble des contenus présents sur le site Vitfix (textes, images, logos, icônes, vidéos, base de données, logiciels) sont protégés par les lois françaises et internationales relatives à la propriété intellectuelle.",
-      "p2": "Toute reproduction, représentation, modification, publication, adaptation de tout ou partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite sauf autorisation écrite préalable de Vitfix SAS.",
+      "p2": "Toute reproduction, représentation, modification, publication, adaptation de tout ou partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite sauf autorisation écrite préalable de VITFIX.",
       "p3": "Toute exploitation non autorisée du site ou de son contenu sera considérée comme constitutive d'une contrefaçon et poursuivie conformément aux articles L.335-2 et suivants du Code de la Propriété Intellectuelle."
     },
     "trademark": {
       "title": "Marques",
-      "p1": "Les marques « Vitfix », le logo Vitfix et toutes les marques figuratives ou non figuratives présentes sur le site sont des marques déposées ou en cours de dépôt par Vitfix SAS. Toute utilisation non autorisée de ces marques constitue une contrefaçon passible de poursuites judiciaires."
+      "p1": "Les marques « Vitfix », le logo Vitfix et toutes les marques figuratives ou non figuratives présentes sur le site sont des marques déposées ou en cours de dépôt par VITFIX. Toute utilisation non autorisée de ces marques constitue une contrefaçon passible de poursuites judiciaires."
     },
     "liability": {
       "title": "Limitation de responsabilité",
-      "p1": "Vitfix SAS ne pourra être tenue responsable des dommages directs et indirects causés au matériel de l'utilisateur lors de l'accès au site. Vitfix SAS décline toute responsabilité quant à l'utilisation qui pourrait être faite des informations et contenus présents sur le site.",
-      "p2": "Vitfix SAS s'engage à sécuriser au mieux le site, cependant sa responsabilité ne pourra être mise en cause si des données indésirables sont importées et installées sur son site à son insu."
+      "p1": "VITFIX ne pourra être tenue responsable des dommages directs et indirects causés au matériel de l'utilisateur lors de l'accès au site. VITFIX décline toute responsabilité quant à l'utilisation qui pourrait être faite des informations et contenus présents sur le site.",
+      "p2": "VITFIX s'engage à sécuriser au mieux le site, cependant sa responsabilité ne pourra être mise en cause si des données indésirables sont importées et installées sur son site à son insu."
     },
     "links": {
       "title": "Liens hypertextes",
-      "p1": "Le site peut contenir des liens hypertextes vers d'autres sites internet. Vitfix SAS n'exerce aucun contrôle sur ces sites et décline toute responsabilité quant à leur contenu et aux traitements de données personnelles qu'ils opèrent."
+      "p1": "Le site peut contenir des liens hypertextes vers d'autres sites internet. VITFIX n'exerce aucun contrôle sur ces sites et décline toute responsabilité quant à leur contenu et aux traitements de données personnelles qu'ils opèrent."
     },
     "data": {
       "title": "Données personnelles",
@@ -4859,7 +4891,7 @@
     "lastUpdate": "Dernière mise à jour : 1er janvier 2026",
     "preamble": {
       "title": "Préambule",
-      "p1": "Les présentes Conditions Générales d'Utilisation (ci-après « CGU ») régissent l'accès et l'utilisation de la plateforme Vitfix, éditée par Vitfix SAS.",
+      "p1": "Les présentes Conditions Générales d'Utilisation (ci-après « CGU ») régissent l'accès et l'utilisation de la plateforme Vitfix, éditée par VITFIX.",
       "p2": "En accédant à la plateforme, l'Utilisateur reconnaît avoir pris connaissance des présentes CGU et s'engage à les respecter. Les CGU sont établies en conformité avec les textes suivants :",
       "law1": "Loi n°2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique (LCEN)",
       "law2": "Loi n°78-17 du 6 janvier 1978 relative à l'informatique, aux fichiers et aux libertés",
@@ -5002,8 +5034,8 @@
     },
     "art11": {
       "title": "Article 11 — Propriété intellectuelle",
-      "p1": "L'ensemble des éléments de la Plateforme (textes, images, logos, logiciels, bases de données) sont la propriété exclusive de Vitfix SAS et sont protégés par le droit de la propriété intellectuelle.",
-      "p2": "Toute reproduction, même partielle, de ces éléments est strictement interdite sans l'autorisation écrite préalable de Vitfix SAS."
+      "p1": "L'ensemble des éléments de la Plateforme (textes, images, logos, logiciels, bases de données) sont la propriété exclusive de VITFIX et sont protégés par le droit de la propriété intellectuelle.",
+      "p2": "Toute reproduction, même partielle, de ces éléments est strictement interdite sans l'autorisation écrite préalable de VITFIX."
     },
     "art12": {
       "title": "Article 12 — Médiation et litiges",
@@ -5019,7 +5051,7 @@
     "art14": {
       "title": "Article 14 — Droit applicable et juridiction",
       "p1": "Les présentes CGU sont régies par le droit français.",
-      "p2": "En cas de litige, et après échec de toute tentative de résolution amiable, les tribunaux compétents du ressort du siège social de Vitfix SAS seront exclusivement compétents."
+      "p2": "En cas de litige, et après échec de toute tentative de résolution amiable, les tribunaux compétents du ressort du siège social de VITFIX seront exclusivement compétents."
     },
     "contact": {
       "title": "Contact",

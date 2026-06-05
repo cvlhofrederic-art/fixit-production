@@ -14,22 +14,30 @@ import WebVitalsReporter from "@/components/common/WebVitalsReporter";
 import type { Locale } from "@/lib/i18n/config";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
 
+// Pro SEO 2026 : `display: 'swap'` pour éviter le FOIT (Flash of Invisible
+// Text) et améliorer le LCP. Le navigateur affiche d'abord la fallback,
+// puis swap quand la font Google est chargée. Critique sur mobile 4G.
+// Source : web.dev/articles/font-display + Google Fonts Optimization 2026.
+
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500"],
+  display: "swap",
 });
 
 const syne = Syne({
   variable: "--font-syne",
   subsets: ["latin"],
   weight: ["400", "600", "700", "800"],
+  display: "swap",
 });
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
 });
 
 // Outfit utilisé sur les dashboards syndic + copro. Conservé global car
@@ -41,6 +49,7 @@ const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
+  display: "swap",
 });
 
 // Playfair_Display + IBM_Plex_Sans/Mono déplacés hors du layout global :
@@ -49,9 +58,14 @@ const outfit = Outfit({
 // Économie ~150-300KB sur les pages publiques (perf SEO 2026, LCP mobile).
 
 const sharedMeta = {
-  authors: [{ name: "Vitfix SAS" }] as Metadata['authors'],
-  creator: "Vitfix SAS",
-  publisher: "Vitfix SAS",
+  authors: [{ name: "VITFIX" }] as Metadata['authors'],
+  creator: "VITFIX",
+  publisher: "VITFIX",
+  // Google Search Console verification (URL Prefix method).
+  // Génère <meta name="google-site-verification" content="..." /> dans le <head>.
+  verification: {
+    google: 'L5Xcai6puTpFfvMAQ7zvOinxUsg6u5YGfqhRNdVp34Y',
+  },
   // 2026 GEO/AEO best practice : autoriser explicitement les snippets
   // longs et les images larges aux crawlers (Google + AI engines).
   // Sans ces directives, AI Overviews / ChatGPT / Perplexity peuvent
@@ -84,10 +98,16 @@ const sharedMeta = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  // MOBILE_BUILD : en mode export statique Capacitor, cookies() / headers() ne
+  // sont pas disponibles (pas de runtime Node). Fallback à 'fr' — l'app mobile
+  // pré-release sert d'abord le marché FR ; la locale peut être switchée
+  // dynamiquement côté client après hydratation.
+  const isMobileBuild = process.env.MOBILE_BUILD === 'true'
+  const locale = (isMobileBuild
+    ? 'fr'
+    : (await cookies()).get('locale')?.value || 'fr') as Locale
 
-  // NL and ES landing pages — fall back to EN metadata
+  // NL and ES landing pages - fall back to EN metadata
   if (locale === 'nl') {
     return {
       ...sharedMeta,
@@ -168,10 +188,16 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Read locale: x-locale header (set by middleware from URL path) takes priority
-  // over cookie, which may be stale when middleware updates it in the response
-  const cookieStore = await cookies()
-  const headerStore = await headers()
-  const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+  // over cookie, which may be stale when middleware updates it in the response.
+  // En mode MOBILE_BUILD (export Capacitor), cookies()/headers() ne sont pas
+  // disponibles — fallback 'fr' qui peut être surchargé côté client.
+  const isMobileBuild = process.env.MOBILE_BUILD === 'true'
+  let locale: Locale = 'fr'
+  if (!isMobileBuild) {
+    const cookieStore = await cookies()
+    const headerStore = await headers()
+    locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+  }
 
 
   return (
@@ -188,9 +214,16 @@ export default async function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#FFD600" />
         <link rel="manifest" href="/manifest.json" />
-        {/* hreflang SEO tags */}
-        <link rel="alternate" hrefLang="fr" href="https://vitfix.io/fr/" />
-        <link rel="alternate" hrefLang="pt" href="https://vitfix.io/pt/" />
+        {/* Yandex Webmaster Tools verification — méthode meta tag, alternative
+            non-DNS pour valider la propriété du site sur webmaster.yandex.com.
+            Pertinent pour audience investisseurs étrangers ciblant Portugal
+            (Yandex couvre marché CIS + diaspora russophone à Lisbonne/Algarve). */}
+        <meta name="yandex-verification" content="20aba92ca9d2fbff" />
+        {/* hreflang SEO tags — codes régionaux (BCP 47) pour cibler explicitement
+            Portugal vs Brésil, France vs Canada. Cohérent avec inLanguage du
+            JSON-LD ci-dessous. Source : developers.google.com/search/docs/specialty/international/localized-versions */}
+        <link rel="alternate" hrefLang="fr-FR" href="https://vitfix.io/fr/" />
+        <link rel="alternate" hrefLang="pt-PT" href="https://vitfix.io/pt/" />
         <link rel="alternate" hrefLang="en" href="https://vitfix.io/en/" />
         <link rel="alternate" hrefLang="nl" href="https://vitfix.io/nl/" />
         <link rel="alternate" hrefLang="es" href="https://vitfix.io/es/" />
@@ -208,13 +241,19 @@ export default async function RootLayout({
                   name: 'VITFIX',
                   url: 'https://vitfix.io',
                   inLanguage: locale === 'en' ? 'en' : locale === 'pt' ? 'pt-PT' : locale === 'nl' ? 'nl' : locale === 'es' ? 'es' : 'fr-FR',
+                  // Sitelinks Searchbox : target DOIT être un EntryPoint object
+                  // (pas une URL string nue) pour déclencher le rich result.
+                  // Source : developers.google.com/search/docs/appearance/structured-data/sitelinks-searchbox
                   potentialAction: {
                     '@type': 'SearchAction',
-                    target: locale === 'pt'
-                      ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
-                      : locale === 'en'
-                        ? 'https://vitfix.io/en/?q={search_term_string}'
-                        : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
+                    target: {
+                      '@type': 'EntryPoint',
+                      urlTemplate: locale === 'pt'
+                        ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
+                        : locale === 'en'
+                          ? 'https://vitfix.io/en/?q={search_term_string}'
+                          : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
+                    },
                     'query-input': 'required name=search_term_string',
                   },
                 },
@@ -224,13 +263,13 @@ export default async function RootLayout({
                   '@id': 'https://vitfix.io/#business',
                   name: 'VITFIX',
                   alternateName: 'Vitfix',
-                  legalName: 'Vitfix SAS',
+                  legalName: 'VITFIX — Empresário em Nome Individual',
                   url: 'https://vitfix.io',
                   logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
-                  image: 'https://vitfix.io/og-image.png',
+                  image: locale === 'pt' ? 'https://vitfix.io/api/og/?locale=pt' : locale === 'fr' ? 'https://vitfix.io/api/og/?locale=fr' : 'https://vitfix.io/api/og/?locale=en',
                   description: locale === 'pt'
-                    ? 'Plataforma de profissionais verificados para reparações e obras — canalização, eletricidade, faz-tudo em Portugal.'
-                    : 'Plateforme d\'artisans vérifiés pour vos travaux — plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
+                    ? 'Plataforma de profissionais verificados para reparações e obras, canalização, eletricidade, faz-tudo em Portugal.'
+                    : 'Plateforme d\'artisans vérifiés pour vos travaux, plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
                   knowsLanguage: ['pt-PT', 'fr-FR', 'en'],
                   email: CONTACT_EMAIL,
                   telephone: locale === 'pt' ? PHONE_PT : PHONE_FR,
@@ -261,14 +300,14 @@ export default async function RootLayout({
                     { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
                   ],
                   priceRange: '€€',
+                  taxID: 'PT276873297',
+                  foundingDate: '2024',
                   // aggregateRating intentionnellement OMIS de l'Organization
                   // globale (review #140) :
                   // - Évite incohérence avec ratings per-locale dans
                   //   lib/schemas/index.ts (4.8 FR / 4.9 PT).
                   // - Service pages portent leurs propres ratings localisés.
                   // - Pas de risque Google "Inconsistent ratings warning".
-                  // sameAs, address, taxID, foundingDate intentionnellement omis
-                  // tant que les données réelles ne sont pas fournies par l'utilisateur.
                 },
               ],
             }),

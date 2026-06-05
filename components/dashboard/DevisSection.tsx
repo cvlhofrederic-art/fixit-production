@@ -6,10 +6,15 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
+import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
+import { supabase } from '@/lib/supabase'
+import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { getDocSeq, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
   totalHT?: number
@@ -31,27 +36,11 @@ interface DevisDocument {
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
-
-// Calcule le total HT d'un devis BTP en sommant TOUTES les sources de lignes :
-// lines (main d'œuvre par défaut) + materialLines + fraisLines + customTables
-// (corps d'état). Sans ce helper, l'affichage liste ne montrait que le total
-// de `lines` — ridiculement faible pour un devis BTP enrichi.
-const computeDevisTotalHT = (doc: DevisDocument): number => {
-  const sum = (arr: DevisLine[] | undefined) =>
-    (arr || []).reduce((s, l) => s + (l.totalHT || 0), 0)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const customTables = (doc as any).customTables as { lines?: DevisLine[] }[] | undefined
-  const customLines = (customTables || []).flatMap(t => t.lines || [])
-  return (
-    sum(doc.lines)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    + sum((doc as any).materialLines)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    + sum((doc as any).fraisLines)
-    + sum(customLines)
-  )
-}
+// Total HT d'un devis BTP — délégué à `computeDocumentTotalHT`
+// (lib/devis-totals.ts), source unique de vérité. Toute logique de
+// sommation et de filtrage des sections masquées est centralisée là.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const computeDevisTotalHT = (doc: DevisDocument): number => computeDocumentTotalHT(doc as any)
 
 // Identifie un document unique
 // 1) id (Date.now() par save) — nouveaux docs
@@ -64,20 +53,15 @@ const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
   return false
 }
 
-// Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
-// Les docs sans numéro valide vont à la fin (MAX_SAFE_INTEGER).
-const getDocSeq = (doc: DevisDocument): number => {
-  const m = (doc.docNumber || '').match(/-(\d{4})-(\d+)$/)
-  if (!m) return Number.MAX_SAFE_INTEGER
-  return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
-}
+// getDocSeq déplacé dans lib/devis-utils.ts pour réutilisation par FacturesSection
+// (fix tri "du dernier émis au premier" cohérent sur devis + factures)
 
 interface DevisSectionProps {
   artisan: Artisan | null
   services: Service[]
   bookings: Booking[]
   savedDocuments: DevisDocument[]
-  setSavedDocuments: (docs: DevisDocument[]) => void
+  setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   showDevisForm: boolean
   setShowDevisForm: (v: boolean) => void
   convertingDevis: DevisDocument | null
@@ -85,42 +69,68 @@ interface DevisSectionProps {
   /** Callback unifié : openDevisForm() = nouveau, openDevisForm(doc) = édition. */
   openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
-  orgRole?: OrgRole
 }
 
 export default function DevisSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
   showDevisForm, setShowDevisForm, convertingDevis, setConvertingDevis, openDevisForm,
-  convertDevisToFacture, orgRole,
+  convertDevisToFacture,
 }: DevisSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const { orgRole, isV5, useBtpDesign } = useOrgRoleContext()
   const tv = useThemeVars(isV5)
 
+  // FR-V1.2 — Merge localStorage dans le state existant (qui contient déjà
+  // le merge DB+local depuis le mount du dashboard). NE PAS écraser avec
+  // [...docs, ...drafts] seul, sinon les entrées DB-only disparaissent.
+  // Incident Sud travaux 2026-05-26 : factures DB perdues de l'UI après mutation.
   const refreshDocuments = () => {
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    setSavedDocuments([...docs, ...drafts])
+    const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as DevisDocument[]
+    const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
+    // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
+    // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
   }
 
-  const { cancellingDoc, setCancellingDoc, handleRemoveDoc, handleCancelled } =
+  const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
+
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc: _handleRemoveDocRaw, handleCancelled } =
     useDocumentCancel<DevisDocument>({
       artisanId: artisan?.id,
       docType: 'devis',
       isSameDoc,
       setSavedDocuments,
-      confirmDraftDelete: (doc) => {
-        const label = doc.docNumber || (doc.clientName as string | undefined) || ''
-        return confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)
-      },
+      // Pré-validé : le modal stylé en amont fait office de confirm() humain.
+      confirmDraftDelete: () => true,
     })
+
+  // Wrapper : pour les brouillons on ouvre un modal stylé (vs `confirm()` natif
+  // moche). Pour les docs émis, le hook gère déjà son propre DocumentCancelModal.
+  const handleRemoveDoc = (doc: DevisDocument) => {
+    if (isDocDraftStatus(doc.status, 'devis')) {
+      setPendingDraftDelete(doc)
+      return
+    }
+    _handleRemoveDocRaw(doc)
+  }
+
+  const confirmPendingDraftDelete = () => {
+    if (!pendingDraftDelete) return
+    _handleRemoveDocRaw(pendingDraftDelete)
+    setPendingDraftDelete(null)
+  }
 
   if (showDevisForm) {
     if (orgRole === 'pro_societe') {
       return (
-        <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
+        // key par document : remonte le form à chaque doc ouvert pour éviter
+        // que les useState(initialData?…) conservent les valeurs du précédent.
+        <DevisFactureFormBTP
+          key={`btp-devis-${(convertingDevis as { docNumber?: string; id?: string } | null)?.docNumber || (convertingDevis as { id?: string } | null)?.id || 'new'}`}
+          artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
           initialData={convertingDevis as any}
           onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
           onSave={() => { setConvertingDevis(null); refreshDocuments() }}
@@ -137,7 +147,12 @@ export default function DevisSection({
     )
   }
 
-  const devisDocs = savedDocuments.filter(d => d.docType === 'devis')
+  // Filtre les devis annulés de la liste active (statut 'cancelled' DB EN
+   // ou 'annule' localStorage FR). Le record reste en DB pour audit légal
+   // (art. L123-22 C. com., conservation 10 ans) mais disparaît du flux actif.
+  const devisDocs = savedDocuments.filter(d =>
+    d.docType === 'devis' && d.status !== 'cancelled' && d.status !== 'annule'
+  )
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only
@@ -168,6 +183,17 @@ export default function DevisSection({
             onClose={() => setCancellingDoc(null)}
           />
         )}
+        <ConfirmDraftDeleteDialog
+          open={!!pendingDraftDelete}
+          docType="devis"
+          label={
+            pendingDraftDelete?.docNumber ||
+            (pendingDraftDelete?.clientName as string | undefined) ||
+            (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+          }
+          onConfirm={confirmPendingDraftDelete}
+          onClose={() => setPendingDraftDelete(null)}
+        />
       </>
     )
   }
@@ -231,7 +257,7 @@ export default function DevisSection({
                   const totalHT = computeDevisTotalHT(doc)
                   return (
                     <tr key={`saved-dev-${i}`}>
-                      <td><span className="v22-ref">{doc.docNumber}</span></td>
+                      <td><span className="v22-ref">{doc.docNumber || 'Brouillon'}</span></td>
                       <td><span className="v22-client-name">{doc.clientName || t('proDash.devis.clientNonRenseigne')}</span></td>
                       <td>{doc.docTitle || '-'}</td>
                       <td className="v22-amount" style={{ textAlign: 'right' }}>{totalHT.toFixed(2)} €</td>
@@ -297,7 +323,8 @@ export default function DevisSection({
                               const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}
                               className="v22-btn v22-btn-sm" style={{ color: tv.green }} title={t('proDash.devis.marquerEnvoye')}>
                               {'✅'}
@@ -315,7 +342,8 @@ export default function DevisSection({
                               const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}
                               className="v22-btn v22-btn-sm" title={t('proDash.devis.envoyerEmail')}>
                               {'📧'}
@@ -359,6 +387,17 @@ export default function DevisSection({
           onClose={() => setCancellingDoc(null)}
         />
       )}
+      <ConfirmDraftDeleteDialog
+        open={!!pendingDraftDelete}
+        docType="devis"
+        label={
+          pendingDraftDelete?.docNumber ||
+          (pendingDraftDelete?.clientName as string | undefined) ||
+          (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+        }
+        onConfirm={confirmPendingDraftDelete}
+        onClose={() => setPendingDraftDelete(null)}
+      />
     </div>
   )
 }
@@ -376,13 +415,14 @@ function DevisSectionV5({
   openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
   artisan: Artisan | null
-  setSavedDocuments: (docs: DevisDocument[]) => void
+  setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   dateLocale: string
   locale: string
   t: (k: string) => string
   orgRole?: OrgRole
   onRemoveDoc: (doc: DevisDocument) => void
 }) {
+  const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
 
@@ -396,9 +436,10 @@ function DevisSectionV5({
         d.docTitle?.toLowerCase().includes(q)
       )
     })
-    .sort((a, b) => getDocSeq(a) - getDocSeq(b))
+    .sort((a, b) => getDocSeq(b) - getDocSeq(a))
 
   const getV5Badge = (doc: DevisDocument) => {
+    if (doc.status === 'cancelled' || doc.status === 'annule') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Anulado' : 'Annulé' }
     if (doc.status === 'accepte' || doc.status === 'accepted') return { cls: 'v5-badge v5-badge-green', label: locale === 'pt' ? 'Aceite' : 'Accepté' }
     if (doc.status === 'refuse' || doc.status === 'rejected') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Recusado' : 'Refusé' }
     if (doc.status === 'envoye' || doc.status === 'sent') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
@@ -423,9 +464,18 @@ function DevisSectionV5({
       reason = r.trim().length >= 5 ? r.trim() : undefined
     }
     try {
+      // Bearer token requis par /api/devis-status (cf. lib/auth-helpers.ts
+      // getAuthUser → 401 sans Authorization header). Sans ça, le passage
+      // Accepté/Refusé du devis échouait systématiquement en prod côté
+      // artisan ET BTP (DevisSection partagé). Même pattern que la PR #184
+      // pour /api/document-cancel.
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
       const res = await fetch('/api/devis-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ numero: doc.docNumber, newStatus, reason }),
       })
       const data = await res.json()
@@ -438,11 +488,10 @@ function DevisSectionV5({
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
       const mark = (d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: localStatus } : d
-      const updDocs = docs.map(mark)
-      const updDrafts = drafts.map(mark)
-      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-      setSavedDocuments([...updDocs, ...updDrafts])
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs.map(mark)))
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts.map(mark)))
+      // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+      setSavedDocuments(prev => prev.map(mark))
       toast.success(`${label} : ${doc.docNumber}`)
     } catch (e) {
       console.error('[updateDevisStatus] failed:', e)
@@ -490,7 +539,7 @@ function DevisSectionV5({
                 : (doc.savedAt ? new Date(doc.savedAt).toLocaleDateString(dateLocale) : '-')
               return (
                 <tr key={`v5-dev-${i}`}>
-                  <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
+                  <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
                   <td>{dateStr}</td>
                   <td>{doc.clientName || t('proDash.devis.nonRenseigne')}</td>
                   <td>{doc.docTitle || '-'}</td>
@@ -520,7 +569,8 @@ function DevisSectionV5({
                             const uDrafts = allDrafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                            setSavedDocuments([...uDocs, ...uDrafts])
+                            // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                            setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                           }}
                         >
                           Email
@@ -554,7 +604,7 @@ function DevisSectionV5({
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
                                 rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                               } : null,
-                              useBtpDesign: orgRole === 'pro_societe',
+                              useBtpDesign,
                             })
                           } catch (err) {
                             console.error('[Devis] download failed', err)

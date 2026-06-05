@@ -146,7 +146,10 @@ export default function Footer() {
         {/* Bottom */}
         <div className="border-t border-white/8 pt-6 flex items-center justify-between text-[0.82rem] flex-wrap gap-3">
           <span>{t('footer.copyright')}</span>
-          <span>{locale === 'fr' ? '🇫🇷' : '🇵🇹'} {locale === 'fr' ? 'Fran\u00e7ais' : 'Portugu\u00eas'}</span>
+          <div className="flex items-center gap-3">
+            {locale === 'pt' && <span className="text-white/30">NIF 276 873 297</span>}
+            <span>{locale === 'fr' ? '🇫🇷' : '🇵🇹'} {locale === 'fr' ? 'Fran\u00e7ais' : 'Portugu\u00eas'}</span>
+          </div>
         </div>
       </div>
     </footer>

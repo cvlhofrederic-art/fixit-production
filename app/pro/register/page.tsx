@@ -9,6 +9,7 @@ import LocaleLink from '@/components/common/LocaleLink'
 import { useSearchParams } from 'next/navigation'
 import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculator'
 import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
+import { formatSiegeAddress } from '@/lib/sirene-address'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -295,7 +296,7 @@ function FormulaireArtisan() {
             if (e.etat_administratif === 'C') {
               setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return
             }
-            const company = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: e.siege ? [e.siege.adresse, `${e.siege.code_postal} ${e.siege.libelle_commune}`].filter(Boolean).join(', ') : '', city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
+            const company = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: formatSiegeAddress(e.siege), city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
             setSiretStatus('verified'); setVerifiedCompany(company)
             setFormData(prev => ({ ...prev, companyName: company.name || prev.companyName, siret: clean }))
             const allowed = getAllowedMetiers(company.nafCode)
@@ -838,7 +839,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           if (gouvData.results?.length > 0) {
             const e = gouvData.results[0]
             if (e.etat_administratif === 'C') { setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return }
-            const comp = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: e.siege ? [e.siege.adresse, `${e.siege.code_postal} ${e.siege.libelle_commune}`].filter(Boolean).join(', ') : '', city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
+            const comp = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: formatSiegeAddress(e.siege), city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
             setSiretStatus('verified'); setCompany(comp); setForm(f => ({ ...f, companyName: comp.name || f.companyName }))
             if (comp.legalForm) { const mapped = mapLegalFormToKey(comp.legalForm, registrationCountry); if (mapped) setLegalStructure(mapped) }
             return
