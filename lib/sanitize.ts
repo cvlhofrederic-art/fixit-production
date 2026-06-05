@@ -31,6 +31,67 @@ export function purifyHTML(html: string): string {
   })
 }
 
+// ── Sanitisation SVG (signatures manuscrites devis / missions) ───────────────
+// Les signatures sont des SVG vectoriels simples (tracés <path>). Allowlist stricte
+// tags + attributs. SÉCURITÉ : href / xlink:href ne sont JAMAIS autorisés (inutiles
+// pour une signature) → ferme tout vecteur javascript:/data: même encodé en entités.
+// script/foreignObject/style/animate/use/image et handlers on* sont retirés.
+const ALLOWED_SVG_TAGS = new Set([
+  'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+  'text', 'tspan', 'defs', 'title', 'desc',
+])
+const ALLOWED_SVG_ATTRS = new Set([
+  'd', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
+  'stroke-dasharray', 'stroke-opacity', 'fill-opacity', 'opacity',
+  'viewbox', 'xmlns', 'width', 'height', 'x', 'y', 'x1', 'y1', 'x2', 'y2',
+  'cx', 'cy', 'r', 'rx', 'ry', 'points', 'transform', 'class', 'id',
+  'font-family', 'font-size', 'text-anchor', 'dominant-baseline',
+])
+
+/**
+ * Sanitize un SVG de signature avant stockage (anti stored-XSS).
+ * Pur-regex (compatible Cloudflare Workers, sans DOM). Retourne '' si vide ou > 50 ko.
+ */
+export function sanitizeSvg(raw: string): string {
+  if (!raw) return ''
+  if (raw.length > 50000) return ''
+
+  let svg = raw
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
+    .replace(/<\?xml[\s\S]*?\?>/gi, '')
+
+  const forbiddenBlocks = ['script', 'foreignObject', 'iframe', 'object', 'embed', 'style', 'animate', 'animateTransform', 'animateMotion', 'set', 'use', 'image']
+  for (const tag of forbiddenBlocks) {
+    svg = svg.replace(new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'gi'), '')
+    svg = svg.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '')
+  }
+
+  return svg.replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g, (match, rawTag, rawAttrs) => {
+    const tag = rawTag.toLowerCase()
+    if (!ALLOWED_SVG_TAGS.has(tag)) return ''
+    if (match.startsWith('</')) return `</${tag}>`
+
+    const cleanAttrs: string[] = []
+    const attrRe = /([a-zA-Z:][a-zA-Z0-9:_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
+    let m: RegExpExecArray | null
+    while ((m = attrRe.exec(rawAttrs)) !== null) {
+      const origName = m[1]
+      const name = origName.toLowerCase()
+      const value = m[2] ?? m[3] ?? m[4] ?? ''
+      if (name.startsWith('on')) continue                    // jamais de handlers d'événements
+      if (name === 'href' || name === 'xlink:href') continue // jamais de href (vecteur XSS)
+      if (name === 'style') continue                         // style retiré par sécurité
+      if (!ALLOWED_SVG_ATTRS.has(name)) continue
+      cleanAttrs.push(`${origName}="${value.replace(/"/g, '&quot;')}"`) // casse préservée (viewBox)
+    }
+
+    const selfClosing = rawAttrs.trim().endsWith('/')
+    return `<${tag}${cleanAttrs.length ? ' ' + cleanAttrs.join(' ') : ''}${selfClosing ? ' /' : ''}>`
+  })
+}
+
 /**
  * Échappe les caractères HTML dangereux AVANT de traiter le markdown
  * Prévient les injections XSS via les balises dans le contenu IA ou utilisateur
