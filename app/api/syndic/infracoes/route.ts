@@ -1,85 +1,18 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
-import { syndicInfracaoSchema, validateBody } from '@/lib/validation'
-import { parsePagination, logger } from '@/lib/logger'
-import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { createSyndicCrudRoute, str, num } from '@/lib/syndic/v54/crud-route'
+import { syndicInfracaoSchema } from '@/lib/validation'
 
-// GET /api/syndic/infracoes — infractions au règlement du cabinet
-export async function GET(request: NextRequest) {
-  try {
-    const user = await getAuthUser(request)
-    if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    const ip = getClientIP(request)
-    if (!(await checkRateLimit(`infracoes_get_${ip}`, 30, 60_000))) return rateLimitResponse()
+// /api/syndic/infracoes — infractions au règlement du cabinet (list + create)
+const handlers = createSyndicCrudRoute({
+  table: 'syndic_infracoes',
+  select: 'id, cabinet_id, tipo, condomino, edificio, etapa, multa, descricao, created_at',
+  orderBy: 'created_at',
+  listKey: 'infracoes',
+  itemKey: 'infracao',
+  rateKey: 'infracoes',
+  schema: syndicInfracaoSchema,
+  mapRow: (r) => ({ id: str(r.id), tipo: str(r.tipo), condomino: str(r.condomino), edificio: str(r.edificio), etapa: str(r.etapa, 'sinalizada'), multa: num(r.multa), descricao: str(r.descricao) }),
+  mapInsert: (v, cabinetId) => ({ cabinet_id: cabinetId, tipo: v.tipo, condomino: v.condomino || '', edificio: v.edificio || '', etapa: v.etapa || 'sinalizada', multa: v.multa ?? 0, descricao: v.descricao || '' }),
+})
 
-    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
-    const { from, to } = parsePagination(new URL(request.url))
-
-    const { data, error } = await supabaseAdmin
-      .from('syndic_infracoes')
-      .select('id, cabinet_id, tipo, condomino, edificio, etapa, multa, descricao, created_at')
-      .eq('cabinet_id', cabinetId)
-      .order('created_at', { ascending: false })
-      .range(from, to)
-
-    if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
-
-    const infracoes = (data || []).map(i => ({
-      id: i.id,
-      tipo: i.tipo || '',
-      condomino: i.condomino || '',
-      edificio: i.edificio || '',
-      etapa: i.etapa || 'sinalizada',
-      multa: typeof i.multa === 'number' ? i.multa : Number(i.multa) || 0,
-      descricao: i.descricao || '',
-    }))
-
-    return NextResponse.json({ infracoes })
-  } catch (err) {
-    logger.error('[syndic/infracoes/GET] Unexpected error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-// POST /api/syndic/infracoes — enregistrer une infraction
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getAuthUser(request)
-    if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    const ip = getClientIP(request)
-    if (!(await checkRateLimit(`infracoes_post_${ip}`, 10, 60_000))) return rateLimitResponse()
-
-    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
-    const body = await request.json()
-
-    const validation = validateBody(syndicInfracaoSchema, body)
-    if (!validation.success) {
-      return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
-    }
-    const v = validation.data
-
-    const { data, error } = await supabaseAdmin
-      .from('syndic_infracoes')
-      .insert({
-        cabinet_id: cabinetId,
-        tipo: v.tipo,
-        condomino: v.condomino || '',
-        edificio: v.edificio || '',
-        etapa: v.etapa || 'sinalizada',
-        multa: v.multa ?? 0,
-        descricao: v.descricao || '',
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logger.error('[syndic/infracoes/POST] insert error:', error)
-      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
-    }
-    return NextResponse.json({ infracao: data })
-  } catch (err) {
-    logger.error('[syndic/infracoes/POST] Unexpected error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+export const GET = handlers.GET
+export const POST = handlers.POST
