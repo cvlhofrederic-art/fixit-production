@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { docIdentityKey } from '@/lib/devis-utils'
+import { docIdentityKey, isStableDocId } from '@/lib/devis-utils'
+import { supabase } from '@/lib/supabase'
 
 // FR-V1 — Hook partagé entre FacturesSection et DevisSection pour gérer le
 // flow d'annulation : brouillon → hard delete localStorage ; émis → modal.
@@ -92,6 +93,23 @@ export function useDocumentCancel<T extends CancellableDoc>(
       // 10 factures DB ont disparu de l'UI après une annulation parce que ce pattern
       // tronquait le state au contenu localStorage uniquement.
       setSavedDocuments(prev => prev.filter(d => !matchDoc(d, doc)))
+      // Soft-delete DB si le brouillon y est AUSSI persisté (id UUID stable).
+      // Sans ça, un brouillon synchronisé en base (ex. DEV-2026-010) réapparaît
+      // au rechargement : fetchDocumentsFromSupabase filtre `deleted_at IS NULL`
+      // sans filtrer le statut. No-op si le doc n'est pas en base (0 ligne).
+      // RLS `devis_owner_update`/`factures_owner_update` autorise l'UPDATE par le
+      // propriétaire ; le hard-DELETE reste bloqué (soft-delete only).
+      const dbId = (doc as { id?: string }).id
+      if (dbId && isStableDocId(dbId)) {
+        const table = docType === 'facture' ? 'factures' : 'devis'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(supabase.from(table) as any)
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', dbId)
+          .then(({ error }: { error: unknown }) => {
+            if (error) console.warn('[doc-delete] soft-delete DB échoué', error)
+          })
+      }
       return
     }
     setCancellingDoc(doc)
