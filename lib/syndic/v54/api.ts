@@ -595,3 +595,24 @@ export const fetchObrigacoes = (token: string): Promise<Obrigacao[]> =>
   getList<Obrigacao>('/api/syndic/obrigacoes', token, 'obrigacoes')
 export const fetchCampanhas = (token: string): Promise<Campanha[]> =>
   getList<Campanha>('/api/syndic/campanhas', token, 'campanhas')
+
+// ── Lot 4 : Votação Online AG (deliberações + permilagem) ──
+export interface VotacaoOption {
+  label: string
+  perm: number
+}
+export interface Votacao {
+  id: string
+  titulo: string
+  descricao: string
+  edificio: string
+  estado: 'aberta' | 'aprovada' | 'rejeitada' | 'encerrada'
+  maioria: 'simples' | 'qualificada' | 'unanimidade'
+  artigo: string
+  prazo: string
+  permTotal: number
+  options: VotacaoOption[]
+}
+
+export const fetchVotacoes = (token: string): Promise<Votacao[]> =>
+  getList<Votacao>('/api/syndic/votacoes', token, 'votacoes')

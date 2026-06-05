@@ -1615,3 +1615,16 @@ export const syndicCampanhaSchema = z.object({
   estado: z.enum(['rascunho', 'agendada', 'enviada']).optional(),
   mensagem: z.string().max(5000).optional(),
 })
+
+// ── Syndic v54 — lot 4 (Votação Online AG) ──
+export const syndicVotacaoSchema = z.object({
+  titulo: z.string().min(1).max(300),
+  descricao: z.string().max(5000).optional(),
+  edificio: z.string().max(200).optional(),
+  estado: z.enum(['aberta', 'aprovada', 'rejeitada', 'encerrada']).optional(),
+  maioria: z.enum(['simples', 'qualificada', 'unanimidade']).optional(),
+  artigo: z.string().max(100).optional(),
+  prazo: z.string().max(20).optional().nullable(),
+  permTotal: z.coerce.number().int().min(0).optional(),
+  options: z.array(z.object({ label: z.string().max(200), perm: z.coerce.number().int().min(0) })).max(20).optional(),
+})
