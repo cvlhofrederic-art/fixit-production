@@ -168,3 +168,16 @@ export function scaleDocumentLines<T extends DocumentWithLines>(doc: T, ratio: n
   }
   return out
 }
+
+/**
+ * Négative (× -1) TOUTES les collections monétaires d'un document — pour un
+ * AVOIR (note de crédit) qui doit solder entièrement une facture, customTables
+ * (corps d'état BTP) et fraisLines compris. Sucre au-dessus de scaleDocumentLines.
+ *
+ * Garantit : computeDocumentTotalHT(negateDocumentLines(doc)) === -computeDocumentTotalHT(doc).
+ * Sans cela, buildAvoirPrefill ne négativait que lines+materialLines → un avoir
+ * BTP affichait un total faux, voire positif (-5 250 + 40 437 = +35 187 €).
+ */
+export function negateDocumentLines<T extends DocumentWithLines>(doc: T): T {
+  return scaleDocumentLines(doc, -1)
+}

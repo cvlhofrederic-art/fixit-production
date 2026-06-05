@@ -8,9 +8,9 @@ import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
 import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
-import { DevisFactureData, ProductLine } from '@/lib/devis-types'
+import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-import { computeDocumentTotalHT, scaleDocumentLines } from '@/lib/devis-totals'
+import { computeDocumentTotalHT, scaleDocumentLines, negateDocumentLines } from '@/lib/devis-totals'
 import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
@@ -497,15 +497,15 @@ function FacturesSectionV5({
     parent: PersistedDocument,
     p: { motif: string; type: 'totale' | 'partielle' },
   ): PersistedDocument => {
-    const negateProductLines = (arr?: ProductLine[]): ProductLine[] =>
-      (arr || []).map(l => ({
-        ...l,
-        priceHT: -(l.priceHT || 0),
-        totalHT: -(l.totalHT || 0),
-      }))
+    // Négation complète (× -1) de TOUTES les collections monétaires via la
+    // source unique. Avant : seuls lines+materialLines étaient négativés ;
+    // customTables (corps d'état) et fraisLines restaient positifs → l'avoir
+    // ne soldait pas la facture BTP (total faux, voire positif). Même faille
+    // que l'acompte, même remède (cf. scaleDocumentLines, PR #396).
+    const negated = negateDocumentLines(parent as unknown as Parameters<typeof negateDocumentLines>[0])
     const parentAny = parent as unknown as Record<string, unknown>
     return {
-      ...parent,
+      ...negated,
       id: undefined,
       docType: 'avoir',
       docNumber: '',
@@ -514,9 +514,6 @@ function FacturesSectionV5({
       sentAt: undefined,
       docDate: new Date().toISOString().slice(0, 10),
       docTitle: `AVOIR sur facture ${parent.docNumber}${p.type === 'partielle' ? ' (annulation partielle)' : ''}`,
-      lines: negateProductLines(parent.lines as unknown as ProductLine[]),
-      materialLines: negateProductLines(parentAny.materialLines as ProductLine[] | undefined),
-      fraisAnnexes: parentAny.fraisAnnexes as unknown as never,
       factureSubType: 'avoir',
       parentInvoiceNumber: parent.docNumber,
       avoirDeFactureId: (parentAny.id as string | undefined) ?? parent.docNumber,
@@ -912,7 +909,10 @@ function AvoirQuickModal({
   const motifLen = motif.trim().length
   const valid = motifLen >= 5 && motifLen <= 500
 
-  const parentTotal = (parent.lines || []).reduce((s: number, l) => s + (Number(l.totalHT) || 0), 0)
+  // Total réel du document (lines + materialLines + fraisLines + fraisAnnexes +
+  // customTables) — pas seulement `lines` — pour que l'aperçu « Facture annulée /
+  // Total avoir » reflète le vrai montant soldé (cf. fix identique sur l'acompte).
+  const parentTotal = computeDocumentTotalHT(parent as unknown as Parameters<typeof computeDocumentTotalHT>[0])
 
   return (
     <div
