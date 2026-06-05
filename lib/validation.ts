@@ -1597,3 +1597,21 @@ export const syndicProcessoJudSchema = z.object({
   valor: z.coerce.number().min(0).optional(),
   descricao: z.string().max(5000).optional(),
 })
+
+// ── Syndic v54 — lot 3 (Calendário Regulamentar + Contacto/campanhas) ──
+export const syndicObrigacaoSchema = z.object({
+  edificio: z.string().max(200).optional(),
+  tipo: z.string().min(1).max(200),
+  descricao: z.string().max(2000).optional(),
+  prazo: z.string().max(20).optional().nullable(),
+  concluido: z.boolean().optional(),
+})
+
+export const syndicCampanhaSchema = z.object({
+  nome: z.string().min(1).max(300),
+  tipo: z.string().max(100).optional(),
+  edificio: z.string().max(200).optional(),
+  destinatarios: z.coerce.number().int().min(0).optional(),
+  estado: z.enum(['rascunho', 'agendada', 'enviada']).optional(),
+  mensagem: z.string().max(5000).optional(),
+})
