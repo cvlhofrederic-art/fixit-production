@@ -162,3 +162,33 @@ describe('buildV2Input — customTables (parité BTP V3)', () => {
     expect(customLine.etapes![1].designation).toBe('Étape 2')
   })
 })
+
+describe('buildV2Input — métadonnées acompte/avoir (label PDF complet)', () => {
+  it('transmet acompteOrdre/Total/Pourcentage/parentInvoiceNumber dans devis{}', () => {
+    const out = buildV2Input(makeBaseParams({
+      docType: 'facture',
+      factureSubType: 'acompte',
+      acompteOrdre: 2,
+      acompteTotal: 3,
+      acomptePourcentage: 30,
+      parentInvoiceNumber: 'FACT-2026-009',
+    }))
+    expect(out.devis.factureSubType).toBe('acompte')
+    expect(out.devis.acompteOrdre).toBe(2)
+    expect(out.devis.acompteTotal).toBe(3)
+    expect(out.devis.acomptePourcentage).toBe(30)
+    expect(out.devis.parentInvoiceNumber).toBe('FACT-2026-009')
+  })
+
+  it('transmet avoirMotif + parentInvoiceNumber pour un avoir', () => {
+    const out = buildV2Input(makeBaseParams({
+      docType: 'facture',
+      factureSubType: 'avoir',
+      parentInvoiceNumber: 'FACT-2026-009',
+      avoirMotif: 'Erreur de facturation',
+    }))
+    expect(out.devis.factureSubType).toBe('avoir')
+    expect(out.devis.parentInvoiceNumber).toBe('FACT-2026-009')
+    expect(out.devis.avoirMotif).toBe('Erreur de facturation')
+  })
+})
