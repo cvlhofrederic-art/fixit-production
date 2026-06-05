@@ -15,6 +15,11 @@ import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
 import { getDocSeq, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
+import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
+import { buildAcomptePrefill } from '@/lib/acompte-prefill'
+import { emitDocument } from '@/lib/emit-document'
+import { fetchNextDocNumber } from '@/lib/doc-number'
+import { syncDocumentSafe } from '@/lib/document-sync'
 
 interface DevisLine {
   totalHT?: number
@@ -425,6 +430,11 @@ function DevisSectionV5({
   const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
+  // « Facturer » (méthode pro 2026, BTP) : choix Facture totale (conversion
+  // directe existante) ou Facture d'acompte (échéancier du devis / % choisi →
+  // émission directe d'une facture d'acompte reliée au devis).
+  const [factureChoiceDevis, setFactureChoiceDevis] = useState<DevisDocument | null>(null)
+  const [acompteParentDevis, setAcompteParentDevis] = useState<DevisDocument | null>(null)
 
   const filtered = devisDocs
     .filter(d => {
@@ -637,7 +647,7 @@ function DevisSectionV5({
                       )}
                       <button
                         className="v5-btn v5-btn-sm v5-btn-p"
-                        onClick={() => convertDevisToFacture(doc)}
+                        onClick={() => orgRole === 'pro_societe' ? setFactureChoiceDevis(doc) : convertDevisToFacture(doc)}
                       >
                         {t('proDash.devis.facturer')}
                       </button>
@@ -677,6 +687,72 @@ function DevisSectionV5({
           </tbody>
         </table>
       </div>
+
+      {/* « Facturer » — choix Facture totale / Facture d'acompte (méthode pro 2026, BTP). */}
+      {factureChoiceDevis && (
+        <div
+          role="dialog" aria-modal="true" aria-label="Type de facture"
+          onClick={() => setFactureChoiceDevis(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 8, padding: 24, maxWidth: 460, width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>Facturer le devis {factureChoiceDevis.docNumber}</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#666' }}>Choisissez le type de facture à émettre.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => { const d = factureChoiceDevis; setFactureChoiceDevis(null); convertDevisToFacture(d) }}
+                style={{ padding: '12px 16px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', textAlign: 'left', fontSize: 14, fontWeight: 600 }}
+              >
+                Facture totale
+                <div style={{ fontSize: 12, color: '#666', fontWeight: 400, marginTop: 2 }}>Convertit le devis en facture (montant total).</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAcompteParentDevis(factureChoiceDevis); setFactureChoiceDevis(null) }}
+                style={{ padding: '12px 16px', borderRadius: 6, border: '1px solid var(--primary-yellow, #FFC107)', background: 'rgba(255,193,7,0.08)', cursor: 'pointer', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#7A5900' }}
+              >
+                Facture d&apos;acompte
+                <div style={{ fontSize: 12, color: '#7A5900', fontWeight: 400, marginTop: 2 }}>Émet un acompte au % choisi (reprend l&apos;échéancier du devis).</div>
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="button" onClick={() => setFactureChoiceDevis(null)} style={{ padding: '8px 16px', borderRadius: 4, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {acompteParentDevis && (
+        <AcompteQuickModal
+          parent={acompteParentDevis as unknown as Parameters<typeof AcompteQuickModal>[0]['parent']}
+          existingCount={0}
+          emittedOrdres={[]}
+          onClose={() => setAcompteParentDevis(null)}
+          onConfirm={async (params) => {
+            // Émission directe d'une facture d'acompte depuis le devis (méthode
+            // pro 2026) : % appliqué à toutes les lignes (TVA du devis conservées),
+            // numéro AC- définitif, statut émis, reliée au devis.
+            const parent = acompteParentDevis
+            setAcompteParentDevis(null)
+            if (!parent || !artisan?.id) return
+            const tid = toast.loading('Émission de l\'acompte…')
+            try {
+              const prefilled = buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
+              const emitted = await emitDocument({
+                payload: prefilled,
+                artisanId: artisan.id,
+                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                sync: syncDocumentSafe,
+              })
+              setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
+              toast.success(`Acompte ${params.percentage}% émis : ${String(emitted.docNumber)} (devis ${parent.docNumber})`, { id: tid })
+            } catch (err) {
+              console.warn('[DevisAcompteEmit] émission échouée', err)
+              toast.error('Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -10,11 +10,12 @@ import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-import { computeDocumentTotalHT, scaleDocumentLines, negateDocumentLines } from '@/lib/devis-totals'
+import { computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
 import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
+import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -471,41 +472,6 @@ function FacturesSectionV5({
       ((d as unknown as Record<string, unknown>).parentInvoiceNumber as string | undefined) === parentNumber,
     )
 
-  const buildAcomptePrefill = (
-    parent: PersistedDocument,
-    p: { percentage: number; ordre: number; total: number; declencheur: string },
-  ): PersistedDocument => {
-    // Met à l'échelle TOUTES les collections monétaires (lines, materialLines,
-    // fraisLines, fraisAnnexes, customTables) via la source unique de vérité.
-    // Auparavant seules lines+materialLines étaient réduites : pour un devis BTP
-    // dont le gros vit dans customTables (corps d'état), l'acompte restait à ~92 %
-    // du total au lieu du % choisi (incident Aractingi 2026-06-05).
-    const scaled = scaleDocumentLines(
-      parent as unknown as Parameters<typeof scaleDocumentLines>[0],
-      p.percentage / 100,
-    )
-    const parentAny = parent as unknown as Record<string, unknown>
-    return {
-      ...scaled,
-      id: undefined,
-      docType: 'facture',
-      docNumber: '',
-      status: 'brouillon',
-      savedAt: undefined,
-      sentAt: undefined,
-      docDate: new Date().toISOString().slice(0, 10),
-      docTitle: `Acompte N°${p.ordre} sur ${p.total} (${p.percentage}%) — ${parent.docTitle || parent.docNumber}`,
-      factureSubType: 'acompte',
-      acompteOrdre: p.ordre,
-      acompteTotal: p.total,
-      acomptePourcentage: p.percentage,
-      acompteDeFactureId: (parentAny.id as string | undefined) ?? parent.docNumber,
-      parentInvoiceNumber: parent.docNumber,
-      notes: `Acompte ${p.percentage}% (N°${p.ordre} sur ${p.total}) sur facture ${parent.docNumber}. ` +
-             `Déclencheur : ${p.declencheur}. TVA exigible à l'encaissement (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).`,
-    } as unknown as PersistedDocument
-  }
-
   const buildAvoirPrefill = (
     parent: PersistedDocument,
     p: { motif: string; type: 'totale' | 'partielle' },
@@ -750,12 +716,12 @@ function FacturesSectionV5({
             // les lignes (TVA conservées), puis l'acompte est émis en un clic —
             // numéro AC- définitif, statut émis, persistance + sync DB, modèle V3.
             const parent = acompteParent
-            const prefilled = buildAcomptePrefill(parent, params)
+            const prefilled = buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
             setAcompteParent(null)
             const tid = toast.loading('Émission de l\'acompte…')
             try {
               const emitted = await emitDocument({
-                payload: prefilled as unknown as Record<string, unknown>,
+                payload: prefilled,
                 artisanId: artisan.id,
                 getNumber: () => fetchNextDocNumber('acompte', artisan.id),
                 sync: syncDocumentSafe,
@@ -794,7 +760,7 @@ function FacturesSectionV5({
    Quick Action Modals — Acompte & Avoir (méthode pro BTP 2026)
    ═══════════════════════════════════════════════════════ */
 
-function AcompteQuickModal({
+export function AcompteQuickModal({
   parent,
   existingCount,
   emittedOrdres = [],
