@@ -303,7 +303,7 @@ export default function HomePage() {
                         >
                           <span style={{ color: '#222', fontSize: 13, fontWeight: 500 }}>{sug.label}</span>
                           {sug.match.toLowerCase() !== sug.label.toLowerCase() && (
-                            <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{sug.match}</span>
+                            <span style={{ color: '#555', fontSize: 11, marginLeft: 'auto' }}>{sug.match}</span>
                           )}
                         </div>
                       ))}
@@ -353,7 +353,7 @@ export default function HomePage() {
                           }}
                         >
                           <span style={{ color: '#222', fontSize: 13, fontWeight: 500 }}>{sug.label}</span>
-                          {sug.right && <span style={{ color: '#888', fontSize: 11, marginLeft: 'auto' }}>{sug.right}</span>}
+                          {sug.right && <span style={{ color: '#555', fontSize: 11, marginLeft: 'auto' }}>{sug.right}</span>}
                         </div>
                       ))}
                     </div>
