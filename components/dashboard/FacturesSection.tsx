@@ -10,7 +10,7 @@ import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, ProductLine } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { computeDocumentTotalHT, scaleDocumentLines } from '@/lib/devis-totals'
 import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
@@ -441,7 +441,6 @@ function FacturesSectionV5({
   }
 
   // Quick Action helpers — méthode pro BTP 2026.
-  const round2 = (n: number) => Math.round(n * 100) / 100
   const subTypeOf = (doc: PersistedDocument): string =>
     ((doc as unknown as Record<string, unknown>).factureSubType as string | undefined) || 'standard'
   // Compte les acomptes déjà émis pointant vers cette facture parente (pour
@@ -463,18 +462,18 @@ function FacturesSectionV5({
     parent: PersistedDocument,
     p: { percentage: number; ordre: number; total: number; declencheur: string },
   ): PersistedDocument => {
-    const r = p.percentage / 100
-    // Cast lâche : PersistedDocument.lines est une union loose, mais à
-    // l'exécution les lignes parent ont la forme complète ProductLine.
-    const scaleProductLines = (arr?: ProductLine[]): ProductLine[] =>
-      (arr || []).map(l => ({
-        ...l,
-        priceHT: round2((l.priceHT || 0) * r),
-        totalHT: round2((l.totalHT || 0) * r),
-      }))
+    // Met à l'échelle TOUTES les collections monétaires (lines, materialLines,
+    // fraisLines, fraisAnnexes, customTables) via la source unique de vérité.
+    // Auparavant seules lines+materialLines étaient réduites : pour un devis BTP
+    // dont le gros vit dans customTables (corps d'état), l'acompte restait à ~92 %
+    // du total au lieu du % choisi (incident Aractingi 2026-06-05).
+    const scaled = scaleDocumentLines(
+      parent as unknown as Parameters<typeof scaleDocumentLines>[0],
+      p.percentage / 100,
+    )
     const parentAny = parent as unknown as Record<string, unknown>
     return {
-      ...parent,
+      ...scaled,
       id: undefined,
       docType: 'facture',
       docNumber: '',
@@ -483,9 +482,6 @@ function FacturesSectionV5({
       sentAt: undefined,
       docDate: new Date().toISOString().slice(0, 10),
       docTitle: `Acompte N°${p.ordre} sur ${p.total} (${p.percentage}%) — ${parent.docTitle || parent.docNumber}`,
-      lines: scaleProductLines(parent.lines as unknown as ProductLine[]),
-      materialLines: scaleProductLines(parentAny.materialLines as ProductLine[] | undefined),
-      fraisAnnexes: parentAny.fraisAnnexes as unknown as never,
       factureSubType: 'acompte',
       acompteOrdre: p.ordre,
       acompteTotal: p.total,
@@ -787,7 +783,11 @@ function AcompteQuickModal({
   const [total, setTotal] = useState<number>(Math.max(existingCount + 1, 3))
   const [declencheur, setDeclencheur] = useState<string>('À la signature')
 
-  const parentTotal = (parent.lines || []).reduce((s: number, l) => s + (Number(l.totalHT) || 0), 0)
+  // Base = total HT réel du document (lines + materialLines + fraisLines +
+  // fraisAnnexes + customTables), pas seulement `lines` — cohérent avec le
+  // montant mis à l'échelle par buildAcomptePrefill. Sinon l'aperçu « Base
+  // facturée / Cet acompte » affichait un sous-total partiel.
+  const parentTotal = computeDocumentTotalHT(parent as unknown as Parameters<typeof computeDocumentTotalHT>[0])
   const calcAcompte = Math.round((parentTotal * percentage / 100) * 100) / 100
   const remaining = Math.round((parentTotal - calcAcompte) * 100) / 100
 

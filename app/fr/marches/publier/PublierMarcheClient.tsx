@@ -485,21 +485,21 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
 
   // ── Toggle helper for booleans ──
   const renderToggle = (field: keyof FormData, label: string) => (
-    <label className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 cursor-pointer transition-all ${
+    <div className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all ${
       form[field] ? 'border-[#FFC107] bg-yellow-50' : 'border-gray-200 bg-white hover:border-gray-300'
     }`}>
       <button
         type="button"
         role="switch"
-        aria-checked={!!form[field]}
+        aria-checked={Boolean(form[field])}
         aria-label={label}
         onClick={() => update(field, !form[field])}
-        className={`relative w-11 h-6 rounded-full transition-all shrink-0 ${form[field] ? 'bg-green-500' : 'bg-gray-300'}`}
+        className={`relative w-11 h-6 rounded-full transition-all shrink-0 cursor-pointer ${form[field] ? 'bg-green-500' : 'bg-gray-300'}`}
       >
         <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form[field] ? 'left-5.5' : 'left-0.5'}`} />
       </button>
       <span className="text-sm text-gray-700">{label}</span>
-    </label>
+    </div>
   )
 
   // ── Dynamic fields based on publisher_type ──
@@ -531,12 +531,12 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {isProfessional && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="publisher_company" className={labelCls}>
                     <Building2 className="h-4 w-4 text-gray-400" />
                     {t('Raison sociale', 'Razão social')}
                   </label>
                   <input
-                    className={inputCls('publisher_company')}
+                    id="publisher_company" className={inputCls('publisher_company')}
                     placeholder={t('Nom de votre entreprise', 'Nome da empresa')}
                     value={form.publisher_company}
                     onChange={e => update('publisher_company', e.target.value)}
@@ -544,11 +544,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="publisher_siret" className={labelCls}>
                     {t('SIRET / NIF', 'SIRET / NIF')}
                   </label>
                   <input
-                    className={inputCls('publisher_siret')}
+                    id="publisher_siret" className={inputCls('publisher_siret')}
                     placeholder={t('12345678901234', '123456789')}
                     value={form.publisher_siret}
                     onChange={e => update('publisher_siret', e.target.value)}
@@ -563,11 +563,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="immeuble_nom" className={labelCls}>
                       {t('Nom de l\'immeuble', 'Nome do edifício')}
                     </label>
                     <input
-                      className={inputCls('immeuble_nom')}
+                      id="immeuble_nom" className={inputCls('immeuble_nom')}
                       placeholder={t('Résidence Les Oliviers', 'Edifício As Oliveiras')}
                       value={form.immeuble_nom}
                       onChange={e => update('immeuble_nom', e.target.value)}
@@ -575,14 +575,14 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="nb_lots" className={labelCls}>
                       {t('Nombre de lots', 'Número de frações')}
                     </label>
                     <input
                       type="number"
                       min="1"
                       max="9999"
-                      className={inputCls('nb_lots')}
+                      id="nb_lots" className={inputCls('nb_lots')}
                       placeholder="24"
                       value={form.nb_lots}
                       onChange={e => update('nb_lots', e.target.value)}
@@ -590,12 +590,12 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   </div>
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="immeuble_adresse" className={labelCls}>
                     <MapPin className="h-4 w-4 text-gray-400" />
                     {t('Adresse de l\'immeuble', 'Morada do edifício')}
                   </label>
                   <input
-                    className={inputCls('immeuble_adresse')}
+                    id="immeuble_adresse" className={inputCls('immeuble_adresse')}
                     placeholder={t('12 rue des Lilas, 13001 Marseille', 'Rua das Flores 12, 4000 Porto')}
                     value={form.immeuble_adresse}
                     onChange={e => update('immeuble_adresse', e.target.value)}
@@ -610,11 +610,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {pt === 'gestionnaire_immobilier' && (
               <>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="immeuble_nom" className={labelCls}>
                     {t('Nom de l\'immeuble / bien', 'Nome do edifício / imóvel')}
                   </label>
                   <input
-                    className={inputCls('immeuble_nom')}
+                    id="immeuble_nom" className={inputCls('immeuble_nom')}
                     placeholder={t('Résidence Les Oliviers', 'Edifício As Oliveiras')}
                     value={form.immeuble_nom}
                     onChange={e => update('immeuble_nom', e.target.value)}
@@ -622,12 +622,12 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="immeuble_adresse" className={labelCls}>
                     <MapPin className="h-4 w-4 text-gray-400" />
                     {t('Adresse du bien', 'Morada do imóvel')}
                   </label>
                   <input
-                    className={inputCls('immeuble_adresse')}
+                    id="immeuble_adresse" className={inputCls('immeuble_adresse')}
                     placeholder={t('12 rue des Lilas, 13001 Marseille', 'Rua das Flores 12, 4000 Porto')}
                     value={form.immeuble_adresse}
                     onChange={e => update('immeuble_adresse', e.target.value)}
@@ -642,11 +642,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="type_hebergement" className={labelCls}>
                       {t('Type d\'hébergement', 'Tipo de alojamento')}
                     </label>
                     <select
-                      className={inputCls('type_hebergement')}
+                      id="type_hebergement" className={inputCls('type_hebergement')}
                       value={form.type_hebergement}
                       onChange={e => update('type_hebergement', e.target.value)}
                     >
@@ -658,14 +658,14 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                     </select>
                   </div>
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="nb_unites" className={labelCls}>
                       {t('Nombre d\'unités', 'Número de unidades')}
                     </label>
                     <input
                       type="number"
                       min="1"
                       max="999"
-                      className={inputCls('nb_unites')}
+                      id="nb_unites" className={inputCls('nb_unites')}
                       placeholder="5"
                       value={form.nb_unites}
                       onChange={e => update('nb_unites', e.target.value)}
@@ -673,11 +673,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   </div>
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="contrainte_calendrier" className={labelCls}>
                     {t('Contrainte calendrier', 'Restrição de calendário')}
                   </label>
                   <input
-                    className={inputCls('contrainte_calendrier')}
+                    id="contrainte_calendrier" className={inputCls('contrainte_calendrier')}
                     placeholder={t('Travaux entre deux locations', 'Obras entre reservas')}
                     value={form.contrainte_calendrier}
                     onChange={e => update('contrainte_calendrier', e.target.value)}
@@ -691,11 +691,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {(pt === 'entreprise_btp' || pt === 'maitre_oeuvre' || pt === 'bureau_etudes') && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="lot_technique" className={labelCls}>
                     {t('Lot technique', 'Lote técnico')}
                   </label>
                   <select
-                    className={inputCls('lot_technique')}
+                    id="lot_technique" className={inputCls('lot_technique')}
                     value={form.lot_technique}
                     onChange={e => update('lot_technique', e.target.value)}
                   >
@@ -707,11 +707,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="reference_chantier" className={labelCls}>
                     {t('Référence chantier', 'Referência da obra')}
                   </label>
                   <input
-                    className={inputCls('reference_chantier')}
+                    id="reference_chantier" className={inputCls('reference_chantier')}
                     placeholder={t('REF-2026-042', 'REF-2026-042')}
                     value={form.reference_chantier}
                     onChange={e => update('reference_chantier', e.target.value)}
@@ -725,11 +725,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {pt === 'promoteur_immobilier' && (
               <>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="programme_immobilier" className={labelCls}>
                     {t('Programme immobilier', 'Programa imobiliário')}
                   </label>
                   <input
-                    className={inputCls('programme_immobilier')}
+                    id="programme_immobilier" className={inputCls('programme_immobilier')}
                     placeholder={t('Les Terrasses du Port', 'Terraços do Porto')}
                     value={form.programme_immobilier}
                     onChange={e => update('programme_immobilier', e.target.value)}
@@ -738,11 +738,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="phase_chantier" className={labelCls}>
                       {t('Phase du chantier', 'Fase da obra')}
                     </label>
                     <select
-                      className={inputCls('phase_chantier')}
+                      id="phase_chantier" className={inputCls('phase_chantier')}
                       value={form.phase_chantier}
                       onChange={e => update('phase_chantier', e.target.value)}
                     >
@@ -754,14 +754,14 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                     </select>
                   </div>
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="nb_logements" className={labelCls}>
                       {t('Nombre de logements', 'Número de habitações')}
                     </label>
                     <input
                       type="number"
                       min="1"
                       max="9999"
-                      className={inputCls('nb_logements')}
+                      id="nb_logements" className={inputCls('nb_logements')}
                       placeholder="48"
                       value={form.nb_logements}
                       onChange={e => update('nb_logements', e.target.value)}
@@ -775,11 +775,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {pt === 'commerce_restaurant' && (
               <div className="grid gap-4">
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="type_etablissement" className={labelCls}>
                     {t('Type d\'établissement', 'Tipo de estabelecimento')}
                   </label>
                   <input
-                    className={inputCls('type_etablissement')}
+                    id="type_etablissement" className={inputCls('type_etablissement')}
                     placeholder={t('Restaurant, Boulangerie, Boutique...', 'Restaurante, Padaria, Loja...')}
                     value={form.type_etablissement}
                     onChange={e => update('type_etablissement', e.target.value)}
@@ -793,11 +793,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {/* Bureau / Entreprise */}
             {pt === 'bureau_entreprise' && (
               <div>
-                <label className={labelCls}>
+                <label htmlFor="type_etablissement" className={labelCls}>
                   {t('Type d\'établissement', 'Tipo de estabelecimento')}
                 </label>
                 <input
-                  className={inputCls('type_etablissement')}
+                  id="type_etablissement" className={inputCls('type_etablissement')}
                   placeholder={t('Bureau, Open space, Entrepôt...', 'Escritório, Open space, Armazém...')}
                   value={form.type_etablissement}
                   onChange={e => update('type_etablissement', e.target.value)}
@@ -809,11 +809,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {/* Collectivité */}
             {pt === 'collectivite' && (
               <div>
-                <label className={labelCls}>
+                <label htmlFor="type_etablissement" className={labelCls}>
                   {t('Type d\'établissement', 'Tipo de estabelecimento')}
                 </label>
                 <input
-                  className={inputCls('type_etablissement')}
+                  id="type_etablissement" className={inputCls('type_etablissement')}
                   placeholder={t('École, Mairie, Hôpital, Stade...', 'Escola, Câmara, Hospital, Estádio...')}
                   value={form.type_etablissement}
                   onChange={e => update('type_etablissement', e.target.value)}
@@ -826,11 +826,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             {pt === 'hotel' && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="type_hebergement" className={labelCls}>
                     {t('Type d\'hébergement', 'Tipo de alojamento')}
                   </label>
                   <select
-                    className={inputCls('type_hebergement')}
+                    id="type_hebergement" className={inputCls('type_hebergement')}
                     value={form.type_hebergement}
                     onChange={e => update('type_hebergement', e.target.value)}
                   >
@@ -842,14 +842,14 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="nb_unites" className={labelCls}>
                     {t('Nombre d\'unités / chambres', 'Número de unidades / quartos')}
                   </label>
                   <input
                     type="number"
                     min="1"
                     max="999"
-                    className={inputCls('nb_unites')}
+                    id="nb_unites" className={inputCls('nb_unites')}
                     placeholder="30"
                     value={form.nb_unites}
                     onChange={e => update('nb_unites', e.target.value)}
@@ -863,11 +863,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="numero_sinistre" className={labelCls}>
                       {t('N\u00b0 de sinistre', 'N.\u00ba do sinistro')}
                     </label>
                     <input
-                      className={inputCls('numero_sinistre')}
+                      id="numero_sinistre" className={inputCls('numero_sinistre')}
                       placeholder="SIN-2026-12345"
                       value={form.numero_sinistre}
                       onChange={e => update('numero_sinistre', e.target.value)}
@@ -875,11 +875,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>
+                    <label htmlFor="type_sinistre" className={labelCls}>
                       {t('Type de sinistre', 'Tipo de sinistro')}
                     </label>
                     <select
-                      className={inputCls('type_sinistre')}
+                      id="type_sinistre" className={inputCls('type_sinistre')}
                       value={form.type_sinistre}
                       onChange={e => update('type_sinistre', e.target.value)}
                     >
@@ -892,11 +892,11 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   </div>
                 </div>
                 <div>
-                  <label className={labelCls}>
+                  <label htmlFor="expert_referent" className={labelCls}>
                     {t('Expert référent', 'Perito referente')}
                   </label>
                   <input
-                    className={inputCls('expert_referent')}
+                    id="expert_referent" className={inputCls('expert_referent')}
                     placeholder={t('Nom de l\'expert', 'Nome do perito')}
                     value={form.expert_referent}
                     onChange={e => update('expert_referent', e.target.value)}
@@ -979,14 +979,14 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
   const stepHeaderCls = 'flex items-center gap-4 px-7 py-5 border-b border-[#F5F5F5] bg-[#FAFAFA]'
   const stepNumCls = 'w-9 h-9 rounded-full bg-[#FFD600] text-[#0D0D0D] flex items-center justify-center text-[0.95rem] font-black shrink-0'
   const stepBodyCls = 'p-7'
-  const subLabelCls = 'block text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em] mb-3'
+  const subLabelCls = 'block text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em] mb-3'
 
   return (
     <div className="min-h-screen bg-white">
       {/* ── Page Header ── */}
       <section className="bg-[#FFFDF0] border-b border-[#F0EDD0] px-[clamp(1.5rem,5%,5rem)] py-14 pb-12">
         <div className="max-w-[680px]">
-          <span className="inline-block text-[0.75rem] font-bold text-[#FFD600] uppercase tracking-[0.14em] mb-3">
+          <span className="inline-block text-[0.75rem] font-bold text-[#7A6000] uppercase tracking-[0.14em] mb-3">
             {t('⚡ Marketplace de travaux', '⚡ Marketplace de obras')}
           </span>
           <h1 className="text-[clamp(1.9rem,3.5vw,2.8rem)] font-black tracking-[-0.03em] leading-[1.1] mb-4">
@@ -1027,7 +1027,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className={stepNumCls}>1</div>
               <div>
                 <div className="text-base font-extrabold">{t('Choisissez un modèle', 'Escolha um modelo de projeto')}</div>
-                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Pré-remplit le formulaire automatiquement', 'Pré-preenche o formulário automaticamente')}</div>
+                <div className="text-[0.78rem] text-[#666] mt-0.5 font-medium">{t('Pré-remplit le formulaire automatiquement', 'Pré-preenche o formulário automaticamente')}</div>
               </div>
             </div>
             <div className={stepBodyCls}>
@@ -1054,7 +1054,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                               💰 {tpl.estimated_budget_min?.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}€ – {tpl.estimated_budget_max?.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}€
                             </div>
                           )}
-                          <div className="text-[0.7rem] text-[#AAA] font-medium mt-0.5">⏱ {isPt ? tpl.typical_duration_pt : tpl.typical_duration}</div>
+                          <div className="text-[0.7rem] text-[#666] font-medium mt-0.5">⏱ {isPt ? tpl.typical_duration_pt : tpl.typical_duration}</div>
                         </button>
                       ))}
                     <button
@@ -1086,7 +1086,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className={stepNumCls}>2</div>
               <div>
                 <div className="text-base font-extrabold">{t('Votre profil', 'O seu perfil')}</div>
-                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Qui publie l\'appel d\'offres ?', 'Quem está a publicar o pedido?')}</div>
+                <div className="text-[0.78rem] text-[#666] mt-0.5 font-medium">{t('Qui publie l\'appel d\'offres ?', 'Quem está a publicar o pedido?')}</div>
               </div>
             </div>
             <div className={stepBodyCls}>
@@ -1125,7 +1125,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                       </button>
                     ))}
                   </div>
-                  {errors.publisher_type && <p className="mt-2 text-xs text-red-500">{errors.publisher_type}</p>}
+                  {errors.publisher_type && <p id="publisher_type-error" role="alert" className="mt-2 text-xs text-red-500">{errors.publisher_type}</p>}
                 </div>
               )}
 
@@ -1139,35 +1139,35 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className={stepNumCls}>3</div>
               <div>
                 <div className="text-base font-extrabold">{t('Vos coordonnées', 'Os seus dados')}</div>
-                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Pour recevoir les propositions', 'Para receber as propostas dos profissionais')}</div>
+                <div className="text-[0.78rem] text-[#666] mt-0.5 font-medium">{t('Pour recevoir les propositions', 'Para receber as propostas dos profissionais')}</div>
               </div>
             </div>
             <div className={stepBodyCls}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    {t('Nom / Entreprise', 'Nome / Empresa')} <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="publisher_name" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    {t('Nom / Entreprise', 'Nome / Empresa')} <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <input className={inputCls('publisher_name')} placeholder={t('Jean Dupont', 'João Silva')} value={form.publisher_name} onChange={e => update('publisher_name', e.target.value)} />
-                  {errors.publisher_name && <p className="text-xs text-red-500">{errors.publisher_name}</p>}
+                  <input id="publisher_name" required aria-required="true" aria-invalid={!!errors.publisher_name} aria-describedby={errors.publisher_name ? "publisher_name-error" : undefined} className={inputCls('publisher_name')} placeholder={t('Jean Dupont', 'João Silva')} value={form.publisher_name} onChange={e => update('publisher_name', e.target.value)} />
+                  {errors.publisher_name && <p id="publisher_name-error" role="alert" className="text-xs text-red-500">{errors.publisher_name}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    Email <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="publisher_email" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    Email <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <input type="email" className={inputCls('publisher_email')} placeholder={t('nom@exemple.com', 'nome@exemplo.com')} value={form.publisher_email} onChange={e => update('publisher_email', e.target.value)} />
-                  {errors.publisher_email && <p className="text-xs text-red-500">{errors.publisher_email}</p>}
+                  <input type="email" id="publisher_email" required aria-required="true" aria-invalid={!!errors.publisher_email} aria-describedby={errors.publisher_email ? "publisher_email-error" : undefined} className={inputCls('publisher_email')} placeholder={t('nom@exemple.com', 'nome@exemplo.com')} value={form.publisher_email} onChange={e => update('publisher_email', e.target.value)} />
+                  {errors.publisher_email && <p id="publisher_email-error" role="alert" className="text-xs text-red-500">{errors.publisher_email}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">{t('Téléphone', 'Telefone')}</label>
-                  <input type="tel" className={inputCls('publisher_phone')} placeholder={t('+33 6 12 34 56 78', '+351 9XX XXX XXX')} value={form.publisher_phone} onChange={e => update('publisher_phone', e.target.value)} />
+                  <label htmlFor="publisher_phone" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">{t('Téléphone', 'Telefone')}</label>
+                  <input type="tel" id="publisher_phone" className={inputCls('publisher_phone')} placeholder={t('+33 6 12 34 56 78', '+351 9XX XXX XXX')} value={form.publisher_phone} onChange={e => update('publisher_phone', e.target.value)} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    {t('Ville', 'Cidade')} <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="location_city" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    {t('Ville', 'Cidade')} <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <input className={inputCls('location_city')} placeholder={t('Ex: Marseille', 'Ex: Porto, Lisboa, Braga…')} value={form.location_city} onChange={e => update('location_city', e.target.value)} />
-                  {errors.location_city && <p className="text-xs text-red-500">{errors.location_city}</p>}
+                  <input id="location_city" required aria-required="true" aria-invalid={!!errors.location_city} aria-describedby={errors.location_city ? "location_city-error" : undefined} className={inputCls('location_city')} placeholder={t('Ex: Marseille', 'Ex: Porto, Lisboa, Braga…')} value={form.location_city} onChange={e => update('location_city', e.target.value)} />
+                  {errors.location_city && <p id="location_city-error" role="alert" className="text-xs text-red-500">{errors.location_city}</p>}
                 </div>
               </div>
             </div>
@@ -1179,50 +1179,50 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className={stepNumCls}>4</div>
               <div>
                 <div className="text-base font-extrabold">{t('Détails du projet', 'Detalhes do projeto')}</div>
-                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Plus de détails = meilleures propositions', 'Quanto mais detalhes, melhores as propostas')}</div>
+                <div className="text-[0.78rem] text-[#666] mt-0.5 font-medium">{t('Plus de détails = meilleures propositions', 'Quanto mais detalhes, melhores as propostas')}</div>
               </div>
             </div>
             <div className={stepBodyCls}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    {t('Titre du projet', 'Título do projeto')} <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="title" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    {t('Titre du projet', 'Título do projeto')} <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <input className={inputCls('title')} placeholder={t('Ex: Rénovation salle de bain 12m²', 'Ex: Renovação completa de casa de banho com substituição de canalização')} value={form.title} onChange={e => update('title', e.target.value)} maxLength={200} />
-                  {errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
+                  <input id="title" required aria-required="true" aria-invalid={!!errors.title} aria-describedby={errors.title ? "title-error" : undefined} className={inputCls('title')} placeholder={t('Ex: Rénovation salle de bain 12m²', 'Ex: Renovação completa de casa de banho com substituição de canalização')} value={form.title} onChange={e => update('title', e.target.value)} maxLength={200} />
+                  {errors.title && <p id="title-error" role="alert" className="text-xs text-red-500">{errors.title}</p>}
                 </div>
                 <div className="sm:col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    {t('Description détaillée', 'Descrição detalhada')} <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="description" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    {t('Description détaillée', 'Descrição detalhada')} <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <textarea className={`${inputCls('description')} min-h-[130px] resize-y`} placeholder={t('Décrivez l\'état actuel, les travaux souhaités, les matériaux, la surface…', 'Descreva o estado atual, o que deseja realizar, materiais preferidos, superfície, número de divisões…')} value={form.description} onChange={e => update('description', e.target.value)} maxLength={5000} />
-                  <div className="text-right text-[0.72rem] text-[#CCC] font-medium">{form.description.length.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')} / 5 000</div>
-                  {errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
+                  <textarea id="description" required aria-required="true" aria-invalid={!!errors.description} aria-describedby={errors.description ? "description-error" : undefined} className={`${inputCls('description')} min-h-[130px] resize-y`} placeholder={t('Décrivez l\'état actuel, les travaux souhaités, les matériaux, la surface…', 'Descreva o estado atual, o que deseja realizar, materiais preferidos, superfície, número de divisões…')} value={form.description} onChange={e => update('description', e.target.value)} maxLength={5000} />
+                  <div className="text-right text-[0.72rem] text-[#666] font-medium">{form.description.length.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')} / 5 000</div>
+                  {errors.description && <p id="description-error" role="alert" className="text-xs text-red-500">{errors.description}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    {t('Catégorie', 'Categoria')} <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="category" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    {t('Catégorie', 'Categoria')} <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <select className={inputCls('category')} value={form.category} onChange={e => update('category', e.target.value)}>
-                    <option value="">{t('- Choisir -', '- Escolher -')}</option>
+                  <select id="category" required aria-required="true" aria-invalid={!!errors.category} aria-describedby={errors.category ? "category-error" : undefined} className={inputCls('category')} value={form.category} onChange={e => update('category', e.target.value)}>
+                    <option value="">{t('— Choisir —', '— Escolher —')}</option>
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{isPt ? c.pt : c.fr}</option>)}
                   </select>
-                  {errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
+                  {errors.category && <p id="category-error" role="alert" className="text-xs text-red-500">{errors.category}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">{t('Code postal', 'Código postal')}</label>
-                  <input className={inputCls('location_postal')} placeholder={t('13001', '4100-007')} value={form.location_postal} onChange={e => update('location_postal', e.target.value)} />
+                  <label htmlFor="location_postal" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">{t('Code postal', 'Código postal')}</label>
+                  <input id="location_postal" className={inputCls('location_postal')} placeholder={t('13001', '4100-007')} value={form.location_postal} onChange={e => update('location_postal', e.target.value)} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
-                    {t('Date limite', 'Prazo para candidaturas')} <span className="text-[#FFD600]">*</span>
+                  <label htmlFor="deadline" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">
+                    {t('Date limite', 'Prazo para candidaturas')} <span aria-hidden="true" className="text-[#FFD600]">*</span>
                   </label>
-                  <input type="date" min={minDeadline} className={inputCls('deadline')} value={form.deadline} onChange={e => update('deadline', e.target.value)} />
-                  {errors.deadline && <p className="text-xs text-red-500">{errors.deadline}</p>}
+                  <input type="date" min={minDeadline} id="deadline" required aria-required="true" aria-invalid={!!errors.deadline} aria-describedby={errors.deadline ? "deadline-error" : undefined} className={inputCls('deadline')} value={form.deadline} onChange={e => update('deadline', e.target.value)} />
+                  {errors.deadline && <p id="deadline-error" role="alert" className="text-xs text-red-500">{errors.deadline}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">{t('Mode de travail', 'Modo de trabalho preferido')}</label>
-                  <select className={inputCls('preferred_work_mode')} value={form.preferred_work_mode} onChange={e => setForm(prev => ({ ...prev, preferred_work_mode: e.target.value }))}>
+                  <label htmlFor="preferred_work_mode" className="text-[0.72rem] font-bold text-[#5C5C5C] uppercase tracking-[0.08em]">{t('Mode de travail', 'Modo de trabalho preferido')}</label>
+                  <select id="preferred_work_mode" className={inputCls('preferred_work_mode')} value={form.preferred_work_mode} onChange={e => setForm(prev => ({ ...prev, preferred_work_mode: e.target.value }))}>
                     {WORK_MODE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{isPt ? opt.pt : opt.fr}</option>)}
                   </select>
                 </div>
@@ -1232,16 +1232,16 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
 
               <span className={subLabelCls}>{t('Budget prévisionnel', 'Orçamento previsto')}</span>
               <div className="flex items-center gap-3">
-                <input type="number" min="0" className={`${inputCls('budget_min')} w-40 shrink-0`} placeholder={t('Minimum (€)', 'Mínimo (€)')} value={form.budget_min} onChange={e => update('budget_min', e.target.value)} />
-                <div className="text-[#CCC] font-bold">-</div>
-                <input type="number" min="0" className={`${inputCls('budget_max')} w-40 shrink-0`} placeholder={t('Maximum (€)', 'Máximo (€)')} value={form.budget_max} onChange={e => update('budget_max', e.target.value)} />
+                <input type="number" min="0" id="budget_min" aria-label={t('Budget minimum (€)', 'Orçamento mínimo (€)')} className={`${inputCls('budget_min')} w-40 shrink-0`} placeholder={t('Minimum (€)', 'Mínimo (€)')} value={form.budget_min} onChange={e => update('budget_min', e.target.value)} />
+                <div className="text-[#666] font-bold" aria-hidden="true">—</div>
+                <input type="number" min="0" id="budget_max" aria-label={t('Budget maximum (€)', 'Orçamento máximo (€)')} aria-invalid={!!errors.budget_max} aria-describedby={errors.budget_max ? "budget_max-error" : undefined} className={`${inputCls('budget_max')} w-40 shrink-0`} placeholder={t('Maximum (€)', 'Máximo (€)')} value={form.budget_max} onChange={e => update('budget_max', e.target.value)} />
               </div>
-              {errors.budget_max && <p className="mt-1 text-xs text-red-500">{errors.budget_max}</p>}
+              {errors.budget_max && <p id="budget_max-error" role="alert" className="mt-1 text-xs text-red-500">{errors.budget_max}</p>}
 
               <hr className="border-[#F0F0F0] my-6" />
 
-              <span className={subLabelCls}>{t('Niveau d\'urgence', 'Nível de urgência')}</span>
-              <div className="grid grid-cols-3 gap-3">
+              <span id="urgency-label" className={subLabelCls}>{t('Niveau d\'urgence', 'Nível de urgência')}</span>
+              <div role="radiogroup" aria-labelledby="urgency-label" className="grid grid-cols-3 gap-3">
                 {([
                   { v: 'normal', label: 'Normal', desc: isPt ? 'Sem pressão' : 'Sans pression', icon: '🟢', active: 'border-green-500 bg-green-50' },
                   { v: 'urgent', label: isPt ? 'Urgente' : 'Urgent', desc: isPt ? 'Dentro de 48h' : 'Sous 48h', icon: '🟡', active: 'border-amber-500 bg-amber-50' },
@@ -1250,14 +1250,16 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   <button
                     key={u.v}
                     type="button"
+                    role="radio"
+                    aria-checked={form.urgency === u.v}
                     onClick={() => update('urgency', u.v)}
                     className={`border-[1.5px] rounded-xl p-4 text-center cursor-pointer transition-all ${
                       form.urgency === u.v ? u.active : 'border-[#EFEFEF] bg-[#FAFAFA] hover:border-[#FFD600] hover:bg-white'
                     }`}
                   >
-                    <span className="text-2xl block mb-1">{u.icon}</span>
+                    <span className="text-2xl block mb-1" aria-hidden="true">{u.icon}</span>
                     <div className="text-[0.85rem] font-bold">{u.label}</div>
-                    <div className="text-[0.72rem] text-[#999] mt-0.5 font-medium">{u.desc}</div>
+                    <div className="text-[0.72rem] text-[#666] mt-0.5 font-medium">{u.desc}</div>
                   </button>
                 ))}
               </div>
@@ -1270,16 +1272,19 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className={stepNumCls}>5</div>
               <div>
                 <div className="text-base font-extrabold">{t('Exigences professionnelles', 'Requisitos profissionais')}</div>
-                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Filtrez les meilleurs artisans', 'Filtre os profissionais mais qualificados')}</div>
+                <div className="text-[0.78rem] text-[#666] mt-0.5 font-medium">{t('Filtrez les meilleurs artisans', 'Filtre os profissionais mais qualificados')}</div>
               </div>
             </div>
             <div className={stepBodyCls}>
-              <span className={subLabelCls}>{t('Maximum de candidatures', 'Máximo de candidaturas')}</span>
-              <div className="flex gap-2.5">
+              <span id="max-cand-label" className={subLabelCls}>{t('Maximum de candidatures', 'Máximo de candidaturas')}</span>
+              <div role="radiogroup" aria-labelledby="max-cand-label" className="flex gap-2.5">
                 {[1, 3, 5, 10].map(n => (
                   <button
                     key={n}
                     type="button"
+                    role="radio"
+                    aria-checked={form.max_candidatures === n}
+                    aria-label={t(`${n} candidatures maximum`, `${n} candidaturas máximo`)}
                     onClick={() => setForm(prev => ({ ...prev, max_candidatures: n }))}
                     className={`flex-1 py-2.5 border-[1.5px] rounded-lg text-[0.92rem] font-bold cursor-pointer transition-all text-center ${
                       form.max_candidatures === n
@@ -1301,8 +1306,8 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
 
               <hr className="border-[#F0F0F0] my-6" />
 
-              <span className={subLabelCls}>{t('Certifications obligatoires', 'Certificações obrigatórias')}</span>
-              <div className="grid gap-2.5">
+              <span id="certs-label" className={subLabelCls}>{t('Certifications obligatoires', 'Certificações obrigatórias')}</span>
+              <div role="group" aria-labelledby="certs-label" className="grid gap-2.5">
                 {([
                   { key: 'require_rc_pro' as const, label: isPt ? '🛡️ Responsabilidade Civil Profissional (RC Pro)' : '🛡️ RC Pro obligatoire' },
                   { key: 'require_decennale' as const, label: isPt ? '🏗️ Seguro Decenal obrigatório' : '🏗️ Assurance décennale obligatoire' },
@@ -1312,6 +1317,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   <button
                     key={cert.key}
                     type="button"
+                    aria-pressed={Boolean(form[cert.key])}
                     onClick={() => setForm(prev => ({ ...prev, [cert.key]: !prev[cert.key] }))}
                     className={`flex items-center gap-3.5 border-[1.5px] rounded-lg px-4 py-3.5 cursor-pointer transition-all text-left ${
                       form[cert.key]
@@ -1319,7 +1325,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                         : 'border-[#EFEFEF] bg-[#FAFAFA] hover:border-[#FFD600] hover:bg-white'
                     }`}
                   >
-                    <div className={`w-[18px] h-[18px] rounded shrink-0 border-2 flex items-center justify-center text-[0.65rem] font-black transition-all ${
+                    <div aria-hidden="true" className={`w-[18px] h-[18px] rounded shrink-0 border-2 flex items-center justify-center text-[0.65rem] font-black transition-all ${
                       form[cert.key] ? 'bg-[#FFD600] border-[#FFD600]' : 'border-[#DDD]'
                     }`}>
                       {form[cert.key] && '✓'}
@@ -1335,10 +1341,13 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className="flex items-center justify-between py-4">
                 <div>
                   <div className="text-[0.9rem] font-bold">{t('Marché récurrent', 'Mercado recorrente')}</div>
-                  <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Travaux réguliers à long terme', 'Procuro trabalhos regulares a longo prazo')}</div>
+                  <div className="text-[0.78rem] text-[#666] mt-0.5 font-medium">{t('Travaux réguliers à long terme', 'Procuro trabalhos regulares a longo prazo')}</div>
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={isRecurring}
+                  aria-label={t('Marché récurrent', 'Mercado recorrente')}
                   onClick={() => setIsRecurring(!isRecurring)}
                   className={`relative w-11 h-[25px] rounded-full cursor-pointer shrink-0 transition-colors ${isRecurring ? 'bg-[#FFD600]' : 'bg-[#E0E0E0]'}`}
                 >
@@ -1348,7 +1357,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
 
               {isRecurring && (
                 <div className="ml-4 mb-4">
-                  <div className="flex gap-2">
+                  <div role="radiogroup" aria-label={t('Fréquence de récurrence', 'Frequência de recorrência')} className="flex gap-2">
                     {([
                       { value: 'mensuel' as const, fr: 'Mensuel', pt: 'Mensal' },
                       { value: 'trimestriel' as const, fr: 'Trimestriel', pt: 'Trimestral' },
@@ -1357,11 +1366,13 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                       <button
                         key={opt.value}
                         type="button"
+                        role="radio"
+                        aria-checked={recurrenceInterval === opt.value}
                         onClick={() => setRecurrenceInterval(opt.value)}
                         className={`flex-1 rounded-lg border-2 px-3 py-2 text-xs font-medium transition cursor-pointer ${
                           recurrenceInterval === opt.value
                             ? 'border-[#FFC107] bg-yellow-50 text-gray-900'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                         }`}
                       >
                         {isPt ? opt.pt : opt.fr}
@@ -1395,7 +1406,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
                   <>⚡ {t('Publier l\'appel d\'offres, Gratuit', 'Publicar pedido de orçamento, Grátis')}</>
                 )}
               </button>
-              <div className="text-center text-[0.75rem] text-[#AAA] mt-3.5 font-medium flex items-center justify-center gap-1.5">
+              <div className="text-center text-[0.75rem] text-[#666] mt-3.5 font-medium flex items-center justify-center gap-1.5">
                 🔒 {t(
                   'Vos données ne sont pas partagées publiquement. Seuls les artisans candidats y auront accès.',
                   'Os seus dados não são partilhados publicamente. Apenas os profissionais candidatos terão acesso.',
@@ -1443,7 +1454,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               ]).map((s, i) => (
                 <div key={i} className="bg-[#FAFAFA] border-[1.5px] border-[#EFEFEF] rounded-xl p-4 text-center">
                   <div className="text-2xl font-black tracking-[-0.02em] leading-none">{s.num}<span className="text-[#FFD600]">{s.accent}</span>{s.suffix}</div>
-                  <div className="text-[0.7rem] text-[#999] font-semibold mt-1">{s.label}</div>
+                  <div className="text-[0.7rem] text-[#666] font-semibold mt-1">{s.label}</div>
                 </div>
               ))}
             </div>
@@ -1465,7 +1476,7 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
               <div className="w-[34px] h-[34px] rounded-full bg-[#FF9800] text-white text-[0.78rem] font-black flex items-center justify-center shrink-0">ML</div>
               <div>
                 <div className="text-[0.82rem] font-bold not-italic">{isPt ? 'Maria Lourenço' : 'Marie Laurent'}</div>
-                <div className="text-[0.72rem] text-[#AAA] not-italic font-medium">{isPt ? 'Renovação casa de banho · Porto ✔ Verificado' : 'Rénovation SDB · Marseille ✔ Vérifié'}</div>
+                <div className="text-[0.72rem] text-[#666] not-italic font-medium">{isPt ? 'Renovação casa de banho · Porto ✔ Verificado' : 'Rénovation SDB · Marseille ✔ Vérifié'}</div>
               </div>
             </div>
           </div>

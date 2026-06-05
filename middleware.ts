@@ -236,8 +236,11 @@ export async function middleware(request: NextRequest) {
 
   // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll) ──
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    // Fallback placeholder (cohérent avec lib/supabase.ts + lib/supabase-server-component.ts) :
+    // sans env (ex. CI E2E où le secret est absent), createServerClient throw « URL and Key
+    // required » à CHAQUE requête → tout le SSR casse. En prod l'env est défini → aucun effet.
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-for-build',
     {
       cookies: {
         getAll() {
