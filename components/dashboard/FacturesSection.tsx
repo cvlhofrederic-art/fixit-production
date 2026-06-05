@@ -438,6 +438,19 @@ function FacturesSectionV5({
         toast.error(`Échec de l'enregistrement « payée » pour ${doc.docNumber}. Réessayez.`)
         return
       }
+    } else if (doc.docNumber) {
+      // Doc LEGACY (id horodaté non-UUID, créé avant stableDocId) : pas de clé `id`
+      // exploitable → on cible par `numero`. La RLS factures_owner_update borne déjà
+      // l'UPDATE au propriétaire (auth.uid()), donc seule la facture du propriétaire
+      // portant ce numéro est touchée — 0 ligne (sans erreur) si le doc n'est qu'en
+      // localStorage. Mirror de la clé d'upsert legacy de /api/devis/sync.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('factures') as any).update({ status: 'paid' }).eq('numero', doc.docNumber)
+      if (error) {
+        console.warn('[markPaid] sync DB (legacy/numéro) échoué', error)
+        toast.error(`Échec de l'enregistrement « payée » pour ${doc.docNumber}. Réessayez.`)
+        return
+      }
     }
     const apply = (d: PersistedDocument): PersistedDocument =>
       docIdentityKey(d) === key ? ({ ...d, status: 'paid' } as PersistedDocument) : d

@@ -118,4 +118,21 @@ describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
     expect(update).toHaveBeenCalledWith({ status: 'paid' })
     expect(eq).toHaveBeenCalledWith('id', '50e30094-3af7-442b-b2b0-4e8c8fc12b64')
   })
+
+  it('« Marquer payée » sur doc LEGACY (id horodaté non-UUID) → sync DB par numéro', async () => {
+    // Doc legacy (créé avant stableDocId) : id = Date.now() → isStableDocId false.
+    // Sans repli, le bouton ne persistait rien en DB (perte au rechargement).
+    const legacy = { ...FACT_EMISE, id: '1779539827817', docNumber: 'FACT-2026-007', status: 'pending' }
+    const setSavedDocuments = vi.fn()
+    render(<FacturesSection {...props(setSavedDocuments, [legacy])} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-007')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Marquer payée'))
+
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalled())
+    // id non-UUID → pas de clé `id` exploitable : ciblage par `numero` (la RLS
+    // factures_owner_update borne déjà au propriétaire). Mirror de /api/devis/sync.
+    expect(from).toHaveBeenCalledWith('factures')
+    expect(update).toHaveBeenCalledWith({ status: 'paid' })
+    expect(eq).toHaveBeenCalledWith('numero', 'FACT-2026-007')
+  })
 })
