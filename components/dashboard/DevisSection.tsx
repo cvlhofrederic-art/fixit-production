@@ -158,6 +158,12 @@ export default function DevisSection({
   const devisDocs = savedDocuments.filter(d =>
     d.docType === 'devis' && d.status !== 'cancelled' && d.status !== 'annule'
   )
+  // Acomptes déjà émis (factures factureSubType='acompte') — pour marquer
+  // « déjà émis » dans le sélecteur d'acompte côté devis. La ré-émission reste
+  // permise (juste visible), cf. méthode pro 2026.
+  const emittedAcomptes = savedDocuments.filter(
+    d => (d as { factureSubType?: string }).factureSubType === 'acompte',
+  )
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only
@@ -173,6 +179,7 @@ export default function DevisSection({
           convertDevisToFacture={convertDevisToFacture}
           artisan={artisan}
           setSavedDocuments={setSavedDocuments}
+          emittedAcomptes={emittedAcomptes}
           dateLocale={dateLocale}
           locale={locale}
           t={t}
@@ -412,7 +419,7 @@ export default function DevisSection({
    ═══════════════════════════════════════════════════════ */
 function DevisSectionV5({
   devisDocs, setShowDevisForm, setConvertingDevis, openDevisForm, convertDevisToFacture,
-  artisan, setSavedDocuments, dateLocale, locale, t, orgRole, onRemoveDoc,
+  artisan, setSavedDocuments, emittedAcomptes, dateLocale, locale, t, orgRole, onRemoveDoc,
 }: {
   devisDocs: DevisDocument[]
   setShowDevisForm: (v: boolean) => void
@@ -421,6 +428,7 @@ function DevisSectionV5({
   convertDevisToFacture: (doc: DevisDocument) => void
   artisan: Artisan | null
   setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
+  emittedAcomptes: DevisDocument[]
   dateLocale: string
   locale: string
   t: (k: string) => string
@@ -435,6 +443,13 @@ function DevisSectionV5({
   // émission directe d'une facture d'acompte reliée au devis).
   const [factureChoiceDevis, setFactureChoiceDevis] = useState<DevisDocument | null>(null)
   const [acompteParentDevis, setAcompteParentDevis] = useState<DevisDocument | null>(null)
+  // Ordres d'acomptes déjà émis pour un devis (factures d'acompte le référençant)
+  // → marqués « déjà émis » dans le sélecteur (ré-émission permise).
+  const emittedOrdresForDevis = (devisNumber: string): number[] =>
+    emittedAcomptes
+      .filter(a => (a as { parentInvoiceNumber?: string }).parentInvoiceNumber === devisNumber)
+      .map(a => Number((a as { acompteOrdre?: number }).acompteOrdre))
+      .filter(n => Number.isFinite(n))
 
   const filtered = devisDocs
     .filter(d => {
@@ -726,7 +741,7 @@ function DevisSectionV5({
         <AcompteQuickModal
           parent={acompteParentDevis as unknown as Parameters<typeof AcompteQuickModal>[0]['parent']}
           existingCount={0}
-          emittedOrdres={[]}
+          emittedOrdres={emittedOrdresForDevis(acompteParentDevis.docNumber || '')}
           onClose={() => setAcompteParentDevis(null)}
           onConfirm={async (params) => {
             // Émission directe d'une facture d'acompte depuis le devis (méthode

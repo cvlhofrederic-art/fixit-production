@@ -108,7 +108,7 @@ describe('FacturesSection — échéancier d\'acomptes hérité du devis', () =>
     expect(computeDocumentTotalHT(emitted as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(13706.1, 1)
   })
 
-  it('un acompte déjà émis (ordre 1) est désactivé (pas de double émission)', async () => {
+  it('un acompte déjà émis est marqué « déjà émis » mais reste ré-émissible', async () => {
     const alreadyEmitted = {
       id: 'ac-1', docNumber: 'AC-2026-001', docType: 'facture',
       status: 'envoye', factureSubType: 'acompte',
@@ -118,7 +118,9 @@ describe('FacturesSection — échéancier d\'acomptes hérité du devis', () =>
     render(<FacturesSection {...props([alreadyEmitted])} />)
     await waitFor(() => expect(screen.getByText('FACT-2026-009')).toBeInTheDocument())
     fireEvent.click(screen.getByTitle('proDash.factures.toAcompteTitle'))
-    expect(screen.getByRole('button', { name: /Acompte 1.*50/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Acompte 2.*30/ })).not.toBeDisabled()
+    const a1 = screen.getByRole('button', { name: /Acompte 1.*50/ })
+    expect(a1).not.toBeDisabled()                 // ré-émission TOUJOURS possible
+    expect(a1).toHaveTextContent(/déjà émis/i)    // mais visiblement déjà fait
+    expect(screen.getByRole('button', { name: /Acompte 2.*30/ })).not.toHaveTextContent(/déjà émis/i)
   })
 })
