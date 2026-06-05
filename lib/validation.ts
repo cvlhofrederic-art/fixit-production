@@ -1527,3 +1527,42 @@ export const devisStatusUpdateSchema = z.object({
   newStatus: z.enum(['accepted', 'rejected', 'expired']),
   reason: z.string().max(500).optional(),
 })
+
+// ── Syndic v54 — lot features net-new (Reservas, Infrações, Enquetes, Checklists) ──
+export const syndicReservaSchema = z.object({
+  espaco: z.string().min(1).max(200),
+  quem: z.string().max(200).optional(),
+  data: z.string().max(20).optional().nullable(),
+  hora: z.string().max(50).optional(),
+  estado: z.enum(['confirmada', 'pendente', 'cancelada']).optional(),
+  notes: z.string().max(2000).optional(),
+})
+
+export const syndicInfracaoSchema = z.object({
+  tipo: z.string().min(1).max(200),
+  condomino: z.string().max(200).optional(),
+  edificio: z.string().max(200).optional(),
+  etapa: z.enum(['sinalizada', 'analise', 'notificacao', 'multa', 'resolvida']).optional(),
+  multa: z.coerce.number().min(0).optional(),
+  descricao: z.string().max(5000).optional(),
+})
+
+export const syndicEnqueteSchema = z.object({
+  titulo: z.string().min(1).max(300),
+  descricao: z.string().max(5000).optional(),
+  estado: z.enum(['ativa', 'a_decorrer', 'encerrada']).optional(),
+  tipo: z.string().max(100).optional(),
+  edificio: z.string().max(200).optional(),
+  prazo: z.string().max(20).optional().nullable(),
+  total: z.coerce.number().int().min(0).optional(),
+  options: z.array(z.object({ label: z.string().max(200), votes: z.coerce.number().int().min(0) })).max(20).optional(),
+  anonima: z.boolean().optional(),
+})
+
+export const syndicChecklistSchema = z.object({
+  titulo: z.string().min(1).max(300),
+  tipo: z.string().max(100).optional(),
+  edificio: z.string().max(200).optional(),
+  estado: z.enum(['em_curso', 'concluida']).optional(),
+  items: z.array(z.object({ label: z.string().max(300), done: z.boolean() })).max(100).optional(),
+})
