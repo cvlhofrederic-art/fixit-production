@@ -173,6 +173,37 @@ describe('POST /api/devis/sync', () => {
     expect(json.error).toMatch(/Forbidden/i)
   })
 
+  // ── IDOR : le chemin `docId` (upsert onConflict='id', supabaseAdmin, hors RLS) ──
+  it('returns 403 when the document id (par UUID) appartient à un AUTRE artisan (IDOR guard)', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    // L'ownership de l'artisanId est OK (mockOwnershipDirect par défaut), MAIS le
+    // document ciblé par son UUID existe déjà en base et appartient à un autre user.
+    mockStatusLookup.mockResolvedValue({
+      data: { status: 'sent', content_hash: null, artisan_user_id: '99999999-9999-4999-8999-999999999999' },
+      error: null,
+    })
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const stolen = { ...validDoc, id: '12345678-1234-4123-8123-1234567890ab' }
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: stolen }) as never)
+    expect(res.status).toBe(403)
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('autorise le propriétaire à mettre à jour SON document (même artisan_user_id, pas 403)', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    mockStatusLookup.mockResolvedValue({
+      data: { status: 'draft', content_hash: null, artisan_user_id: ARTISAN_USER_ID },
+      error: null,
+    })
+    mockUpsert.mockResolvedValue({ data: { id: '12345678-1234-4123-8123-1234567890ab' }, error: null })
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const own = { ...validDoc, id: '12345678-1234-4123-8123-1234567890ab' }
+    const res = await POST(makeRequest({ docType: 'devis', artisanId: ARTISAN_ID, doc: own }) as never)
+    expect(res.status).not.toBe(403)
+  })
+
   it('returns 200 when user is a team member of the artisanId company (path B)', async () => {
     // Membre BTP (COMPTABLE/SECRETAIRE) — son user.id n'apparaît PAS dans
     // profiles_artisan mais bien dans pro_team_members.company_id
