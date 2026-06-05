@@ -412,18 +412,33 @@ function FacturesSectionV5({
   const [statusFilter, setStatusFilter] = useState<DocStatusFilter>('all')
   const docMatchesStatus = (d: PersistedDocument, f: DocStatusFilter): boolean => {
     if (f === 'all') return true
-    const s = d.status
+    const s = d.status || ''
     if (f === 'paid') return s === 'paid' || s === 'payee'
-    if (f === 'sent') return s === 'envoye' || s === 'pending'
-    return s !== 'paid' && s !== 'payee' && s !== 'envoye' && s !== 'pending' // 'draft' = brouillon
+    // Émises = émises + en retard (overdue) : une facture en retard reste émise.
+    if (f === 'sent') return s === 'envoye' || s === 'pending' || s === 'overdue' || s === 'en_retard'
+    // Brouillons = STRICTEMENT brouillon : ni payée/émise/en retard/remboursée/annulée.
+    return s === '' || s === 'draft' || s === 'brouillon'
   }
 
   // « Marquer payée » : passe la facture en statut payé (localStorage + state +
   // sync DB). RLS `factures_owner_update` autorise l'UPDATE ; le statut 'paid'
   // est valide (CHECK factures_status_check). Statut local 'paid' aligné sur la DB.
-  const markPaid = (doc: PersistedDocument) => {
+  const markPaid = async (doc: PersistedDocument) => {
     const key = docIdentityKey(doc)
     if (!key) return
+    // DB d'abord (si le doc y est, id UUID) : on ne confirme « payée » à l'UI
+    // qu'après succès, sinon le toast mentait quand l'UPDATE échouait (le statut
+    // régressait au rechargement). RLS factures_owner_update (WITH CHECK).
+    const id = (doc as { id?: string }).id
+    if (id && isStableDocId(id)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('factures') as any).update({ status: 'paid' }).eq('id', id)
+      if (error) {
+        console.warn('[markPaid] sync DB échoué', error)
+        toast.error(`Échec de l'enregistrement « payée » pour ${doc.docNumber}. Réessayez.`)
+        return
+      }
+    }
     const apply = (d: PersistedDocument): PersistedDocument =>
       docIdentityKey(d) === key ? ({ ...d, status: 'paid' } as PersistedDocument) : d
     if (artisan?.id) {
@@ -433,14 +448,6 @@ function FacturesSectionV5({
       } catch { /* quota localStorage */ }
     }
     setSavedDocuments(prev => prev.map(apply))
-    const id = (doc as { id?: string }).id
-    if (id && isStableDocId(id)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(supabase.from('factures') as any)
-        .update({ status: 'paid' })
-        .eq('id', id)
-        .then(({ error }: { error: unknown }) => { if (error) console.warn('[markPaid] sync DB échoué', error) })
-    }
     toast.success(`Facture ${doc.docNumber} marquée payée`)
   }
   // Quick Actions « → Acompte » et « → Avoir » (méthode pro BTP 2026).
@@ -478,6 +485,13 @@ function FacturesSectionV5({
     }
     if (status === 'payee' || status === 'paid') {
       return { cls: 'v5-badge v5-badge-green', label: t('proDash.factures.payee') }
+    }
+    // En retard / remboursée (statuts DB) : sinon elles tombaient en « Brouillon ».
+    if (status === 'overdue' || status === 'en_retard') {
+      return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Em atraso' : 'En retard' }
+    }
+    if (status === 'refunded' || status === 'rembourse') {
+      return { cls: 'v5-badge v5-badge-yellow', label: locale === 'pt' ? 'Reembolsada' : 'Remboursée' }
     }
     return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.factures.brouillon') }
   }
@@ -542,7 +556,12 @@ function FacturesSectionV5({
     return {
       ...negated,
       id: undefined,
-      docType: 'avoir',
+      // docType 'facture' + factureSubType 'avoir' (même schéma que l'acompte).
+      // L'avoir vit dans la table `factures` (il n'y a pas de table `avoirs`).
+      // Avec docType 'avoir', syncDocumentToSupabase le routait vers la table
+      // `devis` → perte du lien légal avoir↔facture (avoir_de_facture_id) et
+      // pollution des agrégats devis. Audit 2026-06-05.
+      docType: 'facture',
       docNumber: '',
       status: 'brouillon',
       savedAt: undefined,

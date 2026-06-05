@@ -85,6 +85,9 @@ describe('FacturesSection — « → Avoir » négative tout le document', () =>
     expect(openFactureForm).toHaveBeenCalledTimes(1)
     const prefilled = openFactureForm.mock.calls[0][0]
     expect(prefilled.factureSubType).toBe('avoir')
+    // docType 'facture' (pas 'avoir') → l'avoir va dans la table `factures`,
+    // pas `devis` (sinon perte du lien légal avoir↔facture).
+    expect(prefilled.docType).toBe('facture')
     expect(computeDocumentTotalHT(prefilled)).toBeCloseTo(-45687, 1)
     expect(computeDocumentTotalHT(prefilled)).not.toBeCloseTo(35187, 0)
   })

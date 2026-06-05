@@ -46,6 +46,11 @@ export function buildAcomptePrefill(
     docDate: new Date().toISOString().slice(0, 10),
     docTitle: `Acompte N°${p.ordre} sur ${p.total} (${p.percentage}%) — ${docTitle}`,
     factureSubType: 'acompte',
+    // L'acompte ne porte PAS l'échéancier du devis parent : ce serait un bloc
+    // « Échéancier 50/30/20 » parasite sur la facture d'acompte elle-même (qui
+    // EST déjà un acompte). Même remise à zéro que buildAvoirPrefill.
+    acomptesEnabled: false,
+    acomptes: [],
     acompteOrdre: p.ordre,
     acompteTotal: p.total,
     acomptePourcentage: p.percentage,
