@@ -19,7 +19,7 @@
 //   Fix : si une section non vide existe, on ignore `lines` (qui est l'union)
 //   et on somme uniquement les sections séparées. Mirror logique V3.
 
-import { sumMoney, toCents } from '@/lib/money'
+import { sumMoney, toCents, round2 } from '@/lib/money'
 
 interface ProductLineLike {
   totalHT?: number
@@ -118,4 +118,53 @@ export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined
  */
 export function computeDocumentTotalHtCents(doc: DocumentWithLines | null | undefined): number {
   return toCents(computeDocumentTotalHT(doc))
+}
+
+// Champs monétaires d'une ligne (toutes formes confondues : ProductLine BTP
+// `priceHT/totalHT`, FraisAnnexeItem artisan `prix_unitaire_ht/total_ht`,
+// shape legacy `total`). qty / tvaRate / description ne sont JAMAIS mis à l'échelle.
+const MONEY_LINE_KEYS = ['priceHT', 'totalHT', 'total_ht', 'prix_unitaire_ht', 'total'] as const
+
+/**
+ * Met à l'échelle (× ratio) TOUTES les collections monétaires d'un document —
+ * lines, laborLines, materialLines, fraisLines, fraisAnnexes et customTables[].lines —
+ * c.-à-d. exactement les sources additionnées par `buildDocumentLines`.
+ *
+ * Garantit : computeDocumentTotalHT(scaleDocumentLines(doc, r)) ≈ r × computeDocumentTotalHT(doc)
+ * (égalité à l'arrondi près, chaque ligne étant arrondie au centime). Préserve
+ * qty / tvaRate / description / étapes (seuls les montants sont mis à l'échelle)
+ * et ne mute jamais le document source (copie profonde des lignes et des tables).
+ *
+ * Usage : flux « → Acompte » du BTP Pro (FacturesSection). Sans cette source
+ * unique, seules `lines`+`materialLines` étaient mises à l'échelle, laissant
+ * `customTables` et `fraisLines` à 100 % → acompte BTP surfacturé (incident
+ * Aractingi 2026-06-05 : 42 012 € ≈ 92 % au lieu de 13 706 € pour un acompte 30 %).
+ */
+export function scaleDocumentLines<T extends DocumentWithLines>(doc: T, ratio: number): T {
+  if (!doc || typeof doc !== 'object') return doc
+  const scaleLine = (l: ProductLineLike | null | undefined): ProductLineLike | null | undefined => {
+    if (!l || typeof l !== 'object') return l
+    const out = { ...l } as Record<string, unknown>
+    for (const k of MONEY_LINE_KEYS) {
+      const v = out[k]
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = round2(v * ratio)
+    }
+    return out as ProductLineLike
+  }
+  const scaleArr = (arr: unknown): ProductLineLike[] | undefined =>
+    Array.isArray(arr) ? arr.map(scaleLine).filter((l): l is ProductLineLike => l != null) : undefined
+
+  const out: T = { ...doc }
+  const o = out as DocumentWithLines
+  if (Array.isArray(doc.lines)) o.lines = scaleArr(doc.lines)
+  if (Array.isArray(doc.laborLines)) o.laborLines = scaleArr(doc.laborLines)
+  if (Array.isArray(doc.materialLines)) o.materialLines = scaleArr(doc.materialLines)
+  if (Array.isArray(doc.fraisLines)) o.fraisLines = scaleArr(doc.fraisLines)
+  if (Array.isArray(doc.fraisAnnexes)) o.fraisAnnexes = scaleArr(doc.fraisAnnexes)
+  if (Array.isArray(doc.customTables)) {
+    o.customTables = doc.customTables.map(t =>
+      t && typeof t === 'object' && Array.isArray(t.lines) ? { ...t, lines: scaleArr(t.lines) } : t,
+    )
+  }
+  return out
 }
