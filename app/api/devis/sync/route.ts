@@ -189,8 +189,11 @@ export async function POST(request: NextRequest) {
   // de hash chain sur des docs émis avant que DOC_HASH_SECRET soit configuré.
   let currentStatus: string | null = null
   let existingContentHash: string | null = null
+  // Propriétaire de la ligne existante (le cas échéant) — pour le contrôle IDOR
+  // ci-dessous. On le récupère dans le même lookup pour éviter un round-trip.
+  let existingOwner: string | null = null
   {
-    const sel = supabaseAdmin.from(table).select('status, content_hash')
+    const sel = supabaseAdmin.from(table).select('status, content_hash, artisan_user_id')
     const { data: existing, error: lookupErr } = await (
       docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
     ).maybeSingle()
@@ -198,7 +201,7 @@ export async function POST(request: NextRequest) {
       // Fallback si la colonne content_hash n'existe pas (migration 081 non appliquée).
       // Ne JAMAIS swallow silently une vraie erreur DB : retour 500.
       if (/column .*content_hash.* does not exist/i.test(lookupErr.message || '')) {
-        const selFb = supabaseAdmin.from(table).select('status')
+        const selFb = supabaseAdmin.from(table).select('status, artisan_user_id')
         const fb = await (
           docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
         ).maybeSingle()
@@ -211,6 +214,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Status lookup failed' }, { status: 500 })
         }
         currentStatus = (fb.data?.status as string) || null
+        existingOwner = (fb.data?.artisan_user_id as string) || null
       } else {
         logger.error(`[devis-sync] status lookup failed ${docRec.docNumber}:`, lookupErr.message)
         Sentry.captureException(lookupErr, {
@@ -222,7 +226,24 @@ export async function POST(request: NextRequest) {
     } else {
       currentStatus = (existing?.status as string) || null
       existingContentHash = (existing?.content_hash as string) || null
+      existingOwner = (existing?.artisan_user_id as string) || null
     }
+  }
+
+  // SÉCURITÉ (IDOR) — le chemin `docId` fait un upsert `onConflict='id'` (clé
+  // GLOBALE, non scopée par propriétaire). La route est en `supabaseAdmin`
+  // (service_role) → la RLS ne s'applique pas. Si une ligne existe déjà pour cet
+  // `id` et appartient à un AUTRE artisan, refuser : sinon un attaquant
+  // authentifié qui connaît le UUID d'un document d'autrui pourrait l'écraser et
+  // se l'attribuer (artisan_user_id réassigné). Le chemin `numero` est déjà sûr
+  // (lookup ET onConflict scopés par artisan_user_id).
+  if (existingOwner && existingOwner !== user.id) {
+    logger.warn(`[devis-sync] forbidden cross-owner write table=${table} docId=${docId} user=${user.id}`)
+    Sentry.captureException(new Error('devis-sync cross-owner write blocked'), {
+      tags: { agent_type: 'devis-sync', stage: 'idor-guard', table },
+      extra: { docId, artisan_id: artisanId },
+    })
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const docTypeForGuard: 'devis' | 'facture' = docType
