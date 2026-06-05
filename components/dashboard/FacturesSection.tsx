@@ -11,7 +11,8 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
-import { getDocSeq, getDocTime, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { getDocSeq, getDocTime, docIdentityKey, dedupeDocsByIdentity, isStableDocId } from '@/lib/devis-utils'
+import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -374,6 +375,7 @@ export default function FacturesSection({
    V5 sub-component — Factures for pro_societe
    ═══════════════════════════════════════════════════════ */
 type DocTypeFilter = 'all' | 'facture' | 'acompte' | 'avoir'
+type DocStatusFilter = 'all' | 'sent' | 'paid' | 'draft'
 
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis, openFactureForm,
@@ -405,6 +407,42 @@ function FacturesSectionV5({
     if (f === 'acompte') return sub === 'acompte'
     return sub !== 'acompte' && !isAvoir // 'facture' = ni acompte ni avoir
   }
+  // Filtre par statut (Toutes / Émises / Payées / Brouillons). Statuts FR
+  // (localStorage) ET EN (DB) acceptés — cf. getV5Badge.
+  const [statusFilter, setStatusFilter] = useState<DocStatusFilter>('all')
+  const docMatchesStatus = (d: PersistedDocument, f: DocStatusFilter): boolean => {
+    if (f === 'all') return true
+    const s = d.status
+    if (f === 'paid') return s === 'paid' || s === 'payee'
+    if (f === 'sent') return s === 'envoye' || s === 'pending'
+    return s !== 'paid' && s !== 'payee' && s !== 'envoye' && s !== 'pending' // 'draft' = brouillon
+  }
+
+  // « Marquer payée » : passe la facture en statut payé (localStorage + state +
+  // sync DB). RLS `factures_owner_update` autorise l'UPDATE ; le statut 'paid'
+  // est valide (CHECK factures_status_check). Statut local 'paid' aligné sur la DB.
+  const markPaid = (doc: PersistedDocument) => {
+    const key = docIdentityKey(doc)
+    if (!key) return
+    const apply = (d: PersistedDocument): PersistedDocument =>
+      docIdentityKey(d) === key ? ({ ...d, status: 'paid' } as PersistedDocument) : d
+    if (artisan?.id) {
+      try {
+        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]') as PersistedDocument[]
+        localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(docs.map(apply)))
+      } catch { /* quota localStorage */ }
+    }
+    setSavedDocuments(prev => prev.map(apply))
+    const id = (doc as { id?: string }).id
+    if (id && isStableDocId(id)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(supabase.from('factures') as any)
+        .update({ status: 'paid' })
+        .eq('id', id)
+        .then(({ error }: { error: unknown }) => { if (error) console.warn('[markPaid] sync DB échoué', error) })
+    }
+    toast.success(`Facture ${doc.docNumber} marquée payée`)
+  }
   // Quick Actions « → Acompte » et « → Avoir » (méthode pro BTP 2026).
   // Cf. art. 289 CGI (acompte) + art. 272 CGI / BOI-TVA-DECLA-30-20-20-30 §70 (avoir).
   const [acompteParent, setAcompteParent] = useState<PersistedDocument | null>(null)
@@ -412,6 +450,7 @@ function FacturesSectionV5({
 
   const filtered = factureDocs
     .filter(d => docMatchesType(d, typeFilter))
+    .filter(d => docMatchesStatus(d, statusFilter))
     .filter(d => {
       if (!search) return true
       const q = search.toLowerCase()
@@ -563,6 +602,30 @@ function FacturesSectionV5({
         })}
       </div>
 
+      {/* Filtre par statut : Toutes / Émises / Payées / Brouillons. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {([['all', 'Toutes'], ['sent', 'Émises'], ['paid', 'Payées'], ['draft', 'Brouillons']] as Array<[DocStatusFilter, string]>).map(([key, label]) => {
+          const active = statusFilter === key
+          const count = factureDocs.filter(d => docMatchesStatus(d, key)).length
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStatusFilter(key)}
+              aria-pressed={active}
+              style={{
+                padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: active ? 700 : 500,
+                border: `1px solid ${active ? '#16a34a' : '#ddd'}`,
+                background: active ? 'rgba(22, 163, 74, 0.12)' : '#fff',
+                color: active ? '#15803d' : '#444',
+              }}
+            >
+              {label} ({count})
+            </button>
+          )
+        })}
+      </div>
+
       {/* Table */}
       <div className="v5-card" style={{ overflowX: 'auto' }}>
         <table className="v5-dt">
@@ -693,6 +756,17 @@ function FacturesSectionV5({
                           }
                         }}>
                           {t('proDash.factures.telecharger')}
+                        </button>
+                      )}
+                      {/* « Marquer payée » : factures/acomptes émis non encore payés. */}
+                      {(doc.status === 'envoye' || doc.status === 'pending') && subTypeOf(doc) !== 'avoir' && doc.docType !== 'avoir' && (
+                        <button
+                          className="v5-btn v5-btn-sm"
+                          title="Marquer cette facture comme payée"
+                          onClick={e => { e.stopPropagation(); markPaid(doc) }}
+                          style={{ borderColor: '#16a34a', color: '#15803d' }}
+                        >
+                          Marquer payée
                         </button>
                       )}
                       {/* Quick Actions BTP pro — méthode pro 2026 :
