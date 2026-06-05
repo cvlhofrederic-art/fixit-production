@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         'pt-PT': `https://vitfix.io/pt/servicos/${slug}/`,
         'fr-FR': 'https://vitfix.io/fr/services/',
         'en': 'https://vitfix.io/en/',
-        'x-default': `https://vitfix.io/pt/servicos/${slug}/`,
+        'x-default': 'https://vitfix.io/',
       },
     },
   }

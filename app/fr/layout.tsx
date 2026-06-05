@@ -15,10 +15,12 @@ export const metadata: Metadata = {
     type: 'website',
     images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
   },
+  // hreflang BCP 47 régionalisé (fr-FR, pt-PT) cohérent avec app/layout.tsx
+  // et app/pt/layout.tsx. Évite les duplicates lors du merge metadata Next.js.
   alternates: {
     languages: {
-      'fr': 'https://vitfix.io/fr/',
-      'pt': 'https://vitfix.io/pt/',
+      'fr-FR': 'https://vitfix.io/fr/',
+      'pt-PT': 'https://vitfix.io/pt/',
       'en': 'https://vitfix.io/en/',
       'nl': 'https://vitfix.io/nl/',
       'es': 'https://vitfix.io/es/',

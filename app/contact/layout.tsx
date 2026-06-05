@@ -16,7 +16,14 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: 'pt_PT',
       images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
     },
-    alternates: { canonical: 'https://vitfix.io/pt/contact/' },
+    alternates: {
+      canonical: 'https://vitfix.io/pt/contact/',
+      languages: {
+        'pt-PT': 'https://vitfix.io/pt/contact/',
+        'fr-FR': 'https://vitfix.io/fr/contact/',
+        'x-default': 'https://vitfix.io/',
+      },
+    },
   } : {
     title: 'Contact — VITFIX',
     description: 'Contactez l\'équipe VITFIX. Des questions sur nos services d\'artisans vérifiés ? Notre équipe vous répond rapidement.',
@@ -28,7 +35,14 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: 'fr_FR',
       images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
     },
-    alternates: { canonical: 'https://vitfix.io/fr/contact/' },
+    alternates: {
+      canonical: 'https://vitfix.io/fr/contact/',
+      languages: {
+        'fr-FR': 'https://vitfix.io/fr/contact/',
+        'pt-PT': 'https://vitfix.io/pt/contact/',
+        'x-default': 'https://vitfix.io/',
+      },
+    },
   }
 }
 

@@ -86,13 +86,21 @@ const sharedMeta = {
       'max-video-preview': -1,
     },
   } satisfies Metadata['robots'],
+  // hreflang BCP 47 régionalisé (fr-FR, pt-PT) cohérent avec app/fr/layout.tsx
+  // et app/pt/layout.tsx — cible explicitement France (vs Canada/Belgique) et
+  // Portugal (vs Brésil). `x-default` pointe vers `/` : Google sert cette URL
+  // aux utilisateurs dont l'Accept-Language ne match aucun locale listé.
+  // Sources :
+  //   developers.google.com/search/docs/specialty/international/localized-versions
+  //   developers.google.com/search/blog/2013/04/x-default-hreflang-for-international-pages
   alternates: {
     languages: {
-      'fr': 'https://vitfix.io/fr/',
-      'pt': 'https://vitfix.io/pt/',
+      'fr-FR': 'https://vitfix.io/fr/',
+      'pt-PT': 'https://vitfix.io/pt/',
       'en': 'https://vitfix.io/en/',
       'nl': 'https://vitfix.io/nl/',
       'es': 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
     },
   },
 }
@@ -199,9 +207,16 @@ export default async function RootLayout({
     locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
   }
 
+  // Pro SEO 2026 : BCP 47 régionalisé sur <html lang> pour cohérence avec
+  // hreflang (pt-PT vs pt, fr-FR vs fr). Cible explicitement Portugal (pas
+  // Brésil) et France (pas Québec/Canada/Belgique). en/nl/es restent
+  // génériques (un marché par locale).
+  // Source : https://www.rfc-editor.org/info/bcp47
+  const BCP47_MAP: Record<string, string> = { pt: 'pt-PT', fr: 'fr-FR' }
+  const htmlLang = BCP47_MAP[locale] ?? locale
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={htmlLang} suppressHydrationWarning>
       <head>
         <meta name="csrf-protection" content="same-origin" />
         <meta name="theme-color" content="#FFD600" />
@@ -300,6 +315,31 @@ export default async function RootLayout({
                     { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
                   ],
                   priceRange: '€€',
+                  // knowsAbout : signal E-E-A-T explicit listant les
+                  // domaines d'expertise — Google et AI engines utilisent
+                  // pour évaluer la pertinence de l'organisation sur des
+                  // requêtes. Liste basée sur les services réellement
+                  // proposés (FR_SERVICES + PT SERVICES) en 2026.
+                  knowsAbout: [
+                    'Canalização e desentupimento',
+                    'Eletricidade residencial e industrial',
+                    'Pintura interior e exterior',
+                    'Pladur e tetos falsos',
+                    'Obras de remodelação e renovação',
+                    'Isolamento térmico e capoto',
+                    'Impermeabilização de coberturas e fachadas',
+                    'Serralharia e ferro forjado',
+                    'Telhados e telhadeiros',
+                    'Vidraçaria e janelas',
+                    'Plomberie et débouchage',
+                    'Électricité résidentielle et industrielle',
+                    'Peinture intérieure et extérieure',
+                    'Plaquisterie et faux plafonds',
+                    'Rénovation et travaux clés en main',
+                    'Espaces verts et élagage',
+                    'Débarras et nettoyage',
+                    'Climatisation et chauffe-eau',
+                  ],
                   taxID: 'PT276873297',
                   foundingDate: '2024',
                   // aggregateRating intentionnellement OMIS de l'Organization
