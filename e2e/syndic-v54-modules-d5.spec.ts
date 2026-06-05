@@ -27,7 +27,7 @@ test.describe('Syndic v54 — modules d5', () => {
   test('Faturação (titre + état vide)', async ({ page }) => {
     await page.getByRole('button', { name: 'Faturação', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Faturação & Recibos Verdes', level: 1 })).toBeVisible()
-    await expect(page.getByText('Nenhuma fatura nem orçamento nas missões')).toBeVisible()
+    await expect(page.getByText('Nenhuma fatura emitida')).toBeVisible()
   })
 
   test('Alertas (titre + état vide)', async ({ page }) => {
