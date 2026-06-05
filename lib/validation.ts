@@ -1650,3 +1650,14 @@ export const syndicObraSchema = z.object({
   empresa: z.string().max(200).optional(),
   numOrcamentos: z.coerce.number().int().min(0).optional(),
 })
+
+// ── Syndic v54 — lot 8 (Planeamento — eventos) ──
+export const syndicEventoSchema = z.object({
+  titulo: z.string().min(1).max(200),
+  dia: z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']).optional(),
+  horaInicio: z.string().max(10).optional(),
+  horaFim: z.string().max(10).optional(),
+  tipo: z.enum(['gold', 'sage', 'amber', 'rust', 'green']).optional(),
+  responsavel: z.string().max(200).optional(),
+  edificio: z.string().max(200).optional(),
+})

@@ -644,3 +644,17 @@ export const fetchNps = (token: string): Promise<Nps[]> =>
   getList<Nps>('/api/syndic/nps', token, 'nps')
 export const fetchObras = (token: string): Promise<Obra[]> =>
   getList<Obra>('/api/syndic/obras', token, 'obras')
+
+// ── Lot 8 : Planeamento (eventos agenda hebdomadaire) ──
+export interface Evento {
+  id: string
+  titulo: string
+  dia: string
+  horaInicio: string
+  horaFim: string
+  tipo: string
+  responsavel: string
+  edificio: string
+}
+export const fetchEventos = (token: string): Promise<Evento[]> =>
+  getList<Evento>('/api/syndic/eventos', token, 'eventos')
