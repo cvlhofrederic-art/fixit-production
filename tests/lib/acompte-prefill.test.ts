@@ -47,6 +47,20 @@ describe('buildAcomptePrefill', () => {
     expect(computeDocumentTotalHT(a as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(3000, 2)
   })
 
+  it('ne porte PAS l\'échéancier du devis parent (pas de bloc échéancier parasite)', () => {
+    const devisAvecEcheancier = {
+      ...PARENT_DEVIS,
+      acomptesEnabled: true,
+      acomptes: [
+        { id: 'a1', ordre: 1, label: 'Acompte 1', pourcentage: 50, declencheur: 'Signature' },
+        { id: 'a2', ordre: 2, label: 'Acompte 2', pourcentage: 50, declencheur: 'Livraison' },
+      ],
+    }
+    const a = buildAcomptePrefill(devisAvecEcheancier, { percentage: 50, ordre: 1, total: 2, declencheur: 'Signature' })
+    expect(a.acomptesEnabled).toBe(false)
+    expect(a.acomptes).toEqual([])
+  })
+
   it('ne mute pas le parent', () => {
     buildAcomptePrefill(PARENT_FACTURE, { percentage: 50, ordre: 1, total: 2, declencheur: 'x' })
     expect(PARENT_FACTURE.lines[0].totalHT).toBe(5250)
