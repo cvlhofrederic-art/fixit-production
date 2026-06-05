@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/cvlhofrederic-art/fixit-production/compare/v0.4.0...v0.5.0) (2026-06-05)
+
+
+### Features
+
+* **btp:** « Facturer » propose facture totale ou facture d'acompte ([#403](https://github.com/cvlhofrederic-art/fixit-production/issues/403)) ([37eb480](https://github.com/cvlhofrederic-art/fixit-production/commit/37eb4801192a9b299dc9db6f92e4808a1494f2fa))
+* **btp:** échéancier d'acomptes du devis repris sur la facture (1 clic) ([#400](https://github.com/cvlhofrederic-art/fixit-production/issues/400)) ([52f6d4c](https://github.com/cvlhofrederic-art/fixit-production/commit/52f6d4cf704929dbf54b90f1c73a46285b7b24b3))
+
+
+### Bug Fixes
+
+* **btp:** échéancier d'acomptes éditable uniquement sur le devis ([#402](https://github.com/cvlhofrederic-art/fixit-production/issues/402)) ([60751c4](https://github.com/cvlhofrederic-art/fixit-production/commit/60751c421bab9fdf0af75dee3374220dbe9fb80a))
+
 ## [0.4.0](https://github.com/cvlhofrederic-art/fixit-production/compare/v0.3.0...v0.4.0) (2026-06-05)
 
 
