@@ -13,7 +13,9 @@ import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
+import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
+import { dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -192,6 +194,26 @@ function DashboardPage() {
     handleEmptyCellClick, handleBookingClick, transformBookingToDevis, convertDevisToFacture,
   } = bkHook
 
+  /**
+   * Callbacks unifiés pour ouvrir les formulaires devis/facture.
+   * Garantit que le state `convertingDevis` est toujours dans l'état attendu :
+   * - openDevisForm()       → formulaire vide (nouveau devis)
+   * - openDevisForm(doc)    → formulaire pré-rempli (édition / duplication)
+   *
+   * Évite le bug où un ancien devis édité fuit dans un "+ Nouveau devis" parce
+   * que le bouton appelait setShowDevisForm(true) sans reset de convertingDevis.
+   * Pattern pro SaaS : single source of truth pour l'ouverture des forms.
+   */
+  const openDevisForm = useCallback((doc: typeof convertingDevis | null = null) => {
+    setConvertingDevis(doc)
+    setShowDevisForm(true)
+  }, [setConvertingDevis, setShowDevisForm])
+
+  const openFactureForm = useCallback((doc: typeof convertingDevis | null = null) => {
+    setConvertingDevis(doc)
+    setShowFactureForm(true)
+  }, [setConvertingDevis, setShowFactureForm])
+
   const calHook = useCalendar(bookings, availability, dateFmtLocale, t)
   const { calendarView, setCalendarView, selectedDay, setSelectedDay, getBookingsForDate, getWorkingWeekDates, getCalendarTitle, navigateCalendar, getMonthDays } = calHook
 
@@ -315,11 +337,8 @@ function DashboardPage() {
         // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
-          setSavedDocuments(prev => {
-            const byNumber = new Map(prev.map(d => [d.docNumber, d]))
-            for (const d of sbDocs) byNumber.set(d.docNumber as string, d as Record<string, unknown>)
-            return Array.from(byNumber.values())
-          })
+          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity).
+          setSavedDocuments(prev => dedupeDocsByIdentity(prev, sbDocs as typeof prev))
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
@@ -356,9 +375,7 @@ function DashboardPage() {
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
       setSavedDocuments(prev => {
-        const byNumber = new Map(prev.map(d => [d.docNumber, d]))
-        for (const d of sbDocs) byNumber.set(d.docNumber as string, d as Record<string, unknown>)
-        return Array.from(byNumber.values())
+        return dedupeDocsByIdentity(prev, sbDocs as typeof prev)
       })
     }).catch(() => {})
 
@@ -461,17 +478,53 @@ function DashboardPage() {
   // ── Devis → Facture : confirmation modal + deferred navigation ──
   const [showFactureConvModal, setShowFactureConvModal] = useState(false)
   const pendingConvDevisRef = useRef<Record<string, unknown> | null>(null)
+  // Sous-type pré-sélectionné si l'utilisateur choisit "acompte" via le
+  // garde-fou (prestation > today). Le form garde la possibilité de changer.
+  const pendingFactureSubTypeRef = useRef<'standard' | 'acompte' | 'situation' | null>(null)
 
   const handleConvertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
+    // Garde-fou pro 2026 : facture standard = émission après prestation
+    // (art. 289 CGI + BOFIP-TVA-DECLA-30-20-10-40). Avant prestation, le bon
+    // type est facture d'acompte (versement reçu) ou facture de situation
+    // (BTP, avancement). On suggère le type adapté.
+    const todayStr = new Date().toISOString().split('T')[0]
+    const prestationStr = String((devis as { prestationDate?: string }).prestationDate || '').slice(0, 10)
+    if (prestationStr && prestationStr > todayStr) {
+      const fmtDate = (s: string) => new Date(s).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')
+      const msg = locale === 'pt'
+        ? `⚠️ A prestação está prevista para ${fmtDate(prestationStr)}.\n\n`
+          + `Uma fatura padrão não pode ser emitida antes da prestação (art. 289 CGI).\n\n`
+          + `OK = Criar uma FATURA DE ADIANTAMENTO (versão correta antes da prestação)\n`
+          + `Cancelar = Não converter`
+        : `⚠️ La prestation est prévue le ${fmtDate(prestationStr)}.\n\n`
+          + `Une facture standard ne peut être émise avant la prestation (art. 289 CGI).\n\n`
+          + `OK = Créer une FACTURE D'ACOMPTE (type correct avant prestation)\n`
+          + `Annuler = Ne pas convertir`
+      if (!window.confirm(msg)) return
+      // Suggest acompte sub-type — the form lets the user change it
+      pendingFactureSubTypeRef.current = 'acompte'
+    } else {
+      pendingFactureSubTypeRef.current = null
+    }
     pendingConvDevisRef.current = devis
     setShowFactureConvModal(true)
-  }, [])
+  }, [locale])
 
   const handleGoToConvertedFacture = useCallback(() => {
     const devis = pendingConvDevisRef.current
     setShowFactureConvModal(false)
     if (!devis) return
     const newId = Date.now().toString()
+    // docNumber brouillon AU MÊME FORMAT que les autres séries : BR-AAAA-NNN
+    // (compteur local par an), au lieu de l'ancien BR-<timestamp> illisible.
+    // C'est une série DISTINCTE : un brouillon ne consomme aucun numéro
+    // FACT-/AC-/AV-. Le vrai numéro définitif est attribué à la validation
+    // via next_doc_number RPC (art. 242 nonies A I 2° CGI).
+    const _brYear = new Date().getFullYear()
+    const _brKey = `fixit_br_seq_${artisan?.id || 'x'}_${_brYear}`
+    const _brSeq = (parseInt(localStorage.getItem(_brKey) || '0', 10) || 0) + 1
+    try { localStorage.setItem(_brKey, String(_brSeq)) } catch { /* quota localStorage */ }
+    const tempDocNumber = `BR-${_brYear}-${String(_brSeq).padStart(3, '0')}`
     // Pré-enregistre immédiatement une facture brouillon dans localStorage
     // pour qu'elle apparaisse dans la liste même si l'utilisateur ferme
     // le formulaire sans valider l'envoi.
@@ -480,25 +533,53 @@ function DashboardPage() {
         const {
           id: _id, docNumber: _dn, docType: _dt, status: _st,
           savedAt: _sa, sentAt: _se, signatureData: _sig,
+          docDate: _dd,
           ...rest
         } = devis as Record<string, unknown>
         const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled === true
+        // Préserve explicitement les sections BTP (cf. règle artisan-vs-btp) :
+        // si le devis source en a, on les copie ; sinon valeurs par défaut sûres
+        // pour que FacturesSection / computeDocumentTotalHT ne tombent jamais
+        // sur des `undefined` qui propagent dans les forms.
+        const srcLines = Array.isArray((rest as { lines?: unknown }).lines) ? (rest as { lines?: unknown[] }).lines!.filter(Boolean) : []
+        const srcMaterial = Array.isArray((rest as { materialLines?: unknown }).materialLines) ? (rest as { materialLines?: unknown[] }).materialLines!.filter(Boolean) : []
+        const srcFrais = Array.isArray((rest as { fraisLines?: unknown }).fraisLines) ? (rest as { fraisLines?: unknown[] }).fraisLines!.filter(Boolean) : []
+        const srcCustom = Array.isArray((rest as { customTables?: unknown }).customTables)
+          ? (rest as { customTables?: unknown[] }).customTables!.filter((t): t is object => t !== null && typeof t === 'object')
+          : []
+        // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : la
+        // facture ne peut hériter du docDate du devis. La date d'émission est
+        // la date de génération (today), conformément à l'art. 289 CGI et à la
+        // pratique des SaaS comptables (Henrri, EBP, Pennylane, Sage). Le cas
+        // prestation > today est intercepté en amont par handleConvertDevisToFacture.
+        const factureDocDate = new Date().toISOString().split('T')[0]
+        // Sous-type pré-sélectionné par le garde-fou (acompte si prestation
+        // future, standard sinon). Le form garde la possibilité de changer.
+        const suggestedSubType = pendingFactureSubTypeRef.current || 'standard'
         const draftFacture = {
           ...rest,
           id: newId,
+          docNumber: tempDocNumber,
           docType: 'facture',
+          docDate: factureDocDate,
+          factureSubType: suggestedSubType,
           status: 'brouillon',
           savedAt: new Date().toISOString(),
+          lines: srcLines,
+          materialLines: srcMaterial,
+          fraisLines: srcFrais,
+          customTables: srcCustom,
           acomptesEnabled: srcAcomptesEnabled,
           acomptes: srcAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
         }
         const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
         drafts.push(draftFacture)
         localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(drafts))
-        setSavedDocuments([
-          ...JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]'),
-          ...drafts,
-        ] as typeof savedDocuments)
+        // FR-V1.2 — functional update : append le nouveau brouillon au state mergé
+        // (DB + localStorage), sans écraser. Avant : setSavedDocuments([...persisted, ...drafts])
+        // tronquait à localStorage uniquement, faisant disparaître les factures DB-only.
+        // Incident Sud travaux 2026-05-26.
+        setSavedDocuments(prev => [...prev, draftFacture as typeof savedDocuments[number]])
       }
     } catch (err) {
       console.warn('[ConvertDevisToFacture] Pré-enregistrement échoué:', err)
@@ -506,8 +587,9 @@ function DashboardPage() {
     // Navigate first (this resets showFactureForm to false), then re-open form
     navigateTo('factures')
     setTimeout(() => {
-      convertDevisToFacture(devis, newId)
+      convertDevisToFacture(devis, newId, pendingFactureSubTypeRef.current)
       pendingConvDevisRef.current = null
+      pendingFactureSubTypeRef.current = null
     }, 60)
   }, [convertDevisToFacture, navigateTo, artisan?.id, setSavedDocuments])
 
@@ -535,6 +617,7 @@ function DashboardPage() {
   }
 
   return (
+    <OrgRoleProvider orgRole={orgRole}>
     <div id={isV5 ? 'artisan-dashboard-v5' : 'artisan-dashboard-v22'} className={isV5 ? 'v5-app' : 'h-screen flex flex-col overflow-hidden'}>
 
       {/* ── BOUTON RETOUR ADMIN : retiré (vuln privilege escalation via user_metadata) ──
@@ -793,6 +876,7 @@ function DashboardPage() {
               totalRevenue={totalRevenue} firstName={firstName}
               navigateTo={navigateTo} setShowNewRdv={setShowNewRdv}
               setShowDevisForm={setShowDevisForm} setShowFactureForm={setShowFactureForm}
+              openDevisForm={openDevisForm} openFactureForm={openFactureForm}
               setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
             />
@@ -835,6 +919,7 @@ function DashboardPage() {
               dayServices={dayServices} autoAccept={autoAccept} savingAvail={savingAvail}
               toggleAutoAccept={toggleAutoAccept} toggleDayAvailability={toggleDayAvailability}
               updateAvailabilityTime={updateAvailabilityTime} toggleDayService={toggleDayService}
+              saveAllDayServices={availHook.saveAllDayServices}
               DAY_NAMES={DAY_NAMES} orgRole={orgRole}
             />
             </SectionErrorBoundary>
@@ -938,9 +1023,9 @@ function DashboardPage() {
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
+              openDevisForm={openDevisForm as any}
               convertDevisToFacture={handleConvertDevisToFacture as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
-              orgRole={orgRole}
             />
             </SectionErrorBoundary>
           )}
@@ -954,8 +1039,8 @@ function DashboardPage() {
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showFactureForm={showFactureForm} setShowFactureForm={setShowFactureForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
+              openFactureForm={openFactureForm as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
-              orgRole={orgRole}
             />
             </SectionErrorBoundary>
           )}
@@ -1681,6 +1766,7 @@ function DashboardPage() {
         </div>
       )}
     </div>
+    </OrgRoleProvider>
   )
 }
 

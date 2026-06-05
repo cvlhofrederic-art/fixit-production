@@ -37,6 +37,15 @@ interface ClientRecord {
   notes?: string
   source?: string
   bookings?: ClientBooking[]
+  // BTP — champs d'identité et d'adresse détaillés (pro_societe)
+  firstName?: string
+  lastName?: string
+  street?: string
+  floor?: string
+  apartmentNumber?: string
+  postalCode?: string
+  city?: string
+  country?: string
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
@@ -66,6 +75,15 @@ const EMPTY_CLIENT_FORM = {
   mainAddressLabel: 'Domicile',
   interventionAddresses: [] as { id: string; label: string; address: string }[],
   notes: '',
+  // BTP — identité et adresse détaillées (pro_societe uniquement)
+  firstName: '',
+  lastName: '',
+  street: '',
+  floor: '',
+  apartmentNumber: '',
+  postalCode: '',
+  city: '',
+  country: 'France',
 }
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -87,10 +105,11 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const manualStorageKey = `fixit_manual_clients_${artisan?.id}`
 
   const [authClients, setAuthClients] = useState<ClientRecord[]>([])
-  const [manualClients, setManualClients] = useState<ClientRecord[]>(() => {
-    if (typeof window === 'undefined') return []
-    try { return JSON.parse(localStorage.getItem(`fixit_manual_clients_${artisan?.id}`) || '[]') } catch { return [] }
-  })
+  // Manual clients : lus en useEffect dès que artisan?.id devient disponible
+  // (pas en lazy useState car artisan peut être null au premier render → la clé
+  // deviendrait `fixit_manual_clients_undefined` et la liste resterait vide
+  // jusqu'à un refresh manuel — cf. incident Sud travaux 2026-05-25)
+  const [manualClients, setManualClients] = useState<ClientRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'tous' | 'particuliers' | 'entreprises'>('tous')
@@ -99,6 +118,17 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [clientForm, setClientForm] = useState({ ...EMPTY_CLIENT_FORM })
   const [saving, setSaving] = useState(false)
+
+  // Re-read manual clients chaque fois que artisan?.id change (et au mount si dispo)
+  useEffect(() => {
+    if (!artisan?.id || typeof window === 'undefined') return
+    try {
+      const stored = JSON.parse(localStorage.getItem(`fixit_manual_clients_${artisan.id}`) || '[]')
+      setManualClients(Array.isArray(stored) ? stored : [])
+    } catch {
+      // Private browsing / corrupted JSON : on garde le state actuel plutôt que de l'écraser
+    }
+  }, [artisan?.id])
 
   // Fetch auth clients from API
   useEffect(() => {
@@ -114,10 +144,17 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
           return r.json()
         })
         .then(data => {
-          setAuthClients(data.clients || [])
+          // Ne remplace le state QUE si on a reçu une vraie liste (même vide est OK,
+          // c'est une réponse 200 — l'absence de clé `clients` est anormale)
+          if (Array.isArray(data?.clients)) setAuthClients(data.clients)
           setLoading(false)
         })
-        .catch((e) => { console.error('Clients fetch failed:', e); setAuthClients([]); setLoading(false) })
+        .catch((e) => {
+          // Erreur transitoire (401, timeout, network) : on PRÉSERVE le state existant
+          // plutôt que de réafficher une liste vide. L'utilisateur garde sa vue.
+          console.error('Clients fetch failed (state preserved):', e)
+          setLoading(false)
+        })
     }).catch(() => setLoading(false))
   }, [artisan?.id])
 
@@ -183,6 +220,15 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       mainAddressLabel: c.mainAddressLabel || (c.type === 'professionnel' ? 'Siège social' : 'Domicile'),
       interventionAddresses: c.interventionAddresses || [],
       notes: c.notes || '',
+      // BTP — pré-remplir les champs détaillés s'ils existent (sinon vides, l'utilisateur recopie depuis mainAddress)
+      firstName: c.firstName || '',
+      lastName: c.lastName || '',
+      street: c.street || '',
+      floor: c.floor || '',
+      apartmentNumber: c.apartmentNumber || '',
+      postalCode: c.postalCode || '',
+      city: c.city || '',
+      country: c.country || 'France',
     })
     setShowModal(true)
   }
@@ -211,14 +257,46 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
     }))
   }
 
+  // BTP — composer name/mainAddress à partir des champs détaillés avant sauvegarde
+  // Les particuliers utilisent firstName + lastName ; les B2B gardent leur raison sociale dans `name`
+  const composeBtpForm = (form: typeof clientForm) => {
+    const ctGroup = CLIENT_TYPES.find(ct => ct.value === form.type)?.group
+    const isB2C = ctGroup === 'b2c'
+    const composedName = isB2C
+      ? `${form.firstName || ''} ${form.lastName || ''}`.trim() || form.name
+      : form.name
+    const addrParts: string[] = []
+    if (form.street?.trim()) addrParts.push(form.street.trim())
+    const floorApp = [
+      form.floor?.trim() ? `Étage ${form.floor.trim()}` : '',
+      form.apartmentNumber?.trim() ? `Apt ${form.apartmentNumber.trim()}` : '',
+    ].filter(Boolean).join(' ')
+    if (floorApp) addrParts.push(floorApp)
+    const cityLine = [form.postalCode?.trim(), form.city?.trim()].filter(Boolean).join(' ')
+    if (cityLine) addrParts.push(cityLine)
+    if (form.country?.trim() && form.country.trim() !== 'France') addrParts.push(form.country.trim())
+    const composedAddr = addrParts.join(', ') || form.mainAddress
+    return { ...form, name: composedName, mainAddress: composedAddr }
+  }
+
   const saveClient = () => {
-    if (!clientForm.name.trim()) return
+    // BTP : valider sur firstName+lastName (B2C) ou name (B2B)
+    const isBtp = orgRole === 'pro_societe'
+    const ctGroup = CLIENT_TYPES.find(ct => ct.value === clientForm.type)?.group
+    const isB2C = ctGroup === 'b2c'
+    if (isBtp) {
+      if (isB2C && !clientForm.firstName.trim() && !clientForm.lastName.trim()) return
+      if (!isB2C && !clientForm.name.trim()) return
+    } else {
+      if (!clientForm.name.trim()) return
+    }
     setSaving(true)
+    const finalForm = isBtp ? composeBtpForm(clientForm) : clientForm
     if (editingId) {
-      const updated = manualClients.map(c => c.id === editingId ? { ...c, ...clientForm } : c)
+      const updated = manualClients.map(c => c.id === editingId ? { ...c, ...finalForm } : c)
       saveManualClients(updated)
     } else {
-      const newClient = { ...clientForm, id: `manual_${Date.now()}`, bookings: [] }
+      const newClient = { ...finalForm, id: `manual_${Date.now()}`, bookings: [] }
       saveManualClients([newClient, ...manualClients])
     }
     setShowModal(false)
@@ -290,18 +368,41 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     </optgroup>
                   </select>
                 </div>
-                {/* Name */}
-                <div className="v5-fg">
-                  <label className="v5-fl">
-                    {clientForm.type === 'professionnel' ? `${t('proDash.clients.raisonSociale')} *` : `${t('proDash.clients.nomComplet')} *`}
-                  </label>
-                  <input
-                    type="text" value={clientForm.name}
-                    onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder={clientForm.type === 'professionnel' ? 'AJA Associés, Groupe Martin...' : 'Jean Dupont'}
-                    className="v5-fi"
-                  />
-                </div>
+                {/* Name — BTP : prénom/nom séparés pour B2C, raison sociale pour B2B */}
+                {orgRole === 'pro_societe' && CLIENT_TYPES.find(ct => ct.value === clientForm.type)?.group === 'b2c' ? (
+                  <div className="v5-fr">
+                    <div className="v5-fg">
+                      <label className="v5-fl">{t('proDash.clients.prenom') || 'Prénom'} *</label>
+                      <input
+                        type="text" value={clientForm.firstName}
+                        onChange={e => setClientForm(prev => ({ ...prev, firstName: e.target.value }))}
+                        placeholder="Jean"
+                        className="v5-fi"
+                      />
+                    </div>
+                    <div className="v5-fg">
+                      <label className="v5-fl">{t('proDash.clients.nom') || 'Nom'} *</label>
+                      <input
+                        type="text" value={clientForm.lastName}
+                        onChange={e => setClientForm(prev => ({ ...prev, lastName: e.target.value }))}
+                        placeholder="Dupont"
+                        className="v5-fi"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="v5-fg">
+                    <label className="v5-fl">
+                      {(orgRole === 'pro_societe' || clientForm.type === 'professionnel') ? `${t('proDash.clients.raisonSociale')} *` : `${t('proDash.clients.nomComplet')} *`}
+                    </label>
+                    <input
+                      type="text" value={clientForm.name}
+                      onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder={(orgRole === 'pro_societe' || clientForm.type === 'professionnel') ? 'AJA Associés, Groupe Martin...' : 'Jean Dupont'}
+                      className="v5-fi"
+                    />
+                  </div>
+                )}
                 {/* Phone + Email */}
                 <div className="v5-fr">
                   <div className="v5-fg">
@@ -320,18 +421,48 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     <input type="text" value={clientForm.siret} onChange={e => setClientForm(prev => ({ ...prev, siret: e.target.value }))} placeholder="123 456 789 00012" className="v5-fi" />
                   </div>
                 )}
-                {/* Main address */}
-                <div className="v5-fg">
-                  <label className="v5-fl">{clientForm.mainAddressLabel} ({t('proDash.clients.adressePrincipale')})</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <select value={clientForm.mainAddressLabel} onChange={e => setClientForm(prev => ({ ...prev, mainAddressLabel: e.target.value }))} className="v5-fi" style={{ flexShrink: 0, width: 'auto' }}>
-                      {clientForm.type === 'particulier'
-                        ? [t('proDash.clients.domicile'), t('proDash.clients.residencePrincipale'), t('proDash.clients.appartement'), t('proDash.clients.maison'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)
-                        : [t('proDash.clients.siegeSocial'), t('proDash.clients.bureauPrincipal'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)}
-                    </select>
-                    <input type="text" value={clientForm.mainAddress} onChange={e => setClientForm(prev => ({ ...prev, mainAddress: e.target.value }))} placeholder="12 rue de la Paix, 75001 Paris" className="v5-fi" style={{ flex: 1 }} />
+                {/* Main address — BTP : 6 champs séparés ; Artisan : champ unique */}
+                {orgRole === 'pro_societe' ? (
+                  <div className="v5-fg">
+                    <label className="v5-fl">{clientForm.mainAddressLabel} ({t('proDash.clients.adressePrincipale')})</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <select value={clientForm.mainAddressLabel} onChange={e => setClientForm(prev => ({ ...prev, mainAddressLabel: e.target.value }))} className="v5-fi">
+                        {CLIENT_TYPES.find(ct => ct.value === clientForm.type)?.group === 'b2c'
+                          ? [t('proDash.clients.domicile'), t('proDash.clients.residencePrincipale'), t('proDash.clients.appartement'), t('proDash.clients.maison'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)
+                          : [t('proDash.clients.siegeSocial'), t('proDash.clients.bureauPrincipal'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)}
+                      </select>
+                      <input type="text" value={clientForm.street} onChange={e => setClientForm(prev => ({ ...prev, street: e.target.value }))} placeholder="14 rue Colbert" className="v5-fi" />
+                      <div className="v5-fr">
+                        <input type="text" value={clientForm.floor} onChange={e => setClientForm(prev => ({ ...prev, floor: e.target.value }))} placeholder="Étage (ex: 3)" className="v5-fi" />
+                        <input type="text" value={clientForm.apartmentNumber} onChange={e => setClientForm(prev => ({ ...prev, apartmentNumber: e.target.value }))} placeholder="N° appartement (ex: 12)" className="v5-fi" />
+                      </div>
+                      <div className="v5-fr">
+                        <input type="text" value={clientForm.postalCode} onChange={e => setClientForm(prev => ({ ...prev, postalCode: e.target.value }))} placeholder="Code postal" className="v5-fi" style={{ maxWidth: 140 }} />
+                        <input type="text" value={clientForm.city} onChange={e => setClientForm(prev => ({ ...prev, city: e.target.value }))} placeholder="Ville" className="v5-fi" style={{ flex: 1 }} />
+                      </div>
+                      <select value={clientForm.country} onChange={e => setClientForm(prev => ({ ...prev, country: e.target.value }))} className="v5-fi">
+                        <option value="France">France</option>
+                        <option value="Portugal">Portugal</option>
+                        <option value="Belgique">Belgique</option>
+                        <option value="Suisse">Suisse</option>
+                        <option value="Luxembourg">Luxembourg</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="v5-fg">
+                    <label className="v5-fl">{clientForm.mainAddressLabel} ({t('proDash.clients.adressePrincipale')})</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={clientForm.mainAddressLabel} onChange={e => setClientForm(prev => ({ ...prev, mainAddressLabel: e.target.value }))} className="v5-fi" style={{ flexShrink: 0, width: 'auto' }}>
+                        {clientForm.type === 'particulier'
+                          ? [t('proDash.clients.domicile'), t('proDash.clients.residencePrincipale'), t('proDash.clients.appartement'), t('proDash.clients.maison'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)
+                          : [t('proDash.clients.siegeSocial'), t('proDash.clients.bureauPrincipal'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)}
+                      </select>
+                      <input type="text" value={clientForm.mainAddress} onChange={e => setClientForm(prev => ({ ...prev, mainAddress: e.target.value }))} placeholder="12 rue de la Paix, 75001 Paris" className="v5-fi" style={{ flex: 1 }} />
+                    </div>
+                  </div>
+                )}
                 {/* Intervention addresses */}
                 <div className="v5-fg">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -367,12 +498,21 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   <textarea value={clientForm.notes} onChange={e => setClientForm(prev => ({ ...prev, notes: e.target.value }))} rows={2} placeholder={t('proDash.clients.notesPlaceholder')} className="v5-fi" style={{ resize: 'none' }} />
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid #E8E8E8' }}>
-                <button onClick={() => setShowModal(false)} className="v5-btn">{t('proDash.clients.annuler')}</button>
-                <button onClick={saveClient} disabled={!clientForm.name.trim() || saving} className="v5-btn v5-btn-p" style={{ opacity: (!clientForm.name.trim() || saving) ? 0.5 : 1 }}>
-                  {saving ? t('proDash.clients.sauvegardeEncours') : editingId ? t('proDash.motifs.modifier') : t('proDash.clients.creerClient')}
-                </button>
-              </div>
+              {(() => {
+                const isBtp = orgRole === 'pro_societe'
+                const isB2C = CLIENT_TYPES.find(ct => ct.value === clientForm.type)?.group === 'b2c'
+                const formInvalid = isBtp
+                  ? (isB2C ? !(clientForm.firstName.trim() || clientForm.lastName.trim()) : !clientForm.name.trim())
+                  : !clientForm.name.trim()
+                return (
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid #E8E8E8' }}>
+                    <button onClick={() => setShowModal(false)} className="v5-btn">{t('proDash.clients.annuler')}</button>
+                    <button onClick={saveClient} disabled={formInvalid || saving} className="v5-btn v5-btn-p" style={{ opacity: (formInvalid || saving) ? 0.5 : 1 }}>
+                      {saving ? t('proDash.clients.sauvegardeEncours') : editingId ? t('proDash.motifs.modifier') : t('proDash.clients.creerClient')}
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         )}

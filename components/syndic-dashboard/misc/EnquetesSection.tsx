@@ -55,7 +55,7 @@ const TIPOS_ENQUETE: Record<TipoEnquete, { label: string; emoji: string }> = {
 
 const ESTADO_CONFIG: Record<EstadoEnquete, { label: string; bg: string; color: string; dot: string }> = {
   ativa:      { label: 'Ativa',      bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
-  a_decorrer: { label: 'A decorrer', bg: '#E8F0FE', color: '#1A56DB', dot: '#1A56DB' },
+  a_decorrer: { label: 'A decorrer', bg: '#E8F0FE', color: '#0D1B2E', dot: '#0D1B2E' },
   encerrada:  { label: 'Encerrada',  bg: '#F0F0F0', color: '#6B7280', dot: '#6B7280' },
 }
 
@@ -626,7 +626,7 @@ export default function EnquetesSection({ user, userRole }: Props) {
           { emoji: '📊', label: 'Enquetes Ativas', value: enquetesAtivas.length, color: '#1A7A6E' },
           { emoji: '📁', label: 'Histórico Total', value: enquetes.filter(e => e.estado === 'encerrada').length, color: 'var(--sd-navy, #0D1B2E)' },
           { emoji: '📈', label: 'Participação Média', value: `${participacaoMedia}%`, color: 'var(--sd-gold, #C9A84C)' },
-          { emoji: '👥', label: 'Total Respostas', value: enquetes.reduce((s, e) => s + e.respostas.length, 0), color: '#1A56DB' },
+          { emoji: '👥', label: 'Total Respostas', value: enquetes.reduce((s, e) => s + e.respostas.length, 0), color: '#0D1B2E' },
         ].map((s, i) => (
           <div key={i} style={statCardStyle}>
             <div style={{ fontSize: 20, marginBottom: 8 }}>{s.emoji}</div>

@@ -1,16 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 import { useThemeVars } from './useThemeVars'
 import type { Service } from '@/lib/types'
 import { parseServiceScope, type ServiceScope } from '@/lib/service-utils'
+import { isSmallBusinessStatus } from '@/lib/devis-utils'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 type MotifForm = {
-  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number; scope: ServiceScope
+  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number; scope: ServiceScope; cost_ht: number | ''; margin_pct: number | ''
 }
 
 interface MotifsSectionProps {
@@ -48,6 +49,29 @@ export default function MotifsSection({
   const isBtpSociete = orgRole === 'pro_societe'
   const isV5 = isBtpSociete || isArtisan
   const tv = useThemeVars(isV5)
+
+  // ─── Statut TVA artisan : détection franchise en base (art. 293 B du CGI / Art. 53.º CIVA) ───
+  // Par défaut on assume franchise (statut artisan le plus courant : AE/EI),
+  // donc pas de TVA tant que le fetch settings n'a pas répondu.
+  const [tvaApplicable, setTvaApplicable] = useState<boolean>(false)
+  useEffect(() => {
+    if (!isArtisan) { setTvaApplicable(true); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/btp?table=settings', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        const statut: string | undefined = data?.settings?.statut_juridique || data?.settings?.company_type
+        if (cancelled) return
+        if (statut) {
+          // AE/EI (FR) ou ENI (PT) → franchise par défaut
+          setTvaApplicable(!isSmallBusinessStatus(statut, locale))
+        }
+      } catch { /* on garde le défaut false (franchise) */ }
+    })()
+    return () => { cancelled = true }
+  }, [isArtisan, locale])
 
   // Libellés côté artisan : "Prestations" (FR) / "Prestações" (PT)
   const L = {
@@ -268,8 +292,20 @@ export default function MotifsSection({
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
               <span className={isV5 ? 'v5-modal-t' : ''} style={{ fontWeight: 600, fontSize: 14 }}>
                 {editingMotif
-                  ? `✏️ ${isArtisan && motifForm.scope === 'mat' ? (isPt ? 'Modificar o material' : 'Modifier le matériau') : L.modalEdit}`
-                  : (isArtisan && motifForm.scope === 'mat' ? (isPt ? '🧱 Novo material' : '🧱 Nouveau matériau') : L.modalNew)}
+                  ? `✏️ ${
+                      isArtisan && motifForm.scope === 'mat'
+                        ? (isPt ? 'Modificar o material' : 'Modifier le matériau')
+                        : isArtisan && motifForm.scope === 'frais'
+                          ? (isPt ? 'Modificar a despesa' : 'Modifier le frais')
+                          : L.modalEdit
+                    }`
+                  : (
+                      isArtisan && motifForm.scope === 'mat'
+                        ? (isPt ? '🧱 Novo material' : '🧱 Nouveau matériau')
+                        : isArtisan && motifForm.scope === 'frais'
+                          ? (isPt ? '💰 Nova despesa' : '💰 Nouveau frais')
+                          : L.modalNew
+                    )}
               </span>
               <button onClick={() => setShowMotifModal(false)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>✕</button>
             </div>
@@ -277,9 +313,19 @@ export default function MotifsSection({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* Name */}
                 <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.nomMotif')} *</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
+                    {motifForm.scope === 'mat'
+                      ? (isPt ? 'Nome do material' : 'Nom du matériau')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? 'Nome da despesa' : 'Nom du frais')
+                        : t('proDash.motifs.nomMotif')} *
+                  </label>
                   <input type="text" value={motifForm.name} onChange={(e) => setMotifForm({...motifForm, name: e.target.value})}
-                    placeholder={L.namePlaceholder}
+                    placeholder={motifForm.scope === 'mat'
+                      ? (isPt ? 'Ex: Azulejo 60x60, Tinta acrílica, Saco de cimento…' : 'Ex: Carrelage 60x60, Peinture acrylique, Sac de ciment…')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? 'Ex: Deslocação, Estacionamento, Consumíveis…' : 'Ex: Déplacement, Stationnement, Consommables…')
+                        : L.namePlaceholder}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
 
@@ -287,66 +333,50 @@ export default function MotifsSection({
                 <div className={isV5 ? 'v5-fg' : ''}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.description')}</label>
                   <textarea value={motifForm.description} onChange={(e) => setMotifForm({...motifForm, description: e.target.value})}
-                    rows={2} placeholder={t('proDash.motifs.descriptionPlaceholder')}
+                    rows={2} placeholder={motifForm.scope === 'mat'
+                      ? (isPt ? 'Descrição detalhada do material…' : 'Description détaillée du matériau…')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? 'Descrição detalhada da despesa…' : 'Description détaillée du frais…')
+                        : t('proDash.motifs.descriptionPlaceholder')}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
 
-                {/* Étapes — sous la description, même style que dans le devis */}
-                <div style={{
-                  marginTop: 8, padding: '6px 10px',
-                  background: '#f3f4f6', border: '1px solid #e5e7eb',
-                  borderRadius: 6,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>ÉTAPES</span>
-                    {editingMotif?.id ? null : (
-                      <button onClick={() => setLocalEtapes(prev => [...prev, ''])}
-                        style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>+ Ajouter</button>
-                    )}
-                  </div>
-                  {editingMotif?.id ? (
-                    <ServiceEtapesEditor serviceId={editingMotif.id} />
-                  ) : (
-                    <>
-                      {localEtapes.length === 0 && (
-                        <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Aucune étape. Cliquez + Ajouter.</div>
+                {/* Étapes — uniquement pour Main d'œuvre (matériaux et frais ne sont pas des process à étapes) */}
+                {motifForm.scope === 'mo' && (
+                  <div style={{
+                    marginTop: 8, padding: '6px 10px',
+                    background: '#f3f4f6', border: '1px solid #e5e7eb',
+                    borderRadius: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>ÉTAPES</span>
+                      {editingMotif?.id ? null : (
+                        <button onClick={() => setLocalEtapes(prev => [...prev, ''])}
+                          style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>+ Ajouter</button>
                       )}
-                      {localEtapes.map((et, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
-                          <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
-                          <input type="text" value={et} placeholder="Ex: Diagnostic visuel"
-                            onChange={(e) => setLocalEtapes(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                            style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
-                          />
-                          <button onClick={() => setLocalEtapes(prev => prev.filter((_, j) => j !== i))}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}>✕</button>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-
-                {/* Duration */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
-                    {t('proDash.motifs.dureeEstimee')} <span style={{ fontWeight: 400 }}>({t('proDash.motifs.dureeOptional')})</span>
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input
-                      type="number"
-                      value={motifForm.duration_minutes}
-                      onChange={(e) => setMotifForm({...motifForm, duration_minutes: e.target.value === '' ? '' : parseInt(e.target.value)})}
-                      min={5} step={5}
-                      placeholder="Ex: 60"
-                      className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 100 }}
-                    />
-                    {motifForm.duration_minutes !== '' && Number(motifForm.duration_minutes) > 0 && (
-                      <span className="v22-ref">
-                        = {Math.floor(Number(motifForm.duration_minutes) / 60)}h{Number(motifForm.duration_minutes) % 60 > 0 ? String(Number(motifForm.duration_minutes) % 60).padStart(2, '0') : '00'}
-                      </span>
+                    </div>
+                    {editingMotif?.id ? (
+                      <ServiceEtapesEditor serviceId={editingMotif.id} />
+                    ) : (
+                      <>
+                        {localEtapes.length === 0 && (
+                          <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Aucune étape. Cliquez + Ajouter.</div>
+                        )}
+                        {localEtapes.map((et, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
+                            <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
+                            <input type="text" value={et} placeholder="Ex: Diagnostic visuel"
+                              onChange={(e) => setLocalEtapes(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                              style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
+                            />
+                            <button onClick={() => setLocalEtapes(prev => prev.filter((_, j) => j !== i))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}>✕</button>
+                          </div>
+                        ))}
+                      </>
                     )}
                   </div>
-                </div>
+                )}
 
                 {/* Pricing unit */}
                 <div className={isV5 ? 'v5-fg' : ''}>
@@ -358,7 +388,9 @@ export default function MotifsSection({
                       { value: 'm2', label: `📐 ${t('proDash.motifs.m2')}`, desc: t('proDash.motifs.m2Desc') },
                       { value: 'ml', label: `📏 ${t('proDash.motifs.ml')}`, desc: t('proDash.motifs.mlDesc') },
                       { value: 'm3', label: `🧊 ${t('proDash.motifs.m3')}`, desc: t('proDash.motifs.m3Desc') },
-                      { value: 'heure', label: `🕐 ${t('proDash.motifs.heure')}`, desc: t('proDash.motifs.heureDesc') },
+                      ...(motifForm.scope === 'mat' ? [] : [
+                        { value: 'heure', label: `🕐 ${t('proDash.motifs.heure')}`, desc: t('proDash.motifs.heureDesc') },
+                      ]),
                       { value: 'kg', label: `⚖️ ${t('proDash.motifs.kg')}`, desc: t('proDash.motifs.kgDesc') },
                       { value: 'tonne', label: `♻️ ${t('proDash.motifs.tonne')}`, desc: t('proDash.motifs.tonneDesc') },
                       { value: 'lot', label: `📦 ${t('proDash.motifs.lot')}`, desc: t('proDash.motifs.lotDesc') },
@@ -383,86 +415,206 @@ export default function MotifsSection({
                   </div>
                 </div>
 
-                {/* Price range */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
-                    {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
-                  </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMinimum')}</label>
-                      <input
-                        type="number"
-                        value={motifForm.price_min}
-                        onChange={(e) => setMotifForm({...motifForm, price_min: e.target.value === '' ? '' : parseFloat(e.target.value)})}
-                        step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                      />
+                {/* Price range — masquée pour les matériaux (utilisent Coût + Marge) */}
+                {motifForm.scope !== 'mat' && (
+                  <div className={isV5 ? 'v5-fg' : ''}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
+                      {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className={isV5 ? 'v5-fg' : ''}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMinimum')}</label>
+                        <input
+                          type="number"
+                          value={motifForm.price_min}
+                          onChange={(e) => setMotifForm({...motifForm, price_min: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                          step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
+                          className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                        />
+                      </div>
+                      <div className={isV5 ? 'v5-fg' : ''}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMaximum')}</label>
+                        <input
+                          type="number"
+                          value={motifForm.price_max}
+                          onChange={(e) => setMotifForm({...motifForm, price_max: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                          step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
+                          className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                        />
+                      </div>
                     </div>
-                    <div className={isV5 ? 'v5-fg' : ''}>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMaximum')}</label>
-                      <input
-                        type="number"
-                        value={motifForm.price_max}
-                        onChange={(e) => setMotifForm({...motifForm, price_max: e.target.value === '' ? '' : parseFloat(e.target.value)})}
-                        step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
-                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
-                      />
-                    </div>
+                    <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
                   </div>
-                  <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
-                </div>
+                )}
 
-                {/* Validation auto */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    <button
-                      onClick={() => setMotifForm({...motifForm, validation_auto: false})}
-                      className={isV5 ? 'v5-btn' : 'v22-btn'}
-                      style={{
-                        textAlign: 'left', padding: '8px 10px',
-                        borderColor: !motifForm.validation_auto ? tv.primary : undefined,
-                        background: !motifForm.validation_auto ? tv.primaryLight : undefined,
+                {/* Coût + Marge → Prix de vente — matériaux uniquement.
+                    Logique TVA :
+                    - Si franchise (tvaApplicable=false, défaut AE/EI/ENI) → un seul "Prix de vente TTC"
+                      (le HT = le TTC du fait de l'absence de TVA, mais l'utilisateur lit son prix
+                       final client en TTC). Mention légale 293 B du CGI / Art. 53.º CIVA.
+                    - Si non-franchise (tvaApplicable=true) → "Prix de vente HT" + "Prix de vente TTC (TVA 20%)".
+                    L'utilisateur peut override via le toggle (cas AE qui dépasse le seuil 37 500 €). */}
+                {motifForm.scope === 'mat' && (() => {
+                  const cost = motifForm.cost_ht === '' ? 0 : Number(motifForm.cost_ht)
+                  const margin = motifForm.margin_pct === '' ? 0 : Number(motifForm.margin_pct)
+                  const sellPriceHt = cost * (1 + margin / 100)
+                  const tvaRate = isPt ? 0.23 : 0.20
+                  const sellPriceTtc = sellPriceHt * (1 + tvaRate)
+                  const tvaPctLabel = isPt ? '23 %' : '20 %'
+                  const localeFmt = isPt ? 'pt-PT' : 'fr-FR'
+                  // En franchise : le coût est neutre (pas de HT/TTC distinction), le prix de vente
+                  // affiché est le TTC client (pas de TVA ajoutée). En non-franchise : HT + TTC.
+                  const costLabel = tvaApplicable
+                    ? (isPt ? 'Custo s/ IVA (€)' : 'Coût HT (€)')
+                    : (isPt ? 'Custo (€)' : 'Coût (€)')
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {/* Toggle TVA applicable — override pour AE qui dépasse le seuil */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 12px', background: tvaApplicable ? '#FEF3C7' : '#FFF8E1',
+                        border: `1px solid ${tvaApplicable ? '#FCD34D' : '#FFE082'}`,
+                        borderRadius: 6,
                       }}>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
-                      <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
-                    </button>
-                    <button
-                      onClick={() => setMotifForm({...motifForm, validation_auto: true})}
-                      className={isV5 ? 'v5-btn' : 'v22-btn'}
-                      style={{
-                        textAlign: 'left', padding: '8px 10px',
-                        borderColor: motifForm.validation_auto ? tv.primary : undefined,
-                        background: motifForm.validation_auto ? tv.primaryLight : undefined,
-                      }}>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
-                      <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Délai minimum */}
-                <div className={isV5 ? 'v5-fg' : ''}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                    {[0, 2, 4, 8, 12, 24, 48, 72].map((h) => (
-                      <button key={h}
-                        onClick={() => setMotifForm({...motifForm, delai_minimum_heures: h})}
-                        className={isV5 ? 'v5-btn' : 'v22-btn'}
-                        style={{
-                          textAlign: 'center', padding: '8px 6px',
-                          borderColor: motifForm.delai_minimum_heures === h ? tv.primary : undefined,
-                          background: motifForm.delai_minimum_heures === h ? tv.primaryLight : undefined,
-                        }}>
-                        <div style={{ fontWeight: 600, fontSize: 12 }}>
-                          {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>
+                            {isPt ? 'IVA aplicável' : 'TVA applicable'}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                            {tvaApplicable
+                              ? (isPt ? `Adicionar IVA (${tvaPctLabel}) ao preço de venda` : `Ajouter la TVA (${tvaPctLabel}) au prix de vente`)
+                              : (isPt ? 'Isento — Art. 53.º do CIVA (regime especial)' : 'Franchise en base — art. 293 B du CGI')}
+                          </div>
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
-                </div>
+                        <label className="v5-tgl" style={{ flexShrink: 0 }} title={isPt ? 'Ativar/desativar IVA' : 'Activer/désactiver la TVA'}>
+                          <input
+                            type="checkbox"
+                            checked={tvaApplicable}
+                            onChange={() => setTvaApplicable(v => !v)}
+                          />
+                          <span className="sl" />
+                        </label>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div className={isV5 ? 'v5-fg' : ''}>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{costLabel}</label>
+                          <input
+                            type="number"
+                            value={motifForm.cost_ht}
+                            onChange={(e) => setMotifForm({ ...motifForm, cost_ht: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                            step="0.01" min="0" placeholder="0.00"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                          />
+                        </div>
+                        <div className={isV5 ? 'v5-fg' : ''}>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Margem (%)' : 'Marge (%)'}</label>
+                          <input
+                            type="number"
+                            value={motifForm.margin_pct}
+                            onChange={(e) => setMotifForm({ ...motifForm, margin_pct: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                            step="1" min="0" placeholder="50"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                        padding: '10px 14px',
+                        background: '#f3f4f6', border: '1px solid #e5e7eb',
+                        borderRadius: 6,
+                      }}>
+                        {tvaApplicable ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>{isPt ? 'Preço de venda s/ IVA' : 'Prix de vente HT'}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                                {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+                                {isPt ? `Preço de venda c/ IVA (${tvaPctLabel})` : `Prix de vente TTC (TVA ${tvaPctLabel})`}
+                              </span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                                {sellPriceTtc.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{isPt ? 'Preço de venda' : 'Prix de vente TTC'}</span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                                {sellPriceHt.toLocaleString(localeFmt, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, fontStyle: 'italic', color: '#6b7280', lineHeight: 1.4 }}>
+                              {isPt
+                                ? 'IVA não aplicável — Art. 53.º do CIVA (regime especial de isenção)'
+                                : 'TVA non applicable — art. 293 B du CGI (franchise en base)'}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Validation auto + Délai minimum — uniquement pour Main d'œuvre (réservable client) */}
+                {motifForm.scope === 'mo' && (
+                  <>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <button
+                          onClick={() => setMotifForm({...motifForm, validation_auto: false})}
+                          className={isV5 ? 'v5-btn' : 'v22-btn'}
+                          style={{
+                            textAlign: 'left', padding: '8px 10px',
+                            borderColor: !motifForm.validation_auto ? tv.primary : undefined,
+                            background: !motifForm.validation_auto ? tv.primaryLight : undefined,
+                          }}>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
+                          <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
+                        </button>
+                        <button
+                          onClick={() => setMotifForm({...motifForm, validation_auto: true})}
+                          className={isV5 ? 'v5-btn' : 'v22-btn'}
+                          style={{
+                            textAlign: 'left', padding: '8px 10px',
+                            borderColor: motifForm.validation_auto ? tv.primary : undefined,
+                            background: motifForm.validation_auto ? tv.primaryLight : undefined,
+                          }}>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
+                          <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                        {[0, 2, 4, 8, 12, 24, 48, 72].map((h) => (
+                          <button key={h}
+                            onClick={() => setMotifForm({...motifForm, delai_minimum_heures: h})}
+                            className={isV5 ? 'v5-btn' : 'v22-btn'}
+                            style={{
+                              textAlign: 'center', padding: '8px 6px',
+                              borderColor: motifForm.delai_minimum_heures === h ? tv.primary : undefined,
+                              background: motifForm.delai_minimum_heures === h ? tv.primaryLight : undefined,
+                            }}>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>
+                              {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
+                    </div>
+                  </>
+                )}
 
                 {/* Étapes moved above, under Description */}
               </div>
@@ -492,7 +644,15 @@ export default function MotifsSection({
               }} disabled={!motifForm.name || savingMotif || savingWithEtapes}
                 className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
                 style={{ opacity: (!motifForm.name || savingMotif || savingWithEtapes) ? 0.4 : 1, cursor: (!motifForm.name || savingMotif || savingWithEtapes) ? 'not-allowed' : 'pointer' }}>
-                {(savingMotif || savingWithEtapes) ? t('proDash.motifs.sauvegarde') : editingMotif ? `💾 ${t('proDash.motifs.modifier')}` : t('proDash.motifs.creerLeMotif')}
+                {(savingMotif || savingWithEtapes)
+                  ? t('proDash.motifs.sauvegarde')
+                  : editingMotif
+                    ? `💾 ${t('proDash.motifs.modifier')}`
+                    : motifForm.scope === 'mat'
+                      ? (isPt ? '+ Criar o material' : '+ Créer le matériau')
+                      : motifForm.scope === 'frais'
+                        ? (isPt ? '+ Criar a despesa' : '+ Créer le frais')
+                        : t('proDash.motifs.creerLeMotif')}
               </button>
             </div>
           </div>

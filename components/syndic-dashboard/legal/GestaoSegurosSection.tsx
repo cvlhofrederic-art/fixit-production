@@ -44,8 +44,8 @@ interface SinistroSeguro {
 
 const TIPO_SEGURO_CFG: Record<TipoSeguro, { label: string; icon: string; color: string; obrigatorio: boolean }> = {
   incendio:            { label: 'Incêndio',             icon: '🔥', color: 'bg-red-100 text-red-700',     obrigatorio: true },
-  multiriscos:         { label: 'Multiriscos',          icon: '🛡️', color: 'bg-blue-100 text-blue-700',   obrigatorio: false },
-  rc_condominio:       { label: 'RC Condomínio',        icon: '⚖️', color: 'bg-purple-100 text-purple-700', obrigatorio: false },
+  multiriscos:         { label: 'Multiriscos',          icon: '🛡️', color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',   obrigatorio: false },
+  rc_condominio:       { label: 'RC Condomínio',        icon: '⚖️', color: 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]', obrigatorio: false },
   acidentes_trabalho:  { label: 'Acidentes Trabalho',   icon: '🏗️', color: 'bg-amber-100 text-amber-700', obrigatorio: false },
   recheio_comum:       { label: 'Recheio Comum',        icon: '🏠', color: 'bg-green-100 text-green-700', obrigatorio: false },
   obras:               { label: 'Obras / Construção',   icon: '🔨', color: 'bg-orange-100 text-orange-700', obrigatorio: false },
@@ -214,7 +214,7 @@ export default function GestaoSegurosSection({ user }: Props) {
           { label: 'Expiradas', value: stats.expiradas, color: 'text-red-600' },
           { label: 'A Expirar (60d)', value: stats.aExpirar, color: 'text-amber-600' },
           { label: 'Total Prémios/Ano', value: formatEur(stats.totalPremios), color: 'text-[#0D1B2E]' },
-          { label: 'Capital Total', value: formatEur(stats.totalCapital), color: 'text-blue-600' },
+          { label: 'Capital Total', value: formatEur(stats.totalCapital), color: 'text-[#C9A84C]' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -448,7 +448,7 @@ export default function GestaoSegurosSection({ user }: Props) {
                   <label className="text-xs text-gray-500 block mb-1">Coberturas incluídas</label>
                   <div className="flex flex-wrap gap-1">
                     {form.coberturas.map(c => (
-                      <span key={c} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">{c}</span>
+                      <span key={c} className="px-2 py-0.5 bg-[#F7F4EE] text-[#0D1B2E] text-xs rounded-full">{c}</span>
                     ))}
                   </div>
                 </div>

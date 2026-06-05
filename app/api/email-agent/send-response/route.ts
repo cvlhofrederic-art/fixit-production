@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { validateBody } from '@/lib/validation'
+import { getDecryptedToken, setEncryptedToken } from '@/lib/oauth/tokens'
 
 const sendResponseSchema = z.object({
   email_id: z.string().uuid('email_id doit être un UUID'),
@@ -91,7 +92,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cet email a déjà reçu une réponse' }, { status: 409 })
     }
 
-    // 2. Fetch le token OAuth Gmail
+    // 2. Fetch le token OAuth Gmail (encrypted en priorité, fallback plain)
+    let accessToken: string | null = null
+    let refreshToken: string | null = null
+    let expiresAt: string | null = null
+    let emailCompte: string = 'me'
+
+    const encrypted = await getDecryptedToken(supabaseAdmin, syndic_id).catch(() => null)
+    if (encrypted) {
+      accessToken = encrypted.access_token
+      refreshToken = encrypted.refresh_token
+      expiresAt = encrypted.expires_at
+    }
+
+    // Toujours fetch la row pour email_compte (colonne métier non chiffrée) + fallback plain si besoin
     const { data: tokenRow, error: tokenError } = await supabaseAdmin
       .from('syndic_oauth_tokens')
       .select('access_token, refresh_token, token_expiry, email_compte')
@@ -99,18 +113,42 @@ export async function POST(request: NextRequest) {
       .eq('provider', 'gmail')
       .single()
 
-    if (tokenError || !tokenRow?.access_token) {
+    if (tokenError || (!accessToken && !tokenRow?.access_token)) {
+      return NextResponse.json({ error: 'Compte Gmail non connecté. Connectez votre Gmail dans les paramètres.' }, { status: 400 })
+    }
+
+    if (tokenRow) {
+      emailCompte = tokenRow.email_compte || 'me'
+      // Fallback plain si encrypted non disponible
+      if (!accessToken) {
+        accessToken = tokenRow.access_token
+        refreshToken = tokenRow.refresh_token
+        expiresAt = tokenRow.token_expiry
+      }
+    }
+
+    if (!accessToken) {
       return NextResponse.json({ error: 'Compte Gmail non connecté. Connectez votre Gmail dans les paramètres.' }, { status: 400 })
     }
 
     // 3. Refresh token si expiré (marge de 5 min)
-    let accessToken = tokenRow.access_token
-    const isExpired = new Date(tokenRow.token_expiry) < new Date(Date.now() + 5 * 60 * 1000)
-    if (isExpired && tokenRow.refresh_token) {
-      const refreshed = await refreshGmailAccessToken(tokenRow.refresh_token)
+    const isExpired = expiresAt ? new Date(expiresAt) < new Date(Date.now() + 5 * 60 * 1000) : true
+    if (isExpired && refreshToken) {
+      const refreshed = await refreshGmailAccessToken(refreshToken)
       if (refreshed?.access_token) {
         accessToken = refreshed.access_token
         const newExpiry = new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString()
+        // Dual-write : encrypted + plain
+        try {
+          await setEncryptedToken(supabaseAdmin, {
+            syndic_id,
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_at: newExpiry,
+          })
+        } catch (encErr) {
+          logger.error('[email-agent/send-response] setEncryptedToken failed:', encErr)
+        }
         await supabaseAdmin
           .from('syndic_oauth_tokens')
           .update({ access_token: accessToken, token_expiry: newExpiry, updated_at: new Date().toISOString() })
@@ -123,7 +161,7 @@ export async function POST(request: NextRequest) {
     // 4. Construire le message RFC 2822
     const messageId = email.gmail_message_id ? `<${email.gmail_message_id}>` : undefined
     const rawMessage = buildRawMessage({
-      from: tokenRow.email_compte,
+      from: emailCompte,
       to: email.from_email,
       subject: email.subject || '(Sans objet)',
       body: response_text,

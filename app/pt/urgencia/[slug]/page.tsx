@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllUrgencyCombos, getUrgencyCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'pt' }),
     },
     twitter: {
       card: 'summary_large_image',
@@ -37,8 +38,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     alternates: {
       canonical: `https://vitfix.io/pt/urgencia/${slug}/`,
       languages: {
-        'pt': `https://vitfix.io/pt/urgencia/${slug}/`,
-        'fr': 'https://vitfix.io/fr/urgence/',
+        'pt-PT': `https://vitfix.io/pt/urgencia/${slug}/`,
+        'fr-FR': 'https://vitfix.io/fr/urgence/',
         'en': 'https://vitfix.io/en/',
         'x-default': `https://vitfix.io/pt/urgencia/${slug}/`,
       },
@@ -59,7 +60,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
   const heroSubtitle = replaceCity(urgency.heroSubtitle)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
-  // Schema.org — Emergency Service + FAQPage
+  // Schema.org - Emergency Service + FAQPage
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -97,13 +98,9 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
           latitude: city.lat,
           longitude: city.lng,
         },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '127',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres inventés. À réactiver avec
+        // données réelles (Trustpilot / reviews vérifiées on-page liées via
+        // Review schema individuel) — cf. lib/schemas/index.ts.
       },
       {
         '@type': 'BreadcrumbList',
@@ -120,6 +117,37 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
           name: replaceCity(faq.question),
           acceptedAnswer: { '@type': 'Answer', text: replaceCity(faq.answer) },
         })),
+      },
+      // HowTo : exploite immediateSteps pour les Answer Engines
+      // (Perplexity, ChatGPT, Claude, AI Overviews) qui citent les
+      // contenus actionnables structurés. Google a déprécié le rich
+      // result HowTo dans la SERP classique, mais le schéma reste
+      // exploité par les moteurs IA en 2026.
+      {
+        '@type': 'HowTo',
+        name: `O que fazer em caso de ${service.name.toLowerCase()} de urgência em ${city.name}`,
+        description: `Passos imediatos a seguir enquanto espera pelo profissional VITFIX em ${city.name}.`,
+        totalTime: `PT${urgency.avgResponseTime.match(/\d+/)?.[0] || '30'}M`,
+        step: urgency.immediateSteps.map((stepText, i) => ({
+          '@type': 'HowToStep',
+          position: i + 1,
+          name: `Passo ${i + 1}`,
+          text: replaceCity(stepText),
+        })),
+      },
+      // Speakable : signale aux assistants vocaux et IA que
+      // certaines sections sont lisibles à voix haute.
+      // Référence : developers.google.com/search/docs/appearance/structured-data/speakable
+      {
+        '@type': 'WebPage',
+        '@id': `https://vitfix.io/pt/urgencia/${slug}/#webpage`,
+        url: `https://vitfix.io/pt/urgencia/${slug}/`,
+        name: heroTitle,
+        inLanguage: 'pt-PT',
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', 'h2', '.urgency-summary'],
+        },
       },
     ],
   }
@@ -149,13 +177,13 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
-            <span className="text-red-700">URGÊNCIA — {urgency.availableSchedule}</span>
+            <span className="text-red-700">URGÊNCIA, {urgency.availableSchedule}</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             {heroTitle}
           </h1>
-          <p className="text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
+          <p className="urgency-summary text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
             {heroSubtitle}
           </p>
 
@@ -169,12 +197,20 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
               Pedir ajuda agora
             </Link>
             <a
-              href="https://wa.me/351920043853?text=Ol%C3%A1%20VITFIX%2C%20preciso%20de%20ajuda%20urgente"
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white rounded-full font-bold px-7 py-3.5 text-[0.95rem] hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+            >
+              <span className="text-lg">📞</span>
+              Ligar +351 912 014 971
+            </a>
+            <a
+              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent('Olá VITFIX, preciso de ajuda urgente')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border-2 border-dark text-dark rounded-full font-bold px-7 py-3.5 text-[0.95rem] bg-white/80 hover:bg-dark hover:text-white transition-all"
             >
-              Contactar-nos
+              <span className="text-lg">💬</span>
+              WhatsApp
             </a>
           </div>
 
@@ -271,7 +307,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Cobertura de urgência — {city.name}
+            Cobertura de urgência, {city.name}
           </h2>
           <p className="text-text-muted mb-6">
             Os nossos {service.name.toLowerCase()}s de urgência atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
@@ -310,7 +346,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
       <section className="py-14 md:py-18">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Perguntas frequentes — {service.name} urgente
+            Perguntas frequentes, {service.name} urgente
           </h2>
           <div className="space-y-4 mt-8">
             {service.faqs.map((faq, i) => (

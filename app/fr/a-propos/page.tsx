@@ -5,8 +5,14 @@ import Button from '@/components/ui/Button'
 import { useScrollAnimation } from '@/hooks/useScrollAnimation'
 
 export default function AProposPage() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   useScrollAnimation()
+
+  // Routes locale-aware : la même page est servie sur /fr/a-propos/ et /pt/sobre/
+  // (alias dans app/pt/sobre/page.tsx). Les CTA doivent pointer vers les bonnes
+  // routes selon la locale active.
+  const searchHref = locale === 'pt' ? '/pt/pesquisar/' : '/fr/recherche'
+  const contactHref = locale === 'pt' ? '/pt/avisos-legais/' : '/contact'
 
   return (
     <div className="min-h-screen bg-warm-gray py-12">
@@ -88,10 +94,10 @@ export default function AProposPage() {
 
         {/* CTA */}
         <div className="text-center fade-up flex flex-wrap items-center justify-center gap-4">
-          <Button variant="primary" size="lg" href="/fr/recherche">
+          <Button variant="primary" size="lg" href={searchHref}>
             {t('about.cta.findArtisan')}
           </Button>
-          <Button variant="outline" size="lg" href="/contact">
+          <Button variant="outline" size="lg" href={contactHref}>
             {t('about.cta.contactUs')}
           </Button>
         </div>

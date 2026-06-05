@@ -52,7 +52,7 @@ export async function generateMetadata(
   if (!cityName) return {}
 
   return {
-    title: `Devis gratuit artisan à ${cityName} — Chiffrez vos travaux en 2 min | VITFIX`,
+    title: `Devis gratuit artisan à ${cityName} : Chiffrez vos travaux en 2 min | VITFIX`,
     description: `Estimez le coût de vos travaux à ${cityName} : plomberie, électricité, peinture, serrurerie, toiture... Tarifs PACA 2026 actualisés. Artisans certifiés disponibles, réservation directe.`,
     keywords: [
       `devis gratuit travaux ${cityName}`,
@@ -64,7 +64,7 @@ export async function generateMetadata(
       `devis artisan ${cityName} en ligne`,
     ],
     openGraph: {
-      title: `Devis gratuit artisan à ${cityName} — Estimation instantanée 2026`,
+      title: `Devis gratuit artisan à ${cityName} : Estimation instantanée 2026`,
       description: `Chiffrez vos travaux à ${cityName} en 2 minutes. Tarifs affichés, artisans vérifiés, réservation directe.`,
       siteName: 'VITFIX',
       locale: 'fr_FR',
@@ -102,7 +102,7 @@ function buildFaqSchema(cityName: string) {
         name: `Comment trouver un artisan certifié à ${cityName} ?`,
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `VITFIX référence des artisans certifiés à ${cityName} avec leurs tarifs affichés. Décrivez votre besoin, consultez les profils, comparez les prix et réservez directement en ligne — sans intermédiaire.`,
+          text: `VITFIX référence des artisans certifiés à ${cityName} avec leurs tarifs affichés. Décrivez votre besoin, consultez les profils, comparez les prix et réservez directement en ligne, sans intermédiaire.`,
         },
       },
       {

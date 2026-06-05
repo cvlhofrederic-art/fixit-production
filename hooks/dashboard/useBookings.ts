@@ -185,7 +185,11 @@ export function useBookings(
     return devisData
   }, [services, isPt])
 
-  const convertDevisToFacture = useCallback((devis: Record<string, unknown>, overrideId?: string) => {
+  const convertDevisToFacture = useCallback((
+    devis: Record<string, unknown>,
+    overrideId?: string,
+    suggestedSubType?: 'standard' | 'acompte' | 'situation' | null,
+  ) => {
     const {
       id: _id,
       docNumber: _dn,
@@ -194,6 +198,7 @@ export function useBookings(
       savedAt: _sa,
       sentAt: _se,
       signatureData: _sig,
+      docDate: _dd,
       ...rest
     } = devis as Record<string, unknown>
     // Cohérence devis → facture : si acomptes désactivés sur devis (ou non
@@ -201,10 +206,18 @@ export function useBookings(
     // de bloquer la validation (total acomptes != 100 %).
     const srcAcomptesEnabled = (devis as { acomptesEnabled?: boolean }).acomptesEnabled
     const inheritedAcomptesEnabled = srcAcomptesEnabled === true
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : la
+    // facture ne peut hériter du docDate du devis. La date d'émission est la
+    // date de génération (today), conformément à l'art. 289 CGI et à la
+    // pratique pro (Henrri, EBP, Pennylane, Sage).
+    const factureDocDate = new Date().toISOString().split('T')[0]
     setConvertingDevis({
       ...rest,
       id: overrideId,
       docType: 'facture',
+      docDate: factureDocDate,
+      // Sous-type suggéré par le garde-fou prestation future (méthode pro 2026)
+      factureSubType: suggestedSubType || 'standard',
       acomptesEnabled: inheritedAcomptesEnabled,
       acomptes: inheritedAcomptesEnabled ? (rest as { acomptes?: unknown }).acomptes : undefined,
     })

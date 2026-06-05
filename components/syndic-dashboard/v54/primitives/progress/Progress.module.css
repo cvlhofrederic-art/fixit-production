@@ -1,0 +1,22 @@
+/* Progress v54 — port byte-exact du `.progress` du bundle V5.7. */
+
+.progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--v54-cream);
+  overflow: hidden;
+  position: relative;
+}
+.progress > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--v54-gold-700), var(--v54-gold-500));
+  border-radius: 4px;
+  transition: width 400ms var(--v54-ease-out);
+}
+.sage > div { background: linear-gradient(90deg, var(--v54-sage-700), var(--v54-sage-500)); }
+.rust > div { background: linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500)); }
+.amber > div { background: linear-gradient(90deg, var(--v54-amber-700), var(--v54-amber-500)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .progress > div { transition: none; }
+}

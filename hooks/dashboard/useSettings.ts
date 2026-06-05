@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
 
@@ -12,11 +13,27 @@ interface SettingsForm {
   auto_reply_message: string
   auto_block_duration_minutes: number
   zone_radius_km: number
+  // BTP — champs légaux (issus du Kbis, saisie manuelle pour l'instant)
+  rcs_number: string
+  ape_code: string
+  share_capital: string
+  tva_intra: string
+  // BTP — Assurance & Médiateur
+  insurance_name: string
+  insurance_number: string
+  insurance_coverage: string
+  insurance_type: string
+  insurance_expiry: string
+  mediator_name: string
+  mediator_url: string
 }
 
 const DEFAULT_SETTINGS: SettingsForm = {
   company_name: '', email: '', phone: '', bio: '',
   auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30,
+  rcs_number: '', ape_code: '', share_capital: '', tva_intra: '',
+  insurance_name: '', insurance_number: '', insurance_coverage: '', insurance_type: '', insurance_expiry: '',
+  mediator_name: '', mediator_url: '',
 }
 
 export function useSettings(
@@ -51,6 +68,17 @@ export function useSettings(
           auto_reply_message: settingsForm.auto_reply_message,
           auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
           zone_radius_km: settingsForm.zone_radius_km,
+          rcs_number: settingsForm.rcs_number,
+          ape_code: settingsForm.ape_code,
+          share_capital: settingsForm.share_capital,
+          tva_intra: settingsForm.tva_intra,
+          insurance_name: settingsForm.insurance_name,
+          insurance_number: settingsForm.insurance_number,
+          insurance_coverage: settingsForm.insurance_coverage,
+          insurance_type: settingsForm.insurance_type,
+          insurance_expiry: settingsForm.insurance_expiry,
+          mediator_name: settingsForm.mediator_name,
+          mediator_url: settingsForm.mediator_url,
         }),
       })
       const json = await res.json()
@@ -65,6 +93,17 @@ export function useSettings(
         auto_reply_message: settingsForm.auto_reply_message,
         auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
         zone_radius_km: settingsForm.zone_radius_km,
+        rcs_number: settingsForm.rcs_number,
+        ape_code: settingsForm.ape_code,
+        share_capital: settingsForm.share_capital,
+        tva_intra: settingsForm.tva_intra,
+        insurance_name: settingsForm.insurance_name,
+        insurance_number: settingsForm.insurance_number,
+        insurance_coverage: settingsForm.insurance_coverage,
+        insurance_type: settingsForm.insurance_type,
+        insurance_expiry: settingsForm.insurance_expiry,
+        mediator_name: settingsForm.mediator_name,
+        mediator_url: settingsForm.mediator_url,
         ...(json.slug ? { slug: json.slug } : {}),
       })
       // Re-save dayServices marker after bio update
@@ -79,13 +118,15 @@ export function useSettings(
           }
         } catch {}
       }
+      // Toast Sonner (UX pro) au lieu de window.alert() natif (look 90s, bloquant,
+      // non automatable). Pattern SaaS pro 2026 (Stripe, Vercel, Linear).
       if (json.partial && json.warning) {
-        alert(`\u26a0\ufe0f ${t('proDash.alerts.partialSave')}: ${json.warning}`)
+        toast.warning(`${t('proDash.alerts.partialSave')}: ${json.warning}`)
       } else {
-        alert(t('proDash.alerts.profileUpdated'))
+        toast.success(t('proDash.alerts.profileUpdated'))
       }
     } catch {
-      alert(t('proDash.alerts.networkError'))
+      toast.error(t('proDash.alerts.networkError'))
     } finally {
       setSavingSettings(false)
     }
@@ -136,6 +177,17 @@ export function useSettings(
       auto_reply_message: artisanData.auto_reply_message || '',
       auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
       zone_radius_km: artisanData.zone_radius_km || 30,
+      rcs_number: artisanData.rcs_number || '',
+      ape_code: artisanData.ape_code || '',
+      share_capital: artisanData.share_capital || '',
+      tva_intra: artisanData.tva_intra || '',
+      insurance_name: artisanData.insurance_name || '',
+      insurance_number: artisanData.insurance_number || '',
+      insurance_coverage: artisanData.insurance_coverage || '',
+      insurance_type: artisanData.insurance_type || '',
+      insurance_expiry: artisanData.insurance_expiry || '',
+      mediator_name: artisanData.mediator_name || '',
+      mediator_url: artisanData.mediator_url || '',
     })
   }, [])
 

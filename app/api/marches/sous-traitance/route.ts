@@ -5,6 +5,21 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
+
+/**
+ * Déduit le pays (FR/PT) depuis le format du code postal.
+ * - FR : 5 chiffres (ex: 13000, 75001)
+ * - PT : 4 chiffres optionnellement suivis d'un tiret + 3 chiffres (ex: 4000-001)
+ * Note: dupliqué de app/api/marches/route.ts (extraction lib partagée à faire si une 3e route en a besoin)
+ */
+function inferPaysFromPostal(postal: string | null | undefined, fallback: 'FR' | 'PT' = 'FR'): 'FR' | 'PT' {
+  if (!postal) return fallback
+  const t = postal.trim().replace(/\s+/g, '')
+  if (/^\d{4}-?\d{3}$/.test(t)) return 'PT'
+  if (/^\d{4}$/.test(t)) return 'PT'
+  if (/^\d{5}$/.test(t)) return 'FR'
+  return fallback
+}
 // crypto.randomUUID() is available globally (Web Crypto API)
 
 // ── Geocoding helper (shared with main marches route) ────────────────────────
@@ -225,6 +240,8 @@ export async function POST(request: NextRequest) {
       access_token,
       status: 'open',
       candidatures_count: 0,
+      // Pays — explicite ou déduit du code postal pour visibilité dans la Bourse FR/PT
+      pays: v.pays || inferPaysFromPostal(v.location_postal),
     })
     .select()
     .single()

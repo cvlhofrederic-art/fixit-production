@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Configurer Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 20
           cache: npm
@@ -45,8 +45,12 @@ jobs:
           SERVER_PID=$!
           sleep 8
 
-          # Récupérer le sitemap et extraire les URLs
-          SITEMAP_URLS=$(curl -s http://localhost:3000/sitemap.xml \
+          # IMPORTANT : /sitemap.xml est un sitemap INDEX (liste de sub-sitemaps
+          # XML). Auditer ses <loc> donne des URLs vers /sitemap/N.xml qui sont
+          # elles-mêmes du XML → Lighthouse fail "NOT_HTML".
+          # On cible /sitemap/0.xml (sub-sitemap des hubs statiques + pages
+          # principales) qui contient les vraies URLs de pages HTML.
+          SITEMAP_URLS=$(curl -s http://localhost:3000/sitemap/0.xml \
             | grep -oP '<loc>\K[^<]+' \
             | head -20 \
             | sed 's|https://vitfix.io|http://localhost:3000|g')

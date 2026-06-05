@@ -4,6 +4,7 @@ import { createContext, useContext, useCallback, useMemo, useState, type ReactNo
 import { useRouter } from 'next/navigation'
 import type { Locale } from './config'
 import { DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_LS_KEY } from './config'
+import { translateUrl } from './url-translator'
 import fr from '@/locales/fr.json'
 import pt from '@/locales/pt.json'
 import en from '@/locales/en.json'
@@ -56,23 +57,15 @@ export function LanguageProvider({
     document.cookie = `${LOCALE_COOKIE}=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax;Secure`
     // Persist to localStorage
     try { localStorage.setItem(LOCALE_LS_KEY, newLocale) } catch (e) { console.warn('[i18n] localStorage setItem failed:', e) }
-    // Client-side navigation vers l'URL avec le bon préfixe locale (pas de full page reload)
-    const currentPath = window.location.pathname
-    // Strip any existing locale prefix
-    let cleanPath = currentPath
-    if (currentPath.startsWith('/fr/') || currentPath === '/fr') {
-      cleanPath = currentPath.replace(/^\/fr/, '') || '/'
-    } else if (currentPath.startsWith('/pt/') || currentPath === '/pt') {
-      cleanPath = currentPath.replace(/^\/pt/, '') || '/'
-    } else if (currentPath.startsWith('/en/') || currentPath === '/en') {
-      cleanPath = currentPath.replace(/^\/en/, '') || '/'
-    } else if (currentPath.startsWith('/nl/') || currentPath === '/nl') {
-      cleanPath = currentPath.replace(/^\/nl/, '') || '/'
-    } else if (currentPath.startsWith('/es/') || currentPath === '/es') {
-      cleanPath = currentPath.replace(/^\/es/, '') || '/'
+    // Navigation vers l'URL équivalente dans la nouvelle locale.
+    // Politique pro 2026 : marchés FR / PT / EN / NL / ES strictement
+    // séparés. Si la page actuelle n'a PAS d'équivalent dans la locale
+    // cible, on ne navigue pas (le drapeau aurait dû être caché côté UI
+    // par le LanguageSwitcher). Cf. lib/i18n/url-translator.ts.
+    const newPath = translateUrl(window.location.pathname, newLocale)
+    if (newPath) {
+      router.replace(newPath)
     }
-    const newPath = `/${newLocale}${cleanPath === '/' ? '/' : cleanPath}`
-    router.replace(newPath)
   }, [router])
 
   const t = useCallback((key: string, fallback?: string): string => {

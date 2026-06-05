@@ -47,6 +47,27 @@ test.describe('API endpoint smoke tests', () => {
     expect(response.status()).toBe(401)
   })
 
+  test('POST /api/devis/sync without auth returns 401', async ({ request }) => {
+    const response = await request.post('/api/devis/sync', {
+      data: {
+        docType: 'devis',
+        artisanId: '00000000-0000-4000-8000-000000000001',
+        doc: { docNumber: 'DEV-TEST-001' },
+      },
+    })
+    expect(response.status()).toBe(401)
+  })
+
+  test('POST /api/devis/sync with malformed payload returns 4xx', async ({ request }) => {
+    // Auth runs first → 401. Acceptable contract pour le smoke E2E.
+    const response = await request.post('/api/devis/sync', {
+      data: { docType: 'pas-bon', artisanId: 'not-a-uuid' },
+      headers: { Authorization: 'Bearer invalid-token' },
+    })
+    expect(response.status()).toBeGreaterThanOrEqual(400)
+    expect(response.status()).toBeLessThan(500)
+  })
+
   test('GET /api/bookings without artisan_id returns 400', async ({ request }) => {
     // GET /api/bookings is intentionally public (slot availability) — returns 400 when artisan_id missing
     const response = await request.get('/api/bookings')

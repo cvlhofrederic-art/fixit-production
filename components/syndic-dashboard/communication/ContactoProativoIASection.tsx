@@ -208,9 +208,9 @@ const formatEur = (n: number) =>
 const TIPO_LABELS: Record<TipoCampanha, { label: string; icon: string; color: string }> = {
   cobranca: { label: 'Cobrança', icon: '💸', color: 'bg-red-100 text-red-700' },
   aviso_obras: { label: 'Aviso Obras', icon: '🏗️', color: 'bg-amber-100 text-amber-700' },
-  convocatoria_ag: { label: 'Convocatória AG', icon: '🏛️', color: 'bg-purple-100 text-purple-700' },
+  convocatoria_ag: { label: 'Convocatória AG', icon: '🏛️', color: 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]' },
   boas_vindas: { label: 'Boas-vindas', icon: '👋', color: 'bg-green-100 text-green-700' },
-  relatorio_mensal: { label: 'Relatório Mensal', icon: '📊', color: 'bg-blue-100 text-blue-700' },
+  relatorio_mensal: { label: 'Relatório Mensal', icon: '📊', color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
   alerta_consumo: { label: 'Alerta Consumo', icon: '⚠️', color: 'bg-orange-100 text-orange-700' },
   lembrete_seguro: { label: 'Lembrete Seguro', icon: '🛡️', color: 'bg-teal-100 text-teal-700' },
   personalizada: { label: 'Personalizada', icon: '✏️', color: 'bg-gray-100 text-gray-700' },
@@ -409,7 +409,7 @@ export default function ContactoProativoIASection({ user }: Props) {
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-500">Total Destinatários</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.totalDest}</p>
+          <p className="text-2xl font-bold text-[#0D1B2E]">{stats.totalDest}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-500">Mensagens Enviadas</p>
@@ -573,7 +573,7 @@ export default function ContactoProativoIASection({ user }: Props) {
                         <span className="text-xs text-gray-400">{canalCfg.icon} {canalCfg.label}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           camp.estado === 'rascunho' ? 'bg-gray-100 text-gray-600' :
-                          camp.estado === 'agendada' ? 'bg-blue-100 text-blue-600' :
+                          camp.estado === 'agendada' ? 'bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0]' :
                           camp.estado === 'enviada' ? 'bg-emerald-100 text-emerald-600' :
                           'bg-amber-100 text-amber-600'
                         }`}>
@@ -655,7 +655,7 @@ export default function ContactoProativoIASection({ user }: Props) {
                     <p className="text-xs text-gray-400 mt-2 line-clamp-2">{modelo.corpo.slice(0, 120)}...</p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {modelo.variaveis.map(v => (
-                        <span key={v} className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-mono">
+                        <span key={v} className="text-xs px-1.5 py-0.5 bg-[#F7F4EE] text-[#C9A84C] rounded font-mono">
                           {`{{${v}}}`}
                         </span>
                       ))}

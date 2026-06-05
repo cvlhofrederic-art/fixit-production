@@ -17,11 +17,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'artisan_id is required' }, { status: 400 })
   }
 
-  const { data, error } = await supabaseAdmin
+  // slot_type optionnel : si fourni, filtre. Sinon retourne les 2 plages.
+  const slotType = searchParams.get('slot_type')
+  let query = supabaseAdmin
     .from('availability')
-    .select('id, artisan_id, day_of_week, start_time, end_time, is_available')
+    .select('id, artisan_id, day_of_week, start_time, end_time, is_available, slot_type')
     .eq('artisan_id', artisanId)
-    .order('day_of_week')
+  if (slotType === 'rdv' || slotType === 'visite') {
+    query = query.eq('slot_type', slotType)
+  }
+  const { data, error } = await query.order('day_of_week')
 
   if (error) {
     logger.error('Error fetching availability:', error)
@@ -29,7 +34,9 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ data })
-  response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  // Cache court côté navigateur uniquement (stale-while-revalidate pour fluidité).
+  // Pas de cache CDN partagé : c'est de la donnée utilisateur qui change sur action.
+  response.headers.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30')
   return response
 }
 
@@ -47,7 +54,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const v = validateBody(availabilityToggleSchema, body)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
-    const { artisan_id, day_of_week } = v.data
+    const { artisan_id, day_of_week, is_available, start_time, end_time } = v.data
+    // slot_type par défaut 'rdv' (back-compat clients qui n'envoient rien)
+    const slot_type = v.data.slot_type || 'rdv'
 
     // SÉCURITÉ : vérifier que l'utilisateur est propriétaire de cet artisan
     const { data: artisanProfile } = await supabaseAdmin
@@ -59,39 +68,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
     }
 
-    // Check if row exists
+    // Check if row exists pour ce (artisan, day_of_week, slot_type)
     const { data: existing } = await supabaseAdmin
       .from('availability')
-      .select('id, artisan_id, day_of_week, is_available, start_time, end_time')
+      .select('id, artisan_id, day_of_week, is_available, start_time, end_time, slot_type')
       .eq('artisan_id', artisan_id)
       .eq('day_of_week', day_of_week)
-      .single()
+      .eq('slot_type', slot_type)
+      .maybeSingle()
 
     if (existing) {
-      // Toggle is_available
-      const newVal = !existing.is_available
+      // Si is_available fourni → idempotent (état explicite). Sinon → toggle (rétrocompat).
+      const updates: Record<string, unknown> = {
+        is_available: typeof is_available === 'boolean' ? is_available : !existing.is_available,
+      }
+      if (start_time) updates.start_time = start_time
+      if (end_time) updates.end_time = end_time
+
       const { data, error } = await supabaseAdmin
         .from('availability')
-        .update({ is_available: newVal })
+        .update(updates)
         .eq('id', existing.id)
         .select()
         .single()
 
       if (error) {
-        logger.error('Error toggling availability:', error)
-        return NextResponse.json({ error: 'Failed to toggle availability' }, { status: 500 })
+        logger.error('Error updating availability:', error)
+        return NextResponse.json({ error: 'Failed to update availability' }, { status: 500 })
       }
-      return NextResponse.json({ data, action: 'toggled' })
+      return NextResponse.json({ data, action: typeof is_available === 'boolean' ? 'set' : 'toggled' })
     } else {
-      // Insert new row
+      // Insert new row — utiliser is_available fourni si présent, sinon true par défaut
       const { data, error } = await supabaseAdmin
         .from('availability')
         .insert({
           artisan_id,
           day_of_week,
-          start_time: '08:00',
-          end_time: '17:00',
-          is_available: true,
+          slot_type,
+          start_time: start_time || '08:00',
+          end_time: end_time || '17:00',
+          is_available: typeof is_available === 'boolean' ? is_available : true,
         })
         .select()
         .single()

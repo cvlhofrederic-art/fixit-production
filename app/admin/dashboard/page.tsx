@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -397,6 +398,7 @@ export default function AdminDashboardPage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* ── TAB: Overview ────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet vue d'ensemble" locale="fr">
           <div>
             {statsLoading ? (
               <div className="text-gray-400 animate-pulse py-20 text-center">Chargement des statistiques...</div>
@@ -498,10 +500,12 @@ export default function AdminDashboardPage() {
               </div>
             )}
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: Users ──────────────────────────────────────────────── */}
         {activeTab === 'users' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet utilisateurs" locale="fr">
           <div>
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
@@ -604,10 +608,12 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: Subscriptions ──────────────────────────────────────── */}
         {activeTab === 'subscriptions' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet abonnements" locale="fr">
           <div>
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
@@ -709,10 +715,12 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: KYC Review ─────────────────────────────────────────── */}
         {activeTab === 'kyc' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet KYC" locale="fr">
           <div className="space-y-4">
             {/* Header avec filtres */}
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -873,10 +881,12 @@ export default function AdminDashboardPage() {
               </div>
             )}
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: Role Switcher (original) ──────────────────────────── */}
         {activeTab === 'switcher' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans le sélecteur de rôle" locale="fr">
           <div>
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-white mb-2">Quel dashboard souhaitez-vous voir ?</h2>
@@ -919,6 +929,7 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           </div>
+          </SectionErrorBoundary>
         )}
       </div>
 

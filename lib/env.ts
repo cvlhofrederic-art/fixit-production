@@ -1,6 +1,32 @@
-// ── Validation centralisée des variables d'environnement ──────────────────────
+// ── Accès et validation des variables d'environnement ─────────────────────────
+// Sur Cloudflare Workers, les secrets (wrangler secret put) ne sont pas toujours
+// exposés via process.env. getCloudflareContext() est la source fiable.
 // Fail fast au démarrage si des vars critiques sont manquantes.
 // Import ce module dans instrumentation.ts ou au top de layout.tsx (server-side).
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _cfEnv: Record<string, any> | null = null
+
+export async function getCfEnv(): Promise<Record<string, string>> {
+  if (_cfEnv) return _cfEnv
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import('@opennextjs/cloudflare')
+    if (typeof mod.getCloudflareContext === 'function') {
+      const ctx = await mod.getCloudflareContext({ async: true })
+      _cfEnv = (ctx?.env ?? {}) as Record<string, string>
+      return _cfEnv
+    }
+  } catch {
+    // Not in a Cloudflare Worker (dev, build, tests)
+  }
+  _cfEnv = {}
+  return _cfEnv
+}
+
+export async function getSecret(key: string): Promise<string> {
+  return process.env[key] || (await getCfEnv())[key] || ''
+}
 
 const requiredServerVars = [
   'NEXT_PUBLIC_SUPABASE_URL',

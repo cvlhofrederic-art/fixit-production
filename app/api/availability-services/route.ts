@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ data: dayServices })
-  response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200')
+  // ⚠️ Pas de cache CDN partagé — c'est de la donnée utilisateur qui change sur action.
+  // Avant : s-maxage=3600 (1h) → après save, le GET au refresh retournait la version cachée.
+  // private = chaque user a son propre cache navigateur. no-cache = revalidate à chaque requête.
+  response.headers.set('Cache-Control', 'private, no-cache')
   return response
 }
 
@@ -55,21 +58,23 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { artisan_id, dayServices } = v.data
 
-    // Vérifier que l'utilisateur connecté est bien cet artisan
-    if (user.id !== artisan_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    // Get current bio
+    // ⚠️ BUG FIX : ne PAS comparer user.id (auth.users) avec artisan_id (profiles_artisan PK).
+    // Ce sont deux UUIDs différents ! Récupérer profiles_artisan.user_id et comparer.
+    // Pattern identique à app/api/availability/route.ts ligne 53.
     const { data: artisan, error: fetchError } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('bio')
+      .select('bio, user_id')
       .eq('id', artisan_id)
       .single()
 
     if (fetchError) {
       logger.error('Error fetching artisan bio:', fetchError)
       return NextResponse.json({ error: 'Failed to fetch artisan data' }, { status: 500 })
+    }
+
+    // Vérifier que l'utilisateur connecté est bien le propriétaire de ce profil artisan
+    if (!artisan || artisan.user_id !== user.id) {
+      return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
     }
 
     // Clean existing marker and add new one

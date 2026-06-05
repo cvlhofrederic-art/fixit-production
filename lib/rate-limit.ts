@@ -8,21 +8,34 @@ import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
 // ── Upstash Redis rate limiter (production) ──────────────────────────────────
-let ratelimit: Ratelimit | null = null
+// FR-V8 fix audit : un Ratelimit Upstash est instancié PAR couple (limit,
+// windowMs) car la lib ne supporte pas le paramétrage per-call. Avant ce fix,
+// /api/document-cancel (limit=10) était traité comme 20/min (le défaut global)
+// et /api/devis/sync (limit=60) était capé à 20/min — bug bidirectionnel.
+let redis: Redis | null = null
+const limiters = new Map<string, Ratelimit>()
 
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-  const redis = new Redis({
+  redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
     token: process.env.UPSTASH_REDIS_REST_TOKEN,
   })
+}
 
-  ratelimit = new Ratelimit({
+function getLimiter(limit: number, windowMs: number): Ratelimit | null {
+  if (!redis) return null
+  const windowSec = Math.max(1, Math.round(windowMs / 1000))
+  const key = `${limit}:${windowSec}`
+  const cached = limiters.get(key)
+  if (cached) return cached
+  const lim = new Ratelimit({
     redis,
-    // Sliding window : 20 requêtes par fenêtre de 60 secondes
-    limiter: Ratelimit.slidingWindow(20, '60 s'),
+    limiter: Ratelimit.slidingWindow(limit, `${windowSec} s`),
     analytics: true,
-    prefix: 'fixit:ratelimit',
+    prefix: `fixit:ratelimit:${windowSec}s:${limit}`,
   })
+  limiters.set(key, lim)
+  return lim
 }
 
 // ── Fallback en mémoire (dev local) ──────────────────────────────────────────
@@ -32,7 +45,7 @@ interface RateLimitEntry {
 }
 
 const requestCounts = new Map<string, RateLimitEntry>()
-const MAX_MAP_SIZE = 10_000 // Limite mémoire : max 10k entrées (évite fuite mémoire sur Vercel)
+const MAX_MAP_SIZE = 10_000 // Limite mémoire : max 10k entrées (évite fuite mémoire sur Workers)
 
 // Nettoyer les entrées expirées toutes les 5 minutes
 if (typeof setInterval !== 'undefined') {
@@ -82,9 +95,10 @@ export async function checkRateLimit(
   limit = 20,
   windowMs = 60_000,
 ): Promise<boolean> {
-  if (ratelimit) {
+  const lim = getLimiter(limit, windowMs)
+  if (lim) {
     try {
-      const { success } = await ratelimit.limit(identifier)
+      const { success } = await lim.limit(identifier)
       return success
     } catch (e) {
       // Redis down — fallback to in-memory
@@ -114,10 +128,9 @@ export const checkRateLimitAsync = checkRateLimit
  * Extrait l'IP de la requête Next.js
  */
 export function getClientIP(request: NextRequest): string {
-  // Cloudflare-first, then Vercel fallback, then generic
+  // Cloudflare-first, then generic forwarded headers
   return (
     request.headers.get('cf-connecting-ip') ||
-    request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     'unknown'

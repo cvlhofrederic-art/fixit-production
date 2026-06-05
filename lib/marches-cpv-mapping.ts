@@ -44,7 +44,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['couverture', 'toiture', 'couvreur', 'zinguerie', 'ardoise', 'tuile', 'toit', 'bac acier', 'étanchéité', 'charpente', 'gouttière', 'faîtage', 'noue', 'zinc', 'membrane', 'combles', 'solins'],
     keywordsPt: ['telhado', 'cobertura', 'telha', 'caleira', 'impermeabilização de cobertura', 'zinco', 'chapa', 'mansarda', 'cumeeira', 'beiral'],
-    categoryIds: ['telhados', 'impermeabilizacao'],
+    categoryIds: ['telhados', 'impermeabilizacao', 'couvreur', 'toiture'],
   },
 
   // ─── ÉLECTRICIEN ───────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['électricité', 'installation électrique', 'tableau électrique', 'câblage', 'éclairage', 'IRVE', 'borne de recharge', 'courant fort', 'courant faible', 'TGBT', 'photovoltaïque'],
     keywordsPt: ['eletricidade', 'cablagem', 'quadro elétrico', 'iluminação', 'instalação elétrica', 'ITED', 'corrente forte', 'corrente fraca'],
-    categoryIds: ['eletricidade'],
+    categoryIds: ['eletricidade', 'electricien', 'electricite'],
   },
 
   // ─── PLOMBIER ──────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['plomberie', 'plombier', 'sanitaire', 'canalisation', 'robinetterie', 'chauffe-eau', 'tuyauterie', 'adduction eau', 'assainissement', 'ECS'],
     keywordsPt: ['canalização', 'tubagem', 'sanitário', 'torneira', 'esgoto', 'abastecimento água', 'canalizador', 'sifão'],
-    categoryIds: ['canalizacao', 'desentupimentos'],
+    categoryIds: ['canalizacao', 'desentupimentos', 'plombier', 'plomberie'],
   },
 
   // ─── MAÇON ─────────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['maçonnerie', 'gros œuvre', 'béton', 'parpaing', 'brique', 'fondation', 'démolition', 'mur', 'dalle', 'terrassement', 'structure', 'coffrage', 'ferraillage'],
     keywordsPt: ['alvenaria', 'fundação', 'betão', 'parede', 'tijolo', 'laje', 'demolição', 'terraplanagem', 'estrutura', 'cofragem'],
-    categoryIds: ['construcao', 'construction'],
+    categoryIds: ['construcao', 'construction', 'macon', 'maconnerie'],
   },
 
   // ─── PEINTRE ───────────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['peinture', 'peintre', 'ravalement', 'revêtement mural', 'papier peint', 'enduit', 'façade', 'faux plafond', 'lasure'],
     keywordsPt: ['pintura', 'revestimento', 'fachada', 'estuque', 'reboco', 'decoração', 'pintor', 'verniz', 'teto falso'],
-    categoryIds: ['pintura'],
+    categoryIds: ['pintura', 'peintre', 'peinture'],
   },
 
   // ─── MENUISIER ─────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['menuiserie', 'menuisier', 'fenêtre', 'huisserie', 'volet', 'parquet', 'porte', 'bois', 'escalier', 'agencement', 'PVC', 'aluminium'],
     keywordsPt: ['carpintaria', 'janela', 'porta', 'madeira', 'caixilharia', 'estore', 'escada', 'soalho', 'carpinteiro', 'PVC', 'alumínio'],
-    categoryIds: ['carpintaria'],
+    categoryIds: ['carpintaria', 'menuisier', 'menuiserie'],
   },
 
   // ─── CHAUFFAGISTE / CLIMATICIEN ────────────────────────────────────────────
@@ -195,7 +195,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['chauffage', 'climatisation', 'pompe à chaleur', 'chaudière', 'VMC', 'CVC', 'ventilation', 'PAC', 'géothermie', 'génie climatique'],
     keywordsPt: ['aquecimento', 'climatização', 'bomba de calor', 'caldeira', 'ventilação', 'AVAC', 'ar condicionado', 'piso radiante'],
-    categoryIds: ['climatizacao', 'gas'],
+    categoryIds: ['climatizacao', 'gas', 'chauffagiste', 'chauffage', 'climatisation'],
   },
 
   // ─── CARRELEUR ─────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['serrurerie', 'serrurier', 'métallerie', 'ferronnerie', 'garde-corps', 'portail', 'grille', 'clôture', 'acier', 'charpente métallique'],
     keywordsPt: ['serralharia', 'grade', 'portão', 'ferro', 'guarda-corpo', 'vedação', 'serralheiro', 'aço', 'inox'],
-    categoryIds: ['serralharia', 'seguranca'],
+    categoryIds: ['serralharia', 'seguranca', 'serrurier', 'serrurerie', 'metallerie'],
   },
 
   // ─── PAYSAGISTE / JARDINIER ────────────────────────────────────────────────
@@ -320,7 +320,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['isolation thermique', 'isolation phonique', 'ITE', 'bardage', 'rénovation énergétique', 'isolation', 'laine de verre', 'polystyrène', 'soufflage', 'RGE'],
     keywordsPt: ['isolamento', 'isolamento térmico', 'isolamento acústico', 'capoto', 'ETICS', 'poliestireno', 'lã de rocha', 'eficiência energética'],
-    categoryIds: ['isolamento'],
+    categoryIds: ['isolamento', 'isolation'],
   },
 
   // ─── RÉNOVATION GÉNÉRALE ───────────────────────────────────────────────────
@@ -346,7 +346,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     ],
     keywords: ['rénovation', 'réhabilitation', 'réfection', 'TCE', 'entreprise générale', 'aménagement', 'restructuration', 'mise aux normes'],
     keywordsPt: ['renovação', 'reabilitação', 'remodelação', 'obras interiores', 'obras de melhoramento', 'reestruturação'],
-    categoryIds: ['renovacao'],
+    categoryIds: ['renovacao', 'renovation', 'travaux'],
   },
 
   // ─── NETTOYAGE ─────────────────────────────────────────────────────────────

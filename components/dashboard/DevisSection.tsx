@@ -5,9 +5,16 @@ import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
+import DocumentCancelModal from '@/components/DocumentCancelModal'
+import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import type { Artisan, Service, Booking } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
+import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
+import { supabase } from '@/lib/supabase'
+import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { getDocSeq, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 
 interface DevisLine {
   totalHT?: number
@@ -29,7 +36,11 @@ interface DevisDocument {
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+// Total HT d'un devis BTP — délégué à `computeDocumentTotalHT`
+// (lib/devis-totals.ts), source unique de vérité. Toute logique de
+// sommation et de filtrage des sections masquées est centralisée là.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const computeDevisTotalHT = (doc: DevisDocument): number => computeDocumentTotalHT(doc as any)
 
 // Identifie un document unique
 // 1) id (Date.now() par save) — nouveaux docs
@@ -42,49 +53,84 @@ const isSameDoc = (a: DevisDocument, b: DevisDocument): boolean => {
   return false
 }
 
-// Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
-// Les docs sans numéro valide vont à la fin (MAX_SAFE_INTEGER).
-const getDocSeq = (doc: DevisDocument): number => {
-  const m = (doc.docNumber || '').match(/-(\d{4})-(\d+)$/)
-  if (!m) return Number.MAX_SAFE_INTEGER
-  return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
-}
+// getDocSeq déplacé dans lib/devis-utils.ts pour réutilisation par FacturesSection
+// (fix tri "du dernier émis au premier" cohérent sur devis + factures)
 
 interface DevisSectionProps {
   artisan: Artisan | null
   services: Service[]
   bookings: Booking[]
   savedDocuments: DevisDocument[]
-  setSavedDocuments: (docs: DevisDocument[]) => void
+  setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   showDevisForm: boolean
   setShowDevisForm: (v: boolean) => void
   convertingDevis: DevisDocument | null
   setConvertingDevis: (v: DevisDocument | null) => void
+  /** Callback unifié : openDevisForm() = nouveau, openDevisForm(doc) = édition. */
+  openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
-  orgRole?: OrgRole
 }
 
 export default function DevisSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
-  showDevisForm, setShowDevisForm, convertingDevis, setConvertingDevis,
-  convertDevisToFacture, orgRole,
+  showDevisForm, setShowDevisForm, convertingDevis, setConvertingDevis, openDevisForm,
+  convertDevisToFacture,
 }: DevisSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const { orgRole, isV5, useBtpDesign } = useOrgRoleContext()
   const tv = useThemeVars(isV5)
 
+  // FR-V1.2 — Merge localStorage dans le state existant (qui contient déjà
+  // le merge DB+local depuis le mount du dashboard). NE PAS écraser avec
+  // [...docs, ...drafts] seul, sinon les entrées DB-only disparaissent.
+  // Incident Sud travaux 2026-05-26 : factures DB perdues de l'UI après mutation.
   const refreshDocuments = () => {
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-    setSavedDocuments([...docs, ...drafts])
+    const localDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]') as DevisDocument[]
+    const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
+    // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
+    // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
+  }
+
+  const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
+
+  const { cancellingDoc, setCancellingDoc, handleRemoveDoc: _handleRemoveDocRaw, handleCancelled } =
+    useDocumentCancel<DevisDocument>({
+      artisanId: artisan?.id,
+      docType: 'devis',
+      isSameDoc,
+      setSavedDocuments,
+      // Pré-validé : le modal stylé en amont fait office de confirm() humain.
+      confirmDraftDelete: () => true,
+    })
+
+  // Wrapper : pour les brouillons on ouvre un modal stylé (vs `confirm()` natif
+  // moche). Pour les docs émis, le hook gère déjà son propre DocumentCancelModal.
+  const handleRemoveDoc = (doc: DevisDocument) => {
+    if (isDocDraftStatus(doc.status, 'devis')) {
+      setPendingDraftDelete(doc)
+      return
+    }
+    _handleRemoveDocRaw(doc)
+  }
+
+  const confirmPendingDraftDelete = () => {
+    if (!pendingDraftDelete) return
+    _handleRemoveDocRaw(pendingDraftDelete)
+    setPendingDraftDelete(null)
   }
 
   if (showDevisForm) {
     if (orgRole === 'pro_societe') {
       return (
-        <DevisFactureFormBTP artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
+        // key par document : remonte le form à chaque doc ouvert pour éviter
+        // que les useState(initialData?…) conservent les valeurs du précédent.
+        <DevisFactureFormBTP
+          key={`btp-devis-${(convertingDevis as { docNumber?: string; id?: string } | null)?.docNumber || (convertingDevis as { id?: string } | null)?.id || 'new'}`}
+          artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
           initialData={convertingDevis as any}
           onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
           onSave={() => { setConvertingDevis(null); refreshDocuments() }}
@@ -101,24 +147,55 @@ export default function DevisSection({
     )
   }
 
-  const devisDocs = savedDocuments.filter(d => d.docType === 'devis')
+  // Filtre les devis annulés de la liste active (statut 'cancelled' DB EN
+   // ou 'annule' localStorage FR). Le record reste en DB pour audit légal
+   // (art. L123-22 C. com., conservation 10 ans) mais disparaît du flux actif.
+  const devisDocs = savedDocuments.filter(d =>
+    d.docType === 'devis' && d.status !== 'cancelled' && d.status !== 'annule'
+  )
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only
      ═══════════════════════════════════════════ */
   if (isV5) {
-    return <DevisSectionV5
-      devisDocs={devisDocs}
-      setShowDevisForm={setShowDevisForm}
-      setConvertingDevis={setConvertingDevis}
-      convertDevisToFacture={convertDevisToFacture}
-      artisan={artisan}
-      setSavedDocuments={setSavedDocuments}
-      dateLocale={dateLocale}
-      locale={locale}
-      t={t}
-      orgRole={orgRole}
-    />
+    return (
+      <>
+        <DevisSectionV5
+          devisDocs={devisDocs}
+          setShowDevisForm={setShowDevisForm}
+          setConvertingDevis={setConvertingDevis}
+          openDevisForm={openDevisForm}
+          convertDevisToFacture={convertDevisToFacture}
+          artisan={artisan}
+          setSavedDocuments={setSavedDocuments}
+          dateLocale={dateLocale}
+          locale={locale}
+          t={t}
+          orgRole={orgRole}
+          onRemoveDoc={handleRemoveDoc}
+        />
+        {cancellingDoc?.docNumber && (
+          <DocumentCancelModal
+            open={!!cancellingDoc}
+            docType="devis"
+            docNumber={cancellingDoc.docNumber}
+            onCancelled={handleCancelled}
+            onClose={() => setCancellingDoc(null)}
+          />
+        )}
+        <ConfirmDraftDeleteDialog
+          open={!!pendingDraftDelete}
+          docType="devis"
+          label={
+            pendingDraftDelete?.docNumber ||
+            (pendingDraftDelete?.clientName as string | undefined) ||
+            (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+          }
+          onConfirm={confirmPendingDraftDelete}
+          onClose={() => setPendingDraftDelete(null)}
+        />
+      </>
+    )
   }
 
   /* ═══════════════════════════════════════════
@@ -132,7 +209,7 @@ export default function DevisSection({
           <div className="v22-page-title">{'📄'} {t('proDash.devis.title')}</div>
           <div className="v22-page-sub">{t('proDash.devis.subtitle')}</div>
         </div>
-        <button onClick={() => setShowDevisForm(true)} className="v22-btn v22-btn-primary">
+        <button onClick={() => openDevisForm()} className="v22-btn v22-btn-primary">
           + {t('proDash.devis.nouveauDevis')}
         </button>
       </div>
@@ -177,10 +254,10 @@ export default function DevisSection({
               </thead>
               <tbody>
                 {[...devisDocs].sort((a: DevisDocument, b: DevisDocument) => getDocSeq(a) - getDocSeq(b)).map((doc: DevisDocument, i: number) => {
-                  const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+                  const totalHT = computeDevisTotalHT(doc)
                   return (
                     <tr key={`saved-dev-${i}`}>
-                      <td><span className="v22-ref">{doc.docNumber}</span></td>
+                      <td><span className="v22-ref">{doc.docNumber || 'Brouillon'}</span></td>
                       <td><span className="v22-client-name">{doc.clientName || t('proDash.devis.clientNonRenseigne')}</span></td>
                       <td>{doc.docTitle || '-'}</td>
                       <td className="v22-amount" style={{ textAlign: 'right' }}>{totalHT.toFixed(2)} €</td>
@@ -246,7 +323,8 @@ export default function DevisSection({
                               const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}
                               className="v22-btn v22-btn-sm" style={{ color: tv.green }} title={t('proDash.devis.marquerEnvoye')}>
                               {'✅'}
@@ -264,24 +342,22 @@ export default function DevisSection({
                               const updDrafts = drafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                              setSavedDocuments([...updDocs, ...updDrafts])
+                              // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                              setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                             }}
                               className="v22-btn v22-btn-sm" title={t('proDash.devis.envoyerEmail')}>
                               {'📧'}
                             </button>
                           )}
-                          <button onClick={() => {
-                            if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${doc.docNumber || ''} ?`)) return
-                            const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                            const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                            const updDocs = docs.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                            const updDrafts = drafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                            localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
-                            localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
-                            setSavedDocuments([...updDocs, ...updDrafts])
-                          }}
-                            className="v22-btn v22-btn-sm" style={{ color: tv.red }}>
-                            {'🗑️'}
+                          <button
+                            onClick={() => handleRemoveDoc(doc)}
+                            className="v22-btn v22-btn-sm"
+                            style={{ color: tv.red }}
+                            title={isDocDraftStatus(doc.status, 'devis')
+                              ? t('proDash.devis.supprimer')
+                              : (locale === 'pt' ? 'Anular' : 'Annuler')}
+                          >
+                            {isDocDraftStatus(doc.status, 'devis') ? '🗑️' : '🚫'}
                           </button>
                         </div>
                       </td>
@@ -296,12 +372,32 @@ export default function DevisSection({
             <div style={{ fontSize: 40, marginBottom: 12 }}>{'📄'}</div>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: tv.text }}>{t('proDash.devis.aucunDevis')}</div>
             <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 16 }}>{t('proDash.devis.creerPremierDevis')}</div>
-            <button onClick={() => setShowDevisForm(true)} className="v22-btn v22-btn-primary">
+            <button onClick={() => openDevisForm()} className="v22-btn v22-btn-primary">
               {t('proDash.devis.creerDevis')}
             </button>
           </div>
         )}
       </div>
+      {cancellingDoc?.docNumber && (
+        <DocumentCancelModal
+          open={!!cancellingDoc}
+          docType="devis"
+          docNumber={cancellingDoc.docNumber}
+          onCancelled={handleCancelled}
+          onClose={() => setCancellingDoc(null)}
+        />
+      )}
+      <ConfirmDraftDeleteDialog
+        open={!!pendingDraftDelete}
+        docType="devis"
+        label={
+          pendingDraftDelete?.docNumber ||
+          (pendingDraftDelete?.clientName as string | undefined) ||
+          (locale === 'pt' ? 'este rascunho' : 'ce brouillon')
+        }
+        onConfirm={confirmPendingDraftDelete}
+        onClose={() => setPendingDraftDelete(null)}
+      />
     </div>
   )
 }
@@ -310,20 +406,23 @@ export default function DevisSection({
    V5 sub-component — Devis for pro_societe
    ═══════════════════════════════════════════════════════ */
 function DevisSectionV5({
-  devisDocs, setShowDevisForm, setConvertingDevis, convertDevisToFacture,
-  artisan, setSavedDocuments, dateLocale, locale, t, orgRole,
+  devisDocs, setShowDevisForm, setConvertingDevis, openDevisForm, convertDevisToFacture,
+  artisan, setSavedDocuments, dateLocale, locale, t, orgRole, onRemoveDoc,
 }: {
   devisDocs: DevisDocument[]
   setShowDevisForm: (v: boolean) => void
   setConvertingDevis: (v: DevisDocument | null) => void
+  openDevisForm: (doc?: DevisDocument | null) => void
   convertDevisToFacture: (doc: DevisDocument) => void
   artisan: Artisan | null
-  setSavedDocuments: (docs: DevisDocument[]) => void
+  setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   dateLocale: string
   locale: string
   t: (k: string) => string
   orgRole?: OrgRole
+  onRemoveDoc: (doc: DevisDocument) => void
 }) {
+  const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
 
@@ -337,12 +436,67 @@ function DevisSectionV5({
         d.docTitle?.toLowerCase().includes(q)
       )
     })
-    .sort((a, b) => getDocSeq(a) - getDocSeq(b))
+    .sort((a, b) => getDocSeq(b) - getDocSeq(a))
 
   const getV5Badge = (doc: DevisDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
-    if (doc.status === 'signe') return { cls: 'v5-badge v5-badge-green', label: t('proDash.devis.signe') }
+    if (doc.status === 'cancelled' || doc.status === 'annule') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Anulado' : 'Annulé' }
+    if (doc.status === 'accepte' || doc.status === 'accepted') return { cls: 'v5-badge v5-badge-green', label: locale === 'pt' ? 'Aceite' : 'Accepté' }
+    if (doc.status === 'refuse' || doc.status === 'rejected') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Recusado' : 'Refusé' }
+    if (doc.status === 'envoye' || doc.status === 'sent') return { cls: 'v5-badge v5-badge-blue', label: t('proDash.devis.envoye') }
+    if (doc.status === 'signe' || doc.status === 'signed') return { cls: 'v5-badge v5-badge-green', label: t('proDash.devis.signe') }
     return { cls: 'v5-badge v5-badge-yellow', label: t('proDash.devis.brouillon') }
+  }
+
+  // FR-V7 — Marque manuellement le devis accepté/refusé via l'API.
+  // Met à jour localStorage + DB. L'audit log est généré par le trigger 080.
+  const updateDevisStatus = async (doc: DevisDocument, newStatus: 'accepted' | 'rejected') => {
+    if (!doc.docNumber) return
+    const isPt = locale === 'pt'
+    const labelAccept = isPt ? 'Aceite' : 'Accepté'
+    const labelReject = isPt ? 'Recusado' : 'Refusé'
+    const label = newStatus === 'accepted' ? labelAccept : labelReject
+    let reason: string | undefined
+    if (newStatus === 'rejected') {
+      const promptMsg = isPt
+        ? 'Razão do recusa (opcional, 5-500 caracteres)'
+        : 'Raison du refus (optionnel, 5-500 caractères)'
+      const r = window.prompt(promptMsg) || ''
+      reason = r.trim().length >= 5 ? r.trim() : undefined
+    }
+    try {
+      // Bearer token requis par /api/devis-status (cf. lib/auth-helpers.ts
+      // getAuthUser → 401 sans Authorization header). Sans ça, le passage
+      // Accepté/Refusé du devis échouait systématiquement en prod côté
+      // artisan ET BTP (DevisSection partagé). Même pattern que la PR #184
+      // pour /api/document-cancel.
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
+      const res = await fetch('/api/devis-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ numero: doc.docNumber, newStatus, reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data?.error || (isPt ? 'Erro' : 'Erreur'))
+        return
+      }
+      // Sync localStorage
+      const localStatus = newStatus === 'accepted' ? 'accepte' : 'refuse'
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+      const mark = (d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: localStatus } : d
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs.map(mark)))
+      localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts.map(mark)))
+      // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+      setSavedDocuments(prev => prev.map(mark))
+      toast.success(`${label} : ${doc.docNumber}`)
+    } catch (e) {
+      console.error('[updateDevisStatus] failed:', e)
+      toast.error(isPt ? 'Erro de rede' : 'Erreur réseau')
+    }
   }
 
   return (
@@ -357,7 +511,7 @@ function DevisSectionV5({
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button className="v5-btn v5-btn-p" onClick={() => setShowDevisForm(true)}>
+        <button className="v5-btn v5-btn-p" onClick={() => openDevisForm()}>
           + {t('proDash.devis.creerDevisV5')}
         </button>
       </div>
@@ -378,14 +532,14 @@ function DevisSectionV5({
           </thead>
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
-              const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+              const totalHT = computeDevisTotalHT(doc)
               const badge = getV5Badge(doc)
               const dateStr = doc.docDate
                 ? new Date(doc.docDate).toLocaleDateString(dateLocale)
                 : (doc.savedAt ? new Date(doc.savedAt).toLocaleDateString(dateLocale) : '-')
               return (
                 <tr key={`v5-dev-${i}`}>
-                  <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
+                  <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
                   <td>{dateStr}</td>
                   <td>{doc.clientName || t('proDash.devis.nonRenseigne')}</td>
                   <td>{doc.docTitle || '-'}</td>
@@ -405,7 +559,7 @@ function DevisSectionV5({
                           title={doc.clientEmail}
                           onClick={() => {
                             const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                            const totalHTMail = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
+                            const totalHTMail = computeDevisTotalHT(doc)
                             const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHTMail.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                             window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                             const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -415,7 +569,8 @@ function DevisSectionV5({
                             const uDrafts = allDrafts.map((d: DevisDocument) => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                            setSavedDocuments([...uDocs, ...uDrafts])
+                            // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
+                            setSavedDocuments(prev => prev.map(d => isSameDoc(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                           }}
                         >
                           Email
@@ -449,7 +604,7 @@ function DevisSectionV5({
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
                                 rc_pro: (artisan as { rc_pro?: string | null }).rc_pro ?? null,
                               } : null,
-                              useBtpDesign: orgRole === 'pro_societe',
+                              useBtpDesign,
                             })
                           } catch (err) {
                             console.error('[Devis] download failed', err)
@@ -459,6 +614,27 @@ function DevisSectionV5({
                       >
                         {t('proDash.devis.telecharger')}
                       </button>
+                      {/* FR-V7 : Boutons Accepté / Refusé visibles uniquement sur devis envoyés */}
+                      {(doc.status === 'envoye' || doc.status === 'sent') && (
+                        <>
+                          <button
+                            className="v5-btn v5-btn-sm"
+                            style={{ background: '#16A34A', color: 'white', borderColor: '#16A34A' }}
+                            onClick={() => updateDevisStatus(doc, 'accepted')}
+                            title={locale === 'pt' ? 'Marcar como aceite' : 'Marquer accepté'}
+                          >
+                            {locale === 'pt' ? '✓ Aceite' : '✓ Accepté'}
+                          </button>
+                          <button
+                            className="v5-btn v5-btn-sm"
+                            style={{ background: '#DC2626', color: 'white', borderColor: '#DC2626' }}
+                            onClick={() => updateDevisStatus(doc, 'rejected')}
+                            title={locale === 'pt' ? 'Marcar como recusado' : 'Marquer refusé'}
+                          >
+                            {locale === 'pt' ? '✗ Recusado' : '✗ Refusé'}
+                          </button>
+                        </>
+                      )}
                       <button
                         className="v5-btn v5-btn-sm v5-btn-p"
                         onClick={() => convertDevisToFacture(doc)}
@@ -467,24 +643,25 @@ function DevisSectionV5({
                       </button>
                       <button
                         className="v5-btn v5-btn-sm v5-btn-d"
-                        title={t('proDash.devis.supprimer')}
-                        onClick={() => {
-                          const label = doc.docNumber || (doc.clientName || '')
-                          if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${label} ?`)) return
-                          const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                          const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                          const uDocs = allDocs.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                          const uDrafts = allDrafts.filter((d: DevisDocument) => !isSameDoc(d, doc))
-                          localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
-                          localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
-                          setSavedDocuments([...uDocs, ...uDrafts])
-                        }}
-                        aria-label={t('proDash.devis.supprimer')}
+                        title={isDocDraftStatus(doc.status, 'devis')
+                          ? t('proDash.devis.supprimer')
+                          : (locale === 'pt' ? 'Anular' : 'Annuler')}
+                        onClick={() => onRemoveDoc(doc)}
+                        aria-label={isDocDraftStatus(doc.status, 'devis')
+                          ? t('proDash.devis.supprimer')
+                          : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-                          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
-                          <path d="M10 11v6M14 11v6"/>
-                        </svg>
+                        {isDocDraftStatus(doc.status, 'devis') ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
+                            <path d="M10 11v6M14 11v6"/>
+                          </svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M4.93 4.93l14.14 14.14"/>
+                          </svg>
+                        )}
                       </button>
                     </div>
                   </td>

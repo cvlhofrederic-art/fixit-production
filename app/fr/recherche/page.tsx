@@ -130,13 +130,13 @@ function RechercheContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  // Détection locale depuis l'URL (/pt/... ou /fr/...) — fiable dès le 1er rendu
+  // Détection locale depuis l'URL (/pt/... ou /fr/...) - fiable dès le 1er rendu
   // Le middleware garde l'URL /pt/recherche/ dans le navigateur même si next.config rewrite sert /recherche/
   const pathname = usePathname()
   const siteLocale: 'fr' | 'pt' = pathname?.startsWith('/pt') ? 'pt' : 'fr'
   const tp = (fr: string, pt: string) => siteLocale === 'pt' ? pt : fr
 
-  // Search inputs — PT: show localized label instead of raw slug (e.g. "Eletricista" not "electricite")
+  // Search inputs - PT: show localized label instead of raw slug (e.g. "Eletricista" not "electricite")
   const [categoryInput, setCategoryInput] = useState(() => {
     const raw = searchParams.get('category') || ''
     return raw && siteLocale === 'pt' ? (CATEGORY_LABELS_PT[raw] || raw) : raw
@@ -218,7 +218,7 @@ function RechercheContent() {
         }
       }
 
-      // detectedCountry = 'FR' | 'PT' — mappe vers la colonne `language` qui existe dans profiles_artisan
+      // detectedCountry = 'FR' | 'PT' - mappe vers la colonne `language` qui existe dans profiles_artisan
       const detectedLang = detectedCountry === 'PT' ? 'pt' : 'fr'
 
       let query = supabase
@@ -227,7 +227,7 @@ function RechercheContent() {
         .eq('active', true)
         .eq('language', detectedLang)
 
-      // Don't filter registered artisans at DB level — do it client-side for better fuzzy matching
+      // Don't filter registered artisans at DB level - do it client-side for better fuzzy matching
       const { data: artisanData, error } = await query
 
       if (error) {
@@ -287,7 +287,7 @@ function RechercheContent() {
             return artisanCats.some(ac => relatedSlugs.has(ac))
           })
         } else {
-          // No resolved category — free text search across all artisan fields
+          // No resolved category - free text search across all artisan fields
           registeredList = registeredList.filter((a) => {
             const artisanText = normalizeForSearch(
               [
@@ -538,11 +538,14 @@ function RechercheContent() {
       if (registeredList.length > 0) {
         const ids = registeredList.map((a) => a.id)
 
+        // Recherche montre uniquement les créneaux RDV directs (pas les plages Visite & devis,
+        // qui supposent un échange préalable avec l'artisan).
         const { data: availData } = await supabase
           .from('availability')
           .select('*')
           .in('artisan_id', ids)
           .eq('is_available', true)
+          .or('slot_type.eq.rdv,slot_type.is.null')
           .order('day_of_week')
 
         setAllAvailability(availData || [])
@@ -615,14 +618,18 @@ function RechercheContent() {
   // ------------------------------------------------------------------
 
   // Filtered specialty suggestions
+  // PT: match against translated label AND original FR (so "canalizador" matches the
+  // plomberie suggestion whose label is "Plombier" in the source dataset).
   const filteredSpecialtySuggestions = useMemo(() => {
     if (!categoryInput.trim()) return SPECIALTY_SUGGESTIONS_FR.filter(s => s.type === 'primary')
-    const norm = categoryInput.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    return SPECIALTY_SUGGESTIONS_FR.filter(s =>
-      s.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm) ||
-      (s.subtitle && s.subtitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm))
-    ).slice(0, 8)
-  }, [categoryInput])
+    const norm = normalizeForSearch(categoryInput)
+    return SPECIALTY_SUGGESTIONS_FR.filter(s => {
+      const labelLocal = siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.label) : s.label
+      const subtitleLocal = siteLocale === 'pt' && s.subtitle ? (CATEGORY_LABELS_PT[s.category] || s.subtitle) : (s.subtitle || '')
+      return [s.label, s.subtitle || '', labelLocal, subtitleLocal]
+        .some(t => t && normalizeForSearch(t).includes(norm))
+    }).slice(0, 8)
+  }, [categoryInput, siteLocale])
 
   // Autocomplete local (phase test) : départements + villes depuis nos datasets
   // FR : 13 + communes 13 / PT : Porto + freguesias/concelhos Porto
@@ -657,7 +664,7 @@ function RechercheContent() {
         }
       }
     } else {
-      // Départements FR (tous les 101 pour la suggestion — phase test seul le 13 a des artisans)
+      // Départements FR (tous les 101 pour la suggestion - phase test seul le 13 a des artisans)
       for (const d of FR_DEPARTEMENTS) {
         if (d.code.startsWith(norm) || d.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm)) {
           push(`${d.code} - ${d.nom}`)
@@ -724,15 +731,19 @@ function RechercheContent() {
     else if (e.key === 'Escape') { setLocDropOpen(false); setLocHighlight(-1) }
   }
 
+  // Path locale-aware : la page est servie sur /fr/recherche/ ET /pt/pesquisar/.
+  // On préserve la locale active dans l'URL pour ne pas renvoyer un user PT sur /fr/.
+  const searchBasePath = siteLocale === 'pt' ? '/pt/pesquisar' : '/fr/recherche'
+
   const handleSearch = () => {
     setActiveCategory(categoryInput)
     setActiveLocation(locationInput)
 
-    // Update URL params
+    // Update URL params - keep the user on their locale's route (PT submitting must stay on /pt/pesquisar)
     const params = new URLSearchParams()
     if (categoryInput) params.set('category', categoryInput)
     if (locationInput) params.set('loc', locationInput)
-    router.push(`/fr/recherche?${params.toString()}`)
+    router.push(`${searchBasePath}?${params.toString()}`)
 
     fetchData(categoryInput, locationInput)
   }
@@ -791,12 +802,12 @@ function RechercheContent() {
         }
 
         setGeoLoading(false)
-        // Lancer la recherche automatiquement après géoloc
+        // Lancer la recherche automatiquement après géoloc - respecter la locale
         setTimeout(() => {
           setActiveCategory(categoryInput)
           const params = new URLSearchParams()
           if (categoryInput) params.set('category', categoryInput)
-          router.push(`/fr/recherche?${params.toString()}`)
+          router.push(`${searchBasePath}?${params.toString()}`)
           fetchData(categoryInput, '')
         }, 100)
       },
@@ -915,7 +926,7 @@ function RechercheContent() {
       return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s))
     }
 
-    // Groupe 1 — Inscrits VITFIX
+    // Groupe 1 - Inscrits VITFIX
     let sortedRegistered: Artisan[]
     if (refCoords) {
       // Coordonnées disponibles (GPS ou ville geocodée) → tri par distance croissante
@@ -926,8 +937,11 @@ function RechercheContent() {
     }
 
     // Groupe 2 — Catalogue SIRENE (toujours après les inscrits)
-    // Rotation toutes les 4h, seed décalé pour varier indépendamment du groupe 1
-    const sortedCatalogue = seededShuffle(catalogueArtisans, seed + 1)
+    // Si coords disponibles (GPS "autour de moi" ou ville geocodée) → tri par distance
+    // croissante. Sinon → rotation équitable toutes les 4h, seed décalé du groupe 1.
+    const sortedCatalogue = refCoords
+      ? [...catalogueArtisans].sort((a, b) => haversine(a) - haversine(b))
+      : seededShuffle(catalogueArtisans, seed + 1)
 
     return [...sortedRegistered, ...sortedCatalogue]
   }, [artisans, filters, allAvailability, allBookings, userCoords, searchCoords])
@@ -964,17 +978,22 @@ function RechercheContent() {
 
   return (
     <div className="min-h-screen bg-warm-gray">
-      <h1 className="sr-only">Rechercher un artisan près de chez vous</h1>
+      <h1 className="sr-only">{tp('Rechercher un artisan près de chez vous', 'Pesquisar um profissional perto de si')}</h1>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'BreadcrumbList',
-            itemListElement: [
-              { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.io/' },
-              { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.io/recherche/' },
-            ],
+            itemListElement: siteLocale === 'pt'
+              ? [
+                  { '@type': 'ListItem', position: 1, name: 'Início', item: 'https://vitfix.io/pt/' },
+                  { '@type': 'ListItem', position: 2, name: 'Pesquisar profissional', item: 'https://vitfix.io/pt/pesquisar/' },
+                ]
+              : [
+                  { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.io/fr/' },
+                  { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.io/fr/recherche/' },
+                ],
           }),
         }}
       />
@@ -987,8 +1006,8 @@ function RechercheContent() {
               tp('Recherche en cours...', 'A pesquisar...')
             ) : (
               siteLocale === 'pt'
-                ? <>{filteredArtisans.length} profissional{filteredArtisans.length !== 1 ? 'is' : ''} disponível{filteredArtisans.length !== 1 ? 'eis' : ''}</>
-                : <>{filteredArtisans.length} artisan{filteredArtisans.length !== 1 ? 's' : ''} disponible{filteredArtisans.length !== 1 ? 's' : ''}</>
+                ? <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'profissionais disponíveis' : 'profissional disponível'}</>
+                : <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'artisans disponibles' : 'artisan disponible'}</>
             )}
           </h1>
           {!loading && (
@@ -1009,7 +1028,7 @@ function RechercheContent() {
                 onFocus={() => setCatDropOpen(true)}
                 onKeyDown={handleCategoryKeyDown}
                 placeholder={tp('Spécialité ou motif (ex: plombier, fuite...)', 'Especialidade (ex: canalizador, fuga...)')}
-                aria-label="Rechercher une spécialité"
+                aria-label={tp('Rechercher une spécialité', 'Pesquisar uma especialidade')}
                 className="w-full pl-9 pr-4 py-2.5 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:outline-none transition text-sm"
                 autoComplete="off"
               />
@@ -1042,7 +1061,7 @@ function RechercheContent() {
                 onFocus={() => setLocDropOpen(true)}
                 onKeyDown={handleLocationKeyDown}
                 placeholder={tp('Ville ou code postal', 'Cidade ou código postal')}
-                aria-label="Rechercher une ville"
+                aria-label={tp('Rechercher une ville', 'Pesquisar uma cidade')}
                 className={`w-full pl-9 pr-4 py-2.5 border-[1.5px] rounded-xl focus:outline-none transition text-sm ${userCoords ? 'border-yellow bg-amber-50' : 'bg-white border-[#E0E0E0]'}`}
                 autoComplete="off"
               />
@@ -1059,7 +1078,7 @@ function RechercheContent() {
                     <span className="font-semibold text-dark">{geoLoading ? tp('Localisation...', 'A localizar...') : tp('Autour de moi', 'Perto de mim')}</span>
                     {userCoords && !geoLoading && <span className="ml-auto text-xs text-green-600 font-medium">✓ Actif</span>}
                   </button>
-                  {citySuggestionsLoading && <div className="px-4 py-2 text-xs text-text-muted">Recherche des villes...</div>}
+                  {citySuggestionsLoading && <div className="px-4 py-2 text-xs text-text-muted">{tp('Recherche des villes...', 'A pesquisar cidades...')}</div>}
                   {!citySuggestionsLoading && citySuggestions.map((s, i) => (
                     <button
                       key={s.label}
@@ -1173,7 +1192,7 @@ function RechercheContent() {
                 setActiveCategory('')
                 setActiveLocation('')
                 fetchData('', '')
-                router.push('/fr/recherche')
+                router.push(searchBasePath)
               }}
               className="bg-yellow hover:bg-yellow-light text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >
