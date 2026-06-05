@@ -571,3 +571,27 @@ export const fetchDeliberacoes = (token: string): Promise<Deliberacao[]> =>
   getList<Deliberacao>('/api/syndic/deliberacoes', token, 'deliberacoes')
 export const fetchProcessosJud = (token: string): Promise<ProcessoJud[]> =>
   getList<ProcessoJud>('/api/syndic/processos-jud', token, 'processos')
+
+// ── Lot 3 : Calendário Regulamentar (obrigações) + Contacto (campanhas) ──
+export interface Obrigacao {
+  id: string
+  edificio: string
+  tipo: string
+  descricao: string
+  prazo: string
+  concluido: boolean
+}
+export interface Campanha {
+  id: string
+  nome: string
+  tipo: string
+  edificio: string
+  destinatarios: number
+  estado: 'rascunho' | 'agendada' | 'enviada'
+  mensagem: string
+}
+
+export const fetchObrigacoes = (token: string): Promise<Obrigacao[]> =>
+  getList<Obrigacao>('/api/syndic/obrigacoes', token, 'obrigacoes')
+export const fetchCampanhas = (token: string): Promise<Campanha[]> =>
+  getList<Campanha>('/api/syndic/campanhas', token, 'campanhas')
