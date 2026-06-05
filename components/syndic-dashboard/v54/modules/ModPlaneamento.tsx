@@ -13,6 +13,9 @@ import { FormRow } from '../primitives/form-row'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import type { Evento } from '@/lib/syndic/v54/api'
+import { useSyndicCreate } from './use-syndic-create'
 
 /** Planeamento — port byte-exact du ModPlaneamento du bundle V5.7 (agenda semaine, stateful).
  * CSS bespoke dans ./planeamento.css (scopé #syndic-dashboard-v54), importé dans le layout dev.
@@ -20,7 +23,7 @@ import btnCss from '../primitives/button/Button.module.css'
 
 type Member = { id: string; name: string; role: string; accent: string }
 type Day = { key: string; short: string; long: string; date: string }
-type WeekEvent = { id: number; day: string; start: string; end: string; label: string; kind: string; owner: string }
+type WeekEvent = { id: string | number; day: string; start: string; end: string; label: string; kind: string; owner: string }
 type Settings = { workingDays: string[]; startHour: number; endHour: number; slotMinutes: number }
 
 const TEAM: Member[] = [
@@ -67,6 +70,22 @@ export default function ModPlaneamento() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
   const { push } = useToast()
+  const data = useSyndicData()
+  const real = data.authenticated
+  const { busy: evtBusy, create: createEvt } = useSyndicCreate('/api/syndic/eventos')
+  // Connecté → vrais événements du cabinet placés sur la grille ; anonyme → preview byte-exact.
+  const events: WeekEvent[] = real
+    ? (data.eventos ?? []).map((e: Evento) => ({ id: e.id, day: e.dia, start: e.horaInicio, end: e.horaFim, label: e.titulo, kind: e.tipo, owner: '' }))
+    : WEEK_EVENTS
+  const [evtOpen, setEvtOpen] = useState(false)
+  const [evtForm, setEvtForm] = useState({ titulo: '', dia: 'mon', horaInicio: '09:00', horaFim: '10:00', tipo: 'gold', responsavel: '', edificio: '' })
+  const updEvt = (k: keyof typeof evtForm, v: string) => setEvtForm(s => ({ ...s, [k]: v }))
+  const openEvt = () => { setEvtForm({ titulo: '', dia: 'mon', horaInicio: '09:00', horaFim: '10:00', tipo: 'gold', responsavel: '', edificio: '' }); setEvtOpen(true) }
+  const submitEvt = (e: FormEvent) => {
+    e.preventDefault()
+    if (!evtForm.titulo.trim()) return
+    createEvt({ ...evtForm }, { okTitle: 'Evento adicionado', desc: evtForm.titulo, onDone: () => setEvtOpen(false) })
+  }
 
   const selectedMember = selectedMemberId ? TEAM.find(m => m.id === selectedMemberId) || null : null
 
@@ -106,8 +125,8 @@ export default function ModPlaneamento() {
     const h = Math.floor(totalMin / 60); const m = totalMin % 60
     slots.push({ idx: slots.length, label: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` })
   }
-  const visibleEvents = WEEK_EVENTS.filter(ev => {
-    if (selectedMemberId && ev.owner !== selectedMemberId) return false
+  const visibleEvents = events.filter(ev => {
+    if (selectedMemberId && ev.owner && ev.owner !== selectedMemberId) return false
     if (!settings.workingDays.includes(ev.day)) return false
     if (parseMin(ev.end) <= settings.startHour * 60) return false
     if (parseMin(ev.start) >= settings.endHour * 60) return false
@@ -175,7 +194,7 @@ export default function ModPlaneamento() {
             <Button variant="ghost" onClick={() => push({ kind: 'info', title: 'Semana anterior' })}>←</Button>
             <Button variant="ghost" onClick={() => push({ kind: 'info', title: 'Esta semana' })}>Hoje</Button>
             <Button variant="ghost" onClick={() => push({ kind: 'info', title: 'Próxima semana' })}>→</Button>
-            <Button variant="gold" onClick={() => push({ kind: 'info', title: 'Adicionar evento' })}><Icon name="plus" />Adicionar</Button>
+            <Button variant="gold" onClick={openEvt}><Icon name="plus" />Adicionar</Button>
           </>
         }
       />
@@ -258,6 +277,53 @@ export default function ModPlaneamento() {
           )
         })}
       </Panel>
+
+      <Modal open={evtOpen} onClose={() => setEvtOpen(false)} labelledBy="evt-modal-title" size="md">
+        <ModalHead icon="calendar" id="evt-modal-title" title="Adicionar evento" onClose={() => setEvtOpen(false)} />
+        <form onSubmit={submitEvt} noValidate>
+          <ModalBody>
+            <Field label="Título" required full name="evt-titulo">
+              <input type="text" placeholder="Ex.: Reunião AG Atlântico" value={evtForm.titulo} onChange={e => updEvt('titulo', e.target.value)} />
+            </Field>
+            <FormRow>
+              <Field label="Dia" name="evt-dia">
+                <select value={evtForm.dia} onChange={e => updEvt('dia', e.target.value)}>
+                  {ALL_DAYS.map(d => <option key={d.key} value={d.key}>{d.long}</option>)}
+                </select>
+              </Field>
+              <Field label="Tipo" name="evt-tipo">
+                <select value={evtForm.tipo} onChange={e => updEvt('tipo', e.target.value)}>
+                  <option value="gold">Reunião</option>
+                  <option value="sage">Visita</option>
+                  <option value="amber">Tarefa</option>
+                  <option value="green">Espaço comum</option>
+                  <option value="rust">Evento</option>
+                </select>
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Hora início" name="evt-hi">
+                <input type="time" value={evtForm.horaInicio} onChange={e => updEvt('horaInicio', e.target.value)} />
+              </Field>
+              <Field label="Hora fim" name="evt-hf">
+                <input type="time" value={evtForm.horaFim} onChange={e => updEvt('horaFim', e.target.value)} />
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Responsável" name="evt-resp">
+                <input type="text" placeholder="Nome" value={evtForm.responsavel} onChange={e => updEvt('responsavel', e.target.value)} />
+              </Field>
+              <Field label="Edifício" name="evt-edif">
+                <input type="text" placeholder="Edifício…" value={evtForm.edificio} onChange={e => updEvt('edificio', e.target.value)} />
+              </Field>
+            </FormRow>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setEvtOpen(false)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={evtBusy}>Adicionar</button>
+          </ModalFoot>
+        </form>
+      </Modal>
 
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} labelledBy="plan-settings-title" size="md">
         <ModalHead icon="cog" id="plan-settings-title" title="Parâmetros de visualização" onClose={() => setSettingsOpen(false)} />
