@@ -1566,3 +1566,34 @@ export const syndicChecklistSchema = z.object({
   estado: z.enum(['em_curso', 'concluida']).optional(),
   items: z.array(z.object({ label: z.string().max(300), done: z.boolean() })).max(100).optional(),
 })
+
+// ── Syndic v54 — lot 2 « gestão » (Plano Man., Deliberações, Notif. Judiciais) ──
+export const syndicPlanoManSchema = z.object({
+  titulo: z.string().min(1).max(300),
+  edificio: z.string().max(200).optional(),
+  estado: z.enum(['preparacao', 'aprovado', 'concluido']).optional(),
+  orcamento: z.coerce.number().min(0).optional(),
+  anoInicio: z.coerce.number().int().min(2000).max(2100).optional().nullable(),
+  periodicidade: z.string().max(100).optional(),
+  descricao: z.string().max(5000).optional(),
+})
+
+export const syndicDeliberacaoSchema = z.object({
+  deliberacao: z.string().min(1).max(1000),
+  ag: z.string().max(200).optional(),
+  responsavel: z.string().max(200).optional(),
+  prazo: z.string().max(20).optional().nullable(),
+  estado: z.enum(['pendente', 'em_curso', 'concluida', 'atrasada', 'bloqueada']).optional(),
+  origem: z.enum(['manual', 'ia']).optional(),
+})
+
+export const syndicProcessoJudSchema = z.object({
+  tipo: z.string().min(1).max(200),
+  contraparte: z.string().max(200).optional(),
+  processo: z.string().max(200).optional(),
+  data: z.string().max(20).optional().nullable(),
+  prazo: z.string().max(20).optional().nullable(),
+  estado: z.enum(['ativo', 'arquivado']).optional(),
+  valor: z.coerce.number().min(0).optional(),
+  descricao: z.string().max(5000).optional(),
+})
