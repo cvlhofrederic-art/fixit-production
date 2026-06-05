@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { devisSignSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { sanitizeSvg } from '@/lib/sanitize'
 
 /**
  * POST /api/devis-sign
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
-          ...(signature_svg ? { signature_svg } : {}),
+          ...(signature_svg ? { signature_svg: sanitizeSvg(signature_svg) } : {}),
           ...(signature_hash ? { signature_hash } : {}),
         },
       })
