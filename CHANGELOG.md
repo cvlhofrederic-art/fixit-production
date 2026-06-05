@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/cvlhofrederic-art/fixit-production/compare/v0.5.0...v0.6.0) (2026-06-05)
+
+
+### Features
+
+* **btp:** acompte déjà émis marqué « déjà émis » mais ré-émissible ([#405](https://github.com/cvlhofrederic-art/fixit-production/issues/405)) ([41110c3](https://github.com/cvlhofrederic-art/fixit-production/commit/41110c39c0dbb691119d4268bfa9562e87e80f7b))
+
+
+### Bug Fixes
+
+* **security:** XSS SVG signatures + IDOR referral (les 2 vulns réelles de [#39](https://github.com/cvlhofrederic-art/fixit-production/issues/39)) ([#404](https://github.com/cvlhofrederic-art/fixit-production/issues/404)) ([01a150e](https://github.com/cvlhofrederic-art/fixit-production/commit/01a150eac41d2b6033c45c6107b786d02bbea902))
+
 ## [0.5.0](https://github.com/cvlhofrederic-art/fixit-production/compare/v0.4.0...v0.5.0) (2026-06-05)
 
 
