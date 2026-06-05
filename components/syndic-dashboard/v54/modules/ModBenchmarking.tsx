@@ -13,6 +13,7 @@ import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
+import { healthScore } from '@/lib/syndic/v54/building-score'
 
 /** Benchmarking Imóveis — port V5.7 + lot 5 fonctionnel.
  * Syndic connecté → ranking dérivé des édifices réels (data.immeubles, aucune table
@@ -21,13 +22,6 @@ import type { Immeuble } from '@/components/syndic-dashboard/types'
 
 const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Math.round(n))
 
-function healthScore(i: Immeuble): number {
-  const pct = i.budgetAnnuel > 0 ? (i.depensesAnnee / i.budgetAnnuel) * 100 : 60
-  let s = 100
-  if (pct > 80) s -= Math.min(45, (pct - 80) * 1.8)
-  s -= Math.min(30, (i.nbInterventions || 0) * 2.5)
-  return Math.max(10, Math.min(100, Math.round(s)))
-}
 const custoFracao = (i: Immeuble) => (i.nbLots > 0 ? (i.depensesAnnee || 0) / i.nbLots : 0)
 function progressKind(score: number): 'sage' | 'amber' | 'rust' | undefined {
   if (score >= 85) return 'sage'
