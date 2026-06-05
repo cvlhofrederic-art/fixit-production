@@ -475,3 +475,60 @@ export async function askAgent(route: string, message: string, token: string): P
   const text = typeof j.response === 'string' ? j.response : typeof j.content === 'string' ? j.content : ''
   return text || 'Sem resposta.'
 }
+
+// ── Lot features net-new : Reservas, Infrações, Enquetes, Checklists ──
+export interface Reserva {
+  id: string
+  espaco: string
+  quem: string
+  data: string
+  hora: string
+  estado: 'confirmada' | 'pendente' | 'cancelada'
+  notes: string
+}
+export interface Infracao {
+  id: string
+  tipo: string
+  condomino: string
+  edificio: string
+  etapa: 'sinalizada' | 'analise' | 'notificacao' | 'multa' | 'resolvida'
+  multa: number
+  descricao: string
+}
+export interface EnqueteOption {
+  label: string
+  votes: number
+}
+export interface Enquete {
+  id: string
+  titulo: string
+  descricao: string
+  estado: 'ativa' | 'a_decorrer' | 'encerrada'
+  tipo: string
+  edificio: string
+  prazo: string
+  total: number
+  options: EnqueteOption[]
+  anonima: boolean
+}
+export interface ChecklistItem {
+  label: string
+  done: boolean
+}
+export interface Checklist {
+  id: string
+  titulo: string
+  tipo: string
+  edificio: string
+  estado: 'em_curso' | 'concluida'
+  items: ChecklistItem[]
+}
+
+export const fetchReservas = (token: string): Promise<Reserva[]> =>
+  getList<Reserva>('/api/syndic/reservas', token, 'reservas')
+export const fetchInfracoes = (token: string): Promise<Infracao[]> =>
+  getList<Infracao>('/api/syndic/infracoes', token, 'infracoes')
+export const fetchEnquetes = (token: string): Promise<Enquete[]> =>
+  getList<Enquete>('/api/syndic/enquetes', token, 'enquetes')
+export const fetchChecklists = (token: string): Promise<Checklist[]> =>
+  getList<Checklist>('/api/syndic/checklists', token, 'checklists')
