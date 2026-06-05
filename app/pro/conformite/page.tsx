@@ -27,6 +27,16 @@ interface ChainCheckRow {
   chain_status: 'unsigned' | 'missing_hash' | 'broken' | 'ok'
 }
 
+interface FactureRecueRow {
+  id: string
+  emetteur_name: string
+  numero: string
+  date_emission: string
+  total_ttc_cents: number
+  status: string
+  received_at: string
+}
+
 export default async function ConformitePage() {
   const supabase = await createServerSupabaseClient()
   const headersList = await headers()
@@ -76,6 +86,27 @@ export default async function ConformitePage() {
   const audits = (auditLog || []) as AuditLogEntry[]
   const devisBroken = (devisChainBroken || []) as ChainCheckRow[]
   const facturesBroken = (facturesChainBroken || []) as ChainCheckRow[]
+
+  // FR-V6 — Factures reçues via PA (5 dernières)
+  const { data: facturesRecuesData } = await supabase
+    .from('factures_recues')
+    .select('id, emetteur_name, numero, date_emission, total_ttc_cents, status, received_at')
+    .order('received_at', { ascending: false })
+    .limit(5)
+  const { count: facturesRecuesCount } = await supabase
+    .from('factures_recues')
+    .select('*', { count: 'exact', head: true })
+  const facturesRecues = (facturesRecuesData || []) as FactureRecueRow[]
+
+  // FR-V6 — legal_hold counts
+  const { count: devisLegalHoldCount } = await supabase
+    .from('devis')
+    .select('*', { count: 'exact', head: true })
+    .eq('legal_hold', true)
+  const { count: facturesLegalHoldCount } = await supabase
+    .from('factures')
+    .select('*', { count: 'exact', head: true })
+    .eq('legal_hold', true)
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -141,6 +172,68 @@ export default async function ConformitePage() {
             </table>
           </section>
         )}
+
+        {/* ── FR-V6 : Factures reçues via PA ── */}
+        <section className="mb-8 bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Factures reçues — e-invoicing 2026 ({facturesRecuesCount ?? 0})
+            </h2>
+            <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">obligation 1er sept 2026</span>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Factures électroniques reçues automatiquement de vos fournisseurs via une Plateforme Agréée.
+            La réception sera active dès que Vitfix aura signé un partenariat PA (Docaposte/Pennylane).
+          </p>
+          {facturesRecues.length === 0 ? (
+            <p className="text-sm text-gray-500 italic">
+              Aucune facture reçue pour l&apos;instant. La table d&apos;accueil est prête, le webhook attend
+              la configuration PA (cf. <code>docs/conformite/pa-reception-roadmap.md</code>).
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-gray-600 border-b">
+                <tr><th className="pb-2">Émetteur</th><th className="pb-2">Numéro</th><th className="pb-2">Date</th><th className="pb-2 text-right">TTC</th><th className="pb-2">Statut</th></tr>
+              </thead>
+              <tbody>
+                {facturesRecues.map(f => (
+                  <tr key={f.id} className="border-b border-gray-100">
+                    <td className="py-2">{f.emetteur_name}</td>
+                    <td className="py-2 font-mono text-xs">{f.numero}</td>
+                    <td className="py-2 text-xs">{new Date(f.date_emission).toLocaleDateString('fr-FR')}</td>
+                    <td className="py-2 text-right">{(f.total_ttc_cents / 100).toFixed(2)} €</td>
+                    <td className="py-2"><span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">{f.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        {/* ── FR-V6 : Rétention 10 ans + legal hold ── */}
+        <section className="mb-8 bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Rétention 10 ans + legal hold
+          </h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Conservation 10 ans (Code commerce L. 123-22) puis anonymisation auto à 11 ans (RGPD Art. 5.1.e).
+            Le flag <code>legal_hold</code> suspend l&apos;anonymisation pour les docs en litige.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 rounded-lg border border-amber-200 bg-amber-50">
+              <div className="text-xs uppercase text-amber-800 opacity-75">Devis sous legal hold</div>
+              <div className="text-2xl font-bold text-amber-900 mt-1">{devisLegalHoldCount ?? 0}</div>
+            </div>
+            <div className="p-3 rounded-lg border border-amber-200 bg-amber-50">
+              <div className="text-xs uppercase text-amber-800 opacity-75">Factures sous legal hold</div>
+              <div className="text-2xl font-bold text-amber-900 mt-1">{facturesLegalHoldCount ?? 0}</div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            Pour activer le legal hold sur un document : <code>POST /api/document-legal-hold</code> avec
+            <code> {`{docType, numero, hold: true, reason}`}</code>. Bouton UI dédié à venir dans le formulaire devis/facture.
+          </p>
+        </section>
 
         {/* ── Audit log ── */}
         <section className="mb-8 bg-white rounded-lg shadow-sm p-6">
