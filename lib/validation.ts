@@ -1628,3 +1628,25 @@ export const syndicVotacaoSchema = z.object({
   permTotal: z.coerce.number().int().min(0).optional(),
   options: z.array(z.object({ label: z.string().max(200), perm: z.coerce.number().int().min(0) })).max(20).optional(),
 })
+
+// ── Syndic v54 — lot 7 (NPS Pós-Intervenção + Orçamentos & Obras) ──
+export const syndicNpsSchema = z.object({
+  prestador: z.string().max(200).optional(),
+  condomino: z.string().max(200).optional(),
+  intervencao: z.string().max(300).optional(),
+  tipo: z.string().max(100).optional(),
+  nota: z.coerce.number().int().min(0).max(10),
+  comentario: z.string().max(2000).optional(),
+})
+
+export const syndicObraSchema = z.object({
+  titulo: z.string().min(1).max(300),
+  tipo: z.string().max(100).optional(),
+  descricao: z.string().max(2000).optional(),
+  local: z.string().max(300).optional(),
+  prazo: z.string().max(20).optional().nullable(),
+  estado: z.enum(['orcamentacao', 'aprovacao_ag', 'execucao', 'concluida']).optional(),
+  orcamento: z.coerce.number().min(0).optional(),
+  empresa: z.string().max(200).optional(),
+  numOrcamentos: z.coerce.number().int().min(0).optional(),
+})
