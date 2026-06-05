@@ -64,6 +64,33 @@ describe('emitDocument', () => {
     expect(drafts.find((d: { id: string }) => d.id === 'd4')).toBeUndefined() // retiré des brouillons
   })
 
+  it('assigne un id stable (UUID) quand le document n\'en a pas', async () => {
+    const out = await emitDocument({
+      payload: { docNumber: '', factureSubType: 'acompte' }, // pas d'id (cas buildAcomptePrefill)
+      artisanId: ART,
+      getNumber: vi.fn().mockResolvedValue('AC-2026-030'),
+    })
+    expect(out.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+  })
+
+  it('préserve l\'id existant du document', async () => {
+    const out = await emitDocument({
+      payload: { id: 'fixed-uuid-1234', docNumber: '' },
+      artisanId: ART,
+      getNumber: vi.fn().mockResolvedValue('AC-2026-031'),
+    })
+    expect(out.id).toBe('fixed-uuid-1234')
+  })
+
+  it('deux acomptes successifs (sans id) coexistent en localStorage (ids distincts)', async () => {
+    const a = await emitDocument({ payload: { docNumber: '' }, artisanId: ART, getNumber: vi.fn().mockResolvedValue('AC-2026-040') })
+    const b = await emitDocument({ payload: { docNumber: '' }, artisanId: ART, getNumber: vi.fn().mockResolvedValue('AC-2026-041') })
+    expect(a.id).not.toBe(b.id)
+    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${ART}`)!)
+    // Les DEUX acomptes doivent rester (le 2e ne doit pas écraser le 1er)
+    expect(docs.filter((d: { docNumber: string }) => d.docNumber?.startsWith('AC-')).length).toBe(2)
+  })
+
   it('appelle sync(finalDoc, artisanId) avec le document émis', async () => {
     const sync = vi.fn()
     const out = await emitDocument({

@@ -8,6 +8,8 @@
 // Miroir de la logique saveAndSend du form BTP (DevisFactureFormBTP) — GARDER LES
 // DEUX ALIGNÉS : mêmes clés localStorage, même statut, même sync.
 
+import { stableDocId } from '@/lib/devis-utils'
+
 export interface EmitDocumentOptions {
   /** Document prêt à émettre (brouillon scalé : acompte au %, TVA conservées). */
   payload: Record<string, unknown>
@@ -44,6 +46,11 @@ export async function emitDocument(opts: EmitDocumentOptions): Promise<Record<st
   const now = opts.nowIso || new Date().toISOString()
   const finalDoc: Record<string, unknown> = {
     ...payload,
+    // Identité stable OBLIGATOIRE (UUID). buildAcomptePrefill pose id:undefined ;
+    // sans id, la dédup localStorage (`d.id !== finalDoc.id`) supprimait tous les
+    // docs sans id (un 2e acompte écrasait le 1er) ET la sync DB (onConflict='id')
+    // ne persistait pas → l'acompte disparaissait de la liste Factures.
+    id: (payload.id as string) || stableDocId(),
     docNumber,
     status: 'envoye',
     savedAt: now,
