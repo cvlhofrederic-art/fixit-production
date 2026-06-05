@@ -679,8 +679,11 @@ export default function DevisFactureFormBTP({
     return () => document.removeEventListener('click', close)
   }, [openPrestaDrop])
 
-  // Acomptes — load saved defaults from localStorage when no initialData
-  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled ?? true)
+  // Acomptes — load saved defaults from localStorage when no initialData.
+  // Défaut activé seulement sur DEVIS : l'échéancier se définit au devis. Une
+  // facture créée directement (sans devis source) ne porte pas d'échéancier ;
+  // une facture issue d'un devis hérite de `initialData.acomptesEnabled`.
+  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled ?? (docType === 'devis'))
   const [acomptes, setAcomptes] = useState<DevisAcompte[]>(() => {
     if (initialData?.acomptes && initialData.acomptes.length > 0) return initialData.acomptes
     try {
@@ -3332,7 +3335,11 @@ export default function DevisFactureFormBTP({
             )}
           </div>
 
-          {/* 8. ACOMPTES & PAIEMENT ÉCHELONNÉ */}
+          {/* 8. ACOMPTES & PAIEMENT ÉCHELONNÉ — UNIQUEMENT sur DEVIS.
+              L'échéancier (50/30/20…) se définit au moment du devis ; la facture
+              qui en découle en hérite (cf. devisLinkFields + buildPayload) et le
+              relit dans « → Acompte ». On ne le ressaisit donc pas sur la facture. */}
+          {docType === 'devis' && (
           <div className="dv-section">
             <div className="dv-section-head">
               <div className="dv-section-t">ACOMPTES &amp; PAIEMENT ÉCHELONNÉ</div>
@@ -3372,6 +3379,7 @@ export default function DevisFactureFormBTP({
               </>
             )}
           </div>
+          )}
 
           {/* 9. MODALITÉS DE PAIEMENT */}
           <div className="dv-section">
