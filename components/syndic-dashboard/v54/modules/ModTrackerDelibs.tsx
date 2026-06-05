@@ -20,6 +20,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Deliberacao } from '@/lib/syndic/v54/api'
+import { useSyndicCreate } from './use-syndic-create'
 
 /** Tracker de Deliberações — port V5.7 + lot 2 fonctionnel.
  * Syndic connecté → vraies délibérations du cabinet (data.deliberacoes) + création POST ;
@@ -48,7 +49,7 @@ export default function ModTrackerDelibs() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<DelibForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof DelibForm, string>>>({})
-  const [busy, setBusy] = useState(false)
+  const { busy, create } = useSyndicCreate('/api/syndic/deliberacoes')
   const { push } = useToast()
 
   const upd = (k: keyof DelibForm, v: string) => setForm(s => ({ ...s, [k]: v }))
@@ -56,21 +57,10 @@ export default function ModTrackerDelibs() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!form.deliberacao.trim()) { setErrors({ deliberacao: 'Descreva a deliberação.' }); return }
-    if (real && data.token) {
-      setBusy(true)
-      fetch('/api/syndic/deliberacoes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ deliberacao: form.deliberacao, ag: form.ag, responsavel: form.responsavel, prazo: form.prazo || null, estado: form.estado, origem: 'manual' }),
-      })
-        .then(r => { if (!r.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Deliberação adicionada', desc: form.deliberacao.slice(0, 60) }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
-        .finally(() => setBusy(false))
-      return
-    }
-    setOpen(false)
-    push({ kind: 'info', title: 'Deliberação adicionada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    create(
+      { deliberacao: form.deliberacao, ag: form.ag, responsavel: form.responsavel, prazo: form.prazo || null, estado: form.estado, origem: 'manual' },
+      { okTitle: 'Deliberação adicionada', desc: form.deliberacao.slice(0, 60), onDone: () => setOpen(false) },
+    )
   }
 
   const extraidasIA = all.filter(d => d.origem === 'ia').length

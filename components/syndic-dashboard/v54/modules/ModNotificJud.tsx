@@ -19,6 +19,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { ProcessoJud } from '@/lib/syndic/v54/api'
+import { useSyndicCreate } from './use-syndic-create'
 
 /** Centro de Notificações Judiciais — port V5.7 + lot 2 fonctionnel.
  * Syndic connecté → vrais processus du cabinet (data.processosJud) + création POST ;
@@ -49,7 +50,7 @@ export default function ModNotificJud() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<ProcForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof ProcForm, string>>>({})
-  const [busy, setBusy] = useState(false)
+  const { busy, create } = useSyndicCreate('/api/syndic/processos-jud')
   const { push } = useToast()
 
   const upd = (k: keyof ProcForm, v: string) => setForm(s => ({ ...s, [k]: v }))
@@ -57,21 +58,10 @@ export default function ModNotificJud() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!form.tipo.trim()) { setErrors({ tipo: 'Indique o tipo de processo.' }); return }
-    if (real && data.token) {
-      setBusy(true)
-      fetch('/api/syndic/processos-jud', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ tipo: form.tipo, contraparte: form.contraparte, processo: form.processo, data: form.data || null, prazo: form.prazo || null, estado: form.estado, valor: Number(form.valor) || 0, descricao: form.descricao }),
-      })
-        .then(r => { if (!r.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Processo registado', desc: form.tipo }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
-        .finally(() => setBusy(false))
-      return
-    }
-    setOpen(false)
-    push({ kind: 'info', title: 'Processo registado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    create(
+      { tipo: form.tipo, contraparte: form.contraparte, processo: form.processo, data: form.data || null, prazo: form.prazo || null, estado: form.estado, valor: Number(form.valor) || 0, descricao: form.descricao },
+      { okTitle: 'Processo registado', desc: form.tipo, onDone: () => setOpen(false) },
+    )
   }
 
   const ativos = all.filter(p => p.estado === 'ativo').length
