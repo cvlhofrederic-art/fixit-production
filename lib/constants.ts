@@ -33,6 +33,7 @@ export const SITE_URL = 'https://vitfix.io'
 
 /** URLs API externes */
 export const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+export const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 export const TAVILY_API_URL = 'https://api.tavily.com/search'
 export const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org'
@@ -50,6 +51,9 @@ export const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 export const GROQ_MODEL_PRIMARY = 'llama-3.3-70b-versatile'
 /** Modèle Groq fallback (plus rapide, moins précis) */
 export const GROQ_MODEL_FALLBACK = 'llama-3.1-8b-instant'
+
+/** Modèle Cerebras équivalent au primary Groq (fallback inter-provider sur rate-limit) */
+export const CEREBRAS_MODEL_PRIMARY = 'llama-3.3-70b'
 
 // ── Misc ─────────────────────────────────────────────────────────────────────
 
@@ -104,6 +108,9 @@ export const PAGE_SIZE_LARGE = 100
 export const PAGE_SIZE_MAX = 500
 
 // ── Fiscal PT ────────────────────────────────────────────────────────────────
+
+/** NIF de l'entité légale Vitfix au Portugal */
+export const PT_NIF_EMPRESA = '276873297'
 
 /** NIF placeholder pour documents fiscaux sans NIF client */
 export const PT_NIF_CONSUMIDOR_FINAL = '999999990'

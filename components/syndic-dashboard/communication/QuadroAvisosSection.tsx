@@ -34,7 +34,7 @@ interface Props {
 
 const CATEGORIAS: Record<CategoriaAviso, { icon: string; label: string; cor: string }> = {
   manutencao:  { icon: '🔧', label: 'Manutenção',  cor: '#D4830A' },
-  assembleia:  { icon: '🏛️', label: 'Assembleia',   cor: '#6C5CE7' },
+  assembleia:  { icon: '🏛️', label: 'Assembleia',   cor: '#C9A84C' },
   financeiro:  { icon: '💶', label: 'Financeiro',   cor: '#1A7A6E' },
   seguranca:   { icon: '🛡️', label: 'Segurança',    cor: '#C0392B' },
   social:      { icon: '🎉', label: 'Social',       cor: '#C9A84C' },
@@ -790,7 +790,7 @@ export default function QuadroAvisosSection({ user, userRole }: Props) {
                     width: 38,
                     height: 38,
                     borderRadius: 9,
-                    background: 'rgba(108,92,231,0.1)',
+                    background: 'rgba(201,168,76,0.10)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

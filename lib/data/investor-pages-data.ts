@@ -57,7 +57,7 @@ Notre service s'adapte parfaitement aux investisseurs à distance : devis détai
 
 Les travaux les plus demandés par nos clients français à Porto incluent la rénovation de salles de bain et cuisines, la peinture intérieure, le remplacement de plomberie vétuste, la mise aux normes du tableau électrique, l'installation de climatisation et l'isolation thermique. Chaque intervention est réalisée par un professionnel certifié, avec garantie sur les travaux.`,
     features: [
-      { icon: '🏗️', title: 'Rénovation Complète', description: 'Cuisine, salle de bain, sols, peinture — rénovation intégrale de votre bien à Porto.' },
+      { icon: '🏗️', title: 'Rénovation Complète', description: 'Cuisine, salle de bain, sols, peinture, rénovation intégrale de votre bien à Porto.' },
       { icon: '📱', title: 'Suivi à Distance', description: 'Photos et vidéos WhatsApp à chaque étape. Gérez vos travaux depuis la France.' },
       { icon: '🇫🇷', title: 'Communication Française', description: 'Échangez en français avec notre équipe. Devis et factures en français.' },
       { icon: '💰', title: 'Devis Gratuit Détaillé', description: 'Estimation claire et détaillée sans engagement. Prix transparents, sans surprise.' },
@@ -96,9 +96,9 @@ Les travaux les plus demandés par nos clients français à Porto incluent la r�
     metaTitle: 'Plombier Porto | Dépannage Francophone | VITFIX',
     metaDescription: 'Plombier à Porto pour propriétaires français. Dépannage, réparation fuite, installation sanitaire. Service en français, devis gratuit, intervention rapide.',
     canonicalPath: '/fr/plombier-porto/',
-    heroTitle: 'Plombier à Porto — Service Francophone',
+    heroTitle: 'Plombier à Porto, Service Francophone',
     heroSubtitle: 'Fuite d\'eau, canalisation bouchée, chauffe-eau en panne ? Nos plombiers vérifiés interviennent rapidement partout à Porto. Communication en français garantie.',
-    introText: `Trouver un plombier fiable à Porto quand on est propriétaire français peut être un vrai casse-tête. Barrière de la langue, méconnaissance des normes locales, difficulté à comparer les prix — VITFIX résout tous ces problèmes.
+    introText: `Trouver un plombier fiable à Porto quand on est propriétaire français peut être un vrai casse-tête. Barrière de la langue, méconnaissance des normes locales, difficulté à comparer les prix, VITFIX résout tous ces problèmes.
 
 Notre réseau de plombiers certifiés couvre l'intégralité de la métropole de Porto : du centre historique à Vila Nova de Gaia, en passant par Matosinhos, Maia et Gondomar. Chaque intervention est coordonnée en français par notre équipe, du premier diagnostic à la facturation.
 
@@ -251,15 +251,15 @@ export const NL_INVESTOR_PAGES: InvestorPage[] = [
     canonicalPath: '/nl/appartement-renovatie-porto/',
     heroTitle: 'Appartement Renovatie in Porto voor Nederlandse Investeerders',
     heroSubtitle: 'Uw appartement in Porto laten renoveren? Wij regelen alles: betrouwbare vakmensen, gratis offerte en begeleiding op afstand vanuit Nederland of België.',
-    introText: `Porto is een van de populairste bestemmingen voor Nederlandse en Belgische vastgoedinvesteerders. Met het Golden Visa-programma, de gunstige fiscale regeling (NHR) en het groeiende toerisme biedt Porto uitstekende kansen. Maar een appartement kopen is één ding — het renoveren vanuit Nederland of België is een andere uitdaging.
+    introText: `Porto is een van de populairste bestemmingen voor Nederlandse en Belgische vastgoedinvesteerders. Met het Golden Visa-programma, de gunstige fiscale regeling (NHR) en het groeiende toerisme biedt Porto uitstekende kansen. Maar een appartement kopen is één ding, het renoveren vanuit Nederland of België is een andere uitdaging.
 
 VITFIX is uw lokale partner voor alle renovatiewerkzaamheden in Porto. Ons netwerk van geverifieerde vakmensen dekt de hele metropoolregio: Porto centrum, Vila Nova de Gaia, Matosinhos, Maia, Gondomar en Valongo. Wij coördineren uw verbouwing van A tot Z, ook wanneer u in Nederland of België bent.
 
-Onze service is speciaal ontworpen voor buitenlandse eigenaren: gedetailleerde offertes per email, regelmatige foto-updates via WhatsApp, facturatie conform de Portugese wetgeving (IVA inbegrepen). Of het nu gaat om een complete renovatie voor Airbnb-verhuur, het moderniseren van een badkamer, of het upgraden van de elektrische installatie — onze vakmensen leveren kwaliteitswerk.
+Onze service is speciaal ontworpen voor buitenlandse eigenaren: gedetailleerde offertes per email, regelmatige foto-updates via WhatsApp, facturatie conform de Portugese wetgeving (IVA inbegrepen). Of het nu gaat om een complete renovatie voor Airbnb-verhuur, het moderniseren van een badkamer, of het upgraden van de elektrische installatie, onze vakmensen leveren kwaliteitswerk.
 
 De meest gevraagde werkzaamheden door onze Nederlandse klanten zijn: badkamer- en keukenrenovatie, binnenschilderwerk, vervanging van oude leidingen, vernieuwing van het elektrisch paneel, airco-installatie en thermische isolatie.`,
     features: [
-      { icon: '🏗️', title: 'Complete Renovatie', description: 'Keuken, badkamer, vloeren, schilderwerk — totale renovatie van uw woning in Porto.' },
+      { icon: '🏗️', title: 'Complete Renovatie', description: 'Keuken, badkamer, vloeren, schilderwerk, totale renovatie van uw woning in Porto.' },
       { icon: '📱', title: 'Begeleiding op Afstand', description: 'WhatsApp foto\'s en video\'s bij elke stap. Beheer uw verbouwing vanuit Nederland.' },
       { icon: '🇬🇧', title: 'Engelse Communicatie', description: 'Alle communicatie in het Engels. Offertes en facturen in het Engels.' },
       { icon: '💰', title: 'Gratis Offerte', description: 'Duidelijke, gedetailleerde offerte zonder verplichtingen. Transparante prijzen.' },
@@ -300,9 +300,9 @@ De meest gevraagde werkzaamheden door onze Nederlandse klanten zijn: badkamer- e
     canonicalPath: '/nl/loodgieter-porto/',
     heroTitle: 'Betrouwbare Loodgieter in Porto',
     heroSubtitle: 'Lekkage, verstopping of boilerproblemen? Onze geverifieerde loodgieters komen snel ter plaatse in heel Porto. Communicatie in het Engels gegarandeerd.',
-    introText: `Als Nederlandse of Belgische vastgoedeigenaar in Porto heeft u een betrouwbare loodgieter nodig die u kunt vertrouwen — ook als u er niet bent. VITFIX lost dit op met ons netwerk van gecertificeerde loodgieters in de hele metropoolregio Porto.
+    introText: `Als Nederlandse of Belgische vastgoedeigenaar in Porto heeft u een betrouwbare loodgieter nodig die u kunt vertrouwen, ook als u er niet bent. VITFIX lost dit op met ons netwerk van gecertificeerde loodgieters in de hele metropoolregio Porto.
 
-Of uw Airbnb-appartement een waterlek heeft tussen twee gasten, uw huurwoning nieuwe leidingen nodig heeft, of de boiler van uw vakantiehuis het heeft begeven — onze loodgieters zijn snel ter plaatse. Alle communicatie verloopt in het Engels via onze coördinatie.
+Of uw Airbnb-appartement een waterlek heeft tussen twee gasten, uw huurwoning nieuwe leidingen nodig heeft, of de boiler van uw vakantiehuis het heeft begeven, onze loodgieters zijn snel ter plaatse. Alle communicatie verloopt in het Engels via onze coördinatie.
 
 Wij dekken Porto centrum, Vila Nova de Gaia, Matosinhos, Maia en Gondomar. Elke loodgieter in ons netwerk is gecertificeerd en verzekerd conform de Portugese wetgeving. U ontvangt een duidelijke offerte vooraf, zodat u precies weet wat het kost.
 
@@ -398,7 +398,7 @@ Voor Nederlandse investeerders die een woning renoveren in Porto bieden wij een 
     canonicalPath: '/nl/appartement-onderhoud-porto/',
     heroTitle: 'Appartement Onderhoud & Vastgoedbeheer in Porto',
     heroSubtitle: 'U bent in Nederland, uw appartement staat in Porto? Wij zorgen voor het regelmatig onderhoud, reparaties en technisch beheer van uw vastgoed.',
-    introText: `Een appartement bezitten in Porto vanuit Nederland of België vereist een betrouwbare partner ter plaatse. Of uw woning nu wordt verhuurd op lange termijn, via Airbnb of simpelweg uw tweede huis is — regelmatig onderhoud is essentieel om de waarde te behouden en onaangename verrassingen te voorkomen.
+    introText: `Een appartement bezitten in Porto vanuit Nederland of België vereist een betrouwbare partner ter plaatse. Of uw woning nu wordt verhuurd op lange termijn, via Airbnb of simpelweg uw tweede huis is, regelmatig onderhoud is essentieel om de waarde te behouden en onaangename verrassingen te voorkomen.
 
 VITFIX biedt een complete technische onderhouds- en beheerdienst voor Nederlandse en Belgische vastgoedeigenaren in Porto. Onze service omvat periodieke inspecties, reguliere kleine reparaties, coördinatie met uw huurders en het afhandelen van noodgevallen. Alles wordt in het Engels gerapporteerd via WhatsApp en email.
 
@@ -461,7 +461,7 @@ Nuestro servicio está diseñado para propietarios a distancia: presupuestos det
 
 Las obras más solicitadas por nuestros clientes españoles incluyen: reforma de baños y cocinas, pintura interior, sustitución de tuberías antiguas, actualización del cuadro eléctrico, instalación de aire acondicionado y aislamiento térmico. Cada intervención la realiza un profesional certificado con garantía.`,
     features: [
-      { icon: '🏗️', title: 'Reforma Integral', description: 'Cocina, baño, suelos, pintura — renovación completa de su vivienda en Oporto.' },
+      { icon: '🏗️', title: 'Reforma Integral', description: 'Cocina, baño, suelos, pintura, renovación completa de su vivienda en Oporto.' },
       { icon: '📱', title: 'Seguimiento a Distancia', description: 'Fotos y vídeos por WhatsApp en cada etapa. Gestione su obra desde España.' },
       { icon: '🇬🇧', title: 'Comunicación en Inglés', description: 'Toda la comunicación en inglés. Presupuestos y facturas en inglés.' },
       { icon: '💰', title: 'Presupuesto Gratis', description: 'Estimación clara y detallada sin compromiso. Precios transparentes.' },

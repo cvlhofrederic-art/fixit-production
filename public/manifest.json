@@ -4,8 +4,8 @@
   "description": "Trouvez et réservez un artisan vérifié près de chez vous en quelques clics. Plomberie, électricité, peinture et plus.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F5F3EF",
-  "theme_color": "#FFC107",
+  "background_color": "#ffffff",
+  "theme_color": "#FFD600",
   "orientation": "portrait-primary",
   "icons": [
     {

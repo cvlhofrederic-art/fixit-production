@@ -2,19 +2,19 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Artisans Vérifiés à Marseille — Garantie Vitfix | Vitfix',
+  title: 'Artisans Vérifiés à Marseille : Garantie Vitfix | Vitfix',
   description: 'Tous les artisans Vitfix sont vérifiés : SIRET, assurance RC Pro, qualifications. Travaux garantis à Marseille, Aix-en-Provence, Aubagne et en PACA. Avis clients authentiques.',
   openGraph: {
-    title: 'Artisans Vérifiés à Marseille — Garantie Vitfix',
+    title: 'Artisans Vérifiés à Marseille : Garantie Vitfix',
     description: 'RC Pro, SIRET et qualifications vérifiés. Avis clients authentiques. Faites confiance aux artisans Vitfix pour vos travaux en PACA.',
     siteName: 'Vitfix',
     locale: 'fr_FR',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Artisans Vérifiés Marseille — Garantie Vitfix',
+    title: 'Artisans Vérifiés Marseille : Garantie Vitfix',
     description: 'RC Pro, SIRET, qualifications. Artisans de confiance en PACA.',
   },
   alternates: {
@@ -132,7 +132,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'WebPage',
-      name: 'Artisans Vérifiés à Marseille — Garantie Vitfix',
+      name: 'Artisans Vérifiés à Marseille : Garantie Vitfix',
       description: "Information sur le processus de vérification des artisans Vitfix en PACA.",
       url: 'https://vitfix.io/fr/artisans-verifies/',
       inLanguage: 'fr-FR',
@@ -205,7 +205,7 @@ export default function ArtisansVerifiesPage() {
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            Artisans vérifiés à Marseille — la garantie Vitfix
+            Artisans vérifiés à Marseille, la garantie Vitfix
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             Chaque artisan sur la plateforme est vérifié manuellement : identité, RC Pro et SIRET confirmés. Travaillez en toute confiance en PACA.

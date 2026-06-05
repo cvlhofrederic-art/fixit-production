@@ -5,6 +5,23 @@ import type { Immeuble, EcheanceReglementaire, TypeEcheance } from '../types'
 import { ECHEANCE_CONFIG, STATUT_ECHEANCE_CONFIG, getStatutEcheance } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
+// Traductions PT des labels des types d'échéances (la source FR vit dans types.tsx
+// pour la version française du dashboard).
+const ECHEANCE_LABELS_PT: Record<string, string> = {
+  dpe: 'Certificado energético',
+  ascenseur: 'Inspeção elevador',
+  amiante: 'Diagnóstico amianto',
+  plomb: 'Diagnóstico chumbo',
+  gaz: 'Inspeção gás',
+  electricite: 'Verificação elétrica',
+  ag: 'Assembleia Geral',
+  assurance: 'Renovação seguro',
+  ravalement: 'Manutenção fachada',
+  autre: 'Outro',
+}
+const getEcheanceLabel = (type: string, locale: string): string =>
+  locale === 'pt' ? (ECHEANCE_LABELS_PT[type] ?? type) : ''
+
 export default function CalendrierReglementaireSection({ immeubles, userId }: { immeubles: Immeuble[]; userId?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -103,14 +120,14 @@ export default function CalendrierReglementaireSection({ immeubles, userId }: { 
           return (
             <div key={e.id} className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-50 hover:bg-[#F7F4EE] group items-center ${statut === 'expire' ? 'bg-red-50/40' : statut === 'urgent' ? 'bg-orange-50/30' : ''}`}>
               <div className="col-span-3 text-sm font-medium text-gray-800 truncate">{e.immeuble}</div>
-              <div className="col-span-3"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${tConfig.color}`}>{tConfig.emoji} {tConfig.label}</span></div>
+              <div className="col-span-3"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${tConfig.color}`}>{tConfig.emoji} {locale === 'pt' ? getEcheanceLabel(e.type, locale) : tConfig.label}</span></div>
               <div className="col-span-2 text-sm text-gray-600 truncate">{e.label}</div>
               <div className="col-span-2">
                 <p className="text-sm font-semibold text-[#0D1B2E]">{new Date(e.dateEcheance).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                 <p className="text-xs text-gray-500">{daysLeft < 0 ? `${t('syndicDash.calendrier.daysAgo')} ${Math.abs(daysLeft)}${t('syndicDash.calendrier.days')}` : `${t('syndicDash.calendrier.inDays')} ${daysLeft}${t('syndicDash.calendrier.days')}`}</p>
               </div>
               <div className="col-span-1 flex justify-center">
-                <div className={`w-2.5 h-2.5 rounded-full ${sConfig.dot}`} title={sConfig.label} />
+                <div className={`w-2.5 h-2.5 rounded-full ${sConfig.dot}`} title={locale === 'pt' ? ({ expire: 'Expirado', urgent: 'Urgente', proche: 'Próximo', ok: 'OK' } as const)[statut] : sConfig.label} />
               </div>
               <div className="col-span-1 flex justify-center">
                 <button
@@ -141,7 +158,7 @@ export default function CalendrierReglementaireSection({ immeubles, userId }: { 
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">{t('syndicDash.calendrier.typeLabel')}</label>
                 <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as TypeEcheance })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
-                  {(Object.entries(ECHEANCE_CONFIG) as [TypeEcheance, any][]).map(([k, v]) => <option key={k} value={k}>{v.emoji} {v.label}</option>)}
+                  {(Object.entries(ECHEANCE_CONFIG) as [TypeEcheance, any][]).map(([k, v]) => <option key={k} value={k}>{v.emoji} {locale === 'pt' ? getEcheanceLabel(k, locale) : v.label}</option>)}
                 </select>
               </div>
               <div>

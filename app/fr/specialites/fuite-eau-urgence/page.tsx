@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Fuite d\'Eau Urgence Marseille — Détection, dégât des eaux 24h/7j | VITFIX',
+  title: 'Fuite d\'Eau Urgence Marseille : Détection, dégât des eaux 24h/7j | VITFIX',
   description: 'Fuite d\'eau urgente à Marseille et PACA : plafond qui fuit, fuite cachée sous carrelage, dégât des eaux, canalisation percée. Plombier urgence 24h/24, 7j/7. Devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/fuite-eau-urgence/',
@@ -15,7 +15,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'EmergencyService',
-      name: 'VITFIX — Fuite Eau Urgence Marseille',
+      name: 'VITFIX : Fuite Eau Urgence Marseille',
       description: 'Service d\'urgence pour fuites d\'eau à Marseille et PACA. Intervention 24h/24, 7j/7. Détection de fuite, réparation, dégâts des eaux.',
       url: 'https://vitfix.io/fr/specialites/fuite-eau-urgence/',
       telephone: PHONE_FR,
@@ -59,11 +59,11 @@ const jsonLd = {
 }
 
 const TYPES_FUITES = [
-  { icon: '🚰', label: 'Fuite visible', desc: 'Robinet, joint, siphon, flexible — réparation rapide' },
-  { icon: '🧱', label: 'Fuite cachée', desc: 'Sous carrelage, derrière mur — détection thermique' },
-  { icon: '💧', label: 'Dégât des eaux', desc: 'Plafond qui fuit, voisin du dessus — urgence' },
-  { icon: '🏗️', label: 'Fuite canalisation', desc: 'Tuyau percé, joint défaillant — colmatage urgence' },
-  { icon: '♨️', label: 'Plancher chauffant', desc: 'Sol chaud, taches d\'humidité — diagnostic caméra' },
+  { icon: '🚰', label: 'Fuite visible', desc: 'Robinet, joint, siphon, flexible, réparation rapide' },
+  { icon: '🧱', label: 'Fuite cachée', desc: 'Sous carrelage, derrière mur, détection thermique' },
+  { icon: '💧', label: 'Dégât des eaux', desc: 'Plafond qui fuit, voisin du dessus, urgence' },
+  { icon: '🏗️', label: 'Fuite canalisation', desc: 'Tuyau percé, joint défaillant, colmatage urgence' },
+  { icon: '♨️', label: 'Plancher chauffant', desc: 'Sol chaud, taches d\'humidité, diagnostic caméra' },
   { icon: '🏊', label: 'Fuite terrasse/balcon', desc: 'Infiltration par étanchéité défaillante' },
 ]
 
@@ -115,7 +115,7 @@ export default function FuiteEauUrgencePage() {
                   Fuite d&apos;Eau Urgence Marseille
                 </h1>
                 <p className="text-red-200 text-lg max-w-2xl leading-relaxed">
-                  Plafond qui fuit, dégât des eaux, canalisation percée — nos plombiers
+                  Plafond qui fuit, dégât des eaux, canalisation percée, nos plombiers
                   interviennent en urgence à Marseille et PACA 24h/24, 7j/7.
                   Détection fuite cachée par caméra thermique.
                 </p>
@@ -142,7 +142,7 @@ export default function FuiteEauUrgencePage() {
         {/* Actions immédiates */}
         <section className="bg-orange-50 border-b border-orange-200 px-4 py-6">
           <div className="max-w-4xl mx-auto">
-            <h2 className="font-bold text-orange-900 mb-3">⚡ En attendant le plombier — Faites ça maintenant :</h2>
+            <h2 className="font-bold text-orange-900 mb-3">⚡ En attendant le plombier, Faites ça maintenant :</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {[
                 '1. Coupez l\'eau au robinet de barrage',
@@ -179,7 +179,7 @@ export default function FuiteEauUrgencePage() {
             {/* Détection */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h2 className="font-display text-2xl font-bold mb-4">
-                🔍 Détection fuite cachée — sans casser le carrelage
+                🔍 Détection fuite cachée, sans casser le carrelage
               </h2>
               <p className="text-zinc-700 leading-relaxed mb-4">
                 Les fuites cachées sous carrelage ou dans les murs sont les plus destructrices.

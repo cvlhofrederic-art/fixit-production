@@ -103,7 +103,7 @@ export default function PreparadorAssembleiaSection({ user, userRole }: { user: 
     setConvocatoria(conv)
   }
 
-  const tipoClsDelib: Record<string, string> = { maioria_simples: 'bg-blue-50 text-blue-600 border-blue-200', dois_tercos: 'bg-orange-50 text-[#C9A84C] border-orange-200', unanimidade: 'bg-red-50 text-red-600 border-red-200' }
+  const tipoClsDelib: Record<string, string> = { maioria_simples: 'bg-[#F7F4EE] text-[#C9A84C] border-[#E4DDD0]', dois_tercos: 'bg-orange-50 text-[#C9A84C] border-orange-200', unanimidade: 'bg-red-50 text-red-600 border-red-200' }
   const tipoLabels: Record<string, string> = { maioria_simples: 'Maioria simples', dois_tercos: '2/3 do valor', unanimidade: 'Unanimidade' }
 
   if (!current) {
@@ -144,7 +144,7 @@ export default function PreparadorAssembleiaSection({ user, userRole }: { user: 
                   <p className="font-semibold text-gray-800">AG {p.tipo_ag === 'extraordinaria' ? 'Extraordinária' : 'Ordinária'} — {p.edificio || 'Edifício não definido'}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{p.data_ag ? new Date(p.data_ag).toLocaleDateString('pt-PT') : 'Data não definida'} · {p.deliberacoes.length} deliberações</p>
                 </div>
-                <span className={`text-xs px-3 py-1 rounded-full font-semibold flex-shrink-0 ${p.estado === 'concluida' ? 'bg-green-100 text-green-700' : p.estado === 'convocatorias_enviadas' ? 'bg-blue-100 text-blue-700' : 'bg-[#F7F4EE] text-gray-500'}`}>
+                <span className={`text-xs px-3 py-1 rounded-full font-semibold flex-shrink-0 ${p.estado === 'concluida' ? 'bg-green-100 text-green-700' : p.estado === 'convocatorias_enviadas' ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' : 'bg-[#F7F4EE] text-gray-500'}`}>
                   {p.estado === 'concluida' ? '✅ Concluída' : p.estado === 'convocatorias_enviadas' ? '📧 Convocada' : '✏️ Rascunho'}
                 </span>
                 <button onClick={ev => { ev.stopPropagation(); saveProjetos(projetos.filter(x => x.id !== p.id)) }} className="text-red-400 hover:text-red-600 text-sm p-1 flex-shrink-0">🗑️</button>
@@ -204,7 +204,7 @@ export default function PreparadorAssembleiaSection({ user, userRole }: { user: 
               </div>
             </div>
             {current.data_ag && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+              <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-3 text-sm text-[#0D1B2E]">
                 📧 Prazo limite para envio das convocatórias: <strong>{new Date(new Date(current.data_ag).getTime() - 10 * 86400000).toLocaleDateString('pt-PT')}</strong> (10 dias antes — CC art. 1432.º)
               </div>
             )}
@@ -248,12 +248,12 @@ export default function PreparadorAssembleiaSection({ user, userRole }: { user: 
             <p className="text-sm text-gray-500">Documentos a preparar e anexar à convocatória (Lei 8/2022)</p>
             <div className="space-y-2">
               {DOCS_CHECKLIST.map((item, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${item.obrigatoria ? 'bg-blue-50 border-blue-200' : 'bg-[#F7F4EE] border-gray-200'}`}>
-                  <div className={`w-5 h-5 rounded-full mt-0.5 flex-shrink-0 border-2 flex items-center justify-center ${item.obrigatoria ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${item.obrigatoria ? 'bg-[#F7F4EE] border-[#E4DDD0]' : 'bg-[#F7F4EE] border-gray-200'}`}>
+                  <div className={`w-5 h-5 rounded-full mt-0.5 flex-shrink-0 border-2 flex items-center justify-center ${item.obrigatoria ? 'border-[#C9A84C] bg-[#C9A84C]' : 'border-gray-300'}`}>
                     {item.obrigatoria && <span className="text-white text-xs font-bold">✓</span>}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">{item.doc} {item.obrigatoria && <span className="text-xs text-blue-600 font-medium">(obrigatório)</span>}</p>
+                    <p className="text-sm font-semibold text-gray-800">{item.doc} {item.obrigatoria && <span className="text-xs text-[#C9A84C] font-medium">(obrigatório)</span>}</p>
                     <p className="text-xs text-gray-500">{item.nota}</p>
                   </div>
                 </div>
@@ -310,7 +310,7 @@ export default function PreparadorAssembleiaSection({ user, userRole }: { user: 
               <div className="bg-[#F7F4EE] rounded-xl p-3 text-center"><p className="text-lg font-bold text-gray-800">{current.hora_ag}</p><p className="text-xs text-gray-500">Hora</p></div>
             </div>
             <div className="flex gap-2 flex-wrap justify-center mt-4">
-              <button onClick={() => { genConvocatoria(); setPasso('convocatoria') }} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">📋 Ver convocatória</button>
+              <button onClick={() => { genConvocatoria(); setPasso('convocatoria') }} className="px-4 py-2 bg-[#0D1B2E] text-white rounded-xl text-sm font-semibold hover:bg-[#152338] transition">📋 Ver convocatória</button>
               <button onClick={() => { updateCurrent({ ...current, estado: 'concluida' }); setCurrent(null) }} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition">✅ Marcar como concluída</button>
               <button onClick={() => setCurrent(null)} className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-[#F7F4EE]">Voltar à lista</button>
             </div>

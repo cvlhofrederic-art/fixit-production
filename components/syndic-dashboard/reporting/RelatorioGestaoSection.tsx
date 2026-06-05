@@ -69,11 +69,11 @@ export default function RelatorioGestaoSection({ user, userRole }: { user: { id:
       </div>
 
       {/* Alerta legal */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+      <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-4 flex gap-3">
         <span className="text-xl">📄</span>
         <div>
-          <p className="font-semibold text-blue-800 text-sm">Relatório de Gestão — Art.º 1436.º do Código Civil</p>
-          <p className="text-blue-700 text-sm mt-0.5">
+          <p className="font-semibold text-[#0D1B2E] text-sm">Relatório de Gestão — Art.º 1436.º do Código Civil</p>
+          <p className="text-[#0D1B2E] text-sm mt-0.5">
             O administrador do condomínio é obrigado a prestar contas à assembleia de condóminos (Lei 8/2022).
             Este relatório facilita a prestação de contas mensal e anual.
           </p>
@@ -181,7 +181,7 @@ export default function RelatorioGestaoSection({ user, userRole }: { user: { id:
           <div className="grid grid-cols-4 gap-3">
             {[
               { label: 'Edifícios', value: nbEdificios, color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
-              { label: 'Intervenções', value: nbIntervencoes, color: 'bg-blue-50 border-blue-200' },
+              { label: 'Intervenções', value: nbIntervencoes, color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
               { label: 'Montante obras', value: `${montanteObras.toLocaleString('pt-PT')} €`, color: 'bg-green-50 border-green-200' },
               { label: 'Orçamento consumido', value: orcamentoAnual > 0 ? `${pctOrcamento}%` : '—', color: pctOrcamento > 85 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200' },
             ].map(s => (

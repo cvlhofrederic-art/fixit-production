@@ -1,0 +1,69 @@
+name: Ingest Legal Corpus PT
+
+# Déclenche l'ingestion du corpus juridique PT dans syndic_legal_corpus_pt via
+# l'endpoint admin déployé en production. L'endpoint utilise le binding Workers
+# AI (zéro token requis) et fait les embeddings BGE-M3 directement au runtime
+# Cloudflare. Idempotent : skip les chunks dont le chunk_hash existe déjà.
+#
+# Auth : header x-cron-secret = INTERNAL_API_SECRET (pattern existant des
+# workflows cron, cf. run-automations.yml).
+#
+# Pré-requis : la migration SQL 20260520_legal_corpus_embeddings.sql doit être
+# appliquée AVANT (colonnes embedding + RPC search_legal_corpus_hybrid_pt).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    name: Ingest PT legal corpus via admin endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger ingestion on production
+        env:
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST https://vitfix.io/api/admin/ingest-legal-corpus-pt \
+            -H "x-cron-secret: $INTERNAL_API_SECRET" \
+            -H "content-type: application/json" \
+            --max-time 60)
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "HTTP $status"
+          echo "$body"
+          if [ "$status" != "200" ]; then
+            echo "::error::Ingestion endpoint returned HTTP $status"
+            exit 1
+          fi
+          inserted=$(echo "$body" | jq -r '.inserted // 0')
+          skipped=$(echo "$body" | jq -r '.skipped // 0')
+          total=$(echo "$body" | jq -r '.total // 0')
+          errors_count=$(echo "$body" | jq -r '.errors | length // 0')
+          echo "Total chunks  : $total"
+          echo "Insérés       : $inserted"
+          echo "Déjà présents : $skipped"
+          echo "Erreurs       : $errors_count"
+          if [ "$errors_count" -gt 0 ]; then
+            echo "::error::Ingestion partielle ($errors_count erreurs)"
+            echo "$body" | jq -r '.errors[]'
+            exit 1
+          fi
+
+      - name: Verify chunks in DB
+        env:
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+        run: |
+          response=$(curl -s -w "\n%{http_code}" https://vitfix.io/api/admin/ingest-legal-corpus-pt \
+            -H "x-cron-secret: $INTERNAL_API_SECRET" \
+            --max-time 30)
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          total=$(echo "$body" | jq -r '.total_chunks // 0')
+          with_embed=$(echo "$body" | jq -r '.chunks_with_embedding // 0')
+          echo "Audit syndic_legal_corpus_pt"
+          echo "  total_chunks          : $total"
+          echo "  chunks_with_embedding : $with_embed"
+          if [ "$total" -lt 30 ]; then
+            echo "::warning::Moins de 30 chunks ingérés ($total) — vérifier le corpus MD"
+          fi

@@ -3,17 +3,31 @@
 // etre perdue lors d'un changement d'appareil ou d'un nettoyage du
 // navigateur. C'est la garantie "SaaS pro" reclamee par l'utilisateur.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-// Mock @supabase/supabase-js avant l'import du module sous test.
+// storage-sync DOIT s'authentifier via le client applicatif partagé
+// (@/lib/supabase, basé sur les cookies SSR), PAS via un client
+// @supabase/supabase-js ad hoc qui lit le localStorage et ne voit jamais la
+// session en prod → cause racine de la disparition de la base clients.
 const mockGetSession = vi.fn()
+vi.mock('@/lib/supabase', () => ({
+  supabase: { auth: { getSession: mockGetSession } },
+}))
+
+// Garde-fou anti-régression : un client @supabase/supabase-js ad hoc NE voit
+// PAS la session (cookies SSR) → getSession renvoie null. Ce stub reproduit le
+// comportement réel ; si le code y retombe, les tests échouent au lieu de
+// masquer le bug avec une fausse session en mémoire.
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    auth: { getSession: mockGetSession },
+    auth: { getSession: () => Promise.resolve({ data: { session: null } }) },
   }),
 }))
 
-// Mock fetch global pour intercepter les appels API.
+// Mock fetch global pour intercepter les appels API. On capture le fetch
+// d'origine pour le restaurer en afterEach : avec isolate:false (vitest.config)
+// ce remplacement global fuiterait sinon vers les autres fichiers du même fork.
+const originalFetch = globalThis.fetch
 const mockFetch = vi.fn()
 ;(globalThis as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
 
@@ -26,9 +40,26 @@ beforeEach(() => {
   vi.resetModules() // reimport propre du module a chaque test (le singleton `installed`)
   mockGetSession.mockResolvedValue(validSession())
   mockFetch.mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }))
+  ;(globalThis as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
   if (typeof window !== 'undefined') {
     window.localStorage.clear()
   }
+})
+
+afterEach(() => {
+  // vitest.config a `isolate: false` (pool forks) : le patch posé par
+  // installStorageSync() sur window.localStorage fuite vers les autres fichiers
+  // du même fork (module non ré-isolé), et sa closure capture ce mock
+  // @/lib/supabase. Pour qu'aucune écriture fixit_* d'un fichier sans rapport
+  // (ex. tests syndic-v54) ne déclenche un POST /api/user-storage parasite
+  // capturé par leurs spies fetch, on neutralise le token : sans token,
+  // flushNow() sort avant tout fetch. Plus fiable que de défaire le patch
+  // localStorage (le proxy Storage de jsdom rend delete/réassignation peu sûrs).
+  mockGetSession.mockResolvedValue({ data: { session: null } })
+  // Restaure le fetch d'origine pour ne pas le laisser fuiter (les tests
+  // syndic-v54 inspectent fetchSpy.mock.calls[0] et sont sensibles à tout
+  // appel parasite / mock résiduel).
+  ;(globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch
 })
 
 describe('storage-sync — hydratation', () => {
@@ -147,5 +178,20 @@ describe('storage-sync — interception localStorage', () => {
 
     const postCalls = mockFetch.mock.calls.filter(c => c[1]?.method === 'POST')
     expect(postCalls.length).toBe(0)
+  })
+})
+
+describe('storage-sync — authentification via cookies SSR (régression base clients)', () => {
+  it('flush utilise le token du client applicatif partagé (Bearer)', async () => {
+    // Session présente côté client applicatif (cookies) — le seul endroit où
+    // elle existe en prod. Le flush doit récupérer CE token, pas null.
+    window.localStorage.setItem('fixit_clients_abc', JSON.stringify([{ id: 1, name: 'X' }]))
+
+    const { pushAllLocalToServer } = await import('@/lib/storage-sync')
+    await pushAllLocalToServer()
+
+    const postCall = mockFetch.mock.calls.find(c => c[1]?.method === 'POST')
+    expect(postCall).toBeDefined()
+    expect((postCall![1].headers as Record<string, string>).Authorization).toBe(`Bearer ${FAKE_TOKEN}`)
   })
 })

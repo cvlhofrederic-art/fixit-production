@@ -98,8 +98,8 @@ export default function InvestorPageTemplate({ page }: { page: InvestorPage }) {
         name: 'VITFIX',
         description: page.metaDescription,
         url: `${baseUrl}${page.canonicalPath}`,
-        logo: `${baseUrl}/og-image.png`,
-        image: `${baseUrl}/og-image.png`,
+        logo: `${baseUrl}/og-home-en.png`,
+        image: `${baseUrl}/og-home-en.png`,
         address: {
           '@type': 'PostalAddress',
           addressLocality: 'Porto',

@@ -177,7 +177,7 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
           <h1 className="text-2xl font-bold text-gray-900">📋 Vistoria Técnica</h1>
           <p className="text-sm text-gray-500 mt-0.5">Checklist de terreno → Relatório PDF · DL 555/99 · DL 97/2017 · DL 320/2002</p>
         </div>
-        <button onClick={openNova} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-colors">+ Nova vistoria</button>
+        <button onClick={openNova} className="flex items-center gap-2 bg-[#0D1B2E] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#152338] transition-colors">+ Nova vistoria</button>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -204,7 +204,7 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
           <div className="text-5xl mb-4">📋</div>
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Nenhuma vistoria registada</h3>
           <p className="text-gray-400 text-sm mb-6">Comece a sua primeira vistoria técnica.</p>
-          <button onClick={openNova} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-colors">+ Nova vistoria</button>
+          <button onClick={openNova} className="bg-[#0D1B2E] text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#152338] transition-colors">+ Nova vistoria</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -235,7 +235,7 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <span>👷 {v.inspetor || 'Inspetor não indicado'}</span>
-                  <span className={`px-2 py-0.5 rounded-full font-medium ${v.estado === 'enviada' ? 'bg-blue-100 text-blue-700' : v.estado === 'concluida' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  <span className={`px-2 py-0.5 rounded-full font-medium ${v.estado === 'enviada' ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' : v.estado === 'concluida' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                     {v.estado === 'enviada' ? '📤 Enviada' : v.estado === 'concluida' ? '✅ Concluída' : '⏳ Em curso'}
                   </span>
                 </div>
@@ -259,10 +259,10 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
         <h3 className="font-semibold text-gray-700 mb-3">📍 Informações</h3>
         <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2"><label className="text-xs text-gray-500 mb-1 block">Edifício *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nome do edifício" value={formEdificio} onChange={e => setFormEdificio(e.target.value)} /></div>
-          <div><label className="text-xs text-gray-500 mb-1 block">Morada</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formMorada} onChange={e => setFormMorada(e.target.value)} /></div>
-          <div><label className="text-xs text-gray-500 mb-1 block">Data</label><input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData} onChange={e => setFormData(e.target.value)} /></div>
-          <div className="col-span-2"><label className="text-xs text-gray-500 mb-1 block">Inspetor</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="João Silva — Gestor Técnico" value={formInspetor} onChange={e => setFormInspetor(e.target.value)} /></div>
+          <div className="col-span-2"><label className="text-xs text-gray-500 mb-1 block">Edifício *</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="Nome do edifício" value={formEdificio} onChange={e => setFormEdificio(e.target.value)} /></div>
+          <div><label className="text-xs text-gray-500 mb-1 block">Morada</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={formMorada} onChange={e => setFormMorada(e.target.value)} /></div>
+          <div><label className="text-xs text-gray-500 mb-1 block">Data</label><input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" value={formData} onChange={e => setFormData(e.target.value)} /></div>
+          <div className="col-span-2"><label className="text-xs text-gray-500 mb-1 block">Inspetor</label><input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" placeholder="João Silva — Gestor Técnico" value={formInspetor} onChange={e => setFormInspetor(e.target.value)} /></div>
         </div>
       </div>
 
@@ -306,11 +306,11 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
         <label className="text-sm font-semibold text-gray-700 mb-2 block">💬 Observações gerais</label>
-        <textarea className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={4} placeholder="Comentários globais, pontos de atenção, obras urgentes..." value={formObs} onChange={e => setFormObs(e.target.value)} />
+        <textarea className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]" rows={4} placeholder="Comentários globais, pontos de atenção, obras urgentes..." value={formObs} onChange={e => setFormObs(e.target.value)} />
       </div>
 
       <div className="flex gap-3 sticky bottom-4">
-        <button onClick={() => handleSaveVistoria('concluida')} disabled={!formEdificio} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg">✅ Concluir e gerar relatório</button>
+        <button onClick={() => handleSaveVistoria('concluida')} disabled={!formEdificio} className="flex-1 bg-[#0D1B2E] text-white py-3 rounded-xl font-bold hover:bg-[#152338] disabled:opacity-50 transition-colors shadow-lg">✅ Concluir e gerar relatório</button>
         <button onClick={() => handleSaveVistoria('em_curso')} disabled={!formEdificio} className="px-5 py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 transition-colors shadow-sm">💾 Guardar</button>
         <button onClick={() => setVista('lista')} className="px-5 py-3 bg-white border border-gray-200 text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition-colors">Cancelar</button>
       </div>
@@ -329,7 +329,7 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
           <button onClick={() => setVista('lista')} className="text-gray-400 hover:text-gray-600 transition-colors text-sm">← Voltar à lista</button>
           <div className="flex gap-2">
             <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors">🖨️ Imprimir / PDF</button>
-            <button onClick={() => { save(vistorias.map(v => v.id === selectedVistoria.id ? { ...v, estado: 'enviada' as EstadoVistoria } : v)); setSelected({ ...selectedVistoria, estado: 'enviada' }) }} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">📤 Marcar como enviada</button>
+            <button onClick={() => { save(vistorias.map(v => v.id === selectedVistoria.id ? { ...v, estado: 'enviada' as EstadoVistoria } : v)); setSelected({ ...selectedVistoria, estado: 'enviada' }) }} className="flex items-center gap-2 bg-[#0D1B2E] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#152338] transition-colors">📤 Marcar como enviada</button>
             <button onClick={() => { if (confirm('Eliminar esta vistoria?')) { save(vistorias.filter(v => v.id !== selectedVistoria.id)); setVista('lista') } }} className="p-2 text-gray-300 hover:text-red-500 transition-colors">🗑️</button>
           </div>
         </div>
@@ -350,7 +350,7 @@ export default function VistoriaTecnicaSection({ user, userRole }: { user: { id:
             <div className="mt-4 flex gap-6 text-sm">
               <span>📅 {formatDate(selectedVistoria.dataVistoria)}</span>
               {selectedVistoria.inspetor && <span>👷 {selectedVistoria.inspetor}</span>}
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedVistoria.estado === 'enviada' ? 'bg-blue-600' : 'bg-green-600'}`}>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedVistoria.estado === 'enviada' ? 'bg-[#0D1B2E]' : 'bg-green-600'}`}>
                 {selectedVistoria.estado === 'enviada' ? '📤 Enviada' : '✅ Concluída'}
               </span>
             </div>

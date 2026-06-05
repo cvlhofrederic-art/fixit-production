@@ -43,7 +43,7 @@ const marchesErrors = new Counter('stress_marches_errors');
 const globalErrorRate = new Rate('stress_error_rate');
 
 // --- URL de base ---
-const BASE_URL = __ENV.BASE_URL || 'https://fixit-production.vercel.app';
+const BASE_URL = __ENV.BASE_URL || 'https://vitfix.io';
 
 // --- Configuration du stress test ---
 // Montée en 5 paliers pour identifier précisément le seuil de dégradation.

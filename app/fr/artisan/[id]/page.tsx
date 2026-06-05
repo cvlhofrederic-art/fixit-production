@@ -106,7 +106,7 @@ function formatInterventionZone(
   // Fallback ancien modèle
   const city = artisan?.company_city || artisan?.city || (isPt ? 'Porto' : 'La Ciotat')
   const radius = artisan?.zone_radius_km || 30
-  return `${city} — ${t('rayon', 'raio')} ${radius} km`
+  return `${city}, ${t('rayon', 'raio')} ${radius} km`
 }
 
 export default function ArtisanProfilePage() {
@@ -205,7 +205,7 @@ export default function ArtisanProfilePage() {
         window.history.pushState(null, '')
         setStep('profile')
       } else {
-        // On profile — go back for real (leave the page)
+        // On profile - go back for real (leave the page)
         window.history.back()
       }
     }
@@ -306,7 +306,7 @@ export default function ArtisanProfilePage() {
 
   const cleanBio = (bio: string) => {
     let text = (bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
-    // Retirer les adresses physiques : "— Bâtiment X, Rés. Y, 13600 Ville."
+    // Retirer les adresses physiques: "- Bâtiment X, Rés. Y, 13600 Ville."
     text = text.replace(/\s*—\s*[\s\S]*?\d{5}\s*[^.]*\./g, '.')
     // Retirer les mentions "(rayon XX km)" redondantes avec le header
     text = text.replace(/\s*\(rayon\s*\d+\s*km\)\s*/gi, ' ')
@@ -402,7 +402,7 @@ export default function ArtisanProfilePage() {
     return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
   }
 
-  // Active days of the week (display order Mon→Sun) — filtre par slot_type du service sélectionné.
+  // Active days of the week (display order Mon→Sun) - filtre par slot_type du service sélectionné.
   // Sans service choisi, on regarde 'rdv' par défaut (parcours direct).
   const activeDayIndices = useMemo(() => {
     const displayOrder = [1, 2, 3, 4, 5, 6, 0] // Mon=1 ... Sun=0
@@ -550,7 +550,7 @@ export default function ArtisanProfilePage() {
       booking_date: dateStr,
       booking_time: selectedSlot,
       duration_minutes: Math.min(serviceList.reduce((sum, s) => sum + (s.duration_minutes || 60), 0) || 60, 480),
-      address: bookingForm.address || 'A definir',
+      address: bookingForm.address || t('À définir', 'A definir'),
       notes: `${multiNote}${singleNotes}${estimNote}Client: ${bookingForm.name} | Tel: ${bookingForm.phone} | Email: ${bookingForm.email || '-'} | ${bookingForm.notes || ''}`.substring(0, 2000),
       price_ht: totalMin || mainService?.price_ht || 0,
       price_ttc: totalMax || mainService?.price_ttc || 0,
@@ -621,9 +621,9 @@ export default function ArtisanProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Artisan non trouvé</h1>
-          <a href="/fr/recherche" className="text-yellow hover:underline">
-            Retour à la recherche
+          <h1 className="text-2xl font-bold mb-4">{isPt ? 'Profissional não encontrado' : 'Artisan non trouvé'}</h1>
+          <a href={isPt ? '/pt/pesquisar' : '/fr/recherche'} className="text-yellow hover:underline">
+            {isPt ? 'Voltar à pesquisa' : 'Retour à la recherche'}
           </a>
         </div>
       </div>
@@ -683,7 +683,7 @@ export default function ArtisanProfilePage() {
                         try {
                           const { supabase: sb } = await import('@/lib/supabase')
                           const { data: { session } } = await sb.auth.getSession()
-                          if (!session) { window.location.href = '/fr/login'; return }
+                          if (!session) { window.location.href = '/auth/login'; return }
                           if (isFavorited) {
                             await fetch(`/api/favorites?artisan_id=${artisan.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } })
                             setIsFavorited(false)
@@ -781,12 +781,12 @@ export default function ArtisanProfilePage() {
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Code NAF', 'Código CAE')}</div>
-                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? ` — ${artisan.naf_label}` : ''}</div>
+                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? `, ${artisan.naf_label}` : ''}</div>
                           </div>
                         </div>
                       )}
 
-                      {/* Adresse — éviter la duplication CP/ville si déjà inclus dans company_address */}
+                      {/* Adresse - éviter la duplication CP/ville si déjà inclus dans company_address */}
                       {(artisan.company_address || artisan.company_city) && (() => {
                         const rawAddr = (artisan.company_address || '').trim()
                         const normalizedAddr = rawAddr && rawAddr === rawAddr.toUpperCase() ? titleCaseAddress(rawAddr) : rawAddr
@@ -868,14 +868,14 @@ export default function ArtisanProfilePage() {
                             >
                               <Image
                                 src={photo.url}
-                                alt={photo.title || 'Réalisation'}
+                                alt={photo.title || t('Réalisation', 'Realização')}
                                 fill
                                 sizes="(max-width: 768px) 50vw, 25vw"
                                 className="object-cover group-hover:scale-105 transition-transform duration-300"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
-                                <div className="text-white text-xs font-semibold truncate">{photo.title || 'Réalisation'}</div>
+                                <div className="text-white text-xs font-semibold truncate">{photo.title || t('Réalisation', 'Realização')}</div>
                                 {photo.category && <div className="text-gray-300 text-[10px]">{photo.category}</div>}
                               </div>
                             </div>
@@ -931,17 +931,17 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/' : '/fr/'} className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
-                Accueil
+                {isPt ? 'Início' : 'Accueil'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <Link href="/fr/recherche" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/pesquisar' : '/fr/recherche'} className="hover:text-yellow transition flex items-center gap-1">
                 <Search className="w-3.5 h-3.5" />
-                Recherche
+                {isPt ? 'Pesquisar' : 'Recherche'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-dark font-medium">Choisir le motif</span>
+              <span className="text-dark font-medium">{isPt ? 'Escolher o motivo' : 'Choisir le motif'}</span>
             </nav>
           </div>
         </div>
@@ -965,7 +965,7 @@ export default function ArtisanProfilePage() {
             <div className="flex-1 min-w-0">
               <h3 className="font-display font-bold text-dark truncate">{artisan.company_name}</h3>
               <p className="text-sm text-text-muted truncate">
-                {artisan.categories?.[0] || 'Artisan professionnel'}
+                {artisan.categories?.[0] || t('Artisan professionnel', 'Profissional certificado')}
               </p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -974,7 +974,7 @@ export default function ArtisanProfilePage() {
             </div>
           </div>
 
-          {/* Motifs grid — élagage dédupliqué en 1 seule carte */}
+          {/* Motifs grid - élagage dédupliqué en 1 seule carte */}
           {(() => {
             const ELAGAGE_KW = ['élagage', 'elagage', 'elaguage']
             const isElag = (name: string) => ELAGAGE_KW.some(k => name.toLowerCase().includes(k))
@@ -983,7 +983,14 @@ export default function ArtisanProfilePage() {
               if (isElag(svc.name)) {
                 if (!elagSeen) {
                   elagSeen = true
-                  acc.push({ ...svc, name: 'Élagage arbre', description: 'Taille et soin de vos arbres selon leur hauteur et envergure de feuillage.' })
+                  acc.push({
+                    ...svc,
+                    name: t('Élagage arbre', 'Poda de árvores'),
+                    description: t(
+                      'Taille et soin de vos arbres selon leur hauteur et envergure de feuillage.',
+                      'Poda e cuidados das suas árvores conforme altura e envergadura da folhagem.'
+                    ),
+                  })
                 }
               } else {
                 acc.push(svc)
@@ -1022,7 +1029,7 @@ export default function ArtisanProfilePage() {
                     <div className="pt-3 border-t border-gray-100">
                       {priceInfo.type === 'devis' && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">
-                          📋 {isPt ? 'Sob orçamento — entraremos em contacto' : 'Sur devis — nous vous contacterons'}
+                          📋 {isPt ? 'Sob orçamento, entraremos em contacto' : 'Sur devis, nous vous contacterons'}
                         </span>
                       )}
                       {priceInfo.type === 'per_sqm' && (
@@ -1083,7 +1090,7 @@ export default function ArtisanProfilePage() {
                             >
                               <span>🌳 {tier.label}</span>
                               {selectedPriceTier?.label !== tier.label && (
-                                <span className="text-xs text-gray-500 font-normal">Sélectionner</span>
+                                <span className="text-xs text-gray-500 font-normal">{isPt ? 'Selecionar' : 'Sélectionner'}</span>
                               )}
                             </button>
                           ))}
@@ -1208,8 +1215,8 @@ export default function ArtisanProfilePage() {
                 </div>
               )}
               <div className="text-3xl mb-3">{'\u2795'}</div>
-              <h3 className="font-bold text-gray-900 mb-1">Autre intervention</h3>
-              <p className="text-sm text-gray-500 mb-4">D&eacute;crivez votre besoin ci-dessous</p>
+              <h3 className="font-bold text-gray-900 mb-1">{isPt ? 'Outra intervenção' : 'Autre intervention'}</h3>
+              <p className="text-sm text-gray-500 mb-4">{isPt ? 'Descreva a sua necessidade abaixo' : 'Décrivez votre besoin ci-dessous'}</p>
               {useCustomMotif && (
                 <textarea
                   value={customMotif}
@@ -1244,7 +1251,7 @@ export default function ArtisanProfilePage() {
                     const unit = pi.type === 'per_ml' ? 'ml' : 'm²'
                     let label = pi.label
                     if (selectedPriceTier) {
-                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ' — ?'}`
+                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label}, ${selectedTreeWidth.price}` : ', ?'}`
                     } else if (isQty && quantityKnown === true && quantityValue && Number(quantityValue) > 0) {
                       const est = calculateEstimatedPrice(pi, Number(quantityValue))
                       label = `📐 ${quantityValue} ${unit} → ${est}`
@@ -1293,9 +1300,9 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/' : '/fr/'} className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
-                Accueil
+                {isPt ? 'Início' : 'Accueil'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
               <button
@@ -1305,10 +1312,10 @@ export default function ArtisanProfilePage() {
                 }}
                 className="hover:text-yellow transition"
               >
-                Choisir le motif
+                {isPt ? 'Escolher o motivo' : 'Choisir le motif'}
               </button>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-dark font-medium">Calendrier</span>
+              <span className="text-dark font-medium">{isPt ? 'Calendário' : 'Calendrier'}</span>
             </nav>
           </div>
         </div>
@@ -1329,7 +1336,7 @@ export default function ArtisanProfilePage() {
             <div className="max-w-3xl mx-auto mb-6 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
               <span className="text-xl flex-shrink-0">🔍</span>
               <div className="text-sm text-amber-900">
-                <strong>Visite &amp; devis</strong> — Ce motif n&eacute;cessite une inspection sur place. L&rsquo;artisan vous confirmera le RDV apr&egrave;s avoir valid&eacute; votre demande, puis vous remettra un devis avant l&rsquo;intervention.
+                <strong>Visite &amp; devis</strong>, Ce motif n&eacute;cessite une inspection sur place. L&rsquo;artisan vous confirmera le RDV apr&egrave;s avoir valid&eacute; votre demande, puis vous remettra un devis avant l&rsquo;intervention.
               </div>
             </div>
           )}
@@ -1422,7 +1429,7 @@ export default function ArtisanProfilePage() {
                     </h3>
                     {selectedPriceTier && (
                       <p className="text-sm text-amber-700 font-semibold mb-3">
-                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ''}
+                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label}, ${selectedTreeWidth.price}` : ''}
                       </p>
                     )}
                     <p className="text-sm text-gray-500 mb-5">
@@ -1532,7 +1539,7 @@ export default function ArtisanProfilePage() {
                               } else if (needsQty && qty) {
                                 detail = `${qty} ${unitLbl}`
                               } else if (!isMulti && quantityKnown === false) {
-                                detail = 'À mesurer sur place'
+                                detail = t('À mesurer sur place', 'A medir no local')
                               }
 
                               return (
@@ -1569,11 +1576,11 @@ export default function ArtisanProfilePage() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Heure</span>
+                      <span className="text-gray-500">{isPt ? 'Hora' : 'Heure'}</span>
                       <span className="font-medium">{selectedSlot || '-'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Dur&eacute;e</span>
+                      <span className="text-gray-500">{isPt ? 'Duração' : 'Durée'}</span>
                       <span className="font-medium">
                         {(() => {
                           const isMulti = selectedServices.length > 0
@@ -1631,7 +1638,7 @@ export default function ArtisanProfilePage() {
                                     </p>
                                   )}
                                   <p className="text-[10px] text-gray-400 mt-0.5">
-                                    {hasUnknown || hasDevis ? 'Estimation partielle' : 'Estimation indicative'}
+                                    {hasUnknown || hasDevis ? t('Estimation partielle', 'Estimativa parcial') : t('Estimation indicative', 'Estimativa indicativa')}
                                   </p>
                                 </>
                               ) : (

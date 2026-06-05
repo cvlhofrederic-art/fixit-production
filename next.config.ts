@@ -126,6 +126,29 @@ const nextConfig: NextConfig = {
       { source: '/electricien-porto/', destination: '/pt/servicos/eletricista-porto/', permanent: true },
       { source: '/entretien-appartement-porto/', destination: '/pt/servicos/faz-tudo-porto/', permanent: true },
       { source: '/travaux-appartement-porto/', destination: '/pt/servicos/obras-remodelacao-porto/', permanent: true },
+      // ─── GSC 404 cleanup (May 2026) ─────────────────────────────────────
+      // FR services slug rename: noun → trade name (sitemap already emits new slugs)
+      { source: '/fr/services/plomberie-:city/', destination: '/fr/services/plombier-:city/', permanent: true },
+      { source: '/fr/services/electricite-:city/', destination: '/fr/services/electricien-:city/', permanent: true },
+      { source: '/fr/services/peinture-:city/', destination: '/fr/services/peintre-:city/', permanent: true },
+      // FR hub /pres-de-chez-moi/ has no root page (only [slug])
+      { source: '/fr/pres-de-chez-moi/', destination: '/fr/', permanent: true },
+      // EN routes that never existed (EN market is passive/SEO only)
+      { source: '/en/search/', destination: '/en/', permanent: true },
+      { source: '/en/contact/', destination: '/en/', permanent: true },
+      { source: '/en/reviews/', destination: '/en/', permanent: true },
+      // PT blog: 1 article renamed, 5 removed → hub
+      { source: '/pt/blog/humidade-paredes-solucoes/', destination: '/pt/blog/humidade-parede-causas-reparacao/', permanent: true },
+      { source: '/pt/blog/certificacao-eletrica/', destination: '/pt/blog/', permanent: true },
+      { source: '/pt/blog/seguranca-eletrica-casa/', destination: '/pt/blog/', permanent: true },
+      { source: '/pt/blog/paineis-solares-portugal/', destination: '/pt/blog/', permanent: true },
+      { source: '/pt/blog/como-escolher-tinta/', destination: '/pt/blog/', permanent: true },
+      { source: '/pt/blog/preparar-paredes-pintura/', destination: '/pt/blog/', permanent: true },
+      // Orphan paths picked up by Google with no locale prefix
+      { source: '/mois/', destination: '/fr/', permanent: true },
+      { source: '/mês/', destination: '/pt/', permanent: true },
+      // Simulateur devis: Toulon not in supported FR_CITIES → hub
+      { source: '/fr/simulateur-devis/toulon/', destination: '/fr/simulateur-devis/', permanent: true },
     ]
   },
   async headers() {
@@ -164,6 +187,21 @@ const nextConfig: NextConfig = {
             "object-src 'none'",
             "worker-src 'self' blob:",
           ].join('; ') },
+        ],
+      },
+      // Syndic v54 dev sandbox : jamais indexable. Ceinture en plus du gate
+      // hostname (404 hors localhost) et du <meta robots noindex>. Couvre le
+      // cas où une URL preview/dev fuiterait à un crawler.
+      {
+        source: '/syndic/dev/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+      {
+        source: '/fr/syndic/dev/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
     ]

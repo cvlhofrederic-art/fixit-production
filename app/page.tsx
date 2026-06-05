@@ -26,12 +26,12 @@ export default function HomePage() {
   const [showAllServices, setShowAllServices] = useState(false)
   const [revealedEls, setRevealedEls] = useState<Set<string>>(new Set())
 
-  // Autocomplete localisation — style Doctolib (phase test : dept 13 FR / Porto PT)
+  // Autocomplete localisation - style Doctolib (phase test : dept 13 FR / Porto PT)
   const [locOpen, setLocOpen] = useState(false)
   const [locCursor, setLocCursor] = useState(0)
   const locBoxRef = useRef<HTMLDivElement | null>(null)
 
-  // Autocomplete service — style Doctolib (tous mots-clés FR/PT)
+  // Autocomplete service - style Doctolib (tous mots-clés FR/PT)
   const [serviceQuery, setServiceQuery] = useState('')
   const [serviceOpen, setServiceOpen] = useState(false)
   const [serviceCursor, setServiceCursor] = useState(0)
@@ -74,7 +74,7 @@ export default function HomePage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Scroll reveal — reveals elements entering viewport OR already scrolled past
+  // Scroll reveal - reveals elements entering viewport OR already scrolled past
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -137,7 +137,7 @@ export default function HomePage() {
 
   const isPt = locale === 'pt'
 
-  // Suggestions localisation — locale-aware, phase test uniquement (dept 13 FR / Porto PT)
+  // Suggestions localisation - locale-aware, phase test uniquement (dept 13 FR / Porto PT)
   const locSuggestions = useMemo(() => {
     const raw = location.trim()
     if (raw.length < 1) return [] as Array<{ key: string; label: string; right?: string }>
@@ -186,7 +186,7 @@ export default function HomePage() {
     setLocOpen(false)
   }
 
-  // Suggestions service — locale-aware (FR / PT)
+  // Suggestions service - locale-aware (FR / PT)
   const serviceSuggestions = useMemo(() => {
     return searchServices(serviceQuery, isPt ? 'pt' : 'fr', 10)
   }, [serviceQuery, isPt])
@@ -368,27 +368,51 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ══════ STATS BAR ══════ */}
-      <div className={`${s.statsBar} ${revealClass('stats')}`} data-reveal-id="stats">
-        <div className={s.statsBarInner}>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>2 800+</div>
-            <div className={s.statLabel}>{isPt ? 'Profissionais certificados' : 'Artisans certifiés'}</div>
-          </div>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>48 000+</div>
-            <div className={s.statLabel}>{isPt ? 'Intervenções realizadas' : 'Interventions réalisées'}</div>
-          </div>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>4.9 / 5</div>
-            <div className={s.statLabel}>{isPt ? 'Nota média dos clientes' : 'Note moyenne clients'}</div>
-          </div>
-          <div className={s.statItem}>
-            <div className={s.statNumber}>&lt; 2h</div>
-            <div className={s.statLabel}>{isPt ? 'Tempo de resposta médio' : 'Délai de réponse moyen'}</div>
+      {/* ══════ STATS BAR / MARQUEE (PT) ══════ */}
+      {isPt ? (
+        <div
+          className={`${s.marqueeBar} ${revealClass('stats')}`}
+          data-reveal-id="stats"
+          aria-label="Contacto direto VITFIX"
+        >
+          <div className={s.marqueeTrack}>
+            {[0, 1].map(group => (
+              <div key={group} className={s.marqueeGroup} aria-hidden={group === 1 ? true : undefined}>
+                {[0, 1, 2, 3].map(i => (
+                  <span key={i} className={s.marqueeItem}>
+                    <span>Fale com um conselheiro VITFIX :</span>
+                    <a href="tel:+351912014971" className={s.marqueePhone}>
+                      +351 912 014 971
+                    </a>
+                    <span className={s.marqueeBullet} aria-hidden>●</span>
+                  </span>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className={`${s.statsBar} ${revealClass('stats')}`} data-reveal-id="stats">
+          <div className={s.statsBarInner}>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>2 800+</div>
+              <div className={s.statLabel}>Artisans certifiés</div>
+            </div>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>48 000+</div>
+              <div className={s.statLabel}>Interventions réalisées</div>
+            </div>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>4.9 / 5</div>
+              <div className={s.statLabel}>Note moyenne clients</div>
+            </div>
+            <div className={s.statItem}>
+              <div className={s.statNumber}>&lt; 2h</div>
+              <div className={s.statLabel}>Délai de réponse moyen</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════ SERVICES ══════ */}
       <section className={s.services} id="services">
@@ -516,9 +540,9 @@ export default function HomePage() {
               {[
                 isPt ? 'Agenda online com confirmações automáticas por SMS' : 'Agenda en ligne avec confirmations automatiques par SMS',
                 isPt ? 'Geração de orçamentos e faturas PDF em 30 segundos' : 'Génération de devis et factures PDF en 30 secondes',
-                isPt ? 'Proof of Work : fotos antes/depois + assinatura do cliente geolocalizada' : 'Proof of Work : photos avant/après + signature client géolocalisée',
+                isPt ? 'Secretariado dedicado, criação dos seus orçamentos e faturas' : 'Secrétariat dédié, création de vos devis & factures',
                 isPt ? 'Contabilidade IA com declarações de IVA e balanço automatizado' : 'Comptabilité IA avec déclarations TVA et bilan automatisé',
-                isPt ? 'Aplicação móvel iOS & Android incluída' : 'Application mobile iOS & Android incluse',
+                isPt ? 'Negociação dos seus orçamentos de materiais com os nossos fornecedores' : 'Négociation de vos devis matériaux avec nos fournisseurs',
                 isPt ? 'Visibilidade junto de milhares de clientes verificados' : 'Visibilité auprès de milliers de clients vérifiés',
               ].map((feat, i) => (
                 <li key={i}><span className={s.proCheck}>✓</span> {feat}</li>
@@ -625,11 +649,14 @@ export default function HomePage() {
             <div className={s.pricingDesc}>{isPt ? 'Para equipas e empresas de construção' : 'Pour les équipes et entreprises du bâtiment'}</div>
             <ul className={s.pricingFeatures}>
               {[
-                isPt ? 'Multi-profissionais / agência' : 'Multi-artisans / agence',
-                isPt ? 'Painel de controlo centralizado' : 'Tableau de bord centralisé',
-                isPt ? 'API e integrações' : 'API & intégrations',
-                isPt ? 'Onboarding dedicado' : 'Onboarding dédié',
-                isPt ? 'SLA garantido' : 'SLA garanti',
+                isPt ? 'Secretariado à distância' : 'Secrétariat à distance',
+                isPt ? 'Angariação de clientes qualificados' : 'Apport de clients qualifiés',
+                isPt ? 'Orçamentos e faturas geridos' : 'Devis & factures gérés',
+                isPt ? 'Negociação de materiais dedicada' : 'Négociation matériaux dédiée',
+                isPt ? 'Concursos públicos e privados direcionados' : 'Marchés publics & privés ciblés',
+                isPt ? 'Acompanhamento das suas obras' : 'Suivi de vos chantiers',
+                isPt ? 'Contabilidade e rentabilidade' : 'Comptabilité & rentabilité',
+                isPt ? '38 módulos para a sua atividade' : '38 modules pour votre activité',
               ].map((f, i) => <li key={i}><span className={s.pfCheck}>✓</span> {f}</li>)}
             </ul>
             <Link href="/contact" className={s.btnPricingOutline}>
@@ -752,15 +779,15 @@ export default function HomePage() {
           <div className={s.footerCol}>
             <h5>{isPt ? 'Legal' : 'Légal'}</h5>
             <ul>
-              <li><Link href={isPt ? '/fr/cgu' : '/fr/cgu'}>{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
+              <li><Link href={isPt ? '/pt/termos' : '/fr/cgu'}>{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
               <li><Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link></li>
-              <li><Link href={isPt ? '/fr/mentions-legales' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
+              <li><Link href={isPt ? '/pt/avisos-legais' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
             </ul>
           </div>
         </div>
         <div className={s.footerBottom}>
           © 2026 Vitfix · {isPt ? 'Todos os direitos reservados' : 'Tous droits réservés'} ·{' '}
-          <Link href={isPt ? '/fr/mentions-legales' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
+          <Link href={isPt ? '/pt/avisos-legais' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
           <Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link>
         </div>
       </footer>

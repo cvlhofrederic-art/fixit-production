@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { FR_BLOG_ARTICLES, getFrBlogArticle } from '@/lib/data/fr-blog-data'
+import { buildArticleSchema, buildBreadcrumbSchema, buildFaqSchema } from '@/lib/schemas'
 
 // ── Generate static pages for all FR blog articles ──
 export function generateStaticParams() {
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'fr_FR',
       type: 'article',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -55,51 +56,40 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
     plaquiste: { name: 'Plaquiste', icon: '🏗️' },
   }
 
-  // Schema.org Article + FAQPage
+  // Word count rough - article.intro + each section
+  const totalWordsFr = article.sections.reduce((acc, s) => acc + s.content.split(' ').length + s.heading.split(' ').length, 0) + article.intro.split(' ').length
+
+  // articleBody : extrait textuel pour les Answer Engines (5k char max).
+  const sectionTextsFr = article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')
+  const articleBodyTextFr = `${article.intro}\n\n${sectionTextsFr}`.slice(0, 5000)
+
+  // Schema.org Article + FAQPage (avec @id linking vers Organization globale)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      {
-        '@type': 'Article',
+      buildArticleSchema({
+        url: `https://vitfix.io/fr/blog/${slug}/`,
         headline: article.title,
         description: article.metaDesc,
-        url: `https://vitfix.io/fr/blog/${slug}/`,
-        publisher: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-          logo: { '@type': 'ImageObject', url: 'https://vitfix.io/og-image.png' },
-        },
-        mainEntityOfPage: `https://vitfix.io/fr/blog/${slug}/`,
+        image: 'https://vitfix.io/api/og/?locale=fr',
         datePublished: article.datePublished,
-        dateModified: article.datePublished,
-        author: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-        },
-        image: 'https://vitfix.io/og-image.png',
+        dateModified: article.dateModified,
+        author: { name: 'Équipe éditoriale Vitfix', url: 'https://vitfix.io/fr/a-propos/' },
         inLanguage: 'fr-FR',
-      },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/fr/' },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://vitfix.io/blog/' },
-          { '@type': 'ListItem', position: 3, name: article.title, item: `https://vitfix.io/fr/blog/${slug}/` },
-        ],
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: article.sections.slice(0, 5).map(section => ({
-          '@type': 'Question',
-          name: section.heading,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: section.content,
-          },
-        })),
-      },
+        articleSection: article.category,
+        keywords: article.relatedServices,
+        wordCount: totalWordsFr,
+        articleBody: articleBodyTextFr,
+        speakableSelectors: ['h1', 'h2', '.article-intro'],
+      }),
+      buildBreadcrumbSchema([
+        { name: 'VITFIX', url: 'https://vitfix.io/fr/' },
+        { name: 'Blog', url: 'https://vitfix.io/fr/blog/' },
+        { name: article.title, url: `https://vitfix.io/fr/blog/${slug}/` },
+      ]),
+      buildFaqSchema(
+        article.sections.slice(0, 5).map(s => ({ question: s.heading, answer: s.content })),
+      ),
     ],
   }
 
@@ -134,7 +124,7 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
             {article.title}
           </h1>
 
-          <p className="text-lg text-text-muted leading-relaxed">
+          <p className="article-intro text-lg text-text-muted leading-relaxed">
             {article.intro}
           </p>
         </div>

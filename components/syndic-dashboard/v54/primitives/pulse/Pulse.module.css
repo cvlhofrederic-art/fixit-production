@@ -1,0 +1,31 @@
+/* Pulse v54 — point indicateur animé du bundle V5.7 (.notifs-btn .pulse).
+ * 7×7 rouge #ef4444 (valeur exacte du bundle, non tokenisée), halo paper,
+ * pulsation opacité 2.4s. Le positionnement (absolute top/right) est laissé
+ * au consommateur — la primitive n'est QUE le dot. */
+
+.pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 1.5px var(--v54-paper);
+  border: none;
+  animation: notifsDotPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes notifsDotPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}

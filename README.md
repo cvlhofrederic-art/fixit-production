@@ -216,7 +216,7 @@ app/api/
 - Toutes les pages PT vivent sous `/pt/`, toutes les pages FR sous `/fr/` — seules les pages partagées (contact, auth, pro, syndic) restent au root
 - Les URLs `/pt/` et `/fr/` sont **sacrées** — jamais modifier leur structure (impact SEO critique)
 - Toujours inclure `BreadcrumbList` + `FAQPage` en JSON-LD sur les pages service
-- Canonical URLs pointent vers `vitfix.io` (jamais `vercel.app`)
+- Canonical URLs pointent toujours vers `vitfix.io` (jamais d'URL vendor-specific de l'hébergeur)
 - Portugais européen uniquement : `canalizador` (pas `encanador`), `telemóvel` (pas `celular`)
 
 ### Sécurité
@@ -260,12 +260,17 @@ Les tests se trouvent dans :
 
 ## Déploiement
 
-Le projet se déploie automatiquement sur Vercel à chaque push sur `main`.
+Le projet se déploie automatiquement sur **Cloudflare Workers** (via `@opennextjs/cloudflare`) à chaque push sur `main`. Le pipeline est défini dans [.github/workflows/deploy-cloudflare.yml](.github/workflows/deploy-cloudflare.yml).
 
 ```bash
 # Déploiement manuel en production
-vercel --prod --yes
+npx wrangler deploy
+
+# Vérifier le déploiement
+curl -sI https://vitfix.io | grep -i "server\|cf-ray"
 ```
+
+Les triggers cron sont configurés dans [wrangler.toml](wrangler.toml) (`triggers.crons`).
 
 **Variables d'environnement** : à configurer dans le dashboard Vercel (Settings > Environment Variables).
 

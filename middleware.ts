@@ -28,13 +28,55 @@ const FRANCOPHONE_COUNTRIES = [
 // Lusophone countries — auto-detect PT
 const LUSOPHONE_COUNTRIES = ['PT','BR','AO','MZ','CV','GW','TL','ST']
 
+// ── SEO public routes — caché côté CDN (1h + SWR 24h)
+// Ces préfixes correspondent au contenu programmatique SEO quasi-statique
+// (services, villes, blog, urgence, perto-de-mim) qui peut être servi
+// depuis le cache Cloudflare sans risque d'inconsistance.
+//
+// Sécurité (review #138) :
+// - Préfixes volontairement limités à des sous-routes publiques identifiables
+//   (pas de wildcard sur racine de locale entière).
+// - /fr/simulateur-devis/ EXCLU : peut contenir résultats personnalisés.
+// - /en/, /nl/, /es/ EXCLUS comme wildcards (trop large pour future-proof).
+//   Si on veut cacher des sous-routes EN, les lister explicitement.
+// - Couplé avec Vary: Cookie + skip si Set-Cookie sensible (ci-dessous).
+const SEO_PUBLIC_PREFIXES = [
+  '/pt/servicos/', '/pt/cidade/', '/pt/blog/', '/pt/urgencia/',
+  '/pt/perto-de-mim/', '/pt/precos/', '/pt/especialidades/',
+  '/pt/condominio/', '/pt/avaliacoes/',
+  '/fr/services/', '/fr/ville/', '/fr/blog/', '/fr/urgence/',
+  '/fr/pres-de-chez-moi/', '/fr/specialites/', '/fr/copropriete/',
+  '/en/services/', '/en/blog/', '/en/emergency-home-repair-porto/',
+] as const
+
+function isSeoPublicRoute(pathname: string): boolean {
+  return SEO_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
+
+// Cookies considérés comme contenant de la session sensible (Supabase auth).
+// Si un de ces cookies est posé en Set-Cookie sur la réponse, on REFUSE
+// d'appliquer Cache-Control: public — risque cache poisoning / cookie leak.
+const SENSITIVE_COOKIE_PREFIXES = ['sb-', 'supabase-auth']
+
+function responseHasSensitiveCookie(response: NextResponse): boolean {
+  const setCookieHeaders = response.headers.getSetCookie?.() ?? []
+  return setCookieHeaders.some((c) => {
+    const lower = c.toLowerCase()
+    return SENSITIVE_COOKIE_PREFIXES.some((prefix) => lower.startsWith(prefix.toLowerCase()))
+  })
+}
+
 function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
   const cookieLocale = request.cookies.get('locale')?.value
   if (cookieLocale && SUPPORTED_LOCALES.includes(cookieLocale)) return cookieLocale
-  // 2. Vercel geolocation (available on Vercel Edge Runtime)
-  const country = (request as any).geo?.country
-  if (country) {
+  // 2. Cloudflare géoloc — header `cf-ipcountry` injecté automatiquement
+  // par tous les Workers Cloudflare (ISO 3166-1 alpha-2 ou "XX" si inconnu).
+  // Remplace l'ancien `request.geo` Vercel-only, déprécié + non pertinent
+  // depuis la migration Cloudflare Workers (cf. project_deploy_cloudflare_only).
+  // Référence : developers.cloudflare.com/workers/runtime-apis/headers/
+  const country = request.headers.get('cf-ipcountry')
+  if (country && country !== 'XX') {
     if (LUSOPHONE_COUNTRIES.includes(country)) return 'pt'
     if (FRANCOPHONE_COUNTRIES.includes(country)) return 'fr'
   }
@@ -52,13 +94,16 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP header ──
+  // GA4 (Google Analytics 4) : script depuis www.googletagmanager.com,
+  // beacons collectés sur www.google-analytics.com / *.analytics.google.com.
+  // Chargé UNIQUEMENT après consent dans components/common/ConsentAnalytics.tsx.
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io",
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io https://www.googletagmanager.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://*.vercel-insights.com https://cloudflareinsights.com",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com https://www.google-analytics.com https://*.analytics.google.com https://*.g.doubleclick.net",
     "frame-src 'self' https://js.stripe.com https://*.stripe.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -76,7 +121,6 @@ export async function middleware(request: NextRequest) {
     const allowedOrigins = [
       process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       'https://vitfix.io',
-      'https://fixit-production.vercel.app',  // Vercel preview/staging
       'capacitor://localhost',     // iOS Capacitor
       'https://localhost',         // F13: Android Capacitor (androidScheme: https)
     ]
@@ -153,10 +197,28 @@ export async function middleware(request: NextRequest) {
 
   if (!needsAuth) {
     if (!isInternalRoute) {
-      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      // Skip locale cookie set si déjà correct côté client (réduit bruit Set-Cookie
+      // et permet au CDN de cacher sans Vary obligatoire).
+      const existingLocaleCookie = request.cookies.get('locale')?.value
+      if (existingLocaleCookie !== locale) {
+        supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      }
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    // Cache CDN agressif sur les routes SEO publiques GET/HEAD (pages programmatiques).
+    // Sécurité (review #138) :
+    //  - GET ou HEAD uniquement (jamais POST/etc.) — HEAD inclus pour que les bots SEO
+    //    (Googlebot, Bingbot, GPTBot) qui font des HEAD de fraîcheur voient le même
+    //    Cache-Control que les GET. Diverger casse leur logique de cache.
+    //  - Préfixe whitelist explicite (isSeoPublicRoute)
+    //  - REFUSE si la réponse contient un Set-Cookie sensible (Supabase auth)
+    //    pour éviter de mettre en cache une session utilisateur.
+    //  - Vary: Cookie pour signaler aux CDN intermédiaires de varier sur cookies.
+    if ((request.method === 'GET' || request.method === 'HEAD') && isSeoPublicRoute(pathname) && !responseHasSensitiveCookie(supabaseResponse)) {
+      supabaseResponse.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
+      supabaseResponse.headers.set('Vary', 'Cookie, Accept-Language')
+    }
     return supabaseResponse
   }
 

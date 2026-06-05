@@ -64,10 +64,10 @@ interface Props {
 
 const ESTADO_PEDIDO_CONFIG: Record<EstadoPedido, { label: string; bg: string; color: string; dot: string }> = {
   pendente:    { label: 'Pendente',         bg: '#FEF5E4', color: '#D4830A', dot: '#D4830A' },
-  em_analise:  { label: 'Em Análise',       bg: '#EDE8FF', color: '#6C5CE7', dot: '#6C5CE7' },
+  em_analise:  { label: 'Em Análise',       bg: '#F7F4EE', color: '#C9A84C', dot: '#C9A84C' },
   aprovado:    { label: 'Aprovado',         bg: '#E6F4F2', color: '#1A7A6E', dot: '#1A7A6E' },
   recusado:    { label: 'Recusado',         bg: '#FDECEA', color: '#C0392B', dot: '#C0392B' },
-  instalacao:  { label: 'Em Instalação',    bg: '#E8F0FE', color: '#1967D2', dot: '#1967D2' },
+  instalacao:  { label: 'Em Instalação',    bg: '#E8F0FE', color: '#0D1B2E', dot: '#0D1B2E' },
   concluido:   { label: 'Concluído',        bg: '#F7F4EE', color: '#0D1B2E', dot: '#0D1B2E' },
 }
 
@@ -494,8 +494,8 @@ export default function CarregamentoVESection({ user }: Props) {
           { emoji: '📋', label: 'Pedidos Ativos', value: stats.pendentes, color: '#D4830A' },
           { emoji: '✅', label: 'Aprovados', value: stats.aprovados, color: '#1A7A6E' },
           { emoji: '🔌', label: 'Postos Ativos', value: stats.postosAtivos, color: 'var(--sd-navy, #0D1B2E)' },
-          { emoji: '⚡', label: 'Potência Total', value: `${fmt(stats.potenciaTotal)} kW`, color: '#6C5CE7' },
-          { emoji: '📊', label: 'Consumo Total', value: `${stats.consumoTotal.toLocaleString('pt-PT')} kWh`, color: '#1967D2' },
+          { emoji: '⚡', label: 'Potência Total', value: `${fmt(stats.potenciaTotal)} kW`, color: '#C9A84C' },
+          { emoji: '📊', label: 'Consumo Total', value: `${stats.consumoTotal.toLocaleString('pt-PT')} kWh`, color: '#0D1B2E' },
           { emoji: '💶', label: 'Custo Total', value: `${fmt(stats.custoTotal)} €`, color: '#C0392B' },
         ].map((s, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid var(--sd-border, #E4DDD0)', borderRadius: 12, padding: 14 }}>
@@ -603,7 +603,7 @@ export default function CarregamentoVESection({ user }: Props) {
                         {p.estado === 'pendente' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); atualizarPedidoEstado(p.id, 'em_analise') }}
-                            style={{ fontSize: 11, background: '#EDE8FF', color: '#6C5CE7', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}
+                            style={{ fontSize: 11, background: '#F7F4EE', color: '#C9A84C', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}
                           >
                             Analisar
                           </button>
@@ -701,7 +701,7 @@ export default function CarregamentoVESection({ user }: Props) {
                       {selectedPedido.estado === 'pendente' && (
                         <button
                           onClick={() => { atualizarPedidoEstado(selectedPedido.id, 'em_analise'); setSelectedPedido({ ...selectedPedido, estado: 'em_analise' }) }}
-                          style={{ background: '#EDE8FF', color: '#6C5CE7', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                          style={{ background: '#F7F4EE', color: '#C9A84C', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Iniciar Análise
                         </button>
@@ -766,7 +766,7 @@ export default function CarregamentoVESection({ user }: Props) {
                   <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
                     <button
                       onClick={() => { atualizarPedidoEstado(selectedPedido.id, 'instalacao'); setSelectedPedido({ ...selectedPedido, estado: 'instalacao' }) }}
-                      style={{ background: '#E8F0FE', color: '#1967D2', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                      style={{ background: '#E8F0FE', color: '#0D1B2E', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                     >
                       Marcar Instalação Iniciada
                     </button>
@@ -942,7 +942,7 @@ export default function CarregamentoVESection({ user }: Props) {
                         </div>
                         <div>
                           <div style={{ color: 'var(--sd-ink-3, #8A9BB0)' }}>Total acumulado</div>
-                          <div style={{ fontWeight: 700, color: '#1967D2' }}>{totalKwh.toLocaleString('pt-PT')} kWh</div>
+                          <div style={{ fontWeight: 700, color: '#0D1B2E' }}>{totalKwh.toLocaleString('pt-PT')} kWh</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--sd-ink-3, #8A9BB0)' }}>Custo total</div>
@@ -1170,7 +1170,7 @@ export default function CarregamentoVESection({ user }: Props) {
                 titulo: 'DL 101-D/2020',
                 subtitulo: 'Direito Individual à Instalação',
                 conteudo: 'Todo o condómino tem o direito de instalar infraestrutura de carregamento de veículos elétricos na sua fração ou lugar de estacionamento, incluindo em partes comuns, mediante comunicação prévia.',
-                cor: '#1967D2',
+                cor: '#0D1B2E',
                 bg: '#E8F0FE',
               },
               {
@@ -1186,8 +1186,8 @@ export default function CarregamentoVESection({ user }: Props) {
                 titulo: 'Prazo de Decisão 60 Dias',
                 subtitulo: 'Silêncio = Aprovação Tácita',
                 conteudo: 'O condomínio dispõe de 60 dias para se pronunciar. Na ausência de resposta fundamentada dentro do prazo, considera-se tacitamente aprovada a instalação.',
-                cor: '#6C5CE7',
-                bg: '#EDE8FF',
+                cor: '#C9A84C',
+                bg: '#F7F4EE',
               },
               {
                 emoji: '🚫',

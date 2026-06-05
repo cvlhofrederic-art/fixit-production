@@ -252,6 +252,9 @@ async function callGroq(messages: Array<{ role: string; content: string }>, maxT
               temperature: 0.15,
               max_tokens: maxTokens,
             }),
+            // Wall-time illimité sur Cloudflare Workers tant que le client tient.
+            // 20s = budget raisonnable pour Llama 70B / OpenRouter fallback.
+            signal: AbortSignal.timeout(20000),
           })
 
           if (res.status === 429) {
@@ -328,6 +331,9 @@ async function searchTavily(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      // Tavily répond typiquement < 5s. 15s = budget large pour mauvais réseau.
+      // Sans timeout, le fetch peut pendre indéfiniment sur Workers.
+      signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) {
       logger.error('Tavily error:', res.status, await res.text())

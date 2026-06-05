@@ -1,30 +1,13 @@
 import type { Metadata } from 'next'
+import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
-// Plurais corretos em português europeu
-const PLURAIS: Record<string, string> = {
-  'Eletricista': 'eletricistas',
-  'Canalizador': 'canalizadores',
-  'Pintor': 'pintores',
-  'Pladur e Tetos Falsos': 'profissionais de pladur',
-  'Obras e Remodelação': 'profissionais de obras',
-  'Isolamento Térmico e Capoto': 'profissionais de isolamento',
-  'Impermeabilização': 'profissionais de impermeabilização',
-  'Desentupimento': 'profissionais de desentupimento',
-  'Faz Tudo': 'profissionais faz-tudo',
-  'Serralheiro': 'serralheiros',
-  'Telhado e Cobertura': 'profissionais de telhados',
-  'Vidraceiro': 'vidraceiros',
-  'Azulejador e Ladrilhador': 'azulejadores',
-  'Pedreiro e Alvenaria': 'pedreiros',
-  'Ar Condicionado': 'profissionais de ar condicionado',
-}
-function pluralizar(nome: string): string {
-  return PLURAIS[nome] || 'profissionais de ' + nome.toLowerCase()
-}
+import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
+import ServiceFeaturesGrid from '@/components/seo/ServiceFeaturesGrid'
+import ProblemsGrid from '@/components/seo/ProblemsGrid'
 
 // ── Generate all 32 static pages (4 services × 8 cities) ──
 export function generateStaticParams() {
@@ -49,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'pt' }),
     },
     twitter: {
       card: 'summary_large_image',
@@ -59,8 +42,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     alternates: {
       canonical: `https://vitfix.io/pt/servicos/${slug}/`,
       languages: {
-        'pt': `https://vitfix.io/pt/servicos/${slug}/`,
-        'fr': 'https://vitfix.io/fr/services/',
+        'pt-PT': `https://vitfix.io/pt/servicos/${slug}/`,
+        'fr-FR': 'https://vitfix.io/fr/services/',
         'en': 'https://vitfix.io/en/',
         'x-default': `https://vitfix.io/pt/servicos/${slug}/`,
       },
@@ -77,7 +60,9 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const { service, city, nearbyCities } = combo
   const replaceCity = (text: string) => text.replace(/\{city\}/g, city.name)
   const heroTitle = replaceCity(service.heroTitle)
-  const heroSubtitle = replaceCity(service.heroSubtitle)
+  const overrideIntro = city.serviceCityOverrides?.[service.slug]?.intro
+  const heroSubtitle = overrideIntro ?? replaceCity(service.heroSubtitle)
+  const localCases = city.serviceCityOverrides?.[service.slug]?.localCases
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
@@ -116,13 +101,44 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
           opens: '08:00',
           closes: '20:00',
         },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '127',
-          bestRating: '5',
-          worstRating: '1',
+        // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
+      },
+      {
+        '@type': 'Service',
+        '@id': `https://vitfix.io/pt/servicos/${slug}/#service`,
+        name: `${service.name} em ${city.name}`,
+        description: service.metaDesc.replace('{city}', city.name),
+        serviceType: service.name,
+        category: 'Home & Construction Services',
+        provider: { '@id': 'https://vitfix.io/#business' },
+        areaServed: {
+          '@type': 'City',
+          name: city.name,
+          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
         },
+        hasOfferCatalog: {
+          '@type': 'OfferCatalog',
+          name: `Serviços de ${service.name.toLowerCase()} em ${city.name}`,
+          itemListElement: service.features.slice(0, 8).map((feature, idx) => ({
+            '@type': 'Offer',
+            position: idx + 1,
+            itemOffered: {
+              '@type': 'Service',
+              name: feature,
+            },
+            priceSpecification: {
+              '@type': 'PriceSpecification',
+              priceCurrency: 'EUR',
+              minPrice: '30',
+            },
+            availability: 'https://schema.org/InStock',
+          })),
+        },
+        audience: {
+          '@type': 'Audience',
+          audienceType: 'Particulares, condomínios e empresas em Portugal',
+        },
+        termsOfService: 'https://vitfix.io/pt/termos/',
       },
       {
         '@type': 'BreadcrumbList',
@@ -214,41 +230,45 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
       </section>
 
       {/* ── FEATURES ── */}
-      <section className="py-14 md:py-18">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
-            Os nossos serviços de {service.name.toLowerCase()} em {city.name}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {service.features.map((feature, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-border/50">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold mt-0.5">✓</span>
-                <span className="text-[0.93rem] text-dark leading-relaxed">{feature}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ServiceFeaturesGrid
+        title={`Os nossos serviços de ${service.name.toLowerCase()} em ${city.name}`}
+        features={service.features}
+      />
 
       {/* ── PROBLEMS WE SOLVE ── */}
-      <section className="py-14 md:py-18 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Problemas que resolvemos em {city.name}
-          </h2>
-          <p className="text-text-muted mb-8 max-w-2xl">
-            Os nossos profissionais têm experiência em resolver os problemas mais comuns de {service.name.toLowerCase()} na região.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {service.problemsWeSolve.map((problem, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 hover:border-yellow/30 transition-colors">
-                <span className="flex-shrink-0 text-yellow text-lg mt-0.5">{service.icon}</span>
-                <span className="text-[0.93rem] text-dark">{problem}</span>
-              </div>
-            ))}
+      <ProblemsGrid
+        title={`Problemas que resolvemos em ${city.name}`}
+        intro={`Os nossos profissionais têm experiência em resolver os problemas mais comuns de ${service.name.toLowerCase()} na região.`}
+        problems={service.problemsWeSolve}
+        serviceIcon={service.icon}
+      />
+
+      {/* ── LOCAL CASES (anti-thin-content, conditional) ── */}
+      {localCases?.length ? (
+        <section className="py-12 md:py-16">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark mb-2">
+              Intervenções recentes em {city.name}
+            </h2>
+            <p className="text-text-muted text-sm mb-6 max-w-2xl">
+              Exemplos de trabalhos realizados pelos profissionais VITFIX no concelho.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {localCases.map((c, i) => (
+                <article
+                  key={i}
+                  className="p-5 rounded-2xl bg-white border border-border/40 hover:border-yellow/40 transition-colors flex gap-4"
+                >
+                  <span className="shrink-0 w-9 h-9 rounded-lg bg-yellow/15 flex items-center justify-center text-base font-bold text-dark">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm text-dark/85 leading-relaxed">{c}</p>
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {/* ── URGENCY CTA ── */}
       <section className="py-12 md:py-16">
@@ -261,7 +281,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">⚠️</span>
-                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgência 24h — {city.name}</span>
+                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgência 24h, {city.name}</span>
                 </div>
                 <h3 className="font-display text-xl md:text-2xl font-bold text-white mb-2">
                   Precisa de {service.name.toLowerCase()} agora?
@@ -276,7 +296,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                   className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3.5 text-[0.95rem] hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_24px_rgba(37,211,102,0.4)] whitespace-nowrap"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  WhatsApp — Resposta rápida
+                  WhatsApp, Resposta rápida
                 </a>
                 <a
                   href={`tel:${PHONE_PT}`}
@@ -295,7 +315,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Zona de atuação — {city.name}
+            Zona de atuação, {city.name}
           </h2>
           <p className="text-text-muted mb-6">
             Os nossos {pluralizar(service.name)} atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
@@ -306,7 +326,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
             ))}
           </div>
 
-          {/* Nearby cities (internal links — critical for SEO) */}
+          {/* Nearby cities (internal links - critical for SEO) */}
           {nearbyCities.length > 0 && (
             <>
               <h3 className="font-display text-xl font-bold mb-4">{service.name} noutras cidades próximas</h3>
@@ -383,7 +403,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Perguntas frequentes — {service.name} em {city.name}
+            Perguntas frequentes, {service.name} em {city.name}
           </h2>
           <p className="text-text-muted mb-8">
             Respostas às dúvidas mais comuns sobre os nossos serviços de {service.name.toLowerCase()}.

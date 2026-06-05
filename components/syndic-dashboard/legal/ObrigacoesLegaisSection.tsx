@@ -20,12 +20,12 @@ interface Obrigacao {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TIPO_CONFIG: Record<TipoObrigacao, { label: string; emoji: string; color: string; lei: string }> = {
-  conservacao:  { label: 'Conservação obrigatória',     emoji: '🏗️', color: 'bg-blue-50 text-blue-700 border-blue-200',     lei: 'DL 555/99 art. 89.º — 8 anos' },
+  conservacao:  { label: 'Conservação obrigatória',     emoji: '🏗️', color: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]',     lei: 'DL 555/99 art. 89.º — 8 anos' },
   gas:          { label: 'Inspeção de gás',             emoji: '🔥', color: 'bg-orange-50 text-orange-700 border-orange-200', lei: 'DL 97/2017 — 5 anos' },
-  elevador:     { label: 'Inspeção de elevadores',      emoji: '🛗', color: 'bg-purple-50 text-purple-700 border-purple-200', lei: 'DL 320/2002 — 2 a 6 anos' },
+  elevador:     { label: 'Inspeção de elevadores',      emoji: '🛗', color: 'bg-[#F7F4EE] text-[#C9A84C] border-[#E4DDD0]', lei: 'DL 320/2002 — 2 a 6 anos' },
   eletrica:     { label: 'Inspeção elétrica',           emoji: '⚡', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', lei: 'RTIEBT — 10 anos' },
   seguro:       { label: 'Seguro do edifício',          emoji: '🛡️', color: 'bg-green-50 text-green-700 border-green-200',   lei: 'DL 267/94 — anual' },
-  assembleia:   { label: 'Assembleia geral anual',      emoji: '🏛️', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', lei: 'CC art. 1431.º — anual' },
+  assembleia:   { label: 'Assembleia geral anual',      emoji: '🏛️', color: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]', lei: 'CC art. 1431.º — anual' },
   energia:      { label: 'Certificado energético',      emoji: '🌱', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', lei: 'DL 101-D/2020 — 10 anos' },
   incendio:     { label: 'Segurança contra incêndios',  emoji: '🧯', color: 'bg-red-50 text-red-700 border-red-200',         lei: 'DL 220/2008 — anual' },
   outra:        { label: 'Outra obrigação',             emoji: '📋', color: 'bg-gray-50 text-gray-700 border-gray-200',       lei: '—' },

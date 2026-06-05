@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
 import type { User } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -161,26 +162,49 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
 
   const uid = user?.id || ''
   const storageKey = `fixit_syndic_multi_${uid}`
+  // Cache partagé avec les autres sections du dashboard syndic (Pontuação Saúde, Orçamento IA…)
+  const sharedStorageKey = `fixit_syndic_immeubles_${uid}`
 
   // ─── Fetch immeubles ────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!uid) { setLoading(false); return }
 
-    const cached = localStorage.getItem(storageKey)
-    if (cached) {
+    // Tentative cache local : d'abord la clé propre à ce module, puis la clé partagée
+    const loadCached = (key: string) => {
+      const raw = localStorage.getItem(key)
+      if (!raw) return null
       try {
-        const parsed = JSON.parse(cached)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setImmeubles(parsed)
-          setLoading(false)
-        }
-      } catch { toast.error('Erreur lors du chargement du cache local') }
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : null
+      } catch { return null }
+    }
+    const cachedList = loadCached(storageKey) || loadCached(sharedStorageKey)
+    let hasCached = false
+    if (cachedList) {
+      setImmeubles(cachedList as Immeuble[])
+      setLoading(false)
+      hasCached = true
     }
 
-    fetch(`/api/syndic/immeubles?user_id=${uid}`)
-      .then(r => r.ok ? r.json() : Promise.reject('Erro'))
-      .then(data => {
+    ;(async () => {
+      // Le endpoint /api/syndic/* exige un Bearer token (cf. lib/auth-helpers.ts getAuthUser).
+      // Sans token => 401 => le module affiche une fausse erreur alors que le cache local existe.
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        // Pas de session : on s'appuie sur le cache, sans afficher d'erreur si on en a déjà.
+        if (!hasCached) setError('Erro ao carregar imóveis')
+        setLoading(false)
+        return
+      }
+
+      try {
+        const res = await fetch(`/api/syndic/immeubles?user_id=${uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
         const list: Immeuble[] = (data.immeubles || []).map((i: Record<string, unknown>) => ({
           id: i.id,
           nom: i.nom || 'Sem nome',
@@ -197,12 +221,16 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
         setImmeubles(list)
         localStorage.setItem(storageKey, JSON.stringify(list))
         setError('')
-      })
-      .catch(() => {
-        if (immeubles.length === 0) setError('Erro ao carregar imóveis')
-        toast.error('Erreur lors du chargement des immeubles')
-      })
-      .finally(() => setLoading(false))
+      } catch {
+        // En cas d'échec API : on garde le cache si disponible, sinon on affiche l'erreur.
+        if (!hasCached) {
+          setError('Erro ao carregar imóveis')
+          toast.error('Erreur lors du chargement des immeubles')
+        }
+      } finally {
+        setLoading(false)
+      }
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid])
 
@@ -385,7 +413,7 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
         <div style={{ ...s.card, textAlign: 'center', maxWidth: '400px' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>🏗️</p>
           <p style={{ color: COLORS.navy, fontWeight: 600, fontSize: '16px' }}>Nenhum imóvel registado</p>
-          <p style={{ color: COLORS.text, fontSize: '13px', marginTop: '8px' }}>Adicione imóveis ao seu cabinet para ver o dashboard multi-imóveis.</p>
+          <p style={{ color: COLORS.text, fontSize: '13px', marginTop: '8px' }}>Adicione imóveis ao seu gabinete para ver o painel multi-imóveis.</p>
         </div>
       </div>
     )

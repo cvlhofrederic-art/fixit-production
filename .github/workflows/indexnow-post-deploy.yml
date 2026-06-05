@@ -1,0 +1,189 @@
+# IndexNow Auto-Ping Post-Deploy
+# Notifie Bing/Yandex/Naver/Seznam des nouvelles URLs après chaque deploy main.
+# Doc protocole : https://www.indexnow.org/documentation
+#
+# Déclenche après le workflow "Deploy to Cloudflare Workers" sur la branche main.
+# Wait 30s pour propagation Cloudflare avant de fetch sitemap.
+
+name: "IndexNow - Post-Deploy Ping"
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Cloudflare Workers"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write  # nécessaire pour gh issue create en cas de rate limit
+
+env:
+  INDEXNOW_KEY: f35626783ac34c45b8aed85303d1f5a8
+  HOST: vitfix.io
+  # Endpoint principal : forwarde aux moteurs partenaires (Yandex, Naver, Seznam).
+  ENDPOINT: https://api.indexnow.org/indexnow
+  # Endpoint Bing direct (recommandé par Bing pour reliability + faster indexing).
+  # Doc : https://www.bing.com/webmasters/help/indexnow-api
+  BING_ENDPOINT: https://api.bing.com/IndexNow
+  SITEMAP_INDEX: https://vitfix.io/sitemap.xml
+
+jobs:
+  indexnow-ping:
+    name: "Ping IndexNow API"
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Wait for Cloudflare propagation
+        run: sleep 30
+
+      - name: Fetch all sitemap URLs and ping IndexNow
+        env:
+          # gh CLI utilise GH_TOKEN pour créer/commenter une issue d'alerte
+          # en cas de rate limit IndexNow. Le token par défaut suffit grâce
+          # à `permissions: issues: write` au niveau workflow.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          urls_file=$(mktemp)
+          payload_file=$(mktemp)
+          response_file=$(mktemp)
+          trap 'rm -f "$urls_file" "$payload_file" "$response_file"' EXIT
+
+          # Helper : extrait les <loc> d'un XML sans tuer le pipeline si vide
+          # (grep retourne 1 quand zéro match → fatal sous pipefail sinon).
+          extract_locs() {
+            grep -oE '<loc>[^<]+</loc>' | sed 's|<loc>||;s|</loc>||' || true
+          }
+
+          # 1. Lire le sitemap index pour découvrir les sous-sitemaps réellement publiés.
+          # Source de vérité : la prod elle-même (sitemap.xml renvoie ce qu'on indexe).
+          # Robuste aux ajouts/suppressions de sitemaps (pas de hardcode SITEMAP_COUNT).
+          echo "Fetching sitemap index $SITEMAP_INDEX..."
+          index_xml=$(curl -sf --max-time 15 "$SITEMAP_INDEX" || echo "")
+          if [ -z "$index_xml" ]; then
+            echo "::error::Failed to fetch sitemap index"
+            exit 1
+          fi
+
+          mapfile -t sub_sitemaps < <(echo "$index_xml" | extract_locs)
+          echo "Sitemap index lists ${#sub_sitemaps[@]} sub-sitemaps"
+
+          if [ "${#sub_sitemaps[@]}" -eq 0 ]; then
+            echo "::error::No sub-sitemaps found in index"
+            exit 1
+          fi
+
+          # 2. Fetch chaque sous-sitemap et accumule les URLs ligne par ligne.
+          # Pas d'array bash → pas d'ARG_MAX même avec 10 000+ URLs.
+          for sitemap_url in "${sub_sitemaps[@]}"; do
+            echo "Fetching $sitemap_url..."
+            xml=$(curl -sf --max-time 15 "$sitemap_url" || echo "")
+            if [ -z "$xml" ]; then
+              echo "::warning::Failed to fetch $sitemap_url, skipping"
+              continue
+            fi
+
+            # 'wc -l' renvoie toujours un entier propre (0 pour fichier vide).
+            # Eviter 'grep -c' ici: il sort code 1 si zero match, ce qui faisait
+            # planter l'arithmetique sur la 1re iteration (file vide au depart).
+            before=$(wc -l < "$urls_file")
+            echo "$xml" | extract_locs >> "$urls_file"
+            after=$(wc -l < "$urls_file")
+            echo "  → $((after - before)) URLs collected from this sitemap"
+          done
+
+          total=$(wc -l < "$urls_file")
+          echo "Collected $total URLs from sitemaps"
+
+          if [ "$total" -eq 0 ]; then
+            echo "::error::No URLs collected from sitemaps"
+            exit 1
+          fi
+
+          # IndexNow accepte 10 000 URLs max par requête. Au-delà, on découpe.
+          # On écrit aussi le payload sur disque pour éviter ARG_MAX côté curl.
+          batch_size=10000
+          start=1
+          batch_num=1
+          ok=0
+          while [ "$start" -le "$total" ]; do
+            end=$((start + batch_size - 1))
+            jq -nc --rawfile urls_raw "$urls_file" \
+              --arg host "$HOST" \
+              --arg key "$INDEXNOW_KEY" \
+              --arg keyLoc "https://${HOST}/${INDEXNOW_KEY}.txt" \
+              --argjson startN "$start" \
+              --argjson endN "$end" \
+              '{
+                host: $host,
+                key: $key,
+                keyLocation: $keyLoc,
+                urlList: ($urls_raw | split("\n") | map(select(length > 0))[$startN-1:$endN])
+              }' > "$payload_file"
+
+            posted=$(jq '.urlList | length' "$payload_file")
+            echo "Posting batch #$batch_num: $posted URLs (range $start-$end of $total)..."
+
+            # POST principal vers indexnow.org (forwarde Yandex/Naver/Seznam).
+            status=$(curl -sS -o "$response_file" -w "%{http_code}" \
+              -X POST "$ENDPOINT" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data-binary "@$payload_file")
+            echo "IndexNow generic response: HTTP $status"
+            head -c 500 "$response_file"; echo ""
+
+            # POST direct vers Bing IndexNow endpoint (best-effort, parallèle).
+            # Bing recommande l'appel direct pour reliability + faster indexing.
+            # On ne fait pas échouer le job si Bing rejette : c'est un signal
+            # supplémentaire, pas un canal critique.
+            bing_status=$(curl -sS -o /dev/null -w "%{http_code}" \
+              --max-time 15 \
+              -X POST "$BING_ENDPOINT" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data-binary "@$payload_file" || echo "000")
+            echo "Bing direct response: HTTP $bing_status"
+
+            case "$status" in
+              200|202)
+                ok=$((ok + posted))
+                ;;
+              422)
+                echo "::warning::IndexNow batch #$batch_num returned 422 (some URLs may be invalid). Non-fatal."
+                ok=$((ok + posted))
+                ;;
+              429)
+                echo "::warning::IndexNow rate limit hit on batch #$batch_num after $ok URLs. Opening alert issue."
+                # Crée une issue GitHub pour rendre l'incident visible (pas
+                # besoin de Slack/email, gh CLI déjà disponible). Idempotent :
+                # on cherche d'abord une issue ouverte avec le label seo-alert.
+                if command -v gh >/dev/null 2>&1; then
+                  existing=$(gh issue list --state open --label seo-alert --json number --jq '.[0].number' 2>/dev/null || echo "")
+                  if [ -z "$existing" ]; then
+                    gh issue create \
+                      --title "IndexNow rate limit hit (HTTP 429)" \
+                      --body "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\n\n${ok} URLs ont été pingées avant le rate limit sur batch #${batch_num}/${total} URLs total. Les batches restants ont été ignorés. Le ping reprendra automatiquement au prochain deploy." \
+                      --label seo-alert \
+                      || echo "::warning::Could not create alert issue"
+                  else
+                    gh issue comment "$existing" \
+                      --body "Rate limit again on $(date -u +%Y-%m-%dT%H:%M:%SZ). Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+                      || echo "::warning::Could not comment alert issue"
+                  fi
+                fi
+                break
+                ;;
+              *)
+                echo "::error::IndexNow batch #$batch_num failed with HTTP $status"
+                exit 1
+                ;;
+            esac
+
+            start=$((end + 1))
+            batch_num=$((batch_num + 1))
+          done
+
+          echo "::notice::IndexNow ping succeeded ($ok / $total URLs submitted)"

@@ -71,9 +71,9 @@ const PRIORIDADES: Record<Prioridade, { label: string; color: string; bg: string
 
 const ESTADOS: Record<Estado, { label: string; icon: string; color: string; bg: string }> = {
   aberto:              { label: 'Aberto',              icon: '📣', color: '#C0392B', bg: '#FDECEA' },
-  em_analise:          { label: 'Em análise',          icon: '🔍', color: '#6C5CE7', bg: '#EDE8FF' },
+  em_analise:          { label: 'Em análise',          icon: '🔍', color: '#C9A84C', bg: '#F7F4EE' },
   artesao_contactado:  { label: 'Artesão contactado',  icon: '📞', color: '#D4830A', bg: '#FEF5E4' },
-  em_reparacao:        { label: 'Em reparação',        icon: '🔨', color: '#2980B9', bg: '#EBF5FB' },
+  em_reparacao:        { label: 'Em reparação',        icon: '🔨', color: '#0D1B2E', bg: '#EBF5FB' },
   resolvido:           { label: 'Resolvido',           icon: '✅', color: '#1A7A6E', bg: '#E6F4F2' },
   fechado:             { label: 'Fechado',             icon: '🔒', color: '#8A9BB0', bg: '#F0EDEA' },
 }
@@ -940,7 +940,7 @@ export default function OcorrenciasSection({ user, userRole }: Props) {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{
                           width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                          background: evt.tipo === 'estado' ? 'var(--sd-gold,#C9A84C)' : evt.tipo === 'foto' ? '#2980B9' : 'var(--sd-ink-3,#8A9BB0)',
+                          background: evt.tipo === 'estado' ? 'var(--sd-gold,#C9A84C)' : evt.tipo === 'foto' ? '#0D1B2E' : 'var(--sd-ink-3,#8A9BB0)',
                         }} />
                         {idx < selected.timeline.length - 1 && (
                           <div style={{ width: 1, flex: 1, background: 'var(--sd-border,#E4DDD0)', marginTop: 4 }} />

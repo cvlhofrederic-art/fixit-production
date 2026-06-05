@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/mercados/gerir/',
     languages: {
-      'pt': 'https://vitfix.io/pt/mercados/gerir/',
-      'fr': 'https://vitfix.io/fr/marches/gerer/',
+      'pt-PT': 'https://vitfix.io/pt/mercados/gerir/',
+      'fr-FR': 'https://vitfix.io/fr/marches/gerer/',
       'x-default': 'https://vitfix.io/pt/mercados/gerir/',
     },
   },

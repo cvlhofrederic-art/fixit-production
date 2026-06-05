@@ -254,12 +254,18 @@ export default function SimuladorOrcamentoClient() {
                 🔍 Ver profissionais disponíveis
               </Link>
               <a
+                href={`tel:${PHONE_PT}`}
+                className="inline-flex items-center justify-center gap-2 bg-white text-dark font-bold rounded-full px-7 py-3 text-sm hover:bg-white/90 transition-colors"
+              >
+                📞 Ligar +351 912 014 971
+              </a>
+              <a
                 href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`Olá VITFIX! Preciso de um profissional${query ? ` para: ${query}` : ''}${detectedCity ? ` em ${detectedCity}` : ''}. Podem ajudar?`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold rounded-full px-7 py-3 text-sm hover:bg-[#20ba59] transition-colors"
               >
-                💬 WhatsApp VITFIX
+                💬 WhatsApp
               </a>
             </div>
             <button onClick={reset} className="mt-3 text-xs text-white/40 hover:text-white/70 underline underline-offset-2 transition-colors">

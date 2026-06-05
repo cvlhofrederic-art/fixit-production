@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentCallbackSchema } from '@/lib/validation'
+import { setEncryptedToken } from '@/lib/oauth/tokens'
 
 // ── Reçoit le code OAuth Google, échange en tokens, stocke dans Supabase ─────
 export async function GET(request: NextRequest) {
@@ -82,7 +83,21 @@ export async function GET(request: NextRequest) {
     // 3. Calculer l'expiration du token
     const tokenExpiry = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString()
 
-    // 4. Stocker les tokens dans Supabase (upsert) + clear nonce (prevent replay)
+    // 4. Stocker les tokens dans Supabase (dual-write : encrypted + plain pour compat) + clear nonce
+    // 4a. Écriture chiffrée via wrapper (Plan B)
+    try {
+      await setEncryptedToken(supabaseAdmin, {
+        syndic_id: syndicId,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token || '',
+        expires_at: tokenExpiry,
+      })
+    } catch (encryptErr) {
+      logger.error('[email-agent/callback] setEncryptedToken failed:', encryptErr)
+      return NextResponse.redirect(`${APP_URL}/syndic/dashboard?email_error=db_error`)
+    }
+
+    // 4b. Dual-write plain + colonnes métier (Plan D supprimera les colonnes plain)
     const { error: upsertError } = await supabaseAdmin
       .from('syndic_oauth_tokens')
       .upsert({

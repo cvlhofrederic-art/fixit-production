@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Débroussaillage Obligation Légale PACA 2026 — Marseille, Var, BdR | VITFIX',
+  title: 'Débroussaillage Obligation Légale PACA 2026 : Marseille, Var, BdR | VITFIX',
   description: 'Obligation légale de débroussaillement (OLD) en PACA : avant le 15 juin, 50 m autour des habitations. Évitez l\'amende jusqu\'à 30 € par m². Entreprise agréée Marseille, Bouches-du-Rhône, Var.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/debroussaillage-paca/',
@@ -15,7 +15,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Débroussaillage PACA',
+      name: 'VITFIX : Débroussaillage PACA',
       description: 'Entreprise spécialisée en débroussaillage légal PACA (OLD). Bouches-du-Rhône et Var.',
       url: 'https://vitfix.io/fr/specialites/debroussaillage-paca/',
       telephone: PHONE_FR,
@@ -113,7 +113,7 @@ export default function DebroussaillagePacaPage() {
               <span className="text-5xl">🔥</span>
               <div>
                 <h1 className="font-display text-4xl md:text-5xl font-bold mb-4">
-                  Débroussaillage PACA — Obligation Légale 2026
+                  Débroussaillage PACA, Obligation Légale 2026
                 </h1>
                 <p className="text-zinc-300 text-lg max-w-2xl leading-relaxed">
                   Respectez l&apos;obligation légale de débroussaillement (OLD) à Marseille,
@@ -149,7 +149,7 @@ export default function DebroussaillagePacaPage() {
             {/* Règles */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h2 className="font-display text-2xl font-bold mb-4">
-                Règles OLD — Ce que dit la loi en PACA
+                Règles OLD, Ce que dit la loi en PACA
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -193,7 +193,7 @@ export default function DebroussaillagePacaPage() {
 
             {/* FAQ */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h2 className="font-display text-2xl font-bold mb-6">Questions fréquentes — OLD PACA</h2>
+              <h2 className="font-display text-2xl font-bold mb-6">Questions fréquentes, OLD PACA</h2>
               <div className="space-y-4">
                 {FAQS.map((faq, i) => (
                   <details key={i} className="border border-zinc-200 rounded-xl overflow-hidden">

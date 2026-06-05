@@ -21,25 +21,26 @@ export default async function AvisosLegaisPage() {
         <div className="bg-white rounded-2xl shadow-sm p-8 space-y-8 text-gray-700 leading-relaxed">
 
           <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">{t('legal.editor.title')}</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Entidade responsável em Portugal</h2>
             <ul className="space-y-2 text-sm">
-              <li><strong>{t('legal.editor.name')} :</strong> Vitfix SAS</li>
-              <li><strong>{t('legal.editor.form')} :</strong> {t('legal.editor.formValue')}</li>
-              <li><strong>{t('legal.editor.capital')} :</strong> 10 000 &euro;</li>
-              <li><strong>{t('legal.editor.hq')} :</strong> France</li>
-              <li><strong>{t('legal.editor.siren')} :</strong> {t('legal.editor.sirenValue')}</li>
-              <li><strong>{t('legal.editor.vat')} :</strong> {t('legal.editor.vatValue')}</li>
-              <li><strong>{t('legal.editor.director')} :</strong> {t('legal.editor.directorValue')}</li>
+              <li><strong>Denominação :</strong> VITFIX</li>
+              <li><strong>Forma jurídica :</strong> Empresário em Nome Individual</li>
+              <li><strong>NIF :</strong> 276 873 297</li>
+              <li><strong>Sede :</strong> Portugal</li>
               <li><strong>Email :</strong> <a href="mailto:contact@vitfix.io" className="text-yellow hover:underline">contact@vitfix.io</a></li>
+              <li><strong>Telefone :</strong> <a href="tel:+351912014971" className="text-yellow hover:underline">+351 912 014 971</a></li>
             </ul>
           </section>
+
 
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">{t('legal.hosting.title')}</h2>
             <ul className="space-y-1 text-sm">
-              <li><strong>{t('legal.hosting.company')} :</strong> Vercel Inc.</li>
-              <li><strong>{t('legal.hosting.address')} :</strong> 440 N Barranca Ave #4133, Covina, CA 91723, {t('legal.hosting.country')}</li>
-              <li><strong>{t('legal.hosting.website')} :</strong> <a href="https://vercel.com" className="text-yellow hover:underline" target="_blank" rel="noopener noreferrer">vercel.com</a></li>
+              <li><strong>{t('legal.hosting.company')} :</strong> Cloudflare, Inc.</li>
+              <li><strong>{t('legal.hosting.address')} :</strong> 101 Townsend Street, San Francisco, CA 94107, {t('legal.hosting.country')}</li>
+              <li><strong>Tel. :</strong> +1 (650) 319-8930</li>
+              <li><strong>{t('legal.hosting.website')} :</strong> <a href="https://www.cloudflare.com" className="text-yellow hover:underline" target="_blank" rel="noopener noreferrer">cloudflare.com</a></li>
+              <li><strong>Representante UE (RGPD art. 27.º) :</strong> Cloudflare Ireland Ltd, 25/28 North Wall Quay, Dublin 1, Irlanda</li>
             </ul>
           </section>
 

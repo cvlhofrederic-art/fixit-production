@@ -4,6 +4,7 @@
 
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +39,10 @@ interface FactureRecueRow {
 
 export default async function ConformitePage() {
   const supabase = await createServerSupabaseClient()
+  const headersList = await headers()
+  const isPt = headersList.get('x-locale') === 'pt'
+  const mentionsLegalesHref = isPt ? '/pt/avisos-legais/' : '/fr/mentions-legales/'
+  const confidentialiteHref = isPt ? '/pt/privacidade/' : '/confidentialite/'
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -285,12 +290,12 @@ export default async function ConformitePage() {
               <span className="text-gray-500 ml-2 text-xs">— à présenter en cas de contrôle DGFiP</span>
             </li>
             <li>
-              <Link href="/fr/mentions-legales/" className="text-blue-600 hover:underline">
+              <Link href={mentionsLegalesHref} className="text-blue-600 hover:underline">
                 ⚖️ Mentions légales
               </Link>
             </li>
             <li>
-              <Link href="/fr/confidentialite/" className="text-blue-600 hover:underline">
+              <Link href={confidentialiteHref} className="text-blue-600 hover:underline">
                 🔒 Politique de confidentialité (RGPD)
               </Link>
             </li>
