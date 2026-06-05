@@ -43,6 +43,31 @@ export function stableDocId(): string {
 let _idFallbackCounter = 0
 
 /**
+ * Vrai si `id` est un identifiant de document CANONIQUE — un UUID, tel que
+ * généré par stableDocId(). Les documents LEGACY (créés avant la refonte
+ * stableDocId) portent un `id` horodaté `Date.now()` (ex "1779539827817") ou
+ * vide : ce ne sont PAS des id canoniques et doivent être identifiés par leur
+ * `docNumber` côté sync.
+ *
+ * /api/devis/sync s'en sert pour (a) choisir la clé d'upsert — UUID →
+ * onConflict='id', sinon → numero — et (b) ne JAMAIS écrire une valeur non-UUID
+ * dans la colonne `uuid` de la DB (sinon Postgres 22P02). Sans ce garde, le
+ * schéma Zod `devisSyncSchema` rejetait ces id legacy → sync de TOUS les docs
+ * legacy refusée côté client (« Document invalide — sync refusée :
+ * doc.id: id doit être un UUID valide »).
+ *
+ * Regex UUID générique 8-4-4-4-12 (toutes versions) : couvre crypto.randomUUID
+ * (v4) ET le fallback v4 de stableDocId, et correspond à ce que le type `uuid`
+ * PostgreSQL accepte.
+ */
+export function isStableDocId(id: unknown): id is string {
+  return (
+    typeof id === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  )
+}
+
+/**
  * Clé d'identité d'un document pour dédup / match / suppression côté UI :
  * `id` stable en priorité (un brouillon n'a PAS de numéro), fallback `docNumber`
  * pour les docs legacy sans id. Chaîne vide seulement si aucun des deux (ne
