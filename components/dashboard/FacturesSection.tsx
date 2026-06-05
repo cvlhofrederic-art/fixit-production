@@ -12,6 +12,9 @@ import { DevisFactureData } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT, scaleDocumentLines, negateDocumentLines } from '@/lib/devis-totals'
 import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { emitDocument } from '@/lib/emit-document'
+import { fetchNextDocNumber } from '@/lib/doc-number'
+import { syncDocumentSafe } from '@/lib/document-sync'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -731,14 +734,30 @@ function FacturesSectionV5({
           parent={acompteParent}
           existingCount={countAcomptesFor(acompteParent.docNumber)}
           onClose={() => setAcompteParent(null)}
-          onConfirm={(params) => {
-            const prefilled = buildAcomptePrefill(acompteParent, params)
+          onConfirm={async (params) => {
+            // Émission DIRECTE (méthode pro 2026) : le % est appliqué à TOUTES
+            // les lignes (TVA conservées), puis l'acompte est émis en un clic —
+            // numéro AC- définitif, statut émis, persistance + sync DB, modèle V3.
+            const parent = acompteParent
+            const prefilled = buildAcomptePrefill(parent, params)
             setAcompteParent(null)
-            openFactureForm(prefilled)
-            toast.success(
-              `Acompte ${params.percentage}% N°${params.ordre}/${params.total} préparé sur ${acompteParent.docNumber}. ` +
-              `Numéro AV/FACT généré à l'enregistrement.`,
-            )
+            const tid = toast.loading('Émission de l\'acompte…')
+            try {
+              const emitted = await emitDocument({
+                payload: prefilled as unknown as Record<string, unknown>,
+                artisanId: artisan.id,
+                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                sync: syncDocumentSafe,
+              })
+              setSavedDocuments(prev => [...prev, emitted as unknown as PersistedDocument])
+              toast.success(
+                `Acompte ${params.percentage}% émis : ${String(emitted.docNumber)} — ${params.declencheur}`,
+                { id: tid },
+              )
+            } catch (err) {
+              console.warn('[AcompteEmit] émission échouée', err)
+              toast.error('Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+            }
           }}
         />
       )}
@@ -848,7 +867,7 @@ function AcompteQuickModal({
         </div>
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-            {[30, 50, 70, 100].map(preset => (
+            {[20, 30, 50].map(preset => (
               <button
                 key={preset}
                 type="button"
@@ -887,7 +906,7 @@ function AcompteQuickModal({
               color: '#111', fontWeight: 700, cursor: valid ? 'pointer' : 'not-allowed',
             }}
           >
-            Préparer l&apos;acompte
+            Émettre l&apos;acompte
           </button>
         </div>
       </div>
