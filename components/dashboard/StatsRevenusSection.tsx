@@ -6,6 +6,7 @@ import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import ResumeActivite from '@/components/stats/ResumeActivite'
+import { docRevenueHT } from '@/lib/stats-doc-total'
 
 async function downloadCsv(type: 'clients' | 'bookings' | 'revenue', errorMsg = 'Erreur lors de l\'export') {
   const res = await fetch(`/api/user/export-csv?type=${type}`)
@@ -473,7 +474,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
   // KPIs — computed from best available source
   const caTotal = hasBookings
     ? totalRevenue
-    : paidFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+    : paidFactures.reduce((s, f) => s + docRevenueHT(f), 0)
   const activeChantiers = hasBookings
     ? bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
     : chantierCount || signedDevis.length
@@ -482,7 +483,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
     ? bookings.filter(b => b.status === 'completed').length
     : signedDevis.length
   const tauxTransformation = totalOffers > 0 ? Math.round((signedCount / totalOffers) * 100) : 0
-  const panierMoyen = signedCount > 0 ? Math.round((hasBookings ? totalRevenue : signedDevis.reduce((s, d) => s + (d.total_ht_cents || 0) / 100, 0)) / signedCount) : 0
+  const panierMoyen = signedCount > 0 ? Math.round((hasBookings ? totalRevenue : signedDevis.reduce((s, d) => s + docRevenueHT(d), 0)) / signedCount) : 0
 
   // Monthly revenue for last 6 months
   const now = new Date()
@@ -503,7 +504,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
         if (!f.docDate) return false
         const fd = new Date(f.docDate)
         return fd.getMonth() === d.getMonth() && fd.getFullYear() === d.getFullYear()
-      }).reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+      }).reduce((s, f) => s + docRevenueHT(f), 0)
     }
     months.push({ label: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1), value: rev })
   }
@@ -519,7 +520,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
     })
   } else {
     signedDevis.slice(0, 6).forEach(d => {
-      pieData.push({ label: d.docTitle?.replace(/^.*?—\s*/, '') || (isPt ? 'Obra' : 'Chantier'), value: (d.total_ht_cents || 0) / 100 })
+      pieData.push({ label: d.docTitle?.replace(/^.*?—\s*/, '') || (isPt ? 'Obra' : 'Chantier'), value: docRevenueHT(d) })
     })
   }
   const pieTotal = pieData.reduce((s, p) => s + p.value, 0) || 1
@@ -669,10 +670,10 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   const paidFactures = factures.filter(d => d.status === 'paid')
   const pendingFactures = factures.filter(d => d.status === 'envoye')
 
-  const caYear = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+  const caYear = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + docRevenueHT(f), 0)
   const pendingAmount = hasBookings
     ? pendingBookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
-    : pendingFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+    : pendingFactures.reduce((s, f) => s + docRevenueHT(f), 0)
 
   const now = new Date()
   const currentMonth = now.getMonth()
@@ -694,14 +695,14 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
       const fd = new Date(f.docDate)
       return fd.getMonth() === currentMonth && fd.getFullYear() === currentYear
     })
-    monthlyEncaissements = monthlyFac.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+    monthlyEncaissements = monthlyFac.reduce((s, f) => s + docRevenueHT(f), 0)
     monthlyCount = monthlyFac.length
   }
 
   const totalBilled = hasBookings
     ? bookings.reduce((s, b) => s + (b.price_ttc || 0), 0)
-    : factures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
-  const totalPaid = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + (f.total_ttc_cents || 0) / 100, 0)
+    : factures.reduce((s, f) => s + docRevenueHT(f), 0)
+  const totalPaid = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + docRevenueHT(f), 0)
   const recouvrementPct = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 100
 
   // Recent encaissements — from bookings or factures
@@ -715,7 +716,7 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   } else {
     factures.sort((a, b) => new Date(b.docDate || '').getTime() - new Date(a.docDate || '').getTime())
       .slice(0, 10)
-      .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || 'Client', chantier: f.docTitle || 'Facture', amount: (f.total_ttc_cents || 0) / 100 }))
+      .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || 'Client', chantier: f.docTitle || 'Facture', amount: docRevenueHT(f) }))
   }
 
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
