@@ -568,11 +568,34 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (!isPt && input.artisan.insurance_name) emContentH += ptToMm(14)
   emContentH += boxPadTop
 
+  // Adresse destinataire : on pré-calcule les lignes (avec retour à la ligne
+  // si la rue dépasse la largeur de la boîte) pour les réutiliser à l'identique
+  // dans le calcul de hauteur ET le rendu — sinon la rue déborde du cadre.
+  const destTextMaxW = DEST_W - boxPadX * 2
+  let clientRueLines: string[] = []
+  let clientVilleText = ''
+  if (input.client.adresse && input.client.adresse.trim().length > 3) {
+    const cParts = splitAddress(input.client.adresse)
+    if (cParts && cParts.rue && cParts.rue.trim().length > 1) {
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(10)
+      clientRueLines = pdf.splitTextToSize(`${T.address} : ${cParts.rue}`, destTextMaxW) as string[]
+      if (cParts.ville && cParts.ville.trim().length > 1) clientVilleText = `${T.city} : ${cParts.ville}`
+    }
+  }
+  // Local de intervenção (si distinct du client) : même traitement multi-ligne
+  // que la rue du destinataire (sinon une adresse longue déborde du cadre).
+  let interventionLines: string[] = []
+  if (input.client.intervention_adresse) {
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(10)
+    interventionLines = pdf.splitTextToSize(input.client.intervention_adresse, destTextMaxW) as string[]
+  }
+
   let destContentH = boxPadTop + ptToMm(18) + ptToMm(14) // label + nom
-  if (input.client.adresse) { destContentH += ptToMm(14); if (splitAddress(input.client.adresse)?.ville) destContentH += ptToMm(14) }
+  destContentH += clientRueLines.length * ptToMm(14)
+  if (clientVilleText) destContentH += ptToMm(14)
   if (input.client.siret) destContentH += ptToMm(14)
   if (input.client.intervention_adresse) {
-    destContentH += ptToMm(15) + ptToMm(14) // label (+3pt respiration) + adresse
+    destContentH += ptToMm(15) + interventionLines.length * ptToMm(14) // label (+3pt) + adresse multi-ligne
     if (input.client.intervention_batiment) destContentH += ptToMm(14)
     if (input.client.intervention_etage) destContentH += ptToMm(14)
     if (input.client.intervention_espaces_communs) destContentH += ptToMm(14)
@@ -687,13 +710,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.text(`${clientLabel} : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
   dy += ptToMm(14)
 
-  // FIX #4 + FIX FINAL #5: Adresse destinataire — ne pas afficher si vide
-  if (input.client.adresse && input.client.adresse.trim().length > 3) {
-    const parts = splitAddress(input.client.adresse)
-    if (parts && parts.rue && parts.rue.trim().length > 1) {
-      pdf.text(`${T.address} : ${parts.rue}`, TEXT_X_DEST, dy); dy += ptToMm(14)
-      if (parts.ville && parts.ville.trim().length > 1) { pdf.text(`${T.city} : ${parts.ville}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
-    }
+  // FIX #4 + FIX FINAL #5: Adresse destinataire — ne pas afficher si vide.
+  // Multi-ligne : la rue passe à la ligne si elle dépasse la largeur de boîte
+  // (clientRueLines pré-calculé plus haut, synchro avec la hauteur de boîte).
+  if (clientRueLines.length > 0) {
+    for (const rl of clientRueLines) { pdf.text(rl, TEXT_X_DEST, dy); dy += ptToMm(14) }
+    if (clientVilleText) { pdf.text(clientVilleText, TEXT_X_DEST, dy); dy += ptToMm(14) }
   }
 
   if (input.client.siret) { pdf.text(`${T.siret} : ${input.client.siret}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
@@ -701,7 +723,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
     pdf.text(T.interventionAt, TEXT_X_DEST, dy); dy += ptToMm(15)
     pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
-    pdf.text(input.client.intervention_adresse, TEXT_X_DEST, dy); dy += ptToMm(14)
+    for (const il of interventionLines) { pdf.text(il, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_batiment) { pdf.text(`${T.building} ${input.client.intervention_batiment}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_etage) { pdf.text(`${T.floor} : ${input.client.intervention_etage}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
     if (input.client.intervention_espaces_communs) { pdf.text(`${T.commonAreas}, ${input.client.intervention_espaces_communs}`, TEXT_X_DEST, dy); dy += ptToMm(14) }

@@ -16,16 +16,15 @@ import { FormRow } from '../primitives/form-row'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
+import { downloadCsv } from '@/lib/syndic/v54/export-csv'
 import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** Contabilidade Condomínio — port byte-exact du ModContabCond du bundle V5.7 (stateful : 7 onglets + 4 modals). */
+/** Contabilidade Condomínio — port byte-exact V5.7 + Phase 3 : 4 entités réelles (route /api/syndic/contab).
+ * Syndic connecté → vraies données du cabinet (data.contab) + création POST ; anonyme → preview byte-exact. */
 
-type Frac = { id: number; identificacao: string; permilagem: number; proprietario: string; tipo: string; notas: string }
-type Chamada = { id: number; titulo: string; edificio: string; dataEmissao: string; dataVencimento: string; montante: number; distribuicao: string; notas: string; liquidadas: number }
-type Diar = { id: number; data: string; tipo: string; conta: string; montante: number; descricao: string }
-type Orc = { id: number; ano: string; edificio: string; totalPrevisto: number; rubricas: string; notas: string; aprovado: boolean }
 type FracForm = { identificacao: string; permilagem: string; proprietario: string; tipo: string; notas: string }
 type ChamForm = { titulo: string; edificio: string; dataEmissao: string; dataVencimento: string; montante: string; distribuicao: string; notas: string }
 type DiarForm = { data: string; tipo: string; conta: string; montante: string; descricao: string }
@@ -46,14 +45,34 @@ const RELS: [IconName, string, string][] = [
 ]
 
 export default function ModContabCond() {
+  // Phase 3 : vraies données comptables du cabinet si syndic connecté, sinon preview vide.
+  const data = useSyndicData()
+  const real = data.authenticated
+  const fracoes = real ? (data.contab?.fracoes ?? []) : []
+  const chamadas = real ? (data.contab?.chamadas ?? []) : []
+  const diario = real ? (data.contab?.diario ?? []) : []
+  const orcamentos = real ? (data.contab?.orcamentos ?? []) : []
+
   const today = new Date().toISOString().slice(0, 10)
+  const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState('painel')
-  const [fracoes, setFracoes] = useState<Frac[]>([])
-  const [chamadas, setChamadas] = useState<Chamada[]>([])
-  const [diario, setDiario] = useState<Diar[]>([])
-  const [orcamentos, setOrcamentos] = useState<Orc[]>([])
   const [openMod, setOpenMod] = useState<'frac' | 'cq' | 'diar' | 'orc' | null>(null)
   const { push } = useToast()
+
+  // Création : POST /api/syndic/contab (route consolidée, discriminée par `entity`).
+  const postContab = (payload: Record<string, unknown>, okTitle: string, okDesc: string) => {
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/contab', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` }, body: JSON.stringify(payload) })
+        .then(r => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpenMod(null); push({ kind: 'success', title: okTitle, desc: okDesc }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao gravar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
+    setOpenMod(null)
+    push({ kind: 'info', title: `${okTitle} (demo)`, desc: 'Conecte-se como síndico para gravar a sério' })
+  }
 
   const [formF, setFormF] = useState<FracForm>({ identificacao: '', permilagem: '', proprietario: '', tipo: 'habitacao', notas: '' })
   const [errF, setErrF] = useState<Partial<Record<keyof FracForm, string>>>({})
@@ -64,9 +83,7 @@ export default function ModContabCond() {
     if (!formF.identificacao.trim()) errs.identificacao = 'A identificação é obrigatória.'
     if (!formF.permilagem || Number(formF.permilagem) <= 0) errs.permilagem = 'Indique a permilagem.'
     if (Object.keys(errs).length) { setErrF(errs); return }
-    setFracoes(prev => [...prev, { id: Date.now(), identificacao: formF.identificacao, permilagem: Number(formF.permilagem), proprietario: formF.proprietario, tipo: formF.tipo, notas: formF.notas }])
-    setOpenMod(null)
-    push({ kind: 'success', title: 'Fração adicionada', desc: `${formF.identificacao} · ${formF.permilagem} milésimos` })
+    postContab({ entity: 'frac', identificacao: formF.identificacao, permilagem: Number(formF.permilagem) || 0, proprietario: formF.proprietario, tipo: formF.tipo, notas: formF.notas }, 'Fração adicionada', `${formF.identificacao} · ${formF.permilagem} milésimos`)
   }
 
   const [formC, setFormC] = useState<ChamForm>({ titulo: '', edificio: '', dataEmissao: today, dataVencimento: '', montante: '', distribuicao: 'milesimos', notas: '' })
@@ -79,9 +96,7 @@ export default function ModContabCond() {
     if (!formC.dataVencimento) errs.dataVencimento = 'A data de vencimento é obrigatória.'
     if (!formC.montante || Number(formC.montante) <= 0) errs.montante = 'Indique o montante total.'
     if (Object.keys(errs).length) { setErrC(errs); return }
-    setChamadas(prev => [...prev, { id: Date.now(), titulo: formC.titulo, edificio: formC.edificio, dataEmissao: formC.dataEmissao, dataVencimento: formC.dataVencimento, montante: Number(formC.montante), distribuicao: formC.distribuicao, notas: formC.notas, liquidadas: 0 }])
-    setOpenMod(null)
-    push({ kind: 'success', title: 'Chamada de quotas criada', desc: formC.titulo })
+    postContab({ entity: 'cham', titulo: formC.titulo, edificio: formC.edificio, dataEmissao: formC.dataEmissao, dataVencimento: formC.dataVencimento, montante: Number(formC.montante) || 0, distribuicao: formC.distribuicao, notas: formC.notas }, 'Chamada de quotas criada', formC.titulo)
   }
 
   const [formD, setFormD] = useState<DiarForm>({ data: today, tipo: 'debito', conta: '', montante: '', descricao: '' })
@@ -94,9 +109,7 @@ export default function ModContabCond() {
     if (!formD.descricao.trim()) errs.descricao = 'Descreva o lançamento.'
     if (!formD.montante || Number(formD.montante) <= 0) errs.montante = 'Indique o montante.'
     if (Object.keys(errs).length) { setErrD(errs); return }
-    setDiario(prev => [...prev, { id: Date.now(), data: formD.data, tipo: formD.tipo, conta: formD.conta, montante: Number(formD.montante), descricao: formD.descricao }])
-    setOpenMod(null)
-    push({ kind: 'success', title: 'Lançamento registado', desc: `${formD.conta} · ${fmtEUR(Number(formD.montante))}` })
+    postContab({ entity: 'diar', data: formD.data, tipo: formD.tipo, conta: formD.conta, montante: Number(formD.montante) || 0, descricao: formD.descricao }, 'Lançamento registado', `${formD.conta} · ${fmtEUR(Number(formD.montante))}`)
   }
 
   const [formO, setFormO] = useState<OrcForm>({ ano: String(new Date().getFullYear() + 1), edificio: '', totalPrevisto: '', rubricas: '', notas: '' })
@@ -108,15 +121,23 @@ export default function ModContabCond() {
     if (!formO.ano || formO.ano.length !== 4) errs.ano = 'Indique o ano (formato AAAA).'
     if (!formO.totalPrevisto || Number(formO.totalPrevisto) <= 0) errs.totalPrevisto = 'Indique o total previsto.'
     if (Object.keys(errs).length) { setErrO(errs); return }
-    setOrcamentos(prev => [...prev, { id: Date.now(), ano: formO.ano, edificio: formO.edificio, totalPrevisto: Number(formO.totalPrevisto), rubricas: formO.rubricas, notas: formO.notas, aprovado: false }])
-    setOpenMod(null)
-    push({ kind: 'success', title: 'Orçamento criado', desc: `Ano ${formO.ano} · ${fmtEUR(Number(formO.totalPrevisto))}` })
+    postContab({ entity: 'orc', ano: formO.ano, edificio: formO.edificio, totalPrevisto: Number(formO.totalPrevisto) || 0, rubricas: formO.rubricas, notas: formO.notas }, 'Orçamento criado', `Ano ${formO.ano} · ${fmtEUR(Number(formO.totalPrevisto))}`)
   }
 
   const totalMilesimos = fracoes.reduce((s, f) => s + (f.permilagem || 0), 0)
   const totalCreditos = diario.filter(d => d.tipo === 'credito').reduce((s, d) => s + d.montante, 0)
   const totalDebitos = diario.filter(d => d.tipo === 'debito').reduce((s, d) => s + d.montante, 0)
   const saldoTesouraria = totalCreditos - totalDebitos
+  const exportarDiario = () => {
+    if (!real || diario.length === 0) { push({ kind: 'info', title: 'Exportar CSV', desc: real ? 'Nenhum lançamento para exportar.' : 'Conecte-se como síndico para exportar' }); return }
+    try {
+      downloadCsv('diario-contabilistico.csv', ['Data', 'Tipo', 'Conta', 'Descrição', 'Montante'], diario.map(d => [d.data, d.tipo, d.conta, d.descricao, d.montante]))
+      push({ kind: 'success', title: 'Exportação concluída', desc: `${diario.length} lançamentos` })
+    } catch (err) {
+      console.error('[ModContabCond] export CSV falhou', err)
+      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível exportar.' })
+    }
+  }
   const chamadasEnviadas = chamadas.length
   const chamadasLiquidadas = chamadas.filter(c => c.liquidadas > 0).length
 
@@ -213,7 +234,7 @@ export default function ModContabCond() {
             <div style={{ fontSize: 12, color: 'var(--v54-navy-500)', marginTop: 4 }}>Saldo : {fmtEUR(saldoTesouraria)}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button><Icon name="download" />Exportar CSV</Button>
+            <Button onClick={exportarDiario}><Icon name="download" />Exportar CSV</Button>
             <Button variant="gold" onClick={openDiar}><Icon name="plus" />+ Lançamento</Button>
           </div>
         </div>
@@ -317,7 +338,7 @@ export default function ModContabCond() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Adicionar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
           </ModalFoot>
         </form>
       </Modal>
@@ -357,7 +378,7 @@ export default function ModContabCond() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Criar chamada</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar chamada</button>
           </ModalFoot>
         </form>
       </Modal>
@@ -389,7 +410,7 @@ export default function ModContabCond() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Registar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
           </ModalFoot>
         </form>
       </Modal>
@@ -418,7 +439,7 @@ export default function ModContabCond() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpenMod(null)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Criar orçamento</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar orçamento</button>
           </ModalFoot>
         </form>
       </Modal>
