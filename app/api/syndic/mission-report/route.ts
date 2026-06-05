@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { validateBody, syndicMissionReportSchema } from '@/lib/validation'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { sanitizeSvg } from '@/lib/sanitize'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
 // Stocke dans syndic_emails_analysed + syndic_notifications + Supabase Storage
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
         statut: 'nouveau',
         note_interne: JSON.stringify({
           photos_urls: photoUrls,
-          signature_svg: signature_svg || null,
+          signature_svg: signature_svg ? sanitizeSvg(signature_svg) : null,
           gps: { lat: gps_lat, lng: gps_lng },
           started_at,
           completed_at,

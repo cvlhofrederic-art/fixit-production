@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
 import { getParrainByCode, checkAutoParrainage, computeRiskScore, generateReferralCode } from '@/lib/referral'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, referralSignupSchema } from '@/lib/validation'
@@ -21,6 +22,15 @@ export async function POST(request: NextRequest) {
     const v = validateBody(referralSignupSchema, body)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { code, artisan_id, user_id } = v.data
+
+    // SÉCURITÉ (IDOR) : authentification + ownership obligatoires. Sans ça, n'importe
+    // qui pouvait poster un artisan_id/user_id arbitraire et frauder le parrainage.
+    const authUser = await getAuthUser(request)
+    if (!authUser) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+    if (user_id !== authUser.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    const { data: ownArtisan } = await supabaseAdmin
+      .from('profiles_artisan').select('id, user_id').eq('id', artisan_id).maybeSingle()
+    if (!ownArtisan || ownArtisan.user_id !== authUser.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
 
     // 1. Vérifier le code
     const parrain = await getParrainByCode(code)
