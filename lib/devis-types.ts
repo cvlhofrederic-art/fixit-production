@@ -151,6 +151,10 @@ export interface DevisFactureData {
   docType: 'devis' | 'facture'
   docNumber: string
   docTitle: string
+  // Lien devis → facture (méthode pro 2026) : une facture issue d'un devis garde
+  // la référence du devis source (traçabilité + reprise de l'échéancier d'acomptes).
+  sourceDevisNumber?: string
+  sourceDevisId?: string
   // Entreprise
   companyStatus: string
   companyName: string

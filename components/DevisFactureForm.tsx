@@ -337,7 +337,10 @@ export default function DevisFactureForm({
     }
     return [{ id: 'default-1', ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }]
   }
-  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled !== undefined ? initialData.acomptesEnabled : true)
+  // Défaut activé seulement sur DEVIS (aligné sur le form BTP) : une facture créée
+  // sans devis source ne porte pas d'échéancier ; une facture issue d'un devis
+  // hérite de `initialData.acomptesEnabled`.
+  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled !== undefined ? initialData.acomptesEnabled : (docType === 'devis'))
   const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || loadDefaultEcheancier())
   const [echeancierSaved, setEcheancierSaved] = useState(false)
   const saveEcheancierAsDefault = () => {
@@ -1999,6 +2002,9 @@ export default function DevisFactureForm({
     docType,
     docNumber: docNumberRef.current || docNumber,
     docTitle,
+    // Lien devis → facture conservé à travers l'édition (aligné sur le form BTP).
+    sourceDevisNumber: (initialData as { sourceDevisNumber?: string } | undefined)?.sourceDevisNumber,
+    sourceDevisId: (initialData as { sourceDevisId?: string } | undefined)?.sourceDevisId,
     companyStatus,
     companyName,
     companySiret,
