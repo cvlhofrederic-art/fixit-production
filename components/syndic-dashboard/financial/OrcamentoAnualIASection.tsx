@@ -476,7 +476,7 @@ export default function OrcamentoAnualIASection({ user }: Props) {
                           <td className="text-right px-3 py-3 text-xs text-gray-600 font-mono font-medium">
                             {poste.valorAnterior3 > 0 ? formatEur(poste.valorAnterior3) : '—'}
                           </td>
-                          <td className="text-right px-3 py-3 text-xs text-blue-600 font-mono font-semibold">
+                          <td className="text-right px-3 py-3 text-xs text-[#C9A84C] font-mono font-semibold">
                             {poste.valorPrevisto > 0 ? formatEur(poste.valorPrevisto) : '—'}
                           </td>
                           <td className="text-center px-3 py-3">
@@ -518,7 +518,7 @@ export default function OrcamentoAnualIASection({ user }: Props) {
                       <td className="text-right px-3 py-3 text-xs text-gray-600 font-mono">
                         {formatEur(currentOrcamento.postes.reduce((s, p) => s + p.valorAnterior3, 0))}
                       </td>
-                      <td className="text-right px-3 py-3 text-xs text-blue-600 font-mono">
+                      <td className="text-right px-3 py-3 text-xs text-[#C9A84C] font-mono">
                         {formatEur(currentOrcamento.totalPrevisto)}
                       </td>
                       <td />

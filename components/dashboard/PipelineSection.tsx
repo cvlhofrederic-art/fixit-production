@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Artisan, SavedDocument } from '@/lib/types'
 import { useLocale } from '@/lib/i18n/context'
+import { computeDocumentTotalHT } from '@/lib/devis-totals'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -10,6 +11,7 @@ interface PipelineSectionProps {
   artisan: Artisan
   orgRole?: OrgRole
   navigateTo: (page: string) => void
+  savedDocuments?: SavedDocument[]
 }
 
 interface PipelineItem {
@@ -45,7 +47,7 @@ function computeStage(doc: SavedDocument, isDraft: boolean): string {
   return 'draft'
 }
 
-export default function PipelineSection({ artisan, orgRole = 'artisan', navigateTo }: PipelineSectionProps) {
+export default function PipelineSection({ artisan, orgRole = 'artisan', navigateTo, savedDocuments: propDocs }: PipelineSectionProps) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const [items, setItems] = useState<PipelineItem[]>([])
@@ -56,8 +58,15 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
   useEffect(() => {
     if (!artisan?.id) return
     try {
-      const docs: SavedDocument[]   = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-      const drafts: SavedDocument[] = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
+      // Use prop data (merged Supabase+localStorage) if available, fallback to localStorage
+      const allDocs: SavedDocument[] = propDocs && propDocs.length > 0
+        ? propDocs
+        : [
+            ...JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]'),
+            ...JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]'),
+          ]
+      const docs: SavedDocument[] = allDocs.filter((d: SavedDocument) => d.status !== 'brouillon')
+      const drafts: SavedDocument[] = allDocs.filter((d: SavedDocument) => d.status === 'brouillon' || !(d as unknown as Record<string, unknown>).savedAt)
 
       // Devis documents (saved + drafts)
       const devisDocs = docs.filter((d: SavedDocument) => d.docType === 'devis' || !d.docType)
@@ -70,21 +79,21 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
         ...devisDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: computeDocumentTotalHT(d),
           stage:   computeStage(d, false),
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
         ...draftDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || (isPt ? 'Rascunho' : 'Brouillon'),
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: computeDocumentTotalHT(d),
           stage:   'draft',
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
         ...factureDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: computeDocumentTotalHT(d),
           stage:   'invoiced',
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
@@ -105,7 +114,7 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
     } finally {
       setLoading(false)
     }
-  }, [artisan?.id, isPt])
+  }, [artisan?.id, isPt, propDocs])
 
   function getStageItems(stageId: string) {
     return items.filter((i) => i.stage === stageId)

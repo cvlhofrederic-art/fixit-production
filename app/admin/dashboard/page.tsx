@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -180,18 +181,9 @@ export default function AdminDashboardPage() {
       await supabase.auth.refreshSession()
       const { data: { user: u } } = await supabase.auth.getUser()
       if (!u) { window.location.href = '/admin/login'; return }
-      const meta = u.user_metadata
-      const isAdmin = meta?.role === 'super_admin' || meta?._original_role === 'super_admin'
-      if (!isAdmin) { window.location.href = '/admin/login'; return }
-      if (meta?.role !== 'super_admin') {
-        await supabase.auth.updateUser({
-          data: { ...meta, role: 'super_admin', _admin_override: false, _original_role: undefined }
-        })
-        const { data: { user: refreshed } } = await supabase.auth.getUser()
-        setUser(refreshed)
-      } else {
-        setUser(u)
-      }
+      // SECURITE : seul app_metadata.role est fiable (non forgeable)
+      if (u.app_metadata?.role !== 'super_admin') { window.location.href = '/admin/login'; return }
+      setUser(u)
       setLoading(false)
     }
     check()
@@ -315,9 +307,21 @@ export default function AdminDashboardPage() {
   const goToDashboard = async (role: string, url: string, id: string) => {
     setNavigating(id)
     setSubRoleModal(null)
-    await supabase.auth.updateUser({
-      data: { ...user.user_metadata, role, _admin_override: true, _original_role: 'super_admin' }
+    // Impersonation via endpoint server-side (gated par app_metadata.role)
+    const { data: { session } } = await supabase.auth.getSession()
+    const resp = await fetch('/api/admin/impersonate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({ role }),
     })
+    if (!resp.ok) {
+      setNavigating(null)
+      alert('Impersonation refusée')
+      return
+    }
     await supabase.auth.refreshSession()
     window.location.href = url
   }
@@ -394,6 +398,7 @@ export default function AdminDashboardPage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* ── TAB: Overview ────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet vue d'ensemble" locale="fr">
           <div>
             {statsLoading ? (
               <div className="text-gray-400 animate-pulse py-20 text-center">Chargement des statistiques...</div>
@@ -495,10 +500,12 @@ export default function AdminDashboardPage() {
               </div>
             )}
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: Users ──────────────────────────────────────────────── */}
         {activeTab === 'users' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet utilisateurs" locale="fr">
           <div>
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
@@ -601,10 +608,12 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: Subscriptions ──────────────────────────────────────── */}
         {activeTab === 'subscriptions' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet abonnements" locale="fr">
           <div>
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
@@ -706,10 +715,12 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: KYC Review ─────────────────────────────────────────── */}
         {activeTab === 'kyc' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans l'onglet KYC" locale="fr">
           <div className="space-y-4">
             {/* Header avec filtres */}
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -870,10 +881,12 @@ export default function AdminDashboardPage() {
               </div>
             )}
           </div>
+          </SectionErrorBoundary>
         )}
 
         {/* ── TAB: Role Switcher (original) ──────────────────────────── */}
         {activeTab === 'switcher' && (
+          <SectionErrorBoundary fallbackTitle="Erreur dans le sélecteur de rôle" locale="fr">
           <div>
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-white mb-2">Quel dashboard souhaitez-vous voir ?</h2>
@@ -916,6 +929,7 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           </div>
+          </SectionErrorBoundary>
         )}
       </div>
 

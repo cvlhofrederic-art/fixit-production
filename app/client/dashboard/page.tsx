@@ -9,14 +9,19 @@ import LocaleLink from '@/components/common/LocaleLink'
 import Image from 'next/image'
 import { Calendar, MapPin, LogOut, User, Search, Home, Shield, FileText, FileSearch, MessageSquare, Send, LayoutDashboard, Hammer, Calculator, CreditCard } from 'lucide-react'
 import FixyChatGeneric from '@/components/chat/FixyChatGeneric'
-import dynamic from 'next/dynamic'
+import { createDynamicSection } from '@/lib/dashboard-section-loader'
 import type { ChatMessage as SharedChatMessage } from '@/lib/types'
 import { type CILEntry, generateCILEntries, getCILHealthScore, getCategoryInfo as getCategoryInfoBase, getPonctualiteScore as getPonctualiteScoreBase } from '@/lib/cil-utils'
 import { useSignatureCanvas } from '@/hooks/useSignatureCanvas'
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
 
-// Dynamic imports for extracted page sections
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#FFC107] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any> // eslint-disable-line @typescript-eslint/no-explicit-any
+// Dynamic imports for extracted page sections.
+// Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
+// so a single crash (chunk loading failure on edge, runtime exception, etc.) shows
+// an in-place fallback with retry instead of destroying the shell.
+// Spinner color is the legacy yellow (#FFC107) specific to the particulier UI.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const d = (loader: () => Promise<any>) => createDynamicSection(loader, { spinnerColor: '#FFC107' })
 const ClientDashboardOverview = d(() => import('@/components/client-dashboard/pages/ClientDashboardOverview'))
 const ClientMessagesSection = d(() => import('@/components/client-dashboard/pages/ClientMessagesSection'))
 const ClientDocumentsSection = d(() => import('@/components/client-dashboard/pages/ClientDocumentsSection'))
@@ -1257,7 +1262,7 @@ export default function ClientDashboardPage() {
                             {m.companyName && <p className="text-xs text-text-muted mt-0.5">{t('clientDash.devis.from')} : {m.companyName}</p>}
                             {isSigned && <p className="text-xs text-green-700 mt-1 font-semibold">{t('clientDash.devis.signed')}{m.signer_name ? ` ${t('clientDash.devis.signedBy')} ${m.signer_name}` : ''}{m.signed_at ? ` ${t('clientDash.devis.onDate')} ${new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}` : ''}</p>}
                             {isSigned && m.signature_svg && (
-                              <div className="mt-2 border border-green-200 rounded-lg p-2 bg-white" dangerouslySetInnerHTML={{ __html: m.signature_svg }} style={{ maxHeight: 60, overflow: 'hidden' }} />
+                              <img className="mt-2 border border-green-200 rounded-lg p-2 bg-white" src={`data:image/svg+xml,${encodeURIComponent(m.signature_svg)}`} alt="Signature" style={{ maxHeight: 60, overflow: 'hidden' }} />
                             )}
                           </div>
                           {!isSigned && (
@@ -1299,7 +1304,7 @@ export default function ClientDashboardPage() {
                           {m.signer_name && <p className="text-xs text-green-600 mt-0.5">{t('clientDash.devis.signedBy')} {m.signer_name}</p>}
                           {m.signed_at && <p className="text-xs text-green-600">{t('clientDash.devis.onDate')} {new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} {t('clientDash.tracking.at')} {new Date(m.signed_at).toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>}
                           {m.signature_svg && (
-                            <div className="mt-2 border border-green-200 rounded-lg p-1.5 bg-white" dangerouslySetInnerHTML={{ __html: m.signature_svg }} style={{ maxHeight: 50, overflow: 'hidden' }} />
+                            <img className="mt-2 border border-green-200 rounded-lg p-1.5 bg-white" src={`data:image/svg+xml,${encodeURIComponent(m.signature_svg)}`} alt="Signature" style={{ maxHeight: 50, overflow: 'hidden' }} />
                           )}
                           {m.signature_hash && <p className="text-[8px] text-gray-400 mt-1 font-mono">SHA-256: {m.signature_hash.substring(0, 20)}...</p>}
                           <p className="text-[10px] text-text-muted mt-1">{time}</p>

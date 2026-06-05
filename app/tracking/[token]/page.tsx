@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, use } from 'react'
 
 interface TrackingData {
   token: string
@@ -30,7 +30,8 @@ function formatElapsed(iso: string): string {
   return `il y a ${Math.floor(diff / 60)}h${diff % 60 > 0 ? `${diff % 60}` : ''}`
 }
 
-export default function TrackingPage({ params }: { params: { token: string } }) {
+export default function TrackingPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params)
   const [data, setData] = useState<TrackingData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +40,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
 
   const fetchTracking = useCallback(async () => {
     try {
-      const res = await fetch(`/api/tracking/${params.token}`, { cache: 'no-store' })
+      const res = await fetch(`/api/tracking/${token}`, { cache: 'no-store' })
       if (res.status === 404) { setError('Lien de suivi introuvable'); setLoading(false); return }
       if (res.status === 410) { setError('Ce lien a expiré (24h max)'); setLoading(false); return }
       if (!res.ok) { setError('Erreur de chargement'); setLoading(false); return }
@@ -51,7 +52,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
     } finally {
       setLoading(false)
     }
-  }, [params.token])
+  }, [token])
 
   useEffect(() => {
     fetchTracking()

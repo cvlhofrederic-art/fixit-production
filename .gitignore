@@ -45,3 +45,10 @@ security/outputs/*
 !security/outputs/.gitkeep
 .worktrees/
 .claude/scheduled_tasks.lock
+.claude/v57-decoded.html
+.claude/v57-decoded.assets.txt
+.claude/v57-styles.css
+
+# supabase CLI cache (project-ref, version pins)
+supabase/.temp/
+tmp/lighthouse-v54/

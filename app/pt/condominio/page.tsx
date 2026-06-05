@@ -4,17 +4,17 @@ import { CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Serviços Condomínio Portugal — Limpeza, Canalização, Manutenção | VITFIX',
+  title: 'Serviços Condomínio Portugal : Limpeza, Canalização, Manutenção | VITFIX',
   description: 'Serviços profissionais para condomínios em Portugal: limpeza de partes comuns, canalização, obras de manutenção. Faturação ao administrador, contratos anuais, relatórios de intervenção.',
   alternates: { canonical: 'https://vitfix.io/pt/condominio/' },
   openGraph: {
-    title: 'Serviços Condomínio Portugal — VITFIX',
+    title: 'Serviços Condomínio Portugal : VITFIX',
     description: 'Profissionais verificados para gestão de condomínios em Portugal',
     url: 'https://vitfix.io/pt/condominio/',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
   },
 }
 
@@ -55,7 +55,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Serviços Condomínio Portugal',
+      name: 'VITFIX : Serviços Condomínio Portugal',
       description: 'Serviços profissionais para condomínios em Portugal: limpeza, canalização, eletricidade.',
       url: 'https://vitfix.io/pt/condominio/',
       telephone: PHONE_PT,
@@ -153,7 +153,7 @@ export default function PtCondominioPage() {
                       <span className="text-4xl">{service.icon}</span>
                       <h3 className="font-display font-bold text-xl">{service.name}</h3>
                     </div>
-                    <p className="text-text-muted mb-4 leading-relaxed">{service.description}</p>
+                    <p className="text-text-muted mb-4 leading-relaxed">{(service.description || '').replace(/\s*\[(?:unit|scope|min|max):[^\]]*\]\s*/g, '').trim()}</p>
                     <div className="flex flex-wrap gap-2">
                       {service.condoSpecific.map(item => (
                         <span key={item} className="px-3 py-1 rounded-full bg-yellow/10 border border-yellow/25 text-xs font-semibold text-dark">
@@ -234,7 +234,7 @@ export default function PtCondominioPage() {
       <section className="py-16 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
-            Perguntas frequentes — Condomínios
+            Perguntas frequentes, Condomínios
           </h2>
           <div className="space-y-4">
             {FAQ_CONDOMINIO.map((faq, i) => (

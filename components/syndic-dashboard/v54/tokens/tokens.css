@@ -1,0 +1,93 @@
+/* VitFix Syndic Dashboard V5.4 — Design tokens
+ *
+ * Tokens scoped to #syndic-dashboard-v54 DOM root.
+ * Toutes les vars --v54-* sont sous l'ID wrapper, jamais en :root.
+ * Vérification CI : grep ":root" dans ce fichier doit retourner 0.
+ *
+ * Source : extraits du bundle V5.7 décodé (gzip+base64 → React+JSX).
+ */
+
+#syndic-dashboard-v54 {
+  /* Navy — texte sidebar et corps */
+  --v54-navy-900: #0B1828;
+  --v54-navy-800: #0F1F32;
+  --v54-navy-700: #14283F;
+  --v54-navy-600: #1B324B;
+  --v54-navy-500: #2A4663;
+  --v54-navy-400: #5A6D82;
+  --v54-navy-350: #556679;
+  --v54-navy-300: #5A6B7D;
+  --v54-navy-200: #7D8A99;
+  --v54-navy-100: #C7D0DB;
+
+  /* Gold — accents premium */
+  --v54-gold-700: #846838;
+  --v54-gold-600: #B7944F;
+  --v54-gold-500: #C9A574;
+  --v54-gold-400: #D9BC92;
+  --v54-gold-100: #F1E6D2;
+  --v54-gold-50:  #F8F2E6;
+
+  /* Cream / Paper / Ink — fonds et texte principal */
+  --v54-cream:    #F4EFE4;
+  --v54-cream-2:  #EAE3D2;
+  --v54-paper:    #FBF8F1;
+  --v54-ink:      #1A1A1A;
+
+  /* Sage — succès */
+  --v54-sage-700: #2F5C49;
+  --v54-sage-500: #3F7A60;
+  --v54-sage-100: #DCE8DF;
+  --v54-sage-50:  #ECF2EC;
+
+  /* Rust — erreur */
+  --v54-rust-700: #8E4327;
+  --v54-rust-500: #B65A36;
+  --v54-rust-100: #F1DDD0;
+  --v54-rust-50:  #F9EEE5;
+
+  /* Amber — warning */
+  --v54-amber-700: #976C24;
+  --v54-amber-500: #C58A30;
+  --v54-amber-100: #F2E2C0;
+  --v54-amber-50:  #F8EFDA;
+
+  /* Lignes (séparateurs subtils) */
+  --v54-line: rgba(11, 24, 40, 0.08);
+  --v54-line-strong: rgba(11, 24, 40, 0.14);
+
+  /* Ombres */
+  --v54-shadow-card: 0 1px 0 rgba(11,24,40,0.04), 0 1px 2px rgba(11,24,40,0.04);
+  --v54-shadow-hero: 0 1px 0 rgba(255,255,255,0.05) inset, 0 24px 48px -24px rgba(11,24,40,0.35);
+
+  /* Radii */
+  --v54-r-sm: 6px;
+  --v54-r-md: 10px;
+  --v54-r-lg: 14px;
+  --v54-r-xl: 18px;
+
+  /* Layout */
+  --v54-side-w: 260px;
+
+  /* Animation — durées */
+  --v54-dur-fast: 100ms;
+  --v54-dur:      150ms;
+  --v54-dur-med:  200ms;
+  --v54-dur-slow: 250ms;
+
+  /* Animation — easings */
+  --v54-ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --v54-ease-in:  cubic-bezier(0.7, 0, 0.84, 0);
+  --v54-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Z-index layers */
+  --v54-z-base:            1;
+  --v54-z-sticky:        100;
+  --v54-z-dropdown:      200;
+  --v54-z-drawer-backdrop: 300;
+  --v54-z-drawer:        310;
+  --v54-z-modal:         400;
+  --v54-z-toast:         500;
+  --v54-z-cmdk:          600;
+  --v54-z-tooltip:       700;
+}

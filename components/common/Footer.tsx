@@ -12,6 +12,7 @@ const localePaths = {
   terms:        { fr: '/cgu', pt: '/termos', en: '/terms' },
   privacy:      { fr: '/confidentialite', pt: '/privacidade', en: '/privacy' },
   cookies:      { fr: '/cookies', pt: '/politica-cookies', en: '/cookie-policy' },
+  sitemap:      { fr: '/plan-du-site', pt: '/mapa-do-site', en: '/sitemap' },
 } as const
 
 export default function Footer() {
@@ -123,6 +124,13 @@ export default function Footer() {
                   {t('footer.contact')}
                 </LocaleLink>
               </li>
+              {(locale === 'fr' || locale === 'pt') && (
+                <li>
+                  <LocaleLink href={lp('sitemap')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                    {locale === 'pt' ? 'Mapa do site' : 'Plan du site'}
+                  </LocaleLink>
+                </li>
+              )}
               {locale === 'pt' && (
                 <li>
                   <a href="https://www.livroreclamacoes.pt/" target="_blank" rel="noopener noreferrer"
@@ -138,7 +146,10 @@ export default function Footer() {
         {/* Bottom */}
         <div className="border-t border-white/8 pt-6 flex items-center justify-between text-[0.82rem] flex-wrap gap-3">
           <span>{t('footer.copyright')}</span>
-          <span>{locale === 'fr' ? '🇫🇷' : '🇵🇹'} {locale === 'fr' ? 'Fran\u00e7ais' : 'Portugu\u00eas'}</span>
+          <div className="flex items-center gap-3">
+            {locale === 'pt' && <span className="text-white/30">NIF 276 873 297</span>}
+            <span>{locale === 'fr' ? '🇫🇷' : '🇵🇹'} {locale === 'fr' ? 'Fran\u00e7ais' : 'Portugu\u00eas'}</span>
+          </div>
         </div>
       </div>
     </footer>

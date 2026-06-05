@@ -4,6 +4,14 @@ import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
 
+type SlotType = 'rdv' | 'visite'
+
+// Default Mon-Fri actif uniquement pour 'rdv' (la plage Visite démarre tout off)
+function defaultIsActive(slotType: SlotType, dayOfWeek: number): boolean {
+  if (slotType === 'visite') return false
+  return dayOfWeek >= 1 && dayOfWeek <= 5
+}
+
 export function useAvailability(
   artisan: any,
   setArtisan: (a: any) => void,
@@ -22,14 +30,24 @@ export function useAvailability(
     }
   }, [autoAccept, artisan])
 
-  const toggleDayAvailability = useCallback(async (dayOfWeek: number) => {
+  const toggleDayAvailability = useCallback(async (dayOfWeek: number, slotType: SlotType = 'rdv') => {
     if (!artisan) return
     setSavingAvail(true)
     try {
-      const res = await fetch('/api/availability', {
+      // Calcul de l'état courant pour CE slotType (BDD ou défaut) → on envoie l'inverse
+      const existing = availability.find(a => a.day_of_week === dayOfWeek && (a.slot_type || 'rdv') === slotType)
+      const currentlyActive = existing ? existing.is_available : defaultIsActive(slotType, dayOfWeek)
+      const desired = !currentlyActive
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) {
+        console.error('Toggle: no auth token')
+        setSavingAvail(false)
+        return
+      }
+      const res = await authFetch('/api/availability', token, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artisan_id: artisan.id, day_of_week: dayOfWeek }),
+        body: JSON.stringify({ artisan_id: artisan.id, day_of_week: dayOfWeek, slot_type: slotType, is_available: desired }),
       })
       const result = await res.json()
       if (result.error) {
@@ -37,28 +55,58 @@ export function useAvailability(
         setSavingAvail(false)
         return
       }
-      const res2 = await fetch(`/api/availability?artisan_id=${artisan.id}`)
+      // Bypass browser cache (API renvoie max-age=10) — sinon refetch sert l'état pré-toggle
+      const res2 = await fetch(`/api/availability?artisan_id=${artisan.id}`, { cache: 'no-store' })
       const { data } = await res2.json()
       setAvailability(data || [])
     } catch (e) {
       console.error('Network error:', e)
     }
     setSavingAvail(false)
-  }, [artisan])
+  }, [artisan, availability])
 
-  const updateAvailabilityTime = useCallback(async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
+  const updateAvailabilityTime = useCallback(async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string, slotType: SlotType = 'rdv') => {
     if (!artisan) return
-    const existing = availability.find((a) => a.day_of_week === dayOfWeek)
+    const token = (await supabase.auth.getSession()).data.session?.access_token
+    if (!token) {
+      console.error('UpdateTime: no auth token')
+      return
+    }
+    const existing = availability.find((a) => a.day_of_week === dayOfWeek && (a.slot_type || 'rdv') === slotType)
     if (existing) {
       setAvailability(prev => prev.map(a => a.id === existing.id ? { ...a, [field]: value } : a))
       try {
-        await fetch('/api/availability', {
+        await authFetch('/api/availability', token, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ availability_id: existing.id, field, value }),
         })
       } catch (e) {
         console.error('Time update error:', e)
+      }
+    } else {
+      // Pas de ligne en BDD : la créer via POST avec l'heure modifiée + is_available basé sur défaut
+      const body = {
+        artisan_id: artisan.id,
+        day_of_week: dayOfWeek,
+        slot_type: slotType,
+        is_available: defaultIsActive(slotType, dayOfWeek),
+        start_time: field === 'start_time' ? value : (slotType === 'visite' ? '14:00' : '08:00'),
+        end_time: field === 'end_time' ? value : (slotType === 'visite' ? '17:30' : '17:30'),
+      }
+      try {
+        const res = await authFetch('/api/availability', token, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        })
+        const result = await res.json()
+        if (result.data) {
+          setAvailability(prev => [
+            ...prev.filter(a => !(a.day_of_week === dayOfWeek && (a.slot_type || 'rdv') === slotType)),
+            result.data,
+          ])
+        }
+      } catch (e) {
+        console.error('Time create error:', e)
       }
     }
   }, [artisan, availability])
@@ -80,6 +128,15 @@ export function useAvailability(
             method: 'POST',
             body: JSON.stringify({ artisan_id: artisan.id, dayServices: newDayServices }),
           })
+          // Ne pas absorber silencieusement les erreurs HTTP : les remonter pour observabilité
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+            console.error('DayService save failed:', res.status, errorData)
+            // Rollback du state local — la BDD ne reflète pas notre changement
+            setDayServices(dayServices)
+            localStorage.setItem(`fixit_availability_services_${artisan.id}`, JSON.stringify(dayServices))
+            return
+          }
           const result = await res.json()
           if (result.bio) setArtisan({ ...artisan, bio: result.bio })
         }
@@ -87,6 +144,38 @@ export function useAvailability(
         console.error('DayService save error:', e)
       }
     }
+  }, [artisan, dayServices, setArtisan])
+
+  // Force-save de l'état dayServices courant (utilisé par bouton "Sauvegarder")
+  const saveAllDayServices = useCallback(async () => {
+    if (!artisan) return false
+    setSavingAvail(true)
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) {
+        console.error('SaveAll: no auth token')
+        setSavingAvail(false)
+        return false
+      }
+      const res = await authFetch('/api/availability-services', token, {
+        method: 'POST',
+        body: JSON.stringify({ artisan_id: artisan.id, dayServices }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        console.error('SaveAll error:', res.status, err)
+        setSavingAvail(false)
+        return false
+      }
+      const result = await res.json().catch(() => ({}))
+      if (result.bio) setArtisan({ ...artisan, bio: result.bio })
+    } catch (e) {
+      console.error('SaveAll error:', e)
+      setSavingAvail(false)
+      return false
+    }
+    setSavingAvail(false)
+    return true
   }, [artisan, dayServices, setArtisan])
 
   const loadCalendarData = useCallback(async (aid: string) => {
@@ -97,7 +186,49 @@ export function useAvailability(
       fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
       fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
-    setAvailability(availRes.data || [])
+    let availData = availRes.data || []
+
+    // Seed BDD pour les slot_type manquants. Idempotent : on n'insère que ce qui manque.
+    //   • RDV   → Mon-Fri actifs 08:00-17:30, Sam-Dim inactifs (rétrocompat seed précédent)
+    //   • Visite → tous inactifs au départ (l'artisan active explicitement quand il veut)
+    const presentRdv = new Set(availData.filter((a: any) => (a.slot_type || 'rdv') === 'rdv').map((a: any) => a.day_of_week))
+    const presentVisite = new Set(availData.filter((a: any) => a.slot_type === 'visite').map((a: any) => a.day_of_week))
+    const missingRdv = [0, 1, 2, 3, 4, 5, 6].filter(d => !presentRdv.has(d))
+    const missingVisite = [0, 1, 2, 3, 4, 5, 6].filter(d => !presentVisite.has(d))
+
+    if (missingRdv.length > 0 || missingVisite.length > 0) {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (token) {
+        const seedOps = [
+          ...missingRdv.map(dow => ({
+            artisan_id: aid,
+            day_of_week: dow,
+            slot_type: 'rdv' as const,
+            is_available: dow >= 1 && dow <= 5,
+            start_time: '08:00',
+            end_time: '17:30',
+          })),
+          ...missingVisite.map(dow => ({
+            artisan_id: aid,
+            day_of_week: dow,
+            slot_type: 'visite' as const,
+            is_available: false,
+            start_time: '14:00',
+            end_time: '17:30',
+          })),
+        ]
+        await Promise.all(seedOps.map(body =>
+          authFetch('/api/availability', token, {
+            method: 'POST',
+            body: JSON.stringify(body),
+          }).catch(() => null)
+        ))
+        const reFetch = await fetch(`/api/availability?artisan_id=${aid}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ data: [] }))
+        availData = reFetch.data || []
+      }
+    }
+
+    setAvailability(availData)
     const apiAbsences = absRes.data || []
     if (dsRes.data) setDayServices(dsRes.data)
     return apiAbsences // Return absences so caller can update absences hook
@@ -133,7 +264,7 @@ export function useAvailability(
     autoAccept, setAutoAccept,
     savingAvail,
     toggleAutoAccept, toggleDayAvailability,
-    updateAvailabilityTime, toggleDayService,
+    updateAvailabilityTime, toggleDayService, saveAllDayServices,
     loadCalendarData, getCalendarHours,
   }
 }

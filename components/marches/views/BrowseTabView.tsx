@@ -8,6 +8,12 @@ import {
 } from './shared'
 import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 
+// Union complète des valeurs marche_type :
+//   - 'publics' / 'prives'        → BTP Pro
+//   - 'sous_traitance' / 'client_direct' → Artisan
+//   - 'tous'                       → no-op
+export type MarcheTypeFilter = 'tous' | 'publics' | 'prives' | 'sous_traitance' | 'client_direct'
+
 function urgencyTag(urgency: string, isPt: boolean) {
   switch (urgency) {
     case 'emergency':
@@ -46,13 +52,20 @@ interface BrowseTabViewProps {
   filterCategory: string
   filterRegion: string
   filterDepartments: string[]
-  filterMarcheType: 'tous' | 'publics' | 'prives'
+  filterMarcheType: MarcheTypeFilter
+  /** Masquer les marchés publics (auto-entrepreneurs en franchise — pas éligibles en pratique).
+   *  Aujourd'hui : utilisé uniquement pour afficher le bandeau d'info AE.
+   *  Le contrôle d'affichage du dropdown public/privé est gouverné par `isArtisan`. */
+  hidePublicMarches?: boolean
+  /** True quand le user est un artisan individuel (pas pro_societe BTP).
+   *  Affiche le dropdown Pro/Particulier (sous-traitance / client direct) au lieu de Publics/Privés. */
+  isArtisan?: boolean
   prefsSaved: boolean
   artisanMetiers?: string[]
   onFilterCategoryChange: (v: string) => void
   onFilterRegionChange: (v: string) => void
   onFilterDepartmentsChange: (v: string[]) => void
-  onFilterMarcheTypeChange: (v: 'tous' | 'publics' | 'prives') => void
+  onFilterMarcheTypeChange: (v: MarcheTypeFilter) => void
   onScanMarches: () => void
   onSaveGeoPrefs: () => void
   onSelectMarche: (m: any) => void
@@ -62,7 +75,7 @@ interface BrowseTabViewProps {
 export default function BrowseTabView({
   isPt, locale, marches, loading, scanning, scanResults, scanMeta, scanError,
   showScanResults, alerts, prefsLoaded, marchesOptIn,
-  filterCategory, filterRegion, filterDepartments, filterMarcheType, prefsSaved,
+  filterCategory, filterRegion, filterDepartments, filterMarcheType, hidePublicMarches = false, isArtisan = false, prefsSaved,
   onFilterCategoryChange, onFilterRegionChange, onFilterDepartmentsChange, onFilterMarcheTypeChange,
   onScanMarches, onSaveGeoPrefs, onSelectMarche, onGoToSettings, artisanMetiers = [],
 }: BrowseTabViewProps) {
@@ -111,6 +124,24 @@ export default function BrowseTabView({
 
   return (
     <div>
+      {/* Bandeau info auto-entrepreneur — sources d'opportunités disponibles */}
+      {hidePublicMarches && (
+        <div className="v22-alert" style={{ marginBottom: 10, fontSize: 12, background: '#fffbeb', border: '1px solid #fde68a', color: '#78350f', display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderRadius: 8 }}>
+          <span style={{ fontSize: 14, flexShrink: 0 }}>💡</span>
+          <span>
+            {isPt ? (
+              <>
+                <strong>Oportunidades disponíveis para o seu estatuto :</strong> subcontratação por grandes empresas de obras 🏗️ + concursos privados publicados por clientes 🏠. Os concursos públicos (BOAMP/TED) exigem capacidade financeira superior e não estão acessíveis em regime de isenção.
+              </>
+            ) : (
+              <>
+                <strong>Opportunités accessibles avec votre statut :</strong> sous-traitance BTP 🏗️ par les grandes entreprises + appels d&apos;offres privés 🏠 publiés par les clients. Les marchés publics (BOAMP/TED) demandent une capacité financière supérieure et restent réservés aux sociétés.
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Alerts banner */}
       {(alerts.expiringCount > 0 || alerts.unreadMessages > 0) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
@@ -178,16 +209,28 @@ export default function BrowseTabView({
               </select>
             </div>
 
+            {/* Dropdown distinct par rôle :
+                - Artisan : Tous / Pro (sous-traitance B2B) / Particulier (client direct)
+                - BTP Pro : Tous / Publics (scrapped) / Privés (sous-traitance + client direct) */}
             <div>
               <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
               <select
                 value={filterMarcheType}
-                onChange={e => onFilterMarcheTypeChange(e.target.value as 'tous' | 'publics' | 'prives')}
+                onChange={e => onFilterMarcheTypeChange(e.target.value as MarcheTypeFilter)}
                 className="v22-form-input"
               >
                 <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
-                <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
-                <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
+                {isArtisan ? (
+                  <>
+                    <option value="sous_traitance">{isPt ? 'Pro' : 'Pro'}</option>
+                    <option value="client_direct">{isPt ? 'Particular' : 'Particulier'}</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
+                    <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -328,26 +371,29 @@ export default function BrowseTabView({
               </span>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', marginLeft: 'auto' }}>
-              <button
-                onClick={onScanMarches}
-                disabled={scanning}
-                style={{
-                  padding: '8px 20px', borderRadius: 8, border: 'none',
-                  background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
-                  cursor: scanning ? 'not-allowed' : 'pointer',
-                  fontWeight: 600, fontSize: 13,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
-                {scanning ? (
-                  <>
-                    <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    {isPt ? 'A analisar...' : 'Scan en cours...'}
-                  </>
-                ) : (
-                  <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
-                )}
-              </button>
+              {/* Scan public uniquement pour BTP Pro — les artisans n'accèdent pas aux publics */}
+              {!isArtisan && (
+                <button
+                  onClick={onScanMarches}
+                  disabled={scanning}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
+                    cursor: scanning ? 'not-allowed' : 'pointer',
+                    fontWeight: 600, fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  {scanning ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      {isPt ? 'A analisar...' : 'Scan en cours...'}
+                    </>
+                  ) : (
+                    <>📡 {isPt ? 'Scan mercados' : 'Scan marchés'}</>
+                  )}
+                </button>
+              )}
               {!isPt && (
                 <button
                   type="button"
@@ -369,13 +415,13 @@ export default function BrowseTabView({
       </div>
 
       {/* Scan Results Panel — hidden when filter = privés */}
-      {filterMarcheType !== 'prives' && scanError && (
+      {!isArtisan && filterMarcheType !== 'prives' && scanError && (
         <div style={{ padding: '10px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12 }}>
           ⚠️ {scanError}
         </div>
       )}
 
-      {filterMarcheType !== 'prives' && scanResults.length > 0 && (
+      {!isArtisan && filterMarcheType !== 'prives' && scanResults.length > 0 && (
         <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
           <div className="v22-card-head" style={{ background: '#fffbeb' }}>
             <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -546,12 +592,28 @@ export default function BrowseTabView({
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
                 >
                   {/* Type label (mono) */}
-                  <div style={{ flexShrink: 0, width: 90 }}>
+                  <div style={{ flexShrink: 0, width: 90, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <span className="v22-tag v22-tag-yellow">
                       {getCategoryEmoji(m.category)} {isPt
                         ? (CATEGORIES.find(c => c.id === m.category)?.label || m.category)
                         : (CATEGORIES.find(c => c.id === m.category)?.labelFr || m.category)}
                     </span>
+                    {m.source_type === 'btp_sous_traitance' ? (
+                      <span className="v22-tag" style={{ background: '#EEF2FF', color: '#4338CA', fontSize: 10 }} title={isPt ? 'Subcontratação publicada por uma empresa BTP' : 'Sous-traitance publiée par une société BTP'}>
+                        🏗️ {isPt ? 'Subcontrat.' : 'Sous-trait.'}
+                      </span>
+                    ) : (m.source_type && /^scan_/.test(m.source_type)) || m.source ? (
+                      // Marché public scrapé (BOAMP/TED/mairie/achatpublic/DECP/BASE.gov)
+                      // Avant fix 04/05/2026 : affichait à tort "🏠 Client" → confusion
+                      // pour l'artisan qui pensait que c'était privé alors que public.
+                      <span className="v22-tag" style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10 }} title={isPt ? 'Concurso público (BOAMP/TED/...)' : 'Marché public (BOAMP/TED/mairie/...)'}>
+                        🏛️ {isPt ? 'Público' : 'Public'}
+                      </span>
+                    ) : (
+                      <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }} title={isPt ? 'Concurso publicado por um cliente particular' : 'Appel d\'offres publié par un client particulier'}>
+                        🏠 {isPt ? 'Cliente' : 'Client'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Title + location */}

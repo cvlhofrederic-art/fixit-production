@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // ── Fetch artisan profile + ensure client profile (parallel) ──────
     const [{ data: artisanProfile }, { data: existingProfile }] = await Promise.all([
-      supabaseAdmin.from('profiles_artisan').select('user_id, company_name').eq('id', artisan_id).single(),
+      supabaseAdmin.from('profiles_artisan').select('user_id, company_name, language').eq('id', artisan_id).single(),
       supabaseAdmin.from('profiles_client').select('id').eq('id', user.id).single(),
     ])
 
@@ -183,6 +183,7 @@ export async function POST(request: NextRequest) {
             bookingDate: dateFormatted,
             bookingTime: timeFormatted,
             address: address || undefined,
+            locale: (artisanProfile as { language?: string }).language === 'pt' ? 'pt' : 'fr',
           })
           sendEmail({ to: artisanAuthData.user.email, ...emailData }).catch(e =>
             logger.warn('[bookings] Email send failed:', { error: String(e) })

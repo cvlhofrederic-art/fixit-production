@@ -48,7 +48,7 @@ export default function TarifsPage() {
               'Confirmation par email et rappels automatiques',
               'Messagerie avec l\'artisan',
               'Accès à votre historique de réservations',
-              'Aucune commission cachée — vous payez uniquement l\'artisan',
+              'Aucune commission cachée, vous payez uniquement l\'artisan',
             ].map((item) => (
               <li key={item} className="flex items-center gap-3 text-gray-700">
                 <span className="text-yellow font-bold text-lg">✓</span>

@@ -19,6 +19,7 @@ export default function ModalNouveilleMission({
 }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
   const [form, setForm] = useState({
     immeuble: '',
     adresseImmeuble: '',
@@ -30,7 +31,7 @@ export default function ModalNouveilleMission({
     emailLocataire: '',
     accesLogement: '',
     artisan: '',
-    type: 'Plomberie',
+    type: isPt ? 'Canalização' : 'Plomberie',
     description: '',
     priorite: 'normale' as Mission['priorite'],
     dateIntervention: '',
@@ -90,25 +91,43 @@ export default function ModalNouveilleMission({
     if (!canSubmit) return
     const now = new Date()
     const nomImmeuble = immeubleInput.trim() || form.immeuble || '—'
-    const artisanNom = form.artisan || 'le prestataire'
+    const artisanNom = form.artisan || (isPt ? 'o profissional' : 'le prestataire')
 
     // Message automatique ordre de mission
     const dateIntervStr = form.dateIntervention
-      ? new Date(form.dateIntervention).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-      : 'à définir'
+      ? new Date(form.dateIntervention).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      : (isPt ? 'a definir' : 'à définir')
     const localisationDetail = [
-      form.batiment ? `Bâtiment ${form.batiment}` : null,
-      form.etage ? `Étage ${form.etage}` : null,
-      form.numLot ? `Appartement / Lot ${form.numLot}` : null,
+      form.batiment ? (isPt ? `Bloco ${form.batiment}` : `Bâtiment ${form.batiment}`) : null,
+      form.etage ? (isPt ? `Andar ${form.etage}` : `Étage ${form.etage}`) : null,
+      form.numLot ? (isPt ? `Fração ${form.numLot}` : `Appartement / Lot ${form.numLot}`) : null,
     ].filter(Boolean).join(' · ')
     const locataireDetail = form.locataire
-      ? `\n👤 Locataire : ${form.locataire}${form.telephoneLocataire ? ` — Tél : ${form.telephoneLocataire}` : ''}`
+      ? (isPt
+          ? `\n👤 Residente : ${form.locataire}${form.telephoneLocataire ? ` — Telemóvel : ${form.telephoneLocataire}` : ''}`
+          : `\n👤 Locataire : ${form.locataire}${form.telephoneLocataire ? ` — Tél : ${form.telephoneLocataire}` : ''}`)
       : ''
-    const accesDetail = form.accesLogement ? `\n🔑 Accès : ${form.accesLogement}` : ''
+    const accesDetail = form.accesLogement
+      ? (isPt ? `\n🔑 Acesso : ${form.accesLogement}` : `\n🔑 Accès : ${form.accesLogement}`)
+      : ''
 
-    const heureStr = form.heureIntervention ? ` à ${form.heureIntervention}` : ''
+    const heureStr = form.heureIntervention ? (isPt ? ` às ${form.heureIntervention}` : ` à ${form.heureIntervention}`) : ''
 
-    const msgAuto = `📋 ORDRE DE MISSION — ${form.type}
+    const msgAuto = isPt
+      ? `📋 ORDEM DE MISSÃO — ${form.type}
+
+Olá ${artisanNom},
+
+Foi-lhe atribuída uma intervenção:
+
+🏢 Edifício : ${nomImmeuble}${form.adresseImmeuble ? `\n📍 Morada : ${form.adresseImmeuble}` : ''}${localisationDetail ? `\n📌 ${localisationDetail}` : ''}${locataireDetail}${accesDetail}
+
+🔧 Missão : ${form.description || form.type}
+📅 Data da intervenção : ${dateIntervStr}${heureStr}
+⚡ Prioridade : ${form.priorite === 'urgente' ? '🔴 URGENTE' : form.priorite === 'normale' ? '🔵 Normal' : '⚪ Planeada'}${form.montantDevis ? `\n💰 Orçamento estimado : ${Number(form.montantDevis).toLocaleString('pt-PT')} € sem IVA` : ''}
+
+Por favor confirme a receção desta ordem de missão respondendo neste canal.`
+      : `📋 ORDRE DE MISSION — ${form.type}
 
 Bonjour ${artisanNom},
 
@@ -118,11 +137,11 @@ Une intervention vous est assignée :
 
 🔧 Mission : ${form.description || form.type}
 📅 Date d'intervention : ${dateIntervStr}${heureStr}
-⚡ Priorité : ${form.priorite === 'urgente' ? '🔴 URGENTE' : form.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${form.montantDevis ? `\n💰 Budget estimé : ${Number(form.montantDevis).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} € HT` : ''}
+⚡ Priorité : ${form.priorite === 'urgente' ? '🔴 URGENTE' : form.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${form.montantDevis ? `\n💰 Budget estimé : ${Number(form.montantDevis).toLocaleString('fr-FR')} € HT` : ''}
 
 Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`
 
-    const autoMsg = { auteur: 'Gestionnaire', role: 'syndic', texte: msgAuto, date: now.toISOString() }
+    const autoMsg = { auteur: isPt ? 'Gestor' : 'Gestionnaire', role: 'syndic', texte: msgAuto, date: now.toISOString() }
 
     onAdd({
       ...form,
@@ -141,7 +160,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-xl font-bold text-[#0D1B2E]">📋 Nouvel ordre de mission</h3>
+            <h3 className="text-xl font-bold text-[#0D1B2E]">📋 {isPt ? 'Nova ordem de missão' : 'Nouvel ordre de mission'}</h3>
             <button onClick={onClose} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
           </div>
 
@@ -149,17 +168,17 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
 
             {/* ── Auto-remplissage depuis copropriétaire ── */}
             {coproprios.length > 0 && (
-              <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] rounded-xl border border-blue-200 p-3">
+              <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] rounded-xl border border-[#E4DDD0] p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-blue-800">⚡ Auto-remplissage depuis un copropriétaire</p>
-                    <p className="text-xs text-blue-600 mt-0.5">Sélectionnez un copropriétaire pour pré-remplir automatiquement les infos</p>
+                    <p className="text-xs font-bold text-[#0D1B2E]">⚡ {isPt ? 'Preenchimento automático a partir de um condómino' : 'Auto-remplissage depuis un copropriétaire'}</p>
+                    <p className="text-xs text-[#0D1B2E] opacity-70 mt-0.5">{isPt ? 'Selecione um condómino para preencher automaticamente as informações' : 'Sélectionnez un copropriétaire pour pré-remplir automatiquement les infos'}</p>
                   </div>
                   <button
                     onClick={() => setShowCoproSearch(!showCoproSearch)}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition"
+                    className="text-xs bg-[#0D1B2E] hover:bg-[#152338] text-white px-3 py-1.5 rounded-lg font-semibold transition"
                   >
-                    {showCoproSearch ? '✕ Fermer' : '🔍 Sélectionner'}
+                    {showCoproSearch ? (isPt ? '✕ Fechar' : '✕ Fermer') : (isPt ? '🔍 Selecionar' : '🔍 Sélectionner')}
                   </button>
                 </div>
                 {showCoproSearch && (
@@ -168,33 +187,33 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                       type="text"
                       value={coproSearch}
                       onChange={e => setCoproSearch(e.target.value)}
-                      placeholder="Rechercher par nom, lot, email…"
-                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white"
+                      placeholder={locale === 'pt' ? 'Pesquisar por nome, fração, email…' : 'Rechercher par nom, lot, email…'}
+                      className="w-full px-3 py-2 text-sm border border-[#E4DDD0] rounded-lg focus:ring-2 focus:ring-[#C9A84C] focus:outline-none bg-white"
                       autoFocus
                     />
-                    <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-blue-100 shadow-sm">
+                    <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-[#E4DDD0] shadow-sm">
                       {filteredCopros.length === 0 ? (
-                        <p className="text-xs text-gray-500 text-center py-3">Aucun résultat</p>
+                        <p className="text-xs text-gray-500 text-center py-3">{locale === 'pt' ? 'Nenhum resultado' : 'Aucun résultat'}</p>
                       ) : filteredCopros.map((c: Coproprio, i: number) => (
                         <button
                           key={c.id || i}
                           onClick={() => autoFillFromCopro(c)}
-                          className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition border-b border-gray-50 last:border-0"
+                          className="w-full text-left px-3 py-2.5 hover:bg-[#F7F4EE] transition border-b border-gray-50 last:border-0"
                         >
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-gray-800">
                                 {c.prenomProprietaire ? `${c.prenomProprietaire} ` : ''}{c.nomProprietaire || '—'}
-                                {c.nomLocataire && <span className="text-xs text-blue-600 ml-1">(loc. {c.prenomLocataire || ''} {c.nomLocataire})</span>}
+                                {c.nomLocataire && <span className="text-xs text-[#C9A84C] ml-1">(loc. {c.prenomLocataire || ''} {c.nomLocataire})</span>}
                               </p>
                               <p className="text-xs text-gray-500">
                                 {c.immeuble && `🏢 ${c.immeuble} · `}
-                                {c.batiment && `Bât. ${c.batiment} · `}
-                                {c.etage !== undefined && `Ét. ${c.etage} · `}
-                                Lot {c.numeroPorte || '—'}
+                                {c.batiment && `${isPt ? 'Bloco' : 'Bât.'} ${c.batiment} · `}
+                                {c.etage !== undefined && `${isPt ? 'Andar' : 'Ét.'} ${c.etage} · `}
+                                {isPt ? 'Fração' : 'Lot'} {c.numeroPorte || '—'}
                               </p>
                             </div>
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Remplir →</span>
+                            <span className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-2 py-0.5 rounded-full">{isPt ? 'Preencher →' : 'Remplir →'}</span>
                           </div>
                         </button>
                       ))}
@@ -207,7 +226,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
             {/* Prestataire + Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">👷 Artisan / Prestataire</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">👷 {isPt ? 'Profissional / Prestador' : 'Artisan / Prestataire'}</label>
                 <select
                   value={form.artisan}
                   onChange={e => {
@@ -229,14 +248,14 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                   }}
                   className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm"
                 >
-                  <option value="">— Non assigné —</option>
+                  <option value="">— {isPt ? 'Por atribuir' : 'Non assigné'} —</option>
                   {artisans.filter(a => a.statut === 'actif' || a.statut === 'en_attente').map(a => (
                     <option key={a.id} value={a.nom}>{a.nom} — {a.metier}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">🔧 Type de travaux <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">🔧 {isPt ? 'Tipo de trabalhos' : 'Type de travaux'} <span className="text-red-500">*</span></label>
                 <select
                   value={form.type}
                   onChange={e => setForm({ ...form, type: e.target.value })}
@@ -253,18 +272,18 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
             </div>
 
             {/* Localisation */}
-            <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">📍 Localisation</p>
+            <div className="bg-[#F7F4EE] rounded-xl p-4 space-y-3">
+              <p className="text-xs font-bold text-[#C9A84C] uppercase tracking-wide">📍 {isPt ? 'Localização' : 'Localisation'}</p>
               {/* Résidence */}
               <div className="relative">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Nom de la résidence</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Nome do edifício' : 'Nom de la résidence'}</label>
                 <input
                   type="text"
                   value={immeubleInput}
                   onChange={e => { setImmeubleInput(e.target.value); setShowSuggestions(true) }}
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                  placeholder="Ex : Résidence Les Acacias…"
+                  placeholder={isPt ? 'Ex : Edifício As Acácias…' : 'Ex : Résidence Les Acacias…'}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white"
                 />
                 {showSuggestions && suggestions.length > 0 && (
@@ -276,85 +295,87 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Adresse complète</label>
-                <input type="text" value={form.adresseImmeuble} onChange={e => setForm({ ...form, adresseImmeuble: e.target.value })} placeholder="12 rue de la Paix, 75001 Paris" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Morada completa' : 'Adresse complète'}</label>
+                <input type="text" value={form.adresseImmeuble} onChange={e => setForm({ ...form, adresseImmeuble: e.target.value })} placeholder={isPt ? 'Rua de Santa Catarina 100, 4000-447 Porto' : '12 rue de la Paix, 75001 Paris'} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Bâtiment</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Bloco' : 'Bâtiment'}</label>
                   <input type="text" value={form.batiment} onChange={e => setForm({ ...form, batiment: e.target.value })} placeholder="A, B, C…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Étage</label>
-                  <input type="text" value={form.etage} onChange={e => setForm({ ...form, etage: e.target.value })} placeholder="2, RDC…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Andar' : 'Étage'}</label>
+                  <input type="text" value={form.etage} onChange={e => setForm({ ...form, etage: e.target.value })} placeholder={isPt ? '2, R/C…' : '2, RDC…'} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Appart / Lot</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Fração' : 'Appart / Lot'}</label>
                   <input type="text" value={form.numLot} onChange={e => setForm({ ...form, numLot: e.target.value })} placeholder="12, 4B…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Locataire / Occupant</label>
-                  <input type="text" value={form.locataire} onChange={e => setForm({ ...form, locataire: e.target.value })} placeholder="Nom (optionnel)" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Residente / Ocupante' : 'Locataire / Occupant'}</label>
+                  <input type="text" value={form.locataire} onChange={e => setForm({ ...form, locataire: e.target.value })} placeholder={isPt ? 'Nome (opcional)' : 'Nom (optionnel)'} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tél. locataire</label>
-                  <input type="tel" value={form.telephoneLocataire} onChange={e => setForm({ ...form, telephoneLocataire: e.target.value })} placeholder="06 XX XX XX XX" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Telemóvel residente' : 'Tél. locataire'}</label>
+                  <input type="tel" value={form.telephoneLocataire} onChange={e => setForm({ ...form, telephoneLocataire: e.target.value })} placeholder={isPt ? '9X XXX XX XX' : '06 XX XX XX XX'} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">🔑 Instructions d&apos;accès</label>
-                <input type="text" value={form.accesLogement} onChange={e => setForm({ ...form, accesLogement: e.target.value })} placeholder="Code portail, clé gardien…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">🔑 {isPt ? 'Instruções de acesso' : 'Instructions d\'accès'}</label>
+                <input type="text" value={form.accesLogement} onChange={e => setForm({ ...form, accesLogement: e.target.value })} placeholder={isPt ? 'Código do portão, chave do porteiro…' : 'Code portail, clé gardien…'} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white" />
               </div>
             </div>
 
             {/* Description + date + priorité */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">📝 Description / Motif <span className="text-gray-500 font-normal text-xs">(optionnel)</span></label>
-              <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none resize-none text-sm" placeholder="Décrivez l'intervention nécessaire…" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">📝 {isPt ? 'Descrição / Motivo' : 'Description / Motif'} <span className="text-gray-500 font-normal text-xs">{isPt ? '(opcional)' : '(optionnel)'}</span></label>
+              <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none resize-none text-sm" placeholder={isPt ? 'Descreva a intervenção necessária…' : 'Décrivez l\'intervention nécessaire…'} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">📅 Date souhaitée</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">📅 {isPt ? 'Data desejada' : 'Date souhaitée'}</label>
                 <input type="date" value={form.dateIntervention} onChange={e => setForm({ ...form, dateIntervention: e.target.value })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">🕐 Heure d&apos;intervention</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">🕐 {isPt ? 'Hora da intervenção' : 'Heure d\'intervention'}</label>
                 <input type="time" value={form.heureIntervention} onChange={e => setForm({ ...form, heureIntervention: e.target.value })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">⚡ Priorité</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">⚡ {isPt ? 'Prioridade' : 'Priorité'}</label>
                 <select value={form.priorite} onChange={e => setForm({ ...form, priorite: e.target.value as Mission['priorite'] })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none bg-white text-sm">
-                  <option value="urgente">🔴 Urgente</option>
-                  <option value="normale">🔵 Normale</option>
-                  <option value="planifiee">⚪ Planifiée</option>
+                  <option value="urgente">{isPt ? '🔴 Urgente' : '🔴 Urgente'}</option>
+                  <option value="normale">{isPt ? '🔵 Normal' : '🔵 Normale'}</option>
+                  <option value="planifiee">{isPt ? '⚪ Planeada' : '⚪ Planifiée'}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">💶 Budget € HT</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">💶 {isPt ? 'Orçamento € sem IVA' : 'Budget € HT'}</label>
                 <input type="number" value={form.montantDevis} onChange={e => setForm({ ...form, montantDevis: e.target.value })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" placeholder="0" min={0} />
               </div>
             </div>
 
             {/* Email locataire pour notification retour */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">📧 Email locataire / demandeur <span className="text-gray-500 font-normal">(pour la notification de confirmation)</span></label>
-              <input type="email" value={form.emailLocataire} onChange={e => setForm({ ...form, emailLocataire: e.target.value })} placeholder="locataire@email.fr" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
+              <label className="block text-xs font-medium text-gray-700 mb-1">📧 {isPt ? 'Email do residente / solicitante' : 'Email locataire / demandeur'} <span className="text-gray-500 font-normal">{isPt ? '(para a notificação de confirmação)' : '(pour la notification de confirmation)'}</span></label>
+              <input type="email" value={form.emailLocataire} onChange={e => setForm({ ...form, emailLocataire: e.target.value })} placeholder={isPt ? 'residente@email.pt' : 'locataire@email.fr'} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm" />
             </div>
 
             {/* Toggle notification demandeur */}
             <div className={`rounded-xl border-2 p-3 transition ${form.notifierDemandeur ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-[#F7F4EE]'}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-gray-800">🔔 Notifier le demandeur à la création</p>
+                  <p className="text-xs font-bold text-gray-800">🔔 {isPt ? 'Notificar o solicitante na criação' : 'Notifier le demandeur à la création'}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {form.notifierDemandeur
-                      ? 'Un message de confirmation sera envoyé dans le canal du demandeur : "Demande traitée, l\'artisan interviendra le…"'
-                      : 'Pas de notification au demandeur'}
+                      ? (isPt
+                          ? 'Será enviada uma mensagem de confirmação no canal do solicitante: "Pedido tratado, o profissional intervirá no dia…"'
+                          : 'Un message de confirmation sera envoyé dans le canal du demandeur : "Demande traitée, l\'artisan interviendra le…"')
+                      : (isPt ? 'Sem notificação ao solicitante' : 'Pas de notification au demandeur')}
                   </p>
                 </div>
                 <button
@@ -370,13 +391,17 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
             <div className="space-y-2">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
                 <span className="text-amber-500 text-base flex-shrink-0">🔧</span>
-                <p className="text-xs text-amber-800">L&apos;artisan <strong>{form.artisan || '…'}</strong> reçoit automatiquement l&apos;ordre de mission complet dans son canal (localisation, accès, date, heure).</p>
+                <p className="text-xs text-amber-800">{isPt
+                  ? <>O profissional <strong>{form.artisan || '…'}</strong> recebe automaticamente a ordem de missão completa no seu canal (localização, acesso, data, hora).</>
+                  : <>L&apos;artisan <strong>{form.artisan || '…'}</strong> reçoit automatiquement l&apos;ordre de mission complet dans son canal (localisation, accès, date, heure).</>}</p>
               </div>
               {form.notifierDemandeur && (form.locataire || form.emailLocataire) && (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-start gap-2">
                   <span className="text-green-500 text-base flex-shrink-0">✅</span>
                   <p className="text-xs text-green-800">
-                    <strong>{form.locataire || form.emailLocataire}</strong> recevra dans son canal : <em>&quot;Demande traitée — l&apos;artisan {form.artisan || '…'} interviendra le {form.dateIntervention ? new Date(form.dateIntervention).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : '…'}{form.heureIntervention ? ` à ${form.heureIntervention}` : ''}&quot;</em>
+                    {isPt
+                      ? <><strong>{form.locataire || form.emailLocataire}</strong> receberá no seu canal: <em>&quot;Pedido tratado — o profissional {form.artisan || '…'} intervirá no dia {form.dateIntervention ? new Date(form.dateIntervention).toLocaleDateString('pt-PT') : '…'}{form.heureIntervention ? ` às ${form.heureIntervention}` : ''}&quot;</em></>
+                      : <><strong>{form.locataire || form.emailLocataire}</strong> recevra dans son canal : <em>&quot;Demande traitée — l&apos;artisan {form.artisan || '…'} interviendra le {form.dateIntervention ? new Date(form.dateIntervention).toLocaleDateString('fr-FR') : '…'}{form.heureIntervention ? ` à ${form.heureIntervention}` : ''}&quot;</em></>}
                   </p>
                 </div>
               )}
@@ -386,14 +411,14 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
           {/* Actions */}
           <div className="flex gap-3 mt-6">
             <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-[#F7F4EE] transition text-sm">
-              Annuler
+              {isPt ? 'Cancelar' : 'Annuler'}
             </button>
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
               className="flex-1 bg-[#0D1B2E] hover:bg-[#152338] text-white py-2.5 rounded-lg font-bold transition disabled:opacity-40 text-sm"
             >
-              📤 Créer &amp; ouvrir le canal
+              📤 {isPt ? 'Criar & abrir o canal' : 'Créer & ouvrir le canal'}
             </button>
           </div>
         </div>

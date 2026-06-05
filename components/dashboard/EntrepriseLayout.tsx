@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useTranslation } from '@/lib/i18n/context'
 
 interface EntrepriseLayoutProps {
   children: React.ReactNode
@@ -39,73 +40,74 @@ export default function EntrepriseLayout({
   pendingBookingsCount,
   onLogout,
 }: EntrepriseLayoutProps) {
+  const { t } = useTranslation()
   const totalMessages = unreadMsgCount + pendingBookingsCount
 
   const sections: NavSection[] = [
     {
       title: 'PRINCIPAL',
       items: [
-        { icon: '🏠', label: 'Tableau de bord', page: 'home' },
-        { icon: '📋', label: 'Chantiers', page: 'chantiers' },
-        { icon: '📅', label: 'Planning', page: 'calendar' },
-        { icon: '📅', label: 'Gantt', page: 'gantt' },
-        { icon: '👷', label: 'Équipes', page: 'equipes' },
+        { icon: '🏠', label: t('proDash.entrepriseLayout.tableauDeBord'), page: 'home' },
+        { icon: '📋', label: t('proDash.entrepriseLayout.chantiers'), page: 'chantiers' },
+        { icon: '📅', label: t('proDash.entrepriseLayout.planning'), page: 'calendar' },
+        { icon: '📅', label: t('proDash.entrepriseLayout.gantt'), page: 'gantt' },
+        { icon: '👷', label: t('proDash.entrepriseLayout.equipes'), page: 'equipes' },
       ],
     },
     {
-      title: 'OPÉRATIONS',
+      title: t('proDash.entrepriseLayout.operations'),
       items: [
-        { icon: '⏱️', label: 'Pointage', page: 'pointage' },
-        { icon: '📊', label: 'Situations', page: 'situations' },
-        { icon: '🤝', label: 'Sous-traitance', page: 'sous_traitance' },
-        { icon: '🔒', label: 'Garanties', page: 'garanties' },
-        { icon: '🛒', label: 'Achats', page: 'achats_fournisseurs' },
-        { icon: '📦', label: 'Stocks', page: 'stocks_materiels' },
+        { icon: '⏱️', label: t('proDash.entrepriseLayout.pointage'), page: 'pointage' },
+        { icon: '📊', label: t('proDash.entrepriseLayout.situations'), page: 'situations' },
+        { icon: '🤝', label: t('proDash.entrepriseLayout.sousTraitance'), page: 'sous_traitance' },
+        { icon: '🔒', label: t('proDash.entrepriseLayout.garanties'), page: 'garanties' },
+        { icon: '🛒', label: t('proDash.entrepriseLayout.achats'), page: 'achats_fournisseurs' },
+        { icon: '📦', label: t('proDash.entrepriseLayout.stocks'), page: 'stocks_materiels' },
       ],
     },
     {
-      title: 'COMMUNICATION',
+      title: t('proDash.sidebar.communication'),
       items: [
-        { icon: '💬', label: 'Messagerie', page: 'messages', badge: totalMessages },
-        { icon: '👥', label: 'Base clients', page: 'clients' },
+        { icon: '💬', label: t('proDash.entrepriseLayout.messagerie'), page: 'messages', badge: totalMessages },
+        { icon: '👥', label: t('proDash.entrepriseLayout.baseClients'), page: 'clients' },
       ],
     },
     {
-      title: 'FACTURATION',
+      title: t('proDash.sidebar.facturation'),
       items: [
-        { icon: '📄', label: 'Devis', page: 'devis' },
-        { icon: '🧾', label: 'Factures', page: 'factures' },
-        { icon: '📋', label: 'DPGF', page: 'dpgf' },
-        { icon: '📋', label: 'Rapports', page: 'rapports' },
-        { icon: '📸', label: 'Photos chantier', page: 'photos_chantier' },
-        { icon: '📑', label: 'Documents', page: 'documents_btp' },
+        { icon: '📄', label: t('proDash.entrepriseLayout.devis'), page: 'devis' },
+        { icon: '🧾', label: t('proDash.entrepriseLayout.factures'), page: 'factures' },
+        { icon: '📋', label: t('proDash.entrepriseLayout.dpgf'), page: 'dpgf' },
+        { icon: '📋', label: t('proDash.entrepriseLayout.rapports'), page: 'rapports' },
+        { icon: '📸', label: t('proDash.entrepriseLayout.photosChantier'), page: 'photos_chantier' },
+        { icon: '📑', label: t('proDash.entrepriseLayout.documents'), page: 'documents_btp' },
       ],
     },
     {
-      title: 'ANALYSE',
+      title: t('proDash.sidebar.analyse'),
       items: [
-        { icon: '📊', label: 'Statistiques', page: 'stats' },
-        { icon: '💰', label: 'Revenus', page: 'revenus' },
-        { icon: '🧮', label: 'Comptabilité', page: 'comptabilite' },
-        { icon: '🛒', label: 'Matériaux IA', page: 'materiaux' },
-        { icon: '🏛️', label: 'Bourse aux marchés', page: 'marches' },
+        { icon: '📊', label: t('proDash.entrepriseLayout.statistiques'), page: 'stats' },
+        { icon: '💰', label: t('proDash.entrepriseLayout.revenus'), page: 'revenus' },
+        { icon: '🧮', label: t('proDash.entrepriseLayout.comptabilite'), page: 'comptabilite' },
+        { icon: '🛒', label: t('proDash.entrepriseLayout.materiauxIA'), page: 'materiaux' },
+        { icon: '🏛️', label: t('proDash.entrepriseLayout.bourseMarches'), page: 'marches' },
       ],
     },
     {
-      title: 'CONFORMITÉ',
+      title: t('proDash.entrepriseLayout.conformite'),
       items: [
-        { icon: '🗂️', label: 'Wallet', page: 'wallet' },
-        { icon: '🛡️', label: 'Sécurité', page: 'conformite_securite' },
-        { icon: '🔧', label: 'SAV', page: 'sav_maintenance' },
+        { icon: '🗂️', label: t('proDash.entrepriseLayout.wallet'), page: 'wallet' },
+        { icon: '🛡️', label: t('proDash.entrepriseLayout.securite'), page: 'conformite_securite' },
+        { icon: '🔧', label: t('proDash.entrepriseLayout.sav'), page: 'sav_maintenance' },
       ],
     },
     {
-      title: 'COMPTE',
+      title: t('proDash.sidebar.compte'),
       items: [
-        { icon: '⚙️', label: 'Paramètres', page: 'settings' },
-        { icon: '🧩', label: 'Modules', page: 'settings', settingsTab: 'modules' },
-        { icon: '❓', label: 'Aide', page: 'help' },
-        { icon: '🚪', label: 'Déconnexion', page: '', action: onLogout },
+        { icon: '⚙️', label: t('proDash.entrepriseLayout.parametres'), page: 'settings' },
+        { icon: '🧩', label: t('proDash.entrepriseLayout.modules'), page: 'settings', settingsTab: 'modules' },
+        { icon: '❓', label: t('proDash.entrepriseLayout.aide'), page: 'help' },
+        { icon: '🚪', label: t('proDash.entrepriseLayout.deconnexion'), page: '', action: onLogout },
       ],
     },
   ]
@@ -124,7 +126,7 @@ export default function EntrepriseLayout({
     return activePage === item.page
   }
 
-  const companyName = artisan?.company_name || (artisan as unknown as { name?: string })?.name || 'Entreprise'
+  const companyName = artisan?.company_name || (artisan as unknown as { name?: string })?.name || t('proDash.entrepriseLayout.entreprise')
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: '#F5F4F0' }}>

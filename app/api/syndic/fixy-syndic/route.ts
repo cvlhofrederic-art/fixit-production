@@ -1,53 +1,76 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { traceAgent } from '@/lib/langfuse'
+import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/prompts/fixy/system-prompt-fr'
+import { buildFixySystemPromptPT } from '@/lib/syndic/prompts/fixy/system-prompt-pt'
+import { supabaseAdmin } from '@/lib/supabase-server'
+import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
+import { ROLE_PAGES, SYNDIC_MODULES } from '@/components/syndic-dashboard/config'
+import { getSecret } from '@/lib/env'
 
 export const maxDuration = 30
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 // ── Fixy — Assistant Expert Syndic Vitfix Pro ────────────────────────────────
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Capacités : contexte complet cabinet + actions directes + mémoire + multi-rôles
 
-// Labels et contexte par rôle
+// ── Résolution dynamique des pages accessibles par rôle + locale ────────────
+// La source de vérité est `ROLE_PAGES` (composants/syndic-dashboard/config.ts).
+// On filtre par locale pour ne pas exposer à Fixy des pages FR-only quand il
+// répond en PT (et inversement). Les modules sans champ `locale` sont bilingues.
+const MODULE_LOCALE = new Map<string, 'fr' | 'pt' | undefined>(
+  SYNDIC_MODULES.map(m => [m.key, (m as { locale?: 'fr' | 'pt' }).locale]),
+)
+
+function getPagesForRoleAndLocale(role: string, locale: 'fr' | 'pt'): string[] {
+  const allowed = ROLE_PAGES[role] || ROLE_PAGES['syndic']
+  return allowed.filter(p => {
+    const moduleLocale = MODULE_LOCALE.get(p)
+    return !moduleLocale || moduleLocale === locale
+  })
+}
+
+// Labels et contexte par rôle. `pages` est ignoré ici (résolu dynamiquement
+// par getPagesForRoleAndLocale au moment de la requête) — conservé pour le
+// typage et la rétrocompatibilité du shape FixyPromptContext.
 const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: string; pages: string[]; actions: string[] }> = {
   syndic: {
     name: 'Administrateur Cabinet',
     emoji: '🏢',
     expertise: 'Administration complète du cabinet, gestion financière, juridique, équipe, artisans, copropriétaires',
     pages: ['missions', 'alertes', 'coproprios', 'reglementaire', 'rapport', 'immeubles', 'artisans', 'planning', 'documents', 'emails', 'parametres', 'facturation', 'equipe', 'comptabilite_tech'],
-    actions: ['create_mission', 'navigate', 'create_alert', 'update_mission', 'send_message', 'create_document'],
+    actions: ['create_mission', 'navigate', 'create_alert', 'update_mission', 'send_message', 'create_document', 'create_event'],
   },
   syndic_admin: {
     name: 'Administrateur Cabinet',
     emoji: '👑',
     expertise: 'Administration complète du cabinet, gestion financière, juridique, équipe, artisans, copropriétaires',
     pages: ['missions', 'alertes', 'coproprios', 'reglementaire', 'rapport', 'immeubles', 'artisans', 'planning', 'documents', 'emails', 'parametres', 'facturation', 'equipe'],
-    actions: ['create_mission', 'navigate', 'create_alert', 'update_mission', 'send_message', 'create_document'],
+    actions: ['create_mission', 'navigate', 'create_alert', 'update_mission', 'send_message', 'create_document', 'create_event'],
   },
   syndic_tech: {
     name: 'Gestionnaire Technique',
     emoji: '🔧',
     expertise: 'Interventions techniques, artisans, missions, suivi travaux, comptabilité technique, analyse devis/factures, facturation, copropriétaires, immeubles, emails, proof of work',
     pages: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'planning', 'alertes', 'emails'],
-    actions: ['create_mission', 'navigate', 'update_mission', 'send_message', 'create_alert'],
+    actions: ['create_mission', 'navigate', 'update_mission', 'send_message', 'create_alert', 'create_event'],
   },
   syndic_secretaire: {
     name: 'Secrétaire',
     emoji: '📋',
     expertise: 'Correspondances, emails, copropriétaires, convocations AG, documents administratifs, accueil',
     pages: ['coproprios', 'emails', 'documents', 'planning', 'alertes', 'missions'],
-    actions: ['navigate', 'create_document', 'send_message', 'create_alert'],
+    actions: ['navigate', 'create_document', 'send_message', 'create_alert', 'create_event'],
   },
   syndic_gestionnaire: {
     name: 'Gestionnaire Copropriété',
     emoji: '🏘️',
     expertise: 'Gestion copropriétés, immeubles, réglementaire, assemblées générales, contentieux, artisans, facturation, emails copropriétaires',
     pages: ['immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails'],
-    actions: ['create_mission', 'navigate', 'create_alert', 'create_document', 'send_message'],
+    actions: ['create_mission', 'navigate', 'create_alert', 'create_document', 'send_message', 'create_event'],
   },
   syndic_comptable: {
     name: 'Comptable',
@@ -60,265 +83,75 @@ const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: str
 
 interface ImmeubleSummary { nom: string; ville: string; nbLots: number; budgetAnnuel?: number; depensesAnnee?: number; pctBudget: number | string }
 interface ArtisanSummary { nom: string; metier?: string; statut: string; rcProValide: boolean; rcProExpiration?: string; note: number; vitfixCertifie?: boolean; email?: string; artisan_user_id?: string }
-interface MissionSummary { priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
+interface MissionSummary { id?: string; priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
 interface AlerteSummary { urgence?: string; message: string }
 interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
 interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
-function buildSystemPrompt(ctx: Record<string, any>, userRole: string, locale?: string): string {
-  const now = new Date()
-  const fmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const today = now.toLocaleDateString(fmtLocale, {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  })
-  const todayISO = now.toISOString().split('T')[0]
+// ── Tool helpers — search_dossier + find_email_thread ────────────────────────
 
-  // Pré-calculer les dates relatives pour éviter les erreurs du LLM
-  const joursNoms = locale === 'pt'
-    ? ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
-    : ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
-  const dateMapping: string[] = []
-  // "aujourd'hui" / "hoje" et "demain" / "amanhã"
-  if (locale === 'pt') {
-    dateMapping.push(`  - "hoje" = ${todayISO} (${joursNoms[now.getDay()]})`)
-    const amanha = new Date(now); amanha.setDate(amanha.getDate() + 1)
-    dateMapping.push(`  - "amanhã" = ${amanha.toISOString().split('T')[0]} (${joursNoms[amanha.getDay()]})`)
-  } else {
-    dateMapping.push(`  - "aujourd'hui" = ${todayISO} (${joursNoms[now.getDay()]})`)
-    const demain = new Date(now); demain.setDate(demain.getDate() + 1)
-    dateMapping.push(`  - "demain" = ${demain.toISOString().split('T')[0]} (${joursNoms[demain.getDay()]})`)
-  }
-  // Prochains 7 jours par nom de jour
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(now); d.setDate(d.getDate() + i)
-    const jourNom = joursNoms[d.getDay()]
-    const iso = d.toISOString().split('T')[0]
-    dateMapping.push(`  - "${jourNom}" = ${iso}`)
-  }
-  // "la semaine prochaine" / "próxima semana" versions
-  const nextWeekMonday = new Date(now)
-  const dayOfWeek = nextWeekMonday.getDay()
-  const daysUntilNextMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 7 : 8 - dayOfWeek
-  nextWeekMonday.setDate(nextWeekMonday.getDate() + daysUntilNextMonday)
-  if (locale === 'pt') {
-    dateMapping.push(`  - "próxima semana" = segunda-feira ${nextWeekMonday.toISOString().split('T')[0]}`)
-  } else {
-    dateMapping.push(`  - "semaine prochaine" = lundi ${nextWeekMonday.toISOString().split('T')[0]}`)
+export interface SearchDossierResult {
+  coproprios: Array<{ id: string; nom?: string; immeuble?: string }>
+  missions: Array<{ id: string; immeuble: string; type: string; description: string; statut: string }>
+  signalements: Array<{ id: string; immeuble_nom?: string; type_intervention?: string; statut?: string }>
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase client polymorphe
+export async function execSearchDossier(client: any, cabinetId: string | null, query: string): Promise<SearchDossierResult> {
+  const trimmed = query.trim()
+  if (!trimmed || !cabinetId) {
+    return { coproprios: [], missions: [], signalements: [] }
   }
 
-  const dateMappingStr = dateMapping.join('\n')
+  const term = `%${trimmed}%`
 
-  const roleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
+  const [coproRes, missionRes, signalRes] = await Promise.all([
+    client
+      .from('syndic_coproprios')
+      .select('id, nom, immeuble')
+      .eq('cabinet_id', cabinetId)
+      .or(`nom.ilike.${term},immeuble.ilike.${term}`)
+      .limit(10),
+    client
+      .from('syndic_missions')
+      .select('id, immeuble, type, description, statut')
+      .eq('cabinet_id', cabinetId)
+      .or(`immeuble.ilike.${term},description.ilike.${term},type.ilike.${term}`)
+      .limit(10),
+    client
+      .from('syndic_signalements')
+      .select('id, immeuble_nom, type_intervention, statut')
+      .eq('cabinet_id', cabinetId)
+      .or(`immeuble_nom.ilike.${term},type_intervention.ilike.${term}`)
+      .limit(10),
+  ])
 
-  // Sérialisation données cabinet
-  const immeublesStr = (ctx.immeubles as ImmeubleSummary[] || []).map((i) =>
-    `  • ${i.nom} (${i.ville}) — ${i.nbLots} lots — Budget: ${i.budgetAnnuel?.toLocaleString(fmtLocale)}€ — ${locale === 'pt' ? 'Gasto' : 'Dépensé'}: ${i.depensesAnnee?.toLocaleString(fmtLocale)}€ (${i.pctBudget}%)`
-  ).join('\n')
-
-  const artisansStr = (ctx.artisans as ArtisanSummary[] || []).map((a) =>
-    `  • ${a.nom} [${a.metier}] — ${locale === 'pt' ? 'Estado' : 'Statut'}: ${a.statut} — RC Pro: ${a.rcProValide ? `✅ ${locale === 'pt' ? 'válido até' : 'valide jusqu\'au'} ${a.rcProExpiration}` : `❌ ${locale === 'pt' ? 'EXPIRADO' : 'EXPIRÉE'}`} — ${locale === 'pt' ? 'Nota' : 'Note'}: ${a.note}/5${a.vitfixCertifie ? ' — ⭐ Vitfix Certifié' : ''}`
-  ).join('\n')
-
-  const missionsStr = (ctx.missions as MissionSummary[] || []).map((m) =>
-    `  • [${m.priorite?.toUpperCase()}] ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — ${locale === 'pt' ? 'Estado' : 'Statut'}: ${m.statut}${m.dateIntervention ? ` — ${locale === 'pt' ? 'Intervenção' : 'Intervention'}: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — ${locale === 'pt' ? 'Orçamento' : 'Devis'}: ${m.montantDevis?.toLocaleString(fmtLocale)}€` : ''}`
-  ).join('\n')
-
-  const alertesStr = (ctx.alertes as AlerteSummary[] || []).map((a) =>
-    `  • [${a.urgence?.toUpperCase()}] ${a.message}`
-  ).join('\n')
-
-  const echeancesStr = (ctx.echeances as EcheanceSummary[] || []).slice(0, 10).map((e) =>
-    `  • ${e.immeuble} — ${e.label}: ${e.dateEcheance}`
-  ).join('\n')
-
-  const documentsStr = (ctx.documents as DocumentSummary[] || []).slice(0, 10).map((d) =>
-    `  • [${d.type}] ${d.nom} — ${d.immeuble || 'Cabinet'} — ${d.date}`
-  ).join('\n')
-
-  const stats = ctx.stats || {}
-  const pagesDisponibles = roleConfig.pages.join(', ')
-  const actionsDisponibles = roleConfig.actions.join(', ')
-
-  // Actions disponibles selon le rôle
-  const artisanListForLLM = (ctx.artisans as ArtisanSummary[] || []).map((a) => `  • ${a.nom} — email: ${a.email || 'non renseigné'} — métier: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'
-
-  const actionsSection = `
-## Tes capacités d'action (exécutables directement)
-Tu peux agir dans l'application en incluant une balise ACTION dans ta réponse.
-**N'inclus une ACTION que si l'utilisateur te demande explicitement de faire quelque chose.**
-
-${roleConfig.actions.includes('create_mission') ? `**🔴 RÈGLE ABSOLUE POUR LES MISSIONS :**
-- Si l'utilisateur mentionne un NOM D'ARTISAN → utilise TOUJOURS type "assign_mission" (JAMAIS "create_mission")
-- Utilise "create_mission" UNIQUEMENT quand AUCUN artisan n'est mentionné
-- Même si l'utilisateur dit "créer une mission pour X" → c'est un assign_mission car il y a un artisan
-
-**Mission SANS artisan précis** (rare) :
-##ACTION##{"type":"create_mission","immeuble":"nom exact","description":"description précise","priorite":"urgente|normale|planifiee","type_travaux":"type"}##
-
-**Mission AVEC artisan (= assignation — cas le plus fréquent)** :
-##ACTION##{"type":"assign_mission","artisan":"nom complet artisan","artisan_email":"email@artisan.fr","description":"description précise","type_travaux":"Élagage|Plomberie|etc","date_intervention":"YYYY-MM-DD","immeuble":"nom lieu","priorite":"normale","notes":"infos supplémentaires"}##
-
-**Champs obligatoires pour assign_mission :**
-- artisan : le nom tel que dicté par l'utilisateur
-- artisan_email : CHERCHE dans la liste ci-dessous et COPIE l'email exact. Si introuvable, mets ""
-- description : ce qui est demandé
-- date_intervention : **UTILISE OBLIGATOIREMENT** la table de conversion ci-dessous. Si aucune date dite, utilise ${todayISO}
-
-**📅 TABLE DE CONVERSION DES DATES (NE PAS CALCULER SOI-MÊME) :**
-${dateMappingStr}
-⚠️ UTILISE TOUJOURS les dates de cette table. Ne calcule JAMAIS une date toi-même.
-- type_travaux : le type déduit de la description
-- priorite : "normale" par défaut, "urgente" si mots-clés urgence/urgent/en urgence
-
-**EXEMPLES de dictée vocale → action :**
-"Lepore Sebastien élagage 10 mars parc corot" →
-##ACTION##{"type":"assign_mission","artisan":"Lepore Sebastien","artisan_email":"(chercher dans liste)","description":"Élagage","type_travaux":"Élagage","date_intervention":"2026-03-10","immeuble":"Parc Corot","priorite":"normale"}##
-
-"Créer une mission pour Dupont plomberie urgente" →
-##ACTION##{"type":"assign_mission","artisan":"Dupont","artisan_email":"(chercher dans liste)","description":"Intervention plomberie","type_travaux":"Plomberie","date_intervention":"${new Date().toISOString().split('T')[0]}","priorite":"urgente"}##
-
-**📋 LISTE DES ARTISANS DU CABINET (cherche l'email ici) :**
-${artisanListForLLM}
-` : ''}
-${roleConfig.actions.includes('navigate') ? `**Naviguer vers une page** :
-##ACTION##{"type":"navigate","page":"nom_page"}##
-Pages disponibles : ${pagesDisponibles}
-` : ''}
-${roleConfig.actions.includes('create_alert') ? `**Créer une alerte** :
-##ACTION##{"type":"create_alert","message":"texte alerte","urgence":"haute|moyenne|basse"}##
-` : ''}
-${roleConfig.actions.includes('update_mission') ? `**Mettre à jour une mission** :
-##ACTION##{"type":"update_mission","mission_id":"id","statut":"en_cours|terminee|annulee"}##
-` : ''}
-${roleConfig.actions.includes('send_message') ? `**Envoyer un message à un artisan** :
-##ACTION##{"type":"send_message","artisan":"nom artisan","content":"message"}##
-` : ''}
-${roleConfig.actions.includes('create_document') ? `**Créer un document** :
-##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
-` : ''}`
-
-  if (locale === 'pt') {
-    return `Tu és o **Fixy ${roleConfig.emoji}**, o assistente IA Vitfix Pro para ${roleConfig.name}.
-
-LÍNGUA: Comunicas EXCLUSIVAMENTE em português europeu (PT-PT). Nunca uses português do Brasil. Usa sempre: "profissional" (nunca "artesão"), "orçamento", "obras", "remodelação", "casa de banho", "canalizador", "eletricista", "pedreiro", "condomínio", "fração", "administrador".
-
-📅 Hoje: ${today}
-👤 Função ativa: **${roleConfig.name}** — Gabinete "${ctx.cabinet?.nom || 'Gabinete'}"
-
-## O teu perfil e especialização
-${roleConfig.expertise}
-
-És especialista em:
-- **Direito do condomínio**: regulamento de condomínio, encargos, assembleia de condóminos, administração
-- **Regulamentação técnica**: certificado energético, diagnósticos de amianto/chumbo, inspeções de elevadores/gás/eletricidade
-- **Gestão de profissionais**: seguro de responsabilidade civil, certificações, ordens de serviço, receção de obras
-- **Contabilidade de condomínio**: orçamento previsional, quotas, prestação de contas
-- **Contencioso**: processos de dívida, notificações, cobranças, providências cautelares
-
-## Compreensão vocal avançada
-Compreendes e tratas perfeitamente:
-- Ditados vocais (frases longas, com hesitações, reformulações)
-- Abreviaturas orais e linguagem natural falada
-- Termos técnicos pronunciados de forma aproximada
-- Pedidos encadeados ("primeiro... e depois...")
-- Responde sempre de forma fluida, natural, adaptada à leitura em voz alta
-${actionsSection}
-
-## Dados reais do gabinete "${ctx.cabinet?.nom || 'Gabinete'}" (${ctx.cabinet?.gestionnaire || 'Gestor'})
-
-### 📊 Estatísticas globais
-- ${ctx.immeubles?.length || 0} imóvel(eis) — ${stats.totalBudget?.toLocaleString(fmtLocale)}€ orçamento total — ${stats.totalDepenses?.toLocaleString(fmtLocale)}€ gasto
-- ${ctx.artisans?.length || 0} profissional(ais) — ${stats.artisansRcExpiree || 0} RC Pro expirado(s)
-- ${ctx.missions?.length || 0} missão(ões) — ${stats.missionsUrgentes || 0} urgente(s)
-- ${ctx.coproprios_count || 0} condómino(s)
-
-### 🏢 Imóveis
-${immeublesStr || '  (nenhum imóvel registado)'}
-
-### 🔧 Profissionais
-${artisansStr || '  (nenhum profissional registado)'}
-
-### 📋 Missões
-${missionsStr || '  (nenhuma missão)'}
-
-### 🔔 Alertas
-${alertesStr || '  (nenhum alerta)'}
-
-### ⚖️ Prazos regulamentares
-${echeancesStr || '  (nenhum prazo)'}
-
-${documentsStr ? `### 📄 Documentos recentes\n${documentsStr}` : ''}
-
-## Instruções de resposta
-- Responde **sempre em português europeu (PT-PT)**
-- Usa **markdown**: negrito, listas, tabelas para estruturar
-- **Sê preciso e acionável**: números reais, prazos, artigos de lei
-- Para **correspondência**: inclui cabeçalho completo, corpo, fórmula de cortesia, assinatura
-- Para **análises**: conclui com recomendações numeradas e prioritárias
-- Para **respostas vocais** (quando o utilizador fala): sê conciso, conversacional, evita listas demasiado longas
-- Se detetares uma urgência nos dados, **sinaliza-a proativamente**
-- Se o utilizador ditar um texto longo, trata-o como um pedido de criação de documento`
+  return {
+    coproprios: coproRes.data ?? [],
+    missions: missionRes.data ?? [],
+    signalements: signalRes.data ?? [],
   }
+}
 
-  return `Tu es **Fixy ${roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${roleConfig.name}.
+export interface FindEmailThreadResult {
+  emails: Array<{ id: string; from_email?: string; subject?: string; received_at?: string; resume_ia?: string; statut?: string }>
+}
 
-📅 Aujourd'hui : ${today}
-👤 Rôle actif : **${roleConfig.name}** — Cabinet "${ctx.cabinet?.nom || 'Cabinet'}"
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase client polymorphe
+export async function execFindEmailThread(client: any, syndicId: string, criteria: { email?: string; subject?: string }): Promise<FindEmailThreadResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- builder Supabase chainable
+  let q: any = client
+    .from('syndic_emails_analysed')
+    .select('id, from_email, subject, received_at, resume_ia, statut')
+    .eq('syndic_id', syndicId)
+    .order('received_at', { ascending: false })
+    .limit(20)
 
-## Ton profil et expertise
-${roleConfig.expertise}
+  if (criteria.email) q = q.ilike('from_email', `%${criteria.email}%`)
+  if (criteria.subject) q = q.ilike('subject', `%${criteria.subject}%`)
 
-Tu es expert en :
-- **Droit de la copropriété** : loi ALUR, loi ELAN, règlement de copropriété, charges, AG, syndicat des copropriétaires
-- **Réglementation technique** : DPE, diagnostics amiante/plomb, contrôles ascenseurs/gaz/électricité, ERP
-- **Gestion des artisans** : RC Pro, qualifications RGE, Qualibat, ordres de mission, réception travaux
-- **Comptabilité syndic** : budget prévisionnel, appels de charges, tantièmes, comptes rendus de gestion
-- **Contentieux** : procédures impayés, mises en demeure, commandement de payer, référé-provision, PCSPE
-
-## Compréhension vocale avancée
-Tu comprendras et traiteras parfaitement :
-- Les dictées vocales (phrases longues, avec hésitations, reformulations)
-- Les abréviations orales et le langage naturel parlé
-- Les termes techniques prononcés approximativement
-- Les demandes enchaînées ("d'abord... et ensuite...")
-- Toujours répondre de manière fluide, naturelle, adaptée à l'oral si la réponse sera lue à voix haute
-${actionsSection}
-
-## Données réelles du cabinet "${ctx.cabinet?.nom || 'Cabinet'}" (${ctx.cabinet?.gestionnaire || 'Gestionnaire'})
-
-### 📊 Statistiques globales
-- ${ctx.immeubles?.length || 0} immeuble(s) — ${stats.totalBudget?.toLocaleString(fmtLocale)}€ budget total — ${stats.totalDepenses?.toLocaleString(fmtLocale)}€ dépensé
-- ${ctx.artisans?.length || 0} artisan(s) — ${stats.artisansRcExpiree || 0} RC Pro expirée(s)
-- ${ctx.missions?.length || 0} mission(s) — ${stats.missionsUrgentes || 0} urgente(s)
-- ${ctx.coproprios_count || 0} copropriétaire(s)
-
-### 🏢 Immeubles
-${immeublesStr || '  (aucun immeuble enregistré)'}
-
-### 🔧 Artisans
-${artisansStr || '  (aucun artisan enregistré)'}
-
-### 📋 Missions
-${missionsStr || '  (aucune mission)'}
-
-### 🔔 Alertes
-${alertesStr || '  (aucune alerte)'}
-
-### ⚖️ Échéances réglementaires
-${echeancesStr || '  (aucune échéance)'}
-
-${documentsStr ? `### 📄 Documents récents\n${documentsStr}` : ''}
-
-## Instructions de réponse
-- Réponds **toujours en français**
-- Utilise le **markdown** : gras, listes, tableaux pour structurer
-- **Sois précis et actionnable** : chiffres réels, délais, articles de loi
-- Pour les **courriers** : inclus en-tête complet, corps, formule de politesse, signature
-- Pour les **analyses** : conclus avec recommandations numérotées et prioritaires
-- Pour les **réponses vocales** (quand l'utilisateur parle) : sois concis, conversationnel, évite les listes trop longues
-- Si tu détectes une urgence dans les données, **signale-la proactivement**
-- Si l'utilisateur dicte un long texte, traite-le comme une demande de création de document`
+  const { data } = await q
+  return { emails: data ?? [] }
 }
 
 // ── Fallback sans API Groq ────────────────────────────────────────────────────
@@ -371,6 +204,8 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
+
     const ip = getClientIP(request)
     if (!(await checkRateLimit(ip, 40, 60_000))) {
       return rateLimitResponse()
@@ -381,13 +216,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = user.user_metadata?.role || 'syndic'
+    const userRole = getUserRole(user) || 'syndic'
 
     const body = await request.json()
-    const { message, syndic_context = {}, conversation_history = [], locale } = body
+    const { message, syndic_context: clientContext = {}, conversation_history = [], locale } = body
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'message requis' }, { status: 400 })
+    }
+
+    // Hydrater le contexte depuis la DB (le client envoie souvent un objet vide ou partiel)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- contexte dynamique mixte
+    let syndic_context: Record<string, any> = clientContext
+    try {
+      const { loadFixyContext } = await import('@/lib/syndic/fixy-context-loader')
+      const hydrated = await loadFixyContext(supabaseAdmin, user)
+      // Le client peut surcharger l'hydratation si conflit (ex : vue en cours)
+      syndic_context = { ...hydrated, ...clientContext }
+    } catch (err) {
+      console.warn('[fixy] context hydration failed, using client context only:', err)
     }
 
     // Ajouter le rôle dans le contexte
@@ -404,7 +251,75 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const systemPrompt = buildSystemPrompt(syndic_context, userRole, locale)
+    // Résoudre la locale (défaut: 'fr')
+    const resolvedLocale: 'fr' | 'pt' = locale === 'pt' ? 'pt' : 'fr'
+
+    // Pré-calculer les données de date (partagées entre FR et PT)
+    const now = new Date()
+    const fmtLocale = resolvedLocale === 'pt' ? 'pt-PT' : 'fr-FR'
+    const today = now.toLocaleDateString(fmtLocale, {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    })
+    const todayISO = now.toISOString().split('T')[0]
+    const joursNoms = resolvedLocale === 'pt'
+      ? ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+      : ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+    const dateMapping: string[] = []
+    if (resolvedLocale === 'pt') {
+      dateMapping.push(`  - "hoje" = ${todayISO} (${joursNoms[now.getDay()]})`)
+      const amanha = new Date(now); amanha.setDate(amanha.getDate() + 1)
+      dateMapping.push(`  - "amanhã" = ${amanha.toISOString().split('T')[0]} (${joursNoms[amanha.getDay()]})`)
+    } else {
+      dateMapping.push(`  - "aujourd'hui" = ${todayISO} (${joursNoms[now.getDay()]})`)
+      const demain = new Date(now); demain.setDate(demain.getDate() + 1)
+      dateMapping.push(`  - "demain" = ${demain.toISOString().split('T')[0]} (${joursNoms[demain.getDay()]})`)
+    }
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(now); d.setDate(d.getDate() + i)
+      dateMapping.push(`  - "${joursNoms[d.getDay()]}" = ${d.toISOString().split('T')[0]}`)
+    }
+    const nextWeekMonday = new Date(now)
+    const dayOfWeek = nextWeekMonday.getDay()
+    const daysUntilNextMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 7 : 8 - dayOfWeek
+    nextWeekMonday.setDate(nextWeekMonday.getDate() + daysUntilNextMonday)
+    if (resolvedLocale === 'pt') {
+      dateMapping.push(`  - "próxima semana" = segunda-feira ${nextWeekMonday.toISOString().split('T')[0]}`)
+    } else {
+      dateMapping.push(`  - "semaine prochaine" = lundi ${nextWeekMonday.toISOString().split('T')[0]}`)
+    }
+
+    // Résoudre les pages dynamiquement (ROLE_PAGES × locale × rôle) plutôt que
+    // la liste figée de ROLE_CONFIGS — Fixy connaît ainsi les ~85 modules réels
+    // du dashboard, filtrés par locale.
+    const baseRoleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
+    const dynamicPages = getPagesForRoleAndLocale(userRole, resolvedLocale)
+    const roleConfig = { ...baseRoleConfig, pages: dynamicPages }
+
+    // Assembler le FixyPromptContext pour les nouvelles fonctions
+    const promptCtx: FixyPromptContext = {
+      role: userRole as FixyPromptContext['role'],
+      cabinet: syndic_context.cabinet,
+      immeubles: syndic_context.immeubles,
+      artisans: syndic_context.artisans,
+      missions: syndic_context.missions,
+      alertes: syndic_context.alertes,
+      echeances: syndic_context.echeances,
+      documents: syndic_context.documents,
+      stats: syndic_context.stats,
+      coproprios_count: syndic_context.coproprios_count,
+      user_name: syndic_context.user_name,
+      date: today,
+      dateISO: todayISO,
+      dateMappingStr: dateMapping.join('\n'),
+      roleConfig,
+    }
+
+    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
+    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(promptCtx)
+
+    const systemPrompt = resolvedLocale === 'pt'
+      ? buildFixySystemPromptPT(sanitizedCtx)
+      : buildFixySystemPromptFR(sanitizedCtx)
 
     const historyMessages = limitedHistory
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
@@ -418,19 +333,95 @@ export async function POST(request: NextRequest) {
 
     let groqData: GroqResponse
     try {
-      groqData = await callGroqWithRetry({
-        messages,
-        temperature: 0.25,
-        max_tokens: 4000,
-      })
+      groqData = await traceAgent(
+        {
+          agent_id: 'fixy',
+          user_id: user.id,
+          conversation_id: body.conversation_id,
+          prompt: message,
+        },
+        () => callGroqWithRetry({
+          messages,
+          temperature: 0.25,
+          max_tokens: 4000,
+        }, { apiKey: GROQ_API_KEY, maxRetries: 2, disableCerebrasFallback: true }),
+      )
     } catch (err) {
-      logger.error('Groq Fixy error:', err)
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logger.error('Groq Fixy error:', { error: errMsg })
+      // Différencier "clé manquante" (déjà géré ligne 247) du vrai échec LLM :
+      // ici la clé est présente mais l'appel a échoué (429, timeout, etc.).
+      const errorMessage = locale === 'pt'
+        ? `⚠️ O serviço IA está temporariamente sobrecarregado. Tente novamente dentro de alguns segundos.\n\n_Detalhe técnico: ${errMsg.slice(0, 120)}_`
+        : `⚠️ Le service IA est temporairement surchargé. Réessayez dans quelques secondes.\n\n_Détail technique : ${errMsg.slice(0, 120)}_`
       return NextResponse.json({
-        response: generateFallback(message, syndic_context, userRole, locale),
+        response: errorMessage,
         fallback: true,
+        error: 'llm_unreachable',
       })
     }
     let response: string = groqData.choices?.[0]?.message?.content || (locale === 'pt' ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
+
+    // ── Tool-calling loop — search_dossier + find_email_thread ───────────────
+    // Si le LLM émet un ##TOOL##...## dans sa réponse, exécuter la query DB
+    // puis réinjecter les résultats pour un second appel Groq.
+    const toolMatch = response.match(/##TOOL##([\s\S]*?)##/)
+    if (toolMatch) {
+      try {
+        const toolCall = JSON.parse(toolMatch[1]) as { name: string; args: Record<string, string> }
+        const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+        let toolResult: string
+
+        if (toolCall.name === 'search_dossier') {
+          // Résoudre les tokens éventuels dans les args avant la query DB
+          const resolvedQuery = resolveSanitizedToken(toolCall.args?.query ?? '', tokenMap) ?? toolCall.args?.query ?? ''
+          const result = await execSearchDossier(supabaseAdmin, cabinetId, resolvedQuery)
+          toolResult = JSON.stringify(result, null, 2)
+        } else if (toolCall.name === 'find_email_thread') {
+          // Résoudre les tokens dans email/subject avant la query DB
+          const rawEmail = toolCall.args?.email
+          const rawSubject = toolCall.args?.subject
+          const resolvedEmail = rawEmail ? (resolveSanitizedToken(rawEmail, tokenMap) ?? rawEmail) : undefined
+          const resolvedSubject = rawSubject ? (resolveSanitizedToken(rawSubject, tokenMap) ?? rawSubject) : undefined
+          const result = await execFindEmailThread(supabaseAdmin, user.id, {
+            email: resolvedEmail,
+            subject: resolvedSubject,
+          })
+          toolResult = JSON.stringify(result, null, 2)
+        } else {
+          toolResult = JSON.stringify({ error: 'tool inconnu' })
+        }
+
+        // Second appel Groq avec les résultats du tool injectés
+        const messagesWithToolResult = [
+          ...messages,
+          { role: 'assistant' as const, content: response },
+          {
+            role: 'user' as const,
+            content: `Résultats du tool ${toolCall.name} :\n\`\`\`json\n${toolResult}\n\`\`\`\n\nUtilise ces données pour répondre à la question initiale.`,
+          },
+        ]
+        try {
+          const groqData2 = await callGroqWithRetry({
+            messages: messagesWithToolResult,
+            temperature: 0.25,
+            max_tokens: 4000,
+          }, { apiKey: GROQ_API_KEY, maxRetries: 2, disableCerebrasFallback: true })
+          const response2 = groqData2.choices?.[0]?.message?.content
+          if (response2) {
+            response = response2.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+          } else {
+            response = response.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+          }
+        } catch (err2) {
+          logger.error('Groq Fixy tool-loop error:', err2)
+          response = response.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+        }
+      } catch {
+        // Ignore les tool calls malformés, supprimer la balise de la réponse
+        response = response.replace(/##TOOL##[\s\S]*?##/g, '').trim()
+      }
+    }
 
     // Extraire l'action si présente
     let action: Record<string, unknown> | null = null
@@ -449,6 +440,7 @@ export async function POST(request: NextRequest) {
             update_mission: '📝 Atualização de missão preparada.',
             send_message: '✉️ Mensagem preparada.',
             create_document: '📄 Documento preparado.',
+            create_event: '📆 Marcação preparada. Verifique os detalhes abaixo.',
           } : {
             create_mission: '📋 Mission préparée. Vérifiez les détails ci-dessous.',
             assign_mission: '📋 Mission assignée préparée. Vérifiez les détails ci-dessous.',
@@ -457,6 +449,7 @@ export async function POST(request: NextRequest) {
             update_mission: '📝 Mise à jour de mission préparée.',
             send_message: '✉️ Message préparé.',
             create_document: '📄 Document préparé.',
+            create_event: '📆 Rendez-vous préparé. Vérifiez les détails ci-dessous.',
           }
           response = actionLabels[action.type as string] || (locale === 'pt' ? '✅ Ação preparada. Verifique os detalhes abaixo.' : '✅ Action préparée. Vérifiez les détails ci-dessous.')
         }
@@ -464,6 +457,9 @@ export async function POST(request: NextRequest) {
         // Ignore les actions malformées
       }
     }
+
+    // Résoudre les tokens PII dans la réponse finale (au cas où Groq les répercuterait)
+    response = resolveSanitizedToken(response, tokenMap) ?? response
 
     return NextResponse.json({ response, action, role: userRole })
 

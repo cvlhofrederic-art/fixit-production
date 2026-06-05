@@ -25,15 +25,32 @@ export function formatDate(date: string, locale: string = 'fr') {
 }
 
 /**
+ * Returns the correct public profile path based on org_role and locale.
+ * pro_societe → /fr/societe/[slug] or /pt/empresa/[slug]
+ * artisan    → /fr/artisan/[slug] or /pt/profissional/[slug]
+ */
+export function getProfilePath(artisan: { slug?: string | null; id: string; org_role?: string | null }, locale: string): string {
+  const identifier = artisan.slug || artisan.id
+  const isCompany = artisan.org_role === 'pro_societe'
+  if (locale === 'pt') {
+    return isCompany ? `/pt/empresa/${identifier}` : `/pt/profissional/${identifier}`
+  }
+  return isCompany ? `/fr/societe/${identifier}` : `/fr/artisan/${identifier}`
+}
+
+/**
  * Génère un slug URL-safe depuis un nom (company_name)
  * "Lepore Sebastien" → "leporesebastien"
- * "Électricité Martin & Fils" → "electricitemartinfils"
+ * "Électricité Martin & Fils", "Marseille" → "electricite-martin-fils-marseille"
  */
-export function generateSlug(name: string): string {
-  return name
-    .normalize('NFD')                     // décompose les accents
-    .replace(/[\u0300-\u036f]/g, '')      // supprime les diacritiques
+export function generateSlug(name: string, city?: string): string {
+  const raw = city ? `${name} ${city}` : name
+  return raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')            // garde uniquement alphanumérique
-    .substring(0, 50)                     // max 50 chars
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/[\s-]+/g, '-')
+    .substring(0, 60)
 }

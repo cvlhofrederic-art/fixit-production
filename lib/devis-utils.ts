@@ -7,6 +7,84 @@ import type { ProductLine } from '@/lib/devis-types'
 import { UNITE_VALUES } from '@/lib/devis-types'
 import type { Locale } from '@/lib/i18n/config'
 
+/**
+ * Identité STABLE d'un document (UUID v4). Générée une seule fois à la création
+ * d'un devis/facture, immuable de brouillon → émis. Sert de clé d'upsert serveur
+ * (onConflict='id', cf. app/api/devis/sync/route.ts) ET de clé localStorage.
+ * Le format DOIT être un UUID valide (le schéma Zod `devisSyncSchema` le valide),
+ * y compris le fallback pour les WebViews Capacitor anciens sans crypto.randomUUID.
+ * Conséquence : un brouillon n'a PAS de numéro (numéro légal tiré de
+ * next_doc_number UNIQUEMENT à la validation) et deux brouillons ne peuvent
+ * jamais s'écraser via un numéro réémis.
+ */
+export function stableDocId(): string {
+  // WebCrypto uniquement (PRNG fort) : crypto.randomUUID en priorité, sinon
+  // construction d'un UUID v4 via crypto.getRandomValues (dispo bien plus
+  // largement, y compris WebViews Capacitor anciens). Aucun Math.random.
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      const b = crypto.getRandomValues(new Uint8Array(16))
+      b[6] = (b[6] & 0x0f) | 0x40 // version 4
+      b[8] = (b[8] & 0x3f) | 0x80 // variant RFC 4122
+      const h = Array.from(b, (x) => x.toString(16).padStart(2, '0'))
+      return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`
+    }
+  } catch { /* environnement sans WebCrypto (très improbable) : fallback ci-dessous */ }
+  // Dernier recours : horodatage + compteur de module (unicité intra-session).
+  // Pas de Math.random (PRNG faible). Cas quasi-mort : tout WebView cible a WebCrypto.
+  _idFallbackCounter = (_idFallbackCounter + 1) % 0xffffff
+  const t = Date.now().toString(16).padStart(12, '0').slice(-12)
+  const c = _idFallbackCounter.toString(16).padStart(6, '0')
+  return `${t.slice(0, 8)}-${t.slice(8, 12)}-4${c.slice(0, 3)}-8${c.slice(3, 6)}-${t.slice(0, 8)}${c.slice(0, 4)}`
+}
+let _idFallbackCounter = 0
+
+/**
+ * Clé d'identité d'un document pour dédup / match / suppression côté UI :
+ * `id` stable en priorité (un brouillon n'a PAS de numéro), fallback `docNumber`
+ * pour les docs legacy sans id. Chaîne vide seulement si aucun des deux (ne
+ * devrait pas arriver : tout doc créé après la refonte porte un id stable).
+ */
+export function docIdentityKey(
+  d: { id?: string | null; docNumber?: string | null } | null | undefined,
+): string {
+  return (d?.id as string) || (d?.docNumber as string) || ''
+}
+
+/**
+ * Fusionne deux listes de documents par identité stable (docIdentityKey) :
+ * `incoming` prime sur `existing` à clé égale, l'ordre de `existing` est
+ * préservé, et les entrées de `incoming` absentes sont ajoutées. Les docs sans
+ * identité ne sont jamais fusionnés (clé de repli unique). Mutualise la dédup
+ * du merge cloud (dashboard) ET du refresh localStorage des listes V5.
+ */
+export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
+  const byKey = new Map<string, T>()
+  let noId = 0
+  const keyOf = (d: T): string =>
+    docIdentityKey(d as { id?: string | null; docNumber?: string | null }) || `__noid_${noId++}`
+  for (const d of existing) byKey.set(keyOf(d), d)
+  for (const d of incoming) byKey.set(keyOf(d), d)
+  return Array.from(byKey.values())
+}
+
+/**
+ * Extrait un entier comparable depuis un docNumber type "DEV-2026-003" ou "FACT-2026-012".
+ * Permet le tri "du plus récent émis au plus ancien émis" basé sur le numéro de séquence
+ * (et non sur created_at, qui peut être trompé par un document recréé tardivement).
+ *
+ * Les docs sans numéro valide (brouillons "BR-1779..." ou autres) reçoivent MAX_SAFE_INTEGER
+ * et apparaissent en tête d'une liste triée descendante (action requise).
+ */
+export const getDocSeq = (doc: { docNumber?: string }): number => {
+  const m = (doc.docNumber || '').match(/-(\d{4})-(\d+)$/)
+  if (!m) return Number.MAX_SAFE_INTEGER
+  return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
+}
+
 /** Convertit la valeur stockée en affichage PDF lisible (m2→m², m3→m³) */
 export const formatUnitForPdf = (unit: string, customUnit?: string): string => {
   if (unit === 'autre') return customUnit || 'u'
@@ -31,6 +109,54 @@ export const getSelectValue = (line: ProductLine): string => {
   return 'autre'
 }
 
+/**
+ * Normalise un nom (personne ou entreprise) ALL CAPS en Title Case lisible.
+ * Cas typique : data SIRENE qui renvoie "FREDERIC NEIVA CARVALHO" → "Frédéric Neiva Carvalho".
+ * (Les accents ne peuvent pas être restaurés à partir d'une chaîne sans accents : voir
+ *  `restoreCommonAccents` ci-dessous pour les substitutions sûres FR/PT.)
+ *
+ * Préserve les acronymes courts (≤ 3 caractères : "JCB", "JF", "SAS", "EURL"…).
+ * Conserve la casse si la chaîne n'est PAS toute en majuscules (déjà bien formatée).
+ */
+export function titleCaseName(name: string): string {
+  if (!name) return name
+  // Si déjà mixte (pas tout en majuscules) → on ne touche pas
+  if (name !== name.toUpperCase()) return name
+  const lowerWords = new Set(['de', 'da', 'do', 'du', 'des', 'le', 'la', 'les', 'l', 'el', 'en', 'et', 'au', 'aux', 'sur', 'von', 'van'])
+  const keepUpper = new Set(['SARL', 'EURL', 'SAS', 'SASU', 'SA', 'SCI', 'SCM', 'EI', 'AE', 'EI/AE', 'LDA', 'SA.', 'BTP', 'TP', 'JC', 'JCB', 'JF', 'JM', 'JP', 'JL'])
+  return name.split(/(\s+|-|,\s*)/g).map((part, idx) => {
+    const t = part.trim()
+    if (!t || /^[\s,-]+$/.test(part)) return part
+    // Acronymes courts (≤3 lettres) ou listés → garder UPPER
+    if (keepUpper.has(t) || (t.length <= 2 && /^[A-Z]+$/.test(t))) return t
+    const lo = t.toLowerCase()
+    if (idx > 0 && lowerWords.has(lo)) return lo
+    return restoreCommonAccents(lo.charAt(0).toUpperCase() + lo.slice(1))
+  }).join('')
+}
+
+/**
+ * Restaure quelques accents FR/PT courants pour les prénoms et villes.
+ * Ne couvre pas tous les cas — c'est un best-effort sur les noms les plus fréquents.
+ * Préfère extension à la liste plutôt que dictionnaire complet (perf + simplicité).
+ */
+function restoreCommonAccents(s: string): string {
+  const map: Record<string, string> = {
+    'Frederic': 'Frédéric', 'Frederique': 'Frédérique', 'Stephane': 'Stéphane', 'Stephanie': 'Stéphanie',
+    'Helene': 'Hélène', 'Andre': 'André', 'Andrea': 'Andrea', 'Cedric': 'Cédric', 'Jerome': 'Jérôme',
+    'Jeremie': 'Jérémie', 'Jeremy': 'Jérémy', 'Mathieu': 'Mathieu', 'Matheo': 'Mathéo',
+    'Theo': 'Théo', 'Theodore': 'Théodore', 'Therese': 'Thérèse', 'Sebastien': 'Sébastien',
+    'Bartelemy': 'Barthélémy', 'Genevieve': 'Geneviève', 'Eleonore': 'Éléonore', 'Edouard': 'Édouard',
+    'Eric': 'Éric', 'Elise': 'Élise', 'Elodie': 'Élodie', 'Emile': 'Émile', 'Emilie': 'Émilie',
+    'Emmanuelle': 'Emmanuelle', 'Etienne': 'Étienne',
+    // Villes FR courantes
+    'Marseille': 'Marseille', 'Lyon': 'Lyon', 'Bedoule': 'Bédoule',
+    // PT courants
+    'Joao': 'João', 'Antonio': 'António', 'Joaquim': 'Joaquim', 'Sao': 'São',
+  }
+  return map[s] || s
+}
+
 /** Normalise une adresse ALL CAPS (API BAN) en Title Case */
 export function titleCaseAddress(addr: string): string {
   if (!addr) return addr
@@ -42,14 +168,33 @@ export function titleCaseAddress(addr: string): string {
     'RUE': 'Rue', 'IMPASSE': 'Impasse', 'ALLEE': 'Allée', 'CHEMIN': 'Chemin',
     'PLACE': 'Place', 'ROUTE': 'Route', 'COURS': 'Cours', 'CEDEX': 'Cedex',
   }
+  // Capitalise un mot simple (ex: "EGLISE" → "Eglise"). Préserve l'accent si présent.
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+  // Capitalise un mot composé avec tirets (ex: "AIX-EN-PROVENCE" → "Aix-en-Provence")
+  // Les particules courantes (en, sur, le, la, ...) restent en minuscules à l'intérieur.
+  const capitalizeHyphenated = (s: string) => s.split('-').map((seg, i) => {
+    if (!seg) return seg
+    const lo = seg.toLowerCase()
+    if (i > 0 && lowerWords.has(lo)) return lo
+    return capitalize(seg)
+  }).join('-')
   return addr.split(/(\s+|,\s*)/g).map((part, idx) => {
     const t = part.trim()
     if (!t || /^[\s,]+$/.test(part)) return part
     if (/^\d{5}$/.test(t)) return t
     if (abbrMap[t]) return abbrMap[t]
+    // Particule avec apostrophe : L'…, D' (typographique ' ou droite '). La particule
+    // en minuscule, le mot qui suit capitalisé. Ex: "L'ÉGLISE" → "l'Église", "D'AIX" → "d'Aix".
+    const apoMatch = t.match(/^([LD])(['’])(.+)$/i)
+    if (apoMatch) {
+      const [, particle, , rest] = apoMatch
+      return `${particle.toLowerCase()}’${capitalizeHyphenated(rest)}`
+    }
     const lo = t.toLowerCase()
     if (idx > 0 && lowerWords.has(lo)) return lo
-    return lo.charAt(0).toUpperCase() + lo.slice(1)
+    // Mots composés avec tirets (Aix-en-Provence, Saint-Étienne)
+    if (t.includes('-')) return capitalizeHyphenated(t)
+    return capitalize(t)
   }).join('')
 }
 

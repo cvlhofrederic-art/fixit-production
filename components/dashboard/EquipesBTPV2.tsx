@@ -152,6 +152,7 @@ interface GerantClassification {
   eligibilite_chomage: boolean
   charges_estimees: string
   alerte: string | null
+  alerte_pt: string | null
 }
 
 function classifyGerant(params: {
@@ -173,6 +174,7 @@ function classifyGerant(params: {
         eligibilite_chomage: false,
         charges_estimees: '21,41%',
         alerte: null,
+        alerte_pt: null,
       }
     }
     return {
@@ -183,6 +185,7 @@ function classifyGerant(params: {
       eligibilite_chomage: false,
       charges_estimees: '23,75% patronal + 11% salarial',
       alerte: null,
+      alerte_pt: null,
     }
   }
 
@@ -196,6 +199,7 @@ function classifyGerant(params: {
       eligibilite_chomage: false,
       charges_estimees: '60-80%',
       alerte: null,
+      alerte_pt: null,
     }
   }
 
@@ -209,6 +213,7 @@ function classifyGerant(params: {
       eligibilite_chomage: false,
       charges_estimees: '40-45%',
       alerte: 'Un gérant majoritaire ne peut pas avoir de contrat de travail dans sa société (art. L223-18 C.com).',
+      alerte_pt: 'Um gerente maioritário não pode ter contrato de trabalho na sua própria sociedade (art. L223-18 C.com).',
     }
   }
 
@@ -221,6 +226,7 @@ function classifyGerant(params: {
       eligibilite_chomage: false,
       charges_estimees: '40-45%',
       alerte: '50% = égalitaire → traité comme majoritaire par l\'URSSAF.',
+      alerte_pt: '50% = igualitário → tratado como maioritário pela URSSAF.',
     }
   }
 
@@ -233,6 +239,7 @@ function classifyGerant(params: {
     eligibilite_chomage: false,
     charges_estimees: '60-80%',
     alerte: null,
+    alerte_pt: null,
   }
 }
 
@@ -299,7 +306,10 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{type: string, id: string} | null>(null)
 
-  const [mForm, setMForm] = useState(EMPTY_MFORM)
+  const defaultChargesSalariales = Math.round(companyConfig.employee_charge_rate * 100)
+  const defaultChargesPatronales = Math.round(companyConfig.employer_charge_rate * 100)
+  const defaultHeuresHebdo = isPt ? 40 : 35
+  const [mForm, setMForm] = useState({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo })
   const [eForm, setEForm] = useState({ nom: '', metier: '', chantierId: '', membreIds: [] as string[] })
 
   // Computed: real cost per member using payroll engine
@@ -374,7 +384,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
     setSaving(false)
     setShowMembreModal(false)
     setEditingMembre(null)
-    setMForm(EMPTY_MFORM)
+    setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo })
     setShowFinance(false)
   }
 
@@ -384,11 +394,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
       prenom: m.prenom || '', nom: m.nom || '',
       telephone: m.telephone || '', email: m.email || '',
       typeCompte: m.typeCompte || 'ouvrier', rolePerso: m.rolePerso || '', equipeId: m.equipeId || '',
-      coutHoraire: m.coutHoraire || 25, chargesPct: m.chargesPct || 45,
+      coutHoraire: m.coutHoraire || 25, chargesPct: m.chargesPct || defaultChargesPatronales,
       salaire_brut_mensuel: m.salaire_brut_mensuel ? String(m.salaire_brut_mensuel) : '',
       salaire_net_mensuel: m.salaire_net_mensuel ? String(m.salaire_net_mensuel) : '',
-      charges_salariales_pct: m.charges_salariales_pct ?? 22,
-      charges_patronales_pct: m.charges_patronales_pct ?? 45,
+      charges_salariales_pct: m.charges_salariales_pct ?? defaultChargesSalariales,
+      charges_patronales_pct: m.charges_patronales_pct ?? defaultChargesPatronales,
       type_contrat: (() => { const valid = getValidContrats(m.typeCompte || 'ouvrier'); return valid.includes(m.type_contrat) ? m.type_contrat : valid[0] })(),
       heures_hebdo: m.heures_hebdo || 35,
       panier_repas_jour: m.panier_repas_jour || 0,
@@ -449,12 +459,12 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
       {/* Header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>{isPt ? 'Équipes & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <h1>{isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p>{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && (
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo }); setShowFinance(false); setShowMembreModal(true) }}>
               + {isPt ? 'Membro' : 'Membre'}
             </button>
           )}
@@ -520,7 +530,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                           <th>{isPt ? 'Contrato' : 'Contrat'}</th>
                           <th style={{ textAlign: 'right' }}>{isPt ? 'Custo/h' : 'Coût/h'}</th>
                           <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/h' : 'Coût réel/h'}</th>
-                          <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/jour' : 'Coût réel/jour'}</th>
+                          <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/dia' : 'Coût réel/jour'}</th>
                           <th style={{ textAlign: 'right' }}>{isPt ? 'Subsídios' : 'Indemnités'}</th>
                           <th></th>
                         </tr>
@@ -557,11 +567,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                               </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label="Modifier"><Pencil size={12} /></button>
+                                  <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label={isPt ? 'Editar' : 'Modifier'}><Pencil size={12} /></button>
                                   <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
-                                    style={{ background: '#FFF3E0', color: '#EF6C00' }} aria-label="Désactiver"><Minus size={12} /></button>
+                                    style={{ background: '#FFF3E0', color: '#EF6C00' }} aria-label={isPt ? 'Desativar' : 'Désactiver'}><Minus size={12} /></button>
                                   <button className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm v22-btn-danger'} onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
-                                    aria-label="Supprimer"><Trash2 size={12} /></button>
+                                    aria-label={isPt ? 'Remover' : 'Supprimer'}><Trash2 size={12} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -629,7 +639,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     {eqCost > 0 && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{isPt ? 'Custo/h' : 'Coût/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(eqCost * 100) / 100}€</strong></div>}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span className={isV5 ? `v5-badge ${eqMembres.length > 0 ? 'v5-badge-green' : 'v5-badge-orange'}` : `v22-tag ${eqMembres.length > 0 ? 'v22-tag-green' : 'v22-tag-orange'}`}>{eqMembres.length > 0 ? (isPt ? 'Operacional' : 'Déployée') : (isPt ? 'Em repouso' : 'En repos')}</span>
-                      <button className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm v22-btn-danger'} onClick={(e) => { e.stopPropagation(); deleteEquipe(eq.id) }} aria-label="Supprimer"><Trash2 size={12} /></button>
+                      <button className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm v22-btn-danger'} onClick={(e) => { e.stopPropagation(); deleteEquipe(eq.id) }} aria-label={isPt ? 'Remover' : 'Supprimer'}><Trash2 size={12} /></button>
                     </div>
                   </div>
                 )
@@ -653,11 +663,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Primeiro nome *' : 'Prénom *'}</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.prenom} onChange={e => setMForm({ ...mForm, prenom: e.target.value })} placeholder="Jean" />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.prenom} onChange={e => setMForm({ ...mForm, prenom: e.target.value })} placeholder={isPt ? 'João' : 'Jean'} />
                 </div>
                 <div>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Apelido *' : 'Nom *'}</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} placeholder="Dupont" />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} placeholder={isPt ? 'Silva' : 'Dupont'} />
                 </div>
               </div>
 
@@ -753,10 +763,10 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     </div>
 
                     {/* Alerte légale */}
-                    {classification.alerte && (
+                    {(classification.alerte || classification.alerte_pt) && (
                       <div style={{ fontSize: 12, color: '#B71C1C', background: '#FFEBEE', borderRadius: 6, padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                         <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                        <span>{classification.alerte}</span>
+                        <span>{isPt ? classification.alerte_pt : classification.alerte}</span>
                       </div>
                     )}
                   </div>
@@ -779,11 +789,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={14} /> {isPt ? 'Telefone' : 'Téléphone'}</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder={isPt ? '912 345 678' : '06 12 34 56 78'} />
                 </div>
                 <div>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder={isPt ? 'joao@exemplo.com' : 'jean@example.com'} />
                 </div>
               </div>
 
@@ -814,7 +824,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       <button
                         onClick={() => setCalcMode('manuel')}
                         className={isV5 ? `v5-tab-b${calcMode === 'manuel' ? ' active' : ''}` : `v22-tab${calcMode === 'manuel' ? ' active' : ''}`}>
-                        Manuel
+                        {isPt ? 'Manual' : 'Manuel'}
                       </button>
                     </div>
                   </div>
@@ -840,7 +850,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
                       <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
                         onChange={e => {
-                          const h = parseFloat(e.target.value) || 35
+                          const h = parseFloat(e.target.value) || defaultHeuresHebdo
                           if (calcMode === 'auto') {
                             const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
                             setMForm({ ...mForm, heures_hebdo: h, coutHoraire: brut > 0 ? coutHoraireFromBrut(brut, h) : mForm.coutHoraire })
@@ -882,7 +892,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     <div>
                       <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário líquido (€)' : 'Salaire NET (€)'}
-                        {calcMode === 'auto' && mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>{isPt ? 'fonte' : 'source'}</span>}
                       </label>
                       <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="50"
                         value={mForm.salaire_net_mensuel}
@@ -910,7 +920,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     <div>
                       <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário bruto (€)' : 'Salaire BRUT (€)'}
-                        {calcMode === 'auto' && mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>{isPt ? 'fonte' : 'source'}</span>}
                       </label>
                       <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="50"
                         value={mForm.salaire_brut_mensuel}
@@ -938,7 +948,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     <div>
                       <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Custo horário (€)' : 'Coût horaire (€)'}
-                        {calcMode === 'auto' && mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>{isPt ? 'fonte' : 'source'}</span>}
                       </label>
                       <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="0.5"
                         value={mForm.coutHoraire}
@@ -982,10 +992,10 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       warnings.push(isPt ? 'O líquido não pode ser >= ao bruto !' : 'Le net ne peut pas être supérieur ou égal au brut !')
                     }
                     if (brut > 0 && brut < 1747) {
-                      warnings.push(isPt ? 'Salário abaixo do SMIC bruto 2025 (1 747€)' : 'Salaire en dessous du SMIC brut 2025 (1 747€)')
+                      warnings.push(isPt ? 'Salário abaixo do salário mínimo bruto 2025 (1 747€)' : 'Salaire en dessous du SMIC brut 2025 (1 747€)')
                     }
                     if (mForm.coutHoraire > 0 && mForm.coutHoraire < 11.52) {
-                      warnings.push(isPt ? 'Custo horário abaixo do SMIC horário (11,52€)' : 'Coût horaire en dessous du SMIC horaire (11,52€)')
+                      warnings.push(isPt ? 'Custo horário abaixo do salário mínimo por hora (11,52€)' : 'Coût horaire en dessous du SMIC horaire (11,52€)')
                     }
 
                     if (warnings.length === 0) return null
@@ -1118,20 +1128,20 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
                           <div>{isPt ? 'Custo/hora (total)' : 'Coût/heure (total)'} :</div>
                           <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v5-primary-yellow)' }}>{p.cost_per_hour}€</div>
-                          <div>{isPt ? 'Custo/jour' : 'Coût/jour'} :</div>
+                          <div>{isPt ? 'Custo/dia' : 'Coût/jour'} :</div>
                           <div style={{ fontWeight: 700, textAlign: 'right' }}>{p.cost_per_day}€</div>
                           {p.indemnites_jour > 0 && <>
-                            <div style={{ fontSize: 11, color: '#999' }}>  {isPt ? 'dont indemnités' : 'dont indemnités'} :</div>
-                            <div style={{ fontSize: 11, color: '#999', textAlign: 'right' }}>{p.indemnites_jour}€/jour</div>
+                            <div style={{ fontSize: 11, color: '#999' }}>  {isPt ? 'dos quais subsídios' : 'dont indemnités'} :</div>
+                            <div style={{ fontSize: 11, color: '#999', textAlign: 'right' }}>{p.indemnites_jour}€/{isPt ? 'dia' : 'jour'}</div>
                           </>}
                           {p.btp_total > 0 && <>
-                            <div style={{ fontSize: 11, color: '#8B6914' }}>  {isPt ? 'dont BTP spécifique' : 'dont BTP spécifique'} :</div>
-                            <div style={{ fontSize: 11, color: '#8B6914', textAlign: 'right' }}>{p.btp_total}€/mois</div>
+                            <div style={{ fontSize: 11, color: '#8B6914' }}>  {isPt ? 'dos quais encargos construção' : 'dont BTP spécifique'} :</div>
+                            <div style={{ fontSize: 11, color: '#8B6914', textAlign: 'right' }}>{p.btp_total}€/{isPt ? 'mês' : 'mois'}</div>
                           </>}
                           <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal' : 'Coût mensuel'} :</div>
                           <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v5-primary-yellow)' }}>{p.cost_per_month}€</div>
                           <div>{isPt ? 'Custo anual' : 'Coût annuel'} :</div>
-                          <div style={{ fontWeight: 600, textAlign: 'right' }}>{p.cost_per_year.toLocaleString('fr-FR')}€</div>
+                          <div style={{ fontWeight: 600, textAlign: 'right' }}>{p.cost_per_year.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}€</div>
                         </div>
                       )
                     })()}
@@ -1207,7 +1217,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                   {(() => {
                     const sel = membres.filter(m => eForm.membreIds.includes(m.id))
                     const totalH = sel.reduce((s, m) => s + (m.coutHoraire || 25) * (1 + (m.charges_patronales_pct || m.chargesPct || 45) / 100), 0)
-                    return <div>{isPt ? 'Total coût réel/h' : 'Total coût réel/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(totalH * 100) / 100}€</strong></div>
+                    return <div>{isPt ? 'Total custo real/h' : 'Total coût réel/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(totalH * 100) / 100}€</strong></div>
                   })()}
                 </div>
               )}
@@ -1217,7 +1227,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                 onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1 }}
                 onClick={submitEquipe} disabled={!eForm.nom.trim() || saving}>
-                {saving ? '...' : editingEquipe ? 'Sauvegarder' : (isPt ? 'Criar' : 'Créer')}
+                {saving ? '...' : editingEquipe ? (isPt ? 'Guardar' : 'Sauvegarder') : (isPt ? 'Criar' : 'Créer')}
               </button>
             </div>
           </div>
@@ -1233,7 +1243,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
               <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => setConfirmDelete(null)}>✕</button>
             </div>
             <div style={{ padding: '1rem 1.25rem' }}>
-              <p style={{ fontSize: 12 }}>{isPt ? 'Tem certeza que deseja eliminar?' : 'Êtes-vous sûr de vouloir supprimer ?'}</p>
+              <p style={{ fontSize: 12 }}>{isPt ? 'Tem a certeza de que pretende eliminar?' : 'Êtes-vous sûr de vouloir supprimer ?'}</p>
             </div>
             <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>

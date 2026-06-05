@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Spécialités VITFIX Marseille — Élagage palmier, débarras succession, fuite urgence',
+  title: 'Spécialités VITFIX Marseille : Élagage palmier, débarras succession, fuite urgence',
   description: 'Pages spécialistes VITFIX : élagage palmier PACA, débroussaillage obligation légale, débarras succession, remplacement chauffe-eau, fuite urgence, rénovation salle de bain Marseille.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/',
@@ -60,7 +60,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'LocalBusiness',
-      name: 'VITFIX — Spécialités Artisans Marseille PACA',
+      name: 'VITFIX : Spécialités Artisans Marseille PACA',
       description: 'Services spécialisés à Marseille et en PACA : élagage palmier, débroussaillage, débarras succession, rénovation salle de bain.',
       url: 'https://vitfix.io/fr/specialites/',
       telephone: PHONE_FR,

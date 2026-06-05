@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, verifySiretQuerySchema } from '@/lib/validation'
+import { formatSiegeAddress } from '@/lib/sirene-address'
 
 // Codes NAF typiques pour les artisans du bâtiment et services
 const ARTISAN_NAF_PREFIXES = [
@@ -82,8 +83,6 @@ export async function GET(request: NextRequest) {
           `https://recherche-entreprises.api.gouv.fr/search?q=${cleanSiret}&mtm_campaign=fixit`,
           {
             headers: { 'Accept': 'application/json' },
-            next: { revalidate: 3600 },
-            signal: AbortSignal.timeout(10000), // 10s timeout
           }
         )
         if (response.ok || response.status < 500) break
@@ -94,10 +93,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (!response || !response.ok) {
+      const body = response ? await response.text().catch(() => '') : 'no response'
+      logger.error(`[verify-siret] API error: status=${response?.status} body=${body}`)
       return NextResponse.json({
         verified: false,
-        error: 'Service de vérification temporairement indisponible. Réessayez dans quelques instants.',
-        step: 'api_error'
+        error: `Service de vérification temporairement indisponible. Réessayez dans quelques instants.`,
+        step: 'api_error',
+        debug: { status: response?.status, body: body.substring(0, 200) }
       })
     }
 
@@ -166,10 +168,7 @@ export async function GET(request: NextRequest) {
         nafCode: nafCode,
         nafLabel: entreprise.activite_principale_label || '',
         legalForm: legalFormLabel,
-        address: entreprise.siege ? [
-          entreprise.siege.adresse,
-          `${entreprise.siege.code_postal} ${entreprise.siege.libelle_commune}`
-        ].filter(Boolean).join(', ') : '',
+        address: formatSiegeAddress(entreprise.siege),
         city: entreprise.siege?.libelle_commune || '',
         postalCode: entreprise.siege?.code_postal || '',
         isActive: etatAdmin === 'A',

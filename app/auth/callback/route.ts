@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     if (!error && data.user) {
       // Redirect based on user role
-      const role = data.user.user_metadata?.role
+      const role = data.user.app_metadata?.role
       if (role === 'artisan') {
         return NextResponse.redirect(`${origin}/${locale}/artisan/dashboard`)
       } else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) {
@@ -53,6 +53,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/${locale}/auth/login`)
   }
 
-  // If no code, redirect to login (default fr)
-  return NextResponse.redirect(`${origin}/fr/auth/login`)
+  // If no code, redirect to login — respect locale cookie so PT users stay on PT
+  const cookieStore = await cookies()
+  const localeCookie = cookieStore.get('locale')?.value
+  const fallbackLocale = localeCookie === 'pt' ? 'pt' : 'fr'
+  return NextResponse.redirect(`${origin}/${fallbackLocale}/auth/login`)
 }

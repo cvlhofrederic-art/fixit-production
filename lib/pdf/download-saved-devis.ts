@@ -12,8 +12,12 @@ import type { Locale } from '@/lib/i18n/config'
 import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
+import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
+import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
+import { buildDocumentLines } from '@/lib/devis-totals'
 
 interface SavedDevis {
   id?: string
@@ -23,6 +27,10 @@ interface SavedDevis {
   docDate?: string
   docValidity?: number
   prestationDate?: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
+  factureSubType?: 'standard' | 'acompte' | 'situation'
+  situationNumber?: number
+  situationAvancement?: number
   executionDelay?: string
   executionDelayDays?: number
   executionDelayType?: string
@@ -36,6 +44,26 @@ interface SavedDevis {
   companyEmail?: string
   tvaEnabled?: boolean
   tvaNumber?: string
+  // Régime TVA appliqué au document — source de vérité pour les mentions et totaux
+  // (cf. lib/tva-calculator.ts). Si absent, on infère via `autoliquidationBTP`
+  // (legacy flag) ou `tvaEnabled` (franchise quand false).
+  regimeTva?: TvaRegime
+  autoliquidationBTP?: boolean
+  /** N° TVA intra du preneur (override manuel). Sinon PDF V3 calcule auto. */
+  tvaIntraPreneur?: string
+  /** Infos gestion déchets (loi AGEC, art. D.541-45-1 C. env.). */
+  dechetsChantier?: {
+    nature?: string
+    quantiteEstimee?: string
+    unite?: string
+    installationNom?: string
+    installationAdresse?: string
+    modalitesTri?: string
+    coutGestion?: string
+  }
+  /** Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975) — autoliq BTP. */
+  marchePrincipalRef?: string
+  maitreOuvrageFinal?: string
   companyAPE?: string
   insuranceType?: 'rc_pro' | 'decennale' | 'both'
   insuranceName?: string
@@ -119,19 +147,23 @@ async function fetchFreshArtisanData(
   insuranceNumber: string | null
   insuranceCoverage: string | null
   insuranceType: 'rc_pro' | 'decennale' | 'both' | null
+  categories: string[] | null
+  typeActivite: string | null
 }> {
   let logoUrl: string | null = cachedLogoUrl
   let insuranceName: string | null = doc.insuranceName || null
   let insuranceNumber: string | null = doc.insuranceNumber || null
   let insuranceCoverage: string | null = doc.insuranceCoverage || null
   let insuranceType: 'rc_pro' | 'decennale' | 'both' | null = doc.insuranceType || null
+  let categories: string[] | null = null
+  let typeActivite: string | null = null
 
-  if (!artisanId) return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType }
+  if (!artisanId) return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType, categories, typeActivite }
 
   try {
     const { data } = await supabase
       .from('profiles_artisan')
-      .select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type')
+      .select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type, categories, type_activite')
       .eq('id', artisanId)
       .single()
     if (data?.logo_url) logoUrl = data.logo_url as string
@@ -139,9 +171,11 @@ async function fetchFreshArtisanData(
     if (data?.insurance_number && !insuranceNumber) insuranceNumber = data.insurance_number as string
     if (data?.insurance_coverage && !insuranceCoverage) insuranceCoverage = data.insurance_coverage as string
     if (data?.insurance_type && !insuranceType) insuranceType = data.insurance_type as 'rc_pro' | 'decennale' | 'both'
+    if (Array.isArray(data?.categories)) categories = data.categories as string[]
+    if (typeof data?.type_activite === 'string') typeActivite = data.type_activite as string
   } catch { /* fallback to cached values */ }
 
-  return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType }
+  return { logoUrl, insuranceName, insuranceNumber, insuranceCoverage, insuranceType, categories, typeActivite }
 }
 
 // ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
@@ -194,10 +228,27 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || '',
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today), jamais le docDate hérité du devis. Aligné art. 289 CGI + pratique
+    // Henrri/EBP/Pennylane/Sage. Une facture déjà émise (sentAt présent) garde
+    // sa date historique pour l'archivage probant (arrêté 22 mars 2017).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
+    })(),
     docValidity: doc.docValidity || 30,
     executionDelay: delayStr,
-    prestationDate: doc.prestationDate || doc.docDate || '',
+    // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
+    // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
+    // la date d'émission dans la case DATE PRESTATION.
+    prestationDate: doc.prestationDate || '',
+    // Sous-type facture (méthode pro 2026) — pilote le label PDF
+    factureSubType: doc.factureSubType,
+    situationNumber: doc.situationNumber,
+    situationAvancement: doc.situationAvancement,
 
     // Lines
     lines: mergedLines,
@@ -217,22 +268,83 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
   const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
   const pdf = await generateDevisPdfV2(input)
-  pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+
+  // FR-V2 : wrap as PDF/A-3B for archivage probant (arrêté 22 mars 2017).
+  // Sans ça, l'archive numérique peut être requalifiée en non-probante par
+  // un contrôle DGFiP, exigeant l'original papier.
+  try {
+    const [{ wrapAsPdfA3 }] = await Promise.all([
+      import('@/lib/pdf/pdfa3-wrap'),
+    ])
+    const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
+    const pdfBytes = new Uint8Array(pdfArrayBuffer)
+    const docTitle = doc.docType === 'facture'
+      ? `Facture ${doc.docNumber || ''}`
+      : `Devis ${doc.docNumber || ''}`
+    const wrapped = await wrapAsPdfA3(pdfBytes, {
+      title: docTitle.trim(),
+      author: input.artisan.nom,
+    })
+    // Trigger download via Blob (jsPDF.save équivalent)
+    const blob = new Blob([new Uint8Array(wrapped).buffer as ArrayBuffer], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${doc.docNumber || 'devis'}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    // Fallback : si le wrapping échoue, on garde au moins le PDF non-PDF/A
+    // pour que le user ait son téléchargement.
+    console.warn('[download-saved-devis] PDF/A-3 wrap failed, falling back to plain PDF:', e)
+    pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+  }
 }
 
 // ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
 async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   const { locale, t, artisan } = ctx
+  // Pas de re-construction locale des collections sommées : la source
+  // unique de vérité est `buildDocumentLines` (lib/devis-totals.ts). Elle
+  // applique les règles communes (laborLines > lines, masquage
+  // materialLines/fraisLines si leur flag Enabled === false, aplatissement
+  // customTables, filtres null-safe). Tout site qui sommait à la main
+  // pouvait diverger — régression DEV-2026-005 (+2 800 € phantom).
+  const sourceLines = buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0]) as ProductLine[]
+  // Champs encore référencés par le payload V3 (sections rendues, noms,
+  // flags) — réutilisés tels quels pour respecter la forme attendue par
+  // `generateDevisPdfV3`.
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
-  const laborLines = (doc.laborLines as ProductLine[]) || []
-
-  const sum = (arr: ProductLine[]) => arr.reduce((s, l) => s + (l.totalHT || 0), 0)
-  const subtotalHT = sum([...lines, ...materialLines, ...laborLines])
+  const laborLinesRaw = (doc.laborLines as ProductLine[]) || []
+  const fraisLines = ((doc as Record<string, unknown>).fraisLines as ProductLine[]) || []
+  const customTables = ((doc as Record<string, unknown>).customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) || []
+  const labor = laborLinesRaw.length > 0 ? laborLinesRaw : lines
+  // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
+  const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false
-  const totalTTC = tvaEnabled
-    ? lines.concat(materialLines, laborLines).reduce((s, l) => s + (l.totalHT || 0) * (1 + (l.tvaRate || 0) / 100), 0)
-    : subtotalHT
+
+  // Régime TVA effectif — source unique de vérité (lib/tva-calculator.ts).
+  // Le flag explicite `regimeTva` (form V3 actuel) prime ; fallback rétro-compat :
+  // `autoliquidationBTP=true` → 'autoliquidation_btp' ; `tvaEnabled=false` →
+  // 'franchise_293b' ; sinon 'classique'. Sans ce fix, le bouton « Télécharger »
+  // ignorait silencieusement le régime persisté et rendait toujours TVA classique.
+  const effectiveRegime: TvaRegime =
+    doc.regimeTva
+      ?? (doc.autoliquidationBTP
+        ? 'autoliquidation_btp'
+        : (tvaEnabled ? 'classique' : 'franchise_293b'))
+  const tva = computeTva({
+    regime: effectiveRegime,
+    lines: sourceLines
+      .filter(l => (l.description || '').trim())
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    locale: locale === 'pt' ? 'pt' : 'fr',
+  })
+  const tvaBreakdown = tva.breakdown
+  const totalTTC = tva.totalTTC
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
@@ -240,6 +352,36 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     || (doc.executionDelayDays && doc.executionDelayDays > 0
       ? `${doc.executionDelayDays} ${doc.executionDelayType === 'calendaires' ? 'jours calendaires' : 'jours ouvrés'}`
       : '')
+
+  // Fallback IBAN/BIC pour les devis legacy enregistrés avant la persistance
+  // (cf. DevisFactureFormBTP.buildPayload, fix 06/05/2026). Les devis créés
+  // après le fix ont iban/bic dans `doc` ; les anciens doivent re-fetcher le
+  // profil paiement pour que le RIB apparaisse au téléchargement.
+  let resolvedIban = doc.iban || ''
+  let resolvedBic = doc.bic || ''
+  let artisanCategories: string[] | null = null
+  let artisanTypeActivite: string | null = null
+  if (artisan?.id) {
+    try {
+      const { data } = await supabase
+        .from('profiles_artisan')
+        .select('paiement_modes, categories, type_activite')
+        .eq('id', artisan.id)
+        .single()
+      const modes = (data?.paiement_modes as Array<{ type?: string; iban?: string; bic?: string; actif?: boolean }>) || []
+      const virement = modes.find(
+        (m) => m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
+      )
+      if (virement && !resolvedIban) {
+        resolvedIban = (virement.iban || '').trim()
+        resolvedBic = (virement.bic || '').trim()
+      }
+      if (Array.isArray(data?.categories)) artisanCategories = data.categories as string[]
+      if (typeof data?.type_activite === 'string') artisanTypeActivite = data.type_activite as string
+    } catch (e) {
+      console.warn('[download-saved-devis] Loading profile data failed:', e)
+    }
+  }
 
   await generateDevisPdfV3({
     action: 'download',
@@ -252,9 +394,28 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || `${doc.docType === 'facture' ? 'Facture' : 'Devis'} ${doc.docNumber || ''}`,
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today). Aligné art. 289 CGI + pratique Henrri/EBP/Pennylane/Sage.
+    // Une facture déjà émise (sentAt) garde sa date historique (arrêté
+    // 22 mars 2017 — archivage probant).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
+    })(),
     docValidity: doc.docValidity || 30,
-    prestationDate: doc.prestationDate || doc.docDate || '',
+    // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
+    // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
+    // la date d'émission dans la case DATE PRESTATION lors d'un download depuis
+    // la liste devis (path BTP). PR #108 avait fixé le path V2 (ligne 204) mais
+    // raté ce path V3. Symptôme : preview = « À convenir » ✓, download = date ✗.
+    prestationDate: doc.prestationDate || '',
+    // Sous-type facture (méthode pro 2026) — pilote le label PDF V3
+    factureSubType: doc.factureSubType,
+    situationNumber: doc.situationNumber,
+    situationAvancement: doc.situationAvancement,
     executionDelay: delayStr,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',
@@ -271,6 +432,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     insuranceNumber: doc.insuranceNumber || '',
     insuranceCoverage: doc.insuranceCoverage || '',
     insuranceType: doc.insuranceType || 'rc_pro',
+    decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
     mediatorName: doc.mediatorName || '',
     mediatorUrl: doc.mediatorUrl || '',
     isHorsEtablissement: doc.isHorsEtablissement ?? (doc.clientType === 'particulier'),
@@ -291,13 +453,34 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     discount: doc.discount || '',
     penaltyRate: doc.penaltyRate || '',
     recoveryFee: doc.recoveryFee || '',
-    iban: doc.iban || '',
-    bic: doc.bic || '',
-    lines: lines.length > 0 ? lines : [...laborLines, ...materialLines],
-    laborLines: laborLines.length > 0 ? laborLines : undefined,
+    iban: resolvedIban,
+    bic: resolvedBic,
+    lines: lines.length > 0 ? lines : [...labor, ...materialLines],
+    // V3 PDF rend `laborLines` comme première section ; on lui passe le résultat
+    // résolu (laborLinesRaw si présent, sinon `lines` legacy) pour garantir que
+    // la section principale (souvent "DÉMOLITION") s'affiche.
+    laborLines: labor.length > 0 ? labor : undefined,
     materialLines: materialLines.length > 0 ? materialLines : undefined,
+    fraisLines: fraisLines.length > 0 ? fraisLines : undefined,
+    linesName: ((doc as Record<string, unknown>).linesName as string) || undefined,
+    materialLinesName: ((doc as Record<string, unknown>).materialLinesName as string) || undefined,
+    fraisLinesName: ((doc as Record<string, unknown>).fraisLinesName as string) || undefined,
+    materialLinesEnabled: ((doc as Record<string, unknown>).materialLinesEnabled as boolean) ?? undefined,
+    fraisLinesEnabled: ((doc as Record<string, unknown>).fraisLinesEnabled as boolean) ?? undefined,
+    customTables: customTables.length > 0 ? customTables : undefined,
     subtotalHT,
     totalTTC,
+    // Breakdown vide en franchise/autoliquidation (computeTva force []),
+    // donc undefined dans le PDF (pas de ligne TVA détail).
+    tvaBreakdown: tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
+    // Régime + flag legacy passés au PDF V3 pour piloter mentions, colonnes
+    // et label total. PDF V3 priorise `regimeTva` sur `autoliquidationBTP`.
+    regimeTva: effectiveRegime,
+    autoliquidationBTP: effectiveRegime === 'autoliquidation_btp',
+    tvaIntraPreneur: doc.tvaIntraPreneur || undefined,
+    dechetsChantier: doc.dechetsChantier || undefined,
+    marchePrincipalRef: doc.marchePrincipalRef || undefined,
+    maitreOuvrageFinal: doc.maitreOuvrageFinal || undefined,
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],

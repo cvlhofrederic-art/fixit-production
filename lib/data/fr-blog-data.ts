@@ -1,6 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // lib/fr-blog-data.ts
-// Données articles blog FR — SEO programmatique marché France
+// Données articles blog FR - SEO programmatique marché France
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface FrBlogArticle {
@@ -13,6 +13,8 @@ export interface FrBlogArticle {
   emoji: string
   date: string
   datePublished: string
+  /** Optional override; falls back to datePublished in JSON-LD if absent */
+  dateModified?: string
   intro: string
   sections: { heading: string; content: string }[]
   ctaText: string

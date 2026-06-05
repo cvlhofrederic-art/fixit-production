@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
+import { titleCaseAddress } from '@/lib/devis-utils'
 import Link from 'next/link'
 import {
   Star,
@@ -41,12 +42,14 @@ import {
 import { AvisSection } from '@/components/artisan-profile/AvisSection'
 import { ServicesGrid } from '@/components/artisan-profile/ServicesGrid'
 import { BookingForm } from '@/components/artisan-profile/BookingForm'
+import { FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 
 type Step = 'profile' | 'motif' | 'calendar'
 
 // Formate la zone d'intervention affichée publiquement.
 // Priorité : intervention_zones (nouveau modèle régions / départements / villes)
 // → fallback ville + rayon (ancien modèle zone_radius_km).
+
 function formatInterventionZone(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   artisan: any,
@@ -61,11 +64,41 @@ function formatInterventionZone(
   const cities = Array.isArray(zones?.cities) ? zones!.cities : []
   const total = regions.length + departments.length + cities.length
   if (total > 0) {
-    // Format compact : jusqu'à 3 éléments, puis "+N autres"
+    // Hiérarchie : région prime sur département, département prime sur villes
+    // Si une région est sélectionnée, on retire ses départements et villes enfants
+    const coveredDeptCodes = new Set<string>()
+    for (const region of regions) {
+      for (const d of FR_DEPARTEMENTS) {
+        if (d.region === region) coveredDeptCodes.add(d.code)
+      }
+    }
+    const filteredDepts = departments.filter(dept => {
+      const code = (dept.match(/\b(\d{2,3})\b/) || [])[1]
+      return !code || !coveredDeptCodes.has(code)
+    })
+
+    // Si un département est sélectionné, on retire les villes de ce département
+    // (on compare le code postal des villes ou le préfixe du nom du département)
+    const deptCodes = new Set<string>([...coveredDeptCodes])
+    for (const dept of filteredDepts) {
+      const code = (dept.match(/\b(\d{2,3})\b/) || [])[1]
+      if (code) deptCodes.add(code)
+    }
+    // Les villes dans intervention_zones n'ont pas de code dept associé,
+    // donc on garde toutes les villes sauf si toutes les régions/depts couvrent tout
+    const filteredCities = regions.length > 0 || filteredDepts.length > 0
+      ? [] // Si on a au moins une région ou département, les villes sont redondantes
+      : cities
+
     const items: string[] = []
     for (const r of regions) items.push(r)
-    for (const d of departments) items.push(d)
-    for (const c of cities) items.push(c)
+    for (const d of filteredDepts) items.push(d)
+    for (const c of filteredCities) items.push(c)
+
+    if (items.length === 0) {
+      // Tout a été dédupliqué, afficher juste les régions
+      return regions.join(' · ')
+    }
     if (items.length <= 3) return items.join(' · ')
     const remaining = items.length - 3
     return `${items.slice(0, 3).join(' · ')} ${t(`+ ${remaining} autres`, `+ ${remaining} outros`)}`
@@ -73,7 +106,7 @@ function formatInterventionZone(
   // Fallback ancien modèle
   const city = artisan?.company_city || artisan?.city || (isPt ? 'Porto' : 'La Ciotat')
   const radius = artisan?.zone_radius_km || 30
-  return `${city} — ${t('rayon', 'raio')} ${radius} km`
+  return `${city}, ${t('rayon', 'raio')} ${radius} km`
 }
 
 export default function ArtisanProfilePage() {
@@ -172,7 +205,7 @@ export default function ArtisanProfilePage() {
         window.history.pushState(null, '')
         setStep('profile')
       } else {
-        // On profile — go back for real (leave the page)
+        // On profile - go back for real (leave the page)
         window.history.back()
       }
     }
@@ -273,7 +306,7 @@ export default function ArtisanProfilePage() {
 
   const cleanBio = (bio: string) => {
     let text = (bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
-    // Retirer les adresses physiques : "— Bâtiment X, Rés. Y, 13600 Ville."
+    // Retirer les adresses physiques: "- Bâtiment X, Rés. Y, 13600 Ville."
     text = text.replace(/\s*—\s*[\s\S]*?\d{5}\s*[^.]*\./g, '.')
     // Retirer les mentions "(rayon XX km)" redondantes avec le header
     text = text.replace(/\s*\(rayon\s*\d+\s*km\)\s*/gi, ' ')
@@ -293,8 +326,19 @@ export default function ArtisanProfilePage() {
     return dayConfig.includes(serviceId)
   }
 
+  // Détermine la plage à utiliser pour un service :
+  //   • validation_auto !== false → 'rdv' (réservation directe)
+  //   • validation_auto === false → 'visite' (inspection sur place avant devis)
+  // Sans service sélectionné, default 'rdv' (créneaux directs sont la norme).
+  const slotTypeForService = (service: any): 'rdv' | 'visite' => {
+    if (!service) return 'rdv'
+    return service.validation_auto === false ? 'visite' : 'rdv'
+  }
+
+  const matchesSlot = (a: any, slotType: 'rdv' | 'visite') => (a.slot_type || 'rdv') === slotType
+
   const isDateAvailableForService = (date: Date, serviceId: string | null): boolean => {
-    if (!isDateAvailable(date)) return false
+    if (!isDateAvailable(date, serviceId)) return false
     if (!serviceId) return true
     return isServiceAvailableOnDay(serviceId, date.getDay())
   }
@@ -309,7 +353,8 @@ export default function ArtisanProfilePage() {
 
   const getTimeSlotsForDate = (date: Date) => {
     const dayOfWeek = date.getDay()
-    const avail = availability.find((a) => a.day_of_week === dayOfWeek && a.is_available)
+    const slotType = slotTypeForService(selectedService)
+    const avail = availability.find((a) => a.day_of_week === dayOfWeek && a.is_available && matchesSlot(a, slotType))
     if (!avail) return []
 
     const startParts = avail.start_time.substring(0, 5).split(':')
@@ -342,12 +387,14 @@ export default function ArtisanProfilePage() {
     return slots
   }
 
-  const isDateAvailable = (date: Date) => {
+  const isDateAvailable = (date: Date, serviceId?: string | null) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (date < today) return false
     const dayOfWeek = date.getDay()
-    return availability.some((a) => a.day_of_week === dayOfWeek && a.is_available)
+    const service = serviceId ? services.find(s => s.id === serviceId) : selectedService
+    const slotType = slotTypeForService(service)
+    return availability.some((a) => a.day_of_week === dayOfWeek && a.is_available && matchesSlot(a, slotType))
   }
 
   const isToday = (date: Date) => {
@@ -355,15 +402,18 @@ export default function ArtisanProfilePage() {
     return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
   }
 
-  // Active days of the week (display order Mon→Sun)
+  // Active days of the week (display order Mon→Sun) - filtre par slot_type du service sélectionné.
+  // Sans service choisi, on regarde 'rdv' par défaut (parcours direct).
   const activeDayIndices = useMemo(() => {
     const displayOrder = [1, 2, 3, 4, 5, 6, 0] // Mon=1 ... Sun=0
     if (!availability || availability.length === 0) return displayOrder // fallback: all 7 days
+    const slotType = slotTypeForService(selectedService)
     const active = displayOrder.filter(dow =>
-      availability.some(a => a.day_of_week === dow && a.is_available)
+      availability.some(a => a.day_of_week === dow && a.is_available && (a.slot_type || 'rdv') === slotType)
     )
     return active.length > 0 ? active : displayOrder // fallback if none active
-  }, [availability])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availability, selectedService])
 
   const dayHeaders = useMemo(() => {
     const labels: Record<number, string> = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 0: 'Dim' }
@@ -500,7 +550,7 @@ export default function ArtisanProfilePage() {
       booking_date: dateStr,
       booking_time: selectedSlot,
       duration_minutes: Math.min(serviceList.reduce((sum, s) => sum + (s.duration_minutes || 60), 0) || 60, 480),
-      address: bookingForm.address || 'A definir',
+      address: bookingForm.address || t('À définir', 'A definir'),
       notes: `${multiNote}${singleNotes}${estimNote}Client: ${bookingForm.name} | Tel: ${bookingForm.phone} | Email: ${bookingForm.email || '-'} | ${bookingForm.notes || ''}`.substring(0, 2000),
       price_ht: totalMin || mainService?.price_ht || 0,
       price_ttc: totalMax || mainService?.price_ttc || 0,
@@ -571,9 +621,9 @@ export default function ArtisanProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Artisan non trouvé</h1>
-          <a href="/fr/recherche" className="text-yellow hover:underline">
-            Retour à la recherche
+          <h1 className="text-2xl font-bold mb-4">{isPt ? 'Profissional não encontrado' : 'Artisan non trouvé'}</h1>
+          <a href={isPt ? '/pt/pesquisar' : '/fr/recherche'} className="text-yellow hover:underline">
+            {isPt ? 'Voltar à pesquisa' : 'Retour à la recherche'}
           </a>
         </div>
       </div>
@@ -617,15 +667,6 @@ export default function ArtisanProfilePage() {
                 )}
                 <div className="flex-1 text-white">
                   <h1 className="font-display text-3xl font-black mb-2 tracking-[-0.03em]">{artisan.company_name}</h1>
-                  {/* Online status badge */}
-                  {(() => {
-                    const lastSeen = artisan.last_seen_at ? new Date(artisan.last_seen_at) : null
-                    const now = new Date()
-                    const diffMin = lastSeen ? (now.getTime() - lastSeen.getTime()) / 60000 : Infinity
-                    if (diffMin < 15) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold mb-2 bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full"><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />{isPt ? 'Online' : 'En ligne'}</span>
-                    if (diffMin < 1440) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold mb-2 bg-white/10 text-white/70 px-2.5 py-1 rounded-full"><span className="w-2 h-2 bg-gray-400 rounded-full" />{isPt ? 'Ativo recentemente' : 'Actif récemment'}</span>
-                    return null
-                  })()}
                   <div className="flex flex-wrap items-center gap-4 mb-3">
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-white" />
@@ -642,7 +683,7 @@ export default function ArtisanProfilePage() {
                         try {
                           const { supabase: sb } = await import('@/lib/supabase')
                           const { data: { session } } = await sb.auth.getSession()
-                          if (!session) { window.location.href = '/fr/login'; return }
+                          if (!session) { window.location.href = '/auth/login'; return }
                           if (isFavorited) {
                             await fetch(`/api/favorites?artisan_id=${artisan.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } })
                             setIsFavorited(false)
@@ -740,27 +781,34 @@ export default function ArtisanProfilePage() {
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Code NAF', 'Código CAE')}</div>
-                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? ` — ${artisan.naf_label}` : ''}</div>
+                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? `, ${artisan.naf_label}` : ''}</div>
                           </div>
                         </div>
                       )}
 
-                      {/* Adresse */}
-                      {(artisan.company_address || artisan.company_city) && (
-                        <div className="flex items-start gap-3">
-                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <MapPin className="w-4.5 h-4.5 text-yellow" />
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Adresse', 'Morada')}</div>
-                            <div className="font-semibold text-gray-900 text-sm">
-                              {artisan.company_address && <span>{artisan.company_address}<br /></span>}
-                              {artisan.company_postal_code && <span>{artisan.company_postal_code} </span>}
-                              {artisan.company_city}
+                      {/* Adresse - éviter la duplication CP/ville si déjà inclus dans company_address */}
+                      {(artisan.company_address || artisan.company_city) && (() => {
+                        const rawAddr = (artisan.company_address || '').trim()
+                        const normalizedAddr = rawAddr && rawAddr === rawAddr.toUpperCase() ? titleCaseAddress(rawAddr) : rawAddr
+                        const hasPostalInAddr = /\b\d{5}\b/.test(normalizedAddr)
+                        const cityLine = hasPostalInAddr
+                          ? ''
+                          : [artisan.company_postal_code, artisan.company_city].filter(Boolean).join(' ')
+                        return (
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                              <MapPin className="w-4.5 h-4.5 text-yellow" />
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Adresse', 'Morada')}</div>
+                              <div className="font-semibold text-gray-900 text-sm">
+                                {normalizedAddr && <span>{normalizedAddr}{cityLine ? <br /> : null}</span>}
+                                {cityLine && <span>{cityLine}</span>}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )
+                      })()}
 
                       {/* Téléphone */}
                       {artisan.phone && (
@@ -820,14 +868,14 @@ export default function ArtisanProfilePage() {
                             >
                               <Image
                                 src={photo.url}
-                                alt={photo.title || 'Réalisation'}
+                                alt={photo.title || t('Réalisation', 'Realização')}
                                 fill
                                 sizes="(max-width: 768px) 50vw, 25vw"
                                 className="object-cover group-hover:scale-105 transition-transform duration-300"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
-                                <div className="text-white text-xs font-semibold truncate">{photo.title || 'Réalisation'}</div>
+                                <div className="text-white text-xs font-semibold truncate">{photo.title || t('Réalisation', 'Realização')}</div>
                                 {photo.category && <div className="text-gray-300 text-[10px]">{photo.category}</div>}
                               </div>
                             </div>
@@ -883,17 +931,17 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/' : '/fr/'} className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
-                Accueil
+                {isPt ? 'Início' : 'Accueil'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <Link href="/fr/recherche" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/pesquisar' : '/fr/recherche'} className="hover:text-yellow transition flex items-center gap-1">
                 <Search className="w-3.5 h-3.5" />
-                Recherche
+                {isPt ? 'Pesquisar' : 'Recherche'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-dark font-medium">Choisir le motif</span>
+              <span className="text-dark font-medium">{isPt ? 'Escolher o motivo' : 'Choisir le motif'}</span>
             </nav>
           </div>
         </div>
@@ -917,7 +965,7 @@ export default function ArtisanProfilePage() {
             <div className="flex-1 min-w-0">
               <h3 className="font-display font-bold text-dark truncate">{artisan.company_name}</h3>
               <p className="text-sm text-text-muted truncate">
-                {artisan.categories?.[0] || 'Artisan professionnel'}
+                {artisan.categories?.[0] || t('Artisan professionnel', 'Profissional certificado')}
               </p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -926,7 +974,7 @@ export default function ArtisanProfilePage() {
             </div>
           </div>
 
-          {/* Motifs grid — élagage dédupliqué en 1 seule carte */}
+          {/* Motifs grid - élagage dédupliqué en 1 seule carte */}
           {(() => {
             const ELAGAGE_KW = ['élagage', 'elagage', 'elaguage']
             const isElag = (name: string) => ELAGAGE_KW.some(k => name.toLowerCase().includes(k))
@@ -935,7 +983,14 @@ export default function ArtisanProfilePage() {
               if (isElag(svc.name)) {
                 if (!elagSeen) {
                   elagSeen = true
-                  acc.push({ ...svc, name: 'Élagage arbre', description: 'Taille et soin de vos arbres selon leur hauteur et envergure de feuillage.' })
+                  acc.push({
+                    ...svc,
+                    name: t('Élagage arbre', 'Poda de árvores'),
+                    description: t(
+                      'Taille et soin de vos arbres selon leur hauteur et envergure de feuillage.',
+                      'Poda e cuidados das suas árvores conforme altura e envergadura da folhagem.'
+                    ),
+                  })
                 }
               } else {
                 acc.push(svc)
@@ -968,13 +1023,13 @@ export default function ArtisanProfilePage() {
 
                     <div className="text-3xl mb-3">{getServiceEmoji(service.name)}</div>
                     <h3 className="font-bold text-dark mb-1">{service.name}</h3>
-                    <p className="text-sm text-text-muted mb-4 line-clamp-2">{service.description}</p>
+                    <p className="text-sm text-text-muted mb-4 line-clamp-2">{(service.description || '').replace(/\s*\[(?:unit|scope|min|max):[^\]]*\]\s*/g, '').trim()}</p>
 
                     {/* Smart price */}
                     <div className="pt-3 border-t border-gray-100">
                       {priceInfo.type === 'devis' && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">
-                          📋 {isPt ? 'Sob orçamento — entraremos em contacto' : 'Sur devis — nous vous contacterons'}
+                          📋 {isPt ? 'Sob orçamento, entraremos em contacto' : 'Sur devis, nous vous contacterons'}
                         </span>
                       )}
                       {priceInfo.type === 'per_sqm' && (
@@ -1000,7 +1055,9 @@ export default function ArtisanProfilePage() {
                         <div className="flex flex-wrap gap-1">
                           {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((dayName, i) => {
                             const dayNum = i === 6 ? 0 : i + 1
-                            const avail = availability.find(a => a.day_of_week === dayNum && a.is_available)
+                            // Filtrer la dispo par la plage qui correspond au mode du service
+                            const slotTypeForCard = service.validation_auto === false ? 'visite' : 'rdv'
+                            const avail = availability.find(a => a.day_of_week === dayNum && a.is_available && (a.slot_type || 'rdv') === slotTypeForCard)
                             const serviceOk = isServiceAvailableOnDay(service.id, dayNum)
                             return (
                               <span key={dayNum} className={`text-[10px] px-1.5 py-0.5 rounded ${avail && serviceOk ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -1033,7 +1090,7 @@ export default function ArtisanProfilePage() {
                             >
                               <span>🌳 {tier.label}</span>
                               {selectedPriceTier?.label !== tier.label && (
-                                <span className="text-xs text-gray-500 font-normal">Sélectionner</span>
+                                <span className="text-xs text-gray-500 font-normal">{isPt ? 'Selecionar' : 'Sélectionner'}</span>
                               )}
                             </button>
                           ))}
@@ -1158,8 +1215,8 @@ export default function ArtisanProfilePage() {
                 </div>
               )}
               <div className="text-3xl mb-3">{'\u2795'}</div>
-              <h3 className="font-bold text-gray-900 mb-1">Autre intervention</h3>
-              <p className="text-sm text-gray-500 mb-4">D&eacute;crivez votre besoin ci-dessous</p>
+              <h3 className="font-bold text-gray-900 mb-1">{isPt ? 'Outra intervenção' : 'Autre intervention'}</h3>
+              <p className="text-sm text-gray-500 mb-4">{isPt ? 'Descreva a sua necessidade abaixo' : 'Décrivez votre besoin ci-dessous'}</p>
               {useCustomMotif && (
                 <textarea
                   value={customMotif}
@@ -1194,7 +1251,7 @@ export default function ArtisanProfilePage() {
                     const unit = pi.type === 'per_ml' ? 'ml' : 'm²'
                     let label = pi.label
                     if (selectedPriceTier) {
-                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ' — ?'}`
+                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label}, ${selectedTreeWidth.price}` : ', ?'}`
                     } else if (isQty && quantityKnown === true && quantityValue && Number(quantityValue) > 0) {
                       const est = calculateEstimatedPrice(pi, Number(quantityValue))
                       label = `📐 ${quantityValue} ${unit} → ${est}`
@@ -1243,9 +1300,9 @@ export default function ArtisanProfilePage() {
         <div className="bg-white border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-2 text-sm text-text-muted">
-              <Link href="/fr/" className="hover:text-yellow transition flex items-center gap-1">
+              <Link href={isPt ? '/pt/' : '/fr/'} className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
-                Accueil
+                {isPt ? 'Início' : 'Accueil'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
               <button
@@ -1255,10 +1312,10 @@ export default function ArtisanProfilePage() {
                 }}
                 className="hover:text-yellow transition"
               >
-                Choisir le motif
+                {isPt ? 'Escolher o motivo' : 'Choisir le motif'}
               </button>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-dark font-medium">Calendrier</span>
+              <span className="text-dark font-medium">{isPt ? 'Calendário' : 'Calendrier'}</span>
             </nav>
           </div>
         </div>
@@ -1267,12 +1324,22 @@ export default function ArtisanProfilePage() {
           {/* Page header */}
           <div className="text-center mb-8">
             <h1 className="font-display text-3xl md:text-4xl font-black text-dark mb-2 tracking-[-0.03em]">
-              {'📅'} Choisissez votre cr&eacute;neau
+              Choisissez votre cr&eacute;neau
             </h1>
             <p className="text-text-muted text-lg">
               S&eacute;lectionnez une date et un horaire disponible
             </p>
           </div>
+
+          {/* Bandeau visite & devis si motif en validation manuelle */}
+          {selectedService?.validation_auto === false && (
+            <div className="max-w-3xl mx-auto mb-6 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <span className="text-xl flex-shrink-0">🔍</span>
+              <div className="text-sm text-amber-900">
+                <strong>Visite &amp; devis</strong>, Ce motif n&eacute;cessite une inspection sur place. L&rsquo;artisan vous confirmera le RDV apr&egrave;s avoir valid&eacute; votre demande, puis vous remettra un devis avant l&rsquo;intervention.
+              </div>
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Left column: Calendar + Time slots (2/3) */}
@@ -1362,7 +1429,7 @@ export default function ArtisanProfilePage() {
                     </h3>
                     {selectedPriceTier && (
                       <p className="text-sm text-amber-700 font-semibold mb-3">
-                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ''}
+                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label}, ${selectedTreeWidth.price}` : ''}
                       </p>
                     )}
                     <p className="text-sm text-gray-500 mb-5">
@@ -1472,7 +1539,7 @@ export default function ArtisanProfilePage() {
                               } else if (needsQty && qty) {
                                 detail = `${qty} ${unitLbl}`
                               } else if (!isMulti && quantityKnown === false) {
-                                detail = 'À mesurer sur place'
+                                detail = t('À mesurer sur place', 'A medir no local')
                               }
 
                               return (
@@ -1509,11 +1576,11 @@ export default function ArtisanProfilePage() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Heure</span>
+                      <span className="text-gray-500">{isPt ? 'Hora' : 'Heure'}</span>
                       <span className="font-medium">{selectedSlot || '-'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Dur&eacute;e</span>
+                      <span className="text-gray-500">{isPt ? 'Duração' : 'Durée'}</span>
                       <span className="font-medium">
                         {(() => {
                           const isMulti = selectedServices.length > 0
@@ -1571,7 +1638,7 @@ export default function ArtisanProfilePage() {
                                     </p>
                                   )}
                                   <p className="text-[10px] text-gray-400 mt-0.5">
-                                    {hasUnknown || hasDevis ? 'Estimation partielle' : 'Estimation indicative'}
+                                    {hasUnknown || hasDevis ? t('Estimation partielle', 'Estimativa parcial') : t('Estimation indicative', 'Estimativa indicativa')}
                                   </p>
                                 </>
                               ) : (

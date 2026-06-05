@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
 import { proMessagerieSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     if (!(await checkRateLimit(`pro_msg_${user.id}`, 60, 60_000))) return rateLimitResponse()
 
-    const role = user.user_metadata?.role || ''
+    const role = getUserRole(user)
     if (!PRO_ROLES.includes(role)) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     const user = await getAuthUser(req)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    const role = user.user_metadata?.role || ''
+    const role = getUserRole(user)
     if (!PRO_ROLES.includes(role)) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
@@ -257,7 +257,7 @@ export async function PATCH(req: NextRequest) {
     const user = await getAuthUser(req)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    const role = user.user_metadata?.role || ''
+    const role = getUserRole(user)
     if (!PRO_ROLES.includes(role)) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }

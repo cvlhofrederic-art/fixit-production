@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { SERVICES, CITIES, type ServiceData, type CityData } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 
 // ─────────────────────────────────────────────────────────────
 // SLUG RESOLVER
@@ -51,7 +52,7 @@ function resolveSlug(slug: string): Resolved | null {
 }
 
 // ─────────────────────────────────────────────────────────────
-// STATIC PARAMS — 45 pages
+// STATIC PARAMS - 45 pages
 //   4  generic service pages
 //  32  service × city pages
 //   1  picheleiro generic
@@ -89,7 +90,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const displayName = isPicheleiro ? 'Picheleiro' : service.name
   const locationLabel = city ? ` em ${city.name}` : ''
 
-  const title = `${displayName} Perto de Mim${locationLabel} — Profissionais Verificados | VITFIX`
+  const title = `${displayName} Perto de Mim${locationLabel}, Profissionais Verificados | VITFIX`
   const description = city
     ? `Procura um ${displayName.toLowerCase()} perto de si em ${city.name}? VITFIX cobre todas as ${city.freguesias.length} freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} hab.). Orçamento grátis, resposta rápida, 7/7.`
     : `Procura um ${displayName.toLowerCase()} perto de si? A VITFIX liga-o a profissionais verificados no Tâmega e Sousa. Orçamento grátis, resposta rápida, 7 dias por semana.`
@@ -103,7 +104,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: { canonical: `https://vitfix.io/pt/perto-de-mim/${slug}/` },
@@ -148,14 +149,14 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
     : `URGÊNCIA! Preciso de ${displayName.toLowerCase()} urgente perto de mim. Podem vir rapidamente?`
   const waUrgHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(waUrgText)}`
 
-  // Schema.org — LocalBusiness (with geo when city-specific) + Breadcrumb + FAQ
+  // Schema.org - LocalBusiness (with geo when city-specific) + Breadcrumb + FAQ
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       city
         ? {
             '@type': 'LocalBusiness',
-            name: `VITFIX — ${displayName} Perto de Mim em ${city.name}`,
+            name: `VITFIX : ${displayName} Perto de Mim em ${city.name}`,
             description: `${displayName} verificado perto de si em ${city.name} e nas ${city.freguesias.length} freguesias do município.`,
             url: `https://vitfix.io/pt/perto-de-mim/${slug}/`,
             telephone: PHONE_PT,
@@ -173,7 +174,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         : {
             '@type': 'Service',
             name: `${displayName} Perto de Mim`,
-            description: `Encontre profissionais de ${displayName.toLowerCase()} verificados perto de si no Tâmega e Sousa.`,
+            description: `Encontre ${pluralizar(displayName)} verificados perto de si em Portugal continental.`,
             provider: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },
             areaServed: CITIES.map(c => ({ '@type': 'City', name: c.name })),
             serviceType: displayName,
@@ -200,7 +201,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
             acceptedAnswer: {
               '@type': 'Answer',
               text: city
-                ? `Na VITFIX, temos profissionais de ${displayName.toLowerCase()} que cobrem todas as freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} habitantes). Contacte-nos via WhatsApp ou telefone para uma resposta imediata.`
+                ? `Na VITFIX, temos ${pluralizar(displayName)} que cobrem todas as freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} habitantes). Contacte-nos via WhatsApp ou telefone para uma resposta imediata.`
                 : `Na VITFIX, basta selecionar o serviço de ${displayName.toLowerCase()} e indicar a sua localização. Apresentamos profissionais verificados disponíveis na sua zona, com orçamento grátis e sem compromisso.`,
             },
           },
@@ -218,8 +219,8 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
             acceptedAnswer: {
               '@type': 'Answer',
               text: isPicheleiro
-                ? `"Picheleiro" é o nome regional no Norte de Portugal (especialmente no Tâmega e Sousa) para o que no resto do país se chama "canalizador". É o mesmo profissional — faz reparações de canalização, fugas de água, entupimentos e instalações. Na VITFIX, os nossos picheleiros/canalizadores cobrem ${CITIES.map(c => c.name).join(', ')}.`
-                : `O custo varia conforme o tipo de serviço. Na VITFIX, o orçamento é sempre gratuito e sem compromisso. Os nossos profissionais de ${displayName.toLowerCase()} apresentam preços transparentes antes de iniciar qualquer trabalho.`,
+                ? `"Picheleiro" é o nome regional no Norte de Portugal (especialmente no Tâmega e Sousa) para o que no resto do país se chama "canalizador". É o mesmo profissional, faz reparações de canalização, fugas de água, entupimentos e instalações. Na VITFIX, os nossos picheleiros/canalizadores cobrem ${CITIES.map(c => c.name).join(', ')}.`
+                : `O custo varia conforme o tipo de serviço. Na VITFIX, o orçamento é sempre gratuito e sem compromisso. Os nossos ${pluralizar(displayName)} apresentam preços transparentes antes de iniciar qualquer trabalho.`,
             },
           },
         ],
@@ -268,8 +269,8 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
 
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             {city
-              ? `Profissional de ${displayName.toLowerCase()} disponível perto de si em ${city.name} e em todas as suas ${city.freguesias.length} freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
-              : `Encontre profissionais de ${displayName.toLowerCase()} verificados perto de si no Tâmega e Sousa. Resposta rápida, orçamento grátis, serviço 7 dias por semana.${isPicheleiro ? ' (Picheleiro = canalizador no Norte de Portugal)' : ''}`
+              ? `Encontre o seu ${displayName.toLowerCase()} de confiança perto de si em ${city.name} e em todas as suas ${city.freguesias.length} freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
+              : `Encontre ${pluralizar(displayName)} verificados perto de si no Tâmega e Sousa. Resposta rápida, orçamento grátis, serviço 7 dias por semana.${isPicheleiro ? ' (Picheleiro = canalizador no Norte de Portugal)' : ''}`
             }
           </p>
 
@@ -283,7 +284,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               style={{ background: '#25D366', boxShadow: '0 6px 20px rgba(37,211,102,0.35)' }}
             >
               <WaSvg />
-              WhatsApp — Resposta rápida
+              WhatsApp, Resposta rápida
             </a>
             <a
               href={`tel:${PHONE_PT}`}
@@ -345,10 +346,10 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         <section className="py-14 md:py-18">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-              {displayName} perto de si — Escolha a sua cidade
+              {displayName} perto de si, Escolha a sua cidade
             </h2>
             <p className="text-text-muted mb-8 max-w-2xl">
-              Selecione a sua cidade para ver profissionais de {displayName.toLowerCase()} disponíveis perto de si. Cobrimos toda a região do Tâmega e Sousa.
+              Selecione a sua cidade para ver {pluralizar(displayName)} disponíveis perto de si. Cobrimos toda a região do Tâmega e Sousa.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {CITIES.map(c => (
@@ -393,7 +394,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         </div>
       </section>
 
-      {/* ── URGENCY BLOCK — dark style ── */}
+      {/* ── URGENCY BLOCK - dark style ── */}
       <section className="py-12 md:py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
@@ -406,7 +407,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">⚠️</span>
                   <span className="text-yellow font-bold text-sm uppercase tracking-wider">
-                    Urgência 24h{city ? ` — ${city.name}` : ''}
+                    Urgência 24h{city ? `, ${city.name}` : ''}
                   </span>
                 </div>
                 <h3 className="font-display text-xl md:text-2xl font-bold text-white mb-2">
@@ -426,7 +427,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                   style={{ background: '#25D366', boxShadow: '0 6px 24px rgba(37,211,102,0.4)' }}
                 >
                   <WaSvg />
-                  WhatsApp — Urgência
+                  WhatsApp, Urgência
                 </a>
                 <a
                   href={`tel:${PHONE_PT}`}
@@ -462,7 +463,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         <section className="py-14 md:py-18 bg-white">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6">
-              {displayName} perto de mim — cidades próximas
+              {displayName} perto de mim, cidades próximas
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {CITIES.filter(c => city.nearby.includes(c.slug)).map(nc => (
@@ -520,7 +521,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
       <section className="py-14 md:py-18">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
-            Perguntas frequentes — {displayName} perto de mim{locationLabel}
+            Perguntas frequentes, {displayName} perto de mim{locationLabel}
           </h2>
           <div className="space-y-4">
             <details className="group rounded-2xl border border-border/50 bg-white overflow-hidden">
@@ -530,7 +531,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               </summary>
               <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
                 {city
-                  ? `Na VITFIX, temos profissionais de ${displayName.toLowerCase()} que cobrem todas as freguesias de ${city.name}. O mais rápido é contactar-nos via WhatsApp — respondemos em ${service.urgency.avgResponseTime}.`
+                  ? `Na VITFIX, temos ${pluralizar(displayName)} que cobrem todas as freguesias de ${city.name}. O mais rápido é contactar-nos via WhatsApp, respondemos em ${service.urgency.avgResponseTime}.`
                   : `Na VITFIX, basta indicar a sua localização. Apresentamos-lhe profissionais verificados disponíveis na sua zona. Pode também contactar-nos diretamente via WhatsApp ou telefone para uma resposta imediata.`
                 }
               </div>
@@ -553,7 +554,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                  &ldquo;Picheleiro&rdquo; é o nome regional no Norte de Portugal (Tâmega e Sousa, Douro, Minho) para o que no resto do país se chama &ldquo;canalizador&rdquo;. É exatamente o mesmo profissional — faz fugas de água, desentupimentos, reparação de esquentadores e caldeiras, e instalações de canalização. Na VITFIX, os nossos picheleiros/canalizadores cobrem {CITIES.map(c => c.name).join(', ')}.
+                  &ldquo;Picheleiro&rdquo; é o nome regional no Norte de Portugal (Tâmega e Sousa, Douro, Minho) para o que no resto do país se chama &ldquo;canalizador&rdquo;. É exatamente o mesmo profissional, faz fugas de água, desentupimentos, reparação de esquentadores e caldeiras, e instalações de canalização. Na VITFIX, os nossos picheleiros/canalizadores cobrem {CITIES.map(c => c.name).join(', ')}.
                 </div>
               </details>
             ) : (
@@ -578,7 +579,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
             Precisa de um {displayName.toLowerCase()} perto de si{city ? ` em ${city.name}` : ''}?
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">
-            Contacte-nos diretamente — resposta em {service.urgency.avgResponseTime}. Orçamento gratuito, sem compromisso.
+            Contacte-nos diretamente, resposta em {service.urgency.avgResponseTime}. Orçamento gratuito, sem compromisso.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <a
@@ -589,7 +590,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               style={{ background: '#25D366', boxShadow: '0 6px 24px rgba(37,211,102,0.4)' }}
             >
               <WaSvg />
-              WhatsApp — Resposta imediata
+              WhatsApp, Resposta imediata
             </a>
             <a
               href={`tel:${PHONE_PT}`}

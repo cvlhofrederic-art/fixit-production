@@ -20,69 +20,13 @@ interface HomeSectionProps {
   setShowNewRdv: (v: boolean) => void
   setShowDevisForm: (v: boolean) => void
   setShowFactureForm: (v: boolean) => void
+  /** Callback unifié : ouvre le form devis vide (sans pré-remplissage par un ancien devis). */
+  openDevisForm: (doc?: unknown) => void
+  /** Callback unifié : ouvre le form facture vide (sans pré-remplissage par un ancien doc). */
+  openFactureForm: (doc?: unknown) => void
   setActivePage: (page: string) => void
   setSidebarOpen: (v: boolean) => void
   openNewMotif: () => void
-}
-
-function seedDemoAlertsData(artisanId: string, chantiers: Array<{ client?: string; titre?: string }>): string {
-  if (typeof window === 'undefined' || !artisanId) return 'Impossible'
-  const clientsActifs = chantiers
-    .map(c => (c.client || '').trim())
-    .filter(Boolean)
-  const clientA = clientsActifs[0] || 'Mme Martin'
-  const clientB = clientsActifs[1] || clientsActifs[0] || 'M. Dupont'
-  const clientC = clientsActifs[2] || clientsActifs[0] || 'SCI Lumière'
-
-  // 1. Conversations non lues (sur clients de chantiers en cours)
-  const now = Date.now()
-  const convs = [
-    {
-      id: `demo-conv-${now}-1`,
-      other_user_name: clientA,
-      client_name: clientA,
-      unread_count: 2,
-      last_message: 'Bonjour, pouvez-vous passer demain ?',
-      last_message_at: new Date(now - 3600_000).toISOString(),
-    },
-    {
-      id: `demo-conv-${now}-2`,
-      other_user_name: clientB,
-      client_name: clientB,
-      unread_count: 1,
-      last_message: 'Question sur le devis envoyé',
-      last_message_at: new Date(now - 7200_000).toISOString(),
-    },
-  ]
-  localStorage.setItem(`fixit_messagerie_convs_${artisanId}`, JSON.stringify(convs))
-
-  // 2. Devis brouillon (fait mais pas envoyé)
-  const existingDocs = (() => {
-    try { return JSON.parse(localStorage.getItem(`fixit_docs_${artisanId}`) || '[]') } catch { return [] }
-  })() as SavedDocument[]
-  const demoDoc: SavedDocument = {
-    id: `demo-devis-${now}`,
-    type: 'devis',
-    ref: 'DEV-DEMO-001',
-    client: clientC,
-    clientName: clientC,
-    totalTTC: 2450,
-    status: 'brouillon',
-    date: new Date(now).toISOString(),
-  }
-  const merged = [demoDoc, ...existingDocs.filter(d => d.id !== demoDoc.id)]
-  localStorage.setItem(`fixit_docs_${artisanId}`, JSON.stringify(merged))
-
-  // 3. Wallet docs — un expiré, un qui expire bientôt
-  const day = 86400_000
-  const wallet = {
-    rc_pro: { name: 'RC Pro', expiryDate: new Date(now + 15 * day).toISOString() },
-    kbis: { name: 'KBIS', expiryDate: new Date(now - 5 * day).toISOString() },
-    decennale: { name: 'Décennale', expiryDate: new Date(now + 45 * day).toISOString() },
-  }
-  localStorage.setItem(`fixit_wallet_${artisanId}`, JSON.stringify(wallet))
-
-  return 'ok'
 }
 
 function extractClientName(booking: Booking): string {
@@ -132,6 +76,8 @@ export default function HomeSection({
   setShowNewRdv,
   setShowDevisForm,
   setShowFactureForm,
+  openDevisForm,
+  openFactureForm,
   setActivePage,
   setSidebarOpen,
   openNewMotif,
@@ -164,6 +110,46 @@ export default function HomeSection({
   const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId })
   const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
   const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
+
+  // One-shot cleanup: purge fake data injected by the now-removed Démo button.
+  // Demo entries have stable signatures (id prefix `demo-conv-`/`demo-devis-` for
+  // convs/docs ; wallet entries with names 'RC Pro'/'KBIS'/'Décennale' and no url).
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id) return
+    try {
+      const convKey = `fixit_messagerie_convs_${artisan.id}`
+      const rawConv = localStorage.getItem(convKey)
+      if (rawConv) {
+        const convs = JSON.parse(rawConv) as Array<{ id?: string }>
+        const cleaned = convs.filter(c => !(typeof c.id === 'string' && c.id.startsWith('demo-conv-')))
+        if (cleaned.length !== convs.length) localStorage.setItem(convKey, JSON.stringify(cleaned))
+      }
+      const docsKey = `fixit_docs_${artisan.id}`
+      const rawDocs = localStorage.getItem(docsKey)
+      if (rawDocs) {
+        const docs = JSON.parse(rawDocs) as Array<{ id?: string }>
+        const cleaned = docs.filter(d => !(typeof d.id === 'string' && d.id.startsWith('demo-devis-')))
+        if (cleaned.length !== docs.length) localStorage.setItem(docsKey, JSON.stringify(cleaned))
+      }
+      const walletKey = `fixit_wallet_${artisan.id}`
+      const rawWallet = localStorage.getItem(walletKey)
+      if (rawWallet) {
+        const wallet = JSON.parse(rawWallet) as Record<string, { name?: string; url?: string; uploadedAt?: string; expiryDate?: string }>
+        const demoNames = new Set(['RC Pro', 'KBIS', 'Décennale'])
+        const cleaned: typeof wallet = {}
+        let dropped = false
+        for (const [k, doc] of Object.entries(wallet)) {
+          const isDemo = doc && !doc.url && !doc.uploadedAt && demoNames.has(doc.name || '')
+          if (isDemo) dropped = true
+          else cleaned[k] = doc
+        }
+        if (dropped) {
+          if (Object.keys(cleaned).length === 0) localStorage.removeItem(walletKey)
+          else localStorage.setItem(walletKey, JSON.stringify(cleaned))
+        }
+      }
+    } catch { /* ignore */ }
+  }, [artisan?.id])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
@@ -387,23 +373,7 @@ export default function HomeSection({
             <p>{artisan?.company_name || 'Entreprise'} — {locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum}, {monthYear}</p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {isSociete && (
-              <button
-                className="v5-btn v5-btn-sm"
-                title={locale === 'pt' ? 'Injeta alertas de demonstração (mensagens, orçamento rascunho, wallet)' : 'Injecte des alertes de démonstration (messages, devis brouillon, wallet)'}
-                onClick={() => {
-                  const res = seedDemoAlertsData(artisan?.id || '', btpChantiers)
-                  if (res === 'ok') {
-                    alert(locale === 'pt' ? '✅ Dados de demonstração injetados — a recarregar…' : '✅ Données démo injectées — rafraîchissement…')
-                    window.location.reload()
-                  }
-                }}
-              >
-                🎲 {locale === 'pt' ? 'Demo' : 'Démo'}
-              </button>
-            )}
-            <button className="v5-btn v5-btn-sm" onClick={() => navigateTo('stats')}>{locale === 'pt' ? 'Exportar' : 'Exporter'}</button>
-            <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
+            <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
           </div>
         </div>
 
@@ -664,14 +634,14 @@ export default function HomeSection({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {orgRole === 'artisan' ? (<>
             <button className="v5-act-btn primary" onClick={() => { setShowNewRdv(true); navigateTo('calendar') }}><span style={{ fontSize: 18 }}>📅</span><span>{t('proDash.home.nouvelRdv')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>🧾</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => openFactureForm(), 50) }}><span style={{ fontSize: 18 }}>🧾</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
             <button className="v5-act-btn" onClick={() => { openNewMotif(); navigateTo('motifs') }}><span style={{ fontSize: 18 }}>🔧</span><span>{t('proDash.home.nouveauMotif')}</span></button>
           </>) : (<>
             <button className="v5-act-btn primary" onClick={() => navigateTo('equipes')}><span style={{ fontSize: 18 }}>👷</span><span>{t('proDash.home.nouvelleEquipe')}</span></button>
             <button className="v5-act-btn" onClick={() => navigateTo('chantiers')}><span style={{ fontSize: 18 }}>🏗️</span><span>{t('proDash.home.nouveauChantier')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
-            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => openFactureForm(), 50) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
           </>)}
         </div>
       </div>
@@ -693,7 +663,7 @@ export default function HomeSection({
           <button className="v22-btn v22-btn-sm" onClick={() => navigateTo('stats')}>
             {locale === 'pt' ? 'Exportar' : 'Exporter'}
           </button>
-          <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}>
+          <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}>
             + {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}
           </button>
         </div>
@@ -964,14 +934,14 @@ export default function HomeSection({
         {orgRole === 'pro_conciergerie' && <>
           <QuickAction icon="🏠" label={t('proDash.home.nouvellePropriete')} onClick={() => navigateTo('proprietes')} textColor={tv.text} />
           <QuickAction icon="📅" label={t('proDash.home.planifierVisite')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} textColor={tv.text} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} textColor={tv.text} />
+          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }} textColor={tv.text} />
           <QuickAction icon="🔑" label={t('proDash.home.gererAcces')} onClick={() => navigateTo('acces')} textColor={tv.text} />
         </>}
         {orgRole === 'pro_gestionnaire' && <>
           <QuickAction icon="📋" label={t('proDash.home.ordreDeMission')} onClick={() => navigateTo('missions')} textColor={tv.text} />
           <QuickAction icon="🏢" label={t('proDash.home.gererImmeuble')} onClick={() => navigateTo('immeubles')} textColor={tv.text} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} textColor={tv.text} />
-          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }} textColor={tv.text} />
+          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }} textColor={tv.text} />
+          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => openFactureForm(), 50) }} textColor={tv.text} />
         </>}
         </div>
       </div>

@@ -8,10 +8,12 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { useSearchParams } from 'next/navigation'
 import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculator'
+import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
+import { formatSiegeAddress } from '@/lib/sirene-address'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrgType = 'artisan' | 'societe_btp' | 'conciergerie' | 'gestionnaire' | 'syndic' | null
+type OrgType = 'artisan' | 'societe_btp' | null
 type SiretStatus = 'idle' | 'checking' | 'verified' | 'error'
 
 // ─── Mapping secteur BTP label → specialty slug ───────────────────────────────
@@ -53,39 +55,12 @@ function getOrgTypes(t: (key: string) => string) {
       role: 'artisan',
       examples: t('register.orgArtisanExamples'),
     },
-    {
-      id: 'syndic' as OrgType,
-      emoji: '🏛️',
-      label: t('register.orgSyndicLabel'),
-      desc: t('register.orgSyndicDesc'),
-      color: 'purple',
-      role: 'syndic',
-      examples: t('register.orgSyndicExamples'),
-    },
-    {
-      id: 'gestionnaire' as OrgType,
-      emoji: '🏢',
-      label: t('register.orgGestionnaireLabel'),
-      desc: t('register.orgGestionnaireDesc'),
-      color: 'green',
-      role: 'pro_gestionnaire',
-      examples: t('register.orgGestionnaireExamples'),
-    },
-    {
-      id: 'conciergerie' as OrgType,
-      emoji: '🗝️',
-      label: t('register.orgConciergerieLabel'),
-      desc: t('register.orgConciergerieDesc'),
-      color: 'blue',
-      role: 'pro_conciergerie',
-      examples: t('register.orgConciergerieExamples'),
-    },
-    {
+{
       id: 'societe_btp' as OrgType,
       emoji: '🏗️',
       label: t('register.orgBtpLabel'),
       desc: t('register.orgBtpDesc'),
-      color: 'blue',
+      color: 'amber',
       role: 'pro_societe',
       examples: t('register.orgBtpExamples'),
     },
@@ -129,9 +104,6 @@ function StepChoixOrganisation({ onChoose }: { onChoose: (type: OrgType) => void
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="font-bold text-dark text-base">{org.label}</span>
-                  {org.id === 'artisan' && (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{t('register.orgArtisanBadge')}</span>
-                  )}
                 </div>
                 <p className="text-sm text-text-muted mb-1">{org.desc}</p>
                 <p className="text-xs text-text-muted">{org.examples}</p>
@@ -215,6 +187,9 @@ function getAllowedMetiers(nafCode: string | undefined): string[] | null {
 
 function FormulaireArtisan() {
   const { t } = useTranslation()
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const taxIdLength = isPt ? 9 : 14
   const searchParams = useSearchParams()
   const METIERS = getMetiers(t)
   const [step, setStep] = useState<1 | 2>(1)
@@ -246,6 +221,8 @@ function FormulaireArtisan() {
   const [kbisPreview, setKbisPreview] = useState<string>('')
   const [idFile, setIdFile] = useState<File | null>(null)
   const [idPreview, setIdPreview] = useState<string>('')
+  const [idFileVerso, setIdFileVerso] = useState<File | null>(null)
+  const [idPreviewVerso, setIdPreviewVerso] = useState<string>('')
   const [siretInput, setSiretInput] = useState('')
   const [siretStatus, setSiretStatus] = useState<SiretStatus>('idle')
   const [siretError, setSiretError] = useState('')
@@ -288,18 +265,52 @@ function FormulaireArtisan() {
 
   const verifySiret = async () => {
     const clean = siretInput.replace(/\s/g, '')
-    if (clean.length !== 14) { setSiretError(t('register.taxId14digits')); setSiretStatus('error'); return }
+    if (clean.length !== taxIdLength) { setSiretError(isPt ? '9 dígitos necessários' : '14 chiffres nécessaires'); setSiretStatus('error'); return }
     setSiretStatus('checking'); setSiretError(''); setSiretWarning('')
     try {
-      const res = await fetch(`/api/verify-siret?siret=${clean}`)
+      // Try internal API first
+      const endpoint = isPt ? `/api/verify-nif?nif=${clean}` : `/api/verify-siret?siret=${clean}`
+      const res = await fetch(endpoint)
       const data = await res.json()
       if (data.verified) {
         setSiretStatus('verified'); setVerifiedCompany(data.company); setSiretWarning(data.warning || '')
-        setFormData(prev => ({ ...prev, companyName: data.company.name, siret: clean }))
-        // Filtrer les catégories sélectionnées pour ne garder que celles autorisées par le NAF
+        setFormData(prev => ({ ...prev, companyName: data.company.name || prev.companyName, siret: clean }))
         const allowed = getAllowedMetiers(data.company.nafCode)
-        if (allowed) setSelectedCategories(prev => prev.filter(c => allowed.includes(c)))
-      } else { setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid')) }
+        // Auto-pré-sélection des métiers déduits du NAF (si user n'en a pas déjà cochés)
+        const defaults = getDefaultCategoriesFromNaf(data.company.nafCode)
+        setSelectedCategories(prev => {
+          const filtered = allowed ? prev.filter(c => allowed.includes(c)) : prev
+          if (filtered.length > 0 || defaults.length === 0) return filtered
+          // Pré-remplit avec les défauts NAF, en respectant les `allowed` si fournis
+          return allowed ? defaults.filter(c => allowed.includes(c)) : defaults
+        })
+        return
+      }
+      // If internal API failed with api_error, fallback to direct gouv API call from browser
+      if (!isPt && data.step === 'api_error') {
+        const gouvRes = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${clean}`)
+        if (gouvRes.ok) {
+          const gouvData = await gouvRes.json()
+          if (gouvData.results?.length > 0) {
+            const e = gouvData.results[0]
+            if (e.etat_administratif === 'C') {
+              setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return
+            }
+            const company = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: formatSiegeAddress(e.siege), city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
+            setSiretStatus('verified'); setVerifiedCompany(company)
+            setFormData(prev => ({ ...prev, companyName: company.name || prev.companyName, siret: clean }))
+            const allowed = getAllowedMetiers(company.nafCode)
+            const defaults = getDefaultCategoriesFromNaf(company.nafCode)
+            setSelectedCategories(prev => {
+              const filtered = allowed ? prev.filter(c => allowed.includes(c)) : prev
+              if (filtered.length > 0 || defaults.length === 0) return filtered
+              return allowed ? defaults.filter(c => allowed.includes(c)) : defaults
+            })
+            return
+          }
+        }
+      }
+      setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid'))
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
@@ -323,8 +334,8 @@ function FormulaireArtisan() {
     if (siretStatus !== 'verified') { setError(t('register.verifyTaxId')); return false }
     if (selectedCategories.length === 0) { setError(t('register.selectOneTrade')); return false }
     if (!kbisFile) { setError(t('register.kbisRequired')); return false }
-    if (!idFile) { setError(t('register.idRequired')); return false }
-    if (!formData.password || formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) { setError(t('register.passwordTooShort')); return false }
+    if (!idFile || !idFileVerso) { setError(t('register.idRequired')); return false }
+    if (!formData.password || formData.password.length < 12 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password) || !/[^A-Za-z0-9]/.test(formData.password)) { setError(t('register.passwordTooShort')); return false }
     if (formData.password !== formData.confirmPassword) { setError(t('register.passwordMismatch')); return false }
     return true
   }
@@ -346,19 +357,33 @@ function FormulaireArtisan() {
       }
       const { data: authData, error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.password, options: { data: userMetadata } })
       if (authError) { setError(authError.message); setLoading(false); return }
+      // Supabase returns a fake user with empty identities if email already exists (security feature)
+      if (authData.user?.identities?.length === 0) { setError('Un compte existe déjà avec cet email. Connectez-vous ou utilisez un autre email.'); setLoading(false); return }
       if (authData.user) {
+        // Init app_metadata.role (server-only) via endpoint dédié
+        try {
+          const token = (await supabase.auth.getSession()).data.session?.access_token ?? ''
+          await fetch('/api/auth/init-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ role: 'artisan' }),
+          })
+        } catch { /* non-bloquant */ }
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
         const artisanLanguage = artisanCountry === 'PT' ? 'pt' : 'fr'
-        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', first_name: formData.prenom, last_name: formData.nom, phone: formData.telephone, email: formData.email, country: artisanCountry, language: artisanLanguage }
+        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', phone: formData.telephone, email: formData.email, language: artisanLanguage }
         if (verifiedCompany) Object.assign(profileInsert, { legal_form: verifiedCompany.legalForm, siren: verifiedCompany.siren, naf_code: verifiedCompany.nafCode, naf_label: verifiedCompany.nafLabel, company_address: verifiedCompany.address, company_city: verifiedCompany.city, company_postal_code: verifiedCompany.postalCode })
-        const { data: profileData, error: profileError } = await supabase.from('profiles_artisan').insert(profileInsert).select('id').single()
-        if (profileError) { setError(profileError.message); setLoading(false); return }
+        const profileRes = await fetch('/api/auth/create-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileInsert) })
+        const profileResult = await profileRes.json()
+        if (!profileRes.ok) { setError(profileResult.error || 'Erreur création profil'); setLoading(false); return }
+        const profileData = { id: profileResult.id }
         if (profileData?.id) {
           await Promise.all([
             kbisFile ? uploadDocument(kbisFile, 'kbis', profileData.id, 'kbis_url') : Promise.resolve(),
             idFile ? uploadDocument(idFile, 'identity', profileData.id, 'id_document_url') : Promise.resolve(),
+            idFileVerso ? uploadDocument(idFileVerso, 'identity-verso', profileData.id, 'id_document_verso_url') : Promise.resolve(),
             insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
           ])
 
@@ -477,11 +502,11 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.firstName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Jean" />
+              <input type="text" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Jean" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.lastName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Dupont" />
+              <input type="text" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Dupont" />
             </div>
           </div>
 
@@ -489,11 +514,11 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.proEmail')} <span className="text-red-500">*</span></label>
-              <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="pro@email.com" />
+              <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="pro@email.com" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.phone')}</label>
-              <input type="tel" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
+              <input type="tel" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
             </div>
           </div>
 
@@ -503,8 +528,8 @@ function FormulaireArtisan() {
             <p className="text-xs text-text-muted mb-2">{t('register.taxIdHelp')} <a href="https://annuaire-entreprises.data.gouv.fr" target="_blank" rel="noopener noreferrer" className="underline text-blue-500 font-semibold">{t('register.taxIdSite')}</a></p>
             <div className="flex gap-3">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(formatSiret(e.target.value)); setSiretStatus('idle'); setSiretError(''); setVerifiedCompany(null); setSelectedCategories([]) }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); verifySiret() } }} maxLength={17}
-                className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl text-lg font-mono tracking-wider focus:outline-none transition ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400 bg-red-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-yellow focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
-              <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== 14 || siretStatus === 'checking'}
+                className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl text-lg font-mono tracking-wider focus:outline-none transition ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400 bg-red-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-[#BDBDBD] focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
+              <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== taxIdLength || siretStatus === 'checking'}
                 className="bg-yellow hover:bg-yellow-light text-dark px-5 py-3 rounded-xl font-semibold transition hover:-translate-y-px disabled:opacity-40 whitespace-nowrap">
                 {siretStatus === 'checking' ? '⏳' : t('register.verify')}
               </button>
@@ -522,13 +547,13 @@ function FormulaireArtisan() {
           {siretStatus !== 'verified' && (
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.companyName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Ma Société" />
+              <input type="text" value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Ma Société" />
             </div>
           )}
 
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.activityDesc')}</label>
-            <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={2} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none resize-none" placeholder={t('register.activityPlaceholder')} />
+            <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={2} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none resize-none" placeholder={t('register.activityPlaceholder')} />
           </div>
 
           <div>
@@ -577,18 +602,38 @@ function FormulaireArtisan() {
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.idLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{t('register.idHelp')}</p>
-            {!idFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
-                <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">{t('register.addId')}</span>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }; verifyIdDocument(f) } }} />
-              </label>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
-                {idPreview ? <Image src={idPreview} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded" unoptimized /> : <span className="text-2xl">📄</span>}
-                <span className="flex-1 text-sm font-semibold text-green-800 truncate">{idFile.name}</span>
-                <button type="button" onClick={() => { setIdFile(null); setIdPreview(''); setIdVerifyStatus('idle'); setIdVerifyDetails([]) }} className="text-text-muted hover:text-red-500">✕</button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Recto</p>
+                {!idFile ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter recto</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }; verifyIdDocument(f) } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreview ? <Image src={idPreview} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded" unoptimized /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFile.name}</span>
+                    <button type="button" onClick={() => { setIdFile(null); setIdPreview(''); setIdVerifyStatus('idle'); setIdVerifyDetails([]) }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
               </div>
-            )}
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Verso</p>
+                {!idFileVerso ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter verso</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFileVerso(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreviewVerso(ev.target?.result as string); r.readAsDataURL(f) } } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreviewVerso ? <Image src={idPreviewVerso} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded" unoptimized /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFileVerso.name}</span>
+                    <button type="button" onClick={() => { setIdFileVerso(null); setIdPreviewVerso('') }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
+              </div>
+            </div>
             {/* Résultat vérification OCR */}
             {idVerifyStatus === 'checking' && (
               <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
@@ -637,11 +682,11 @@ function FormulaireArtisan() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
-              <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required minLength={8} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordMin')} />
+              <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.passwordMin')} />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.confirmPwd')} <span className="text-red-500">*</span></label>
-              <input type="password" value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.repeatPwd')} />
+              <input type="password" value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.repeatPwd')} />
             </div>
           </div>
 
@@ -748,10 +793,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     name?: string
     siret?: string
     siren?: string
+    nif?: string
+    address?: string
     nafCode?: string
     nafLabel?: string
     legalForm?: string
-    address?: string
     city?: string
     postalCode?: string
   } | null>(null)
@@ -762,24 +808,45 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const [kbisPreview, setKbisPreview] = useState('')
   const [idFile, setIdFile] = useState<File | null>(null)
   const [idPreview, setIdPreview] = useState('')
+  const [idFileVerso, setIdFileVerso] = useState<File | null>(null)
+  const [idPreviewVerso, setIdPreviewVerso] = useState('')
   const [legalStructure, setLegalStructure] = useState('')
+
+  const isPt = locale === 'pt'
+  const taxIdLength = isPt ? 9 : 14
 
   const verifySiret = async () => {
     const clean = siretInput.replace(/\s/g, '')
-    if (clean.length !== 14) { setSiretError(t('register.taxId14digits')); setSiretStatus('error'); return }
+    if (clean.length !== taxIdLength) { setSiretError(isPt ? '9 dígitos necessários' : '14 chiffres nécessaires'); setSiretStatus('error'); return }
     setSiretStatus('checking'); setSiretError('')
     try {
-      const res = await fetch(`/api/verify-siret?siret=${clean}`)
+      const endpoint = isPt ? `/api/verify-nif?nif=${clean}` : `/api/verify-siret?siret=${clean}`
+      const res = await fetch(endpoint)
       const data = await res.json()
       if (data.verified) {
-        setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name }))
-        // Auto-map legal form from API to companyTypes key
+        setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name || f.companyName }))
         if (data.company.legalForm) {
           const mapped = mapLegalFormToKey(data.company.legalForm, registrationCountry)
           if (mapped) setLegalStructure(mapped)
         }
+        return
       }
-      else { setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid')) }
+      // Fallback: call gouv API directly from browser if internal API fails
+      if (!isPt && data.step === 'api_error') {
+        const gouvRes = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${clean}`)
+        if (gouvRes.ok) {
+          const gouvData = await gouvRes.json()
+          if (gouvData.results?.length > 0) {
+            const e = gouvData.results[0]
+            if (e.etat_administratif === 'C') { setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return }
+            const comp = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: formatSiegeAddress(e.siege), city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
+            setSiretStatus('verified'); setCompany(comp); setForm(f => ({ ...f, companyName: comp.name || f.companyName }))
+            if (comp.legalForm) { const mapped = mapLegalFormToKey(comp.legalForm, registrationCountry); if (mapped) setLegalStructure(mapped) }
+            return
+          }
+        }
+      }
+      setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid'))
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
@@ -794,14 +861,14 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       body: fd,
     })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Échec de l\'upload')
+    if (!res.ok) throw new Error(data.error || t('register.uploadError'))
     return data.url
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError(t('register.passwordMismatch')); return }
-    if (form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password)) { setError(t('register.passwordMin8')); return }
+    if (form.password.length < 12 || !/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password) || !/[^A-Za-z0-9]/.test(form.password)) { setError(t('register.passwordMin8')); return }
     trackEvent(AnalyticsEventType.SIGNUP_STARTED, { role: orgType })
     setLoading(true); setError('')
     try {
@@ -842,6 +909,17 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         return
       }
 
+      // Init app_metadata.role (server-only, non forgeable) via endpoint dédié
+      if (authData.session?.access_token) {
+        try {
+          await fetch('/api/auth/init-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+            body: JSON.stringify({ role: org.role }),
+          })
+        } catch { /* non-bloquant */ }
+      }
+
       // Upload documents using the session token from signUp
       if (authData.session?.access_token) {
         try {
@@ -856,31 +934,34 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           }
         } catch (uploadErr: unknown) {
           // Non-blocking: account created, docs failed
-          setError(`Compte créé mais erreur upload documents: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
+          setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
         }
       }
 
       // ── Créer profil artisan BTP pour le KYC ──
-      if (authData.user && authData.session) {
+      if (authData.user) {
         try {
           const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
           const btpCountry = localeCookie === 'pt' ? 'PT' : 'FR'
           const btpLanguage = btpCountry === 'PT' ? 'pt' : 'fr'
           const btpMarket = orgType === 'societe_btp' ? 'fr_btp' : 'fr_artisan'
-          const { data: btpProfile } = await supabase.from('profiles_artisan').insert({
-            user_id: authData.user.id,
-            email: form.email,
-            first_name: form.prenom,
-            last_name: form.nom,
-            phone: form.telephone,
-            company_name: company?.name || form.companyName || '',
-            siret: siretInput.replace(/\s/g, ''),
-            country: btpCountry,
-            language: btpLanguage,
-            kyc_status: 'pending',
-            kyc_market: btpMarket,
-            verified: false,
-          }).select('id').single()
+          const profileRes = await fetch('/api/auth/create-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: authData.user.id,
+              email: form.email,
+              phone: form.telephone,
+              company_name: company?.name || form.companyName || '',
+              siret: siretInput.replace(/\s/g, ''),
+              language: btpLanguage,
+              kyc_status: 'pending',
+              kyc_market: btpMarket,
+              verified: false,
+            }),
+          })
+          const profileResult = await profileRes.json()
+          const btpProfile = profileRes.ok ? { id: profileResult.id } : null
 
           if (btpProfile?.id) {
             // Mettre à jour les URLs de documents si uploadées
@@ -895,7 +976,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             // ── KYC anti-fraude en background ──
             fetch('/api/kyc-orchestrate', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session?.access_token ?? ''}` },
               body: JSON.stringify({ artisan_id: btpProfile.id }),
             }).catch(() => { /* KYC non-bloquant */ })
           }
@@ -915,6 +996,29 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             }),
           })
         } catch { /* non-bloquant */ }
+
+        // ── Auto-création du gérant comme membre de l'équipe (pro_team_members) ──
+        // Le gérant qui crée le compte société doit être lui-même un membre actif
+        // (avec role=GERANT) pour que l'écran "Comptes utilisateurs" reflète
+        // correctement l'organisation. Sans ça, le compteur affiche "0/20"
+        // jusqu'à ce qu'il s'invite manuellement.
+        if (authData.user) {
+          try {
+            await fetch('/api/pro/team/auto-init-gerant', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(authData.session?.access_token ? { 'Authorization': `Bearer ${authData.session.access_token}` } : {}),
+              },
+              body: JSON.stringify({
+                user_id: authData.user.id,
+                email: form.email,
+                full_name: `${form.prenom} ${form.nom}`,
+                phone: form.telephone,
+              }),
+            })
+          } catch { /* non-bloquant */ }
+        }
       }
 
       trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: orgType })
@@ -928,25 +1032,85 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       <div className="text-6xl mb-4">🎉</div>
       <h2 className="text-2xl font-display font-black tracking-[-0.03em] mb-2">{t('register.accountCreated')}</h2>
       <p className="text-text-muted mb-2">{t('register.checkEmailConfirm')}</p>
-      <p className={`font-semibold mb-6 ${org.color === 'blue' ? 'text-blue-600' : org.color === 'purple' ? 'text-purple-600' : 'text-green-600'}`}>{t('register.trialIncluded')} ✅</p>
-      <LocaleLink href="/auth/login" className={`inline-block text-white px-8 py-3 rounded-xl font-bold transition ${org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{t('register.login')}</LocaleLink>
+      <p className="font-semibold mb-6 text-amber-600">{t('register.trialIncluded')} ✅</p>
+      <LocaleLink href="/auth/login" className="inline-block bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-bold transition">{t('register.login')}</LocaleLink>
     </div>
   )
 
-  const accent = org.color === 'blue' ? 'border-blue-400 bg-blue-50 text-blue-600' : org.color === 'purple' ? 'border-purple-400 bg-purple-50 text-purple-600' : 'border-green-400 bg-green-50 text-green-600'
-  const btnClass = org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-px' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700 text-white hover:-translate-y-px' : 'bg-green-600 hover:bg-green-700 text-white hover:-translate-y-px'
+  const accent = 'border-amber-400 bg-amber-50 text-amber-600'
+  const btnClass = 'bg-yellow hover:bg-yellow-light text-dark hover:-translate-y-px'
 
-  const secteurs = orgType === 'societe_btp'
-    ? [t('register.sectorBtpGrosOeuvre'), t('register.sectorBtpElecPlomb'), t('register.sectorBtpPeinture'), t('register.sectorBtpMenuiserie'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'), t('register.sectorBtpMetallerie'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'), t('register.sectorBtpAutre')]
-    : orgType === 'conciergerie'
-    ? [t('register.sectorConcAirbnb'), t('register.sectorConcResidentiel'), t('register.sectorConcLocative'), t('register.sectorConcLuxe'), t('register.sectorConcEntreprises')]
-    : [t('register.sectorGestResidentiel'), t('register.sectorGestCopro'), t('register.sectorGestFonciere'), t('register.sectorGestCommerciale'), t('register.sectorGestPromoteur')]
+  const secteursData = isPt ? [
+    { label: 'Alvenaria', cae: 'Atividades de alvenaria e assentamento de tijolos (CAE 43910)' },
+    { label: 'Eletricidade', cae: 'Instalação elétrica (CAE 43210)' },
+    { label: 'Canalização', cae: 'Instalação de canalizações (CAE 43221)' },
+    { label: 'Pintura', cae: 'Pintura e colocação de vidros (CAE 43340)' },
+    { label: 'Revestimentos', cae: 'Revestimento de pavimentos e de paredes (CAE 43330)' },
+    { label: 'Carpintaria', cae: 'Montagem de trabalhos de carpintaria e de caixilharia (CAE 43320)' },
+    { label: 'Estruturas de madeira', cae: 'Fabricação de outros produtos de carpintaria para a construção (CAE 16230)' },
+    { label: 'Climatização / AVAC', cae: 'Instalação de climatização (CAE 43222)' },
+    { label: 'Telhados / Cobertura', cae: 'Atividades de colocação de telhados e coberturas (CAE 43410)' },
+    { label: 'Serralharia / Ferragem', cae: 'Fabricação de estruturas e partes de estruturas metálicas (CAE 25110)' },
+    { label: 'Impermeabilização', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
+    { label: 'Isolamento térmico', cae: 'Instalação de isolamento (CAE 43230)' },
+    { label: 'Pavimentos', cae: 'Revestimento de pavimentos e de paredes (CAE 43330)' },
+    { label: 'Caixilharia / Janelas', cae: 'Montagem de trabalhos de carpintaria e de caixilharia (CAE 43320)' },
+    { label: 'Portas / Portões', cae: 'Fabricação de portas e janelas metálicas (CAE 25120)' },
+    { label: 'Estores / Cortinas', cae: 'Comércio a retalho de carpetes, tapetes, cortinados (CAE 47530)' },
+    { label: 'Vidraceiro', cae: 'Pintura e colocação de vidros (CAE 43340)' },
+    { label: 'Canalizador de gás', cae: 'Instalação de canalizações (CAE 43221)' },
+    { label: 'Eletrodomésticos', cae: 'Reparação e manutenção de equipamento elétrico (CAE 33140)' },
+    { label: 'Limpeza', cae: 'Limpeza geral de edifícios (CAE 81210)' },
+    { label: 'Jardinagem', cae: 'Atividades dos serviços de plantação e manutenção de jardins (CAE 81300)' },
+    { label: 'Mudanças', cae: 'Serviços de mudanças (CAE 49420)' },
+    { label: 'Desentupimentos', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
+    { label: 'Fachadas', cae: 'Outras atividades de acabamento em edifícios (CAE 43350)' },
+    { label: 'Terraços / Varandas', cae: 'Construção de edifícios (CAE 41200)' },
+    { label: 'Piscinas', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
+    { label: 'Controlo de pragas', cae: 'Atividades de desinfeção, desratização e similares (CAE 81231)' },
+    { label: 'Bricolagem', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
+    { label: 'Construção de edifícios', cae: 'Construção de edifícios residenciais e não residenciais (CAE 41200)' },
+    { label: 'Renovação geral', cae: 'Construção de edifícios (CAE 41200)' },
+    { label: 'Outro setor', cae: '' },
+  ] : [
+    { label: 'Maçonnerie', cae: 'Travaux de maçonnerie générale (NAF 43.99A)' },
+    { label: 'Électricité', cae: 'Travaux d\'installation électrique (NAF 43.21A)' },
+    { label: 'Plomberie', cae: 'Travaux de plomberie et installation de chauffage (NAF 43.22A)' },
+    { label: 'Peinture', cae: 'Travaux de peinture et vitrerie (NAF 43.34Z)' },
+    { label: 'Revêtements muraux', cae: 'Travaux de revêtement des sols et des murs (NAF 43.33Z)' },
+    { label: 'Menuiserie', cae: 'Travaux de menuiserie bois et PVC (NAF 43.32A)' },
+    { label: 'Charpente', cae: 'Travaux de charpente (NAF 43.91A)' },
+    { label: 'Climatisation / CVC', cae: 'Travaux d\'installation d\'équipements thermiques (NAF 43.22B)' },
+    { label: 'Toiture / Couverture', cae: 'Travaux de couverture par éléments (NAF 43.91B)' },
+    { label: 'Métallerie / Ferronnerie', cae: 'Fabrication de structures métalliques (NAF 25.11Z)' },
+    { label: 'Étanchéité', cae: 'Travaux d\'étanchéification (NAF 43.99B)' },
+    { label: 'Isolation thermique', cae: 'Travaux d\'isolation (NAF 43.29A)' },
+    { label: 'Revêtements de sols', cae: 'Travaux de revêtement des sols et des murs (NAF 43.33Z)' },
+    { label: 'Menuiseries / Fenêtres', cae: 'Travaux de menuiserie métallique et serrurerie (NAF 43.32B)' },
+    { label: 'Portes / Portails', cae: 'Fabrication de portes et fenêtres en métal (NAF 25.12Z)' },
+    { label: 'Stores / Rideaux', cae: 'Commerce de détail de tapis et revêtements (NAF 47.53Z)' },
+    { label: 'Vitrerie', cae: 'Travaux de peinture et vitrerie (NAF 43.34Z)' },
+    { label: 'Plombier gaz', cae: 'Travaux de plomberie (NAF 43.22A)' },
+    { label: 'Électroménager', cae: 'Réparation d\'équipements électriques (NAF 33.14Z)' },
+    { label: 'Nettoyage', cae: 'Nettoyage courant des bâtiments (NAF 81.21Z)' },
+    { label: 'Jardinage', cae: 'Services d\'aménagement paysager (NAF 81.30Z)' },
+    { label: 'Déménagement', cae: 'Services de déménagement (NAF 49.42Z)' },
+    { label: 'Débouchage', cae: 'Autres travaux spécialisés de construction (NAF 43.99C)' },
+    { label: 'Façades', cae: 'Autres travaux de finition (NAF 43.31Z)' },
+    { label: 'Terrasses / Balcons', cae: 'Construction de bâtiments résidentiels et non résidentiels (NAF 41.20B)' },
+    { label: 'Piscines', cae: 'Autres travaux spécialisés de construction (NAF 43.99D)' },
+    { label: 'Dératisation', cae: 'Désinfection, désinsectisation, dératisation (NAF 81.29A)' },
+    { label: 'Bricolage', cae: 'Autres travaux spécialisés de construction (NAF 43.99Z)' },
+    { label: 'Rénovation générale', cae: 'Construction de bâtiments résidentiels et non résidentiels (NAF 41.20A)' },
+    { label: 'Autre secteur', cae: '' },
+  ]
+  const secteurs = secteursData.map(s => s.label)
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl ${org.color === 'blue' ? 'bg-blue-100' : org.color === 'purple' ? 'bg-purple-100' : 'bg-green-100'}`}>{org.emoji}</div>
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-3xl bg-amber-100">{org.emoji}</div>
         <div>
           <h2 className="font-bold text-dark">{org.label}</h2>
           <p className="text-xs text-text-muted">{org.desc}</p>
@@ -957,9 +1121,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       <div className="flex items-center gap-2">
         {[{n:1,label:t('register.proStepCompany')},{n:2,label:t('register.proStepContact')},{n:3,label:t('register.proStepSecurity')}].map((s,i) => (
           <div key={s.n} className="flex items-center gap-2">
-            {i > 0 && <div className={`w-8 h-0.5 ${step > s.n ? (org.color === 'blue' ? 'bg-blue-500' : org.color === 'purple' ? 'bg-purple-500' : 'bg-green-500') : 'bg-[#E0E0E0]'}`} />}
+            {i > 0 && <div className={`w-8 h-0.5 ${step > s.n ? 'bg-amber-400' : 'bg-[#E0E0E0]'}`} />}
             <div className="flex items-center gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= s.n ? (org.color === 'blue' ? 'bg-blue-600 text-white' : org.color === 'purple' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white') : 'bg-[#E0E0E0] text-text-muted'}`}>{s.n}</div>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= s.n ? 'bg-yellow text-dark' : 'bg-[#E0E0E0] text-text-muted'}`}>{s.n}</div>
               <span className={`text-xs hidden sm:block ${step >= s.n ? 'text-dark font-medium' : 'text-text-muted'}`}>{s.label}</span>
             </div>
           </div>
@@ -972,54 +1136,56 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       {step === 1 && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-mid mb-1">SIRET <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Vérifie l'existence légale de votre société auprès du registre officiel des entreprises (INSEE/SIRENE)</p>
+            <label className="block text-sm font-semibold text-mid mb-1">{t('register.taxIdProLabel')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{t('register.taxIdProHelp')}</p>
             <div className="flex gap-2">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(e.target.value); setSiretStatus('idle') }} maxLength={17}
                 className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl font-mono text-sm focus:outline-none ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400' : 'border-[#E0E0E0] bg-warm-gray focus:border-purple-400 focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
-              <button type="button" onClick={verifySiret} disabled={siretStatus === 'checking'} className={`px-4 py-3 rounded-xl font-semibold transition text-sm ${btnClass}`}>
+              <button type="button" onClick={verifySiret} disabled={siretInput.replace(/\s/g,'').length !== taxIdLength || siretStatus === 'checking'} className={`px-4 py-3 rounded-xl font-semibold transition text-sm ${btnClass}`}>
                 {siretStatus === 'checking' ? '⏳' : t('register.verify')}
               </button>
             </div>
             {siretStatus === 'error' && <p className="text-red-600 text-xs mt-1">❌ {siretError}</p>}
             {siretStatus === 'verified' && company && (
               <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
-                <p className="font-semibold text-green-800">✅ {company.name}</p>
-                <p className="text-xs text-green-600">{company.address}</p>
-                {company.nafLabel && <p className="text-xs text-green-600 mt-0.5">Activité : {company.nafLabel} ({company.nafCode})</p>}
-                {company.legalForm && <p className="text-xs text-green-600">Forme : {company.legalForm}</p>}
+                <p className="font-semibold text-green-800">✅ {company.name || (isPt ? `NIF ${company.nif} validado` : `SIRET ${company.siret} validé`)}</p>
+                {company.address && <p className="text-xs text-green-600">{company.address}</p>}
+                {!company.name && isPt && <p className="text-xs text-amber-600 mt-0.5">NIF válido mas não registado no VIES (pode ser isento de IVA)</p>}
+                {company.nafLabel && <p className="text-xs text-green-600 mt-0.5">{t('register.activityLabel')} : {company.nafLabel} ({company.nafCode})</p>}
+                {company.legalForm && <p className="text-xs text-green-600">{t('register.formLabel')} : {company.legalForm}</p>}
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-mid mb-1">Structure juridique <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-semibold text-mid mb-1">{t('register.legalStructureLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">{registrationCountry === 'PT' ? 'As contribuições variam conforme a forma jurídica' : 'Les charges et cotisations varient selon votre forme juridique'}</p>
             <select value={legalStructure} onChange={e => setLegalStructure(e.target.value)}
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none bg-white ${legalStructure ? 'border-green-400 bg-green-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-yellow focus:bg-white'}`}>
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none bg-white ${legalStructure ? 'border-green-400 bg-green-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-[#BDBDBD] focus:bg-white'}`}>
               <option value="">{registrationCountry === 'PT' ? '— Selecione a forma jurídica —' : '— Sélectionnez la forme juridique —'}</option>
               {getLegalStructureOptions(registrationCountry).map(opt => (
                 <option key={opt.key} value={opt.key}>{opt.label}</option>
               ))}
             </select>
             {legalStructure && siretStatus === 'verified' && company?.legalForm && (
-              <p className="text-xs text-green-600 mt-1">✓ Pré-rempli depuis le SIRET ({company.legalForm})</p>
+              <p className="text-xs text-green-600 mt-1">✓ {t('register.legalStructurePreFilled')} ({company.legalForm})</p>
             )}
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Plusieurs choix possibles</p>
+            <p className="text-xs text-text-muted mb-2">{t('register.multipleChoiceHint')}</p>
             <div className="grid grid-cols-1 gap-2">
-              {secteurs.map(s => {
-                const selected = form.secteurs.includes(s)
+              {secteursData.map(sd => {
+                const selected = form.secteurs.includes(sd.label)
                 return (
-                  <button key={s} type="button" onClick={() => setForm(f => ({
+                  <button key={sd.label} type="button" onClick={() => setForm(f => ({
                     ...f,
-                    secteurs: selected ? f.secteurs.filter(x => x !== s) : [...f.secteurs, s]
+                    secteurs: selected ? f.secteurs.filter(x => x !== sd.label) : [...f.secteurs, sd.label]
                   }))}
                     className={`text-left px-4 py-2.5 rounded-xl border-2 text-sm transition ${selected ? `${accent} border-2 font-semibold` : 'border-[#EFEFEF] hover:border-[#D0D0D0] text-mid'}`}>
-                    {selected ? '✓ ' : ''}{s}
+                    <span>{selected ? '✓ ' : ''}{sd.label}</span>
+                    {sd.cae && <span className="block text-[10px] text-[#999] font-normal mt-0.5">{sd.cae}</span>}
                   </button>
                 )
               })}
@@ -1028,7 +1194,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
 
           <div>
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.employeesLabel')}</label>
-            <select value={form.nbEmployes} onChange={e => setForm(f => ({...f, nbEmployes: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none bg-white">
+            <select value={form.nbEmployes} onChange={e => setForm(f => ({...f, nbEmployes: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none bg-white">
               <option value="">{t('register.selectPlaceholder')}</option>
               <option value="2-5">{t('register.employees2to5')}</option>
               <option value="6-20">{t('register.employees6to20')}</option>
@@ -1039,8 +1205,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           <button type="button" onClick={() => {
-            if (siretStatus !== 'verified') { setError('Veuillez vérifier votre SIRET avant de continuer — nous devons confirmer l\'existence légale de votre société'); return }
-            if (!legalStructure) { setError('Veuillez sélectionner la structure juridique de votre société'); return }
+            if (siretStatus !== 'verified') { setError(t('register.verifyTaxIdBeforeContinue')); return }
+            if (!legalStructure) { setError(t('register.selectLegalStructure')); return }
             if (form.secteurs.length === 0) { setError(t('register.sectorRequired')); return }
             setError(''); setStep(2)
           }} className={`w-full py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
@@ -1053,43 +1219,43 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.firstName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={form.prenom} onChange={e => setForm(f => ({...f, prenom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Jean" />
+              <input type="text" value={form.prenom} onChange={e => setForm(f => ({...f, prenom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Jean" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.lastName')} <span className="text-red-500">*</span></label>
-              <input type="text" value={form.nom} onChange={e => setForm(f => ({...f, nom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Dupont" />
+              <input type="text" value={form.nom} onChange={e => setForm(f => ({...f, nom: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Dupont" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.proEmail')} <span className="text-red-500">*</span></label>
-            <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="jean@masociete.fr" />
+            <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="jean@masociete.fr" />
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.phone')}</label>
-            <input type="tel" value={form.telephone} onChange={e => setForm(f => ({...f, telephone: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
+            <input type="tel" value={form.telephone} onChange={e => setForm(f => ({...f, telephone: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.phonePlaceholder')} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-mid mb-1">{t('register.ville')}</label>
-              <input type="text" value={form.ville} onChange={e => setForm(f => ({...f, ville: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Paris" />
+              <input type="text" value={form.ville} onChange={e => setForm(f => ({...f, ville: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="Paris" />
             </div>
             <div>
               <label className="block text-sm font-medium text-mid mb-1">{t('register.codePostal')}</label>
-              <input type="text" value={form.codePostal} onChange={e => setForm(f => ({...f, codePostal: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="75001" />
+              <input type="text" value={form.codePostal} onChange={e => setForm(f => ({...f, codePostal: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder="75001" />
             </div>
           </div>
           {/* Documents obligatoires */}
           <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg">
-            <p className="text-sm text-blue-800"><strong>📋 Documents requis</strong> — Pour valider votre compte et lutter contre la fraude.</p>
+            <p className="text-sm text-blue-800"><strong>📋 {t('register.docsRequiredPro')}</strong> — {t('register.docsRequiredProDesc')}</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-mid mb-1">KBIS ou extrait d'immatriculation <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Document officiel d'immatriculation de votre société (PDF ou image)</p>
+            <label className="block text-sm font-medium text-mid mb-1">{t('register.kbisLabelPro')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{t('register.kbisHelpPro')}</p>
             {!kbisFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-blue-400 transition bg-red-50/30">
+              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
                 <span className="text-2xl">🏢</span>
-                <span className="text-sm text-text-muted mt-1">Ajouter le KBIS</span>
+                <span className="text-sm text-text-muted mt-1">{t('register.addKbisPro')}</span>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
                   const f = e.target.files?.[0]
                   if (f) {
@@ -1108,35 +1274,48 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-mid mb-1">Carte d'identité du dirigeant <span className="text-red-500">*</span></label>
-            <p className="text-xs text-text-muted mb-2">Pièce d'identité valide du représentant légal (PDF ou image)</p>
-            {!idFile ? (
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-blue-400 transition bg-red-50/30">
-                <span className="text-2xl">🪪</span>
-                <span className="text-sm text-text-muted mt-1">Ajouter la pièce d'identité</span>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                  const f = e.target.files?.[0]
-                  if (f) {
-                    setIdFile(f)
-                    if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }
-                  }
-                }} />
-              </label>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
-                {idPreview ? <img src={idPreview} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
-                <span className="flex-1 text-sm font-semibold text-green-800 truncate">{idFile.name}</span>
-                <button type="button" onClick={() => { setIdFile(null); setIdPreview('') }} className="text-text-muted hover:text-red-500">✕</button>
+            <label className="block text-sm font-medium text-mid mb-1">{t('register.idLabelPro')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{t('register.idHelpPro')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Recto</p>
+                {!idFile ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter recto</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) } } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreview ? <img src={idPreview} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFile.name}</span>
+                    <button type="button" onClick={() => { setIdFile(null); setIdPreview('') }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
               </div>
-            )}
+              <div>
+                <p className="text-xs font-medium text-text-muted mb-1">Verso</p>
+                {!idFileVerso ? (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-yellow transition bg-red-50/30">
+                    <span className="text-2xl">🪪</span><span className="text-sm text-text-muted mt-1">Ajouter verso</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFileVerso(f); if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreviewVerso(ev.target?.result as string); r.readAsDataURL(f) } } }} />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                    {idPreviewVerso ? <img src={idPreviewVerso} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
+                    <span className="flex-1 text-xs font-semibold text-green-800 truncate">{idFileVerso.name}</span>
+                    <button type="button" onClick={() => { setIdFileVerso(null); setIdPreviewVerso('') }} className="text-text-muted hover:text-red-500 text-sm">✕</button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setStep(1)} className="flex-1 border-2 border-[#EFEFEF] text-text-muted py-3 rounded-xl font-semibold hover:bg-warm-gray transition">{t('register.back')}</button>
             <button type="button" onClick={() => {
               if (!form.prenom || !form.nom || !form.email) { setError(t('register.fillRequired')); return }
-              if (!kbisFile) { setError('Le KBIS est requis pour valider votre inscription'); return }
-              if (!idFile) { setError("La carte d'identité du dirigeant est requise"); return }
+              if (!kbisFile) { setError(t('register.kbisRequiredPro')); return }
+              if (!idFile || !idFileVerso) { setError(t('register.idRequiredPro')); return }
               setError(''); setStep(3)
             }} className={`flex-1 py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
           </div>
@@ -1148,22 +1327,22 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
-            <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} required minLength={8} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.passwordPlaceholder')} />
+            <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} required minLength={12} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.passwordPlaceholder')} />
           </div>
           <div>
             <label className="block text-sm font-medium text-mid mb-1">{t('register.confirmPasswordLabel')}</label>
-            <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({...f, confirmPassword: e.target.value}))} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder={t('register.repeatPassword')} />
+            <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({...f, confirmPassword: e.target.value}))} required className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-[#BDBDBD] focus:bg-white focus:outline-none" placeholder={t('register.repeatPassword')} />
           </div>
 
           {/* Récap */}
-          <div className={`rounded-xl p-4 text-sm space-y-1.5 border ${org.color === 'blue' ? 'bg-blue-50 border-blue-100' : org.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-green-50 border-green-100'}`}>
-            <p className={`font-semibold mb-2 ${org.color === 'blue' ? 'text-blue-800' : org.color === 'purple' ? 'text-purple-800' : 'text-green-800'}`}>{org.emoji} {t('register.recap')}</p>
+          <div className="rounded-xl p-4 text-sm space-y-1.5 border bg-amber-50 border-amber-100">
+            <p className="font-semibold mb-2 text-amber-800">{org.emoji} {t('register.recap')}</p>
             <p className="text-text-muted">🏢 {company?.name || form.companyName}</p>
             <p className="text-text-muted">👤 {form.prenom} {form.nom} — {form.email}</p>
             <p className="text-text-muted">📌 {form.secteurs.join(' · ')}</p>
             <p className="text-text-muted">⚖️ {getLegalStructureOptions(registrationCountry).find(o => o.key === legalStructure)?.label || legalStructure}</p>
-            <p className="text-text-muted">📄 KBIS {kbisFile ? '✅' : '—'} · Pièce d'identité {idFile ? '✅' : '—'}</p>
-            <p className={`font-semibold mt-2 ${org.color === 'blue' ? 'text-blue-700' : org.color === 'purple' ? 'text-purple-700' : 'text-green-700'}`}>✅ {t('register.trialDays')}</p>
+            <p className="text-text-muted">📄 {t('register.recapKbis')} {kbisFile ? '✅' : '—'} · {t('register.recapId')} {idFile ? '✅' : '—'}</p>
+            <p className="font-semibold mt-2 text-amber-700">✅ {t('register.trialDays')}</p>
           </div>
 
           <p className="text-xs text-text-muted">{t('register.cguAccept')} <LocaleLink href="/cgu" className="text-purple-600 hover:underline">{t('register.cgu')}</LocaleLink> {t('register.and')} <LocaleLink href="/confidentialite" className="text-purple-600 hover:underline">{t('register.privacyPolicy')}</LocaleLink>.</p>

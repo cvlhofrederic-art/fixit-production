@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import {
   User,
   Phone,
@@ -53,6 +54,10 @@ export function BookingForm({
   fetchAddressSuggestions,
   setStep,
 }: BookingFormProps) {
+  const pathname = usePathname()
+  const isPt = pathname?.startsWith('/pt') ?? false
+  const cguHref = isPt ? '/pt/termos' : '/fr/cgu'
+
   return (
     <div className="bg-white rounded-2xl p-5 border-[1.5px] border-[#EFEFEF]">
       <h4 className="font-display font-bold text-dark mb-4">Vos informations</h4>
@@ -180,7 +185,7 @@ export function BookingForm({
           />
           <span className="text-xs text-gray-500 leading-snug">
             J&apos;accepte les{' '}
-            <a href="/fr/cgu" target="_blank" rel="noopener noreferrer" className="text-yellow underline hover:text-yellow-light">
+            <a href={cguHref} target="_blank" rel="noopener noreferrer" className="text-yellow underline hover:text-yellow-light">
               conditions générales d&apos;utilisation
             </a>{' '}
             et la{' '}

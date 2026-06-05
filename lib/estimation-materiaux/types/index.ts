@@ -140,8 +140,9 @@ export const RecipeSchema = z.object({
     // Note : dallage + fondations sont regroupés sous `maconnerie`, terrassement sous `vrd`.
     'charpente', 'couverture', 'zinguerie',
     'etancheite', 'isolation', 'facade',
-    'menuiserie_ext', 'menuiserie_int',
-    'revetement_sol', 'revetement_mural',
+    'menuiserie', 'menuiserie_ext', 'menuiserie_int',
+    'metallerie',
+    'revetement_sol', 'revetements_sols', 'revetement_mural',
     'plomberie', 'chauffage', 'ventilation', 'climatisation',
     'electricite', 'electricite_cfa',
     'vrd', 'assainissement',

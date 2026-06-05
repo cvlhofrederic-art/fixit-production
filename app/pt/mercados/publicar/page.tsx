@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vitfix.io/pt/mercados/publicar/',
     languages: {
-      'pt': 'https://vitfix.io/pt/mercados/publicar/',
-      'fr': 'https://vitfix.io/fr/marches/publier/',
+      'pt-PT': 'https://vitfix.io/pt/mercados/publicar/',
+      'fr-FR': 'https://vitfix.io/fr/marches/publier/',
     },
   },
   openGraph: {

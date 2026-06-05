@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
-import { useLocale } from '@/lib/i18n/context'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 
 const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
@@ -76,20 +76,20 @@ const getStatutConfig = (isPt: boolean): Record<string, { label: string; tagClas
 
 // ═══ TYPES CLIENT ═══
 
-const getTypesClient = (isPt: boolean): Record<string, { badge: string; couleur: string }> => ({
-  particulier:            { badge: isPt ? 'Particular' : 'Particulier',    couleur: 'gris' },
-  particulier_bailleur:   { badge: isPt ? 'Senhorio' : 'Bailleur',       couleur: 'gris' },
-  particulier_secondaire: { badge: isPt ? 'Casa sec.' : 'Résid. sec.',    couleur: 'gris' },
+const getTypesClient = (t: (key: string) => string): Record<string, { badge: string; couleur: string }> => ({
+  particulier:            { badge: t('proDash.messagerie.clientParticulier'),    couleur: 'gris' },
+  particulier_bailleur:   { badge: t('proDash.messagerie.clientBailleur'),       couleur: 'gris' },
+  particulier_secondaire: { badge: t('proDash.messagerie.clientResidSec'),       couleur: 'gris' },
   professionnel:          { badge: 'Pro',             couleur: 'bleu' },
-  societe:                { badge: isPt ? 'Empresa' : 'Société',         couleur: 'bleu' },
-  artisan_sous_traitant:  { badge: isPt ? 'Subempr.' : 'Sous-traitant',  couleur: 'bleu' },
-  syndic:                 { badge: isPt ? 'Administração' : 'Syndic',          couleur: 'violet' },
-  conciergerie:           { badge: isPt ? 'Concierge' : 'Conciergerie',    couleur: 'violet' },
-  agence_immobiliere:     { badge: isPt ? 'Imobiliária' : 'Agence immo',     couleur: 'violet' },
-  promoteur:              { badge: isPt ? 'Promotor' : 'Promoteur',       couleur: 'orange' },
-  architecte:             { badge: isPt ? 'Arquiteto' : 'Architecte',      couleur: 'orange' },
-  collectivite:           { badge: isPt ? 'Autarquia' : 'Collectivité',    couleur: 'vert' },
-  association:            { badge: isPt ? 'Associação' : 'Association',     couleur: 'vert' },
+  societe:                { badge: t('proDash.messagerie.clientSociete'),         couleur: 'bleu' },
+  artisan_sous_traitant:  { badge: t('proDash.messagerie.clientSousTraitant'),   couleur: 'bleu' },
+  syndic:                 { badge: t('proDash.messagerie.clientSyndic'),          couleur: 'violet' },
+  conciergerie:           { badge: t('proDash.messagerie.clientConciergerie'),    couleur: 'violet' },
+  agence_immobiliere:     { badge: t('proDash.messagerie.clientAgenceImmo'),      couleur: 'violet' },
+  promoteur:              { badge: t('proDash.messagerie.clientPromoteur'),       couleur: 'orange' },
+  architecte:             { badge: t('proDash.messagerie.clientArchitecte'),      couleur: 'orange' },
+  collectivite:           { badge: t('proDash.messagerie.clientCollectivite'),    couleur: 'vert' },
+  association:            { badge: t('proDash.messagerie.clientAssociation'),     couleur: 'vert' },
   pro:                    { badge: 'Pro',             couleur: 'bleu' },
 })
 
@@ -109,8 +109,8 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[idx]
 }
 
-function getClientTypeBadge(contactType: string, isPt: boolean) {
-  const TYPES_CLIENT = getTypesClient(isPt)
+function getClientTypeBadge(contactType: string, t: (key: string) => string) {
+  const TYPES_CLIENT = getTypesClient(t)
   const config = TYPES_CLIENT[contactType] || TYPES_CLIENT.particulier
   return config
 }
@@ -118,6 +118,7 @@ function getClientTypeBadge(contactType: string, isPt: boolean) {
 // ═══ COMPOSANT PRINCIPAL ═══
 
 export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis, navigateTo }: Props) {
+  const { t } = useTranslation()
   const locale = useLocale()
   const isPt = locale === 'pt'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -362,10 +363,10 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
     const diffMin = Math.floor(diffMs / 60000)
-    if (diffMin < 1) return "À l'instant"
-    if (diffMin < 60) return `Il y a ${diffMin}min`
+    if (diffMin < 1) return t('proDash.messagerie.aLinstant')
+    if (diffMin < 60) return `${t('proDash.messagerie.ilYA')} ${diffMin}min`
     const diffH = Math.floor(diffMin / 60)
-    if (diffH < 24) return `Il y a ${diffH}h`
+    if (diffH < 24) return `${t('proDash.messagerie.ilYA')} ${diffH}h`
     return d.toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short' })
   }
 
@@ -396,16 +397,16 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
       {/* ═══ Page Header ═══ */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem', flexShrink: 0, gap: 12 }}>
         <div className="v5-pg-t" style={{ marginBottom: 0 }}>
-          <h1>Messagerie</h1>
-          <p>Vos conversations</p>
+          <h1>{t('proDash.messagerie.title')}</h1>
+          <p>{t('proDash.messagerie.vosConversations')}</p>
         </div>
         <button
           className="v5-btn v5-btn-p v5-btn-sm"
           style={{ flexShrink: 0 }}
           onClick={() => navigateTo?.('clients')}
-          title={isPt ? 'Ir para Base de clientes para iniciar uma conversa' : 'Aller à la Base clients pour démarrer une conversation'}
+          title={t('proDash.messagerie.newConvTooltip')}
         >
-          + {isPt ? 'Nova conversa' : 'Nouvelle conversation'}
+          + {t('proDash.messagerie.nouvelleConversation')}
         </button>
       </div>
 
@@ -421,21 +422,21 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher une conversation…"
+            placeholder={t('proDash.messagerie.rechercherConversation')}
           />
         </div>
 
         {/* ── Onglets filtre Tous / Particulier / Pro ── */}
         <div className="v7-msg-tabs">
-          {(['all', 'clients', 'donneurs'] as const).map(t => (
+          {(['all', 'clients', 'donneurs'] as const).map(tabKey => (
             <button
-              key={t}
-              onClick={() => setTab(t as typeof tab)}
-              className={`v7-msg-tab ${tab === t ? 'active' : ''}`}
+              key={tabKey}
+              onClick={() => setTab(tabKey as typeof tab)}
+              className={`v7-msg-tab ${tab === tabKey ? 'active' : ''}`}
             >
-              {t === 'all' ? 'Tous' : t === 'clients' ? 'Particulier' : 'Pro'}
-              {t === 'clients' && unreadClients > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadClients}</span>}
-              {t === 'donneurs' && unreadPro > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadPro}</span>}
+              {tabKey === 'all' ? t('proDash.messagerie.tabTous') : tabKey === 'clients' ? t('proDash.messagerie.tabParticulier') : t('proDash.messagerie.tabPro')}
+              {tabKey === 'clients' && unreadClients > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadClients}</span>}
+              {tabKey === 'donneurs' && unreadPro > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadPro}</span>}
             </button>
           ))}
         </div>
@@ -445,16 +446,16 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
           {filteredConversations.length === 0 ? (
             <div style={{ height: '100%', minHeight: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.4rem', padding: '2rem 1rem', color: '#CCC' }}>
               <span style={{ fontSize: 28, opacity: 0.5 }}>{'\uD83D\uDCAC'}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#CCC' }}>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#CCC' }}>{search.trim() ? t('proDash.messagerie.aucunResultat') : t('proDash.messagerie.aucuneConversation')}</span>
               <span style={{ fontSize: 11, color: '#DDD', textAlign: 'center', lineHeight: 1.5 }}>
-                {search.trim() ? 'Essayez un autre terme' : 'Vos échanges avec vos clients et partenaires apparaîtront ici'}
+                {search.trim() ? t('proDash.messagerie.essayezAutreTerme') : t('proDash.messagerie.echangesApparaitront')}
               </span>
             </div>
           ) : (
             filteredConversations.map(conv => {
               const isSelected = activeConv?.id === conv.id
               const avatarCol = getAvatarColor(conv.contact_name || '')
-              const typeBadge = getClientTypeBadge(conv.contact_type, isPt)
+              const typeBadge = getClientTypeBadge(conv.contact_type, t)
               const initials = (conv.contact_name || '?').split(' ').map(w => w.charAt(0).toUpperCase()).slice(0, 2).join('')
 
               return (
@@ -475,7 +476,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
                       <span className="v7-msg-time">{formatDate(conv.last_message_at)}</span>
                     </div>
                     <div className="v7-msg-preview">
-                      {conv.last_message_preview || 'Nouvelle conversation'}
+                      {conv.last_message_preview || t('proDash.messagerie.nouvelleConversation')}
                     </div>
                   </div>
                   {conv.unread_count > 0 && <div className="v7-msg-dot" />}
@@ -496,8 +497,8 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             {/* empty state centré, identique à gauche */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.65rem', padding: '2rem', color: '#CCC' }}>
               <span style={{ fontSize: 28, opacity: 0.5 }}>{'\uD83D\uDCAC'}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#BBB' }}>Aucun message</span>
-              <span style={{ fontSize: 11, color: '#CCC', textAlign: 'center', maxWidth: 220, lineHeight: 1.6 }}>Sélectionnez une conversation ou démarrez-en une nouvelle</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#BBB' }}>{t('proDash.messagerie.aucunMessage')}</span>
+              <span style={{ fontSize: 11, color: '#CCC', textAlign: 'center', maxWidth: 220, lineHeight: 1.6 }}>{t('proDash.messagerie.selectionnezConversation')}</span>
             </div>
           </>
         ) : (
@@ -511,8 +512,8 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span className={isV5 ? 'v5-msg-nm' : 'v22-msg-header-name'}>{activeConv.contact_name || 'Contact'}</span>
-                  <span className={`badge badge-${getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'bleu' ? 'blue' : getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'violet' ? 'purple' : getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'orange' ? 'orange' : getClientTypeBadge(activeConv.contact_type, isPt).couleur === 'vert' ? 'green' : 'gray'}`} style={{ fontSize: 9, padding: '1px 6px' }}>
-                    {getClientTypeBadge(activeConv.contact_type, isPt).badge}
+                  <span className={`badge badge-${getClientTypeBadge(activeConv.contact_type, t).couleur === 'bleu' ? 'blue' : getClientTypeBadge(activeConv.contact_type, t).couleur === 'violet' ? 'purple' : getClientTypeBadge(activeConv.contact_type, t).couleur === 'orange' ? 'orange' : getClientTypeBadge(activeConv.contact_type, t).couleur === 'vert' ? 'green' : 'gray'}`} style={{ fontSize: 9, padding: '1px 6px' }}>
+                    {getClientTypeBadge(activeConv.contact_type, t).badge}
                   </span>
                 </div>
               </div>
@@ -527,8 +528,8 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               ) : messages.length === 0 ? (
                 <div className={isV5 ? 'v5-card' : 'v22-msg-empty'} style={{ textAlign: 'center', padding: 24 }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>{activeConv.contact_type === 'pro' ? '\uD83C\uDFE2' : '\uD83C\uDFE0'}</div>
-                  <div>Conversation ouverte</div>
-                  <div style={{ marginTop: 4, fontSize: 11 }}>Aucun message pour le moment. Envoyez un message pour démarrer.</div>
+                  <div>{t('proDash.messagerie.conversationOuverte')}</div>
+                  <div style={{ marginTop: 4, fontSize: 11 }}>{t('proDash.messagerie.aucunMessagePourLeMoment')}</div>
                 </div>
               ) : (
                 messages.map(msg => (
@@ -563,7 +564,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
                 <input
                   ref={inputRef}
                   className="v7-msg-input"
-                  placeholder={`Écrire un message…`}
+                  placeholder={t('proDash.messagerie.ecrireMessage')}
                   value={inputValue}
                   onChange={e => setInputValue(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
@@ -589,18 +590,18 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         <div className="v22-modal-overlay">
           <div className={isV5 ? 'v5-card' : 'v22-modal'} style={{ maxWidth: 380, ...(isV5 ? { padding: 0 } : {}) }}>
             <div className={isV5 ? '' : 'v22-modal-head'} style={isV5 ? { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 0' } : {}}>
-              <div className={isV5 ? '' : 'v22-modal-title'}>{'\uD83D\uDD50'} Accepter la mission</div>
+              <div className={isV5 ? '' : 'v22-modal-title'}>{'\uD83D\uDD50'} {t('proDash.messagerie.accepterMission')}</div>
               <button onClick={() => setShowTimePickerForMsg(null)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'}>{'\u2715'}</button>
             </div>
             <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
               <div style={{ fontSize: 11, color: tv.textMuted }}>
-                Indiquez votre heure d&apos;arrivée et la durée estimée
+                {t('proDash.messagerie.indiquerHeureArrivee')}
               </div>
 
               {/* Heure d'arrivée */}
               <div>
                 <div className={isV5 ? '' : 'v22-form-label'} style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11, fontWeight: 600 }}>
-                  Heure d&apos;arrivée
+                  {t('proDash.messagerie.heureArrivee')}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
                   <input
@@ -630,7 +631,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               {/* Durée estimée */}
               <div>
                 <div className={isV5 ? '' : 'v22-form-label'} style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11, fontWeight: 600 }}>
-                  Durée estimée
+                  {t('proDash.messagerie.dureeEstimee')}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                   {[
@@ -640,9 +641,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
                     { label: '2 h', value: 2 },
                     { label: '3 h', value: 3 },
                     { label: '4 h', value: 4 },
-                    { label: '½ journée', value: 4 },
-                    { label: 'Journée', value: 8 },
-                    { label: '2 jours', value: 16 },
+                    { label: t('proDash.messagerie.demiJournee'), value: 4 },
+                    { label: t('proDash.messagerie.journee'), value: 8 },
+                    { label: t('proDash.messagerie.deuxJours'), value: 16 },
                   ].map(opt => (
                     <button
                       key={opt.label}
@@ -667,7 +668,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
                   padding: '6px 0',
                   border: `1px solid ${tv.primaryBorder}`,
                 }}>
-                  {'📅'} Créneau bloqué : {arrivalTime} {'→'}{' '}
+                  {'📅'} {t('proDash.messagerie.creneauBloque')} : {arrivalTime} {'→'}{' '}
                   {(() => {
                     const [h, m] = arrivalTime.split(':').map(Number)
                     const totalMin = h * 60 + m + Math.round(durationHours * 60)
@@ -678,10 +679,10 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             </div>
             <div className={isV5 ? '' : 'v22-modal-foot'} style={{ display: 'flex', gap: 8, padding: 16 }}>
               <button onClick={() => setShowTimePickerForMsg(null)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}>
-                Annuler
+                {t('proDash.messagerie.annuler')}
               </button>
               <button onClick={confirmAcceptWithTime} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-green'} style={{ flex: 1 }}>
-                {'\u2713'} Confirmer &amp; bloquer agenda
+                {'\u2713'} {t('proDash.messagerie.confirmerBloquerAgenda')}
               </button>
             </div>
           </div>
@@ -703,6 +704,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   onProposerDevis?: (data: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
   isV5?: boolean
 }) {
+  const { t } = useTranslation()
   const locale = useLocale()
   const tv = useThemeVars(isV5)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -738,7 +740,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <span className="v5-msg-snd">
-            {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? "· Donneur d'ordres" : '· Client'}
+            {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? `· ${t('proDash.messagerie.donneurOrdres')}` : `· ${t('proDash.messagerie.client')}`}
           </span>
           <div className="v5-msg-tx">
             {msg.type === 'photo' && msg.metadata?.url ? (
@@ -762,7 +764,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
       </div>
       <div className="v22-msg-bubble-col">
         <span className="v22-msg-bubble-sender">
-          {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? "· Donneur d'ordres" : '· Client'}
+          {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? `· ${t('proDash.messagerie.donneurOrdres')}` : `· ${t('proDash.messagerie.client')}`}
         </span>
         <div className={`v22-msg-bubble ${isOwn ? 'own' : ''}`}>
           {msg.type === 'photo' && msg.metadata?.url ? (
@@ -787,6 +789,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
   contactName?: string
   isV5?: boolean
 }) {
+  const { t } = useTranslation()
   const locale = useLocale()
   const tv = useThemeVars(isV5)
   const isPt = locale === 'pt'
@@ -804,7 +807,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
         <div className={isV5 ? '' : 'v22-msg-mission-head'} style={isV5 ? { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px 0' } : {}}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>{'\uD83D\uDCCB'}</span>
-            <span style={{ fontWeight: 600, fontSize: 12 }}>Ordre de mission</span>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{t('proDash.messagerie.ordreDeMission')}</span>
           </div>
           <span className={isV5 ? `v5-badge v5-badge-${om.urgence === 'urgente' ? 'red' : om.urgence === 'haute' ? 'orange' : om.urgence === 'basse' ? 'gray' : 'blue'}` : urgence.tagClass}>{urgence.label}</span>
         </div>
@@ -830,7 +833,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
           {om.arrival_time && (om.statut === 'accepte' || om.statut === 'en_cours' || om.statut === 'termine') && (
             <div className={isV5 ? '' : 'v22-msg-arrival-info'} style={isV5 ? { display: 'flex', gap: 6, fontSize: 12, marginBottom: 4, color: 'var(--text-muted)' } : {}}>
               <span>{'\uD83D\uDD50'}</span>
-              <span>Arrivée prévue \u00E0 {om.arrival_time}</span>
+              <span>{t('proDash.messagerie.arriveePrevue')} {om.arrival_time}</span>
             </div>
           )}
 
@@ -846,10 +849,10 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
         {om.statut === 'en_attente' && !isOwn && (
           <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
             <button onClick={() => onAction(msg.id, 'accepte')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-green'}>
-              {'\u2713'} Accepter
+              {'\u2713'} {t('proDash.messagerie.accepter')}
             </button>
             <button onClick={() => onAction(msg.id, 'refuse')} className={isV5 ? 'v5-btn' : 'v22-btn v22-btn-red-outline'}>
-              {'\u2715'} Refuser
+              {'\u2715'} {t('proDash.messagerie.refuser')}
             </button>
           </div>
         )}
@@ -857,7 +860,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
         {om.statut === 'accepte' && !isOwn && (
           <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
             <button onClick={() => onAction(msg.id, 'en_cours')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-blue'} style={{ flex: 1 }}>
-              {'🔧'} Démarrer l&apos;intervention
+              {'🔧'} {t('proDash.messagerie.demarrerIntervention')}
             </button>
           </div>
         )}
@@ -865,7 +868,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
         {om.statut === 'en_cours' && !isOwn && (
           <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
             <button onClick={() => onAction(msg.id, 'termine')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-green'} style={{ flex: 1 }}>
-              {'✅'} Marquer comme terminé
+              {'✅'} {t('proDash.messagerie.marquerTermine')}
             </button>
           </div>
         )}
@@ -884,7 +887,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
               className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
               style={{ flex: 1 }}
             >
-              {'📄'} Proposer un devis
+              {'📄'} {t('proDash.messagerie.proposerDevis')}
             </button>
           </div>
         )}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { PHONE_PT } from '@/lib/constants'
 
 // ── Price data per service ──
 
@@ -194,7 +195,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const guide = PRICE_GUIDES[slug]
   if (!guide) return {}
 
-  const title = `Tabela de Preços ${guide.name} 2026 — Região do Porto | VITFIX`
+  const title = `Tabela de Preços ${guide.name} 2026, Região do Porto | VITFIX`
   const description = `Consulte os preços de ${guide.name.toLowerCase()} em Marco de Canaveses, Penafiel e Amarante. Valores de referência atualizados para 2026.`
 
   return {
@@ -206,7 +207,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -290,12 +291,20 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </Link>
             <a
-              href="https://wa.me/351920043853?text=Ol%C3%A1%20VITFIX%2C%20gostaria%20de%20pedir%20um%20or%C3%A7amento"
+              href={`tel:${PHONE_PT}`}
+              className="inline-flex items-center gap-2 bg-dark text-white rounded-full font-bold px-7 py-3 text-[0.95rem] hover:bg-dark/90 hover:-translate-y-0.5 transition-all"
+            >
+              <span className="text-lg">📞</span>
+              Ligar +351 912 014 971
+            </a>
+            <a
+              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent('Olá VITFIX, gostaria de pedir um orçamento')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border-[1.5px] border-dark text-dark rounded-full font-medium px-7 py-3 text-[0.95rem] bg-transparent hover:bg-dark hover:text-white transition-all"
             >
-              Contactar-nos
+              <span className="text-lg">💬</span>
+              WhatsApp
             </a>
           </div>
 
@@ -313,7 +322,7 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
       <section className="py-14 md:py-18">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Tabela de preços — {guide.name}
+            Tabela de preços, {guide.name}
           </h2>
           <p className="text-text-muted mb-8 max-w-2xl">
             Valores de referência praticados na região do Tâmega e Sousa. Os preços incluem mão de obra e podem variar consoante a complexidade do trabalho.
@@ -437,7 +446,7 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Perguntas frequentes — Preços {guide.name}
+            Perguntas frequentes, Preços {guide.name}
           </h2>
           <p className="text-text-muted mb-8">
             Respostas às dúvidas mais comuns sobre os preços de serviços de {guide.name.toLowerCase()}.

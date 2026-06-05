@@ -1,116 +1,63 @@
-// ── API Route : Simulateur de travaux IA (streaming) ──
+// ── API Route : Simulateur de travaux IA — Dispatcher V1/V2 ──
 // POST /api/simulateur-travaux
 // Body: { messages: [{role, content}], userId?: string }
 
-import { callGroqStreaming } from '@/lib/groq'
-import { BASE_PRIX, COEFFICIENTS_GAMME, COEFFICIENTS_ZONE, COEFFICIENTS_ETAT } from '@/lib/prix-travaux'
+import { NextRequest } from 'next/server'
 import { validateBody, simulateurTravauxSchema } from '@/lib/validation'
+import { getAuthUser, unauthorizedResponse } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { resolveExperimentArm } from './feature-flag'
+import { handleV1 } from './route-v1'
+import { handleV2 } from './route-v2'
 
 export const maxDuration = 30
 export const runtime = 'nodejs'
 
-const SYSTEM_PROMPT = `Tu es l'assistant Vitfix spécialisé dans l'estimation de travaux du bâtiment en France.
+export async function POST(req: NextRequest) {
+  const user = await getAuthUser(req)
+  if (!user) return unauthorizedResponse()
 
-COMPORTEMENT :
-- Le client décrit ses travaux → tu donnes une première fourchette large
-- Tu poses UNE SEULE question par message pour affiner
-- À chaque réponse du client, tu recalcules et affiches le prix mis à jour
-- Quand tu as assez d'infos (ou après max 8 questions), tu fais un RÉCAPITULATIF TOTAL ligne par ligne
-- Tu proposes toujours le bouton "Publier dans la Bourse aux Marchés" à la fin
-- Tu peux aussi proposer "Contacter un conseiller Vitfix" (06 51 46 66 98)
+  const ip = getClientIP(req)
+  if (!(await checkRateLimit(`sim_travaux_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-FORMAT :
-- Chaque message contient : ta réponse + le prix affiné + 1 question suivante
-- Le prix est toujours affiché : 💰 Estimation mise à jour : X € — Y €
-- Chaque nouveau poste est précédé de 📌
-- Le récapitulatif final est un tableau ligne par ligne avec TOTAL et PRIX MOYEN
-- Après le récapitulatif, ajoute EXACTEMENT cette ligne sur une ligne seule :
-  [CTA_BOURSE_AUX_MARCHES]
-- Puis sur une autre ligne seule :
-  [CTA_CONSEILLER_VITFIX]
-
-RÈGLES PRIX :
-- Utilise UNIQUEMENT les fourchettes de la BASE DE PRIX ci-dessous
-- Applique le coefficient zone géo quand tu connais la ville/code postal
-- Applique le coefficient gamme quand le client choisit
-- Applique le coefficient état du support si pertinent
-- Si le client dit "je sais pas", utilise la valeur standard et précise-le
-- Ne jamais inventer un prix hors de la base
-- Arrondis les prix à l'euro près
-
-QUESTIONS TYPE PAR MÉTIER :
-- Peinture : surface m² → état murs → plafonds inclus → gamme → ville
-- Plomberie : type d'intervention → équipements → démolition → gamme → ville
-- Élagage : nombre arbres → hauteur → évacuation → ville
-- Carrelage : surface → sol/mur/les deux → dépose ancien → format → ville
-- Électricité : type intervention → nombre points → neuf ou rénovation → ville
-- Multi-métiers : décomposer par poste, estimer chacun, total à la fin
-
-COURT-CIRCUIT :
-- Si le client dit "je sais pas trop", "je veux juste des devis", ou montre de l'impatience
-- Donne une estimation large avec les infos que tu as
-- Propose immédiatement le bouton Bourse aux Marchés
-
-INTERDICTIONS :
-- Ne jamais poser plus d'1 question par message
-- Ne jamais dire "je ne peux pas estimer" — donne toujours une fourchette
-- Ne jamais dépasser 8 questions au total
-- Ne jamais recommander un artisan spécifique
-- Ne jamais critiquer un devis concurrent
-- Ne JAMAIS sortir du sujet travaux/bâtiment
-
-STYLE :
-- Tutoie le client
-- Sois direct et concis, pas de bavardage
-- Confirme ce que le client dit avant de poser la question suivante
-- Utilise des emojis avec parcimonie (📌 pour les postes, 💰 pour les prix)
-
-BASE DE PRIX (fourchettes en euros) :
-${JSON.stringify(BASE_PRIX, null, 0)}
-
-COEFFICIENTS ZONE :
-${JSON.stringify(COEFFICIENTS_ZONE, null, 0)}
-
-COEFFICIENTS GAMME :
-${JSON.stringify(COEFFICIENTS_GAMME, null, 0)}
-
-COEFFICIENTS ÉTAT :
-${JSON.stringify(COEFFICIENTS_ETAT, null, 0)}`
-
-export async function POST(req: Request) {
   try {
     const body = await req.json()
     const v = validateBody(simulateurTravauxSchema, body)
     if (!v.success) return Response.json({ error: v.error }, { status: 400 })
     const { messages } = v.data
 
-    // Build conversation with system prompt
-    const fullMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.map((m: { role: string; content: string }) => ({
-        role: m.role,
-        content: m.content,
-      })),
-    ]
+    const userId = (user as { id?: string }).id
+    const arm = resolveExperimentArm(req, userId)
 
-    const stream = await callGroqStreaming({
-      messages: fullMessages,
-      temperature: 0.3,
-      max_tokens: 1500,
-    })
+    // Extrait le contexte profil du client connecté pour éviter au LLM de
+    // redemander code postal / ville déjà saisis dans son compte. Source :
+    // user.user_metadata mis à jour via ClientProfileSection.
+    const userMeta = (user as { user_metadata?: Record<string, unknown> }).user_metadata ?? {}
+    const userContext = {
+      postalCode: typeof userMeta.postal_code === 'string' && userMeta.postal_code.trim() ? userMeta.postal_code.trim() : undefined,
+      city: typeof userMeta.city === 'string' && userMeta.city.trim() ? userMeta.city.trim() : undefined,
+      fullName: typeof userMeta.full_name === 'string' && userMeta.full_name.trim() ? userMeta.full_name.trim() : undefined,
+    }
 
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    })
+    const baseHeaders: Record<string, string> = {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    }
+    if (arm.setBucketCookie) {
+      baseHeaders['Set-Cookie'] = `${arm.setBucketCookie.name}=${arm.setBucketCookie.value}; Path=/; Max-Age=${arm.setBucketCookie.maxAge}; HttpOnly; SameSite=Lax; Secure`
+    }
+
+    const response = arm.arm === 'v2'
+      ? await handleV2(messages, { userId, userContext, headers: baseHeaders })
+      : await handleV1(messages)
+
+    if (arm.setBucketCookie && !response.headers.get('Set-Cookie')) {
+      response.headers.set('Set-Cookie', baseHeaders['Set-Cookie'])
+    }
+    return response
   } catch (err) {
     console.error('[simulateur-travaux] Error:', err)
-    return Response.json(
-      { error: 'Erreur du simulateur. Réessayez.' },
-      { status: 500 }
-    )
+    return Response.json({ error: 'Erreur du simulateur. Réessayez.' }, { status: 500 })
   }
 }

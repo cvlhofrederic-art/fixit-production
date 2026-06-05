@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ interface ParametresComm {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const TYPE_COMM_CONFIG: Record<TypeCommunication, { label: string; icon: string; color: string }> = {
-  convocation: { label: 'Convocation AG', icon: '📋', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  convocation: { label: 'Convocation AG', icon: '📋', color: 'bg-[#F7F4EE] text-[#0D1B2E] border-[#E4DDD0]' },
   relance:     { label: 'Relance charges', icon: '💶', color: 'bg-orange-50 text-orange-700 border-orange-200' },
   information: { label: 'Information', icon: '📣', color: 'bg-green-50 text-green-700 border-green-200' },
   urgence:     { label: 'Urgence', icon: '🚨', color: 'bg-red-50 text-red-700 border-red-200' },
@@ -77,7 +78,7 @@ const TYPE_COMM_CONFIG: Record<TypeCommunication, { label: string; icon: string;
 
 const STATUT_MSG_CONFIG: Record<StatutMessage, { label: string; dot: string; icon: string }> = {
   envoye:   { label: 'Envoyé',    dot: 'bg-gray-400', icon: '✉️' },
-  distribue:{ label: 'Distribué', dot: 'bg-blue-400', icon: '📬' },
+  distribue:{ label: 'Distribué', dot: 'bg-[#C9A84C]', icon: '📬' },
   lu:       { label: 'Lu',        dot: 'bg-green-400', icon: '👁️' },
 }
 
@@ -145,6 +146,8 @@ function generateDemoData(userId: string) {
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function CommunicationDematFRSection({ user, userRole }: { user: User; userRole: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const STORAGE_KEY = `fixit_comm_fr_${user.id}`
 
   const [activeTab, setActiveTab] = useState<'messages' | 'modeles' | 'envoi' | 'parametres'>('messages')
@@ -334,10 +337,10 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
   // ── Tabs ─────────────────────────────────────────────────────────────────────
 
   const tabs = [
-    { key: 'messages' as const,   label: 'Messages',      icon: '✉️' },
-    { key: 'modeles' as const,    label: 'Modèles',       icon: '📄' },
-    { key: 'envoi' as const,      label: 'Envoi groupé',  icon: '📤' },
-    { key: 'parametres' as const, label: 'Paramètres',    icon: '⚙️' },
+    { key: 'messages' as const,   label: isPt ? 'Mensagens'      : 'Messages',      icon: '✉️' },
+    { key: 'modeles' as const,    label: isPt ? 'Modelos'        : 'Modèles',       icon: '📄' },
+    { key: 'envoi' as const,      label: isPt ? 'Envio em grupo' : 'Envoi groupé',  icon: '📤' },
+    { key: 'parametres' as const, label: isPt ? 'Definições'     : 'Paramètres',    icon: '⚙️' },
   ]
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -360,10 +363,10 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           {/* Stats */}
           <div className="grid grid-cols-4 gap-3">
             {[
-              { label: 'Total envoyés', value: msgStats.total, icon: '📊', color: 'bg-[var(--sd-cream,#F7F4EE)] border-[var(--sd-border,#E4DDD0)]' },
-              { label: 'En attente', value: msgStats.envoyes, icon: '✉️', color: 'bg-gray-50 border-gray-200' },
-              { label: 'Distribués', value: msgStats.distribues, icon: '📬', color: 'bg-blue-50 border-blue-200' },
-              { label: 'Lus', value: msgStats.lus, icon: '👁️', color: 'bg-green-50 border-green-200' },
+              { label: isPt ? 'Total enviados' : 'Total envoyés', value: msgStats.total, icon: '📊', color: 'bg-[var(--sd-cream,#F7F4EE)] border-[var(--sd-border,#E4DDD0)]' },
+              { label: isPt ? 'Em espera'      : 'En attente',    value: msgStats.envoyes, icon: '✉️', color: 'bg-gray-50 border-gray-200' },
+              { label: isPt ? 'Distribuídos'   : 'Distribués',    value: msgStats.distribues, icon: '📬', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
+              { label: isPt ? 'Lidos'          : 'Lus',           value: msgStats.lus, icon: '👁️', color: 'bg-green-50 border-green-200' },
             ].map((s, i) => (
               <div key={i} className={`rounded-xl border-2 p-3 ${s.color}`}>
                 <div className="text-lg mb-0.5">{s.icon}</div>
@@ -377,14 +380,14 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           <div className="flex gap-2 flex-wrap">
             <select value={filterType} onChange={e => setFilterType(e.target.value as any)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none">
-              <option value="">Tous les types</option>
+              <option value="">{isPt ? 'Todos os tipos' : 'Tous les types'}</option>
               {Object.entries(TYPE_COMM_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
             </select>
-            <input type="text" placeholder="Rechercher copropriétaire..." value={filterCopro} onChange={e => setFilterCopro(e.target.value)}
+            <input type="text" placeholder={isPt ? 'Pesquisar condómino...' : 'Rechercher copropriétaire...'} value={filterCopro} onChange={e => setFilterCopro(e.target.value)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none min-w-[200px]" />
             <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none" />
-            <span className="self-center text-xs text-gray-400">au</span>
+            <span className="self-center text-xs text-gray-400">{isPt ? 'até' : 'au'}</span>
             <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
               className="px-3 py-2 border-2 border-[var(--sd-border,#E4DDD0)] rounded-lg text-sm bg-white focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none" />
           </div>
@@ -392,11 +395,11 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           {/* Messages list */}
           <div className="bg-white rounded-2xl border border-[var(--sd-border,#E4DDD0)] shadow-sm overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-[var(--sd-cream,#F7F4EE)] text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <div className="col-span-2">Copropriétaire</div>
-              <div className="col-span-1">Lot</div>
-              <div className="col-span-2">Type</div>
-              <div className="col-span-3">Sujet</div>
-              <div className="col-span-1">Canal</div>
+              <div className="col-span-2">{isPt ? 'Condómino' : 'Copropriétaire'}</div>
+              <div className="col-span-1">{isPt ? 'Fração' : 'Lot'}</div>
+              <div className="col-span-2">{isPt ? 'Tipo' : 'Type'}</div>
+              <div className="col-span-3">{isPt ? 'Assunto' : 'Sujet'}</div>
+              <div className="col-span-1">{isPt ? 'Canal' : 'Canal'}</div>
               <div className="col-span-1">Date</div>
               <div className="col-span-1">Statut</div>
               <div className="col-span-1"></div>
@@ -455,7 +458,7 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
                   <div className="text-sm text-[var(--sd-navy,#0D1B2E)] font-semibold mb-1">Sujet: {mod.sujet}</div>
                   <pre className="text-xs text-gray-600 bg-[var(--sd-cream,#F7F4EE)] rounded-lg p-3 whitespace-pre-wrap font-sans max-h-40 overflow-y-auto">{mod.contenu}</pre>
                   {mod.referenceJuridique && (
-                    <div className="mt-2 text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1">
+                    <div className="mt-2 text-[10px] text-[#0D1B2E] bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg px-2 py-1">
                       <strong>Réf. juridique:</strong> {mod.referenceJuridique}
                     </div>
                   )}
@@ -528,7 +531,7 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-[var(--sd-ink-3,#888)]">Envoi groupé de communications aux copropriétaires</p>
-              <p className="text-xs text-blue-600 mt-1">Réf. loi n°2024-322: envoi dématérialisé sans consentement préalable requis pour les copropriétés</p>
+              <p className="text-xs text-[#C9A84C] mt-1">Réf. loi n°2024-322: envoi dématérialisé sans consentement préalable requis pour les copropriétés</p>
             </div>
             <button onClick={() => { setShowEnvoiModal(true); setPreviewMode(false) }} className="bg-[var(--sd-navy,#0D1B2E)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition">+ Nouvel envoi groupé</button>
           </div>
@@ -542,7 +545,7 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
                     <h4 className="font-bold text-[var(--sd-navy,#0D1B2E)]">{eg.sujet}</h4>
                     <p className="text-xs text-gray-500">Envoyé le {formatDate(eg.dateEnvoi)} — {eg.destinataires.length} destinataire(s)</p>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${eg.statut === 'envoye' ? 'bg-green-50 text-green-700' : eg.statut === 'programme' ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'}`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${eg.statut === 'envoye' ? 'bg-green-50 text-green-700' : eg.statut === 'programme' ? 'bg-[#F7F4EE] text-[#0D1B2E]' : 'bg-gray-50 text-gray-500'}`}>
                     {eg.statut === 'envoye' ? '✅ Envoyé' : eg.statut === 'programme' ? '📅 Programmé' : '📝 Brouillon'}
                   </span>
                 </div>
@@ -551,8 +554,8 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
                     <div className="text-lg font-bold text-[var(--sd-navy,#0D1B2E)]">{eg.stats.envoyes}</div>
                     <div className="text-[10px] text-gray-500">Envoyés</div>
                   </div>
-                  <div className="text-center bg-blue-50 rounded-lg p-2">
-                    <div className="text-lg font-bold text-blue-700">{eg.stats.distribues}</div>
+                  <div className="text-center bg-[#F7F4EE] rounded-lg p-2">
+                    <div className="text-lg font-bold text-[#0D1B2E]">{eg.stats.distribues}</div>
                     <div className="text-[10px] text-gray-500">Distribués</div>
                   </div>
                   <div className="text-center bg-green-50 rounded-lg p-2">
@@ -577,20 +580,20 @@ export default function CommunicationDematFRSection({ user, userRole }: { user: 
                   <div className="space-y-4">
                     {/* Select recipients */}
                     <div>
-                      <label className="text-xs font-semibold text-gray-600 mb-2 block">Destinataires</label>
+                      <label className="text-xs font-semibold text-gray-600 mb-2 block">{isPt ? 'Destinatários' : 'Destinataires'}</label>
                       <div className="flex gap-2 mb-2">
                         <select value={envoiFilterImmeuble} onChange={e => setEnvoiFilterImmeuble(e.target.value)}
                           className="px-3 py-1.5 border-2 border-gray-200 rounded-lg text-xs focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none">
-                          <option value="">Tous immeubles</option>
+                          <option value="">{isPt ? 'Todos os edifícios' : 'Tous immeubles'}</option>
                           {immeublesList.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
                         </select>
                         <select value={envoiFilterPaiement} onChange={e => setEnvoiFilterPaiement(e.target.value as any)}
                           className="px-3 py-1.5 border-2 border-gray-200 rounded-lg text-xs focus:border-[var(--sd-gold,#C9A84C)] focus:outline-none">
-                          <option value="">Tous statuts</option>
-                          <option value="a_jour">✅ À jour</option>
-                          <option value="en_retard">⚠️ En retard</option>
+                          <option value="">{isPt ? 'Todos os estados' : 'Tous statuts'}</option>
+                          <option value="a_jour">✅ {isPt ? 'Em dia' : 'À jour'}</option>
+                          <option value="en_retard">⚠️ {isPt ? 'Em atraso' : 'En retard'}</option>
                         </select>
-                        <button onClick={selectAllDestinataires} className="text-xs text-[var(--sd-gold,#C9A84C)] font-semibold hover:underline">Tout sélectionner</button>
+                        <button onClick={selectAllDestinataires} className="text-xs text-[var(--sd-gold,#C9A84C)] font-semibold hover:underline">{isPt ? 'Selecionar tudo' : 'Tout sélectionner'}</button>
                       </div>
                       <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-lg divide-y">
                         {copropriétaires.filter(cp => {

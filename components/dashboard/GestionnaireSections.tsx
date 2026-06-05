@@ -388,7 +388,7 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
       pdf.save(`contrat-${c.id.slice(-6)}.pdf`)
     } catch (err) {
       console.error('Contrat PDF error:', err)
-      alert((locale === 'pt' ? 'Erro ao gerar PDF: ' : 'Erreur génération PDF : ') + (err instanceof Error ? err.message : String(err)))
+      alert(t('proDash.gestionnaire.contrats.erreurPdf') + ' : ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setPdfLoadingId(null)
     }
@@ -399,23 +399,23 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
       {/* Header — spec HTML lignes 1273-1276 */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
         <div className="v5-pg-t" style={{ marginBottom: 0 }}>
-          <h1>Contrats</h1>
-          <p>Contrats de sous-traitance, maintenance, entretien</p>
+          <h1>{t('proDash.gestionnaire.contrats.contratsTitle')}</h1>
+          <p>{t('proDash.gestionnaire.contrats.contratsSubtitle')}</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
           className="v5-btn v5-btn-p"
           style={{ flexShrink: 0, marginTop: 2 }}
         >
-          + Nouveau contrat
+          {t('proDash.gestionnaire.contrats.nouveauContratBtn')}
         </button>
       </div>
 
       {/* Filtres — spec HTML lignes 1279-1284 (Marchés + Avenants retirés) */}
       <div style={{ display: 'flex', gap: '.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         {([
-          { key: 'all' as const, label: 'Tous' },
-          { key: 'soustraitance' as const, label: 'Sous-traitance' },
+          { key: 'all' as const, label: t('proDash.gestionnaire.contrats.tous') },
+          { key: 'soustraitance' as const, label: t('proDash.gestionnaire.contrats.sousTraitanceFilter') },
         ]).map(opt => {
           const active = tab === opt.key
           return (
@@ -440,13 +440,13 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
         <table className="v5-dt" style={{ width: '100%' }}>
           <thead>
             <tr>
-              <th>Réf</th>
-              <th>Type</th>
-              <th>Parties</th>
-              <th>Montant</th>
-              <th>Date</th>
-              <th>Statut</th>
-              <th>Actions</th>
+              <th>{t('proDash.gestionnaire.contrats.ref')}</th>
+              <th>{t('proDash.gestionnaire.contrats.typeCol')}</th>
+              <th>{t('proDash.gestionnaire.contrats.parties')}</th>
+              <th>{t('proDash.gestionnaire.contrats.montantCol')}</th>
+              <th>{t('proDash.gestionnaire.contrats.date')}</th>
+              <th>{t('proDash.gestionnaire.contrats.statut')}</th>
+              <th>{t('proDash.gestionnaire.contrats.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -455,9 +455,9 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
                 <td colSpan={7}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.6rem', padding: '3rem 2rem', color: '#CCC' }}>
                     <span style={{ fontSize: 36, opacity: 0.3 }}>📑</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#BBB' }}>Aucun contrat</span>
-                    <span style={{ fontSize: 11, color: '#CCC', textAlign: 'center', maxWidth: 260, lineHeight: 1.6 }}>Vos contrats de sous-traitance apparaîtront ici</span>
-                    <button onClick={() => setShowModal(true)} className="v5-btn v5-btn-p" style={{ marginTop: '.25rem', borderRadius: 20, padding: '6px 18px' }}>+ Créer un premier contrat</button>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#BBB' }}>{t('proDash.gestionnaire.contrats.aucunContratTable')}</span>
+                    <span style={{ fontSize: 11, color: '#CCC', textAlign: 'center', maxWidth: 260, lineHeight: 1.6 }}>{t('proDash.gestionnaire.contrats.contratsSousTraitanceApparaitront')}</span>
+                    <button onClick={() => setShowModal(true)} className="v5-btn v5-btn-p" style={{ marginTop: '.25rem', borderRadius: 20, padding: '6px 18px' }}>{t('proDash.gestionnaire.contrats.creerPremierContrat')}</button>
                   </div>
                 </td>
               </tr>
@@ -478,7 +478,7 @@ export function ContratsSection({ artisan }: { artisan: Artisan }) {
                         disabled={pdfLoadingId === c.id}
                         className="v5-btn v5-btn-sm"
                         style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, opacity: pdfLoadingId === c.id ? 0.5 : 1 }}
-                        title="Télécharger le PDF"
+                        title={t('proDash.gestionnaire.contrats.telechargerPdf')}
                       >
                         {pdfLoadingId === c.id ? '…' : '📄 PDF'}
                       </button>

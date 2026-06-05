@@ -1,14 +1,13 @@
 /**
- * Barrel d'exports des recettes PORTUGAL.
+ * Exportação das receitas PORTUGAL.
  *
- * Ces recettes sont écrites à la main en portugais européen (pt-PT) avec :
- *  - références normatives NP/LNEC datées
- *  - fabricants portugais réels (Secil, Preceram, Weber PT, Robbialac, Aleluia…)
- *  - ratios adaptés usages courants Portugal
- *  - hypothèses rédigées en pt-PT strict (canalizador, telemóvel, obras, casa de banho)
+ * Receitas escritas em português europeu (pt-PT) com:
+ *  - referências normativas NP/LNEC datadas
+ *  - fabricantes portugueses reais (Secil, Preceram, Weber PT, Robbialac, Aleluia…)
+ *  - rácios adaptados ao uso corrente em Portugal
+ *  - hipóteses redigidas em pt-PT (canalizador, telemóvel, obras, casa de banho)
  *
- * Isolation stricte : ce dossier n'importe RIEN de `../fr/`.
- * Test d'isolation : `tests/estimation-materiaux-isolation.test.ts`.
+ * Isolamento estrito: esta pasta NÃO importa nada de `../fr/`.
  */
 
 import type { Recipe } from '../../types'
@@ -18,6 +17,22 @@ import { pladurRecipes } from './pladur'
 import { pinturaRecipes } from './pintura'
 import { revestimentoRecipes } from './revestimento'
 import { extrasPtRecipes } from './extras'
+import { saneamentoRecipes } from './saneamento'
+import { jardimRecipes } from './jardim'
+import { piscinaRecipes } from './piscina'
+import { vedacoesRecipes } from './vedacoes'
+import { terracoRecipes } from './terraco'
+import { eletricidadeRecipes } from './eletricidade'
+import { canalizacaoRecipes } from './canalizacao'
+import { climatizacaoRecipes } from './climatizacao'
+import { coberturaRecipes } from './cobertura'
+import { impermeabilizacaoRecipes } from './impermeabilizacao'
+import { isolamentoRecipes } from './isolamento'
+import { fachadaRecipes } from './fachada'
+import { carpintariaRecipes } from './carpintaria'
+import { serralhariaRecipes } from './serralharia'
+import { pavimentosRecipes } from './pavimentos'
+import { azulejoRecipes } from './azulejo'
 
 export const allPtRecipes: Recipe[] = [
   ...alvenariaRecipes,
@@ -25,6 +40,22 @@ export const allPtRecipes: Recipe[] = [
   ...pinturaRecipes,
   ...revestimentoRecipes,
   ...extrasPtRecipes,
+  ...saneamentoRecipes,
+  ...jardimRecipes,
+  ...piscinaRecipes,
+  ...vedacoesRecipes,
+  ...terracoRecipes,
+  ...eletricidadeRecipes,
+  ...canalizacaoRecipes,
+  ...climatizacaoRecipes,
+  ...coberturaRecipes,
+  ...impermeabilizacaoRecipes,
+  ...isolamentoRecipes,
+  ...fachadaRecipes,
+  ...carpintariaRecipes,
+  ...serralhariaRecipes,
+  ...pavimentosRecipes,
+  ...azulejoRecipes,
 ]
 
 export {
@@ -33,4 +64,20 @@ export {
   pinturaRecipes,
   revestimentoRecipes,
   extrasPtRecipes,
+  saneamentoRecipes,
+  jardimRecipes,
+  piscinaRecipes,
+  vedacoesRecipes,
+  terracoRecipes,
+  eletricidadeRecipes,
+  canalizacaoRecipes,
+  climatizacaoRecipes,
+  coberturaRecipes,
+  impermeabilizacaoRecipes,
+  isolamentoRecipes,
+  fachadaRecipes,
+  carpintariaRecipes,
+  serralhariaRecipes,
+  pavimentosRecipes,
+  azulejoRecipes,
 }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
@@ -20,7 +21,8 @@ export async function getAuthUser(request: NextRequest) {
     if (!token) return null
 
     // Vérifier le cache (même token = même user pendant 30s)
-    const cacheKey = token.slice(-16) // suffixe unique du token
+    // F05: use SHA-256 hash to avoid cache key collision from token suffix alone
+    const cacheKey = createHash('sha256').update(token).digest('hex').slice(0, 32)
     const cached = _userCache.get(cacheKey)
     if (cached && Date.now() - cached.ts < AUTH_CACHE_TTL) {
       return cached.user
@@ -58,10 +60,14 @@ export function unauthorizedResponse() {
   })
 }
 
-// ── Récupère le rôle de l'utilisateur (app_metadata prioritaire, fallback user_metadata) ──
-// app_metadata ne peut être modifié que côté serveur (non forgeable côté client)
+// ── Récupère le rôle de l'utilisateur ────────────────────────────────────────
+// SÉCURITÉ : lit UNIQUEMENT app_metadata (server-only, non forgeable).
+// Le fallback vers user_metadata a été retiré car user_metadata est
+// client-writable via supabase.auth.updateUser() → vuln privilege escalation.
+// Les users existants ont été migrés via scripts/migrate-role-to-app-metadata.ts
+// Les nouveaux signups doivent appeler POST /api/auth/init-role après inscription.
 export function getUserRole(user: User): string {
-  return user?.app_metadata?.role || user?.user_metadata?.role || ''
+  return user?.app_metadata?.role || ''
 }
 
 // ── Vérifie qu'un utilisateur a un rôle syndic (ou super_admin) ───────────────
@@ -72,10 +78,23 @@ export function isSyndicRole(user: User): boolean {
   return role === 'syndic' || role.startsWith('syndic_') || role === 'super_admin'
 }
 
+// ── Liste des emails admin autorisés (defense-in-depth) ─────────────────────
+// Même si app_metadata.role === 'super_admin', l'email doit être dans la liste.
+// Cela empêche un admin Supabase compromis d'élever un compte arbitraire.
+const SUPER_ADMIN_EMAILS = [
+  process.env.ADMIN_EMAIL,
+  process.env.ADMIN_EMAIL_2,
+].filter(Boolean).map(e => (e as string).toLowerCase())
+
 // ── Vérifie si l'utilisateur est super_admin ─────────────────────────────────
-// SÉCURITÉ : seul app_metadata.role est consulté (non forgeable côté client)
+// SÉCURITÉ : double vérification app_metadata.role + email allowlist
 export function isSuperAdmin(user: User): boolean {
-  return getUserRole(user) === 'super_admin'
+  if (getUserRole(user) !== 'super_admin') return false
+  // Defense-in-depth : email doit être dans la liste autorisée
+  if (SUPER_ADMIN_EMAILS.length > 0 && user.email) {
+    return SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase())
+  }
+  return false
 }
 
 // ── Cache cabinet_id en mémoire (TTL 5min) pour éviter les requêtes DB répétées ──

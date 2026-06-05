@@ -27,12 +27,33 @@ import {
   type DevisFactureFormProps,
   type ServiceBasic,
 } from '@/lib/devis-types'
-import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { mapLegalFormToCode, titleCaseAddress, stableDocId } from '@/lib/devis-utils'
+import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
+import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
+import {
+  mulMoney,
+  sumMoney,
+  round2,
+  parseDecimalInput,
+  parseDecimalInput4,
+  computeAcomptesAmounts,
+  assertInvoiceInvariant,
+} from '@/lib/money'
+import { isValidSiret } from '@/lib/validation'
+import {
+  computeTva,
+  validateRegime,
+  REGIME_ERROR_MESSAGES,
+  type TvaRegime,
+} from '@/lib/tva-calculator'
+import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { syncDocumentSafe } from '@/lib/document-sync'
 import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
+import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
    CONSTANTES
@@ -105,11 +126,15 @@ const DECLENCHEURS_ACOMPTE = [
   '60 jours',
 ] as const
 
+// Plafond espèces : variable selon statut client (B2C 1 000 €, B2B 3 000 €,
+// touriste non résident fiscal FR 15 000 €). Mention générique pour ne pas
+// induire en erreur — l'artisan reste responsable du respect du plafond.
+// Ref : art. L.112-6 C. monétaire et financier + décret 2015-741.
 const MODES_PAIEMENT = [
   'Virement bancaire',
   'Chèque',
   'Carte bancaire',
-  'Espèces (≤ 1000 €)',
+  'Espèces (selon plafond légal applicable)',
   'Prélèvement SEPA',
 ] as const
 
@@ -139,23 +164,108 @@ const TYPES_ASSURANCE = [
 const fmt = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
-const generateDocNumber = (artisanId?: string): string => {
+// Format numérique pour inputs de saisie : vide quand n=0/null, sinon virgule FR
+// ("90,91" pas "90.91"). Couple avec inputMode="decimal" + parseDecimalInput
+// pour permettre la saisie naturelle avec virgule ou point.
+const fmtN = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  return n.toFixed(2).replace('.', ',')
+}
+
+// Format prix unitaire HT 4 décimales (étude de prix BTP). Idem vide si 0.
+const fmtN4 = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  // Garde 4 décimales max mais retire les zéros traînants (9.0909 → "9,0909"
+  // mais 9.09 → "9,09" et 9.0 → "9").
+  const fixed = n.toFixed(4).replace(/\.?0+$/, '')
+  return fixed.replace('.', ',')
+}
+
+// Format quantité : toString natif JS avec virgule FR. Pas de zéros forcés
+// (1 → "1", 1.5 → "1,5", 0 → ''). Compatible inputMode="decimal" sur tous
+// les claviers FR (mobile + desktop).
+const fmtQty = (n: number | null | undefined): string => {
+  if (!n || !Number.isFinite(n)) return ''
+  return n.toString().replace('.', ',')
+}
+
+/**
+ * Input contrôlé qui tolère la saisie en cours d'une virgule décimale FR.
+ *
+ * Problème résolu : un input contrôlé `value={fmt(parse(typed))}` reformate
+ * à chaque frappe, ce qui supprime la virgule trailing au moment où
+ * l'utilisateur la tape (ex. "90," → parse=90 → fmt="90" → comma stripped).
+ * L'utilisateur "n'arrive plus à écrire la virgule".
+ *
+ * Solution : tant que l'input a le focus, on garde l'**input brut** tel que
+ * l'utilisateur l'a tapé dans un état local (raw). On parse en parallèle
+ * pour maintenir la réactivité (totaux, TVA, etc.) mais sans réécrire le
+ * champ. Au blur, on libère le buffer et le champ reprend le rendu formaté.
+ *
+ * Compat clavier FR : type="text" + inputMode="decimal" → numpad mobile +
+ * saisie virgule autorisée par le navigateur.
+ */
+function DecimalInput(props: {
+  value: number
+  onChangeNumber: (n: number) => void
+  format: (n: number) => string
+  parse: (s: string) => number
+  placeholder?: string
+  style?: React.CSSProperties
+  title?: string
+  disabled?: boolean
+}) {
+  const { value, onChangeNumber, format, parse, ...rest } = props
+  const [raw, setRaw] = React.useState<string | null>(null)
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      {...rest}
+      value={raw ?? format(value)}
+      onFocus={() => setRaw(format(value))}
+      onChange={(e) => {
+        setRaw(e.target.value)
+        onChangeNumber(parse(e.target.value))
+      }}
+      onBlur={() => setRaw(null)}
+    />
+  )
+}
+
+/**
+ * Génère un numéro de document local-only (DERNIER recours).
+ *
+ * Préfixe DEV-/FACT-/AV- selon docType. Compatible avec la séquence serveur
+ * `next_doc_number` RPC (cf. supabase/migrations/022_doc_sequences.sql).
+ *
+ * Conformité art. 242 nonies A I 2° CGI : numérotation continue, sans
+ * rupture, par séquence chronologique unique. Cette fonction est un
+ * fallback temporaire — la source de vérité reste la RPC serveur.
+ */
+const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' | 'facture' | 'avoir' | 'acompte'): string => {
   const year = new Date().getFullYear()
+  // Séries dédiées par type : DEV- (devis), FACT- (facture), AC- (acompte), AV- (avoir).
+  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : docType === 'acompte' ? 'AC' : 'AV'
   try {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]')
     const all = [...docs, ...drafts]
-    const nums = all
-      .map((d: { docNumber?: string }) => d.docNumber || '')
-      .filter((n: string) => n.startsWith(`DEV-${year}-`))
-      .map((n: string) => parseInt(n.split('-')[2] || '0', 10))
-      .filter((n: number) => !isNaN(n))
-    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
-    return `DEV-${year}-${String(next).padStart(3, '0')}`
+    const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
+    const maxSeq = all
+      .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
+      .filter(Boolean)
+      .map(Number)
+      .reduce((a: number, b: number) => Math.max(a, b), 0)
+    return `${prefix}-${year}-${String(maxSeq + 1).padStart(3, '0')}`
   } catch {
-    return `DEV-${year}-001`
+    return `${prefix}-${year}-001`
   }
 }
+
+// Identité document : UUID stable via stableDocId() (lib/devis-utils). Un
+// brouillon n'a PAS de numéro (numéro légal tiré à la validation seulement) ;
+// l'identité de la ligne EST l'id, donc deux brouillons ne s'écrasent jamais.
 
 /* ─────────────────────────────────────────────────────────────────
    COMPOSANT
@@ -178,7 +288,15 @@ export default function DevisFactureFormBTP({
   const [docType, setDocType] = useState<'devis' | 'facture'>(
     (initialData?.docType as 'devis' | 'facture') || initialDocType
   )
-  const [docNumber] = useState<string>(initialData?.docNumber || generateDocNumber(artisan?.id))
+  // Numéro de document : initialement vide ou hérité de initialData. La séquence
+  // continue (RPC `next_doc_number`) est appelée à la première sauvegarde via
+  // `fetchDocNumber()`. Évite : doublons localStorage entre devices, trous dans
+  // la séquence (art. 242 nonies A I 2° CGI), préfixes mélangés DEV/FACT.
+  const [docNumber, setDocNumber] = useState<string>(initialData?.docNumber || '')
+  const docNumberRef = React.useRef<string>(initialData?.docNumber || '')
+  // Identité stable de la ligne (UUID). initialData.id prime (doc existant, ou
+  // adopté depuis le cloud au hydrate) ; sinon nouvel UUID = nouveau document.
+  const docIdRef = React.useRef<string>((initialData as { id?: string } | undefined)?.id || stableDocId())
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
@@ -202,9 +320,16 @@ export default function DevisFactureFormBTP({
   })
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
-  const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
+  // L'adresse arrive parfois en MAJ depuis le Kbis (KINNOVA GROUP 115 RUE …).
+  // titleCaseAddress no-op si déjà en casse mixte → safe pour les saisies utilisateur.
+  const [companyAddress, setCompanyAddress] = useState(
+    titleCaseAddress(initialData?.companyAddress || (artisan as { company_address?: string })?.company_address || artisan?.address || '')
+  )
+  // BTP — champs légaux : priorité initialData → DB (artisan) → localStorage → ''
+  // Saisis une fois dans Mon profil, persistés en DB, repris ici sans re-saisie.
   const [companyRCS, setCompanyRCS] = useState(() => {
     if (initialData?.companyRCS) return initialData.companyRCS
+    if ((artisan as { rcs_number?: string })?.rcs_number) return (artisan as { rcs_number?: string }).rcs_number!
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -217,6 +342,7 @@ export default function DevisFactureFormBTP({
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
   const [tvaNumber, setTvaNumber] = useState(() => {
     if (initialData?.tvaNumber) return initialData.tvaNumber
+    if ((artisan as { tva_intra?: string })?.tva_intra) return (artisan as { tva_intra?: string }).tva_intra!
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -227,6 +353,7 @@ export default function DevisFactureFormBTP({
   })
   const [companyAPE, setCompanyAPE] = useState(() => {
     if ((initialData as { companyAPE?: string })?.companyAPE) return (initialData as { companyAPE?: string }).companyAPE!
+    if ((artisan as { ape_code?: string })?.ape_code) return (artisan as { ape_code?: string }).ape_code!
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -237,6 +364,7 @@ export default function DevisFactureFormBTP({
   })
   const [companyCapital, setCompanyCapital] = useState(() => {
     if (initialData?.companyCapital) return initialData.companyCapital
+    if ((artisan as { share_capital?: string })?.share_capital) return (artisan as { share_capital?: string }).share_capital!
     // Cherche le capital dans les derniers documents créés
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -256,10 +384,18 @@ export default function DevisFactureFormBTP({
       const last = [...docs, ...drafts].find((d: { insuranceType?: string }) => d.insuranceType)
       if (last?.insuranceType) return last.insuranceType as 'rc_pro' | 'decennale' | 'both'
     } catch { /* ignore */ }
+    const artisanType = (artisan as unknown as { insurance_type?: string })?.insurance_type
+    if (artisanType === 'rc_pro' || artisanType === 'decennale' || artisanType === 'both') {
+      return artisanType
+    }
     return 'rc_pro'
   })
+  // BTP — Assurance & Médiateur : priorité initialData → artisan (DB) → localStorage → default.
+  // Profil = source de vérité ; localStorage reste un dernier filet de secours pour les anciens devis.
+  const _artA = artisan as unknown as Record<string, string | undefined>
   const [insuranceName, setInsuranceName] = useState(() => {
     if (initialData?.insuranceName) return initialData.insuranceName
+    if (_artA?.insurance_name) return _artA.insurance_name
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -270,6 +406,7 @@ export default function DevisFactureFormBTP({
   })
   const [insuranceNumber, setInsuranceNumber] = useState(() => {
     if (initialData?.insuranceNumber) return initialData.insuranceNumber
+    if (_artA?.insurance_number) return _artA.insurance_number
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -280,6 +417,7 @@ export default function DevisFactureFormBTP({
   })
   const [insuranceCoverage, setInsuranceCoverage] = useState(() => {
     if (initialData?.insuranceCoverage) return initialData.insuranceCoverage
+    if (_artA?.insurance_coverage) return _artA.insurance_coverage
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -290,6 +428,7 @@ export default function DevisFactureFormBTP({
   })
   const [mediatorName, setMediatorName] = useState(() => {
     if (initialData?.mediatorName) return initialData.mediatorName
+    if (_artA?.mediator_name) return _artA.mediator_name
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -300,6 +439,7 @@ export default function DevisFactureFormBTP({
   })
   const [mediatorUrl, setMediatorUrl] = useState(() => {
     if (initialData?.mediatorUrl) return initialData.mediatorUrl
+    if (_artA?.mediator_url) return _artA.mediator_url
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -311,6 +451,27 @@ export default function DevisFactureFormBTP({
 
   // TVA
   const [tvaEnabled] = useState(true) // Sociétés pro : TVA obligatoire
+  // Régime TVA appliqué au document — source unique de vérité.
+  //   classique           : assujetti normal, TVA collectée par taux
+  //   autoliquidation_btp : sous-traitance BTP (CGI art. 283, 2 nonies)
+  //                         La TVA est due par le donneur d'ordre. Mention obligatoire,
+  //                         lignes forcées à 0 %, total = HT.
+  //   franchise_293b      : franchise en base (CGI art. 293 B). Non exposé côté BTP
+  //                         pour V1 (rare pour BTP pros, CA > seuil), mais supporté
+  //                         par le module si jamais activé via initialData.
+  // Migration douce : si initialData a l'ancien flag boolean `autoliquidationBTP`,
+  // on convertit en régime.
+  const [regimeTva, setRegimeTva] = useState<TvaRegime>(() => {
+    const initData = initialData as { regimeTva?: TvaRegime; autoliquidationBTP?: boolean }
+    if (initData?.regimeTva && ['classique', 'franchise_293b', 'autoliquidation_btp'].includes(initData.regimeTva)) {
+      return initData.regimeTva
+    }
+    if (initData?.autoliquidationBTP) return 'autoliquidation_btp'
+    return 'classique'
+  })
+  // Dérivé pour rétro-compat avec le PDF V3 (lib/pdf/devis-pdf-v3.ts utilise
+  // `autoliquidationBTP` comme flag, on garde ce nom dans le payload).
+  const autoliquidationBTP = regimeTva === 'autoliquidation_btp'
 
   // Client
   const [clientType, setClientType] = useState<'particulier' | 'professionnel'>(
@@ -321,17 +482,140 @@ export default function DevisFactureFormBTP({
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
   const [clientSiret, setClientSiret] = useState(initialData?.clientSiret || '')
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '')
+  // BTP — identité et adresse client détaillées (pré-remplies depuis la base clients)
+  const [clientFirstName, setClientFirstName] = useState((initialData as Record<string, unknown>)?.clientFirstName as string || '')
+  const [clientLastName, setClientLastName] = useState((initialData as Record<string, unknown>)?.clientLastName as string || '')
+  const [clientStreet, setClientStreet] = useState((initialData as Record<string, unknown>)?.clientStreet as string || '')
+  const [clientFloor, setClientFloor] = useState((initialData as Record<string, unknown>)?.clientFloor as string || '')
+  const [clientApartmentNumber, setClientApartmentNumber] = useState((initialData as Record<string, unknown>)?.clientApartmentNumber as string || '')
+  const [clientPostalCode, setClientPostalCode] = useState((initialData as Record<string, unknown>)?.clientPostalCode as string || '')
+  const [clientCity, setClientCity] = useState((initialData as Record<string, unknown>)?.clientCity as string || '')
+  const [clientCountry, setClientCountry] = useState((initialData as Record<string, unknown>)?.clientCountry as string || 'France')
+
+  // BTP — composer clientName à partir de prénom+nom (B2C uniquement)
+  // Le PDF V3 utilise clientName ; les champs détaillés sont aussi persistés à part pour la base clients
+  useEffect(() => {
+    if (clientType !== 'particulier') return
+    const composed = `${clientFirstName} ${clientLastName}`.trim()
+    if (composed) setClientName(composed)
+  }, [clientFirstName, clientLastName, clientType])
+
+  // BTP — composer clientAddress à partir des champs adresse détaillés (rue, étage, app, CP, ville, pays)
+  useEffect(() => {
+    const parts: string[] = []
+    if (clientStreet.trim()) parts.push(clientStreet.trim())
+    const fa = [
+      clientFloor.trim() ? `Étage ${clientFloor.trim()}` : '',
+      clientApartmentNumber.trim() ? `Apt ${clientApartmentNumber.trim()}` : '',
+    ].filter(Boolean).join(' ')
+    if (fa) parts.push(fa)
+    const cityLine = [clientPostalCode.trim(), clientCity.trim()].filter(Boolean).join(' ')
+    if (cityLine) parts.push(cityLine)
+    if (clientCountry.trim() && clientCountry.trim() !== 'France') parts.push(clientCountry.trim())
+    const composed = parts.join(', ')
+    if (composed) setClientAddress(composed)
+  }, [clientStreet, clientFloor, clientApartmentNumber, clientPostalCode, clientCity, clientCountry])
+
   const [interventionAddress, setInterventionAddress] = useState(initialData?.interventionAddress || '')
   const [interventionBatiment, setInterventionBatiment] = useState(initialData?.interventionBatiment || '')
   const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
   const [interventionEspacesCommuns, setInterventionEspacesCommuns] = useState(initialData?.interventionEspacesCommuns || '')
   const [interventionExterieur, setInterventionExterieur] = useState(initialData?.interventionExterieur || '')
+  const [ordreDeService, setOrdreDeService] = useState(initialData?.ordreDeService || '')
 
   // Document
-  const [docDate, setDocDate] = useState(initialData?.docDate || today)
+  // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : une facture
+  // brouillon (issue d'une conversion devis → facture) ne peut hériter du
+  // docDate du devis. Date d'émission = today (art. 289 CGI + pratique Henrri/
+  // EBP/Pennylane/Sage). Préserve la date d'origine pour les factures déjà
+  // émises (sentAt présent) — historisation comptable (arrêté 22 mars 2017).
+  const initialBtpDocDate = (() => {
+    const sentAt = (initialData as { sentAt?: string } | undefined)?.sentAt
+    if (initialData?.docType === 'facture' && !sentAt) return today
+    return initialData?.docDate || today
+  })()
+  const [docDate, setDocDate] = useState(initialBtpDocDate)
   const [docValidity, setDocValidity] = useState<number>(initialData?.docValidity || 30)
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<string>(initialData?.executionDelayType || 'ouvres')
+  // Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
+  // 'standard'  = après prestation (cas général)
+  // 'acompte'   = versement avant prestation (TVA exigible à l'encaissement)
+  // 'situation' = facturation à l'avancement (BTP chantier long)
+  // 'avoir'     = note de crédit annulant tout ou partie d'une facture émise
+  type FactureSubType = 'standard' | 'acompte' | 'situation' | 'avoir'
+  const initialSubType = ((initialData as { factureSubType?: FactureSubType } | undefined)?.factureSubType) || 'standard'
+  const [factureSubType, setFactureSubType] = useState<FactureSubType>(initialSubType)
+  const [situationNumber, setSituationNumber] = useState<number | undefined>(
+    (initialData as { situationNumber?: number } | undefined)?.situationNumber
+  )
+  const [situationAvancement, setSituationAvancement] = useState<number | undefined>(
+    (initialData as { situationAvancement?: number } | undefined)?.situationAvancement
+  )
+  // ─── Champs spécifiques acompte fractionné ───
+  const [acompteOrdre, setAcompteOrdre] = useState<number | undefined>(
+    (initialData as { acompteOrdre?: number } | undefined)?.acompteOrdre
+  )
+  const [acompteTotal, setAcompteTotal] = useState<number | undefined>(
+    (initialData as { acompteTotal?: number } | undefined)?.acompteTotal
+  )
+  const [acomptePourcentage, setAcomptePourcentage] = useState<number | undefined>(
+    (initialData as { acomptePourcentage?: number } | undefined)?.acomptePourcentage
+  )
+  // ─── Champs spécifiques avoir ───
+  const [parentInvoiceNumber, setParentInvoiceNumber] = useState<string>(
+    ((initialData as { parentInvoiceNumber?: string } | undefined)?.parentInvoiceNumber) || ''
+  )
+  const [avoirMotif, setAvoirMotif] = useState<string>(
+    ((initialData as { avoirMotif?: string } | undefined)?.avoirMotif) || ''
+  )
+  // Parser prix HT — autorise les valeurs négatives en mode AVOIR (annulation).
+  // Référencé par tous les inputs de prix unitaire HT (labor, matériaux, frais,
+  // custom tables) pour respecter la sémantique de l'avoir (montants négatifs).
+  const priceHtParser = React.useMemo(
+    () => (v: string | number) => parseDecimalInput4(v, undefined, { allowNegative: factureSubType === 'avoir' }),
+    [factureSubType],
+  )
+  // Date de prestation = jour effectif des travaux (différente de la date d'émission
+  // qui est la date de rédaction du devis). Optionnelle : si vide, le PDF affiche
+  // "À convenir" (même logique que executionDelay vide).
+  const [prestationDate, setPrestationDate] = useState<string>(initialData?.prestationDate || '')
+
+  // RIB & coordonnées bancaires — chargés depuis le profil paramètres entreprise
+  // (/api/artisan-payment-info) puis injectés dans le PDF V3 (au pied du document
+  // sous les notes). Bug 04/05/2026 : avant, l'IBAN était hardcodé '' lors de la
+  // génération PDF → rien ne s'affichait malgré le toggle « RIB ajouté
+  // automatiquement ». Fix : fetch async au montage du form.
+  const [profileIban, setProfileIban] = useState<string>('')
+  const [profileBic, setProfileBic] = useState<string>('')
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/artisan-payment-info', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        // Trouve le 1er mode 'virement' actif avec IBAN renseigné
+        const virement = (data.paiement_modes || []).find(
+          (m: { type?: string; iban?: string; actif?: boolean }) =>
+            m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
+        )
+        if (virement) {
+          setProfileIban((virement.iban || '').trim())
+          setProfileBic(((virement as { bic?: string }).bic || '').trim())
+        }
+      } catch (e) {
+        // Silent fail — le PDF se génère sans IBAN si l'API échoue.
+        console.warn('[BTP form] Loading payment info failed:', e)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   // Lignes prestations
   const [lines, setLines] = useState<ProductLine[]>(
@@ -340,9 +624,51 @@ export default function DevisFactureFormBTP({
       : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
   // Lignes matériaux (section séparée)
+  //
+  // Bug fix 2026-05-12 : avant, ces 2 useState ignoraient `initialData` et
+  // partaient toujours sur un placeholder vide. Symptôme reporté : "quand
+  // j'enregistre le devis et que je le rouvre, la table matériaux et frais
+  // annexes qui étaient remplis disparaissent". Résultat en cascade : si
+  // l'utilisateur cliquait Aperçu après réouverture, le PDF V3 ne voyait que
+  // des lignes vides → section "Frais annexes" absente du PDF, identique pour
+  // matériaux. Fix : hydrater depuis `initialData.materialLines` /
+  // `.fraisLines` au mount (même pattern que `lines` ligne 476).
+  const _initialMaterial = (initialData as { materialLines?: ProductLine[] } | undefined)?.materialLines
+  const _initialFrais = (initialData as { fraisLines?: ProductLine[] } | undefined)?.fraisLines
   const [materialLines, setMaterialLines] = useState<ProductLine[]>(
-    [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+    Array.isArray(_initialMaterial) && _initialMaterial.length > 0
+      ? _initialMaterial
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
   )
+  // Lignes frais annexes (déplacements, etc.)
+  const [fraisLines, setFraisLines] = useState<ProductLine[]>(
+    Array.isArray(_initialFrais) && _initialFrais.length > 0
+      ? _initialFrais
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+  )
+
+  // Tables BTP : noms personnalisables, désactivation douce et tables custom additionnelles.
+  // L'artisan peut renommer un titre, masquer Matériaux/Frais (la 1ère reste obligatoire),
+  // ou créer ses propres sections (corps d'état, sous-traitants, etc.).
+  const _initialTables = initialData as Record<string, unknown> | undefined
+  const [linesName, setLinesName] = useState<string>((_initialTables?.linesName as string) || "Main d'œuvre")
+  const [materialLinesName, setMaterialLinesName] = useState<string>((_initialTables?.materialLinesName as string) || 'Matériaux')
+  const [fraisLinesName, setFraisLinesName] = useState<string>((_initialTables?.fraisLinesName as string) || 'Frais annexes')
+  const [materialLinesEnabled, setMaterialLinesEnabled] = useState<boolean>(
+    typeof _initialTables?.materialLinesEnabled === 'boolean' ? (_initialTables.materialLinesEnabled as boolean) : true
+  )
+  const [fraisLinesEnabled, setFraisLinesEnabled] = useState<boolean>(
+    typeof _initialTables?.fraisLinesEnabled === 'boolean' ? (_initialTables.fraisLinesEnabled as boolean) : true
+  )
+  const [customTables, setCustomTables] = useState<{ id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]>(
+    Array.isArray(_initialTables?.customTables) ? (_initialTables.customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) : []
+  )
+  const [showAddTableMenu, setShowAddTableMenu] = useState(false)
+  // Modal "Nouvelle table custom" — remplace l'ancien window.prompt() natif
+  // (bloquant, non stylable, non automatable). Pattern SaaS pro 2026 : modal React.
+  const [newTableModal, setNewTableModal] = useState<{ open: boolean; cat: 'labor' | 'material' | 'frais'; catLabel: string; name: string }>({
+    open: false, cat: 'labor', catLabel: "Main d'œuvre", name: '',
+  })
 
   // Dropdown prestation ouvert (lineId ou null)
   const [openPrestaDrop, setOpenPrestaDrop] = useState<number | null>(null)
@@ -385,6 +711,41 @@ export default function DevisFactureFormBTP({
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '')
 
+  // Caractérisation sous-traitance — affichés uniquement en autoliquidation BTP
+  // (loi n° 75-1334 du 31/12/1975). Facultatifs mais recommandés pour
+  // sécuriser le devis en cas de contrôle fiscal.
+  const [marchePrincipalRef, setMarchePrincipalRef] = useState<string>(
+    ((initialData as { marchePrincipalRef?: string })?.marchePrincipalRef) || '',
+  )
+  const [maitreOuvrageFinal, setMaitreOuvrageFinal] = useState<string>(
+    ((initialData as { maitreOuvrageFinal?: string })?.maitreOuvrageFinal) || '',
+  )
+
+  // Gestion des déchets de chantier (loi AGEC, décret 2020-1817).
+  // Art. D.541-45-1 C. env. impose 4 infos précises dans le devis BTP.
+  // Pré-rempli avec defaults raisonnables — utilisateur affine selon chantier.
+  const [dechetsChantier, setDechetsChantier] = useState<{
+    nature: string
+    quantiteEstimee: string
+    unite: string
+    installationNom: string
+    installationAdresse: string
+    modalitesTri: string
+    coutGestion: string
+  }>(() => {
+    const init = (initialData as { dechetsChantier?: Record<string, string> })?.dechetsChantier || {}
+    return {
+      nature: init.nature || 'Inertes et non dangereux non inertes',
+      quantiteEstimee: init.quantiteEstimee || '',
+      unite: init.unite || 'm³',
+      installationNom: init.installationNom || '',
+      installationAdresse: init.installationAdresse || '',
+      modalitesTri: init.modalitesTri || 'Tri sélectif sur chantier (dangereux séparés des inertes et non dangereux)',
+      coutGestion: init.coutGestion || 'Inclus dans la prestation',
+    }
+  })
+  const [dechetsExpanded, setDechetsExpanded] = useState<boolean>(false)
+
   // Rapport d'intervention joint
   const [attachedRapportId, setAttachedRapportId] = useState<string | null>(null)
   const [availableRapports, setAvailableRapports] = useState<Record<string, unknown>[]>([])
@@ -405,6 +766,9 @@ export default function DevisFactureFormBTP({
 
   // Saving / loading flags
   const [saving, setSaving] = useState(false)
+  // Autosave : timestamp du dernier enregistrement automatique du brouillon
+  // (affiché en libellé discret « Enregistré » près du bouton brouillon).
+  const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
 
   // Modals
@@ -493,35 +857,142 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Calculs ──────── */
 
-  // Recalcule totalHT à chaque modif d'une ligne
+  // Recalcule totalHT à chaque modif d'une ligne — `mulMoney` arrondit à 2
+  // décimales et garantit l'absence de drift IEEE 754 (cf. lib/money.ts).
   const recalcLine = useCallback((line: ProductLine): ProductLine => {
-    const totalHT = (line.qty || 0) * (line.priceHT || 0)
+    const totalHT = mulMoney(line.qty || 0, line.priceHT || 0)
     return { ...line, totalHT }
   }, [])
 
-  const totaux = useMemo(() => {
-    const allLines = [...lines, ...materialLines]
-    const subTotalBrut = allLines.reduce((s, l) => s + (l.qty || 0) * (l.priceHT || 0), 0)
-    const remise = 0 // pas de remise globale dans la maquette V1
-    const totalHT = subTotalBrut - remise
+  /**
+   * Récupère le prochain numéro de document via la séquence atomique serveur
+   * (art. 242 nonies A I 2° CGI : numérotation continue, sans rupture).
+   *
+   * 3 niveaux de fallback (mirror DevisFactureForm artisan) :
+   * 1. API HTTP /api/doc-number (avec rate limit + auth Bearer)
+   * 2. RPC Supabase `next_doc_number` (SECURITY DEFINER)
+   * 3. Compteur localStorage (DERNIER recours, peut diverger entre devices)
+   *
+   * Préfixes selon docType : DEV-/FACT-/AV-. La séquence est PAR docType,
+   * pas partagée — devis et factures ont leur compteur indépendant.
+   */
+  const fetchDocNumber = useCallback(async (): Promise<string> => {
+    if (docNumberRef.current) return docNumberRef.current
+    const year = new Date().getFullYear()
+    // Sous-type 'avoir' (méthode pro BTP 2026) → préfixe AV-YYYY-NNN même si
+    // docType reste 'facture' côté form. Sinon préfixe FACT-/DEV- selon docType.
+    // Série de numérotation dédiée selon le sous-type (méthode pro) :
+    //   facture + avoir   → 'avoir'   (AV-)
+    //   facture + acompte → 'acompte' (AC-)  ← ne consomme plus la séquence FACT-
+    //   sinon             → docType   (DEV-/FACT-)
+    const rpcDocType: 'devis' | 'facture' | 'avoir' | 'acompte' =
+      docType === 'facture' && factureSubType === 'avoir' ? 'avoir'
+      : docType === 'facture' && factureSubType === 'acompte' ? 'acompte'
+      : docType
 
-    // Ventilation TVA par taux
-    const tvaMap = new Map<number, number>()
-    if (!tvaEnabled) {
-      // entreprise sans TVA → toute la ventilation à 0 / non applicable
-    } else {
-      allLines.forEach((l) => {
-        const ht = (l.qty || 0) * (l.priceHT || 0)
-        const taux = l.tvaRate || 0
-        tvaMap.set(taux, (tvaMap.get(taux) || 0) + ht * (taux / 100))
+    // 1) API HTTP avec Bearer token
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
+      const res = await fetch('/api/doc-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ docType: rpcDocType, year }),
       })
-    }
-    const tvaEntries = Array.from(tvaMap.entries()).sort((a, b) => b[0] - a[0])
-    const totalTva = tvaEntries.reduce((s, [, v]) => s + v, 0)
-    const totalTTC = totalHT + totalTva
+      if (res.ok) {
+        const { number } = await res.json()
+        docNumberRef.current = number
+        setDocNumber(number)
+        return number
+      }
+    } catch { /* fallthrough */ }
 
-    return { subTotalBrut, remise, totalHT, tvaEntries, totalTva, totalTTC }
-  }, [lines, materialLines, tvaEnabled])
+    // 2) RPC Supabase direct
+    try {
+      if (artisan?.id) {
+        const { data, error } = await supabase.rpc('next_doc_number', {
+          p_artisan_user_id: artisan.id,
+          p_doc_type: rpcDocType,
+          p_year: year,
+        })
+        if (!error && data) {
+          const number = String(data)
+          docNumberRef.current = number
+          setDocNumber(number)
+          return number
+        }
+      }
+    } catch { /* fallthrough */ }
+
+    // 3) Fallback localStorage (compatible préfixes DEV/FACT/AV)
+    const fallback = localFallbackDocNumber(artisan?.id, rpcDocType)
+    docNumberRef.current = fallback
+    setDocNumber(fallback)
+    return fallback
+  }, [artisan?.id, docType, factureSubType])
+
+  // Méthode pro (modèle Stripe) : un brouillon n'a PAS de numéro. docNumber reste
+  // vide tant que le document n'est pas validé ; le numéro légal (DEV-/FACT-/AV-/
+  // AC-) est tiré de next_doc_number UNIQUEMENT à l'émission (saveAndSend).
+  // L'identité de la ligne est portée par docIdRef (UUID stable) → aucun numéro
+  // provisoire nécessaire. L'affichage « Brouillon » (docNumber vide) est géré
+  // par les listes V5 (DevisSection / FacturesSection).
+
+  const totaux = useMemo(() => {
+    // Source unique de vérité : `buildDocumentLines` (lib/devis-totals.ts)
+    // applique le filtrage des sections masquées (materialLinesEnabled /
+    // fraisLinesEnabled === false) et l'aplatissement customTables. Tout
+    // autre site (PDF, dashboard, API sync) passe par le même helper —
+    // aucune divergence possible entre RÉSUMÉ affiché et total persisté.
+    const allLines = buildDocumentLines({
+      lines, materialLines, fraisLines, customTables,
+      materialLinesEnabled, fraisLinesEnabled,
+    }) as typeof lines
+    // Sous-total via centimes entiers (sumMoney) — arrondi par ligne d'abord
+    // (norme BOFiP BOI-TVA-DECLA-30-20-20 §50), puis somme exacte.
+    const subTotalBrut = sumMoney(
+      allLines.map(l => mulMoney(l.qty || 0, l.priceHT || 0)),
+    )
+    const remise = 0 // pas de remise globale dans la maquette V1
+    const totalHT = round2(subTotalBrut - remise)
+
+    // Source unique de vérité : lib/tva-calculator.ts
+    // En franchise/autoliquidation, la TVA est forcée à 0 (override silencieux
+    // des tvaRate ligne par ligne) et le total est égal au HT. Les mentions
+    // légales et le label de total final ("TOTAL NET" vs "TOTAL TTC") sont
+    // également décidés par computeTva().
+    const tva = computeTva({
+      regime: regimeTva,
+      lines: allLines.map(l => ({
+        totalHT: mulMoney(l.qty || 0, l.priceHT || 0),
+        tvaRate: l.tvaRate || 0,
+      })),
+    })
+    const tvaBreakdown = tva.breakdown
+    const tvaEntries = tvaBreakdown.map(b => [b.rate, b.amount] as [number, number])
+    const totalTva = tva.totalTVA
+    const totalTTC = tva.totalTTC
+
+    // Invariant fiscal — log Sentry si drift > 0,01 € (régime classique uniquement,
+    // les autres régimes ont totalTva=0 par définition).
+    if (regimeTva === 'classique' && !tva.invariantOk) {
+      const inv = assertInvoiceInvariant(totalHT, totalTva, totalTTC)
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
+      }
+      try {
+        Sentry.captureMessage('invoice-invariant-broken-btp', {
+          level: 'warning',
+          extra: { totalHT, totalTva, totalTTC, delta: inv.delta, tvaBreakdownCount: tvaBreakdown.length },
+        })
+      } catch { /* Sentry indisponible — pas bloquant */ }
+    }
+
+    return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC }
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva])
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -532,11 +1003,16 @@ export default function DevisFactureFormBTP({
       assurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
       mediateur: mediatorName.trim().length > 0 && mediatorUrl.trim().length > 0,
       client: clientName.trim().length > 0,
-      prestations: [...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
+      prestations: [
+        ...lines,
+        ...(materialLinesEnabled ? materialLines : []),
+        ...(fraisLinesEnabled ? fraisLines : []),
+        ...customTables.flatMap(t => t.lines || []),
+      ].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
-  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines])
+  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines, fraisLines])
 
   /* ──────── Handlers tableau prestations ──────── */
 
@@ -571,8 +1047,12 @@ export default function DevisFactureFormBTP({
   }
 
   const removeMaterialLine = (id: number) => {
+    // UX pro 2026 : si on supprime la dernière ligne d'une table optionnelle,
+    // on désactive toute la table au lieu d'afficher une erreur. L'utilisateur
+    // peut toujours réactiver via "+ Ajouter une table → Réactiver Matériaux".
     if (materialLines.length === 1) {
-      toast.error('Au moins une ligne est requise')
+      setMaterialLinesEnabled(false)
+      toast.success('Section Matériaux masquée (réactivable via + Ajouter une table)')
       return
     }
     // Suppression par index : robuste aux IDs dupliqués (cf. removeLine)
@@ -585,6 +1065,72 @@ export default function DevisFactureFormBTP({
 
   const updateMaterialLine = (id: number, patch: Partial<ProductLine>) => {
     setMaterialLines(materialLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
+  }
+
+  /* ──────── Handlers frais annexes ──────── */
+
+  const addFraisLine = () => {
+    const nextId = Math.max(0, ...fraisLines.map((l) => l.id)) + 1
+    setFraisLines([...fraisLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+  }
+
+  const removeFraisLine = (id: number) => {
+    // UX pro 2026 : dernière ligne supprimée → désactive la section Frais annexes
+    // (réactivable via "+ Ajouter une table → Réactiver Frais annexes").
+    if (fraisLines.length === 1) {
+      setFraisLinesEnabled(false)
+      toast.success('Section Frais annexes masquée (réactivable via + Ajouter une table)')
+      return
+    }
+    setFraisLines(prev => {
+      const idx = prev.findIndex((l) => l.id === id)
+      if (idx < 0) return prev
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
+
+  const updateFraisLine = (id: number, patch: Partial<ProductLine>) => {
+    setFraisLines(fraisLines.map((l) => (l.id === id ? recalcLine({ ...l, ...patch }) : l)))
+  }
+
+  /* ──────── Helpers tables custom (corps d'état, sous-traitance, etc.) ──────── */
+
+  const updateCustomTableName = (tableId: string, name: string) => {
+    setCustomTables(prev => prev.map(t => t.id === tableId ? { ...t, name } : t))
+  }
+
+  const removeCustomTable = (tableId: string) => {
+    setCustomTables(prev => prev.filter(t => t.id !== tableId))
+  }
+
+  const addCustomLine = (tableId: string) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      const nextId = (t.lines?.reduce((m, l) => Math.max(m, l.id), 0) || 0) + 1
+      return { ...t, lines: [...(t.lines || []), { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }] }
+    }))
+  }
+
+  const removeCustomLine = (tableId: string, lineId: number) => {
+    // UX pro 2026 : dernière ligne supprimée → supprime toute la table custom
+    // (cohérent avec Matériaux/Frais qui se désactivent dans le même cas).
+    setCustomTables(prev => {
+      const target = prev.find(t => t.id === tableId)
+      if (!target) return prev
+      const remainingLines = (target.lines || []).filter(l => l.id !== lineId)
+      if (remainingLines.length === 0) {
+        toast.success(`Section "${target.name}" supprimée`)
+        return prev.filter(t => t.id !== tableId)
+      }
+      return prev.map(t => t.id === tableId ? { ...t, lines: remainingLines } : t)
+    })
+  }
+
+  const updateCustomLine = (tableId: string, lineId: number, patch: Partial<ProductLine>) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id !== tableId) return t
+      return { ...t, lines: (t.lines || []).map(l => l.id === lineId ? recalcLine({ ...l, ...patch }) : l) }
+    }))
   }
 
   /* ──────── Import devis fournisseur (PDF → lignes matériaux) ──────── */
@@ -627,9 +1173,14 @@ export default function DevisFactureFormBTP({
         })
       }
 
+      // Bearer requis (cf. /api/supplier-invoice-scan/route.ts getAuthUser)
+      const { data: { session } } = await supabase.auth.getSession()
+      const scanAuthHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
       const res = await fetch('/api/supplier-invoice-scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...scanAuthHeader },
         body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType }),
       })
 
@@ -741,6 +1292,16 @@ export default function DevisFactureFormBTP({
     setClientPhone(c.phone || '')
     setClientSiret(c.siret || '')
     setClientAddress(c.mainAddress || c.address || '')
+    // BTP — pré-remplir les champs détaillés s'ils existent (clients créés avec le nouveau format)
+    const cAny = c as Record<string, unknown>
+    setClientFirstName((cAny.firstName as string) || '')
+    setClientLastName((cAny.lastName as string) || '')
+    setClientStreet((cAny.street as string) || '')
+    setClientFloor((cAny.floor as string) || '')
+    setClientApartmentNumber((cAny.apartmentNumber as string) || '')
+    setClientPostalCode((cAny.postalCode as string) || '')
+    setClientCity((cAny.city as string) || '')
+    setClientCountry((cAny.country as string) || 'France')
     // Charger la liste des lieux d'intervention enregistrés pour ce client
     setSelectedClientInterventionAddresses(c.interventionAddresses || [])
     // Réinitialiser les champs lieu d'intervention (l'artisan choisira dans le dropdown)
@@ -791,7 +1352,7 @@ export default function DevisFactureFormBTP({
 
   const buildPayload = useCallback(() => {
     return {
-      id: initialData?.docNumber === docNumber && (initialData as { id?: string })?.id ? (initialData as { id?: string }).id : Date.now().toString(),
+      id: docIdRef.current,
       docType,
       docNumber,
       docTitle,
@@ -799,6 +1360,17 @@ export default function DevisFactureFormBTP({
       docValidity,
       executionDelayDays,
       executionDelayType,
+      prestationDate,
+      factureSubType,
+      situationNumber,
+      situationAvancement,
+      // Acompte fractionné (méthode pro BTP 2026)
+      acompteOrdre,
+      acompteTotal,
+      acomptePourcentage,
+      // Avoir / note de crédit
+      parentInvoiceNumber: parentInvoiceNumber || undefined,
+      avoirMotif: avoirMotif || undefined,
       // Entreprise
       companyStatus: statutJuridique,
       companyName,
@@ -826,14 +1398,35 @@ export default function DevisFactureFormBTP({
       clientPhone,
       clientSiret,
       clientAddress,
+      // BTP — champs identité et adresse détaillés (persistés pour l'édition et la base clients)
+      clientFirstName,
+      clientLastName,
+      clientStreet,
+      clientFloor,
+      clientApartmentNumber,
+      clientPostalCode,
+      clientCity,
+      clientCountry,
       interventionAddress,
       interventionBatiment,
       interventionEtage,
       interventionEspacesCommuns,
       interventionExterieur,
-      // Lignes
+      ordreDeService,
+      // Lignes — les sections masquées sont persistées vides pour exclure
+      // leurs montants du total côté API et de la liste devis (bug : sinon
+      // les sections cachées étaient sommées par computeDocumentTotalHtCents
+      // et le total enregistré ne correspondait pas au RÉSUMÉ affiché).
       lines,
-      materialLines,
+      materialLines: materialLinesEnabled ? materialLines : [],
+      fraisLines: fraisLinesEnabled ? fraisLines : [],
+      // BTP — tables personnalisables (noms, masquage doux, tables custom additionnelles)
+      linesName,
+      materialLinesName,
+      fraisLinesName,
+      materialLinesEnabled,
+      fraisLinesEnabled,
+      customTables,
       // Acomptes
       acomptesEnabled,
       acomptes,
@@ -843,59 +1436,255 @@ export default function DevisFactureFormBTP({
       penaltyRate,
       recoveryFee,
       escompte,
+      // Régime TVA — source unique de vérité pour le PDF et la sync DB
+      regimeTva,
+      // Rétro-compat : flag boolean utilisé par PDF V3 (devis-pdf-v3.ts)
+      autoliquidationBTP,
+      // SIREN du donneur d'ordre (extrait du SIRET, 9 premiers chiffres) —
+      // requis pour la mention autoliquidation. Persisté pour ré-affichage
+      // dans la liste factures et export CA3 ultérieur.
+      clientSiren: (clientSiret || '').replace(/\s/g, '').slice(0, 9) || undefined,
+      // Gestion des déchets (loi AGEC art. D.541-45-1 C. env.)
+      dechetsChantier,
+      // Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975)
+      marchePrincipalRef,
+      maitreOuvrageFinal,
+      // N° TVA intracommunautaire émetteur (snapshot) — obligatoire pour
+      // autoliquidation BTP.
+      tvaIntraEmetteur: tvaNumber || undefined,
+      // RIB & coordonnées bancaires — verrouillés au moment de l'émission.
+      // Sans persistance, le téléchargement depuis la liste devis ne disposait
+      // pas de l'IBAN (form fetch /api/artisan-payment-info au montage, mais le
+      // payload sauvegardé n'incluait pas iban/bic) → RIB visible en aperçu,
+      // absent en download. Bug 06/05/2026.
+      iban: profileIban,
+      bic: profileBic,
       // Notes
       notes,
     }
   }, [
-    initialData, docNumber, docType, docTitle, docDate, docValidity, executionDelayDays, executionDelayType,
+    initialData, docNumber, docType, docTitle, docDate, docValidity, executionDelayDays, executionDelayType, prestationDate,
     statutJuridique, companyName, companySiret, companyAddress, companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber, companyAPE,
     insuranceType, insuranceName, insuranceNumber, insuranceCoverage, mediatorName, mediatorUrl,
-    clientName, clientEmail, clientPhone, clientSiret, clientAddress,
-    interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
-    lines, materialLines, acomptesEnabled, acomptes,
-    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte,
-    notes,
+    clientName, clientEmail, clientPhone, clientSiret, clientAddress, clientType,
+    clientFirstName, clientLastName, clientStreet, clientFloor, clientApartmentNumber, clientPostalCode, clientCity, clientCountry,
+    interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur, ordreDeService,
+    lines, materialLines, fraisLines,
+    linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
+    acomptesEnabled, acomptes,
+    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva,
+    profileIban, profileBic,
+    notes, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
+    // Sous-type facture + champs acompte fractionné + avoir (méthode pro BTP 2026)
+    factureSubType, situationNumber, situationAvancement,
+    acompteOrdre, acompteTotal, acomptePourcentage,
+    parentInvoiceNumber, avoirMotif,
   ])
 
-  const saveDraft = () => {
+  /* ──────── Validation régime TVA (garde-fous légaux) ──────── */
+  // Hard blocks avant émission : empêche les configurations interdites
+  // qui exposeraient à une redevabilité indue (art. 283-3 CGI).
+  const regimeValidationErrors = useMemo(() => {
+    return validateRegime({
+      regime: regimeTva,
+      // Inferred — pour V1 BTP on traite comme assujetti normal. Si jamais le
+      // settings_btp.regime_tva = franchise est fetched plus tard, on l'aligne.
+      issuerRegime: 'assujetti_normal',
+      clientType,
+      clientSiren: (clientSiret || '').replace(/\s/g, '').slice(0, 9),
+      emitterTvaIntra: tvaNumber,
+    })
+  }, [regimeTva, clientType, clientSiret, tvaNumber])
+
+  const blockSaveOnRegimeErrors = useCallback((): boolean => {
+    if (regimeValidationErrors.length === 0) return false
+    // On affiche TOUTES les erreurs pour que l'utilisateur corrige en une fois.
+    regimeValidationErrors.forEach(err => {
+      toast.error(REGIME_ERROR_MESSAGES[err])
+    })
+    return true
+  }, [regimeValidationErrors])
+
+  /* ──────── Conversion acompte (auto X %, méthode pro) ────────
+     Clic « Acompte » dans le sélecteur de type → pourcentage 50 % par défaut +
+     lignes mises à l'échelle (×%) + numéro en série dédiée AC-. On mémorise les
+     lignes PLEINES avant mise à l'échelle pour pouvoir restaurer (zéro double-
+     scaling, zéro dérive d'arrondi) si l'utilisateur ressort du mode acompte. */
+  const acompteScaledRef = React.useRef(false)
+  const acompteOriginalRef = React.useRef<{
+    lines: ProductLine[]; materialLines: ProductLine[]; fraisLines: ProductLine[]
+    customTables: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
+  } | null>(null)
+
+  const scaleLinesBy = (arr: ProductLine[], r: number): ProductLine[] =>
+    arr.map((l) => ({ ...l, priceHT: round2((l.priceHT || 0) * r), totalHT: round2((l.totalHT || 0) * r) }))
+
+  // Met les lignes à l'échelle pct/100 à partir des lignes PLEINES mémorisées.
+  const applyAcompteScale = useCallback((pct: number) => {
+    if (!acompteOriginalRef.current) {
+      acompteOriginalRef.current = {
+        lines: lines.map((l) => ({ ...l })),
+        materialLines: materialLines.map((l) => ({ ...l })),
+        fraisLines: fraisLines.map((l) => ({ ...l })),
+        customTables: customTables.map((t) => ({ ...t, lines: t.lines.map((l) => ({ ...l })) })),
+      }
+    }
+    const o = acompteOriginalRef.current
+    const r = (pct || 0) / 100
+    setLines(scaleLinesBy(o.lines, r))
+    setMaterialLines(scaleLinesBy(o.materialLines, r))
+    setFraisLines(scaleLinesBy(o.fraisLines, r))
+    setCustomTables(o.customTables.map((t) => ({ ...t, lines: scaleLinesBy(t.lines, r) })))
+    acompteScaledRef.current = true
+  }, [lines, materialLines, fraisLines, customTables])
+
+  const restoreAcompteOriginal = useCallback(() => {
+    const o = acompteOriginalRef.current
+    if (!o) return
+    setLines(o.lines); setMaterialLines(o.materialLines); setFraisLines(o.fraisLines); setCustomTables(o.customTables)
+    acompteScaledRef.current = false
+    acompteOriginalRef.current = null
+  }, [])
+
+  const handleSelectSubType = useCallback((st: FactureSubType) => {
+    const wasAcompte = factureSubType === 'acompte'
+    if (st === 'acompte' && !wasAcompte) {
+      const pct = acomptePourcentage ?? 50
+      if (acomptePourcentage == null) setAcomptePourcentage(50)
+      applyAcompteScale(pct)
+      // Mention du document source : le doc ouvert (facture/devis) devient le
+      // parent de l'acompte → rendu PDF « (sur facture …) » + traçabilité.
+      const sourceNum = (initialData as { docNumber?: string } | undefined)?.docNumber
+      if (sourceNum && !parentInvoiceNumber) setParentInvoiceNumber(sourceNum)
+      // Acompte = document INDÉPENDANT : on lui attribue un nouveau numéro
+      // provisoire BR- (la facture/devis source garde le sien, jamais écrasé).
+      // Le vrai numéro AC- est attribué à la validation (saveAndSend).
+      docNumberRef.current = ''; setDocNumber('')
+    } else if (st !== 'acompte' && wasAcompte) {
+      if (acompteScaledRef.current) restoreAcompteOriginal()
+      docNumberRef.current = ''; setDocNumber('')
+    }
+    setFactureSubType(st)
+  }, [factureSubType, acomptePourcentage, applyAcompteScale, restoreAcompteOriginal, initialData, parentInvoiceNumber])
+
+  const saveDraft = (opts?: { silent?: boolean }) => {
     if (!artisan?.id) {
-      toast.error('Compte non identifié')
+      if (!opts?.silent) toast.error('Compte non identifié')
       return
     }
-    setSaving(true)
+    if (!opts?.silent) setSaving(true)
     try {
-      const payload = { ...buildPayload(), status: 'brouillon', savedAt: new Date().toISOString() }
-      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
-      const filtered = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
-      filtered.push(payload)
-      localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
-      toast.success('Brouillon enregistré')
+      // Statut effectif :
+      //   - Nouveau doc (jamais émis)        → 'brouillon'
+      //   - Doc déjà émis (envoye/signe/...) → conserve le statut courant
+      //     pour éviter le rejet 409 "Invalid status transition" côté sync API
+      //     (transitions descendantes interdites par doc-status-transition).
+      //     Le user "modifie" un devis envoyé sans le rétrograder en brouillon.
+      const existingStatus = (initialData as { status?: string } | undefined)?.status
+      const isExistingEmitted = existingStatus && existingStatus !== 'brouillon' && existingStatus !== 'draft'
+      const effectiveStatus = isExistingEmitted ? existingStatus : 'brouillon'
+
+      const payload = { ...buildPayload(), status: effectiveStatus, savedAt: new Date().toISOString() }
+
+      if (isExistingEmitted) {
+        // Mise à jour d'un devis déjà émis : écrit dans `fixit_documents_<id>`
+        // (pas dans drafts) pour rester cohérent avec la liste affichée.
+        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+        const filtered = docs.filter((d: { id?: string }) => d.id !== payload.id)
+        filtered.push(payload)
+        localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
+      } else {
+        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
+        const filtered = drafts.filter((d: { id?: string }) => d.id !== payload.id)
+        filtered.push(payload)
+        localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
+      }
+      syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
+      if (opts?.silent) {
+        setLastAutosaveAt(Date.now())
+      } else {
+        toast.success(isExistingEmitted ? 'Devis mis à jour' : 'Brouillon enregistré')
+      }
       onSave?.(payload as never)
     } catch (err) {
       console.error('[DevisBTP] saveDraft failed', err)
-      toast.error('Impossible d\'enregistrer le brouillon')
+      if (!opts?.silent) toast.error('Impossible d\'enregistrer le brouillon')
     } finally {
-      setSaving(false)
+      if (!opts?.silent) setSaving(false)
     }
   }
 
-  const saveAndSend = () => {
+  // ── Autosave (méthode pro Stripe) ──
+  // Enregistre le brouillon 1,5 s après la dernière modification, en silence
+  // (ni toast ni spinner). Jamais de saisie perdue, même sans clic « Enregistrer ».
+  // Ne touche JAMAIS un document déjà émis (status ≠ brouillon/draft) ni un
+  // formulaire vide. saveDraft écrit localStorage + sync cloud via l'id stable.
+  const saveDraftRef = React.useRef(saveDraft)
+  saveDraftRef.current = saveDraft
+  useEffect(() => {
+    const st = (initialData as { status?: string } | undefined)?.status
+    const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
+    if (isEmitted || !artisan?.id) return
+    const hasContent = clientName.trim().length > 0 ||
+      [...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0)
+    if (!hasContent) return
+    const t = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientName, lines, materialLines, fraisLines, docTitle, factureSubType, acomptePourcentage, parentInvoiceNumber, avoirMotif])
+
+  const saveAndSend = async () => {
     if (!artisan?.id) return
     if (!clientName.trim()) { toast.error('Renseignez le nom du client'); return }
-    if (![...lines, ...materialLines].some((l) => l.description.trim().length > 0 && l.priceHT > 0)) {
-      toast.error('Ajoutez au moins une prestation ou un matériau chiffré'); return
+    // Avoir : prix négatifs autorisés (annulation). Le check ≠ 0 reste.
+    const isAvoir = factureSubType === 'avoir'
+    const hasChiffredLine = [...lines, ...materialLines, ...fraisLines].some((l) =>
+      l.description.trim().length > 0 && (isAvoir ? l.priceHT !== 0 : l.priceHT > 0),
+    )
+    if (!hasChiffredLine) {
+      toast.error(isAvoir
+        ? 'Ajoutez au moins une ligne avec un montant négatif (annulation)'
+        : 'Ajoutez au moins une prestation ou un matériau chiffré',
+      )
+      return
     }
+    if (isAvoir) {
+      if (!parentInvoiceNumber.trim()) {
+        toast.error('Renseignez le numéro de la facture annulée par cet avoir'); return
+      }
+      if (avoirMotif.trim().length < 5 || avoirMotif.trim().length > 500) {
+        toast.error('Motif d\'annulation requis (5–500 caractères, preuve fiscale L123-22)'); return
+      }
+    }
+    // Hard block : régime TVA incohérent (autoliquidation B2C, SIREN absent, etc.)
+    // Bloque l'émission pour éviter une redevabilité indue (art. 283-3 CGI).
+    if (blockSaveOnRegimeErrors()) return
     setSaving(true)
     try {
-      const payload = { ...buildPayload(), status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
+      // ── Attribution du numéro DÉFINITIF (méthode pro) ──
+      // Jusqu'ici le document portait un numéro provisoire BR-AAAA-NNN (non
+      // comptable). C'est SEULEMENT ici, à la validation, qu'on consomme le vrai
+      // numéro de séquence (next_doc_number serveur ; fallback local sinon) —
+      // d'où une numérotation comptable continue, sans trou (242 nonies A I 2°).
+      // Un brouillon ouvert puis abandonné ne consomme donc aucun numéro légal.
+      const provisional = docNumberRef.current || docNumber
+      let finalNumber = provisional
+      if (!provisional || provisional.toUpperCase().startsWith('BR-')) {
+        docNumberRef.current = '' // purge le provisoire pour forcer le vrai numéro
+        finalNumber = await fetchDocNumber()
+      }
+      const payload = { ...buildPayload(), docNumber: finalNumber, status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
+      // Identité = id stable : le doc passe de brouillon (sans numéro) à émis
+      // (numéro légal attribué). On déduplique par id — retiré des brouillons,
+      // (ré)inséré dans les documents émis.
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-      const filtered = docs.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+      const filtered = docs.filter((d: { id?: string }) => d.id !== payload.id)
       filtered.push(payload)
       localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
-      // Retire des brouillons s'il y était
+      syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
-      const newDrafts = drafts.filter((d: { docNumber?: string }) => d.docNumber !== payload.docNumber)
+      const newDrafts = drafts.filter((d: { id?: string }) => d.id !== payload.id)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(newDrafts))
       toast.success('Devis validé')
       onSave?.(payload as never)
@@ -1075,10 +1864,56 @@ export default function DevisFactureFormBTP({
     try {
       const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
       const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
+      // Auto-détection clientType : SIRET 14 chiffres + checksum Luhn valide
+      // → client forcément pro. Avant hotfix audit 04/05/2026, on testait
+      // juste `length === 14` — un fake "12345678901234" forçait pro et
+      // désactivait la rétractation 14 jours (art. L.221-18 C. conso.) →
+      // régression légale pour le client final qui aurait pu invalider
+      // sa commande sur cette base.
+      // Maintenant : validation Luhn (cf. lib/validation.ts:isValidSiret).
+      const detectedClientType: 'particulier' | 'professionnel' =
+        isValidSiret(clientSiret || '') ? 'professionnel' : clientType
       const validLabor = lines.filter(l => (l.description || '').trim())
-      const validMaterials = materialLines.filter(l => (l.description || '').trim())
-      const validLines = [...validLabor, ...validMaterials]
-      const totalNet = validLines.reduce((s, l) => s + l.totalHT, 0)
+      // Si la section Matériaux/Frais est désactivée par l'utilisateur (toggle),
+      // ses lignes ne doivent PAS compter dans les totaux — sinon mismatch entre
+      // Sous-total HT (calc form) et détail TVA (qui itère seulement sur les
+      // sections rendues côté PDF). Bug visible : "TVA 10% sur 62 927,28 €" ne
+      // tombait pas juste car les lignes désactivées étaient incluses dans HT
+      // mais exclues du breakdown TVA. Fix : aligner les deux logiques.
+      const validMaterials = materialLinesEnabled
+        ? materialLines.filter(l => (l.description || '').trim())
+        : []
+      const validFrais = fraisLinesEnabled
+        ? fraisLines.filter(l => (l.description || '').trim())
+        : []
+      const validCustom = customTables.flatMap(t => (t.lines || []).filter(l => (l.description || '').trim()))
+      const validLines = [...validLabor, ...validMaterials, ...validFrais, ...validCustom]
+
+      // Diagnostic Sentry — capture la forme des sections envoyées au PDF V3
+      // pour identifier les bugs "section manquante" en prod sans PII des lignes.
+      // Niveau breadcrumb : visible uniquement quand un autre event (toast erreur)
+      // est capturé. Empêche le spam Sentry sur génération normale.
+      Sentry.addBreadcrumb({
+        category: 'pdf-v3',
+        level: 'info',
+        message: 'generatePdf sections',
+        data: {
+          action,
+          laborCount: validLabor.length,
+          materialCount: validMaterials.length,
+          fraisCount: validFrais.length,
+          customCount: validCustom.length,
+          materialEnabled: materialLinesEnabled,
+          fraisEnabled: fraisLinesEnabled,
+          customTablesNames: customTables.map(t => t.name).slice(0, 10),
+        },
+      })
+      // Source unique de vérité : `totaux` useMemo (ligne 592+) calcule
+      // déjà subtotalHT, ventilation TVA et TTC avec les helpers money.ts
+      // (arrondi BOFiP, sans drift IEEE 754). Plus de recalcul ad-hoc ici
+      // qui divergerait du form display ou du PDF (cf. audit 03/05/2026).
+      const totalNet = totaux.totalHT
+      const totalTTCcalc = totaux.totalTTC
       const currencyFormat = (n: number) => {
         const formatted = n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         // Replace narrow no-break space (\u202F) and no-break space (\u00A0)
@@ -1095,25 +1930,72 @@ export default function DevisFactureFormBTP({
         localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
         t,
         docType, docNumber, docTitle: docTitle || `Devis ${docNumber}`, docDate, docValidity,
-        prestationDate: docDate,
+        // Date de prestation : utilise la valeur saisie par l'utilisateur, ou
+        // chaîne vide si non renseignée → le PDF affichera "À convenir" (cf.
+        // logique dans devis-pdf-v3.ts ligne 577 et 581).
+        prestationDate: prestationDate || '',
         executionDelay: delayStr,
+        // Sous-type facture (méthode pro 2026) — pilote label PDF
+        factureSubType, situationNumber, situationAvancement,
+        // Acompte fractionné + avoir (label PDF, mentions légales)
+        acompteOrdre, acompteTotal, acomptePourcentage,
+        parentInvoiceNumber: parentInvoiceNumber || undefined,
+        avoirMotif: avoirMotif || undefined,
         companyStatus: statusCode,
         companyName, companySiret, companyAddress, companyRCS: companyRCS || '', companyCapital: companyCapital || '',
         companyPhone, companyEmail,
         tvaEnabled, tvaNumber: tvaNumber || '', companyAPE: companyAPE || '',
         insuranceName: insuranceName || '', insuranceNumber: insuranceNumber || '', insuranceCoverage: insuranceCoverage || '', insuranceType,
-        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: clientType === 'particulier',
-        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType,
+        decennaleEligibility: getDecennaleEligibility(
+          ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
+        ),
+        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: detectedClientType === 'particulier',
+        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType: detectedClientType,
         interventionAddress: interventionAddress || '', interventionBatiment: interventionBatiment || '', interventionEtage: interventionEtage || '',
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
         paymentDue: paymentDelay || '30 jours',
-        paymentCondition: escompte || '', discount: '', penaltyRate: penaltyRate || '', recoveryFee: recoveryFee || '', iban: '', bic: '',
+        paymentCondition: escompte || '', discount: '', penaltyRate: penaltyRate || '', recoveryFee: recoveryFee || '',
+        // RIB chargé depuis le profil paramètres entreprise (cf. useEffect plus haut).
+        iban: profileIban, bic: profileBic,
         lines: validLines.length > 0 ? validLines : lines,
         laborLines: validLabor,
         materialLines: validMaterials,
+        fraisLines: validFrais,
+        // BTP — noms personnalisés et tables custom
+        linesName,
+        materialLinesName,
+        fraisLinesName,
+        materialLinesEnabled,
+        fraisLinesEnabled,
+        customTables: customTables.map(t => ({
+          id: t.id,
+          name: t.name,
+          lines: (t.lines || []).filter(l => (l.description || '').trim().length > 0),
+        })).filter(t => t.lines.length > 0),
         subtotalHT: totalNet,
-        totalTTC: tvaEnabled ? totalNet * 1.2 : totalNet,
+        totalTTC: tvaEnabled ? totalTTCcalc : totalNet,
+        // Ventilation TVA pré-calculée — le PDF V3 ne recalcule plus, élimine
+        // le drift form ↔ PDF observé sur 50+ lignes.
+        // computeTva() retourne breakdown=[] en franchise/autoliquidation,
+        // donc on transmet de la même manière (undefined si pas de breakdown).
+        tvaBreakdown: totaux.tvaBreakdown.length > 0 ? totaux.tvaBreakdown : undefined,
+        // Régime TVA — source de vérité pour les mentions PDF (PDF V3 lit ce
+        // champ pour conditionner mention 293 B / 283-2 nonies et label total).
+        regimeTva,
+        // Rétro-compat : flag boolean lu par PDF V3 actuellement.
+        autoliquidationBTP,
+        // TVA intra du preneur — affichée dans bloc DESTINATAIRE en autoliq
+        // (art. 242 nonies A I-3° annexe II CGI). Si non saisi explicitement,
+        // PDF V3 calcule auto depuis SIRET FR.
+        tvaIntraPreneur: ((initialData as { tvaIntraPreneur?: string })?.tvaIntraPreneur) || undefined,
+        // Loi AGEC — gestion des déchets (D.541-45-1 C. env.). PDF V3 émet
+        // mention structurée si au moins un champ rempli, sinon mention courte.
+        dechetsChantier,
+        // Caractérisation sous-traitance — PDF V3 ajoute un bloc dans legal1
+        // uniquement quand regimeTva === 'autoliquidation_btp'. Facultatifs.
+        marchePrincipalRef,
+        maitreOuvrageFinal,
         acomptesEnabled: acomptesEnabled || false,
         acomptes: acomptes || [],
         notes: notes || '', sourceDevisRef: null,
@@ -1272,8 +2154,8 @@ export default function DevisFactureFormBTP({
         .dv-presta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: .6rem; table-layout: fixed; }
         .dv-presta-table th { text-align: left; padding: 6px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; border-bottom: 2px solid #E8E8E8; letter-spacing: .2px; white-space: nowrap; }
         .dv-presta-table td { padding: 6px 8px; border-bottom: 1px solid #F0F0F0; vertical-align: top !important; }
-        .dv-presta-table input, .dv-presta-table select { padding: 6px 8px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; width: 100%; }
-        .dv-presta-table input:focus, .dv-presta-table select:focus { outline: none; border-color: var(--primary-yellow); }
+        .dv-presta-table :global(input), .dv-presta-table :global(select) { padding: 6px 8px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; width: 100%; box-sizing: border-box; }
+        .dv-presta-table :global(input:focus), .dv-presta-table :global(select:focus) { outline: none; border-color: var(--primary-yellow); }
         .dv-presta-table td.amount { font-weight: 600; text-align: right; color: #1a1a1a; font-variant-numeric: tabular-nums; }
         .dv-presta-table .col-ht { background: #FAFAFA; }
         .dv-presta-del { width: 28px; height: 28px; border-radius: 4px; border: 1px solid #FFCDD2; background: #fff; color: #E53935; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .15s; }
@@ -1445,6 +2327,121 @@ export default function DevisFactureFormBTP({
             <div className="dv-row col1">
               <div className="dv-fg"><label>N° TVA intracommunautaire</label><input type="text" placeholder="FR 00 123456789" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)} /></div>
             </div>
+
+            {/* Régime TVA — par document. Surcharge silencieuse des taux par
+                ligne en franchise/autoliquidation. Mentions légales gérées par
+                lib/tva-calculator.ts. */}
+            <div className="dv-row col1" style={{ marginTop: 4 }}>
+              <div className="dv-fg" role="group" aria-labelledby="regime-tva-label">
+                <span id="regime-tva-label" style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#666', marginBottom: 4 }}>
+                  Régime TVA du document <span className="req">*</span>
+                </span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                  {[
+                    { value: 'classique' as const, label: 'TVA classique', sub: 'Assujetti normal' },
+                    { value: 'autoliquidation_btp' as const, label: 'Autoliquidation BTP', sub: 'Sous-traitance, art. 283, 2 nonies CGI' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setRegimeTva(opt.value)}
+                      style={{
+                        flex: 1,
+                        minWidth: 180,
+                        padding: '10px 12px',
+                        border: `1px solid ${regimeTva === opt.value ? '#1a1a1a' : '#E0E0E0'}`,
+                        borderRadius: 8,
+                        background: regimeTva === opt.value ? '#1a1a1a' : '#fff',
+                        color: regimeTva === opt.value ? '#fff' : '#333',
+                        fontSize: 12,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 2 }}>{opt.label}</div>
+                      <div style={{ fontSize: 10, opacity: 0.7 }}>{opt.sub}</div>
+                    </button>
+                  ))}
+                </div>
+                {regimeTva === 'autoliquidation_btp' && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '10px 12px',
+                      background: '#FFF8E1',
+                      border: '1px solid #FFD54F',
+                      borderRadius: 8,
+                      fontSize: 11,
+                      color: '#5D4037',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <strong>Mode autoliquidation activé.</strong> La TVA n&apos;est pas collectée par votre société —
+                    elle est due par le donneur d&apos;ordre. Les taux TVA des lignes sont ignorés au PDF,
+                    le total apparaît comme &laquo;&nbsp;TOTAL NET&nbsp;&raquo; avec la mention obligatoire
+                    «&nbsp;Autoliquidation — Article 283, 2 nonies du CGI&nbsp;».
+                    <br />
+                    <strong>Conditions :</strong> client professionnel, SIRET renseigné, votre N° TVA intracom renseigné.
+                  </div>
+                )}
+                {regimeValidationErrors.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: '8px 12px',
+                      background: '#FFEBEE',
+                      border: '1px solid #EF5350',
+                      borderRadius: 8,
+                      fontSize: 11,
+                      color: '#B71C1C',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {regimeValidationErrors.map(err => (
+                      <div key={err}>• {REGIME_ERROR_MESSAGES[err]}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Cadre sous-traitance — caractérisation visible uniquement en autoliquidation BTP.
+                Loi n° 75-1334 + sécurisation contrôle fiscal. Facultatifs mais recommandés. */}
+            {regimeTva === 'autoliquidation_btp' && (
+              <div className="dv-row col1" style={{ marginTop: 4 }}>
+                <div className="dv-fg">
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    Cadre de sous-traitance <span style={{ color: '#888', fontWeight: 400, fontSize: 11 }}>(facultatif, recommandé)</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="dv-fg">
+                      <label style={{ fontSize: 11 }}>Référence marché principal</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Marché 2025-DRAC-007 / Contrat n°..."
+                        value={marchePrincipalRef}
+                        onChange={e => setMarchePrincipalRef(e.target.value)}
+                      />
+                    </div>
+                    <div className="dv-fg">
+                      <label style={{ fontSize: 11 }}>Maître d&apos;ouvrage final (nom + adresse)</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Mairie de Marseille, 13002"
+                        value={maitreOuvrageFinal}
+                        onChange={e => setMaitreOuvrageFinal(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>
+                    Ces informations caractérisent la sous-traitance (loi n° 75-1334) et apparaissent sur le devis. Le donneur d&apos;ordre est automatiquement renseigné depuis le client. Si laissé vide, le PDF utilise l&apos;adresse d&apos;intervention comme maître d&apos;ouvrage final.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="dv-row">
               <div className="dv-fg"><label>Téléphone <span className="req">*</span></label><input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} /></div>
               <div className="dv-fg"><label>Email <span className="req">*</span></label><input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} /></div>
@@ -1518,8 +2515,16 @@ export default function DevisFactureFormBTP({
                   ))}
                 </div>
               </div>
-              <div className="dv-fg"><label>Nom / Raison sociale <span className="req">*</span></label><input type="text" placeholder={clientType === 'particulier' ? 'Ex : Marie Dubois' : 'Ex : SCI Le Mail, Syndic Foncia'} value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
+              {clientType === 'professionnel' && (
+                <div className="dv-fg"><label>Raison sociale <span className="req">*</span></label><input type="text" placeholder="Ex : SCI Le Mail, Syndic Foncia" value={clientName} onChange={(e) => setClientName(e.target.value)} /></div>
+              )}
             </div>
+            {clientType === 'particulier' && (
+              <div className="dv-row">
+                <div className="dv-fg"><label>Prénom <span className="req">*</span></label><input type="text" placeholder="Marie" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} /></div>
+                <div className="dv-fg"><label>Nom <span className="req">*</span></label><input type="text" placeholder="Dubois" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} /></div>
+              </div>
+            )}
             <div className="dv-row">
               <div className="dv-fg"><label>Email</label><input type="email" placeholder="contact@email.fr" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
               <div className="dv-fg"><label>Téléphone</label><input type="text" placeholder="06 …" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} /></div>
@@ -1529,8 +2534,30 @@ export default function DevisFactureFormBTP({
               <div className="dv-fg"><label>SIRET</label><input type="text" placeholder="123 456 789 00012" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)} /></div>
             </div>
             )}
+            {/* Adresse client — champs détaillés (BTP). Compose clientAddress automatiquement pour le PDF V3 */}
             <div className="dv-row col1">
-              <div className="dv-fg"><label>Adresse complète (siège / domicile) <span className="req">*</span></label><input type="text" placeholder="12 rue de la Paix, 75002 Paris" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} /></div>
+              <div className="dv-fg"><label>Numéro et rue <span className="req">*</span></label><input type="text" placeholder="14 rue Colbert" value={clientStreet} onChange={(e) => setClientStreet(e.target.value)} /></div>
+            </div>
+            <div className="dv-row">
+              <div className="dv-fg"><label>Étage</label><input type="text" placeholder="3" value={clientFloor} onChange={(e) => setClientFloor(e.target.value)} /></div>
+              <div className="dv-fg"><label>N° appartement</label><input type="text" placeholder="12" value={clientApartmentNumber} onChange={(e) => setClientApartmentNumber(e.target.value)} /></div>
+            </div>
+            <div className="dv-row">
+              <div className="dv-fg"><label>Code postal <span className="req">*</span></label><input type="text" placeholder="13001" value={clientPostalCode} onChange={(e) => setClientPostalCode(e.target.value)} /></div>
+              <div className="dv-fg"><label>Ville <span className="req">*</span></label><input type="text" placeholder="Marseille" value={clientCity} onChange={(e) => setClientCity(e.target.value)} /></div>
+            </div>
+            <div className="dv-row col1">
+              <div className="dv-fg">
+                <label>Pays</label>
+                <select value={clientCountry} onChange={(e) => setClientCountry(e.target.value)}>
+                  <option value="France">France</option>
+                  <option value="Portugal">Portugal</option>
+                  <option value="Belgique">Belgique</option>
+                  <option value="Suisse">Suisse</option>
+                  <option value="Luxembourg">Luxembourg</option>
+                  <option value="Autre">Autre</option>
+                </select>
+              </div>
             </div>
             <div className="dv-row col1">
               <div className="dv-fg">
@@ -1585,11 +2612,155 @@ export default function DevisFactureFormBTP({
               <div className="dv-fg"><label>Espaces communs</label><input type="text" placeholder="Ex : Hall, cage d'escalier" value={interventionEspacesCommuns} onChange={(e) => setInterventionEspacesCommuns(e.target.value)} /></div>
               <div className="dv-fg"><label>Extérieur</label><input type="text" placeholder="Ex : Parking, jardin" value={interventionExterieur} onChange={(e) => setInterventionExterieur(e.target.value)} /></div>
             </div>
+            {clientType === 'professionnel' && docType === 'facture' && (
+              <div className="dv-fg" style={{ marginTop: '.5rem' }}>
+                <label>Ordre de service</label>
+                <input type="text" placeholder="N° ordre de service / bon de commande" value={ordreDeService} onChange={(e) => setOrdreDeService(e.target.value)} />
+              </div>
+            )}
           </div>
 
           {/* 6. INFORMATIONS DOCUMENT */}
           <div className="dv-section">
             <div className="dv-section-t">INFORMATIONS DOCUMENT</div>
+            {/* Sous-type facture (méthode pro 2026) — visible uniquement
+                en mode facture. Quatre cas légalement distincts :
+                standard / acompte / situation BTP / avoir (note de crédit). */}
+            {docType === 'facture' && (
+              <div className="dv-fg" style={{ marginBottom: '.85rem' }}>
+                <label>Type de facture <span className="req">*</span></label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                  {(['standard', 'acompte', 'situation', 'avoir'] as const).map((st) => {
+                    const labels = {
+                      standard: { title: 'Facture standard', hint: 'Émise après prestation (cas général, art. 289 CGI)' },
+                      acompte: { title: 'Facture d’acompte', hint: 'Versement reçu avant prestation — TVA exigible à l’encaissement' },
+                      situation: { title: 'Facture de situation', hint: 'BTP chantier long — facturation à l’avancement' },
+                      avoir: { title: 'Avoir (note de crédit)', hint: 'Annulation totale ou partielle d’une facture — montants négatifs (art. 272 CGI)' },
+                    }
+                    const isActive = factureSubType === st
+                    const isAvoir = st === 'avoir'
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => handleSelectSubType(st)}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          border: `1.5px solid ${isActive ? (isAvoir ? '#D32F2F' : 'var(--primary-yellow, #FFC107)') : '#E0E0E0'}`,
+                          background: isActive ? (isAvoir ? 'rgba(211, 47, 47, 0.06)' : 'rgba(255, 193, 7, 0.08)') : '#fff',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          fontSize: 12,
+                          fontWeight: isActive ? 700 : 500,
+                          color: isActive ? '#111' : '#444',
+                        }}
+                      >
+                        <div style={{ marginBottom: 3 }}>{labels[st].title}</div>
+                        <div style={{ fontSize: 10, fontWeight: 400, color: '#999', lineHeight: 1.35 }}>{labels[st].hint}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                {factureSubType === 'situation' && (
+                  <div className="dv-row" style={{ marginTop: 10 }}>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>N° de situation</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={situationNumber ?? ''}
+                        onChange={(e) => setSituationNumber(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        placeholder="Ex : 1, 2, 3…"
+                      />
+                    </div>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>Avancement (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={situationAvancement ?? ''}
+                        onChange={(e) => setSituationAvancement(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        placeholder="Ex : 30"
+                      />
+                    </div>
+                  </div>
+                )}
+                {factureSubType === 'acompte' && (
+                  <div className="dv-row" style={{ marginTop: 10 }}>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>N° d&apos;acompte</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={acompteOrdre ?? ''}
+                        onChange={(e) => setAcompteOrdre(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        placeholder="Ex : 1, 2…"
+                      />
+                    </div>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>Sur (total)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={acompteTotal ?? ''}
+                        onChange={(e) => setAcompteTotal(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        placeholder="Ex : 3"
+                      />
+                    </div>
+                    <div className="dv-fg" style={{ marginBottom: 0 }}>
+                      <label>Pourcentage</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        step="0.01"
+                        value={acomptePourcentage ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value ? parseFloat(e.target.value) : undefined
+                          setAcomptePourcentage(v)
+                          // Si les lignes ont été mises à l'échelle dans cette session
+                          // (transition → acompte), on re-applique depuis les lignes
+                          // pleines mémorisées. Sinon le % reste une métadonnée (doc
+                          // déjà ouvert en acompte avec lignes déjà à la bonne échelle).
+                          if (acompteScaledRef.current && v != null) applyAcompteScale(v)
+                        }}
+                        placeholder="Ex : 30"
+                      />
+                    </div>
+                  </div>
+                )}
+                {factureSubType === 'avoir' && (
+                  <>
+                    <div className="dv-row" style={{ marginTop: 10 }}>
+                      <div className="dv-fg" style={{ marginBottom: 0 }}>
+                        <label>Facture annulée (référence) <span className="req">*</span></label>
+                        <input
+                          type="text"
+                          value={parentInvoiceNumber}
+                          onChange={(e) => setParentInvoiceNumber(e.target.value)}
+                          placeholder="Ex : FACT-2026-013"
+                        />
+                      </div>
+                    </div>
+                    <div className="dv-fg" style={{ marginTop: 10, marginBottom: 0 }}>
+                      <label>Motif d&apos;annulation <span className="req">*</span> <span style={{ color: '#999', fontWeight: 'normal', fontSize: '11px' }}>(5–500 chars, preuve fiscale L123-22)</span></label>
+                      <textarea
+                        rows={2}
+                        value={avoirMotif}
+                        onChange={(e) => setAvoirMotif(e.target.value)}
+                        placeholder="Ex : erreur de facturation client, retour matériel, sortie comptable annulée…"
+                        style={{ width: '100%', resize: 'vertical', padding: 8, border: '1px solid #E0E0E0', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}
+                      />
+                    </div>
+                    <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(211, 47, 47, 0.05)', borderRadius: 4, fontSize: 11, color: '#7A1F1F', lineHeight: 1.4 }}>
+                      <strong>Mode AVOIR :</strong> les prix unitaires négatifs sont autorisés. Le total final sera négatif (créance en faveur du client). Référence légale : art. 272 CGI + BOI-TVA-DECLA-30-20-20-30 §70 (rectification TVA collectée par l&apos;émetteur / déductible par le preneur). Le PDF affichera la mention « AVOIR sur facture {parentInvoiceNumber || 'FACT-...'} ».
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             <div className="dv-row">
               <div className="dv-fg"><label>Date d&apos;émission <span className="req">*</span></label><input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} /></div>
               <div className="dv-fg"><label>Validité (jours) <span className="req">*</span></label><input type="number" value={docValidity} min={1} onChange={(e) => setDocValidity(parseInt(e.target.value) || 30)} /></div>
@@ -1606,6 +2777,10 @@ export default function DevisFactureFormBTP({
                 </select>
               </div>
             </div>
+            <div className="dv-fg" style={{ marginBottom: '.85rem' }}>
+              <label>Date de prestation <span style={{ color: '#999', fontWeight: 'normal', fontSize: '11px' }}>(optionnel — si vide : « À convenir » sur le PDF)</span></label>
+              <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)} />
+            </div>
             <div className="dv-info-strip">
               <div className="ico">⚖️</div>
               <div className="txt">
@@ -1615,9 +2790,19 @@ export default function DevisFactureFormBTP({
             </div>
           </div>
 
-          {/* 7. MAIN D'ŒUVRE */}
+          {/* 7. MAIN D'ŒUVRE — table principale, nom éditable, non supprimable */}
           <div className="dv-section">
-            <div className="dv-section-t">MAIN D&apos;ŒUVRE</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem' }}>
+              <input
+                type="text"
+                value={linesName}
+                onChange={(e) => setLinesName(e.target.value.toUpperCase())}
+                title="Cliquez pour renommer cette section"
+                style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+              />
+            </div>
             <table className="dv-presta-table">
               <colgroup>
                 <col style={{ width: '28%' }} />
@@ -1644,13 +2829,14 @@ export default function DevisFactureFormBTP({
               <tbody>
                 {lines.map((l) => {
                   const lineHT = (l.qty || 0) * (l.priceHT || 0)
-                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
                       <td>
                         {/* Titre motif */}
                         <div style={{ position: 'relative' }}>
                           <input type="text" placeholder="Saisissez ou sélectionnez une prestation…" value={l.description || ''}
+                            maxLength={200}
                             onChange={(e) => updateLine(l.id, { description: e.target.value })}
                             style={{ paddingRight: 28 }} />
                           <button type="button" tabIndex={-1}
@@ -1676,19 +2862,23 @@ export default function DevisFactureFormBTP({
                         {/* Description libre */}
                         {(l.description || '').trim() && (
                           <input type="text" placeholder="Description de la prestation…" value={l.lineDetail || ''}
+                            maxLength={500}
                             onChange={(e) => updateLine(l.id, { lineDetail: e.target.value })}
                             style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
                         )}
-                        {/* Étapes */}
-                        {l.etapes && l.etapes.length > 0 && (
+                        {/* Étapes — bloc toujours visible dès qu'une description existe (motif custom
+                            ou prédéfini). Label "Étapes" + bouton "+ étape" affichés en permanence, comme
+                            sur les custom tables, pour permettre d'ajouter la 1re étape sur un motif custom. */}
+                        {(l.description || '').trim() && (
                           <div style={{ marginTop: 8, fontSize: 12 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Étapes</div>
-                            {l.etapes.map((et, ei) => (
+                            {(l.etapes || []).map((et, ei) => (
                               <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 7, marginBottom: 6 }}>
                                 {/* Rectangle blanc : numéro + désignation (largeur totale, cohérent avec le motif du haut) */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
                                   <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{ei + 1}.</span>
                                   <input type="text" value={et.designation}
+                                    maxLength={200}
                                     placeholder="Ex : Diagnostic visuel"
                                     style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit' }}
                                     onChange={(e) => {
@@ -1702,40 +2892,43 @@ export default function DevisFactureFormBTP({
                                   onClick={() => updateLine(l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
                               </div>
                             ))}
-                            <button type="button"
-                              style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
-                              onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
-                              + étape
-                            </button>
+                            {(l.etapes?.length || 0) < 15 ? (
+                              <button type="button"
+                                style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
+                                onClick={() => updateLine(l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                                + étape
+                              </button>
+                            ) : (
+                              <div style={{ fontSize: 11, color: '#999', marginTop: 2, fontStyle: 'italic' }}>
+                                Maximum 15 étapes par prestation
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
-                      <td><input type="number" min={0} step={1} placeholder="0" value={l.qty || ''} onChange={(e) => updateLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateLine(l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
-                        <select value={l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                        <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
-                        onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
-                          const q = l.qty || 1
-                          updateLine(l.id, { priceHT: v / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineHT}
+                        onChangeNumber={(v) => { const q = l.qty || 1; updateLine(l.id, { priceHT: v / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
-                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
-                        onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
-                          const ht = v / (1 + (l.tvaRate || 0) / 100)
-                          const q = l.qty || 1
-                          updateLine(l.id, { priceHT: ht / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineTTC}
+                        onChangeNumber={(v) => { const ht = autoliquidationBTP ? v : v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateLine(l.id, { priceHT: ht / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
                     </tr>
@@ -1748,9 +2941,26 @@ export default function DevisFactureFormBTP({
             </div>
           </div>
 
-          {/* 7b. MATÉRIAUX */}
+          {/* 7b. MATÉRIAUX — supprimable (masquage doux) */}
+          {materialLinesEnabled && (
           <div className="dv-section">
-            <div className="dv-section-t">MATÉRIAUX</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem', gap: 8 }}>
+              <input
+                type="text"
+                value={materialLinesName}
+                onChange={(e) => setMaterialLinesName(e.target.value.toUpperCase())}
+                title="Cliquez pour renommer cette section"
+                style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+              />
+              <button
+                type="button"
+                onClick={() => setMaterialLinesEnabled(false)}
+                title="Masquer cette section (réactivable depuis + Ajouter une table)"
+                style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#888', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }}
+              >🗑 Supprimer</button>
+            </div>
             <table className="dv-presta-table">
               <colgroup>
                 <col style={{ width: '28%' }} />
@@ -1777,12 +2987,13 @@ export default function DevisFactureFormBTP({
               <tbody>
                 {materialLines.map((l) => {
                   const lineHT = (l.qty || 0) * (l.priceHT || 0)
-                  const lineTTC = lineHT * (1 + (l.tvaRate || 0) / 100)
+                  const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
                       <td>
                         <div style={{ position: 'relative' }}>
                           <input type="text" placeholder="Saisissez ou sélectionnez un matériau…" value={l.description || ''}
+                            maxLength={200}
                             onChange={(e) => updateMaterialLine(l.id, { description: e.target.value })}
                             style={{ paddingRight: 28 }} />
                           <button type="button" tabIndex={-1}
@@ -1808,32 +3019,29 @@ export default function DevisFactureFormBTP({
                           )}
                         </div>
                       </td>
-                      <td><input type="number" min={0} step={1} placeholder="0" value={l.qty || ''} onChange={(e) => updateMaterialLine(l.id, { qty: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
                       <td>
                         <select value={l.unit} onChange={(e) => updateMaterialLine(l.id, { unit: e.target.value })}>
                           {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min={0} step={0.01} placeholder="0" value={l.priceHT || ''} onChange={(e) => updateMaterialLine(l.id, { priceHT: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} /></td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                       <td>
-                        <select value={l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled}>
+                        <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineHT ? lineHT.toFixed(2) : ''} placeholder="0"
-                        onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
-                          const q = l.qty || 1
-                          updateMaterialLine(l.id, { priceHT: v / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineHT}
+                        onChangeNumber={(v) => { const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: v / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
-                      <td style={{ textAlign: 'right' }}><input type="number" min={0} step={0.01} value={lineTTC ? lineTTC.toFixed(2) : ''} placeholder="0"
-                        onChange={(e) => {
-                          const v = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
-                          const ht = v / (1 + (l.tvaRate || 0) / 100)
-                          const q = l.qty || 1
-                          updateMaterialLine(l.id, { priceHT: ht / q })
-                        }}
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineTTC}
+                        onChangeNumber={(v) => { const ht = autoliquidationBTP ? v : v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: ht / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeMaterialLine(l.id)}>✕</button></td>
                     </tr>
@@ -1860,6 +3068,265 @@ export default function DevisFactureFormBTP({
               </label>
             </div>
           </div>
+          )}
+
+          {/* 7c. FRAIS ANNEXES — supprimable (masquage doux) */}
+          {fraisLinesEnabled && (
+          <div className="dv-section">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem', gap: 8 }}>
+              <input
+                type="text"
+                value={fraisLinesName}
+                onChange={(e) => setFraisLinesName(e.target.value.toUpperCase())}
+                title="Cliquez pour renommer cette section"
+                style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+              />
+              <button
+                type="button"
+                onClick={() => setFraisLinesEnabled(false)}
+                title="Masquer cette section (réactivable depuis + Ajouter une table)"
+                style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#888', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }}
+              >🗑 Supprimer</button>
+            </div>
+            <table className="dv-presta-table">
+              <colgroup>
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '4%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
+                  <th style={{ textAlign: 'center' }}>QTÉ</th>
+                  <th style={{ textAlign: 'center' }}>UNITÉ</th>
+                  <th style={{ textAlign: 'center' }}>PRIX HT</th>
+                  <th style={{ textAlign: 'center' }}>TVA %</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL HT</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {fraisLines.map((l) => {
+                  const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                  const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
+                  return (
+                    <tr key={l.id}>
+                      <td>
+                        <input type="text" placeholder="Ex : Frais de déplacement, location nacelle..." value={l.description || ''}
+                          maxLength={200}
+                          onChange={(e) => updateFraisLine(l.id, { description: e.target.value })} />
+                      </td>
+                      <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateFraisLine(l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
+                      <td>
+                        <select value={l.unit} onChange={(e) => updateFraisLine(l.id, { unit: e.target.value })}>
+                          {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                        </select>
+                      </td>
+                      <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateFraisLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      <td>
+                        <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
+                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                        </select>
+                      </td>
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineHT}
+                        onChangeNumber={(v) => { const q = l.qty || 1; updateFraisLine(l.id, { priceHT: v / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      <td style={{ textAlign: 'right' }}><DecimalInput
+                        value={lineTTC}
+                        onChangeNumber={(v) => { const ht = autoliquidationBTP ? v : v / (1 + (l.tvaRate || 0) / 100); const q = l.qty || 1; updateFraisLine(l.id, { priceHT: ht / q }) }}
+                        format={fmtN} parse={parseDecimalInput}
+                        placeholder="0,00"
+                        style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeFraisLine(l.id)}>✕</button></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
+              <button className="dv-add-line" type="button" onClick={addFraisLine}>+ Ajouter un frais</button>
+            </div>
+          </div>
+          )}
+
+          {/* 7d. TABLES CUSTOM (corps d'état, sous-traitants, etc.) */}
+          {customTables.map((tbl) => (
+            <div key={tbl.id} className="dv-section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.85rem', gap: 8 }}>
+                <input
+                  type="text"
+                  value={tbl.name}
+                  onChange={(e) => updateCustomTableName(tbl.id, e.target.value.toUpperCase())}
+                  title="Cliquez pour renommer cette section"
+                  style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', letterSpacing: '.2px', background: 'transparent', border: '1px dashed transparent', borderRadius: 4, padding: '4px 6px', flex: 1, fontFamily: 'inherit' }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#E0E0E0' }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeCustomTable(tbl.id)}
+                  title="Supprimer définitivement cette table"
+                  style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#888', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }}
+                >🗑 Supprimer</button>
+              </div>
+              <table className="dv-presta-table">
+                <colgroup>
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '6%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Désignation</th>
+                    <th>Qté</th>
+                    <th>Unité</th>
+                    <th>Prix U. HT</th>
+                    <th>TVA %</th>
+                    <th>Total HT</th>
+                    <th>Total TTC</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(tbl.lines || []).map((l) => {
+                    const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                    const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
+                    return (
+                      <tr key={l.id}>
+                        <td>
+                          <input type="text" placeholder="Désignation…" value={l.description || ''}
+                            maxLength={200}
+                            onChange={(e) => updateCustomLine(tbl.id, l.id, { description: e.target.value })} />
+                          {/* Description libre (lineDetail) — affichée dès qu'une désignation existe, comme dans la table Services par défaut */}
+                          {(l.description || '').trim() && (
+                            <input type="text" placeholder="Description de la prestation…" value={l.lineDetail || ''}
+                              maxLength={500}
+                              onChange={(e) => updateCustomLine(tbl.id, l.id, { lineDetail: e.target.value })}
+                              style={{ width: '100%', marginTop: 4, border: '1px dashed #E0E0E0', borderRadius: 4, padding: '4px 8px', fontSize: 11, color: '#555', background: '#fafaf8' }} />
+                          )}
+                          {/* Étapes optionnelles — bloc toujours visible dès qu'une description existe.
+                              Cohérent avec le pattern de la table Services. */}
+                          {(l.description || '').trim() && (
+                            <div style={{ marginTop: 8, fontSize: 12 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#888', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Étapes</div>
+                              {(l.etapes || []).map((et, ei) => (
+                                <div key={et.id} style={{ display: 'flex', alignItems: 'stretch', gap: 7, marginBottom: 6 }}>
+                                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 4, padding: '0 11px', minHeight: 34 }}>
+                                    <span style={{ color: '#999', fontSize: 12, fontWeight: 600, marginRight: 9, minWidth: 16 }}>{ei + 1}.</span>
+                                    <input type="text" value={et.designation}
+                                      maxLength={200}
+                                      placeholder="Ex : Pose des rails et montants"
+                                      style={{ flex: 1, fontSize: 12.5, color: '#1a1a1a', background: 'transparent', border: 'none', outline: 'none', padding: '9px 0', width: '100%', fontFamily: 'inherit' }}
+                                      onChange={(e) => {
+                                        const newEtapes = [...(l.etapes || [])]
+                                        newEtapes[ei] = { ...newEtapes[ei], designation: e.target.value }
+                                        updateCustomLine(tbl.id, l.id, { etapes: newEtapes })
+                                      }} />
+                                  </div>
+                                  <button type="button" aria-label="Supprimer étape"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#c00', padding: '0 4px' }}
+                                    onClick={() => updateCustomLine(tbl.id, l.id, { etapes: (l.etapes || []).filter((_, j) => j !== ei) })}>✕</button>
+                                </div>
+                              ))}
+                              {(l.etapes?.length || 0) < 15 ? (
+                                <button type="button"
+                                  style={{ fontSize: 11, color: '#666', cursor: 'pointer', marginTop: 2, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
+                                  onClick={() => updateCustomLine(tbl.id, l.id, { etapes: [...(l.etapes || []), { id: `etape_${Date.now()}`, ordre: (l.etapes?.length || 0) + 1, designation: '' }] })}>
+                                  + étape
+                                </button>
+                              ) : (
+                                <div style={{ fontSize: 11, color: '#999', marginTop: 2, fontStyle: 'italic' }}>
+                                  Maximum 15 étapes par prestation
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td><DecimalInput value={l.qty || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { qty: n })} format={fmtQty} parse={parseDecimalInput} placeholder="0" /></td>
+                        <td>
+                          <select value={l.unit} onChange={(e) => updateCustomLine(tbl.id, l.id, { unit: e.target.value })}>
+                            {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                          </select>
+                        </td>
+                        <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                        <td>
+                          <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
+                            {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          </select>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{lineHT ? lineHT.toFixed(2) : '0,00'} €</td>
+                        <td style={{ textAlign: 'right' }}>{lineTTC ? lineTTC.toFixed(2) : '0,00'} €</td>
+                        <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeCustomLine(tbl.id, l.id)}>✕</button></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
+                <button className="dv-add-line" type="button" onClick={() => addCustomLine(tbl.id)}>+ Ajouter une ligne</button>
+              </div>
+            </div>
+          ))}
+
+          {/* 7e. BOUTON + AJOUTER UNE TABLE (avec menu pour réactiver les sections masquées ou créer une nouvelle) */}
+          <div className="dv-section" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setShowAddTableMenu(v => !v)}
+              style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, color: '#1a1a1a', background: '#fff', border: '1px dashed #E0E0E0', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+            >+ Ajouter une table</button>
+            {showAddTableMenu && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #E0E0E0', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', minWidth: 240, zIndex: 100 }}>
+                {!materialLinesEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => { setMaterialLinesEnabled(true); setShowAddTableMenu(false) }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >↩ Réactiver « {materialLinesName} »</button>
+                )}
+                {!fraisLinesEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => { setFraisLinesEnabled(true); setShowAddTableMenu(false) }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >↩ Réactiver « {fraisLinesName} »</button>
+                )}
+                {(['labor', 'material', 'frais'] as const).map((cat, idx) => {
+                  const catLabel = cat === 'labor' ? "Main d'œuvre" : cat === 'material' ? 'Matériaux' : 'Frais'
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        // Pattern SaaS pro 2026 : ouvrir un modal React custom au lieu de window.prompt()
+                        // (l'ancien prompt natif bloquait le thread JS, n'était pas stylable, et était
+                        // impossible à automatiser via Playwright/MCP).
+                        setNewTableModal({ open: true, cat, catLabel, name: '' })
+                        setShowAddTableMenu(false)
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', borderTop: idx === 0 && (!materialLinesEnabled || !fraisLinesEnabled) ? '1px solid #F0F0F0' : 'none' }}
+                    >✚ Nouvelle table « {catLabel} »</button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {/* 8. ACOMPTES & PAIEMENT ÉCHELONNÉ */}
           <div className="dv-section">
@@ -1877,7 +3344,7 @@ export default function DevisFactureFormBTP({
                         {DECLENCHEURS_ACOMPTE.map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
                       <div className="dv-acompte-input-pct">
-                        <input type="number" min={0} max={100} value={a.pourcentage} onChange={(e) => updateAcompte(a.id, { pourcentage: parseFloat(e.target.value) || 0 })} />
+                        <input type="number" min={0} max={100} value={a.pourcentage} onChange={(e) => updateAcompte(a.id, { pourcentage: parseDecimalInput(e.target.value, 100) })} />
                         <span>%</span>
                       </div>
                       <span className="dv-acompte-eq">= {fmt(eq)}</span>
@@ -1889,10 +3356,10 @@ export default function DevisFactureFormBTP({
                   <button className="devis-top-btn" type="button" style={{ fontSize: 11 }} onClick={addAcompte}>+ Ajouter un acompte</button>
                   <button className="devis-top-btn" type="button" style={{ fontSize: 11 }} onClick={saveEcheancierAsDefault}>Enregistrer comme défaut</button>
                 </div>
-                <div className={`dv-echelon-warning ${totalAcomptePct === 100 ? 'green' : 'orange'}`}>
-                  Total échelonné : {totalAcomptePct.toFixed(0)}% {totalAcomptePct === 100 ? '✓' : '⚠️'}
+                <div className={`dv-echelon-warning ${Math.abs(totalAcomptePct - 100) < 0.01 ? 'green' : 'orange'}`}>
+                  Total échelonné : {totalAcomptePct.toFixed(0)}% {Math.abs(totalAcomptePct - 100) < 0.01 ? '✓' : '⚠️'}
                   <span className="sub">
-                    {totalAcomptePct === 100
+                    {Math.abs(totalAcomptePct - 100) < 0.01
                       ? 'Le règlement est intégralement réparti.'
                       : `Les ${(100 - totalAcomptePct).toFixed(0)}% restants seront réglés séparément.`
                     }
@@ -1951,7 +3418,20 @@ export default function DevisFactureFormBTP({
               <div className="ico">🛡️</div>
               <div className="txt">
                 <div className="ttl">Garanties légales applicables (mention automatique sur le PDF)</div>
-                <div className="sub">Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · Garantie légale de conformité (art. L. 217-3 C. conso.) · Garantie des vices cachés (art. 1641 C. civ.).</div>
+                <div className="sub">
+                  {(() => {
+                    const elig = getDecennaleEligibility(
+                      ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
+                    )
+                    if (elig === 'never') {
+                      return "Prestation de service hors champ d'application de l'art. 1792 C. civ. (garanties 1792 réservées aux ouvrages de construction). Responsabilité contractuelle de droit commun (art. 1231-1 C. civ.) · Garantie des vices cachés (art. 1641 C. civ.) sur les biens fournis."
+                    }
+                    if (elig === 'conditional') {
+                      return "Garanties 1792 applicables uniquement si l'intervention constitue un ouvrage : parfait achèvement (1 an, art. 1792-6) · biennale (2 ans, art. 1792-3) · décennale (10 ans, art. 1792). Sinon : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.)."
+                    }
+                    return 'Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · Garantie légale de conformité (art. L. 217-3 C. conso.) · Garantie des vices cachés (art. 1641 C. civ.).'
+                  })()}
+                </div>
               </div>
             </div>
           </div>
@@ -2007,6 +3487,96 @@ export default function DevisFactureFormBTP({
               </>
             ) : (
               <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.</div>
+            )}
+          </div>
+
+          {/* 12bis. GESTION DES DÉCHETS DE CHANTIER (Loi AGEC, art. D.541-45-1 C. env.) */}
+          <div className="dv-section">
+            <div
+              className="dv-section-t"
+              style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              onClick={() => setDechetsExpanded(prev => !prev)}
+            >
+              <span>GESTION DES DÉCHETS DE CHANTIER</span>
+              <span style={{ fontSize: 12, color: '#888' }}>{dechetsExpanded ? '▲ Réduire' : '▼ Détails'}</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
+              Loi AGEC — décret n°2020-1817, art. D.541-45-1 C. env. Mention obligatoire sur devis BTP (rénovation, construction, démolition, jardinage). Pré-remplie avec valeurs raisonnables, ajustez selon le chantier.
+            </div>
+            {dechetsExpanded && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Nature des déchets <span className="req">*</span></label>
+                  <select
+                    value={dechetsChantier.nature}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, nature: e.target.value })}
+                  >
+                    <option value="Inertes (gravats, terres, béton)">Inertes (gravats, terres, béton)</option>
+                    <option value="Non dangereux non inertes (bois, plastiques, métaux)">Non dangereux non inertes (bois, plastiques, métaux)</option>
+                    <option value="Inertes et non dangereux non inertes">Inertes et non dangereux non inertes (mixte)</option>
+                    <option value="Dangereux (peintures, solvants, amiante)">Dangereux (peintures, solvants, amiante)</option>
+                    <option value="Inertes, non dangereux non inertes et dangereux">Mixte complet (inertes + non dangereux + dangereux)</option>
+                  </select>
+                </div>
+                <div className="dv-fg">
+                  <label>Quantité estimée <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Ex : 2.5"
+                    value={dechetsChantier.quantiteEstimee}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, quantiteEstimee: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg">
+                  <label>Unité <span className="req">*</span></label>
+                  <select
+                    value={dechetsChantier.unite}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, unite: e.target.value })}
+                  >
+                    <option value="m³">m³</option>
+                    <option value="kg">kg</option>
+                    <option value="t">t (tonnes)</option>
+                    <option value="L">L</option>
+                    <option value="benne">benne</option>
+                    <option value="big bag">big bag</option>
+                  </select>
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Installation de collecte/traitement (nom) <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Ex : Déchetterie SUEZ Marseille Nord"
+                    value={dechetsChantier.installationNom}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, installationNom: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Adresse installation</label>
+                  <input
+                    type="text"
+                    placeholder="Ex : 12 chemin des Hauteurs, 13014 Marseille"
+                    value={dechetsChantier.installationAdresse}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, installationAdresse: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Modalités de tri sur chantier</label>
+                  <input
+                    type="text"
+                    value={dechetsChantier.modalitesTri}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, modalitesTri: e.target.value })}
+                  />
+                </div>
+                <div className="dv-fg" style={{ gridColumn: '1 / -1' }}>
+                  <label>Coût de gestion</label>
+                  <input
+                    type="text"
+                    value={dechetsChantier.coutGestion}
+                    onChange={e => setDechetsChantier({ ...dechetsChantier, coutGestion: e.target.value })}
+                    placeholder="Inclus dans la prestation OU 150 € HT"
+                  />
+                </div>
+              </div>
             )}
           </div>
 
@@ -2193,11 +3763,27 @@ export default function DevisFactureFormBTP({
               )}
 
               {/* ═══ 8. GARANTIES LÉGALES BTP ═══ */}
-              {locale === 'pt' ? (
-                <>GARANTIAS LEGAIS : garantia de defeitos de construção (5 anos, art. 1225.º do Código Civil Português). Garantia legal de conformidade (Lei n.º 24/96). Garantia de vícios ocultos (art. 913.º do Código Civil).<br /><br /></>
-              ) : (
-                <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
-              )}
+              {(() => {
+                const elig = getDecennaleEligibility(
+                  ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
+                )
+                if (locale === 'pt') {
+                  if (elig === 'never') {
+                    return <>GARANTIAS : prestação de serviços fora do âmbito do art. 1225.º do Código Civil. Responsabilidade contratual de direito comum (art. 798.º) · Garantia de vícios ocultos (art. 913.º).<br /><br /></>
+                  }
+                  if (elig === 'conditional') {
+                    return <>GARANTIAS : garantia de defeitos de construção (art. 1225.º, 5 anos) aplicável apenas em caso de execução de obra. Para prestações de manutenção : responsabilidade contratual de direito comum (art. 798.º).<br /><br /></>
+                  }
+                  return <>GARANTIAS LEGAIS : garantia de defeitos de construção (5 anos, art. 1225.º do Código Civil Português). Garantia legal de conformidade (Lei n.º 24/96). Garantia de vícios ocultos (art. 913.º do Código Civil).<br /><br /></>
+                }
+                if (elig === 'never') {
+                  return <>PRESTATION DE SERVICE : hors champ d&apos;application de l&apos;art. 1792 C. civ. (garanties réservées aux ouvrages de construction). Responsabilité contractuelle de droit commun (art. 1231-1 C. civ.) · Garantie des vices cachés (art. 1641 C. civ.) applicable aux biens fournis.<br /><br /></>
+                }
+                if (elig === 'conditional') {
+                  return <>GARANTIES LÉGALES : applicables uniquement aux travaux constituant un ouvrage (art. 1792 C. civ.) — parfait achèvement (1 an, art. 1792-6), biennale (2 ans, art. 1792-3), décennale (10 ans, art. 1792). Prestations d&apos;entretien : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.).<br /><br /></>
+                }
+                return <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
+              })()}
 
               {/* ═══ 9. GESTION DES DÉCHETS — obligatoire BTP France depuis 01/07/2021 (loi AGEC) ═══ */}
               {locale !== 'pt' && docType === 'devis' && (
@@ -2293,14 +3879,19 @@ export default function DevisFactureFormBTP({
           {/* ACTIONS */}
           <div className="dv-sidebar-card">
             <div className="dv-sidebar-t">ACTIONS</div>
-            <button className="dv-sidebar-btn" type="button" disabled={saving} onClick={saveDraft}>
+            <button className="dv-sidebar-btn" type="button" disabled={saving} onClick={() => saveDraft()}>
               {saving ? 'Enregistrement…' : 'Enregistrer brouillon'}
             </button>
+            {lastAutosaveAt && !saving && (
+              <div style={{ fontSize: 10, color: '#4CAF50', textAlign: 'center', marginTop: '-.2rem', marginBottom: '.4rem' }}>
+                ✓ Brouillon enregistré automatiquement
+              </div>
+            )}
             <button className="dv-sidebar-btn yellow" type="button" disabled={pdfLoading} onClick={() => generatePdf('download')}>
               {pdfLoading ? 'Génération…' : 'Télécharger PDF'}
             </button>
             <button className="dv-sidebar-btn green" type="button" disabled={saving} onClick={saveAndSend}>
-              {saving ? 'Validation…' : 'Valider et envoyer'}
+              {saving ? 'Validation…' : 'Valider et enregistrer'}
             </button>
           </div>
 
@@ -2354,25 +3945,74 @@ export default function DevisFactureFormBTP({
         </div>
       )}
 
-      {/* ============ MODAL : Rentabilité (placeholder) ============ */}
-      {showRentaModal && (
-        <div className="dvbtp-modal-ov" onClick={() => setShowRentaModal(false)}>
-          <div className="dvbtp-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>📊 Rentabilité du devis</h3>
-            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
-              <p style={{ marginBottom: 8 }}>
-                <strong>Total TTC :</strong> {fmt(totaux.totalTTC)} ({fmt(totaux.totalHT)} HT)
-              </p>
-              <p style={{ marginBottom: 8 }}>
-                Le module complet (calcul coût salarié + marge + frais généraux) est disponible
-                dans le composant standard. Une version BTP enrichie sera branchée prochainement.
-              </p>
-            </div>
-            <div className="dvbtp-modal-foot">
-              <button className="dvbtp-modal-btn" type="button" onClick={() => setShowRentaModal(false)}>Fermer</button>
+      {/* ============ MODAL : Nouvelle table custom ============ */}
+      {/* Remplace l'ancien window.prompt() bloquant. Pattern SaaS pro 2026. */}
+      {newTableModal.open && (
+        <div className="dvbtp-modal-ov" onClick={() => setNewTableModal(m => ({ ...m, open: false }))}>
+          <div className="dvbtp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 6, fontSize: 16, color: '#1a1a1a' }}>
+              Nouvelle table « {newTableModal.catLabel} »
+            </h3>
+            <p style={{ fontSize: 12, color: '#666', marginTop: 0, marginBottom: 14 }}>
+              Donnez un nom à votre nouvelle section (ex : Électricité, Plomberie, Peinture…).
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={newTableModal.name}
+              maxLength={60}
+              onChange={(e) => setNewTableModal(m => ({ ...m, name: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTableModal.name.trim()) {
+                  const cat = newTableModal.cat
+                  setCustomTables(prev => [...prev, {
+                    id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    name: newTableModal.name.trim().toUpperCase(),
+                    category: cat,
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                  }])
+                  setNewTableModal(m => ({ ...m, open: false, name: '' }))
+                } else if (e.key === 'Escape') {
+                  setNewTableModal(m => ({ ...m, open: false }))
+                }
+              }}
+              placeholder="Ex : Électricité"
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setNewTableModal(m => ({ ...m, open: false }))}
+                style={{ padding: '8px 16px', border: '1px solid #E0E0E0', borderRadius: 6, background: '#fff', color: '#555', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+              >Annuler</button>
+              <button
+                type="button"
+                disabled={!newTableModal.name.trim()}
+                onClick={() => {
+                  const cat = newTableModal.cat
+                  setCustomTables(prev => [...prev, {
+                    id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    name: newTableModal.name.trim().toUpperCase(),
+                    category: cat,
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                  }])
+                  setNewTableModal(m => ({ ...m, open: false, name: '' }))
+                }}
+                style={{ padding: '8px 16px', border: 'none', borderRadius: 6, background: newTableModal.name.trim() ? '#FFC107' : '#F0F0F0', color: newTableModal.name.trim() ? '#1a1a1a' : '#999', fontSize: 13, fontWeight: 600, cursor: newTableModal.name.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+              >Créer la table</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ============ MODAL : Rentabilité (placeholder) ============ */}
+      {showRentaModal && (
+        <RentabiliteDevisModal
+          items={lines.filter(l => l.priceHT > 0 && l.qty > 0)}
+          totalHT={totaux.totalHT}
+          totalTTC={totaux.totalTTC}
+          onClose={() => setShowRentaModal(false)}
+        />
       )}
 
     </div>

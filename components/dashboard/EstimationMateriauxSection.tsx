@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { supabase } from '@/lib/supabase'
 import type {
   Recipe,
   EstimationInput,
@@ -11,10 +12,63 @@ import type {
   MaterialNeed,
 } from '@/lib/estimation-materiaux'
 import { getRecipesByCountry, searchRecipes } from '@/lib/estimation-materiaux'
+import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 import './estimation-materiaux.css'
 
 type Trade = Recipe['trade']
 type Mode = 'form' | 'ia'
+
+// Mapping artisan.categories → Trade(s).
+// "Rénovation complète" couvre les corps d'état standard d'une réno bâtiment :
+// maçonnerie, placo, peinture, électricité, façade, et toiture (couverture +
+// charpente + zinguerie). Pas de plomberie/chauffage/menuiserie/carrelage/
+// isolation par défaut — l'artisan déclare ces métiers explicitement s'il les
+// fait. Idem petits-travaux/divers : périmètre identique à rénovation.
+const ALL_TRADES_LIST: Trade[] = [
+  'maconnerie', 'placo', 'peinture', 'carrelage', 'charpente', 'couverture',
+  'zinguerie', 'etancheite', 'isolation', 'facade', 'menuiserie_ext',
+  'menuiserie_int', 'revetement_sol', 'revetement_mural', 'plomberie',
+  'chauffage', 'ventilation', 'climatisation', 'electricite', 'electricite_cfa',
+  'vrd', 'assainissement', 'cloture', 'terrasse_ext', 'jardin', 'piscine',
+  'menuiserie', 'metallerie', 'revetements_sols',
+]
+
+const RENOVATION_TRADES: Trade[] = [
+  'maconnerie', 'placo', 'peinture', 'electricite', 'plomberie', 'facade',
+  'couverture', 'charpente', 'zinguerie',
+]
+
+const CATEGORY_TO_TRADES: Record<string, Trade[]> = {
+  maconnerie: ['maconnerie', 'vrd'],
+  electricite: ['electricite', 'electricite_cfa'],
+  plomberie: ['plomberie', 'assainissement'],
+  chauffage: ['chauffage', 'ventilation'],
+  climatisation: ['climatisation', 'ventilation'],
+  peinture: ['peinture', 'revetement_mural', 'facade'],
+  menuiserie: ['menuiserie', 'menuiserie_int', 'menuiserie_ext'],
+  metallerie: ['metallerie', 'cloture'],
+  serrurerie: ['metallerie', 'cloture'],
+  carrelage: ['carrelage', 'revetement_sol', 'revetements_sols'],
+  plaquiste: ['placo', 'isolation'],
+  toiture: ['couverture', 'charpente', 'zinguerie', 'etancheite'],
+  'espaces-verts': ['jardin', 'terrasse_ext'],
+  isolation: ['isolation', 'facade'],
+}
+
+function categoriesToTrades(cats: string[] | null | undefined): Trade[] {
+  if (!cats || cats.length === 0) return []
+  const set = new Set<Trade>()
+  for (const c of cats) {
+    const lc = c.toLowerCase().trim()
+    if (lc === 'renovation' || lc === 'rénovation' || lc === 'petits-travaux' || lc === 'divers' || lc === 'tce') {
+      RENOVATION_TRADES.forEach(t => set.add(t))
+      continue
+    }
+    const trades = CATEGORY_TO_TRADES[lc]
+    if (trades) trades.forEach(t => set.add(t))
+  }
+  return Array.from(set)
+}
 
 interface ProjectItem {
   uid: string
@@ -27,7 +81,7 @@ interface ProjectItem {
 }
 
 interface Props {
-  artisan?: { id?: string } | null
+  artisan?: { id?: string; categories?: string[] | null; specialite?: string | null; naf_code?: string | null } | null
   /**
    * Si true, affiche le sélecteur de corps de métier dans le mode IA.
    * Réservé au super-admin — les entreprises standards sont calibrées sur
@@ -69,6 +123,9 @@ const TRADE_ICON: Record<Trade, string> = {
   terrasse_ext: '🌳',
   jardin: '🌿',
   piscine: '🏊',
+  menuiserie: '🪚',
+  metallerie: '⚙️',
+  revetements_sols: '🟫',
 }
 
 const TRADE_LABEL_FR: Record<Trade, string> = {
@@ -98,6 +155,9 @@ const TRADE_LABEL_FR: Record<Trade, string> = {
   terrasse_ext: 'Terrasses extérieures',
   jardin: 'Espaces verts',
   piscine: 'Piscine & spa',
+  menuiserie: 'Menuiserie',
+  metallerie: 'Métallerie / Ferronnerie',
+  revetements_sols: 'Revêtements de sols',
 }
 
 const TRADE_LABEL_PT: Record<Trade, string> = {
@@ -127,6 +187,9 @@ const TRADE_LABEL_PT: Record<Trade, string> = {
   terrasse_ext: 'Terraços exteriores',
   jardin: 'Jardim',
   piscine: 'Piscina e spa',
+  menuiserie: 'Carpintaria',
+  metallerie: 'Serralharia / Ferragem',
+  revetements_sols: 'Pavimentos',
 }
 
 function fr(n: number, decimals = 2): string {
@@ -141,13 +204,14 @@ function formatQty(q: number, unit: string): string {
   return fr(q, 2)
 }
 
-function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
+function buildDimsLabel(recipe: Recipe, geo: Geometry, isPt = false): string {
+  const thicknessWord = isPt ? 'espessura' : 'épaisseur'
   switch (recipe.geometryMode) {
     case 'volume': {
       if (geo.length && geo.width && geo.thickness !== undefined)
-        return `${fr(geo.length, 1)} × ${fr(geo.width, 1)} m · épaisseur ${fr(geo.thickness * 100, 0)} cm`
+        return `${fr(geo.length, 1)} × ${fr(geo.width, 1)} m · ${thicknessWord} ${fr(geo.thickness * 100, 0)} cm`
       if (geo.area && geo.thickness !== undefined)
-        return `${fr(geo.area, 1)} m² · épaisseur ${fr(geo.thickness * 100, 0)} cm`
+        return `${fr(geo.area, 1)} m² · ${thicknessWord} ${fr(geo.thickness * 100, 0)} cm`
       if (geo.volume !== undefined) return `${fr(geo.volume, 2)} m³`
       return ''
     }
@@ -159,7 +223,7 @@ function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
       const parts: string[] = []
       if (geo.length && geo.height) parts.push(`${fr(geo.length, 1)} × ${fr(geo.height, 1)} m`)
       else if (geo.area) parts.push(`${fr(geo.area, 1)} m²`)
-      if (geo.openings && geo.openings > 0) parts.push(`ouvertures ${fr(geo.openings, 1)} m²`)
+      if (geo.openings && geo.openings > 0) parts.push(`${isPt ? 'aberturas' : 'ouvertures'} ${fr(geo.openings, 1)} m²`)
       return parts.join(' · ')
     }
     case 'length':
@@ -169,7 +233,10 @@ function buildDimsLabel(recipe: Recipe, geo: Geometry): string {
   }
 }
 
-function firstDTU(refs: string[]): string {
+function firstDTU(refs: string[], isPt = false): string {
+  if (isPt) {
+    return refs.find(r => r.startsWith('NP')) || refs.find(r => r.startsWith('LNEC')) || refs.find(r => r.startsWith('DTU')) || refs.find(r => r.startsWith('NF')) || refs[0] || '—'
+  }
   return refs.find(r => r.startsWith('DTU')) || refs.find(r => r.startsWith('NF')) || refs[0] || '—'
 }
 
@@ -348,7 +415,7 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
           <div className="param-title">{TRADE_ICON[recipe.trade]} {recipe.name}</div>
           {recipe.description && <div className="param-desc">{recipe.description}</div>}
         </div>
-        <button type="button" className="param-close" onClick={onCancel} aria-label="Fermer">×</button>
+        <button type="button" className="param-close" onClick={onCancel} aria-label={isPt ? 'Fechar' : 'Fermer'}>×</button>
       </div>
 
       <div className="param-label-field">
@@ -477,7 +544,7 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
    ═══════════════════════════════════════════════════════════ */
 function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
   const [open, setOpen] = useState(false)
-  const dtu = firstDTU(need.references)
+  const dtu = firstDTU(need.references, isPt)
   const packagingLabel = need.packagingRecommendation
     ? `${need.packagingRecommendation.unitsToOrder} ${need.packagingRecommendation.packagingLabel}`
     : null
@@ -490,7 +557,7 @@ function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
             {need.name}
             {need.optional && (
               <span className="opt-badge" title={isPt ? 'Opcional' : 'Optionnel'}>
-                {isPt ? 'OPTION' : 'OPTION'}
+                {isPt ? 'OPÇÃO' : 'OPTION'}
               </span>
             )}
           </div>
@@ -763,7 +830,7 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
    SECTION PRINCIPALE
    ═══════════════════════════════════════════════════════════ */
 export default function EstimationMateriauxSection({
-  artisan: _artisan,
+  artisan,
   isAdminOverride = false,
   allowedTrades,
 }: Props) {
@@ -806,11 +873,36 @@ export default function EstimationMateriauxSection({
   // - Super-admin : sélection libre parmi les 26 trades (default = tous)
   // - Autres : restreint à `allowedTrades` passé en props (company-calibrated)
   const [selectedTrades, setSelectedTrades] = useState<Trade[]>([])
-  const effectiveTrades = useMemo<Trade[] | undefined>(() => {
-    if (isAdminOverride) return selectedTrades.length > 0 ? selectedTrades : undefined
+
+  // Trades dérivés du profil artisan (categories explicites OU fallback NAF).
+  // Pour SUD TRAVAUX (rénovation TCE) : tous les corps d'état accessibles.
+  // Pour un plombier pur : ['plomberie', 'assainissement'] uniquement.
+  const derivedAllowedTrades = useMemo<Trade[] | undefined>(() => {
+    let cats: string[] = []
+    if (artisan?.categories && Array.isArray(artisan.categories) && artisan.categories.length > 0) cats = artisan.categories
+    else if (artisan?.specialite) cats = [artisan.specialite]
+    else if (artisan?.naf_code) cats = getDefaultCategoriesFromNaf(artisan.naf_code)
+    if (cats.length === 0) return undefined
+    const trades = categoriesToTrades(cats)
+    return trades.length > 0 ? trades : undefined
+  }, [artisan?.categories, artisan?.specialite, artisan?.naf_code])
+
+  // Trades sur lesquels le user peut cliquer dans le sélecteur (chips).
+  // Admin : tous. Non-admin : restreint à allowedTrades || derivedAllowedTrades || tous.
+  const availableTrades = useMemo<Trade[]>(() => {
+    if (isAdminOverride) return ALL_TRADES_LIST
     if (allowedTrades && allowedTrades.length > 0) return allowedTrades
+    if (derivedAllowedTrades && derivedAllowedTrades.length > 0) return derivedAllowedTrades
+    return ALL_TRADES_LIST
+  }, [isAdminOverride, allowedTrades, derivedAllowedTrades])
+
+  const effectiveTrades = useMemo<Trade[] | undefined>(() => {
+    if (selectedTrades.length > 0) return selectedTrades
+    if (isAdminOverride) return undefined
+    if (allowedTrades && allowedTrades.length > 0) return allowedTrades
+    if (derivedAllowedTrades && derivedAllowedTrades.length > 0) return derivedAllowedTrades
     return undefined
-  }, [isAdminOverride, selectedTrades, allowedTrades])
+  }, [isAdminOverride, selectedTrades, allowedTrades, derivedAllowedTrades])
 
   // Feedback bouton copier
   const [copied, setCopied] = useState(false)
@@ -818,8 +910,13 @@ export default function EstimationMateriauxSection({
   const searchResults = useMemo(() => {
     const q = query.trim()
     if (!q) return []
-    return searchRecipes(q, country).slice(0, 8)
-  }, [query, country])
+    let results = searchRecipes(q, country)
+    if (effectiveTrades && effectiveTrades.length > 0) {
+      const allowed = new Set(effectiveTrades)
+      results = results.filter(r => allowed.has(r.trade))
+    }
+    return results.slice(0, 8)
+  }, [query, country, effectiveTrades])
 
   const selectedRecipe = useMemo(
     () => (selectedRecipeId ? countryRecipes.find(r => r.id === selectedRecipeId) ?? null : null),
@@ -839,7 +936,7 @@ export default function EstimationMateriauxSection({
 
   const saveItem = useCallback((geo: Geometry, label?: string) => {
     if (!selectedRecipe) return
-    const dimsLabel = buildDimsLabel(selectedRecipe, geo)
+    const dimsLabel = buildDimsLabel(selectedRecipe, geo, isPt)
     if (editingItem) {
       setItems(prev => prev.map(it => it.uid === editingItem.uid
         ? { ...it, geometry: geo, label, dimsLabel }
@@ -859,7 +956,7 @@ export default function EstimationMateriauxSection({
     }
     setResult(null)
     closeParam()
-  }, [selectedRecipe, editingItem, closeParam])
+  }, [selectedRecipe, editingItem, closeParam, isPt])
 
   const removeItem = (uid: string) => {
     setItems(prev => prev.filter(i => i.uid !== uid))
@@ -879,9 +976,14 @@ export default function EstimationMateriauxSection({
         items: items.map(i => ({ recipeId: i.recipeId, geometry: i.geometry, label: i.label })),
         chantierProfile: { difficulty, size, workforceLevel: workforce, complexShapes: false, isPistoletPainting: false },
       }
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
       const res = await fetch('/api/estimation/compute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ ...payload, country }),
       })
       if (!res.ok) {
@@ -905,9 +1007,14 @@ export default function EstimationMateriauxSection({
     setIaAssumptions([])
     setIaQuestions([])
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
       const res = await fetch('/api/estimation/ai-extract-and-compute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           description: text,
           projectName: projectName.trim() || undefined,
@@ -937,7 +1044,7 @@ export default function EstimationMateriauxSection({
           recipeTrade: recipe.trade,
           geometry: it.geometry,
           label: it.label,
-          dimsLabel: buildDimsLabel(recipe, it.geometry),
+          dimsLabel: buildDimsLabel(recipe, it.geometry, isPt),
         })
       }
       setItems(extractedItems)
@@ -968,13 +1075,56 @@ export default function EstimationMateriauxSection({
     alert(isPt ? 'Em breve — redirecionamento para Materiais & Aprovisionamento' : 'Bientôt — redirection vers Matériaux & Appro')
   }
 
+  // Sélecteur de corps de métier — partagé entre les modes Formulaire et IA.
+  // Calibré sur availableTrades (admin → tous, sinon → categories/NAF de l'artisan).
+  // Pour SUD TRAVAUX (rénovation TCE) : 29 chips. Pour un plombier : 2 chips.
+  const tradeSelector = availableTrades.length > 0 ? (
+    <div className="ia-trade-selector">
+      <div className="ia-trade-label">
+        🛠️ {isPt ? 'Filtrar por especialidade' : 'Filtrer par corps d\'état'}
+        <span className="ia-trade-hint">
+          {selectedTrades.length === 0
+            ? (isPt ? `Tudo (${availableTrades.length})` : `Tous (${availableTrades.length})`)
+            : `${selectedTrades.length} / ${availableTrades.length}`}
+        </span>
+      </div>
+      <div className="ia-trade-chips">
+        {availableTrades.map(t => {
+          const active = selectedTrades.includes(t)
+          const label = isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]
+          return (
+            <button
+              key={t}
+              type="button"
+              className={`ia-trade-chip ${active ? 'active' : ''}`}
+              onClick={() => setSelectedTrades(prev =>
+                prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+              )}
+            >
+              {TRADE_ICON[t]} {label}
+            </button>
+          )
+        })}
+        {selectedTrades.length > 0 && (
+          <button
+            type="button"
+            className="ia-trade-chip ia-trade-clear"
+            onClick={() => setSelectedTrades([])}
+          >
+            ✕ {isPt ? 'Limpar' : 'Tout effacer'}
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null
+
   return (
     <div className="v5-fade">
       <div className="estim-wrap">
         {/* Titre */}
         <div className="v5-pg-t">
           <h1>{isPt ? 'Estimativa de materiais' : 'Estimation matériaux'}</h1>
-          <p>{isPt ? 'Quantitativos detalhados com referências DTU' : 'Quantitatifs détaillés avec références DTU'}</p>
+          <p>{isPt ? 'Quantitativos detalhados com referências NP/LNEC' : 'Quantitatifs détaillés avec références DTU'}</p>
         </div>
 
         {/* Barre projet */}
@@ -1006,6 +1156,8 @@ export default function EstimationMateriauxSection({
           <>
             <div className="v5-card">
               <div className="v5-st">{isPt ? 'Obras da empreitada' : 'Ouvrages du chantier'}</div>
+
+              {tradeSelector}
 
               {/* Recherche */}
               <div className="search-wrap">
@@ -1122,54 +1274,7 @@ export default function EstimationMateriauxSection({
             <div className="v5-card">
               <div className="v5-st">{isPt ? 'Descreva a sua obra' : 'Décrivez votre chantier'}</div>
 
-              {/* Sélecteur de corps de métier — super-admin uniquement */}
-              {isAdminOverride && (
-                <div className="ia-trade-selector">
-                  <div className="ia-trade-label">
-                    🛠️ {isPt ? 'Âmbito — corpos de métier (admin)' : 'Périmètre — corps de métier (admin)'}
-                    <span className="ia-trade-hint">
-                      {selectedTrades.length === 0
-                        ? (isPt ? 'Tudo o catálogo' : 'Tout le catalogue')
-                        : `${selectedTrades.length} / 26`}
-                    </span>
-                  </div>
-                  <div className="ia-trade-chips">
-                    {(Object.keys(TRADE_LABEL_FR) as Trade[]).map(t => {
-                      const active = selectedTrades.includes(t)
-                      const label = isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          className={`ia-trade-chip ${active ? 'active' : ''}`}
-                          onClick={() => setSelectedTrades(prev =>
-                            prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                          )}
-                        >
-                          {TRADE_ICON[t]} {label}
-                        </button>
-                      )
-                    })}
-                    {selectedTrades.length > 0 && (
-                      <button
-                        type="button"
-                        className="ia-trade-chip ia-trade-clear"
-                        onClick={() => setSelectedTrades([])}
-                      >
-                        ✕ {isPt ? 'Limpar' : 'Tout effacer'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Indicateur périmètre entreprise (non-admin) */}
-              {!isAdminOverride && allowedTrades && allowedTrades.length > 0 && (
-                <div className="ia-trade-locked">
-                  🔒 {isPt ? 'IA calibrada para' : 'IA calibrée pour'} :{' '}
-                  {allowedTrades.map(t => isPt ? TRADE_LABEL_PT[t] : TRADE_LABEL_FR[t]).join(' · ')}
-                </div>
-              )}
+              {tradeSelector}
 
               <div className="ia-zone">
                 <textarea

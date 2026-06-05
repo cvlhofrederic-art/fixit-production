@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types locaux ──────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ interface PPPTData {
 // ─── Config visuelle ───────────────────────────────────────────────────────────
 
 const TYPE_CFG: Record<EventType, { icon: string; badge: string; bg: string; label: string }> = {
-  intervention: { icon: '🔧', badge: 'bg-blue-100 text-blue-700',    bg: 'bg-blue-50 border-blue-100',    label: 'Intervention'  },
+  intervention: { icon: '🔧', badge: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',    bg: 'bg-[#F7F4EE] border-[#E4DDD0]',    label: 'Intervention'  },
   equipement:   { icon: '⚙️', badge: 'bg-purple-100 text-purple-700', bg: 'bg-purple-50 border-purple-100', label: 'Équipement'    },
   contrat:      { icon: '📄', badge: 'bg-green-100 text-green-700',   bg: 'bg-green-50 border-green-100',   label: 'Contrat'       },
   pppt:         { icon: '🏗️', badge: 'bg-amber-100 text-amber-700',   bg: 'bg-amber-50 border-amber-100',   label: 'PPPT'          },
@@ -61,6 +62,8 @@ const formatDate = (s: string) => {
 // ─── Composant principal ───────────────────────────────────────────────────────
 
 export default function HistoriqueImmeubleSection({ user, userRole }: { user: { id: string }; userRole: string }) {
+  const locale = useLocale()
+  const isPt = locale === 'pt'
   const uid = user.id
 
   const [allEvents, setAllEvents]         = useState<HistEvent[]>([])
@@ -303,11 +306,11 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
       {/* Sélection immeuble */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
         <div className="flex items-center gap-3 mb-3">
-          <span className="text-sm font-medium text-gray-700">Immeuble</span>
+          <span className="text-sm font-medium text-gray-700">{isPt ? 'Edifício' : 'Immeuble'}</span>
           <div className="flex-1 relative">
             <input
-              className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Rechercher un immeuble..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+              placeholder={isPt ? 'Pesquisar um edifício...' : 'Rechercher un immeuble...'}
               value={searchImm}
               onFocus={() => setShowSearch(true)}
               onBlur={() => setTimeout(() => setShowSearch(false), 200)}
@@ -330,14 +333,14 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
               <button
                 key={imm}
                 onClick={() => { setSelectedImm(selectedImm === imm ? null : imm); setSearchImm('') }}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${selectedImm === imm ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${selectedImm === imm ? 'bg-[#0D1B2E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               >
                 {imm} <span className="opacity-60">({count})</span>
               </button>
             )
           })}
           {allImmeubles.length === 0 && (
-            <p className="text-sm text-gray-400">Aucune donnée — renseignez le Carnet d&apos;entretien ou créez des Missions.</p>
+            <p className="text-sm text-gray-400">{isPt ? 'Sem dados — preencha o Caderno de manutenção ou crie Missões.' : 'Aucune donnée — renseignez le Carnet d\'entretien ou créez des Missions.'}</p>
           )}
         </div>
       </div>
@@ -350,7 +353,7 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
             onClick={() => setFilterType('all')}
             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${filterType === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
-            Tout
+            {isPt ? 'Tudo' : 'Tout'}
           </button>
           {(Object.keys(TYPE_CFG) as EventType[]).map(type => (
             <button
@@ -369,14 +372,14 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
             <button
               key={y}
               onClick={() => setFilterYear(filterYear === y ? 0 : y)}
-              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${filterYear === y ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${filterYear === y ? 'bg-[#0D1B2E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               {y}
             </button>
           ))}
           {filterYear !== 0 && (
             <button onClick={() => setFilterYear(0)} className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
-              Toutes années
+              {isPt ? 'Todos os anos' : 'Toutes années'}
             </button>
           )}
         </div>
@@ -385,10 +388,10 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Événements',     value: filteredEvents.length,        color: 'text-gray-900' },
-          { label: 'Interventions',  value: countInterv,                   color: 'text-blue-600' },
-          { label: 'À venir',        value: countFutur,                    color: 'text-amber-600' },
-          { label: 'Coût total',     value: totalCout > 0 ? formatEur(totalCout) : '—', color: 'text-gray-900' },
+          { label: isPt ? 'Eventos'       : 'Événements',     value: filteredEvents.length,        color: 'text-gray-900' },
+          { label: isPt ? 'Intervenções'  : 'Interventions',  value: countInterv,                   color: 'text-[#0D1B2E]' },
+          { label: isPt ? 'A vir'         : 'À venir',        value: countFutur,                    color: 'text-amber-600' },
+          { label: isPt ? 'Custo total'   : 'Coût total',     value: totalCout > 0 ? formatEur(totalCout) : '—', color: 'text-gray-900' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -401,11 +404,15 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
       {filteredEvents.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-16 text-center">
           <div className="text-5xl mb-4">🏛️</div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun événement trouvé</h3>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">{isPt ? 'Nenhum evento encontrado' : 'Aucun événement trouvé'}</h3>
           <p className="text-gray-400 text-sm">
             {selectedImm
-              ? `Aucun événement pour "${selectedImm}"${filterType !== 'all' ? ` de type "${TYPE_CFG[filterType as EventType]?.label}"` : ''}${filterYear ? ` en ${filterYear}` : ''}.`
-              : 'Commencez par saisir des données dans le Carnet d\'entretien, les Équipements, les Contrats ou créez des Missions.'
+              ? (isPt
+                  ? `Nenhum evento para "${selectedImm}"${filterType !== 'all' ? ` do tipo "${TYPE_CFG[filterType as EventType]?.label}"` : ''}${filterYear ? ` em ${filterYear}` : ''}.`
+                  : `Aucun événement pour "${selectedImm}"${filterType !== 'all' ? ` de type "${TYPE_CFG[filterType as EventType]?.label}"` : ''}${filterYear ? ` en ${filterYear}` : ''}.`)
+              : (isPt
+                  ? 'Comece por preencher dados no Caderno de manutenção, Equipamentos, Contratos ou crie Missões.'
+                  : 'Commencez par saisir des données dans le Carnet d\'entretien, les Équipements, les Contrats ou créez des Missions.')
             }
           </p>
         </div>
@@ -434,7 +441,7 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
               <div key={year} className="mb-8">
                 {/* Séparateur année */}
                 <div className="flex items-center gap-3 mb-4">
-                  <div className={`px-3 py-1 rounded-full text-sm font-bold ${year === new Date().getFullYear() ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                  <div className={`px-3 py-1 rounded-full text-sm font-bold ${year === new Date().getFullYear() ? 'bg-[#0D1B2E] text-white' : 'bg-gray-200 text-gray-700'}`}>
                     {year}
                   </div>
                   <div className="flex-1 h-px bg-gray-200" />
@@ -452,22 +459,22 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
                       return (
                         <div key={ev.id} className="relative flex gap-3 pl-1">
                           {/* Icône timeline */}
-                          <div className={`relative z-10 flex-shrink-0 w-9 h-9 rounded-full border-2 flex items-center justify-center text-base ${isFuture ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
+                          <div className={`relative z-10 flex-shrink-0 w-9 h-9 rounded-full border-2 flex items-center justify-center text-base ${isFuture ? 'bg-[#F7F4EE] border-[#C9A84C]' : 'bg-white border-gray-200'}`}>
                             {cfg.icon}
                           </div>
 
                           {/* Carte */}
-                          <div className={`flex-1 border rounded-xl p-3.5 min-w-0 ${isFuture ? 'bg-blue-50/40 border-blue-100' : 'bg-white border-gray-100'}`}>
+                          <div className={`flex-1 border rounded-xl p-3.5 min-w-0 ${isFuture ? 'bg-[#F7F4EE]/40 border-[#E4DDD0]' : 'bg-white border-gray-100'}`}>
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5 mb-1">
                                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.badge}`}>{cfg.label}</span>
                                   {ev.statut && <span className="text-xs text-gray-400">{ev.statut}</span>}
-                                  {isFuture && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">À venir</span>}
+                                  {isFuture && <span className="text-xs bg-[#F7F4EE] text-[#C9A84C] border border-[#E4DDD0] px-2 py-0.5 rounded-full font-medium">À venir</span>}
                                   {!selectedImm && ev.immeuble && (
                                     <button
                                       onClick={() => setSelectedImm(ev.immeuble)}
-                                      className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
+                                      className="text-xs text-gray-400 hover:text-[#C9A84C] transition-colors"
                                     >
                                       📍 {ev.immeuble}
                                     </button>

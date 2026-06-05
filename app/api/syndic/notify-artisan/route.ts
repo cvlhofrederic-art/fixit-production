@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicNotifyArtisanSchema } from '@/lib/validation'
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
-  if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+  if (!isSyndicRole(user) && user.app_metadata?.role !== 'super_admin') {
     return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
   }
   const ip = getClientIP(request)
@@ -79,15 +79,20 @@ export async function PATCH(request: NextRequest) {
       notification_id?: string; artisan_id?: string; syndic_id?: string; mark_all_read?: boolean
     }
 
-    // Marquer toutes les notifs syndic comme lues — vérifier ownership
+    // Marquer toutes les notifs syndic comme lues — vérifier ownership cabinet
+    // (un team_member peut marquer les notifs du cabinet, pas son user.id propre)
     if (mark_all_read && syndic_id) {
-      if (syndic_id !== user.id) {
+      if (!isSyndicRole(user)) {
+        return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
+      }
+      const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+      if (!cabinetId || syndic_id !== cabinetId) {
         return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
       }
       await supabaseAdmin
         .from('syndic_notifications')
         .update({ read: true })
-        .eq('syndic_id', syndic_id)
+        .eq('syndic_id', cabinetId)
         .eq('read', false)
       return NextResponse.json({ success: true })
     }
@@ -138,15 +143,20 @@ export async function GET(request: NextRequest) {
   const unread_only = searchParams.get('unread_only') === 'true'
   const limit = parseInt(searchParams.get('limit') || '50')
 
-  // Notifications syndic — vérifier que l'utilisateur demande SES notifications
+  // Notifications syndic — vérifier que l'utilisateur demande celles de SON cabinet
+  // (un team_member voit les notifs du cabinet, pas son user.id propre)
   if (syndic_id) {
-    if (syndic_id !== user.id) {
+    if (!isSyndicRole(user)) {
+      return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
+    }
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId || syndic_id !== cabinetId) {
       return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
     }
     let query = supabaseAdmin
       .from('syndic_notifications')
       .select('id, syndic_id, type, title, body, read, data_json, created_at')
-      .eq('syndic_id', syndic_id)
+      .eq('syndic_id', cabinetId)
       .order('created_at', { ascending: false })
       .limit(Math.min(limit, 100))
 

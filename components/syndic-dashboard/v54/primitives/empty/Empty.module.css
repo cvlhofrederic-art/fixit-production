@@ -1,0 +1,67 @@
+/* Empty v54 — port byte-exact du bundle V5.7. */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 56px 24px;
+  color: var(--v54-navy-300);
+}
+
+.empty h4 {
+  font-family: var(--v54-font-serif);
+  font-size: 22px;
+  color: var(--v54-navy-700);
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.empty p {
+  font-size: 13px;
+  margin: 0 0 14px;
+  max-width: 380px;
+}
+
+/* Mode illustration SVG (.empty-illus du bundle). */
+.illus {
+  width: 200px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mode fallback badge-circle. */
+.badgeCircle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--v54-cream);
+  display: grid;
+  place-items: center;
+  color: var(--v54-navy-500);
+  margin-bottom: 14px;
+}
+.badgeCircle svg {
+  width: 26px;
+  height: 26px;
+}
+.sage {
+  background: var(--v54-sage-50);
+  color: var(--v54-sage-700);
+  border: 1px dashed var(--v54-sage-500);
+}
+.gold {
+  background: var(--v54-gold-50);
+  color: var(--v54-gold-700);
+  border: 1px dashed var(--v54-gold-500);
+}
+/* Badge d'erreur (utilisé par le primitive ErrorState) — port du badge rust du
+ * ErrorState bundle (rust-50 / rust-700 / bord rust-500). */
+.rust {
+  background: var(--v54-rust-50);
+  color: var(--v54-rust-700);
+  border: 1px solid var(--v54-rust-500);
+}

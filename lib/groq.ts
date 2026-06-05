@@ -1,12 +1,25 @@
 // ── Shared Groq API helper with retry 429 + model fallback ──────────────────
+//
+// Inter-provider fallback : si Groq plante (rate-limit, network, etc.) ET que
+// CEREBRAS_API_KEY est configurée, on bascule transparentement sur Cerebras
+// Inference. Activé pour `callGroqWithRetry` et `callGroqWithTools` ; le
+// streaming SSE reste sur Groq (pas de bascule mid-stream).
+//
+// Désactivable cas par cas via `config.disableCerebrasFallback: true` (utile
+// pour les évals où l'on veut tester un provider précis).
 
 import { GROQ_API_URL, GROQ_MODEL_PRIMARY, GROQ_MODEL_FALLBACK } from '@/lib/constants'
+import { callCerebrasWithRetry, callCerebrasWithTools, hasCerebrasKey } from '@/lib/cerebras'
 
 const GROQ_URL = GROQ_API_URL
 
 export interface GroqMessage {
   role: string
-  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> | null
+  // Optional: pass-through for tool-calling round-trips. Required when role='tool'.
+  tool_call_id?: string
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+  name?: string
 }
 
 export interface GroqCallOptions {
@@ -32,10 +45,21 @@ export interface GroqResponse {
  */
 export async function callGroqWithRetry(
   opts: GroqCallOptions,
-  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string } = {}
+  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; disableCerebrasFallback?: boolean } = {}
 ): Promise<GroqResponse> {
   const apiKey = config.apiKey || process.env.GROQ_API_KEY || ''
-  if (!apiKey) throw new Error('GROQ_API_KEY not configured')
+  // Si Groq n'est pas configuré mais Cerebras l'est, on saute direct sur Cerebras.
+  if (!apiKey) {
+    if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+      return callCerebrasWithRetry({
+        messages: opts.messages,
+        temperature: opts.temperature,
+        max_tokens: opts.max_tokens,
+        response_format: opts.response_format,
+      }, { maxRetries: config.maxRetries })
+    }
+    throw new Error('GROQ_API_KEY not configured')
+  }
 
   const maxRetries = config.maxRetries ?? 2
   const primaryModel = opts.model || GROQ_MODEL_PRIMARY
@@ -85,6 +109,19 @@ export async function callGroqWithRetry(
         break
       }
     }
+  }
+
+  // Tous les modèles Groq ont échoué → fallback Cerebras si dispo.
+  if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+    console.warn('[groq] all attempts failed, fallback to Cerebras', {
+      groqError: lastError?.message,
+    })
+    return callCerebrasWithRetry({
+      messages: opts.messages,
+      temperature: opts.temperature,
+      max_tokens: opts.max_tokens,
+      response_format: opts.response_format,
+    }, { maxRetries: config.maxRetries })
   }
 
   throw lastError || new Error('All Groq API attempts failed')
@@ -201,4 +238,139 @@ export async function callGroqStreaming(
   }
 
   throw lastError || new Error('All Groq streaming attempts failed')
+}
+
+// ── Tool-calling support (non-stream) ────────────────────────────────────────
+
+export interface GroqToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
+export interface GroqMessageWithTools {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | null
+  tool_calls?: GroqToolCall[]
+  tool_call_id?: string
+  name?: string
+}
+
+export interface GroqToolsCallOptions {
+  model?: string
+  messages: GroqMessageWithTools[]
+  tools: Array<{
+    type: 'function'
+    function: { name: string; description: string; parameters: Record<string, unknown> }
+  }>
+  tool_choice?: 'auto' | 'required' | 'none'
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface GroqToolsResponse {
+  message: {
+    role: 'assistant'
+    content: string | null
+    tool_calls?: GroqToolCall[]
+  }
+  finish_reason?: string
+  usage?: { total_tokens: number; prompt_tokens: number; completion_tokens: number }
+  model?: string
+}
+
+export async function callGroqWithTools(
+  opts: GroqToolsCallOptions,
+  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; disableCerebrasFallback?: boolean } = {}
+): Promise<GroqToolsResponse> {
+  const apiKey = config.apiKey || process.env.GROQ_API_KEY || ''
+  if (!apiKey) {
+    if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+      return callCerebrasWithTools({
+        messages: opts.messages,
+        tools: opts.tools,
+        tool_choice: opts.tool_choice,
+        temperature: opts.temperature,
+        max_tokens: opts.max_tokens,
+      }, { maxRetries: config.maxRetries })
+    }
+    throw new Error('GROQ_API_KEY not configured')
+  }
+
+  const maxRetries = config.maxRetries ?? 2
+  const primaryModel = opts.model || GROQ_MODEL_PRIMARY
+  const fallbackModel = config.fallbackModel || GROQ_MODEL_FALLBACK
+  const models = primaryModel === fallbackModel ? [primaryModel] : [primaryModel, fallbackModel]
+
+  let lastError: Error | null = null
+
+  for (const currentModel of models) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(GROQ_URL, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: currentModel,
+            messages: opts.messages,
+            tools: opts.tools,
+            tool_choice: opts.tool_choice ?? 'auto',
+            temperature: opts.temperature ?? 0.2,
+            max_tokens: opts.max_tokens ?? 1500,
+          }),
+          signal: AbortSignal.timeout(25000),
+        })
+
+        if (res.ok) {
+          const json = await res.json()
+          const choice = json.choices?.[0]
+          if (!choice) throw new Error('groq tools: no choice in response')
+          return {
+            message: {
+              role: 'assistant',
+              content: choice.message?.content ?? null,
+              tool_calls: choice.message?.tool_calls,
+            },
+            finish_reason: choice.finish_reason,
+            usage: json.usage,
+            model: json.model,
+          }
+        }
+
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('retry-after')
+          const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+          console.warn(`[groq-tools] 429 on ${currentModel}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
+          await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+          continue
+        }
+
+        const errText = await res.text().catch(() => '')
+        console.error(`[groq-tools] Error ${res.status} on ${currentModel}:`, errText.substring(0, 200))
+        lastError = new Error(`Groq tools ${res.status}: ${errText.substring(0, 100)}`)
+        break
+      } catch (fetchErr: unknown) {
+        const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
+        console.error(`[groq-tools] Fetch error on ${currentModel}:`, errMsg)
+        lastError = fetchErr instanceof Error ? fetchErr : new Error(errMsg)
+        break
+      }
+    }
+  }
+
+  // Tous les modèles Groq ont échoué → fallback Cerebras si dispo.
+  if (!config.disableCerebrasFallback && hasCerebrasKey()) {
+    console.warn('[groq-tools] all attempts failed, fallback to Cerebras', {
+      groqError: lastError?.message,
+    })
+    return callCerebrasWithTools({
+      messages: opts.messages,
+      tools: opts.tools,
+      tool_choice: opts.tool_choice,
+      temperature: opts.temperature,
+      max_tokens: opts.max_tokens,
+    }, { maxRetries: config.maxRetries })
+  }
+
+  throw lastError || new Error('All Groq tools attempts failed')
 }

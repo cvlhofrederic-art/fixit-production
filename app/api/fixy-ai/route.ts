@@ -375,7 +375,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: artisan_id mismatch' }, { status: 403 })
     }
 
-    if (!(await checkRL(`fixy_ai_${artisan_id}`, 30, 60_000))) {
+    // Rate limit renforcé : 12 req/min par artisan (LLM coûteux)
+    if (!(await checkRL(`fixy_ai_${artisan_id}`, 12, 60_000))) {
       return NextResponse.json({ success: false, response: 'Tu vas trop vite ! Attends un peu avant de renvoyer un message.', actions_executed: [], client_actions: [] })
     }
 

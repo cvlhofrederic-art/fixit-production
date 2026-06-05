@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { FR_SERVICES, FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Services artisans Marseille — Plombier, Électricien, Peintre | VITFIX',
+  title: 'Services artisans Marseille : Plombier, Électricien, Peintre | VITFIX',
   description: 'Tous les services d\'artisans à Marseille et dans les Bouches-du-Rhône : plombier, électricien, peintre, plaquiste. Professionnels vérifiés, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/services/',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
-  name: 'Services artisans — Marseille et PACA',
+  name: 'Services artisans : Marseille et PACA',
   description: 'Annuaire de services d\'artisans qualifiés à Marseille et dans les Bouches-du-Rhône.',
   url: 'https://vitfix.io/fr/services/',
   inLanguage: 'fr-FR',
@@ -48,7 +48,7 @@ export default function FrServicesHubPage() {
             <span className="text-yellow">et dans les Bouches-du-Rhône</span>
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
-            Trouvez un artisan qualifié pour tous vos travaux à Marseille, Aubagne, La Ciotat, Aix-en-Provence et dans tout le 13. Plombier, électricien, peintre, plaquiste — disponibles rapidement, devis gratuit.
+            Trouvez un artisan qualifié pour tous vos travaux à Marseille, Aubagne, La Ciotat, Aix-en-Provence et dans tout le 13. Plombier, électricien, peintre, plaquiste, disponibles rapidement, devis gratuit.
           </p>
         </div>
       </section>

@@ -87,7 +87,8 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
   const { t } = useTranslation()
   const locale = useLocale()
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
   const reasonLabels: Record<string, string> = {
     'Conge': t('proDash.calendar.conge'),
@@ -201,11 +202,11 @@ export default function CalendarSection(props: CalendarSectionProps) {
                   }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 12, color: tv.red }}>
-                        {absenceInfo.source === 'devis' ? `${absenceInfo.label}` : `Absent \u2014 ${absenceInfo.reason}`}
+                        {absenceInfo.source === 'devis' ? `${absenceInfo.label}` : `${isPt ? 'Ausente' : 'Absent'} \u2014 ${absenceInfo.reason}`}
                       </div>
                       {absenceInfo.source === 'devis' && <div style={{ fontSize: 11, color: tv.red }}>{absenceInfo.reason}</div>}
                     </div>
-                    <button onClick={() => deleteAbsence(absenceInfo.id)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: tv.red, fontSize: 11 }}>Supprimer</button>
+                    <button onClick={() => deleteAbsence(absenceInfo.id)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: tv.red, fontSize: 11 }}>{isPt ? 'Remover' : 'Supprimer'}</button>
                   </div>
                 )}
                 {getCalendarHours().map((hour) => {
@@ -223,8 +224,8 @@ export default function CalendarSection(props: CalendarSectionProps) {
                         onMouseLeave={(e) => { if (isEmpty) (e.currentTarget as HTMLElement).style.background = '' }}
                       >
                         {hourBookings.map((b) => {
-                          const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
-                          const motif = b.services?.name || 'RDV'
+                          const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || (isPt ? 'Cliente' : 'Client')
+                          const motif = b.services?.name || (isPt ? 'Marcação' : 'RDV')
                           const borderColor = b.status === 'confirmed' ? tv.green : b.status === 'pending' ? tv.primary : b.status === 'completed' ? tv.green : tv.red
                           const bgColor = b.status === 'confirmed' ? tv.greenLight : b.status === 'pending' ? tv.primaryLight : b.status === 'completed' ? tv.greenLight : tv.redBg
                           return (
@@ -317,8 +318,8 @@ export default function CalendarSection(props: CalendarSectionProps) {
                             onMouseLeave={(e) => { if (isEmpty) (e.currentTarget as HTMLElement).style.background = '' }}
                           >
                             {hourBookings.map((b) => {
-                              const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
-                              const motif = b.services?.name || 'RDV'
+                              const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || (isPt ? 'Cliente' : 'Client')
+                              const motif = b.services?.name || (isPt ? 'Marcação' : 'RDV')
                               const borderColor = b.status === 'confirmed' ? tv.green : b.status === 'pending' ? tv.primary : b.status === 'completed' ? tv.green : tv.red
                               const bgColor = b.status === 'confirmed' ? tv.greenLight : b.status === 'pending' ? tv.primaryLight : b.status === 'completed' ? tv.greenLight : tv.redBg
                               return (
@@ -347,7 +348,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
               <div>
                 {/* Day name headers */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${tv.border}` }}>
-                  {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
+                  {(isPt ? ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] : ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']).map((d) => (
                     <div key={d} className="v22-mono" style={{ padding: 8, textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: tv.textMuted }}>
                       {d}
                     </div>
@@ -384,7 +385,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                           </div>
                           {absInfo.absent && isCurrentMonth && (
                             <div className={isV5 ? 'v5-badge v5-badge-red' : 'v22-tag v22-tag-red'} style={{ fontSize: 9, marginBottom: 2 }}>
-                              {absInfo.source === 'devis' ? absInfo.label : absInfo.reason || 'Absent'}
+                              {absInfo.source === 'devis' ? absInfo.label : absInfo.reason || (isPt ? 'Ausente' : 'Absent')}
                             </div>
                           )}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -395,13 +396,13 @@ export default function CalendarSection(props: CalendarSectionProps) {
                                   style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
                                   <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
                                   <span style={{ fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: !isCurrentMonth ? tv.borderDark : tv.textMuted }}>
-                                    {b.booking_time?.substring(0, 5)} {b.services?.name || 'RDV'}
+                                    {b.booking_time?.substring(0, 5)} {b.services?.name || (isPt ? 'Marcação' : 'RDV')}
                                   </span>
                                 </div>
                               )
                             })}
                             {dayBookings.length > (absInfo.absent ? 1 : 3) && (
-                              <div style={{ fontSize: 10, color: tv.textMuted, paddingLeft: 9 }}>+{dayBookings.length - (absInfo.absent ? 1 : 3)} de plus</div>
+                              <div style={{ fontSize: 10, color: tv.textMuted, paddingLeft: 9 }}>+{dayBookings.length - (absInfo.absent ? 1 : 3)} {isPt ? 'mais' : 'de plus'}</div>
                             )}
                           </div>
                         </div>
@@ -418,21 +419,21 @@ export default function CalendarSection(props: CalendarSectionProps) {
         {pendingBookings.length > 0 && (
           <div className={isV5 ? 'v5-card' : 'v22-card'}>
             <div className={isV5 ? '' : 'v22-card-head'} style={isV5 ? { padding: '16px 20px', borderBottom: '1px solid #E5E7EB' } : undefined}>
-              <span className={isV5 ? 'v5-st' : 'v22-card-title'}>RDV en attente de validation ({pendingBookings.length})</span>
+              <span className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? `Marcações pendentes de validação (${pendingBookings.length})` : `RDV en attente de validation (${pendingBookings.length})`}</span>
             </div>
             <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 10, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
               {pendingBookings.map((b) => (
                 <div key={b.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: 12, background: tv.primaryLight, border: `1px solid ${tv.primaryBorder}`, borderRadius: 4 }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{b.services?.name || 'Service'}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{b.services?.name || (isPt ? 'Serviço' : 'Service')}</div>
                     <div className="v22-mono" style={{ fontSize: 11, color: tv.textMuted }}>{b.booking_date} {t('proDash.calendar.a')} {b.booking_time?.substring(0, 5)}</div>
                     <div style={{ fontSize: 11, color: tv.textMuted }}>{b.address}</div>
                     {b.notes && <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>{b.notes}</div>}
                   </div>
                   <div className={isV5 ? 'v5-btn-g' : ''} style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => openDashMessages(b)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>Messages</button>
-                    <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className={isV5 ? 'v5-btn v5-btn-sm v5-btn-p' : 'v22-btn v22-btn-sm'} style={!isV5 ? { background: tv.green, color: '#fff' } : undefined}>Accepter</button>
-                    <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={!isV5 ? { background: tv.redBg, color: tv.red } : { color: '#DC2626' }}>Refuser</button>
+                    <button onClick={() => openDashMessages(b)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>{isPt ? 'Mensagens' : 'Messages'}</button>
+                    <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className={isV5 ? 'v5-btn v5-btn-sm v5-btn-p' : 'v22-btn v22-btn-sm'} style={!isV5 ? { background: tv.green, color: '#fff' } : undefined}>{isPt ? 'Aceitar' : 'Accepter'}</button>
+                    <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={!isV5 ? { background: tv.redBg, color: tv.red } : { color: '#DC2626' }}>{isPt ? 'Recusar' : 'Refuser'}</button>
                   </div>
                 </div>
               ))}
@@ -445,32 +446,32 @@ export default function CalendarSection(props: CalendarSectionProps) {
           <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'} onClick={() => setShowNewRdv(false)}>
             <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520, maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
               <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
-                <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Nouveau rendez-vous</span>
+                <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>{isPt ? 'Nova marcação' : 'Nouveau rendez-vous'}</span>
                 <button onClick={() => setShowNewRdv(false)} className={isV5 ? 'v5-modal-x' : 'v22-btn v22-btn-sm'}>&times;</button>
               </div>
               <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 12, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
                 <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Client</label>
-                  <input type="text" value={newRdv.client_name} onChange={(e) => setNewRdv({...newRdv, client_name: e.target.value})} placeholder="Nom du client" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cliente' : 'Client'}</label>
+                  <input type="text" value={newRdv.client_name} onChange={(e) => setNewRdv({...newRdv, client_name: e.target.value})} placeholder={isPt ? 'Nome do cliente' : 'Nom du client'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
                 <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Prestation *</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Serviço *' : 'Prestation *'}</label>
                   <select value={newRdv.service_id} onChange={(e) => setNewRdv({...newRdv, service_id: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'}>
-                    <option value="">Choisir une prestation...</option>
+                    <option value="">{isPt ? 'Escolher um serviço...' : 'Choisir une prestation...'}</option>
                     {services.filter(s => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} \u2014 {formatPrice(s.price_ttc ?? 0)}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date *</label>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data *' : 'Date *'}</label>
                     <input type="date" value={newRdv.date} onChange={(e) => setNewRdv({...newRdv, date: e.target.value})} min={new Date().toISOString().split('T')[0]} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Heure *</label>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Hora *' : 'Heure *'}</label>
                     <input type="time" value={newRdv.time} onChange={(e) => setNewRdv({...newRdv, time: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Duree</label>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Duração' : 'Durée'}</label>
                     <select value={newRdv.duration} onChange={(e) => setNewRdv({...newRdv, duration: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'}>
                       <option value="">Auto</option>
                       <option value="30">30 min</option>
@@ -479,33 +480,33 @@ export default function CalendarSection(props: CalendarSectionProps) {
                       <option value="90">1h30</option>
                       <option value="120">2h</option>
                       <option value="180">3h</option>
-                      <option value="240">Demi-journee</option>
-                      <option value="480">Journee</option>
+                      <option value="240">{isPt ? 'Meio dia' : 'Demi-journée'}</option>
+                      <option value="480">{isPt ? 'Dia inteiro' : 'Journée'}</option>
                     </select>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Telephone</label>
-                    <input type="tel" value={newRdv.phone} onChange={(e) => setNewRdv({...newRdv, phone: e.target.value})} placeholder="06 12 34 56 78" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Telefone' : 'Téléphone'}</label>
+                    <input type="tel" value={newRdv.phone} onChange={(e) => setNewRdv({...newRdv, phone: e.target.value})} placeholder={isPt ? '91 234 56 78' : '06 12 34 56 78'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Adresse</label>
-                    <input type="text" value={newRdv.address} onChange={(e) => setNewRdv({...newRdv, address: e.target.value})} placeholder="Adresse intervention" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Morada' : 'Adresse'}</label>
+                    <input type="text" value={newRdv.address} onChange={(e) => setNewRdv({...newRdv, address: e.target.value})} placeholder={isPt ? 'Morada da intervenção' : 'Adresse intervention'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                 </div>
                 <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Notes</label>
-                  <textarea value={newRdv.notes} onChange={(e) => setNewRdv({...newRdv, notes: e.target.value})} rows={2} placeholder="Details, acces, infos utiles..." className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Notas' : 'Notes'}</label>
+                  <textarea value={newRdv.notes} onChange={(e) => setNewRdv({...newRdv, notes: e.target.value})} rows={2} placeholder={isPt ? 'Detalhes, acesso, informações úteis...' : 'Détails, accès, infos utiles...'} className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
               </div>
               <div className={isV5 ? 'v5-btn-g' : 'v22-modal-foot'} style={isV5 ? { padding: '16px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 } : undefined}>
                 <button onClick={createRdvManual} disabled={!newRdv.service_id || !newRdv.date || !newRdv.time}
                   className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1, opacity: (!newRdv.service_id || !newRdv.date || !newRdv.time) ? 0.4 : 1, cursor: (!newRdv.service_id || !newRdv.date || !newRdv.time) ? 'not-allowed' : 'pointer' }}>
-                  Creer le rendez-vous
+                  {isPt ? 'Criar a marcação' : 'Créer le rendez-vous'}
                 </button>
                 <button onClick={() => setShowNewRdv(false)} className={isV5 ? 'v5-btn' : 'v22-btn'}>
-                  Annuler
+                  {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
               </div>
             </div>
@@ -517,29 +518,31 @@ export default function CalendarSection(props: CalendarSectionProps) {
           <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay'} onClick={() => setShowAbsenceModal(false)}>
             <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 440 }} onClick={(e) => e.stopPropagation()}>
               <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
-                <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Ajouter une absence</span>
+                <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>{isPt ? 'Adicionar ausência' : 'Ajouter une absence'}</span>
                 <button onClick={() => setShowAbsenceModal(false)} className={isV5 ? 'v5-modal-x' : 'v22-btn v22-btn-sm'}>&times;</button>
               </div>
               <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 12, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
                 <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Motif</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Motivo' : 'Motif'}</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                     {['Conge', 'Maladie', 'Formation', 'Personnel', 'Ferie', 'Autre'].map(reason => (
                       <button key={reason} onClick={() => setNewAbsence({...newAbsence, reason})}
                         className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
                         style={newAbsence.reason === reason ? { border: `2px solid ${tv.red}`, background: tv.redBg, color: tv.red, fontWeight: 600 } : {}}>
-                        {reason === 'Conge' ? 'Conge' : reason === 'Maladie' ? 'Maladie' : reason === 'Formation' ? 'Formation' : reason === 'Personnel' ? 'Personnel' : reason === 'Ferie' ? 'Ferie' : 'Autre'}
+                        {isPt
+                          ? (reason === 'Conge' ? 'Férias' : reason === 'Maladie' ? 'Doença' : reason === 'Formation' ? 'Formação' : reason === 'Personnel' ? 'Pessoal' : reason === 'Ferie' ? 'Feriado' : 'Outro')
+                          : (reason === 'Conge' ? 'Congé' : reason === 'Maladie' ? 'Maladie' : reason === 'Formation' ? 'Formation' : reason === 'Personnel' ? 'Personnel' : reason === 'Ferie' ? 'Férié' : 'Autre')}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Du *</label>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'De *' : 'Du *'}</label>
                     <input type="date" value={newAbsence.start_date} onChange={(e) => setNewAbsence({...newAbsence, start_date: e.target.value, end_date: newAbsence.end_date || e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                   <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Au *</label>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Até *' : 'Au *'}</label>
                     <input type="date" value={newAbsence.end_date} onChange={(e) => setNewAbsence({...newAbsence, end_date: e.target.value})} min={newAbsence.start_date} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                 </div>
@@ -549,22 +552,24 @@ export default function CalendarSection(props: CalendarSectionProps) {
                       const start = new Date(newAbsence.start_date)
                       const end = new Date(newAbsence.end_date)
                       const daysCount = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-                      return `${daysCount} jour${daysCount > 1 ? 's' : ''} d'absence`
+                      return isPt
+                        ? `${daysCount} dia${daysCount > 1 ? 's' : ''} de ausência`
+                        : `${daysCount} jour${daysCount > 1 ? 's' : ''} d'absence`
                     })()}
                   </div>
                 )}
                 <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Libelle <span style={{ color: tv.textMuted }}>(optionnel)</span></label>
-                  <input type="text" value={newAbsence.label} onChange={(e) => setNewAbsence({...newAbsence, label: e.target.value})} placeholder="Ex: Vacances d'ete, RDV medical..." className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descrição' : 'Libellé'} <span style={{ color: tv.textMuted }}>({isPt ? 'opcional' : 'optionnel'})</span></label>
+                  <input type="text" value={newAbsence.label} onChange={(e) => setNewAbsence({...newAbsence, label: e.target.value})} placeholder={isPt ? 'Ex: Férias de verão, consulta médica...' : 'Ex: Vacances d\'été, RDV médical...'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
               </div>
               <div className={isV5 ? 'v5-btn-g' : 'v22-modal-foot'} style={isV5 ? { padding: '16px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 } : undefined}>
                 <button onClick={createAbsence} disabled={!newAbsence.start_date || !newAbsence.end_date}
                   className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.red, color: '#fff' }), opacity: (!newAbsence.start_date || !newAbsence.end_date) ? 0.4 : 1, cursor: (!newAbsence.start_date || !newAbsence.end_date) ? 'not-allowed' : 'pointer' }}>
-                  Bloquer ces dates
+                  {isPt ? 'Bloquear estas datas' : 'Bloquer ces dates'}
                 </button>
                 <button onClick={() => setShowAbsenceModal(false)} className={isV5 ? 'v5-btn' : 'v22-btn'}>
-                  Annuler
+                  {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
               </div>
             </div>
@@ -577,7 +582,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
             <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
               <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
                 <div>
-                  <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Detail du rendez-vous</span>
+                  <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>{isPt ? 'Detalhes da marcação' : 'Détail du rendez-vous'}</span>
                   <div style={{ marginTop: 6 }}>
                     <span className={isV5 ? `v5-badge ${
                       selectedBooking.status === 'confirmed' ? 'v5-badge-green' :
@@ -590,9 +595,9 @@ export default function CalendarSection(props: CalendarSectionProps) {
                       selectedBooking.status === 'completed' ? 'v22-tag-green' :
                       'v22-tag-red'
                     }`}>
-                      {selectedBooking.status === 'confirmed' ? 'Confirme' :
-                       selectedBooking.status === 'pending' ? 'En attente' :
-                       selectedBooking.status === 'completed' ? 'Termine' : 'Annule'}
+                      {selectedBooking.status === 'confirmed' ? (isPt ? 'Confirmado' : 'Confirmé') :
+                       selectedBooking.status === 'pending' ? (isPt ? 'Pendente' : 'En attente') :
+                       selectedBooking.status === 'completed' ? (isPt ? 'Terminado' : 'Terminé') : (isPt ? 'Cancelado' : 'Annulé')}
                     </span>
                   </div>
                 </div>
@@ -606,12 +611,12 @@ export default function CalendarSection(props: CalendarSectionProps) {
                     Math.abs(new Date(selectedBooking.confirmed_at).getTime() - new Date(selectedBooking.created_at).getTime()) < 60000
                   if (isAutoConfirmed) return (
                     <div style={{ padding: '8px 12px', background: '#dcfce7', borderRadius: 6, border: '1px solid #bbf7d0', fontSize: 12, color: '#166534' }}>
-                      ✅ RDV automatiquement confirmé — aucune action requise
+                      {isPt ? '✅ Marcação automaticamente confirmada — nenhuma ação necessária' : '✅ RDV automatiquement confirmé — aucune action requise'}
                     </div>
                   )
                   if (selectedBooking.status === 'pending') return (
                     <div style={{ padding: '8px 12px', background: '#fef9c3', borderRadius: 6, border: '1px solid #fde68a', fontSize: 12, color: '#92400e' }}>
-                      ⏳ Validation requise — acceptez ou refusez ce rendez-vous
+                      {isPt ? '⏳ Validação necessária — aceite ou recuse esta marcação' : '⏳ Validation requise — acceptez ou refusez ce rendez-vous'}
                     </div>
                   )
                   return null
@@ -628,32 +633,32 @@ export default function CalendarSection(props: CalendarSectionProps) {
                     <>
                       {/* Tableau client */}
                       <div style={{ border: `1px solid ${tv.border}`, borderRadius: 6, overflow: 'hidden' }}>
-                        <div style={{ padding: '6px 10px', background: '#0d0d0d', color: '#fff', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>INFORMATIONS CLIENT</div>
+                        <div style={{ padding: '6px 10px', background: '#0d0d0d', color: '#fff', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>{isPt ? 'INFORMAÇÕES DO CLIENTE' : 'INFORMATIONS CLIENT'}</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', fontSize: 13 }}>
-                          {clientName && <><div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Client</div><div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{clientName}</div></>}
-                          {clientPhone && <><div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Téléphone</div><div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{clientPhone}</div></>}
+                          {clientName && <><div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Cliente' : 'Client'}</div><div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{clientName}</div></>}
+                          {clientPhone && <><div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Telefone' : 'Téléphone'}</div><div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{clientPhone}</div></>}
                           {clientEmail && <><div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Email</div><div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{clientEmail}</div></>}
                         </div>
                       </div>
 
                       {/* Tableau intervention */}
                       <div style={{ border: `1px solid ${tv.border}`, borderRadius: 6, overflow: 'hidden' }}>
-                        <div style={{ padding: '6px 10px', background: '#0d0d0d', color: '#fff', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>DÉTAILS INTERVENTION</div>
+                        <div style={{ padding: '6px 10px', background: '#0d0d0d', color: '#fff', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>{isPt ? 'DETALHES DA INTERVENÇÃO' : 'DÉTAILS INTERVENTION'}</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', fontSize: 13 }}>
-                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Motif</div>
-                          <div style={{ padding: '6px 10px', fontWeight: 600, borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.services?.name || 'Service'}</div>
-                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Date</div>
+                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Motivo' : 'Motif'}</div>
+                          <div style={{ padding: '6px 10px', fontWeight: 600, borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.services?.name || (isPt ? 'Serviço' : 'Service')}</div>
+                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Data' : 'Date'}</div>
                           <div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{new Date(selectedBooking.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Heure</div>
+                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Hora' : 'Heure'}</div>
                           <div style={{ padding: '6px 10px', fontFamily: 'monospace', borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.booking_time?.substring(0, 5) || '—'}</div>
                           {selectedBooking.duration_minutes && <>
-                            <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Durée</div>
+                            <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Duração' : 'Durée'}</div>
                             <div style={{ padding: '6px 10px', fontFamily: 'monospace', borderBottom: `1px solid ${tv.border}` }}>{Math.floor(selectedBooking.duration_minutes / 60)}h{selectedBooking.duration_minutes % 60 > 0 ? String(selectedBooking.duration_minutes % 60).padStart(2, '0') : '00'}</div>
                           </>}
-                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>Adresse</div>
-                          <div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.address || (locale === 'pt' ? 'Não indicado' : 'Non renseignée')}</div>
+                          <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Morada' : 'Adresse'}</div>
+                          <div style={{ padding: '6px 10px', borderBottom: `1px solid ${tv.border}` }}>{selectedBooking.address || (isPt ? 'Não indicado' : 'Non renseignée')}</div>
                           {selectedBooking.price_ttc && <>
-                            <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500 }}>Montant</div>
+                            <div style={{ padding: '6px 10px', background: tv.bg, fontWeight: 500 }}>{isPt ? 'Valor' : 'Montant'}</div>
                             <div style={{ padding: '6px 10px', fontWeight: 700, color: tv.green }}>{formatPrice(selectedBooking.price_ttc)}</div>
                           </>}
                         </div>
@@ -676,15 +681,15 @@ export default function CalendarSection(props: CalendarSectionProps) {
                   <>
                     <button onClick={() => { setShowBookingDetail(false); transformBookingToDevis(selectedBooking) }}
                       className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ width: '100%', ...(isV5 ? {} : { background: '#2563EB', color: '#fff' }), marginBottom: 6 }}>
-                      Transformer en devis
+                      {isPt ? 'Transformar em orçamento' : 'Transformer en devis'}
                     </button>
                     <button onClick={() => updateBookingStatus(selectedBooking.id, 'confirmed')}
                       className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.green, color: '#fff' }) }}>
-                      Confirmer
+                      {isPt ? 'Confirmar' : 'Confirmer'}
                     </button>
                     <button onClick={() => updateBookingStatus(selectedBooking.id, 'cancelled')}
                       className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? { color: '#DC2626' } : { background: tv.redBg, color: tv.red, border: `1px solid ${tv.red}` }) }}>
-                      Refuser
+                      {isPt ? 'Recusar' : 'Refuser'}
                     </button>
                   </>
                 )}
@@ -692,30 +697,30 @@ export default function CalendarSection(props: CalendarSectionProps) {
                   <>
                     <button onClick={() => { setShowBookingDetail(false); transformBookingToDevis(selectedBooking) }}
                       className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ width: '100%', ...(isV5 ? {} : { background: '#2563EB', color: '#fff' }), marginBottom: 6 }}>
-                      Transformer en devis
+                      {isPt ? 'Transformar em orçamento' : 'Transformer en devis'}
                     </button>
                     <button onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
                       className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: '#2563EB', color: '#fff' }) }}>
-                      Marquer termine
+                      {isPt ? 'Marcar terminado' : 'Marquer terminé'}
                     </button>
-                    <button onClick={() => { if (confirm('Annuler ce rendez-vous ?')) updateBookingStatus(selectedBooking.id, 'cancelled') }}
+                    <button onClick={() => { if (confirm(isPt ? 'Cancelar esta marcação?' : 'Annuler ce rendez-vous ?')) updateBookingStatus(selectedBooking.id, 'cancelled') }}
                       className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? { color: '#DC2626' } : { background: tv.redBg, color: tv.red, border: `1px solid ${tv.red}` }) }}>
-                      Annuler le RDV
+                      {isPt ? 'Cancelar a marcação' : 'Annuler le RDV'}
                     </button>
                   </>
                 )}
                 {selectedBooking.status === 'completed' && (
-                  <div style={{ width: '100%', textAlign: 'center', color: tv.textMuted, padding: 6, fontSize: 12 }}>Ce RDV est termine</div>
+                  <div style={{ width: '100%', textAlign: 'center', color: tv.textMuted, padding: 6, fontSize: 12 }}>{isPt ? 'Esta marcação está terminada' : 'Ce RDV est terminé'}</div>
                 )}
                 {selectedBooking.status === 'cancelled' && (
                   <button onClick={() => updateBookingStatus(selectedBooking.id, 'pending')}
                     className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? { color: '#F59E0B' } : { background: tv.primaryLight, color: tv.primary, border: `1px solid ${tv.primary}` }) }}>
-                    Remettre en attente
+                    {isPt ? 'Voltar a pendente' : 'Remettre en attente'}
                   </button>
                 )}
                 <button onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }}
                   className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ width: '100%' }}>
-                  Fermer
+                  {isPt ? 'Fechar' : 'Fermer'}
                 </button>
               </div>
             </div>

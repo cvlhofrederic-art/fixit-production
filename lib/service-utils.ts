@@ -42,5 +42,23 @@ export function getCleanDescription(service: Service): string {
   return (service.description || '')
     .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
     .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+    .replace(/\s*\[scope:(mo|mat|frais)\]\s*/g, '')
+    .replace(/\s*\[cost:[\d.]+\|margin:[\d.]+\]\s*/g, '')
     .trim()
+}
+
+/** Parse the cost+margin tag for matériaux: [cost:50|margin:30]. null si absent. */
+export function parseServiceCost(service: Service): { cost: number; margin: number } | null {
+  const m = (service.description || '').match(/\[cost:([\d.]+)\|margin:([\d.]+)\]/)
+  if (!m) return null
+  return { cost: parseFloat(m[1]), margin: parseFloat(m[2]) }
+}
+
+/** Artisan scope: 'mo' (main d'œuvre, public), 'mat' (matériau, interne) ou 'frais' (frais divers, interne) */
+export type ServiceScope = 'mo' | 'mat' | 'frais'
+
+/** Extrait le scope depuis la description (tag [scope:mo|mat|frais]). Défaut = 'mo'. */
+export function parseServiceScope(service: Service): ServiceScope {
+  const m = (service.description || '').match(/\[scope:(mo|mat|frais)\]/)
+  return (m?.[1] as ServiceScope) || 'mo'
 }

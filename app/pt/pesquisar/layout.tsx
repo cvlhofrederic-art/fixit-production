@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Pesquisar Profissionais — VITFIX',
+  title: 'Pesquisar Profissionais : VITFIX',
   description: 'Encontre um profissional verificado na sua zona. Canalizador, eletricista, pintor e mais.',
   alternates: { canonical: 'https://vitfix.io/pt/pesquisar/' },
 }

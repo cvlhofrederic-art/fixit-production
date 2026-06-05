@@ -1,6 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // lib/fr-seo-pages-data.ts
-// Données SEO programmatiques — marché FR Marseille + littoral PACA
+// Données SEO programmatiques - marché FR Marseille + littoral PACA
 // 20 services × 19 villes = 380 pages services × villes
 // 20 génériques + 380 service×ville = 400 pages "près de chez moi"
 // 19 pages ville
@@ -269,7 +269,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Plombier',
     slug: 'plombier',
     icon: '🔧',
-    metaTitle: 'Plombier {city} — Devis gratuit, intervention rapide 7j/7',
+    metaTitle: 'Plombier {city} : Devis gratuit, intervention rapide 7j/7',
     metaDesc: 'Plombier de confiance à {city} : artisans certifiés et vérifiés pour fuites, débouchage, chauffe-eau. Devis gratuit, intervention rapide 7j/7.',
     heroTitle: 'Plombier à {city} : Intervention rapide, devis gratuit',
     heroSubtitle: 'Plombiers qualifiés pour tous vos travaux à {city} : fuite d\'eau, débouchage, chauffe-eau, sanitaires. Disponibles 7j/7, réponse sous 30 min.',
@@ -295,7 +295,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Une fuite d\'eau peut provoquer des dégâts des eaux en quelques heures. Appelez-nous immédiatement pour une intervention rapide à {city}.',
     urgencyData: {
-      urgencyMetaTitle: 'Plombier Urgence {city} — Intervention 24h/7j',
+      urgencyMetaTitle: 'Plombier Urgence {city} : Intervention 24h/7j',
       urgencyMetaDesc: 'Plombier en urgence à {city} : fuite, inondation, dégât des eaux. Disponible 24h/24, 7j/7. Appel et WhatsApp.',
       immediateSteps: [
         'Coupez l\'eau au robinet de barrage principal',
@@ -335,7 +335,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Comment trouver un plombier de confiance à {city} ?',
-        answer: 'Pour trouver un plombier fiable à {city}, vérifiez que l\'artisan est couvert par une assurance décennale et responsabilité civile professionnelle, et qu\'il remet un devis écrit avant toute intervention. Sur VITFIX, tous nos plombiers sont vérifiés, assurés et notés par les clients après chaque passage. Nous affichons les certifications, les avis vérifiés et des tarifs transparents — pour que vous choisissiez en toute confiance sans mauvaise surprise.',
+        answer: 'Pour trouver un plombier fiable à {city}, vérifiez que l\'artisan est couvert par une assurance décennale et responsabilité civile professionnelle, et qu\'il remet un devis écrit avant toute intervention. Sur VITFIX, tous nos plombiers sont vérifiés, assurés et notés par les clients après chaque passage. Nous affichons les certifications, les avis vérifiés et des tarifs transparents, pour que vous choisissiez en toute confiance sans mauvaise surprise.',
       },
     ],
   },
@@ -345,7 +345,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Électricien',
     slug: 'electricien',
     icon: '⚡',
-    metaTitle: 'Électricien {city} — Devis gratuit, certifié Qualifelec',
+    metaTitle: 'Électricien {city} : Devis gratuit, certifié Qualifelec',
     metaDesc: 'Électricien certifié et de confiance à {city} : tableau électrique, mise aux normes, dépannage urgent 24h/7j. Qualifelec, devis gratuit.',
     heroTitle: 'Électricien à {city} : Certifié, disponible 7j/7',
     heroSubtitle: 'Électriciens certifiés Qualifelec pour tous vos travaux électriques à {city}. Mise aux normes, tableau électrique, dépannage urgent. Devis gratuit.',
@@ -369,9 +369,9 @@ export const FR_SERVICES: FrServiceData[] = [
       'Court-circuit récurrent',
       'Éclairage qui clignote ou ne fonctionne plus',
     ],
-    urgencyText: 'Une panne électrique ou un court-circuit peut être dangereux. N\'attendez pas — contactez un électricien certifié à {city} immédiatement.',
+    urgencyText: 'Une panne électrique ou un court-circuit peut être dangereux. N\'attendez pas, contactez un électricien certifié à {city} immédiatement.',
     urgencyData: {
-      urgencyMetaTitle: 'Électricien Urgence {city} — Dépannage 24h/7j',
+      urgencyMetaTitle: 'Électricien Urgence {city} : Dépannage 24h/7j',
       urgencyMetaDesc: 'Électricien en urgence à {city} : panne de courant, court-circuit, disjoncteur. Disponible 24h/24. Certifié Qualifelec.',
       immediateSteps: [
         'Coupez le disjoncteur général si possible',
@@ -421,7 +421,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Peintre',
     slug: 'peintre',
     icon: '🎨',
-    metaTitle: 'Peintre {city} — Devis gratuit, artisan qualifié',
+    metaTitle: 'Peintre {city} : Devis gratuit, artisan qualifié',
     metaDesc: 'Peintre professionnel à {city} : peinture intérieure, ravalement façade, enduit. Artisan qualifié, devis gratuit, rendu soigné garanti.',
     heroTitle: 'Peintre à {city} : Artisan qualifié, devis gratuit',
     heroSubtitle: 'Peintres artisans pour tous vos travaux de peinture à {city} : intérieure, façade, décoration. Finitions soignées, délais respectés. Devis gratuit.',
@@ -447,7 +447,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Dégâts des eaux, moisissures à traiter rapidement ? Nos peintres interviennent à {city} pour des travaux urgents.',
     urgencyData: {
-      urgencyMetaTitle: 'Peintre Urgence {city} — Intervention rapide dégâts',
+      urgencyMetaTitle: 'Peintre Urgence {city} : Intervention rapide dégâts',
       urgencyMetaDesc: 'Peintre en urgence à {city} : dégâts des eaux, moisissures, rénovation rapide. Intervention dans les meilleurs délais.',
       immediateSteps: [
         'Identifiez la source d\'humidité (plomberie, toiture)',
@@ -493,7 +493,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Plaquiste',
     slug: 'plaquiste',
     icon: '🏗️',
-    metaTitle: 'Plaquiste {city} — Cloisons, faux-plafonds, isolation, devis gratuit',
+    metaTitle: 'Plaquiste {city} : Cloisons, faux-plafonds, isolation, devis gratuit',
     metaDesc: 'Plaquiste professionnel à {city} : pose de cloisons, faux-plafonds, isolation thermique et phonique. Artisan qualifié, devis gratuit.',
     heroTitle: 'Plaquiste à {city} : Cloisons & faux-plafonds',
     heroSubtitle: 'Plaquistes certifiés pour vos travaux de cloisonnement, faux-plafonds et isolation à {city}. Finitions impeccables, devis gratuit, travail soigné.',
@@ -519,7 +519,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Plafond endommagé après un dégât des eaux ? Nos plaquistes interviennent rapidement à {city} pour remettre en état votre logement.',
     urgencyData: {
-      urgencyMetaTitle: 'Plaquiste Urgence {city} — Réfection plafond et cloisons',
+      urgencyMetaTitle: 'Plaquiste Urgence {city} : Réfection plafond et cloisons',
       urgencyMetaDesc: 'Plaquiste en urgence à {city} : plafond endommagé, cloison à réparer. Intervention rapide pour dégâts des eaux et sinistres.',
       immediateSteps: [
         'Sécurisez la zone si le plafond est instable',
@@ -565,7 +565,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Nettoyage & Encombrants',
     slug: 'nettoyage-encombrants',
     icon: '🗑️',
-    metaTitle: 'Nettoyage Encombrants {city} — Débarras, Copropriété | Devis gratuit',
+    metaTitle: 'Nettoyage Encombrants {city} : Débarras, Copropriété | Devis gratuit',
     metaDesc: 'Enlèvement d\'encombrants à {city} par une équipe sérieuse et de confiance : débarras appartement, nettoyage copropriété, déchetterie agréée. Devis gratuit, intervention sous 24h.',
     heroTitle: 'Nettoyage & Encombrants à {city} : Débarras rapide',
     heroSubtitle: 'Enlèvement d\'encombrants, débarras d\'appartement et nettoyage de parties communes à {city}. Service particuliers et copropriétés. Devis gratuit, intervention sous 24h.',
@@ -577,7 +577,7 @@ export const FR_SERVICES: FrServiceData[] = [
       'Traitement des dépôts sauvages (cave, parking, parties communes)',
       'Nettoyage de cave, garage et grenier',
       'Service syndic : contrat d\'entretien parties communes',
-      'Tri sélectif et éco-responsabilité — déchetterie agréée',
+      'Tri sélectif et éco-responsabilité, déchetterie agréée',
     ],
     problemsWeSolve: [
       'Appartement ou maison entier à vider (succession, déménagement)',
@@ -591,7 +591,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Dépôt sauvage, sinistre ou appartement à vider d\'urgence ? Nos équipes interviennent à {city} sous 24h.',
     urgencyData: {
-      urgencyMetaTitle: 'Enlèvement Encombrants Urgence {city} — Intervention 24h',
+      urgencyMetaTitle: 'Enlèvement Encombrants Urgence {city} : Intervention 24h',
       urgencyMetaDesc: 'Enlèvement d\'encombrants en urgence à {city} : débarras, dépôt sauvage, sinistre. Intervention rapide, devis gratuit.',
       immediateSteps: [
         'Identifiez et listez les encombrants à évacuer',
@@ -641,7 +641,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Espaces Verts & Élagage',
     slug: 'espaces-verts',
     icon: '🌿',
-    metaTitle: 'Jardinier Élagage {city} — Espaces Verts Copropriété | Devis gratuit',
+    metaTitle: 'Jardinier Élagage {city} : Espaces Verts Copropriété | Devis gratuit',
     metaDesc: 'Jardinier et élagueur à {city} : tonte, taille de haies, élagage d\'arbres, entretien espaces verts de copropriété. Certifié, devis gratuit.',
     heroTitle: 'Espaces Verts & Élagage à {city} : Jardinier certifié',
     heroSubtitle: 'Entretien de jardins, taille de haies, élagage d\'arbres et aménagement d\'espaces verts à {city}. Particuliers et copropriétés. Devis gratuit, travail soigné.',
@@ -667,10 +667,10 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Arbre ou branche tombé après une tempête ? Nos élagueurs interviennent en urgence à {city} pour sécuriser la zone.',
     urgencyData: {
-      urgencyMetaTitle: 'Élagage Urgence {city} — Arbre tombé, Branches dangereuses',
+      urgencyMetaTitle: 'Élagage Urgence {city} : Arbre tombé, Branches dangereuses',
       urgencyMetaDesc: 'Élagage d\'urgence à {city} : arbre tombé, branches sur toit ou voie publique. Intervention rapide, sécurisation de la zone.',
       immediateSteps: [
-        'Sécurisez la zone — éloignez les personnes',
+        'Sécurisez la zone, éloignez les personnes',
         'Ne touchez pas à un arbre sur des lignes électriques (appelez ERDF)',
         'Photographiez les dégâts pour votre assurance',
         'Signalez la situation à la mairie si voie publique concernée',
@@ -682,7 +682,7 @@ export const FR_SERVICES: FrServiceData[] = [
         'Branches fortement inclinées menaçant de tomber',
         'Arbre déraciné par une tempête',
         'Branche coincée sur lignes électriques (après appel ERDF)',
-        'Débroussaillage d\'urgence (risque incendie — obligations légales PACA)',
+        'Débroussaillage d\'urgence (risque incendie, obligations légales PACA)',
         'Espaces verts de copropriété à sécuriser rapidement',
       ],
       avgResponseTime: '24 à 48h',
@@ -707,7 +707,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Comment choisir un jardinier ou élagueur de confiance à {city} ?',
-        answer: 'Pour choisir un jardinier ou élagueur sérieux à {city}, privilégiez un professionnel déclaré avec une assurance responsabilité civile, qui remet un devis détaillé avant de commencer. Pour les travaux d\'élagage, vérifiez la certification CS (Certificat de Spécialisation élagage) — c\'est la garantie d\'un grimpeur formé aux techniques sécurisées. Méfiez-vous des rabatteurs qui proposent des interventions à très bas prix sans devis ni assurance. Sur VITFIX, tous nos jardiniers et élagueurs sont qualifiés, assurés et évalués par nos clients.',
+        answer: 'Pour choisir un jardinier ou élagueur sérieux à {city}, privilégiez un professionnel déclaré avec une assurance responsabilité civile, qui remet un devis détaillé avant de commencer. Pour les travaux d\'élagage, vérifiez la certification CS (Certificat de Spécialisation élagage), c\'est la garantie d\'un grimpeur formé aux techniques sécurisées. Méfiez-vous des rabatteurs qui proposent des interventions à très bas prix sans devis ni assurance. Sur VITFIX, tous nos jardiniers et élagueurs sont qualifiés, assurés et évalués par nos clients.',
       },
     ],
   },
@@ -717,7 +717,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Paysagiste',
     slug: 'paysagiste',
     icon: '🌳',
-    metaTitle: 'Paysagiste {city} — Création Jardin, Aménagement Paysager | Devis gratuit',
+    metaTitle: 'Paysagiste {city} : Création Jardin, Aménagement Paysager | Devis gratuit',
     metaDesc: 'Paysagiste certifié et de confiance à {city} : création de jardin, engazonnement, terrasse, arrosage automatique. Artisan qualifié, assurés, devis gratuit.',
     heroTitle: 'Paysagiste à {city} : Création & aménagement jardin',
     heroSubtitle: 'Paysagistes qualifiés pour la création, l\'aménagement et l\'entretien de jardins à {city}. Terrasses, allées, massifs, arrosage automatique. Devis gratuit sur place.',
@@ -743,7 +743,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Aménagement urgent avant un événement ou une mise en vente ? Nos paysagistes interviennent rapidement à {city}.',
     urgencyData: {
-      urgencyMetaTitle: 'Paysagiste Urgence {city} — Aménagement rapide',
+      urgencyMetaTitle: 'Paysagiste Urgence {city} : Aménagement rapide',
       urgencyMetaDesc: 'Paysagiste en urgence à {city} : aménagement avant vente, événement, remise en état rapide. Intervention sous 48h.',
       immediateSteps: [
         'Définissez vos priorités (surface, budget, délai impératif)',
@@ -779,7 +779,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Installez-vous des systèmes d\'arrosage automatique en PACA ?',
-        answer: 'Oui, nous installons des systèmes d\'arrosage automatique sur mesure, adaptés au climat méditerranéen. Un système bien conçu économise 30 à 50 % d\'eau par rapport à l\'arrosage manuel — crucial en période de restrictions estivales en PACA. Nous proposons arrosage par aspersion pour les pelouses et goutte-à-goutte pour les massifs et potagers.',
+        answer: 'Oui, nous installons des systèmes d\'arrosage automatique sur mesure, adaptés au climat méditerranéen. Un système bien conçu économise 30 à 50 % d\'eau par rapport à l\'arrosage manuel, crucial en période de restrictions estivales en PACA. Nous proposons arrosage par aspersion pour les pelouses et goutte-à-goutte pour les massifs et potagers.',
       },
       {
         question: 'Comment trouver un paysagiste sérieux et de confiance à {city} ?',
@@ -793,7 +793,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Élagueur',
     slug: 'elagueur',
     icon: '🌲',
-    metaTitle: 'Élagueur {city} — Élagage Abattage Arbres, Débroussaillage | Devis gratuit',
+    metaTitle: 'Élagueur {city} : Élagage Abattage Arbres, Débroussaillage | Devis gratuit',
     metaDesc: 'Élagueur certifié CS et de confiance à {city} : élagage raisonné, abattage, débroussaillage obligatoire PACA. Grimpeur qualifié et assuré, devis gratuit.',
     heroTitle: 'Élagueur à {city} : Élagage, abattage & débroussaillage',
     heroSubtitle: 'Élagueurs grimpeurs certifiés pour l\'élagage, l\'abattage et le débroussaillage obligatoire à {city}. Particuliers et copropriétés. Travail sécurisé, déchets évacués.',
@@ -819,11 +819,11 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Arbre tombé, branches menaçantes après une tempête ? Nos élagueurs interviennent en urgence à {city} sous 24h.',
     urgencyData: {
-      urgencyMetaTitle: 'Élagueur Urgence {city} — Arbre tombé, Intervention 24h',
+      urgencyMetaTitle: 'Élagueur Urgence {city} : Arbre tombé, Intervention 24h',
       urgencyMetaDesc: 'Élagueur en urgence à {city} : arbre tombé, branches dangereuses après tempête. Zone sécurisée, intervention rapide 7j/7.',
       immediateSteps: [
         'Éloignez immédiatement toutes les personnes de la zone dangereuse',
-        'N\'approchez JAMAIS un arbre sur des lignes électriques — appelez ENEDIS (09 72 67 50 XX)',
+        'N\'approchez JAMAIS un arbre sur des lignes électriques, appelez ENEDIS (09 72 67 50 XX)',
         'Photographiez les dégâts pour votre assurance',
         'Signalez à la mairie si la voie publique est bloquée',
         'Pour les copropriétés, prévenez le syndic immédiatement',
@@ -859,7 +859,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Comment reconnaître un élagueur qualifié et de confiance à {city} ?',
-        answer: 'Un élagueur sérieux à {city} possède le CS (Certificat de Spécialisation élagage), signe d\'une formation reconnue aux techniques de grimpe et de taille raisonnée. Il est couvert par une assurance RC professionnelle et remet systématiquement un devis écrit avant intervention. Méfiez-vous des propositions spontanées sans devis ni justificatif. Sur VITFIX, nos élagueurs sont certifiés CS, assurés, et évalués après chaque intervention par les clients — pour un travail soigné et sécurisé en toute confiance.',
+        answer: 'Un élagueur sérieux à {city} possède le CS (Certificat de Spécialisation élagage), signe d\'une formation reconnue aux techniques de grimpe et de taille raisonnée. Il est couvert par une assurance RC professionnelle et remet systématiquement un devis écrit avant intervention. Méfiez-vous des propositions spontanées sans devis ni justificatif. Sur VITFIX, nos élagueurs sont certifiés CS, assurés, et évalués après chaque intervention par les clients, pour un travail soigné et sécurisé en toute confiance.',
       },
     ],
   },
@@ -869,7 +869,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Nettoyage Copropriété',
     slug: 'nettoyage-copropriete',
     icon: '🏢',
-    metaTitle: 'Nettoyage Copropriété {city} — Parties Communes, Contrat Syndic | Devis gratuit',
+    metaTitle: 'Nettoyage Copropriété {city} : Parties Communes, Contrat Syndic | Devis gratuit',
     metaDesc: 'Nettoyage de copropriété à {city} : parties communes, halls, escaliers, parkings, local poubelles. Contrat syndic, intervention ponctuelle. Devis gratuit.',
     heroTitle: 'Nettoyage Copropriété à {city} : Parties communes & syndics',
     heroSubtitle: 'Service de nettoyage professionnel pour copropriétés à {city} : halls d\'entrée, escaliers, parkings, caves, local poubelles. Contrats annuels pour syndics. Devis gratuit.',
@@ -895,7 +895,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Sinistre, vandalisme ou inspection imminente dans votre copropriété ? Nos équipes interviennent à {city} sous 24h.',
     urgencyData: {
-      urgencyMetaTitle: 'Nettoyage Copropriété Urgence {city} — Intervention 24h',
+      urgencyMetaTitle: 'Nettoyage Copropriété Urgence {city} : Intervention 24h',
       urgencyMetaDesc: 'Nettoyage de copropriété en urgence à {city} : sinistre, vandalisme, inspection imminente. Intervention rapide pour syndics.',
       immediateSteps: [
         'Sécurisez la zone si nécessaire (accès restreint)',
@@ -909,7 +909,7 @@ export const FR_SERVICES: FrServiceData[] = [
         'Vandalisme ou graffitis dans les parties communes',
         'Dégât des eaux nécessitant un nettoyage urgent',
         'Inspection ou visite d\'acquéreur imminente',
-        'Assemblée générale — présentation irréprochable requise',
+        'Assemblée générale, présentation irréprochable requise',
         'Infestation (rongeurs, insectes) dans les locaux communs',
         'Sinistre ou incendie dans les parties communes',
       ],
@@ -941,7 +941,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Nettoyage Terrains',
     slug: 'nettoyage-terrains',
     icon: '🏕️',
-    metaTitle: 'Nettoyage Terrains {city} — Débroussaillage, Friche, Gravats | Devis gratuit',
+    metaTitle: 'Nettoyage Terrains {city} : Débroussaillage, Friche, Gravats | Devis gratuit',
     metaDesc: 'Nettoyage de terrains à {city} : terrain en friche, débroussaillage anti-incendie, enlèvement gravats, remise en état avant vente ou construction. Devis gratuit.',
     heroTitle: 'Nettoyage de Terrains à {city} : Friche, débroussaillage & gravats',
     heroSubtitle: 'Remise en état de terrains à {city} : débroussaillage, nettoyage de friche, évacuation de gravats, préparation avant construction ou vente. Intervention rapide, devis gratuit.',
@@ -967,7 +967,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Mise en demeure de la mairie, vente imminente ou risque incendie sur votre terrain à {city} ? Nous intervenons sous 48h.',
     urgencyData: {
-      urgencyMetaTitle: 'Nettoyage Terrain Urgence {city} — Débroussaillage rapide',
+      urgencyMetaTitle: 'Nettoyage Terrain Urgence {city} : Débroussaillage rapide',
       urgencyMetaDesc: 'Nettoyage de terrain en urgence à {city} : débroussaillage PACA, mise en demeure, vente imminente. Intervention sous 48h.',
       immediateSteps: [
         'Conservez le document de mise en demeure si applicable',
@@ -999,7 +999,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Évacuez-vous les gravats et déchets de chantier ?',
-        answer: 'Oui, nous évacuons tous types de déchets : gravats, tuiles, parpaings, bois, ferraille, déchets verts. Nous trions les matériaux pour les orienter vers les filières adaptées (déchetteries, centres de recyclage agréés). Bordereaux de dépôt remis sur demande — utiles pour les dossiers d\'assurance ou de vente. Chargement et transport inclus dans nos devis.',
+        answer: 'Oui, nous évacuons tous types de déchets : gravats, tuiles, parpaings, bois, ferraille, déchets verts. Nous trions les matériaux pour les orienter vers les filières adaptées (déchetteries, centres de recyclage agréés). Bordereaux de dépôt remis sur demande, utiles pour les dossiers d\'assurance ou de vente. Chargement et transport inclus dans nos devis.',
       },
       {
         question: 'Intervenez-vous pour nettoyer des terrains avant vente sur la côte marseillaise ?',
@@ -1013,7 +1013,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Jardinier',
     slug: 'jardinier',
     icon: '🌱',
-    metaTitle: 'Jardinier {city} — Entretien Jardin, Taille Haie, Taille Olivier | Devis gratuit',
+    metaTitle: 'Jardinier {city} : Entretien Jardin, Taille Haie, Taille Olivier | Devis gratuit',
     metaDesc: 'Jardinier professionnel à {city} : entretien de jardins, tonte pelouse, taille haie, taille oliviers, contrat annuel. Tarifs compétitifs, devis gratuit.',
     heroTitle: 'Jardinier à {city} : Entretien jardins & taille',
     heroSubtitle: 'Jardiniers qualifiés pour l\'entretien régulier de vos jardins à {city} : tonte, taille haie, taille oliviers, désherbage, contrats mensuels. Particuliers et copropriétés. Devis gratuit.',
@@ -1039,7 +1039,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Jardin à remettre en état rapidement ? Haie en infraction avec le voisinage ? Nos jardiniers interviennent sous 48h à {city}.',
     urgencyData: {
-      urgencyMetaTitle: 'Jardinier Urgence {city} — Intervention rapide 48h',
+      urgencyMetaTitle: 'Jardinier Urgence {city} : Intervention rapide 48h',
       urgencyMetaDesc: 'Jardinier en urgence à {city} : mise en état rapide, haie débordante, vente imminente. Intervention sous 48h, devis gratuit.',
       immediateSteps: [
         'Prenez des photos de l\'état actuel du jardin',
@@ -1085,7 +1085,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Vide Maison & Débarras',
     slug: 'vide-maison',
     icon: '📦',
-    metaTitle: 'Vide Maison {city} — Débarras Succession, Après Décès | Devis gratuit',
+    metaTitle: 'Vide Maison {city} : Débarras Succession, Après Décès | Devis gratuit',
     metaDesc: 'Vide maison à {city} : débarras après décès, succession, départ en maison de retraite, avant vente. Discret, rapide, devis gratuit. Débarras gratuit si objets de valeur.',
     heroTitle: 'Vide Maison & Débarras à {city} : Succession & après décès',
     heroSubtitle: 'Spécialistes du vide maison et du débarras succession à {city}. Intervention discrète et respectueuse après décès, départ EHPAD ou avant vente. Devis gratuit, débarras gratuit si objets récupérables.',
@@ -1111,7 +1111,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Succession à traiter rapidement, mise en vente imminente ? Nous vidons votre maison à {city} sous 48h.',
     urgencyData: {
-      urgencyMetaTitle: 'Vide Maison Urgence {city} — Débarras succession 48h',
+      urgencyMetaTitle: 'Vide Maison Urgence {city} : Débarras succession 48h',
       urgencyMetaDesc: 'Vide maison en urgence à {city} : succession, avant vente, appartement à libérer. Intervention sous 48h, devis gratuit.',
       immediateSteps: [
         'Attendez l\'accord du notaire avant de vider (succession)',
@@ -1147,7 +1147,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Intervenez-vous pour vider un appartement après expulsion ou départ de locataire ?',
-        answer: 'Oui, nous intervenons pour les bailleurs et propriétaires qui récupèrent un logement encombré après le départ d\'un locataire (avec ou sans expulsion). Nous documentons l\'état du logement par photos avant et après intervention — utile pour les démarches juridiques. Intervention rapide à La Ciotat, Aubagne, Cassis, Bandol, Gémenos, Sanary, Six-Fours et dans tout le 13 et le Var.',
+        answer: 'Oui, nous intervenons pour les bailleurs et propriétaires qui récupèrent un logement encombré après le départ d\'un locataire (avec ou sans expulsion). Nous documentons l\'état du logement par photos avant et après intervention, utile pour les démarches juridiques. Intervention rapide à La Ciotat, Aubagne, Cassis, Bandol, Gémenos, Sanary, Six-Fours et dans tout le 13 et le Var.',
       },
     ],
   },
@@ -1157,7 +1157,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Débouchage Canalisation',
     slug: 'debouchage-canalisation',
     icon: '🚿',
-    metaTitle: 'Débouchage Canalisation {city} — WC Bouché, Urgence 24h | Devis gratuit',
+    metaTitle: 'Débouchage Canalisation {city} : WC Bouché, Urgence 24h | Devis gratuit',
     metaDesc: 'Débouchage canalisation à {city} : WC bouché, évier, douche, canalisation bouchée. Intervention urgence 24h/7j. Haute pression et caméra. Devis gratuit.',
     heroTitle: 'Débouchage Canalisation à {city} : WC bouché, urgence 24h',
     heroSubtitle: 'Débouchage professionnel de canalisations à {city} : WC bouchés, évier, baignoire, douche, canalisation principale. Intervention 24h/7j, haute pression, sans casse. Devis gratuit.',
@@ -1183,7 +1183,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'WC bouché ou canalisation bouchée ? Nos techniciens interviennent en urgence à {city} 24h/24, 7j/7.',
     urgencyData: {
-      urgencyMetaTitle: 'Débouchage Urgence {city} — Canalisation bouchée 24h/7j',
+      urgencyMetaTitle: 'Débouchage Urgence {city} : Canalisation bouchée 24h/7j',
       urgencyMetaDesc: 'Débouchage d\'urgence à {city} : WC bouché, canalisation bouchée, retour d\'égout. Technicien disponible 24h/24, 7j/7.',
       immediateSteps: [
         'N\'utilisez plus les équipements sanitaires bouchés',
@@ -1191,7 +1191,7 @@ export const FR_SERVICES: FrServiceData[] = [
         'Si retour d\'égout : coupez l\'eau d\'alimentation',
         'Aérez la pièce en cas d\'odeurs fortes',
         'Photographiez le problème si visible',
-        'Appelez ou WhatsApp VITFIX — intervention sous 1h en urgence',
+        'Appelez ou WhatsApp VITFIX, intervention sous 1h en urgence',
       ],
       whenToCall: [
         'WC complètement bouché, impossible d\'utiliser les toilettes',
@@ -1219,7 +1219,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Intervenez-vous aussi pour les copropriétés et immeubles ?',
-        answer: 'Oui, nous intervenons pour les copropriétés, les syndics et les immeubles collectifs. Le curage des colonnes montantes et la maintenance des réseaux d\'assainissement font partie de nos prestations régulières. Nous pouvons établir des contrats de maintenance préventive annuels pour les immeubles de Marseille, La Ciotat, Aubagne, Bandol, Sanary et Six-Fours — utiles pour prévenir les bouchages récurrents dans les parties communes.',
+        answer: 'Oui, nous intervenons pour les copropriétés, les syndics et les immeubles collectifs. Le curage des colonnes montantes et la maintenance des réseaux d\'assainissement font partie de nos prestations régulières. Nous pouvons établir des contrats de maintenance préventive annuels pour les immeubles de Marseille, La Ciotat, Aubagne, Bandol, Sanary et Six-Fours, utiles pour prévenir les bouchages récurrents dans les parties communes.',
       },
     ],
   },
@@ -1229,7 +1229,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Couvreur / Toiture',
     slug: 'couvreur',
     icon: '🏠',
-    metaTitle: 'Couvreur {city} — Toiture, tuile canal, fuite urgence | VITFIX',
+    metaTitle: 'Couvreur {city} : Toiture, tuile canal, fuite urgence | VITFIX',
     metaDesc: 'Couvreur à {city} : réparation toiture, fuite urgence, tuile canal provençale, réfection complète. Garantie décennale, devis gratuit sous 24h.',
     heroTitle: 'Couvreur à {city} : Toiture, réparation fuite, tuile canal',
     heroSubtitle: 'Couvreurs qualifiés pour tous vos travaux de toiture à {city} : tuile canal, tuile plate, réfection, étanchéité. Intervention urgente possible. Devis gratuit.',
@@ -1255,7 +1255,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Fuite de toit après orage ou mistral ? Nos couvreurs interviennent en urgence à {city} pour une mise hors d\'eau rapide.',
     urgencyData: {
-      urgencyMetaTitle: 'Couvreur Urgence {city} — Fuite toiture 24h/7j',
+      urgencyMetaTitle: 'Couvreur Urgence {city} : Fuite toiture 24h/7j',
       urgencyMetaDesc: 'Couvreur en urgence à {city} : fuite après orage, tuile arrachée, toit ouvert. Mise hors d\'eau rapide, intervention 7j/7.',
       immediateSteps: [
         'Protégez vos affaires avec des bâches ou seaux',
@@ -1301,7 +1301,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Climatisation',
     slug: 'climatisation',
     icon: '❄️',
-    metaTitle: 'Climatisation {city} — Installation, entretien, dépannage | VITFIX',
+    metaTitle: 'Climatisation {city} : Installation, entretien, dépannage | VITFIX',
     metaDesc: 'Climatisation réversible à {city} : installation, entretien annuel, dépannage. RGE, éligible MaPrimeRénov. Devis gratuit, pompe à chaleur PACA.',
     heroTitle: 'Climatisation à {city} : Installation clim réversible, RGE certifié',
     heroSubtitle: 'Spécialistes en climatisation réversible à {city} : installation, entretien, dépannage. Pompe à chaleur éligible MaPrimeRénov et aides CEE. Devis gratuit.',
@@ -1327,7 +1327,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Panne de climatisation en plein été à {city} ? Nos techniciens interviennent rapidement pour rétablir votre confort thermique.',
     urgencyData: {
-      urgencyMetaTitle: 'Dépannage Climatisation {city} — Urgence chaleur été',
+      urgencyMetaTitle: 'Dépannage Climatisation {city} : Urgence chaleur été',
       urgencyMetaDesc: 'Dépannage climatisation en urgence à {city} : panne de clim, fuite de gaz, unité HS. Technicien RGE disponible rapidement.',
       immediateSteps: [
         'Redémarrez l\'unité après 2 min d\'arrêt complet',
@@ -1363,7 +1363,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Quelle marque de climatisation recommander en PACA ?',
-        answer: 'Pour la résistance au climat méditerranéen (chaleur intense, humidité côtière), nous recommandons en priorité : Daikin, Mitsubishi Electric et Panasonic (fiabilité maximale, SAV en France). Atlantic et Hitachi offrent un bon rapport qualité/prix. Évitez les marques sans SAV France — en cas de panne en août à Marseille, les délais peuvent être catastrophiques. Nous travaillons avec des marques dont nous garantissons l\'approvisionnement en pièces.',
+        answer: 'Pour la résistance au climat méditerranéen (chaleur intense, humidité côtière), nous recommandons en priorité : Daikin, Mitsubishi Electric et Panasonic (fiabilité maximale, SAV en France). Atlantic et Hitachi offrent un bon rapport qualité/prix. Évitez les marques sans SAV France, en cas de panne en août à Marseille, les délais peuvent être catastrophiques. Nous travaillons avec des marques dont nous garantissons l\'approvisionnement en pièces.',
       },
     ],
   },
@@ -1373,7 +1373,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Carreleur',
     slug: 'carreleur',
     icon: '🔲',
-    metaTitle: 'Carreleur {city} — Pose carrelage, faïence salle de bain | VITFIX',
+    metaTitle: 'Carreleur {city} : Pose carrelage, faïence salle de bain | VITFIX',
     metaDesc: 'Carreleur professionnel à {city} : pose carrelage sol/mur, faïence salle de bain, terrasse, rénovation. TVA 10%, devis gratuit.',
     heroTitle: 'Carreleur à {city} : Pose carrelage, rénovation salle de bain',
     heroSubtitle: 'Carreleurs qualifiés à {city} pour tous vos travaux : pose carrelage sol et mur, faïence salle de bain, terrasse extérieure, grande dalle. TVA réduite, devis gratuit.',
@@ -1399,7 +1399,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Carrelage décollé ou salle de bain hors service ? Nos carreleurs interviennent rapidement à {city} pour un résultat durable.',
     urgencyData: {
-      urgencyMetaTitle: 'Carreleur {city} — Rénovation carrelage rapide',
+      urgencyMetaTitle: 'Carreleur {city} : Rénovation carrelage rapide',
       urgencyMetaDesc: 'Carreleur disponible à {city} : pose carrelage sol/mur, rénovation salle de bain, terrasse. Devis gratuit, intervention rapide.',
       immediateSteps: [
         'Sécurisez les carreaux décollés pour éviter les chutes',
@@ -1445,7 +1445,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Maçon / Ravalement',
     slug: 'macon',
     icon: '🧱',
-    metaTitle: 'Maçon {city} — Ravalement façade, enduit, rénovation | VITFIX',
+    metaTitle: 'Maçon {city} : Ravalement façade, enduit, rénovation | VITFIX',
     metaDesc: 'Maçon qualifié à {city} : ravalement façade, enduit, réparation fissures, rénovation extérieure. Devis gratuit, garantie décennale.',
     heroTitle: 'Maçon à {city} : Ravalement façade, enduit, maçonnerie générale',
     heroSubtitle: 'Maçons qualifiés à {city} pour ravalement de façade, enduit extérieur, réparation fissures, rénovation gros œuvre. Garantie décennale, devis gratuit.',
@@ -1471,7 +1471,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Fissure sur façade ou mur porteur à {city} ? Nos maçons diagnostiquent et interviennent rapidement pour sécuriser votre bien.',
     urgencyData: {
-      urgencyMetaTitle: 'Maçon Urgence {city} — Fissures, ravalement, réparation',
+      urgencyMetaTitle: 'Maçon Urgence {city} : Fissures, ravalement, réparation',
       urgencyMetaDesc: 'Maçon disponible à {city} : réparation fissures urgentes, ravalement façade, enduit. Garantie décennale, devis gratuit.',
       immediateSteps: [
         'Photographiez la fissure avec un repère de mesure',
@@ -1517,7 +1517,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Serrurier',
     slug: 'serrurier',
     icon: '🔐',
-    metaTitle: 'Serrurier {city} — Ouverture porte, blindage, tarifs transparents | VITFIX',
+    metaTitle: 'Serrurier {city} : Ouverture porte, blindage, tarifs transparents | VITFIX',
     metaDesc: 'Serrurier de confiance à {city} : ouverture porte, changement serrure, urgence 24h. Tarifs transparents affichés, pas d\'arnaque. Devis gratuit.',
     heroTitle: 'Serrurier à {city} : Ouverture porte, serrure, tarifs clairs',
     heroSubtitle: 'Serruriers certifiés à {city} : ouverture de porte sans dégât, changement de serrure, installation porte blindée. Tarifs affichés, sans mauvaises surprises. Disponible 7j/7.',
@@ -1543,7 +1543,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Enfermé dehors ou serrure forcée ? Nos serruriers interviennent en urgence à {city} sans surfacturation abusive.',
     urgencyData: {
-      urgencyMetaTitle: 'Serrurier Urgence {city} — Ouverture porte 24h/7j',
+      urgencyMetaTitle: 'Serrurier Urgence {city} : Ouverture porte 24h/7j',
       urgencyMetaDesc: 'Serrurier d\'urgence à {city} : ouverture porte, serrure forcée, cambriolage. Tarifs transparents affichés. Disponible 24h/24.',
       immediateSteps: [
         'Vérifiez que la porte n\'est pas simplement poussée sans être claquée',
@@ -1575,7 +1575,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Faut-il changer sa serrure après un cambriolage ou une perte de clés ?',
-        answer: 'Oui, absolument. Après un cambriolage ou une perte de clés, il faut changer le cylindre de serrure dans les plus brefs délais — le cylindre seul suffit dans la plupart des cas, coût : 80 à 150 €. Choisissez un cylindre de classe A2P (certification anti-crochetage) : c\'est souvent une exigence de votre assurance habitation pour être couvert en cas de cambriolage.',
+        answer: 'Oui, absolument. Après un cambriolage ou une perte de clés, il faut changer le cylindre de serrure dans les plus brefs délais, le cylindre seul suffit dans la plupart des cas, coût : 80 à 150 €. Choisissez un cylindre de classe A2P (certification anti-crochetage) : c\'est souvent une exigence de votre assurance habitation pour être couvert en cas de cambriolage.',
       },
       {
         question: 'Quelle serrure choisir pour une porte d\'entrée à {city} ?',
@@ -1583,7 +1583,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Comment trouver un serrurier de confiance à {city} ?',
-        answer: 'À {city} comme partout en PACA, les faux serruriers abusent des urgences. Pour trouver un artisan fiable : vérifiez qu\'il possède un numéro de SIRET valide, une assurance responsabilité civile, et des avis clients authentiques (Google, Pages Jaunes). Un vrai serrurier donne toujours le tarif complet avant d\'intervenir. VITFIX ne sélectionne que des serruriers certifiés avec tarifs affichés — aucune mauvaise surprise à la facturation.',
+        answer: 'À {city} comme partout en PACA, les faux serruriers abusent des urgences. Pour trouver un artisan fiable : vérifiez qu\'il possède un numéro de SIRET valide, une assurance responsabilité civile, et des avis clients authentiques (Google, Pages Jaunes). Un vrai serrurier donne toujours le tarif complet avant d\'intervenir. VITFIX ne sélectionne que des serruriers certifiés avec tarifs affichés, aucune mauvaise surprise à la facturation.',
       },
     ],
   },
@@ -1593,7 +1593,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Store Banne & Pergola',
     slug: 'store-banne',
     icon: '⛱️',
-    metaTitle: 'Store banne {city} — Installation, motorisation, réparation | VITFIX',
+    metaTitle: 'Store banne {city} : Installation, motorisation, réparation | VITFIX',
     metaDesc: 'Store banne à {city} : installation store terrasse, motorisation Somfy, réparation toile. Spécialiste stores PACA, devis gratuit sur mesure.',
     heroTitle: 'Store banne à {city} : Terrasse, motorisation, sur mesure',
     heroSubtitle: 'Installation et réparation de stores bannes à {city} : store coffre, store à bras, motorisation Somfy. Profitez de votre terrasse toute l\'année. Devis gratuit.',
@@ -1619,7 +1619,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Store banne coincé ou cassé en plein été à {city} ? Nos techniciens interviennent rapidement pour vous rendre votre terrasse.',
     urgencyData: {
-      urgencyMetaTitle: 'Réparation store banne {city} — Intervention rapide',
+      urgencyMetaTitle: 'Réparation store banne {city} : Intervention rapide',
       urgencyMetaDesc: 'Réparation store banne à {city} : mécanisme bloqué, toile déchirée, motorisation HS. Technicien spécialisé, devis gratuit.',
       immediateSteps: [
         'Rentrez le store banne si le vent se lève (éviter la casse)',
@@ -1646,7 +1646,7 @@ export const FR_SERVICES: FrServiceData[] = [
       },
       {
         question: 'Quelle motorisation choisir pour un store banne en PACA (mistral) ?',
-        answer: 'Pour la PACA, nous recommandons systématiquement une motorisation avec détecteur vent Somfy Eolis ou Sunis : le store rentre automatiquement dès que le vent dépasse le seuil programmé. C\'est indispensable avec le mistral. La motorisation Somfy io (connectée) permet aussi de rentrer le store depuis votre smartphone où que vous soyez — pratique si le vent se lève quand vous n\'êtes pas chez vous.',
+        answer: 'Pour la PACA, nous recommandons systématiquement une motorisation avec détecteur vent Somfy Eolis ou Sunis : le store rentre automatiquement dès que le vent dépasse le seuil programmé. C\'est indispensable avec le mistral. La motorisation Somfy io (connectée) permet aussi de rentrer le store depuis votre smartphone où que vous soyez, pratique si le vent se lève quand vous n\'êtes pas chez vous.',
       },
       {
         question: 'Un store banne résiste-t-il au mistral à {city} et sur la côte ?',
@@ -1664,7 +1664,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Vitrier',
     slug: 'vitrier',
     icon: '🪟',
-    metaTitle: 'Vitrier {city} — Remplacement vitre, double vitrage urgence | VITFIX',
+    metaTitle: 'Vitrier {city} : Remplacement vitre, double vitrage urgence | VITFIX',
     metaDesc: 'Vitrier à {city} : remplacement vitre cassée en urgence, double vitrage, menuiserie aluminium/PVC. Devis gratuit, intervention rapide 7j/7.',
     heroTitle: 'Vitrier à {city} : Vitre cassée, double vitrage, urgence',
     heroSubtitle: 'Vitriers disponibles à {city} pour remplacement de vitre cassée en urgence, pose de double vitrage, réparation fenêtre. Intervention rapide, devis gratuit.',
@@ -1690,7 +1690,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Vitre cassée laissant le logement ouvert à {city} ? Nos vitriers interviennent en urgence avec bâchage provisoire immédiat.',
     urgencyData: {
-      urgencyMetaTitle: 'Vitrier Urgence {city} — Vitre cassée 24h/7j',
+      urgencyMetaTitle: 'Vitrier Urgence {city} : Vitre cassée 24h/7j',
       urgencyMetaDesc: 'Vitrier d\'urgence à {city} : vitre cassée, fenêtre brisée, effraction. Bâchage provisoire + remplacement rapide. Disponible 24h/24.',
       immediateSteps: [
         'Ramassez les éclats de verre avec des gants épais',
@@ -1735,9 +1735,9 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Menuisier',
     slug: 'menuisier',
     icon: '🪚',
-    metaTitle: 'Menuisier {city} — Portes, Fenêtres, Parquet | VITFIX',
+    metaTitle: 'Menuisier {city} : Portes, Fenêtres, Parquet | VITFIX',
     metaDesc: 'Menuisier à {city} disponible rapidement. Pose de portes, fenêtres, parquet, dressing. Artisans vérifiés VITFIX, devis gratuit. Menuiserie intérieure et extérieure.',
-    heroTitle: 'Menuisier à {city} — Pose & Réparation',
+    heroTitle: 'Menuisier à {city}, Pose & Réparation',
     heroSubtitle: 'Portes, fenêtres, parquet, placards : un menuisier qualifié intervient à {city} rapidement.',
     features: [
       '🚪 Pose de portes intérieures et extérieures',
@@ -1757,8 +1757,8 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Porte claquée ou volet bloqué ? Nos menuisiers interviennent en urgence à {city}.',
     urgencyData: {
-      urgencyMetaTitle: 'Menuisier urgence {city} — Intervention rapide | VITFIX',
-      urgencyMetaDesc: 'Menuisier disponible en urgence à {city}. Porte coincée, fenêtre cassée, volet bloqué — intervention sous 2h. Devis immédiat.',
+      urgencyMetaTitle: 'Menuisier urgence {city} : Intervention rapide | VITFIX',
+      urgencyMetaDesc: 'Menuisier disponible en urgence à {city}. Porte coincée, fenêtre cassée, volet bloqué, intervention sous 2h. Devis immédiat.',
       immediateSteps: [
         'Sécurisez l\'accès si la porte ne ferme plus',
         'Ne forcez pas une fenêtre bloquée',
@@ -1798,9 +1798,9 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Ramoneur',
     slug: 'ramoneur',
     icon: '🏠',
-    metaTitle: 'Ramoneur {city} — Ramonage Cheminée Certifié | VITFIX',
+    metaTitle: 'Ramoneur {city} : Ramonage Cheminée Certifié | VITFIX',
     metaDesc: 'Ramonage de cheminée à {city} par des ramoneurs certifiés. Obligatoire 1 à 2x/an pour votre assurance. Certificat de ramonage fourni. Devis gratuit.',
-    heroTitle: 'Ramoneur à {city} — Ramonage & Entretien Cheminée',
+    heroTitle: 'Ramoneur à {city}, Ramonage & Entretien Cheminée',
     heroSubtitle: 'Ramonage obligatoire, entretien de cheminée et insert : un ramoneur certifié intervient à {city}.',
     features: [
       '🔥 Ramonage de cheminée traditionnelle',
@@ -1820,7 +1820,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Cheminée qui fume ou incendie de conduit ? Appelez un ramoneur d\'urgence à {city}.',
     urgencyData: {
-      urgencyMetaTitle: 'Ramoneur urgence {city} — Incendie conduit, intervention rapide | VITFIX',
+      urgencyMetaTitle: 'Ramoneur urgence {city} : Incendie conduit, intervention rapide | VITFIX',
       urgencyMetaDesc: 'Ramoneur disponible en urgence à {city}. Cheminée qui fume, incendie de conduit, conduit bouché. Intervention 24h/24. Devis immédiat.',
       immediateSteps: [
         'En cas d\'incendie de conduit : appelez le 18 immédiatement',
@@ -1861,9 +1861,9 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Pisciniste',
     slug: 'pisciniste',
     icon: '🏊',
-    metaTitle: 'Pisciniste {city} — Entretien & Installation Piscine | VITFIX',
+    metaTitle: 'Pisciniste {city} : Entretien & Installation Piscine | VITFIX',
     metaDesc: 'Pisciniste à {city} pour l\'entretien, la réparation et l\'installation de piscines. Traitement eau, hivernage, fuite piscine. Devis gratuit, artisans vérifiés PACA.',
-    heroTitle: 'Pisciniste à {city} — Entretien & Réparation Piscine',
+    heroTitle: 'Pisciniste à {city}, Entretien & Réparation Piscine',
     heroSubtitle: 'Entretien régulier, traitement de l\'eau, réparation de fuite : un pisciniste qualifié intervient à {city}.',
     features: [
       '💧 Entretien et traitement de l\'eau',
@@ -1883,8 +1883,8 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Fuite de piscine ou panne de pompe ? Nos piscinistes interviennent rapidement à {city}.',
     urgencyData: {
-      urgencyMetaTitle: 'Pisciniste urgence {city} — Fuite piscine, panne pompe | VITFIX',
-      urgencyMetaDesc: 'Pisciniste disponible rapidement à {city}. Fuite de piscine, pompe en panne, eau verte — intervention sous 24h. Devis immédiat.',
+      urgencyMetaTitle: 'Pisciniste urgence {city} : Fuite piscine, panne pompe | VITFIX',
+      urgencyMetaDesc: 'Pisciniste disponible rapidement à {city}. Fuite de piscine, pompe en panne, eau verte, intervention sous 24h. Devis immédiat.',
       immediateSteps: [
         'Coupez la pompe si elle fait un bruit anormal',
         'Mesurez la perte de niveau quotidienne pour évaluer la fuite',
@@ -1924,7 +1924,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Rénovation',
     slug: 'renovation',
     icon: '🏗️',
-    metaTitle: 'Rénovation {city} — Devis gratuit, artisans certifiés',
+    metaTitle: 'Rénovation {city} : Devis gratuit, artisans certifiés',
     metaDesc: 'Rénovation maison et appartement à {city} : artisans qualifiés pour rénovation complète, salle de bain, cuisine, intérieur. Devis gratuit sous 24h.',
     heroTitle: 'Rénovation à {city} : artisans qualifiés, devis gratuit',
     heroSubtitle: 'Professionnels vérifiés pour vos projets de rénovation à {city} : intérieur, extérieur, salle de bain, cuisine. Coordination multi-corps de métier, devis détaillé gratuit.',
@@ -1941,14 +1941,14 @@ export const FR_SERVICES: FrServiceData[] = [
     problemsWeSolve: [
       'Appartement vétuste à rénover avant vente ou location',
       'Salle de bain ou cuisine démodée à moderniser',
-      'Isolation insuffisante — factures de chauffage élevées',
+      'Isolation insuffisante, factures de chauffage élevées',
       'Mise aux normes électriques obligatoire',
       'Agencement intérieur à repenser pour gagner de l\'espace',
       'Dégâts des eaux nécessitant une rénovation partielle',
     ],
-    urgencyText: 'Rénovation urgente à {city} ? Dégâts des eaux, effondrement partiel, mise en sécurité — nos artisans interviennent rapidement.',
+    urgencyText: 'Rénovation urgente à {city} ? Dégâts des eaux, effondrement partiel, mise en sécurité, nos artisans interviennent rapidement.',
     urgencyData: {
-      urgencyMetaTitle: 'Rénovation urgente {city} — Intervention rapide 7j/7',
+      urgencyMetaTitle: 'Rénovation urgente {city} : Intervention rapide 7j/7',
       urgencyMetaDesc: 'Rénovation d\'urgence à {city} : dégâts des eaux, mise en sécurité, travaux de consolidation. Artisans disponibles 7j/7.',
       immediateSteps: [
         'Sécurisez la zone (coupez eau/électricité si nécessaire)',
@@ -1989,7 +1989,7 @@ export const FR_SERVICES: FrServiceData[] = [
     name: 'Petits Travaux',
     slug: 'petits-travaux',
     icon: '🛠️',
-    metaTitle: 'Petits Travaux {city} — Bricolage, dépannage, montage',
+    metaTitle: 'Petits Travaux {city} : Bricolage, dépannage, montage',
     metaDesc: 'Petits travaux et bricolage à {city} : montage meubles, fixations, réparations diverses, dépannage rapide. Artisans polyvalents, devis gratuit.',
     heroTitle: 'Petits travaux à {city} : bricolage et dépannage rapide',
     heroSubtitle: 'Artisans polyvalents à {city} pour tous vos petits travaux : montage, fixations, réparations, retouches. Intervention rapide, prix transparent.',
@@ -2013,7 +2013,7 @@ export const FR_SERVICES: FrServiceData[] = [
     ],
     urgencyText: 'Besoin d\'un dépannage rapide à {city} ? Nos bricoleurs polyvalents interviennent dans la journée pour vos urgences du quotidien.',
     urgencyData: {
-      urgencyMetaTitle: 'Dépannage rapide {city} — Bricoleur disponible aujourd\'hui',
+      urgencyMetaTitle: 'Dépannage rapide {city} : Bricoleur disponible aujourd\'hui',
       urgencyMetaDesc: 'Dépannage et petits travaux urgents à {city} : réparations rapides, fixations, montage. Artisans disponibles dans la journée.',
       immediateSteps: [
         'Décrivez précisément le problème ou la tâche',
@@ -2033,7 +2033,7 @@ export const FR_SERVICES: FrServiceData[] = [
     faqs: [
       {
         question: 'Combien coûte un bricoleur à {city} ?',
-        answer: 'À {city}, un bricoleur/homme toutes mains facture entre 30 et 50 €/heure TTC. La plupart des petits travaux (montage meuble, fixation TV, pose étagères) prennent 1 à 2 heures, soit 30 à 100 €. Un forfait demi-journée (4h) coûte environ 120 à 180 €. Sur VITFIX, le devis est gratuit et le prix est fixé avant l\'intervention — pas de mauvaise surprise.',
+        answer: 'À {city}, un bricoleur/homme toutes mains facture entre 30 et 50 €/heure TTC. La plupart des petits travaux (montage meuble, fixation TV, pose étagères) prennent 1 à 2 heures, soit 30 à 100 €. Un forfait demi-journée (4h) coûte environ 120 à 180 €. Sur VITFIX, le devis est gratuit et le prix est fixé avant l\'intervention, pas de mauvaise surprise.',
       },
       {
         question: 'Quels travaux peut faire un bricoleur à {city} ?',
@@ -2104,7 +2104,7 @@ export function getFrPageCombo(slug: string): FrPageCombo | null {
   return null
 }
 
-/** Urgency combos — same set as service combos */
+/** Urgency combos, same set as service combos */
 export interface FrUrgencyCombo {
   service: FrServiceData
   city: FrCityData
@@ -2150,16 +2150,16 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'plombier-pas-cher-marseille-eviter-arnaques',
     title: 'Plombier pas cher à Marseille : comment éviter les arnaques ?',
-    metaTitle: 'Plombier pas cher à Marseille — Éviter les arnaques en 2026 | VITFIX',
+    metaTitle: 'Plombier pas cher à Marseille : Éviter les arnaques en 2026 | VITFIX',
     metaDesc: 'Comment trouver un plombier pas cher et fiable à Marseille ? Les arnaques les plus courantes et comment les éviter. Tarifs réels, conseils pratiques.',
     category: 'plomberie',
     icon: '🔧',
     datePublished: '2026-02-15',
-    intro: 'Marseille est l\'une des villes de France où les arnaques aux faux plombiers sont les plus fréquentes. Des factures multipliées par 10, des interventions inutiles, des devis incompréhensibles — voici tout ce qu\'il faut savoir pour trouver un vrai plombier fiable et pas cher dans les Bouches-du-Rhône.',
+    intro: 'Marseille est l\'une des villes de France où les arnaques aux faux plombiers sont les plus fréquentes. Des factures multipliées par 10, des interventions inutiles, des devis incompréhensibles, voici tout ce qu\'il faut savoir pour trouver un vrai plombier fiable et pas cher dans les Bouches-du-Rhône.',
     sections: [
       {
         heading: 'Les tarifs réels d\'un plombier à Marseille',
-        content: 'Un plombier à Marseille facture en moyenne entre 60 € et 100 € HT de l\'heure. Une intervention simple (remplacement de robinet, décolmatage basique) coûte entre 80 € et 180 € tout compris. Un remplacement de chauffe-eau électrique 100L revient entre 350 € et 600 € posé. Si un plombier vous annonce 500 € pour un simple débouchage ou 1 500 € pour remplacer un joint, fuyez — c\'est une arnaque.'
+        content: 'Un plombier à Marseille facture en moyenne entre 60 € et 100 € HT de l\'heure. Une intervention simple (remplacement de robinet, décolmatage basique) coûte entre 80 € et 180 € tout compris. Un remplacement de chauffe-eau électrique 100L revient entre 350 € et 600 € posé. Si un plombier vous annonce 500 € pour un simple débouchage ou 1 500 € pour remplacer un joint, fuyez, c\'est une arnaque.'
       },
       {
         heading: 'Les 5 arnaques les plus courantes',
@@ -2180,7 +2180,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'prix-ravalement-facade-marseille-2026',
     title: 'Prix ravalement de façade à Marseille en 2026',
-    metaTitle: 'Prix ravalement façade Marseille 2026 — Tarifs et devis | VITFIX',
+    metaTitle: 'Prix ravalement façade Marseille 2026 : Tarifs et devis | VITFIX',
     metaDesc: 'Combien coûte un ravalement de façade à Marseille en 2026 ? Tarifs détaillés par type de façade, aides disponibles, durée des travaux. Devis gratuit.',
     category: 'peinture',
     icon: '🎨',
@@ -2193,7 +2193,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
       },
       {
         heading: 'Les types de finition et leurs prix',
-        content: 'Peinture façade : 20 € à 35 €/m² — idéale pour les façades planes en bon état. Enduit monocouche : 25 € à 45 €/m² — recouvre les petites irrégularités. Crépi projeté : 30 € à 55 €/m² — robuste et résistant. Isolation thermique par l\'extérieur (ITE/capoto) : 80 € à 160 €/m² — le plus cher mais éligible aux aides MaPrimeRénov.'
+        content: 'Peinture façade : 20 € à 35 €/m², idéale pour les façades planes en bon état. Enduit monocouche : 25 € à 45 €/m², recouvre les petites irrégularités. Crépi projeté : 30 € à 55 €/m², robuste et résistant. Isolation thermique par l\'extérieur (ITE/capoto) : 80 € à 160 €/m², le plus cher mais éligible aux aides MaPrimeRénov.'
       },
       {
         heading: 'Aides pour le ravalement à Marseille',
@@ -2201,7 +2201,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
       },
       {
         heading: 'Durée des travaux de ravalement',
-        content: 'Une maison individuelle : 1 à 2 semaines. Un petit immeuble de 10 appartements : 3 à 6 semaines. Un grand immeuble en copropriété : 2 à 4 mois. La durée dépend aussi des conditions météo — à Marseille, le mistral peut ralentir la pose des enduits et peintures extérieures.'
+        content: 'Une maison individuelle : 1 à 2 semaines. Un petit immeuble de 10 appartements : 3 à 6 semaines. Un grand immeuble en copropriété : 2 à 4 mois. La durée dépend aussi des conditions météo, à Marseille, le mistral peut ralentir la pose des enduits et peintures extérieures.'
       },
     ],
     ctaText: 'Obtenir un devis ravalement à Marseille',
@@ -2210,7 +2210,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'maprimerenov-paca-comment-en-beneficier',
     title: 'MaPrimeRénov\' PACA : comment en bénéficier en 2026 ?',
-    metaTitle: 'MaPrimeRénov\' PACA 2026 — Guide complet pour en bénéficier | VITFIX',
+    metaTitle: 'MaPrimeRénov\' PACA 2026 : Guide complet pour en bénéficier | VITFIX',
     metaDesc: 'Comment bénéficier de MaPrimeRénov\' en région PACA (Marseille, Aix, Toulon) ? Conditions, montants, artisans RGE agréés. Guide complet mis à jour 2026.',
     category: 'aides',
     icon: '💰',
@@ -2240,7 +2240,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'couvreur-urgence-marseille-tuiles-cassees',
     title: 'Couvreur urgence Marseille : que faire en cas de tuiles cassées ?',
-    metaTitle: 'Couvreur urgence Marseille — Tuiles cassées, que faire ? | VITFIX',
+    metaTitle: 'Couvreur urgence Marseille : Tuiles cassées, que faire ? | VITFIX',
     metaDesc: 'Tuiles cassées après le mistral à Marseille ? Infiltration d\'eau par le toit ? Que faire en urgence, qui appeler, quelles aides. Guide couvreur PACA.',
     category: 'couverture',
     icon: '🏠',
@@ -2249,7 +2249,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
     sections: [
       {
         heading: 'Les premiers gestes d\'urgence en cas de tuiles cassées',
-        content: 'Ne montez surtout pas sur le toit vous-même — les accidents de toiture sont extrêmement dangereux. À l\'intérieur : placez des bacs et des serviettes sous les zones d\'infiltration. Protégez vos meubles et équipements avec des bâches plastiques. Prenez des photos des dégâts immédiatement pour votre assurance. Coupez l\'électricité dans les zones touchées par l\'eau. Appelez votre assureur pour déclarer le sinistre dans les 5 jours ouvrables.'
+        content: 'Ne montez surtout pas sur le toit vous-même, les accidents de toiture sont extrêmement dangereux. À l\'intérieur : placez des bacs et des serviettes sous les zones d\'infiltration. Protégez vos meubles et équipements avec des bâches plastiques. Prenez des photos des dégâts immédiatement pour votre assurance. Coupez l\'électricité dans les zones touchées par l\'eau. Appelez votre assureur pour déclarer le sinistre dans les 5 jours ouvrables.'
       },
       {
         heading: 'Pourquoi les tuiles cassent-elles à Marseille ?',
@@ -2261,7 +2261,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
       },
       {
         heading: 'Votre assurance couvre-t-elle les tuiles cassées par le mistral ?',
-        content: 'Oui, dans la grande majorité des cas. Les dommages causés par des vents supérieurs à 100 km/h (tempête) sont couverts par la garantie tempête de votre assurance multirisque habitation. Certains contrats couvrent dès 60 km/h. Déclarez le sinistre dans les 5 jours, conservez les photos des dégâts et la facture du couvreur — l\'assureur peut mandater un expert avant remboursement.'
+        content: 'Oui, dans la grande majorité des cas. Les dommages causés par des vents supérieurs à 100 km/h (tempête) sont couverts par la garantie tempête de votre assurance multirisque habitation. Certains contrats couvrent dès 60 km/h. Déclarez le sinistre dans les 5 jours, conservez les photos des dégâts et la facture du couvreur, l\'assureur peut mandater un expert avant remboursement.'
       },
     ],
     ctaText: 'Trouver un couvreur d\'urgence à Marseille',
@@ -2270,12 +2270,12 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'faux-serruriers-marseille-comment-les-reperer',
     title: 'Faux serruriers Marseille : comment les repérer et les éviter ?',
-    metaTitle: 'Faux serruriers Marseille 2026 — Comment les repérer ? | VITFIX',
+    metaTitle: 'Faux serruriers Marseille 2026 : Comment les repérer ? | VITFIX',
     metaDesc: 'Les faux serruriers pullulent à Marseille. Annonces mensongères, tarifs abusifs, interventions inutiles. Voici comment les identifier et trouver un vrai serrurier.',
     category: 'serrurerie',
     icon: '🔑',
     datePublished: '2025-11-18',
-    intro: 'Marseille est tristement connue pour ses faux serruriers qui profitent des situations d\'urgence (porte claquée, serrure bloquée) pour facturer des sommes astronomiques. Des factures de 500 € à 2 000 € pour ouvrir une serrure standard, des menaces, des pressions — voici comment vous protéger.',
+    intro: 'Marseille est tristement connue pour ses faux serruriers qui profitent des situations d\'urgence (porte claquée, serrure bloquée) pour facturer des sommes astronomiques. Des factures de 500 € à 2 000 € pour ouvrir une serrure standard, des menaces, des pressions, voici comment vous protéger.',
     sections: [
       {
         heading: 'Les techniques des faux serruriers à Marseille',
@@ -2287,7 +2287,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
       },
       {
         heading: 'Que faire en cas de facture abusive ?',
-        content: 'Refusez de payer si le montant est abusif — vous avez le droit de contester sur place. Demandez une facture détaillée. Saisissez la DGCCRF (Direction Générale de la Concurrence) via signal.conso.gouv.fr. Portez plainte au commissariat de police. Contactez votre assurance — certains contrats couvrent l\'assistance serrurerie. Vous pouvez également saisir le médiateur de la consommation.'
+        content: 'Refusez de payer si le montant est abusif, vous avez le droit de contester sur place. Demandez une facture détaillée. Saisissez la DGCCRF (Direction Générale de la Concurrence) via signal.conso.gouv.fr. Portez plainte au commissariat de police. Contactez votre assurance, certains contrats couvrent l\'assistance serrurerie. Vous pouvez également saisir le médiateur de la consommation.'
       },
       {
         heading: 'Les tarifs normaux d\'un serrurier à Marseille',

@@ -93,6 +93,8 @@ export interface Booking {
   metadata?: Record<string, unknown> | null
 }
 
+export type AvailabilitySlotType = 'rdv' | 'visite'
+
 export interface Availability {
   id: string
   artisan_id: string
@@ -100,6 +102,7 @@ export interface Availability {
   start_time: string
   end_time: string
   is_available: boolean
+  slot_type?: AvailabilitySlotType  // default 'rdv' côté serveur (back-compat)
 }
 
 export interface Absence {

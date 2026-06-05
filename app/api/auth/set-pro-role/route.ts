@@ -34,14 +34,16 @@ export async function POST(req: NextRequest) {
 
     const { user_id, role, org_type } = parsed.data
 
-    // Authorize: caller must be the target user or super_admin
-    const callerRole = caller.user_metadata?.role
+    // Authorize: caller must be the target user or super_admin (app_metadata only)
+    const callerRole = caller.app_metadata?.role
     if (caller.id !== user_id && callerRole !== 'super_admin') {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    // Écrit dans app_metadata (server-only, non forgeable côté client)
+    const { data: target } = await supabaseAdmin.auth.admin.getUserById(user_id)
     const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-      user_metadata: { role, org_type },
+      app_metadata: { ...(target?.user?.app_metadata || {}), role, org_type },
     })
 
     if (error) {

@@ -12,6 +12,8 @@ import {
   Calendar,
 } from 'lucide-react'
 import { getCategoryLabel } from '@/lib/search-categories'
+import { getProfilePath } from '@/lib/utils'
+import { titleCaseName } from '@/lib/devis-utils'
 
 // ------------------------------------------------------------------
 // Types
@@ -38,6 +40,7 @@ export interface Artisan {
   latitude?: number | null
   longitude?: number | null
   distance_km?: number | null
+  org_role?: string | null
   source?: 'registered' | 'catalogue'
   telephone_pro?: string | null
   adresse?: string | null
@@ -136,12 +139,15 @@ export function ArtisanCard({
   bookings,
   locale,
 }: ArtisanCardProps) {
-  const initials = getInitials(artisan.company_name)
+  // Normalise les noms ALL CAPS issus de SIRENE → "FREDERIC NEIVA CARVALHO" → "Frédéric Neiva Carvalho"
+  const displayName = titleCaseName(artisan.company_name || '') || artisan.company_name
+  const initials = getInitials(displayName)
   const primaryCategory = artisan.categories?.[0]
   const hasGoogleReviews = (artisan.rating_count || 0) > 0
   const rating = artisan.rating_avg || 0
   const reviewCount = artisan.rating_count || 0
   const isCatalogue = artisan.source === 'catalogue'
+  const profileHref = getProfilePath(artisan, locale)
 
   // Badges
   const badges: { icon: React.ReactNode; label: string; color: string }[] = []
@@ -174,7 +180,7 @@ export function ArtisanCard({
             {artisan.profile_photo_url ? (
               <Image
                 src={artisan.profile_photo_url}
-                alt={artisan.company_name || 'Artisan'}
+                alt={displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}
                 width={64}
                 height={64}
                 className="w-14 h-14 lg:w-16 lg:h-16 rounded-full object-cover shadow-sm flex-shrink-0"
@@ -197,10 +203,10 @@ export function ArtisanCard({
             <div className="flex items-start justify-between gap-2">
               <div>
                 {isCatalogue ? (
-                  <span className="font-bold text-lg">{artisan.company_name || 'Artisan'}</span>
+                  <span className="font-bold text-lg">{displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}</span>
                 ) : (
-                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
-                    {artisan.company_name || 'Artisan'}
+                  <Link href={profileHref} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
+                    {displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}
                   </Link>
                 )}
                 {primaryCategory && (
@@ -272,14 +278,20 @@ export function ArtisanCard({
           <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border pt-4 lg:pt-0 lg:pl-5">
             {isCatalogue ? (
               <div className="flex flex-col gap-3 h-full justify-center">
-                {/* Numéro flouté */}
-                <div
-                  className="flex items-center justify-center gap-2 bg-yellow rounded-xl text-dark font-mono py-3 px-4 text-sm font-semibold"
-                  style={{ filter: 'blur(4px)', userSelect: 'none', pointerEvents: 'none', letterSpacing: '0.05em' }}
-                  aria-hidden="true"
-                >
-                  {artisan.telephone_pro || (locale === 'pt' ? '+351 ••• ••• •••' : '06 •• •• •• ••')}
-                </div>
+                {/* Numéro de téléphone — cliquable */}
+                {artisan.telephone_pro ? (
+                  <a
+                    href={`tel:${artisan.telephone_pro.replace(/\s/g, '')}`}
+                    className="flex items-center justify-center gap-2 bg-yellow hover:bg-yellow-light rounded-xl text-dark font-mono py-3 px-4 text-sm font-semibold transition hover:-translate-y-px"
+                    style={{ letterSpacing: '0.05em' }}
+                  >
+                    📞 {artisan.telephone_pro}
+                  </a>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 bg-gray-100 rounded-xl text-gray-500 py-3 px-4 text-xs italic">
+                    {locale === 'pt' ? 'Telefone não disponível' : 'Téléphone non disponible'}
+                  </div>
+                )}
                 <a
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || (locale === 'pt' ? 'Porto' : 'Marseille')))}`}
                   target="_blank"
@@ -297,7 +309,7 @@ export function ArtisanCard({
             ) : (
               <div className="flex flex-col gap-3 h-full justify-center">
                 <Link
-                  href={`/artisan/${artisan.slug || artisan.id}`}
+                  href={profileHref}
                   className="flex items-center justify-center gap-2 bg-yellow hover:bg-yellow-light text-dark font-bold py-3 px-4 rounded-xl transition text-sm hover:-translate-y-px"
                 >
                   <Calendar className="w-4 h-4" />

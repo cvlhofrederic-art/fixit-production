@@ -3,15 +3,15 @@ import Link from 'next/link'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
 
 export const metadata: Metadata = {
-  title: 'Blog Vitfix — Conseils travaux et guides pratiques',
+  title: 'Blog Vitfix : Conseils travaux et guides pratiques',
   description: 'Conseils, guides et actualités sur les travaux et la rénovation par Vitfix. Choisir un artisan, devis, normes, aides financières.',
   openGraph: {
-    title: 'Blog Vitfix — Conseils travaux',
+    title: 'Blog Vitfix : Conseils travaux',
     description: 'Guides pratiques et actualités pour votre habitat.',
     siteName: 'VITFIX',
     locale: 'fr_FR',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }],
   },
   alternates: {
     canonical: 'https://vitfix.io/fr/blog/',
@@ -24,7 +24,7 @@ const jsonLd = {
   '@graph': [
     {
       '@type': 'CollectionPage',
-      name: 'Blog Vitfix — Conseils travaux et guides pratiques',
+      name: 'Blog Vitfix : Conseils travaux et guides pratiques',
       description: 'Guides pratiques et actualités pour votre habitat.',
       url: 'https://vitfix.io/fr/blog/',
       inLanguage: 'fr-FR',

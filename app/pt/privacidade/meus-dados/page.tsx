@@ -37,7 +37,7 @@ export default function MeusDadosPage() {
         id: u.id,
         email: u.email,
         created_at: u.created_at,
-        role: u.user_metadata?.role || 'particulier',
+        role: u.app_metadata?.role || 'particulier',
         full_name: u.user_metadata?.full_name || '',
       })
       setLoading(false)
@@ -195,7 +195,7 @@ export default function MeusDadosPage() {
             {t('rgpd.exportTitle', 'Exporter mes données')}
           </h2>
           <p className="text-sm text-gray-500 mb-4">
-            {t('rgpd.exportDesc', 'Téléchargez toutes vos données personnelles au format JSON (RGPD Art. 20 — Droit à la portabilité).')}
+            {t('rgpd.exportDesc', 'Téléchargez toutes vos données personnelles au format JSON (RGPD Art. 20, Droit à la portabilité).')}
           </p>
           <button
             onClick={handleExport}

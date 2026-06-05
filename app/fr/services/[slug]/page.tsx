@@ -1,8 +1,12 @@
 import type { Metadata } from 'next'
+import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllFrPageCombos, getFrPageCombo, FR_SERVICES } from '@/lib/data/fr-seo-pages-data'
 import ArtisansCatalogueSection from '@/components/ArtisansCatalogueSection'
+import LocalPricingSection from '@/components/seo/LocalPricingSection'
+import ProblemsGrid from '@/components/seo/ProblemsGrid'
+import { getLocalPricesForService, buildPriceSpecificationsSchema } from '@/lib/seo/service-prices'
 import { PHONE_FR } from '@/lib/constants'
 
 // ── Generate all 32 static pages (4 services × 8 cities) ──
@@ -28,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'fr_FR',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'fr' }),
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: {
@@ -56,12 +60,17 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
   const waText = encodeURIComponent(`Bonjour VITFIX, j'ai besoin d'un ${service.name.toLowerCase()} à ${city.name}. Pouvez-vous m'aider ?`)
   const waUrgText = encodeURIComponent(`URGENCE ! J'ai besoin d'un ${service.name.toLowerCase()} immédiatement à ${city.name}. Pouvez-vous intervenir ?`)
 
+  // Données prix propriétaires 2026 (CAPEB/INSEE/FFB) ajustées zone PACA.
+  // Vide pour les services sans données dans prix-travaux-2026 (serrurier,
+  // vitrier, etc.) - la section ne s'affiche pas dans ce cas.
+  const localPrices = getLocalPricesForService(service.slug)
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'HomeAndConstructionBusiness',
-        name: `VITFIX — ${service.name} à ${city.name}`,
+        name: `VITFIX : ${service.name} à ${city.name}`,
         description: service.metaDesc.replace('{city}', city.name),
         url: `https://vitfix.io/fr/services/${slug}/`,
         areaServed: {
@@ -71,8 +80,8 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
         },
         serviceType: service.name,
         priceRange: '€€',
-        image: 'https://vitfix.io/og-image.png',
-        logo: 'https://vitfix.io/og-image.png',
+        image: 'https://vitfix.io/api/og/?locale=fr',
+        logo: 'https://vitfix.io/api/og/?locale=fr',
         telephone: PHONE_FR,
         inLanguage: 'fr-FR',
         address: {
@@ -93,13 +102,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
           opens: '07:00',
           closes: '22:00',
         },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: '12000',
-          bestRating: '5',
-          worstRating: '1',
-        },
+        // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
         availableLanguage: ['fr', 'en', 'pt'],
       },
       {
@@ -118,6 +121,16 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
           acceptedAnswer: { '@type': 'Answer', text: faq.answer.replace(/{city}/g, city.name) },
         })),
       },
+      // OfferCatalog : expose les fourchettes de prix propriétaires aux
+      // moteurs IA et SERP. Sources et coefficient PACA dans
+      // lib/seo/service-prices.ts. Vide si pas de données prix-travaux-2026.
+      ...(localPrices.length > 0
+        ? [{
+          '@type': 'OfferCatalog',
+          name: `Tarifs ${service.name} à ${city.name} : 2026`,
+          itemListElement: buildPriceSpecificationsSchema(localPrices),
+        }]
+        : []),
     ],
   }
 
@@ -205,24 +218,12 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
       </section>
 
       {/* ── PROBLEMS WE SOLVE ── */}
-      <section className="py-14 md:py-18 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Problèmes résolus à {city.name}
-          </h2>
-          <p className="text-text-muted mb-8 max-w-2xl">
-            Nos artisans règlent les problèmes les plus courants de {service.name.toLowerCase()} dans la région.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {service.problemsWeSolve.map((problem, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 hover:border-yellow/30 transition-colors">
-                <span className="flex-shrink-0 text-yellow text-lg mt-0.5">{service.icon}</span>
-                <span className="text-[0.93rem] text-dark">{problem}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ProblemsGrid
+        title={`Problèmes résolus à ${city.name}`}
+        intro={`Nos artisans règlent les problèmes les plus courants de ${service.name.toLowerCase()} dans la région.`}
+        problems={service.problemsWeSolve}
+        serviceIcon={service.icon}
+      />
 
       {/* ── URGENCY CTA ── */}
       <section className="py-12 md:py-16">
@@ -234,7 +235,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">⚠️</span>
-                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgence 24h — {city.name}</span>
+                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgence 24h, {city.name}</span>
                 </div>
                 <h3 className="font-display text-xl md:text-2xl font-bold text-white mb-2">
                   Besoin d&apos;un {service.name.toLowerCase()} maintenant ?
@@ -249,7 +250,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
                   className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3.5 text-[0.95rem] hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_24px_rgba(37,211,102,0.4)] whitespace-nowrap"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  WhatsApp — Réponse rapide
+                  WhatsApp, Réponse rapide
                 </a>
                 <a
                   href={`tel:${PHONE_FR}`}
@@ -268,7 +269,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Zone d&apos;intervention — {city.name}
+            Zone d&apos;intervention, {city.name}
           </h2>
           <p className="text-text-muted mb-6">
             Nos {service.name.toLowerCase()}s interviennent à {city.name} ({city.population.toLocaleString('fr-FR')} habitants) et dans tous les quartiers :
@@ -339,7 +340,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
             <div className="text-4xl flex-shrink-0">🧮</div>
             <div className="flex-1 text-center sm:text-left">
               <p className="font-display font-extrabold text-dark text-lg mb-1">Combien va coûter votre {service.name.toLowerCase()} à {city.name} ?</p>
-              <p className="text-sm text-text-muted">Estimez le tarif en 2 minutes avec notre simulateur de devis 2025 — tarifs PACA actualisés.</p>
+              <p className="text-sm text-text-muted">Estimez le tarif en 2 minutes avec notre simulateur de devis 2025, tarifs PACA actualisés.</p>
             </div>
             <Link
               href="/fr/simulateur-devis"
@@ -351,11 +352,14 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
         </div>
       </section>
 
+      {/* ── PRIX INDICATIFS LOCAUX (sources Tier 1) ── */}
+      <LocalPricingSection prices={localPrices} cityName={city.name} serviceName={service.name} />
+
       {/* ── FAQ ── */}
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Questions fréquentes — {service.name} à {city.name}
+            Questions fréquentes, {service.name} à {city.name}
           </h2>
           <p className="text-text-muted mb-8">
             Réponses aux questions les plus posées sur nos services de {service.name.toLowerCase()}.
@@ -392,7 +396,7 @@ export default async function FrServiceCityPage({ params }: { params: Promise<{ 
             className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-8 py-4 text-base hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(37,211,102,0.3)]"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-            Demander un devis gratuit — WhatsApp
+            Demander un devis gratuit, WhatsApp
           </a>
         </div>
       </section>

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { parseServiceRange } from '@/lib/service-utils'
+import { parseServiceCost, parseServiceRange, parseServiceScope, type ServiceScope } from '@/lib/service-utils'
 import type { Service } from '@/lib/types'
 
 interface MotifForm {
@@ -14,11 +15,16 @@ interface MotifForm {
   pricing_unit: string
   validation_auto: boolean
   delai_minimum_heures: number
+  scope: ServiceScope // 'mo' = main d'œuvre (public) / 'mat' = matériau (interne)
+  cost_ht: number | '' // matériaux : coût d'achat HT
+  margin_pct: number | '' // matériaux : marge en %
 }
 
 const EMPTY_MOTIF_FORM: MotifForm = {
   name: '', description: '', duration_minutes: '', price_min: '', price_max: '',
   pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0,
+  scope: 'mo',
+  cost_ht: '', margin_pct: 50,
 }
 
 export function useServices(artisanId: string | undefined, t: (key: string) => string) {
@@ -28,9 +34,9 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
   const [motifForm, setMotifForm] = useState<MotifForm>(EMPTY_MOTIF_FORM)
   const [savingMotif, setSavingMotif] = useState(false)
 
-  const openNewMotif = useCallback(() => {
+  const openNewMotif = useCallback((scope: ServiceScope = 'mo') => {
     setEditingMotif(null)
-    setMotifForm(EMPTY_MOTIF_FORM)
+    setMotifForm({ ...EMPTY_MOTIF_FORM, scope })
     setShowMotifModal(true)
   }, [])
 
@@ -39,7 +45,10 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
     const cleanDesc = (service.description || '')
       .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
       .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+      .replace(/\s*\[scope:(mo|mat|frais)\]\s*/g, '')
+      .replace(/\s*\[cost:[\d.]+\|margin:[\d.]+\]\s*/g, '')
       .trim()
+    const costInfo = parseServiceCost(service)
     setEditingMotif(service)
     setMotifForm({
       name: service.name || '',
@@ -50,42 +59,86 @@ export function useServices(artisanId: string | undefined, t: (key: string) => s
       pricing_unit: unit,
       validation_auto: service.validation_auto || false,
       delai_minimum_heures: service.delai_minimum_heures || 0,
+      scope: parseServiceScope(service),
+      cost_ht: costInfo?.cost ?? '',
+      margin_pct: costInfo?.margin ?? 50,
     })
     setShowMotifModal(true)
   }, [])
 
-  const saveMotif = useCallback(async () => {
-    if (!artisanId || !motifForm.name) return
+  const saveMotif = useCallback(async (): Promise<Service | null> => {
+    if (!motifForm.name?.trim()) {
+      toast.error('Le nom est obligatoire')
+      return null
+    }
+    if (!artisanId) {
+      toast.error('Profil artisan introuvable, rechargez la page')
+      return null
+    }
     setSavingMotif(true)
 
-    const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
-    const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
-    const durationMins = motifForm.duration_minutes === '' ? null : Number(motifForm.duration_minutes)
-    const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
-    const description = `${motifForm.description || ''} ${rangeTag}`.trim()
+    try {
+      const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
+      const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
+      const durationMins = motifForm.duration_minutes === '' ? 60 : Number(motifForm.duration_minutes)
+      const scope: ServiceScope = motifForm.scope === 'mat' ? 'mat' : motifForm.scope === 'frais' ? 'frais' : 'mo'
+      const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
+      const scopeTag = `[scope:${scope}]`
+      const costTag = scope === 'mat' && motifForm.cost_ht !== '' && motifForm.cost_ht !== null
+        ? ` [cost:${Number(motifForm.cost_ht)}|margin:${Number(motifForm.margin_pct === '' ? 0 : motifForm.margin_pct)}]`
+        : ''
+      const description = `${motifForm.description || ''} ${rangeTag} ${scopeTag}${costTag}`.trim()
 
-    const payload = {
-      artisan_id: artisanId,
-      name: motifForm.name,
-      description,
-      duration_minutes: durationMins,
-      price_ht: priceMin,
-      price_ttc: priceMax,
-      active: true,
-      validation_auto: motifForm.validation_auto,
-      delai_minimum_heures: motifForm.delai_minimum_heures,
+      // Les matériaux (scope='mat') sont persistés en DB mais `active=false` pour qu'ils
+      // ne soient JAMAIS exposés via la policy services_public_read (active=true). L'artisan
+      // les voit via services_owner_read. Idem logique BTP pro mais sans localStorage éphémère.
+      const payload = {
+        artisan_id: artisanId,
+        name: motifForm.name.trim(),
+        description,
+        duration_minutes: durationMins,
+        price_ht: priceMin,
+        price_ttc: priceMax,
+        active: scope === 'mo',
+        validation_auto: motifForm.validation_auto,
+        delai_minimum_heures: motifForm.delai_minimum_heures,
+      }
+
+      const label = scope === 'mat' ? 'Matériau' : scope === 'frais' ? 'Frais divers' : 'Prestation'
+      const fem = scope === 'mo' // seul "Prestation" est féminin
+      if (editingMotif) {
+        const { data, error } = await supabase.from('services').update(payload).eq('id', editingMotif.id).select().single()
+        if (error) throw error
+        if (data) {
+          setServices(prev => prev.map(s => s.id === editingMotif.id ? data : s))
+          toast.success(`${label} modifié${fem ? 'e' : ''}`)
+          setShowMotifModal(false)
+          return data as Service
+        }
+        throw new Error('Aucune donnée retournée')
+      } else {
+        const { data, error } = await supabase.from('services').insert(payload).select().single()
+        if (error) throw error
+        if (data) {
+          setServices(prev => [...prev, data])
+          toast.success(`${label} créé${fem ? 'e' : ''}`)
+          setShowMotifModal(false)
+          return data as Service
+        }
+        throw new Error('Aucune donnée retournée')
+      }
+    } catch (err: unknown) {
+      // Supabase PostgrestError n'est pas un Error standard mais expose message/code/details/hint
+      const e = err as { message?: string; code?: string; details?: string; hint?: string } | null
+      const parts = [e?.message, e?.details, e?.hint, e?.code].filter(Boolean)
+      const msg = parts.length > 0 ? parts.join(' — ') : 'Erreur inconnue'
+      // eslint-disable-next-line no-console
+      console.error('[saveMotif] erreur sauvegarde service:', err)
+      toast.error(`Échec de la sauvegarde : ${msg}`)
+      return null
+    } finally {
+      setSavingMotif(false)
     }
-
-    if (editingMotif) {
-      const { data } = await supabase.from('services').update(payload).eq('id', editingMotif.id).select().single()
-      if (data) setServices(prev => prev.map(s => s.id === editingMotif.id ? data : s))
-    } else {
-      const { data } = await supabase.from('services').insert(payload).select().single()
-      if (data) setServices(prev => [...prev, data])
-    }
-
-    setShowMotifModal(false)
-    setSavingMotif(false)
   }, [artisanId, motifForm, editingMotif])
 
   const toggleMotifActive = useCallback(async (serviceId: string, currentActive: boolean) => {

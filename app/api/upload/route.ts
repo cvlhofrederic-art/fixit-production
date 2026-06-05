@@ -31,7 +31,13 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const bucket = (formData.get('bucket') as string) || 'artisan-documents'
+    const bucketRaw = (formData.get('bucket') as string) || 'artisan-documents'
+    // F11: whitelist allowed storage buckets to prevent unauthorized bucket access
+    const ALLOWED_BUCKETS = ['artisan-documents', 'profile-photos', 'artisan-photos']
+    if (!ALLOWED_BUCKETS.includes(bucketRaw)) {
+      return NextResponse.json({ error: 'Bucket non autorisé' }, { status: 400 })
+    }
+    const bucket = bucketRaw
     const folder = (formData.get('folder') as string) || 'misc'
     const artisanId = formData.get('artisan_id') as string | null
     const field = formData.get('field') as string | null

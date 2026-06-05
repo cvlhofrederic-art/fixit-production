@@ -1,13 +1,12 @@
 # ── Post-Deploy Smoke Test ────────────────────────────────────────────────────
 # Vérifie que la production répond correctement après chaque deploy sur main.
-# Se déclenche après le workflow CI (build réussi = Vercel deploy).
-# NOTE: utilise PROD_URL (vitfix.io par défaut, fallback fixit-production.vercel.app)
+# Se déclenche après le workflow "Deploy to Cloudflare Workers" (pipeline prod).
 
 name: "Post-Deploy — Smoke Test"
 
 on:
   workflow_run:
-    workflows: ["CI — Build"]
+    workflows: ["Deploy to Cloudflare Workers"]
     types: [completed]
     branches: [main]
 
@@ -15,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  PROD_URL: https://fixit-production.vercel.app
+  PROD_URL: https://vitfix.io
 
 jobs:
   smoke-test:
@@ -25,8 +24,8 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Attendre le deploy Vercel (propagation)
-        run: sleep 60
+      - name: Attendre la propagation Cloudflare
+        run: sleep 30
 
       - name: Vérifier /api/health
         run: |
@@ -56,6 +55,39 @@ jobs:
             exit 1
           fi
 
+      - name: Ping IndexNow (Bing / Yandex / Naver / Seznam)
+        if: success()
+        # IndexNow accélère l'indexation des changements sur Bing / Yandex.
+        # Pour Google, c'est la fetch du sitemap qui fait foi (Google ignore IndexNow).
+        # Clé publique exposée à https://vitfix.io/{key}.txt — voir lib/seo/indexnow.ts.
+        # Ne fait jamais échouer le job (continue-on-error) : SEO best-effort.
+        continue-on-error: true
+        run: |
+          KEY="f35626783ac34c45b8aed85303d1f5a8"
+          HOST="vitfix.io"
+          # On soumet uniquement les hubs principaux (homepage + entrées sitemap).
+          # Les sub-sitemaps ne sont pas eux-mêmes des URLs indexables.
+          URLS='[
+            "https://vitfix.io/",
+            "https://vitfix.io/fr/",
+            "https://vitfix.io/pt/",
+            "https://vitfix.io/en/",
+            "https://vitfix.io/sitemap.xml"
+          ]'
+          PAYLOAD=$(jq -n \
+            --arg host "$HOST" \
+            --arg key "$KEY" \
+            --arg keyLocation "https://${HOST}/${KEY}.txt" \
+            --argjson urls "$URLS" \
+            '{host: $host, key: $key, keyLocation: $keyLocation, urlList: $urls}')
+          HTTP_STATUS=$(curl -sL -o /tmp/indexnow.txt -w "%{http_code}" \
+            -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$PAYLOAD")
+          echo "IndexNow status: $HTTP_STATUS"
+          cat /tmp/indexnow.txt || true
+          # 200 / 202 = OK, 422 = quota, 4xx = erreur clé. On log mais on échoue pas.
+
       - name: Résumé
         if: success()
         run: echo "✓ Production smoke test passed — all endpoints healthy"
@@ -63,5 +95,5 @@ jobs:
       - name: Alerte échec
         if: failure()
         run: |
-          echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://fixit-production.vercel.app immédiatement"
-          echo "Rollback: Vercel Dashboard > Deployments > Promote previous"
+          echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://vitfix.io immédiatement"
+          echo "Rollback: wrangler rollback ou redéployer le commit précédent via le workflow 'Deploy to Cloudflare Workers'"

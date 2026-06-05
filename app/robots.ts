@@ -23,20 +23,32 @@ export default function robots(): MetadataRoute.Robots {
 
   return {
     rules: [
-      // Default — allow everything public
+      // Default - allow everything public
       {
         userAgent: '*',
         allow: '/',
         disallow: privateDisallow,
       },
-      // AI Crawlers — explicit allow for GEO (Generative Engine Optimization)
+      // AI Crawlers - explicit allow for GEO (Generative Engine Optimization)
       { userAgent: 'GPTBot', allow: '/', disallow: privateDisallow },
       { userAgent: 'ChatGPT-User', allow: '/', disallow: privateDisallow },
+      { userAgent: 'OAI-SearchBot', allow: '/', disallow: privateDisallow },
       { userAgent: 'ClaudeBot', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Claude-Web', allow: '/', disallow: privateDisallow },
       { userAgent: 'anthropic-ai', allow: '/', disallow: privateDisallow },
       { userAgent: 'PerplexityBot', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Perplexity-User', allow: '/', disallow: privateDisallow },
       { userAgent: 'GoogleOther', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Google-Extended', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Applebot', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Applebot-Extended', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Bytespider', allow: '/', disallow: privateDisallow },
       { userAgent: 'cohere-ai', allow: '/', disallow: privateDisallow },
+      { userAgent: 'cohere-training-data-crawler', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Meta-ExternalAgent', allow: '/', disallow: privateDisallow },
+      { userAgent: 'meta-externalagent', allow: '/', disallow: privateDisallow },
+      { userAgent: 'MistralAI-User', allow: '/', disallow: privateDisallow },
+      { userAgent: 'Diffbot', allow: '/', disallow: privateDisallow },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
   }

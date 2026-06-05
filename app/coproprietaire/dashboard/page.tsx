@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
+import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import {
   PROFILE_DEMO, CHARGES_DEMO, PAIEMENTS_DEMO, DOCUMENTS_DEMO, ANNONCES_DEMO,
   AG_DEMO, ECHEANCES_DEMO, NOTIFICATIONS_DEMO, HISTORIQUE_DEMO, PARAMS_DEMO,
@@ -15,8 +15,9 @@ import {
 } from '@/lib/copro-demo-data'
 
 // ─── Dynamic imports for extracted page sections ─────────────────────────────
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" /></div> }) as React.ComponentType<any>
-
+// Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
+// so a single crash (chunk loading failure on edge, runtime exception, etc.) shows
+// an in-place fallback with retry instead of destroying the shell.
 const CoproAccueilSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproAccueilSection'))
 const CoproDocumentsSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproDocumentsSection'))
 const CoproPaiementsSection = d(() => import('@/components/coproprietaire-dashboard/pages/CoproPaiementsSection'))
@@ -1003,7 +1004,7 @@ export default function CoproprietaireDashboard() {
 
   const userName = `${profile.prenom} ${profile.nom}`
   const initials = `${profile.prenom[0]}${profile.nom[0]}`
-  const isAdminOverride = user?.user_metadata?._admin_override === true
+  const isAdminOverride = user?.app_metadata?.role === 'super_admin'
 
   // ── Actions ──
   const handleLogout = async () => {
@@ -1255,23 +1256,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
   return (
     <div id="copro-dashboard" className="flex h-screen bg-[#F7F4EE] overflow-hidden">
 
-      {/* ── BOUTON RETOUR ADMIN ── */}
-      {isAdminOverride && (
-        <div className="fixed top-3 right-3 z-[9999]">
-          <button
-            onClick={async () => {
-              setAdminLoading(true)
-              await supabase.auth.updateUser({ data: { ...user?.user_metadata, role: 'super_admin', _admin_override: false } })
-              await supabase.auth.refreshSession()
-              window.location.href = '/admin/dashboard'
-            }}
-            disabled={adminLoading}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-[#0D1B2E] font-bold text-xs px-4 py-2 rounded-full shadow-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {adminLoading ? '...' : t.retourAdmin}
-          </button>
-        </div>
-      )}
+      {/* Bouton Retour Admin retiré : privilege escalation via user_metadata. */}
 
       {/* ── MOBILE BACKDROP ── */}
       {sidebarOpen && (

@@ -37,7 +37,7 @@ export default function MyDataPage() {
         id: u.id,
         email: u.email,
         created_at: u.created_at,
-        role: u.user_metadata?.role || 'particulier',
+        role: u.app_metadata?.role || 'particulier',
         full_name: u.user_metadata?.full_name || '',
       })
       setLoading(false)

@@ -29,6 +29,10 @@ interface RentaData {
   total_materiaux: number; total_autres: number; total_depenses: number
   cout_total: number; ca_reel: number; benefice_net: number
   benefice_par_homme_jour: number; perte_par_jour_retard: number
+  // Factures/devis liés (depuis v_rentabilite_chantier)
+  montant_facture_ht_lie?: number; montant_devis_ht_lie?: number
+  nb_factures_liees?: number; nb_devis_lies?: number
+  total_frais_annexes_factures?: number; total_frais_annexes_devis?: number
   detail_ouvriers: WorkerDetail[]
 }
 

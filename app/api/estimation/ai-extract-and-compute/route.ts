@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { getAuthUser, unauthorizedResponse } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import {
   estimateProject,
@@ -50,6 +51,10 @@ const BodySchema = z.object({
  * Pipeline complet : description libre → extraction IA (Groq) → calcul → résultat.
  */
 export async function POST(request: NextRequest) {
+  // Auth check: user must be authenticated
+  const user = await getAuthUser(request)
+  if (!user) return unauthorizedResponse()
+
   const ip = getClientIP(request)
   // Plus strict que /compute car un appel déclenche un appel LLM
   if (!(await checkRateLimit(`estim_ai_${ip}`, 10, 60_000))) return rateLimitResponse()

@@ -38,8 +38,8 @@ async function authHeaders(): Promise<Record<string, string>> {
 // Invalider le cache quand la session change (login/logout)
 supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
-type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes'
-type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes'
+type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes' | 'rapports_btp'
+type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes' | 'rapports'
 
 const TABLE_MAP: Record<ShortName, TableName> = {
   chantiers: 'chantiers_btp',
@@ -53,6 +53,7 @@ const TABLE_MAP: Record<ShortName, TableName> = {
   dce_analyses: 'dce_analyses_btp',
   dpgf: 'dpgf_btp',
   charges_fixes: 'charges_fixes',
+  rapports: 'rapports_btp',
 }
 
 // localStorage keys to check for import
@@ -68,13 +69,14 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
   dce_analyses: (id) => `dce_analyses_${id}`,
   dpgf: (id) => `dpgf_${id}`,
   charges_fixes: (id) => `charges_fixes_${id}`,
+  rapports: (id) => `fixit_rapports_${id}`,
 }
 
 // Map localStorage fields → Supabase columns
 function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
-    case 'chantiers':
-      return {
+    case 'chantiers': {
+      const mapped: Record<string, unknown> = {
         titre: item.titre || '',
         client: item.client || null,
         adresse: item.adresse || null,
@@ -89,6 +91,11 @@ function mapToSupabase(table: ShortName, item: any): any {
         description: item.description || null,
         equipe: item.equipe || null,
       }
+      // sous_taches is a partial-update field — only include when explicitly provided
+      if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
+      else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      return mapped
+    }
     case 'membres':
       return {
         prenom: item.prenom || '',
@@ -139,6 +146,7 @@ function mapToSupabase(table: ShortName, item: any): any {
       }
     case 'situations':
       return {
+        chantier_id: item.chantier_id || null,
         chantier: item.chantier || '',
         client: item.client || '',
         numero: item.numero || 1,
@@ -149,6 +157,7 @@ function mapToSupabase(table: ShortName, item: any): any {
       }
     case 'retenues':
       return {
+        chantier_id: item.chantier_id || null,
         chantier: item.chantier || '',
         client: item.client || '',
         montant_marche: item.montantMarche ?? item.montant_marche ?? 0,
@@ -161,6 +170,7 @@ function mapToSupabase(table: ShortName, item: any): any {
       }
     case 'dc4':
       return {
+        chantier_id: item.chantier_id || null,
         entreprise: item.entreprise || '',
         siret: item.siret || '',
         responsable: item.responsable || '',
@@ -192,6 +202,19 @@ function mapToSupabase(table: ShortName, item: any): any {
         statut: item.statut || 'en_cours',
         lots: JSON.stringify(item.lots || []),
       }
+    case 'rapports':
+      return {
+        titre: item.rapportNumber || item.titre || '',
+        date: item.interventionDate || item.date || new Date().toISOString().split('T')[0],
+        chantier_id: item.chantier_id || null,
+        contenu: (() => {
+          // Store the full RapportIntervention payload as JSONB (minus fields promoted to columns)
+          const { id: _id, created_at: _ca, owner_id: _oid, chantier_id: _cid, titre: _t, date: _d, photos: _ph, status: _st, ...rest } = item
+          return rest
+        })(),
+        photos: item.linkedPhotoIds || item.photos || [],
+        status: item.status || item.statut || 'brouillon',
+      }
     default:
       return item
   }
@@ -218,6 +241,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
         geoRayonM: item.geo_rayon_m || 100,
         latitude: item.latitude,
         longitude: item.longitude,
+        sousTaches: Array.isArray(item.sous_taches) ? item.sous_taches : [],
       }
     case 'membres':
       return {
@@ -282,6 +306,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
     case 'situations':
       return {
         ...item,
+        chantier_id: item.chantier_id || '',
         chantier: item.chantier,
         client: item.client || '',
         numero: item.numero,
@@ -293,6 +318,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
     case 'retenues':
       return {
         ...item,
+        chantier_id: item.chantier_id || '',
         chantier: item.chantier,
         client: item.client || '',
         montantMarche: item.montant_marche || 0,
@@ -306,6 +332,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
     case 'dc4':
       return {
         ...item,
+        chantier_id: item.chantier_id || '',
         entreprise: item.entreprise,
         siret: item.siret || '',
         responsable: item.responsable || '',
@@ -340,6 +367,20 @@ function mapFromSupabase(table: ShortName, item: any): any {
         statut: item.statut,
         lots: safeJsonParse(item.lots, []),
       }
+    case 'rapports': {
+      // Reconstruct the full RapportIntervention shape from JSONB contenu + promoted columns
+      const contenu = safeJsonParse(item.contenu, {})
+      return {
+        ...contenu,
+        id: item.id,
+        created_at: item.created_at,
+        chantier_id: item.chantier_id || null,
+        rapportNumber: item.titre || contenu.rapportNumber || '',
+        interventionDate: item.date || contenu.interventionDate || '',
+        linkedPhotoIds: Array.isArray(item.photos) ? item.photos : safeJsonParse(item.photos, []),
+        status: item.status || contenu.status || 'brouillon',
+      }
+    }
     default:
       return item
   }
@@ -556,7 +597,7 @@ export interface BTPSettings {
   amortissements_mensuels: number
 }
 
-const DEFAULT_SETTINGS: BTPSettings = {
+const DEFAULT_SETTINGS_FR: BTPSettings = {
   country: 'FR',
   company_type: 'sarl',
   depot_rayon_m: 100,
@@ -577,13 +618,42 @@ const DEFAULT_SETTINGS: BTPSettings = {
   amortissements_mensuels: 0,
 }
 
+const DEFAULT_SETTINGS_PT: BTPSettings = {
+  country: 'PT',
+  company_type: 'lda',
+  depot_rayon_m: 100,
+  cout_horaire_ouvrier: 10,
+  cout_horaire_chef_chantier: 16,
+  cout_horaire_conducteur: 22,
+  charges_patronales_pct: 24,
+  geo_pointage_enabled: false,
+  devise: 'EUR',
+  salaire_patron_mensuel: 0,
+  salaire_patron_type: 'net',
+  taux_cotisations_patron: 24,
+  statut_juridique: 'lda',
+  regime_tva: 'reel_normal',
+  taux_is: 21,
+  frais_fixes_mensuels: [],
+  objectif_marge_pct: 20,
+  amortissements_mensuels: 0,
+}
+
+function getDefaultSettings(): BTPSettings {
+  if (typeof document !== 'undefined') {
+    const locale = document.cookie.match(/(?:^|;\s*)locale=([^;]*)/)?.[1]
+    if (locale === 'pt') return DEFAULT_SETTINGS_PT
+  }
+  return DEFAULT_SETTINGS_FR
+}
+
 // Settings cache
 let _settingsCache: { data: BTPSettings; at: number } | null = null
 const SETTINGS_CACHE_TTL = 300_000 // 5 min
 
 export function useBTPSettings() {
   const hasFresh = _settingsCache && (Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL)
-  const [settings, setSettings] = useState<BTPSettings>(hasFresh ? _settingsCache!.data : DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<BTPSettings>(hasFresh ? _settingsCache!.data : getDefaultSettings())
   const [loading, setLoading] = useState(!hasFresh)
 
   const refresh = useCallback(async () => {
@@ -592,7 +662,21 @@ export function useBTPSettings() {
       if (!res.ok) throw new Error()
       const json = await res.json()
       if (json.settings) {
-        const merged = { ...DEFAULT_SETTINGS, ...json.settings }
+        const defaults = getDefaultSettings()
+        const merged = { ...defaults, ...json.settings }
+        // Si le locale est PT mais les settings indiquent FR, corriger automatiquement
+        if (typeof document !== 'undefined') {
+          const locale = document.cookie.match(/(?:^|;\s*)locale=([^;]*)/)?.[1]
+          if (locale === 'pt' && merged.country === 'FR') {
+            merged.country = 'PT'
+            merged.company_type = merged.company_type === 'sarl' ? 'lda' : merged.company_type
+            merged.statut_juridique = merged.statut_juridique === 'sarl' ? 'lda' : merged.statut_juridique
+            const ptConfig = resolveCompanyType(merged.company_type, 'PT')
+            merged.charges_patronales_pct = Math.round(ptConfig.employer_charge_rate * 100)
+            merged.taux_cotisations_patron = Math.round(ptConfig.boss_charge_rate * 100)
+            merged.taux_is = Math.round(ptConfig.default_taux_is * 100)
+          }
+        }
         setSettings(merged)
         _settingsCache = { data: merged, at: Date.now() }
       } else {

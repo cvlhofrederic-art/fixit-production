@@ -1,7 +1,7 @@
 import { randomHex } from '@/lib/crypto-compat'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { sendEmail, templateTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
   // Seuls les admins peuvent inviter
-  const role = user.user_metadata?.role || ''
+  const role = getUserRole(user)
   if (role !== 'syndic' && role !== 'syndic_admin') {
     return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
   }
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
   const { email, full_name, memberRole, customModules } = validation.data
 
-  const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
+  const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_technicien', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
   if (!validRoles.includes(memberRole)) {
     return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
   }
@@ -116,7 +116,8 @@ export async function POST(request: NextRequest) {
   const cabinetName = user.user_metadata?.cabinet_name || user.user_metadata?.full_name || 'Cabinet'
   const roleLabels: Record<string, string> = {
     syndic_admin: 'Administrateur',
-    syndic_tech: 'Technicien',
+    syndic_tech: 'Gestionnaire Technique',
+    syndic_technicien: 'Technicien',
     syndic_secretaire: 'Secrétaire',
     syndic_gestionnaire: 'Gestionnaire',
     syndic_comptable: 'Comptable',
@@ -124,11 +125,13 @@ export async function POST(request: NextRequest) {
   }
   const roleName = roleLabels[memberRole] || memberRole
 
+  const inviterLocale = user.user_metadata?.locale === 'pt' ? 'pt' : 'fr'
   const emailTemplate = templateTeamInvite({
     memberName: full_name,
     roleName,
     cabinetName,
     inviteUrl,
+    locale: inviterLocale,
   })
 
   let emailSent = false
@@ -167,7 +170,7 @@ export async function PATCH(request: NextRequest) {
   if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
-  const userRole = user.user_metadata?.role || ''
+  const userRole = getUserRole(user)
   if (userRole !== 'syndic' && userRole !== 'syndic_admin') {
     return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
   }
@@ -198,7 +201,7 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {}
   if (role !== undefined) {
-    const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
+    const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_technicien', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
     if (!validRoles.includes(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
     updates.role = role
   }
@@ -219,14 +222,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
   }
 
-  // Si rôle modifié et membre a un compte, mettre à jour son user_metadata
+  // Si rôle modifié et membre a un compte, écrire dans app_metadata (server-only)
   if (role && existing.user_id) {
     try {
+      const { data: target } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
       await supabaseAdmin.auth.admin.updateUserById(existing.user_id, {
-        user_metadata: { role, cabinet_id: cabinetId },
+        app_metadata: { ...(target?.user?.app_metadata || {}), role, cabinet_id: cabinetId },
       })
     } catch (e) {
-      logger.error('[TEAM] Failed to update user_metadata:', e)
+      logger.error('[TEAM] Failed to update app_metadata:', e)
     }
   }
 
@@ -240,7 +244,7 @@ export async function DELETE(request: NextRequest) {
   if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
-  const userRole = user.user_metadata?.role || ''
+  const userRole = getUserRole(user)
   if (userRole !== 'syndic' && userRole !== 'syndic_admin') {
     return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
   }

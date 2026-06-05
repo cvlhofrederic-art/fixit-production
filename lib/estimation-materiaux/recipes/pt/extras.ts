@@ -2,9 +2,9 @@ import type { Recipe } from '../../types'
 import { ptRefs } from '../../data/pt/standards'
 
 /**
- * EXTRAS PT — recetas complementares (Lot F).
+ * EXTRAS PT — receitas complementares (Lote F).
  *
- * 1 recette extra pour compléter le set de 20 :
+ * 1 receita extra para completar o conjunto de 20 :
  *  1. Canalização sanitária PEX básica (m²  habitação)
  */
 

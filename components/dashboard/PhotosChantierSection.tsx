@@ -31,17 +31,49 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load rapports from localStorage for linking
+  // Load rapports: localStorage immediately, then merge with Supabase (Supabase wins)
   const [rapports, setRapports] = useState<RapportItem[]>([])
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
+    const lsKey = `fixit_rapports_${artisan.id}`
+    // Seed from localStorage immediately
     try {
-      const r = JSON.parse(localStorage.getItem(`fixit_rapports_${artisan.id}`) || '[]')
+      const r = JSON.parse(localStorage.getItem(lsKey) || '[]')
       setRapports(r)
     } catch { setRapports([]) }
+    // Fetch from Supabase and merge
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/btp?table=rapports', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const json = await res.json()
+        const fromSupabase: RapportItem[] = (json.rapports || []).map((r: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          const contenu = typeof r.contenu === 'object' && r.contenu !== null ? r.contenu : {}
+          return {
+            id: r.id,
+            titre: r.titre || contenu.titre || '',
+            rapportNumber: r.titre || contenu.rapportNumber || '',
+            clientName: contenu.clientName || '',
+            interventionDate: r.date || contenu.interventionDate || '',
+            linkedPhotoIds: Array.isArray(r.photos) ? r.photos : [],
+          } as RapportItem
+        })
+        if (fromSupabase.length > 0) {
+          setRapports(prev => {
+            const sbIds = new Set(fromSupabase.map(r => r.id))
+            const localOnly = prev.filter(r => !sbIds.has(r.id))
+            return [...fromSupabase, ...localOnly]
+          })
+        }
+      } catch { /* network error — localStorage data already shown */ }
+    })()
   }, [artisan?.id])
 
-  // Link photo to rapport (in localStorage)
+  // Link photo to rapport — localStorage + fire-and-forget Supabase
   const linkPhotoToRapport = (photoId: string, rapportId: string | null) => {
     if (!artisan?.id) return
     try {
@@ -61,6 +93,16 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       localStorage.setItem(storageKey, JSON.stringify(updated))
       setRapports(updated)
       setAssigningRapport(null)
+      // Fire-and-forget Supabase update for the affected rapport
+      if (rapportId && !rapportId.startsWith('rap_')) {
+        const target = updated.find((r: RapportItem) => r.id === rapportId)
+        if (target) {
+          supabase.from('rapports_btp')
+            .update({ photos: target.linkedPhotoIds || [] })
+            .eq('id', rapportId)
+            .then(() => {})
+        }
+      }
     } catch (e) {
       console.error('Error linking photo to rapport:', e)
     }
@@ -83,7 +125,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
       const json = await res.json()
       if (json.data) setPhotos(json.data)
-    } catch (e) { console.error('Error loading photos:', e); toast.error('Erreur lors du chargement des photos') }
+    } catch (e) { console.error('Error loading photos:', e); toast.error(t('proDash.photos.erreurChargementPhotos')) }
     finally { setLoading(false) }
   }
 
@@ -100,7 +142,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       })
       setAssigning(null)
       loadPhotos()
-    } catch (e) { console.error('Error assigning photo:', e); toast.error('Erreur lors de l\'attribution de la photo') }
+    } catch (e) { console.error('Error assigning photo:', e); toast.error(t('proDash.photos.erreurAttributionPhoto')) }
   }
 
   const deletePhoto = async (photoId: string) => {
@@ -113,7 +155,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         headers: { 'Authorization': `Bearer ${token}` },
       })
       loadPhotos()
-    } catch (e) { console.error('Error deleting photo:', e); toast.error('Erreur lors de la suppression') }
+    } catch (e) { console.error('Error deleting photo:', e); toast.error(t('proDash.photos.erreurSuppression')) }
   }
 
   const handleUploadPhotos = async (files: FileList | null) => {
@@ -122,11 +164,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      if (!token) { toast.error('Session expirée'); setUploading(false); return }
+      if (!token) { toast.error(t('proDash.photos.sessionExpiree')); setUploading(false); return }
       let successCount = 0
       for (const file of Array.from(files)) {
         // Validation MIME côté client
-        if (!file.type.startsWith('image/')) { toast.error(`${file.name} : type non supporté`); continue }
+        if (!file.type.startsWith('image/')) { toast.error(`${file.name} : ${t('proDash.photos.typeNonSupporte')}`); continue }
         const formData = new FormData()
         formData.append('file', file)
         formData.append('artisan_id', artisan.id)
@@ -140,15 +182,15 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         if (res.ok) successCount++
       }
       if (successCount > 0) {
-        toast.success(`${successCount} photo(s) ajoutee(s)`)
+        toast.success(`${successCount} ${t('proDash.photos.photosAjoutees')}`)
         loadPhotos()
       }
       if (successCount < files.length) {
-        toast.error(`${files.length - successCount} photo(s) en erreur`)
+        toast.error(`${files.length - successCount} ${t('proDash.photos.photosEnErreur')}`)
       }
     } catch (e) {
       console.error('Upload error:', e)
-      toast.error('Erreur lors de l\'upload')
+      toast.error(t('proDash.photos.erreurUpload'))
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -195,7 +237,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
               background: 'rgba(0,0,0,0.5)', borderRadius: '50%', width: 36, height: 36,
               display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer'
             }}
-          aria-label="Fermer la photo">✕</button>
+          aria-label={t('proDash.photos.fermerPhoto')}>✕</button>
         </div>
       )}
 
@@ -371,7 +413,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                           <button onClick={() => setAssigningRapport(photo.id)} className={"v5-btn v5-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
                             {'📋'} {t('proDash.photos.rapport')}
                           </button>
-                          <button onClick={() => deletePhoto(photo.id)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label="Supprimer la photo">
+                          <button onClick={() => deletePhoto(photo.id)} className={"v5-btn v5-btn-sm"} style={{ fontSize: 10, color: tv.red }} aria-label={t('proDash.photos.supprimerLaPhoto')}>
                             {'🗑️'}
                           </button>
                         </>

@@ -7,8 +7,12 @@ import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import {
+  CATEGORIES,
   getCategoryLabel,
 } from './views/shared'
+import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
+import { isSmallBusinessStatus } from '@/lib/devis-utils'
+import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 
 const BrowseTabView = dynamic(() => import('./views/BrowseTabView'), { ssr: false })
 const MyBidsTabView = dynamic(() => import('./views/MyBidsTabView'), { ssr: false })
@@ -64,13 +68,47 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [prefsLoaded, setPrefsLoaded] = useState(false)
 
   // Filters
+  const isArtisan = orgRole === 'artisan'
   const [filterCategory, setFilterCategory] = useState('')
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)
   const [filterRegion, setFilterRegion] = useState('paca')
   const [filterDepartments, setFilterDepartments] = useState<string[]>([])
-  const [filterMarcheType, setFilterMarcheType] = useState<'tous' | 'publics' | 'prives'>('tous')
+  // Type union large pour supporter les valeurs des deux dropdowns (artisan vs BTP Pro).
+  // Cf. components/marches/views/BrowseTabView.tsx → MarcheTypeFilter
+  type MarcheTypeFilter = 'tous' | 'publics' | 'prives' | 'sous_traitance' | 'client_direct'
+  const [filterMarcheType, setFilterMarcheType] = useState<MarcheTypeFilter>('tous')
   const [prefsSaved, setPrefsSaved] = useState(false)
   const artisanPays = isPt ? 'PT' : 'FR'
+
+  // ─── Détection auto-entrepreneur (franchise 293 B / Art. 53 CIVA) ───
+  // Conservé pour afficher le bandeau d'info AE expliquant le modèle d'opportunités.
+  // Le contrôle des dropdowns/scan est désormais gouverné par `isArtisan` (toute artisan,
+  // pas seulement AE, voit le dropdown Pro/Particulier et n'a pas de scan public).
+  const [isFranchise, setIsFranchise] = useState<boolean>(false)
+  useEffect(() => {
+    if (!isArtisan) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/btp?table=settings', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        const statut: string | undefined = data?.settings?.statut_juridique || data?.settings?.company_type
+        if (cancelled || !statut) return
+        const franchise = isSmallBusinessStatus(statut, locale as 'fr' | 'pt')
+        setIsFranchise(franchise)
+      } catch { /* keep default false */ }
+    })()
+    return () => { cancelled = true }
+  }, [isArtisan, locale])
+
+  // Migration soft : si user est artisan et qu'une vieille préférence pointe vers
+  // 'publics' ou 'prives' (issu du dropdown BTP), reset à 'tous'.
+  useEffect(() => {
+    if (isArtisan && (filterMarcheType === 'publics' || filterMarcheType === 'prives')) {
+      setFilterMarcheType('tous')
+    }
+  }, [isArtisan, filterMarcheType])
 
   // Restore region/dept prefs from localStorage on mount
   useEffect(() => {
@@ -132,6 +170,28 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [scanError, setScanError] = useState('')
   const [showScanResults, setShowScanResults] = useState(true)
 
+  // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
+  // ⚠️ Doit être déclaré AVANT fetchMarches pour éviter un TDZ dans le dep array de useCallback.
+  const artisanCoreMetiers = React.useMemo(() => {
+    if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
+    if (artisan?.categories?.length) return [...artisan.categories]
+    if (artisan?.specialite) return [artisan.specialite]
+    // Fallback NAF runtime : sociétés inscrites avant le commit 1f90923 (auto-fill NAF)
+    // n'ont pas categories renseignées → on les dérive depuis profiles_artisan.naf_code.
+    const nafCode = (artisan as unknown as { naf_code?: string })?.naf_code
+    if (nafCode) {
+      const derived = getDefaultCategoriesFromNaf(nafCode)
+      if (derived.length > 0) return derived
+    }
+    return []
+  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite, (artisan as unknown as { naf_code?: string })?.naf_code])
+
+  // Signature stable pour les hooks dépendants : évite la cascade de re-fetch quand
+  // setMarchesPrefs reçoit un nouvel objet (même contenu, nouvelle référence d'array).
+  // Sans ça, fetchMarches se régénère à chaque render → useEffect retrigger → fetch boucle
+  // → rate limit 429 sur /api/marches.
+  const artisanMetiersKey = artisanCoreMetiers.join(',')
+
   // Fetch marches
   const fetchMarches = useCallback(async () => {
     if (!isPro) return
@@ -141,6 +201,23 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterCategory) params.set('category', filterCategory)
       params.set('pays', artisanPays)
       params.set('status', 'open')
+      // Filtre privés/publics côté serveur — sinon les scrappés (scan_*) restent visibles.
+      //
+      // Cas particulier artisan + "Tous" : on envoie 'prives' au lieu de rien
+      // pour exclure les marchés publics scrapés que l'artisan ne doit jamais voir
+      // (la rule d'isolation artisan/BTP s'applique aussi quand le filtre est "tous").
+      if (filterMarcheType === 'tous') {
+        if (isArtisan) params.set('marche_type', 'prives')
+        // BTP Pro "Tous" → vraiment tout (publics + privés)
+      } else {
+        params.set('marche_type', filterMarcheType)
+      }
+      // Filtre intelligent par métier : artisan ET société BTP ne voient que les marchés
+      // correspondant à leurs corps de métier déclarés (auto-remplis depuis NAF pour BTP).
+      // Le serveur résout via METIER_CPV_MAP.
+      if (artisanCoreMetiers.length > 0) {
+        params.set('metiers', artisanCoreMetiers.join(','))
+      }
       const res = await fetch(`/api/marches?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marches')
       const data = await res.json()
@@ -153,21 +230,32 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, artisanPays])
-
-  // Corps de métier de l'artisan (sans tenir compte du filtre transitoire)
-  const artisanCoreMetiers = React.useMemo(() => {
-    if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
-    if (artisan?.categories?.length) return [...artisan.categories]
-    if (artisan?.specialite) return [artisan.specialite]
-    return []
-  }, [marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- artisanMetiersKey is the stable signature
+  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan, artisanMetiersKey])
 
   // Resolved metiers for auto-scan (respecte le filtre si posé)
   const resolvedMetiers = React.useMemo(() => {
     if (filterCategory) return [filterCategory]
     return artisanCoreMetiers
   }, [filterCategory, artisanCoreMetiers])
+
+  // Compteur "vraiment affichable" — applique le même filtre métier que BrowseTabView
+  // pour éviter le décalage trompeur "100 disponibles / 0 affichés".
+  const visibleMarchesCount = React.useMemo(() => {
+    if (!artisanCoreMetiers || artisanCoreMetiers.length === 0) return marches.length
+    const allowed = new Set<string>()
+    const metierKeys = resolveMetierKeys(artisanCoreMetiers)
+    for (const key of metierKeys) {
+      const m = METIER_CPV_MAP[key]
+      if (m) m.categoryIds.forEach(c => allowed.add(c))
+    }
+    for (const input of artisanCoreMetiers) {
+      const lower = input.toLowerCase().trim()
+      if (CATEGORIES.some(c => c.id === lower)) allowed.add(lower)
+    }
+    if (allowed.size === 0) return marches.length
+    return marches.filter(m => !m.category || allowed.has(m.category)).length
+  }, [marches, artisanCoreMetiers])
 
   // Scanner marches publics
   const handleScanMarches = useCallback(async () => {
@@ -585,7 +673,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         <div>
           <div className="v22-page-title">Bourse aux Marchés</div>
           <div className="v22-page-sub">
-            {stats.openCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
+            {visibleMarchesCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
           </div>
         </div>
         {(filterCategory || filterDepartments.length > 0) && (
@@ -602,7 +690,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       <div className="v22-stats">
         <div className="v22-stat v22-stat-yellow">
           <div className="v22-stat-label">{isPt ? 'Novas' : 'Nouvelles'}</div>
-          <div className="v22-stat-val">{stats.openCount}</div>
+          <div className="v22-stat-val">{visibleMarchesCount}</div>
         </div>
         <div className="v22-stat">
           <div className="v22-stat-label">{isPt ? 'Candidaturas' : 'Candidatures'}</div>
@@ -664,6 +752,8 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           filterRegion={filterRegion}
           filterDepartments={filterDepartments}
           filterMarcheType={filterMarcheType}
+          hidePublicMarches={isFranchise}
+          isArtisan={isArtisan}
           prefsSaved={prefsSaved}
           onFilterCategoryChange={setFilterCategory}
           onFilterRegionChange={setFilterRegion}

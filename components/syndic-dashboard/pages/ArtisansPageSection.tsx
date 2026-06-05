@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import type { Artisan, SyndicMessage } from '@/components/syndic-dashboard/types'
 import type { User } from '@supabase/supabase-js'
+import { SEED_PT_ARTISANS_FOR_DASHBOARD } from '@/lib/seed-syndic-pt-demo'
 
 interface ArtisansPageSectionProps {
   artisans: Artisan[]
@@ -48,10 +49,11 @@ export default function ArtisansPageSection({
       const res = await fetch('/api/syndic/artisans', {
         headers: { Authorization: `Bearer ${token}` }
       })
+      let mapped: Artisan[] = []
       if (res.ok) {
         const data = await res.json()
         if (data.artisans && data.artisans.length > 0) {
-          const mapped: Artisan[] = data.artisans.map((a: Artisan) => ({
+          mapped = data.artisans.map((a: Artisan) => ({
             ...a,
             nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
             rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -59,12 +61,35 @@ export default function ArtisansPageSection({
             nbInterventions: a.nb_interventions ?? a.nbInterventions ?? 0,
             vitfixCertifie: a.vitfix_certifie ?? a.vitfixCertifie ?? false,
           }))
-          setArtisans(mapped)
         }
-        setArtisansLoaded(true)
       }
+
+      // ── Démo PT : filtre artisans FR hérités + merge prestadores externos +
+      // técnicos internos du seed. On présente toujours 9 entrées en PT.
+      if (locale === 'pt') {
+        const LEGACY_FR_ARTISANS = ['Lepore']
+        mapped = mapped.filter(a =>
+          !LEGACY_FR_ARTISANS.some(p => (a.nom || '').includes(p) || (a.email || '').toLowerCase().includes(p.toLowerCase()))
+        )
+        const ptIds = new Set(SEED_PT_ARTISANS_FOR_DASHBOARD.map(a => a.id))
+        mapped = [
+          ...SEED_PT_ARTISANS_FOR_DASHBOARD,
+          ...mapped.filter(a => !ptIds.has(a.id)),
+        ]
+      }
+
+      if (mapped.length > 0) setArtisans(mapped)
+      setArtisansLoaded(true)
     } catch { /* silencieux */ }
   }
+
+  // ── Auto-fetch au mount ──
+  // Sans cet effet, la liste reste figée sur ce que le parent a chargé (parfois
+  // un état stale FR avant que le locale PT soit appliqué).
+  useEffect(() => {
+    if (!artisansLoaded) fetchArtisans()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Fetch messages ──
   const fetchMessages = async (artisan: Artisan) => {
@@ -198,20 +223,20 @@ export default function ArtisansPageSection({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-gray-500 text-sm">
-              {artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix
-              · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro valides
-              · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Décennales valides
+              {locale === 'pt'
+                ? <>{artisans.length} prestadores registados · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certificados Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} com Seguro RC válido · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} com garantia decenal</>
+                : <>{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro valides · {artisans.filter(a => a.decennaleValide || a.assurance_decennale_valide).length} Décennales valides</>}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => { setArtisansLoaded(false) }}
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1"
-                title={locale === 'pt' ? 'Atualizar a conformidade a partir da carteira do artesão' : 'Rafraîchir la conformité depuis le wallet artisan'}
+                title={locale === 'pt' ? 'Atualizar a conformidade a partir da carteira do profissional' : 'Rafraîchir la conformité depuis le wallet artisan'}
               >
                 🔄 {locale === 'pt' ? 'Sincro conformidade' : 'Synchro conformité'}
               </button>
               <button onClick={() => { setShowModalArtisan(true); setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }); setArtisanSearchResult(null); setArtisanError(''); setArtisanSuccess(''); }} className="bg-[#0D1B2E] hover:bg-[#152338] text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
-                + {locale === 'pt' ? 'Adicionar um artesão' : 'Ajouter un artisan'}
+                + {locale === 'pt' ? 'Adicionar um profissional' : 'Ajouter un artisan'}
               </button>
             </div>
           </div>
@@ -231,7 +256,7 @@ export default function ArtisansPageSection({
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-bold text-gray-900">{a.nom}</h3>
                         {certifie && <span className="text-xs bg-[#FFC107] text-gray-900 px-2 py-0.5 rounded-full font-bold">⚡ {locale === 'pt' ? 'Certificado' : 'Certifié'}</span>}
-                        {a.compte_existant && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">🔗 {locale === 'pt' ? 'Sincronizado' : 'Synchronisé'}</span>}
+                        {a.compte_existant && <span className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-2 py-0.5 rounded-full font-bold">🔗 {locale === 'pt' ? 'Sincronizado' : 'Synchronisé'}</span>}
                       </div>
                       <p className="text-sm text-gray-500">{a.metier}</p>
                     </div>
@@ -250,45 +275,45 @@ export default function ArtisansPageSection({
                     <div>📧 {a.email}</div>
                     <div>📋 {nbInterv} {locale === 'pt' ? 'intervenções' : 'interventions'}</div>
                     <div className={`${rcOk ? 'text-green-600' : 'text-red-500 font-semibold'}`}>
-                      {rcOk ? (locale === 'pt' ? '✅ RC Pro válido' : '✅ RC Pro valide') : (locale === 'pt' ? '❌ RC Pro em falta' : '❌ RC Pro manquante')}
+                      {rcOk ? (locale === 'pt' ? '✅ Seguro RC válido' : '✅ RC Pro valide') : (locale === 'pt' ? '❌ Seguro RC em falta' : '❌ RC Pro manquante')}
                     </div>
                   </div>
                   {/* ── RC Pro status ── */}
                   {rcOk && rcExp && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 mb-2 flex items-center gap-2">
-                      <span>📄 RC Pro valide jusqu&apos;au {new Date(rcExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</span>
+                      <span>📄 {locale === 'pt' ? `Seguro RC válido até ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro valide jusqu'au ${new Date(rcExp).toLocaleDateString('fr-FR')}`}</span>
                       {new Date(rcExp) < new Date(Date.now() + 60 * 86400000) && (
-                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">Expire bientôt</span>
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{locale === 'pt' ? 'Expira em breve' : 'Expire bientôt'}</span>
                       )}
                     </div>
                   )}
                   {!rcOk && rcExp && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-2">
-                      ⚠️ RC Pro expirée le {new Date(rcExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
+                      ⚠️ {locale === 'pt' ? `Seguro RC expirado a ${new Date(rcExp).toLocaleDateString('pt-PT')}` : `RC Pro expirée le ${new Date(rcExp).toLocaleDateString('fr-FR')}`}
                     </div>
                   )}
                   {!rcOk && !rcExp && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 mb-2">
-                      💡 L&apos;artisan doit uploader sa RC Pro dans son Wallet Conformité
+                      💡 {locale === 'pt' ? 'O profissional deve carregar o seu Seguro RC no Wallet de Conformidade' : 'L\'artisan doit uploader sa RC Pro dans son Wallet Conformité'}
                     </div>
                   )}
                   {/* ── Décennale status ── */}
                   {decOk && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 mb-3 flex items-center gap-2">
-                      <span>🛡️ Décennale valide{decExp ? ` jusqu'au ${new Date(decExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}` : ''}</span>
+                      <span>🛡️ {locale === 'pt' ? `Decenal válido${decExp ? ` até ${new Date(decExp).toLocaleDateString('pt-PT')}` : ''}` : `Décennale valide${decExp ? ` jusqu'au ${new Date(decExp).toLocaleDateString('fr-FR')}` : ''}`}</span>
                       {decExp && new Date(decExp) < new Date(Date.now() + 60 * 86400000) && (
-                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">Expire bientôt</span>
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{locale === 'pt' ? 'Expira em breve' : 'Expire bientôt'}</span>
                       )}
                     </div>
                   )}
                   {!decOk && decExp && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-3">
-                      ⚠️ Décennale expirée le {new Date(decExp).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
+                      ⚠️ {locale === 'pt' ? `Decenal expirado a ${new Date(decExp).toLocaleDateString('pt-PT')}` : `Décennale expirée le ${new Date(decExp).toLocaleDateString('fr-FR')}`}
                     </div>
                   )}
                   {!decOk && !decExp && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 mb-3">
-                      💡 L&apos;artisan doit uploader sa RC Décennale dans son Wallet
+                      💡 {locale === 'pt' ? 'O profissional deve carregar o seu seguro Decenal no Wallet' : 'L\'artisan doit uploader sa RC Décennale dans son Wallet'}
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -305,7 +330,7 @@ export default function ArtisansPageSection({
                     <button
                       onClick={() => handleDeleteArtisan(a.id, a.nom)}
                       className="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 py-1.5 px-2 rounded-lg transition"
-                      title={locale === 'pt' ? 'Remover este artesão do gabinete' : 'Retirer cet artisan du cabinet'}
+                      title={locale === 'pt' ? 'Remover este profissional do gabinete' : 'Retirer cet artisan du cabinet'}
                     >
                       🗑️
                     </button>
@@ -323,18 +348,18 @@ export default function ArtisansPageSection({
           {/* Header canal */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-3">
             <button onClick={() => { setSelectedArtisanChat(null); setMessages([]) }} className="text-gray-500 hover:text-gray-600 transition">
-              ← Retour
+              ← {locale === 'pt' ? 'Voltar' : 'Retour'}
             </button>
             <div className="w-10 h-10 bg-[#F7F4EE] rounded-full flex items-center justify-center text-lg font-bold text-[#C9A84C]">
               {selectedArtisanChat.nom.charAt(0)}
             </div>
             <div>
               <h3 className="font-bold text-gray-900">{selectedArtisanChat.nom}</h3>
-              <p className="text-xs text-gray-500">{selectedArtisanChat.metier} · Canal dédié interventions</p>
+              <p className="text-xs text-gray-500">{selectedArtisanChat.metier} · {locale === 'pt' ? 'Canal dedicado a intervenções' : 'Canal dédié interventions'}</p>
             </div>
             <div className="ml-auto flex gap-2">
               <button onClick={() => setShowModalMission(true)} className="text-xs bg-[#0D1B2E] text-white px-3 py-1.5 rounded-lg hover:bg-[#152338] transition">
-                + Nouvelle mission
+                + {locale === 'pt' ? 'Nova missão' : 'Nouvelle mission'}
               </button>
             </div>
           </div>
@@ -349,9 +374,9 @@ export default function ArtisansPageSection({
             {!msgLoading && messages.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-4xl mb-2">💬</div>
-                <p className="font-medium">Canal de communication dédié</p>
-                <p className="text-sm mt-1">Envoyez votre premier message à {selectedArtisanChat.nom}</p>
-                <p className="text-xs mt-2 text-gray-300">Les missions assignées, rapports et proof of work apparaîtront ici</p>
+                <p className="font-medium">{locale === 'pt' ? 'Canal de comunicação dedicado' : 'Canal de communication dédié'}</p>
+                <p className="text-sm mt-1">{locale === 'pt' ? `Envie a sua primeira mensagem a ${selectedArtisanChat.nom}` : `Envoyez votre premier message à ${selectedArtisanChat.nom}`}</p>
+                <p className="text-xs mt-2 text-gray-300">{locale === 'pt' ? 'As missões atribuídas, relatórios e provas de trabalho aparecerão aqui' : 'Les missions assignées, rapports et proof of work apparaîtront ici'}</p>
               </div>
             )}
             {messages.map(msg => {
@@ -360,13 +385,13 @@ export default function ArtisansPageSection({
                 <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${isMine ? 'bg-[#0D1B2E] text-white' : 'bg-gray-100 text-gray-900'}`}>
                     {!isMine && <p className="text-xs font-semibold mb-1 text-[#C9A84C]">{msg.sender_name}</p>}
-                    {msg.message_type === 'proof_of_work' && <p className="text-xs font-bold mb-1">📸 Proof of Work</p>}
-                    {msg.message_type === 'rapport' && <p className="text-xs font-bold mb-1">📋 Rapport d&apos;intervention</p>}
-                    {msg.message_type === 'devis' && <p className="text-xs font-bold mb-1">💶 Devis</p>}
+                    {msg.message_type === 'proof_of_work' && <p className="text-xs font-bold mb-1">📸 {locale === 'pt' ? 'Prova de Trabalho' : 'Proof of Work'}</p>}
+                    {msg.message_type === 'rapport' && <p className="text-xs font-bold mb-1">📋 {locale === 'pt' ? 'Relatório de intervenção' : 'Rapport d\'intervention'}</p>}
+                    {msg.message_type === 'devis' && <p className="text-xs font-bold mb-1">💶 {locale === 'pt' ? 'Orçamento' : 'Devis'}</p>}
                     <p className="text-sm">{msg.content}</p>
                     <p className={`text-xs mt-1 ${isMine ? 'text-[#E4DDD0]' : 'text-gray-500'}`}>
                       {new Date(msg.created_at).toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      {isMine && msg.read_at && ' · Lu'}
+                      {isMine && msg.read_at && (locale === 'pt' ? ' · Lida' : ' · Lu')}
                     </p>
                   </div>
                 </div>
@@ -402,7 +427,7 @@ export default function ArtisansPageSection({
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">🔧 {locale === 'pt' ? 'Adicionar um artesão' : 'Ajouter un artisan'}</h2>
+                <h2 className="text-xl font-bold text-gray-900">🔧 {locale === 'pt' ? 'Adicionar um profissional' : 'Ajouter un artisan'}</h2>
                 <button onClick={() => setShowModalArtisan(false)} aria-label={t('syndicDash.common.close')} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
               </div>
 
@@ -415,7 +440,7 @@ export default function ArtisansPageSection({
                 <div className="space-y-4">
                   {/* Étape 1 : email */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Email do artesão *' : 'Email de l\'artisan *'}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Email do profissional *' : 'Email de l\'artisan *'}</label>
                     <div className="flex gap-2">
                       <input
                         type="email"
@@ -433,10 +458,10 @@ export default function ArtisansPageSection({
                       </button>
                     </div>
                     {artisanSearchResult && (
-                      <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-blue-50 border border-blue-200 text-blue-800' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
+                      <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-[#F7F4EE] border border-[#E4DDD0] text-[#0D1B2E]' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
                         {artisanSearchResult.found
-                          ? <>✅ {locale === 'pt' ? 'Conta Vitfix encontrada' : 'Compte Vitfix trouvé'} — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? (locale === 'pt' ? 'artesão certificado' : 'artisan certifié') : artisanSearchResult.role})<br/><span className="text-xs">{locale === 'pt' ? 'Será sincronizado com o seu gabinete.' : 'Il sera synchronisé avec votre cabinet.'}</span></>
-                          : <>{locale === 'pt' ? '⚠️ Nenhuma conta Vitfix. Pode criar uma conta de artesão ou adicioná-lo sem conta.' : '⚠️ Aucun compte Vitfix. Vous pouvez créer un compte artisan ou l\'ajouter sans compte.'}</>
+                          ? <>✅ {locale === 'pt' ? 'Conta Vitfix encontrada' : 'Compte Vitfix trouvé'} — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? (locale === 'pt' ? 'profissional certificado' : 'artisan certifié') : artisanSearchResult.role})<br/><span className="text-xs">{locale === 'pt' ? 'Será sincronizado com o seu gabinete.' : 'Il sera synchronisé avec votre cabinet.'}</span></>
+                          : <>{locale === 'pt' ? '⚠️ Nenhuma conta Vitfix. Pode criar uma conta de profissional ou adicioná-lo sem conta.' : '⚠️ Aucun compte Vitfix. Vous pouvez créer un compte artisan ou l\'ajouter sans compte.'}</>
                         }
                       </div>
                     )}
@@ -446,17 +471,17 @@ export default function ArtisansPageSection({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Nome próprio' : 'Prénom'}</label>
-                      <input type="text" value={artisanForm.prenom} onChange={e => setArtisanForm(f => ({ ...f, prenom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder="Jean" />
+                      <input type="text" value={artisanForm.prenom} onChange={e => setArtisanForm(f => ({ ...f, prenom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder={locale === 'pt' ? 'João' : 'Jean'} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Apelido *' : 'Nom *'}</label>
-                      <input type="text" value={artisanForm.nom} onChange={e => setArtisanForm(f => ({ ...f, nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder="Dupont" />
+                      <input type="text" value={artisanForm.nom} onChange={e => setArtisanForm(f => ({ ...f, nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder={locale === 'pt' ? 'Silva' : 'Dupont'} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Telefone' : 'Téléphone'}</label>
-                      <input type="tel" value={artisanForm.telephone} onChange={e => setArtisanForm(f => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder="06 12 34 56 78" />
+                      <input type="tel" value={artisanForm.telephone} onChange={e => setArtisanForm(f => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A84C]" placeholder={locale === 'pt' ? '9X XXX XX XX' : '06 12 34 56 78'} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{locale === 'pt' ? 'Área profissional' : 'Corps de métier'}</label>
@@ -506,7 +531,7 @@ export default function ArtisansPageSection({
                           disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
                           className="w-full px-4 py-2 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
                         >
-                          {artisanSubmitting ? (locale === 'pt' ? 'Criação...' : 'Création...') : (locale === 'pt' ? '+ Criar a conta artesão' : '+ Créer le compte artisan')}
+                          {artisanSubmitting ? (locale === 'pt' ? 'A criar...' : 'Création...') : (locale === 'pt' ? '+ Criar perfil de profissional' : '+ Créer le compte artisan')}
                         </button>
                         <button
                           onClick={() => handleAddArtisan(false)}
@@ -522,7 +547,7 @@ export default function ArtisansPageSection({
                         disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
                         className="flex-1 px-4 py-2 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
                       >
-                        {artisanSubmitting ? (locale === 'pt' ? 'A adicionar...' : 'Ajout...') : (locale === 'pt' ? '+ Adicionar o artesão' : '+ Ajouter l\'artisan')}
+                        {artisanSubmitting ? (locale === 'pt' ? 'A adicionar...' : 'Ajout...') : (locale === 'pt' ? '+ Adicionar o profissional' : '+ Ajouter l\'artisan')}
                       </button>
                     )}
                   </div>
