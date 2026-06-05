@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.0](https://github.com/cvlhofrederic-art/fixit-production/compare/v0.3.0...v0.4.0) (2026-06-05)
+
+
+### Features
+
+* **btp:** acompte émis en un clic (% manuel + chips 20/30/50) ([#399](https://github.com/cvlhofrederic-art/fixit-production/issues/399)) ([e657f18](https://github.com/cvlhofrederic-art/fixit-production/commit/e657f1826669594aeaa0640dc5b1d63419f60b5f))
+* **legal:** FR-V6 — PA réception stub + legal_hold endpoint + dashboard étendu ([#130](https://github.com/cvlhofrederic-art/fixit-production/issues/130)) ([6ebd0f2](https://github.com/cvlhofrederic-art/fixit-production/commit/6ebd0f260a604a6dcf7ef2e8d78b318e49ea4929))
+
+
+### Bug Fixes
+
+* **a11y:** contraste WCAG 2 AA sur pages publiques (EAA 2025) ([#37](https://github.com/cvlhofrederic-art/fixit-production/issues/37)) ([662712c](https://github.com/cvlhofrederic-art/fixit-production/commit/662712c927acbfc40be699659ae09c35651c085d))
+* **a11y:** violations Lighthouse sur /pt/mercados/publicar/ ([#150](https://github.com/cvlhofrederic-art/fixit-production/issues/150)) ([d36495a](https://github.com/cvlhofrederic-art/fixit-production/commit/d36495a11ccbc29e23b5cfe47f902a4393936d42))
+* **auth:** trigger sync user_metadata.role -&gt; app_metadata.role ([#59](https://github.com/cvlhofrederic-art/fixit-production/issues/59)) ([5b3a48d](https://github.com/cvlhofrederic-art/fixit-production/commit/5b3a48dd50acd0b3cb0c8455f17643ad4334df6b))
+* **btp:** acompte met à l'échelle tout le document (customTables incluses) ([#396](https://github.com/cvlhofrederic-art/fixit-production/issues/396)) ([7339ed2](https://github.com/cvlhofrederic-art/fixit-production/commit/7339ed235f265a5c3e706ca9dd5db06650f554ec))
+* **btp:** avoir négative tout le document (customTables incluses) ([#398](https://github.com/cvlhofrederic-art/fixit-production/issues/398)) ([4e8cf64](https://github.com/cvlhofrederic-art/fixit-production/commit/4e8cf64e22d4ef4f77b5b46ef385e118277702c4))
+* **ci:** fallback placeholder Supabase dans le middleware → répare le gate E2E (régression globale) ([#397](https://github.com/cvlhofrederic-art/fixit-production/issues/397)) ([063b07b](https://github.com/cvlhofrederic-art/fixit-production/commit/063b07b431b43b16ad1b7657ffe6fdfa9db208f3))
+* **claude:** remove broken env interpolation in .mcp.json ([#83](https://github.com/cvlhofrederic-art/fixit-production/issues/83)) ([09369ca](https://github.com/cvlhofrederic-art/fixit-production/commit/09369ca3d60d41d52cd7fcb4b83ac9e6c7f35e36))
+* **seo:** pro 2026 geo-redirect + hreflang x-default + LHCI ([#161](https://github.com/cvlhofrederic-art/fixit-production/issues/161)) ([b7d5a21](https://github.com/cvlhofrederic-art/fixit-production/commit/b7d5a219d5dbc7b26c58ddc0d3c0088c19128669))
+* **shared:** hygiene — fige search_path sur 9 functions SECURITY INVOKER ([#210](https://github.com/cvlhofrederic-art/fixit-production/issues/210)) ([6c52684](https://github.com/cvlhofrederic-art/fixit-production/commit/6c526849d60c668daba1149f0c064b89c1463c6f))
+* **shared:** récupération auto des ChunkLoadError (bundle périmé après déploiement) ([#394](https://github.com/cvlhofrederic-art/fixit-production/issues/394)) ([6fc83eb](https://github.com/cvlhofrederic-art/fixit-production/commit/6fc83ebbc6155693cf401037856382c87c4b0f1f))
+* **shared:** sync devis/factures legacy (id horodaté non-UUID) ([#352](https://github.com/cvlhofrederic-art/fixit-production/issues/352)) ([0c44627](https://github.com/cvlhofrederic-art/fixit-production/commit/0c44627ac9a0d14b123d297fc1273d07bf4ded9d))
+* **shared:** tri par distance pour le groupe catalogue quand "autour de moi" ([#149](https://github.com/cvlhofrederic-art/fixit-production/issues/149)) ([0903ff2](https://github.com/cvlhofrederic-art/fixit-production/commit/0903ff256aec57683d651ecce34af51cd0546c68))
+* **syndic:** aligne tests d5/d14 (unit + e2e) sur le rework Phase 3 ([#379](https://github.com/cvlhofrederic-art/fixit-production/issues/379)) ([#395](https://github.com/cvlhofrederic-art/fixit-production/issues/395)) ([9b9913d](https://github.com/cvlhofrederic-art/fixit-production/commit/9b9913dd32e30ac4d6a1076082ede3a84cdb0113))
+
 ## [0.3.0](https://github.com/cvlhofrederic-art/fixit-production/compare/v0.2.0...v0.3.0) (2026-06-04)
 
 
