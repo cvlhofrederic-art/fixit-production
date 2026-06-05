@@ -62,10 +62,10 @@ const DEVIS = {
   lines: [{ id: 1, description: 'Rénovation', qty: 1, priceHT: 10000, tvaRate: 20, totalHT: 10000 }],
 }
 
-function props(convertDevisToFacture = vi.fn(), setSavedDocuments = vi.fn()) {
+function props(convertDevisToFacture = vi.fn(), setSavedDocuments = vi.fn(), extraDocs: unknown[] = []) {
   return {
     artisan: ARTISAN, services: [], bookings: [],
-    savedDocuments: [DEVIS] as unknown as Parameters<typeof DevisSection>[0]['savedDocuments'],
+    savedDocuments: [DEVIS, ...extraDocs] as unknown as Parameters<typeof DevisSection>[0]['savedDocuments'],
     setSavedDocuments,
     showDevisForm: false, setShowDevisForm: vi.fn(),
     convertingDevis: null, setConvertingDevis: vi.fn(), openDevisForm: vi.fn(),
@@ -114,5 +114,21 @@ describe('DevisSection — « Facturer » propose Totale ou Acompte (BTP)', () =
     expect(emitted.sourceDevisNumber).toBe('DEV-2026-009')
     // 50 % de 10 000 = 5 000
     expect(computeDocumentTotalHT(emitted as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(5000, 2)
+  })
+
+  it('un acompte déjà émis pour le devis est marqué « déjà émis » mais reste ré-émissible', async () => {
+    const dejaEmis = {
+      id: 'ac-x', docNumber: 'AC-2026-001', docType: 'facture', status: 'envoye',
+      factureSubType: 'acompte', parentInvoiceNumber: 'DEV-2026-009', acompteOrdre: 1, acomptePourcentage: 50,
+      lines: [{ id: 9, description: 'Acompte 1', qty: 1, priceHT: 5000, tvaRate: 20, totalHT: 5000 }],
+    }
+    render(<DevisSection {...props(vi.fn(), vi.fn(), [dejaEmis])} />)
+    await waitFor(() => expect(screen.getByText('DEV-2026-009')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.devis.facturer'))
+    fireEvent.click(screen.getByRole('button', { name: /Facture d'acompte/i }))
+    const a1 = screen.getByRole('button', { name: /Acompte 1.*50/ })
+    expect(a1).not.toBeDisabled()              // ré-émission permise
+    expect(a1).toHaveTextContent(/déjà émis/i) // mais visible que c'est fait
+    expect(screen.getByRole('button', { name: /Acompte 2.*30/ })).not.toHaveTextContent(/déjà émis/i)
   })
 })
