@@ -11,7 +11,7 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
-import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { getDocSeq, getDocTime, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -373,6 +373,8 @@ export default function FacturesSection({
 /* ═══════════════════════════════════════════════════════
    V5 sub-component — Factures for pro_societe
    ═══════════════════════════════════════════════════════ */
+type DocTypeFilter = 'all' | 'facture' | 'acompte' | 'avoir'
+
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis, openFactureForm,
   artisan, setSavedDocuments, dateLocale, locale, t, tv, orgRole,
@@ -393,12 +395,23 @@ function FacturesSectionV5({
 }) {
   const { useBtpDesign } = useOrgRoleContext()
   const [search, setSearch] = useState('')
+  // Filtre d'affichage par type (méthode pro 2026) : tous / factures / acomptes / avoirs.
+  const [typeFilter, setTypeFilter] = useState<DocTypeFilter>('all')
+  const docMatchesType = (d: PersistedDocument, f: DocTypeFilter): boolean => {
+    if (f === 'all') return true
+    const sub = ((d as unknown as Record<string, unknown>).factureSubType as string | undefined) || 'standard'
+    const isAvoir = sub === 'avoir' || d.docType === 'avoir'
+    if (f === 'avoir') return isAvoir
+    if (f === 'acompte') return sub === 'acompte'
+    return sub !== 'acompte' && !isAvoir // 'facture' = ni acompte ni avoir
+  }
   // Quick Actions « → Acompte » et « → Avoir » (méthode pro BTP 2026).
   // Cf. art. 289 CGI (acompte) + art. 272 CGI / BOI-TVA-DECLA-30-20-20-30 §70 (avoir).
   const [acompteParent, setAcompteParent] = useState<PersistedDocument | null>(null)
   const [avoirParent, setAvoirParent] = useState<PersistedDocument | null>(null)
 
   const filtered = factureDocs
+    .filter(d => docMatchesType(d, typeFilter))
     .filter(d => {
       if (!search) return true
       const q = search.toLowerCase()
@@ -407,7 +420,11 @@ function FacturesSectionV5({
         d.clientName?.toLowerCase().includes(q)
       )
     })
-    .sort((a, b) => getDocSeq(b) - getDocSeq(a))
+    // Tri « du plus récent au plus ancien » par DATE D'ÉMISSION (sentAt/savedAt/
+    // docDate), pas par numéro de séquence : les séries sont indépendantes (AC-
+    // a son propre compteur), donc un acompte récent AC-2026-002 ne doit pas
+    // tomber sous FACT-2026-003+. getDocSeq départage à date égale.
+    .sort((a, b) => getDocTime(b) - getDocTime(a) || getDocSeq(b) - getDocSeq(a))
 
   const getV5Badge = (doc: PersistedDocument) => {
     // Accepte les statuts FR (localStorage) ET EN (DB Supabase).
@@ -520,6 +537,30 @@ function FacturesSectionV5({
         <button className="v5-btn v5-btn-p" onClick={() => openFactureForm()}>
           {t('proDash.factures.nouvelle')}
         </button>
+      </div>
+
+      {/* Filtre par type (méthode pro 2026) : afficher Tous / Factures / Acomptes / Avoirs. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {([['all', 'Tous'], ['facture', 'Factures'], ['acompte', 'Acomptes'], ['avoir', 'Avoirs']] as Array<[DocTypeFilter, string]>).map(([key, label]) => {
+          const active = typeFilter === key
+          const count = factureDocs.filter(d => docMatchesType(d, key)).length
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTypeFilter(key)}
+              aria-pressed={active}
+              style={{
+                padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: active ? 700 : 500,
+                border: `1px solid ${active ? 'var(--primary-yellow, #FFC107)' : '#ddd'}`,
+                background: active ? 'rgba(255, 193, 7, 0.15)' : '#fff',
+                color: active ? '#7A5900' : '#444',
+              }}
+            >
+              {label} ({count})
+            </button>
+          )
+        })}
       </div>
 
       {/* Table */}

@@ -110,6 +110,21 @@ export const getDocSeq = (doc: { docNumber?: string }): number => {
   return parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10)
 }
 
+/**
+ * Horodatage de récence d'un document (ms epoch) pour le tri « du plus récent au
+ * plus ancien ». Basé sur l'émission réelle : sentAt → savedAt → docDate.
+ *
+ * À utiliser à la place de getDocSeq pour TRIER quand des séries indépendantes
+ * coexistent : AC- (acomptes) a son propre compteur repartant à 1, donc comparer
+ * la séquence AC-2026-002 (2) à FACT-2026-017 (17) est faux — l'acompte récent
+ * se retrouvait en bas de liste. getDocSeq reste utile en départage (même date).
+ */
+export const getDocTime = (doc: { sentAt?: string; savedAt?: string; docDate?: string }): number => {
+  const ts = doc.sentAt || doc.savedAt || doc.docDate || ''
+  const t = ts ? Date.parse(ts) : NaN
+  return Number.isFinite(t) ? t : 0
+}
+
 /** Convertit la valeur stockée en affichage PDF lisible (m2→m², m3→m³) */
 export const formatUnitForPdf = (unit: string, customUnit?: string): string => {
   if (unit === 'autre') return customUnit || 'u'
