@@ -532,3 +532,42 @@ export const fetchEnquetes = (token: string): Promise<Enquete[]> =>
   getList<Enquete>('/api/syndic/enquetes', token, 'enquetes')
 export const fetchChecklists = (token: string): Promise<Checklist[]> =>
   getList<Checklist>('/api/syndic/checklists', token, 'checklists')
+
+// ── Lot 2 « gestão » : Plano de Manutenção, Deliberações, Notificações Judiciais ──
+export interface PlanoMan {
+  id: string
+  titulo: string
+  edificio: string
+  estado: 'preparacao' | 'aprovado' | 'concluido'
+  orcamento: number
+  anoInicio: number | null
+  periodicidade: string
+  descricao: string
+}
+export interface Deliberacao {
+  id: string
+  deliberacao: string
+  ag: string
+  responsavel: string
+  prazo: string
+  estado: 'pendente' | 'em_curso' | 'concluida' | 'atrasada' | 'bloqueada'
+  origem: 'manual' | 'ia'
+}
+export interface ProcessoJud {
+  id: string
+  tipo: string
+  contraparte: string
+  processo: string
+  data: string
+  prazo: string
+  estado: 'ativo' | 'arquivado'
+  valor: number
+  descricao: string
+}
+
+export const fetchPlanosMan = (token: string): Promise<PlanoMan[]> =>
+  getList<PlanoMan>('/api/syndic/planos-man', token, 'planos')
+export const fetchDeliberacoes = (token: string): Promise<Deliberacao[]> =>
+  getList<Deliberacao>('/api/syndic/deliberacoes', token, 'deliberacoes')
+export const fetchProcessosJud = (token: string): Promise<ProcessoJud[]> =>
+  getList<ProcessoJud>('/api/syndic/processos-jud', token, 'processos')
