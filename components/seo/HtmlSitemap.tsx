@@ -23,15 +23,17 @@ interface SitemapMetadataOptions {
 
 export function buildSitemapMetadata(opts: SitemapMetadataOptions): Metadata {
   const ogLocale = opts.locale === 'pt' ? 'pt_PT' : 'fr_FR'
+  // Pro SEO 2026 : codes BCP 47 régionalisés + x-default toujours sur le
+  // root `/` (politique site-wide, cf. lib/seo/hreflang.ts).
   return {
     title: opts.title,
     description: opts.description,
     alternates: {
       canonical: opts.url,
       languages: {
-        [opts.locale]: opts.url,
-        [opts.locale === 'fr' ? 'pt' : 'fr']: opts.altUrl,
-        'x-default': opts.url,
+        'fr-FR': opts.locale === 'fr' ? opts.url : opts.altUrl,
+        'pt-PT': opts.locale === 'pt' ? opts.url : opts.altUrl,
+        'x-default': 'https://vitfix.io/',
       },
     },
     openGraph: {

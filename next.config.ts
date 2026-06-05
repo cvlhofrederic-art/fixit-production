@@ -149,6 +149,10 @@ const nextConfig: NextConfig = {
       { source: '/mês/', destination: '/pt/', permanent: true },
       // Simulateur devis: Toulon not in supported FR_CITIES → hub
       { source: '/fr/simulateur-devis/toulon/', destination: '/fr/simulateur-devis/', permanent: true },
+      // Slug FR cassé : "debouchage-canalisation" n'existe pas dans FR_SERVICES
+      // (services valides : plombier, electricien, peintre, plaquiste, etc.)
+      // → 301 vers l'équivalent métier le plus proche (plombier).
+      { source: '/fr/services/debouchage-canalisation-:city/', destination: '/fr/services/plombier-:city/', permanent: true },
     ]
   },
   async headers() {

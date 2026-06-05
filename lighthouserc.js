@@ -47,6 +47,17 @@ module.exports = {
       assertMatrix: [
         // Pages de recherche : volumineuses (cards, filtres, hydration), perf flexible.
         {
+          // Catch-all : toutes les URLs SAUF celles exemptées ci-dessous
+          matchingUrlPattern: '^(?!.*(?:fr/recherche|pt/pesquisar|fr/marches/publier|pt/mercados/publicar)/?$).*$',
+          assertions: {
+            'categories:performance':   ['error', { minScore: 0.80 }],
+            'categories:accessibility': ['error', { minScore: 0.90 }],
+            'categories:seo':           ['error', { minScore: 0.90 }],
+            'categories:best-practices':['error', { minScore: 0.85 }],
+          },
+        },
+        {
+          // Pages de recherche (1500+ lignes client) — perf plus permissive
           matchingUrlPattern: '/(fr/recherche|pt/pesquisar)/?$',
           assertions: {
             'categories:performance':   ['error', { minScore: 0.65 }],
@@ -58,6 +69,9 @@ module.exports = {
         // Pages publication marché : formulaires riches, a11y dégradée (FR + PT).
         // TODO(a11y): ramener pt/mercados/publicar à 0.85 (régression pré-existante).
         {
+          // Marketplace publication (formulaires longs) — a11y et perf plus
+          // permissives. Score réel mai 2026 : a11y 0.81 → seuil 0.80 avec
+          // marge minimale. TODO(a11y): audit axe pour remonter ≥0.90.
           matchingUrlPattern: '/(fr/marches/publier|pt/mercados/publicar)/?$',
           assertions: {
             'categories:performance':   ['error', { minScore: 0.75 }],

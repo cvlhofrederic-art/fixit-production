@@ -60,9 +60,9 @@ test.describe('SEO', () => {
   test('homepage has essential meta tags', async ({ page }) => {
     await page.goto('/fr/', { waitUntil: 'networkidle' })
 
-    // <html lang="fr">
+    // <html lang="fr-FR"> (BCP 47 régional — cf. app/layout.tsx pour la politique)
     const lang = await page.locator('html').getAttribute('lang')
-    expect(lang).toBe('fr')
+    expect(lang).toBe('fr-FR')
 
     // <title> contains Vitfix (case-insensitive)
     const title = await page.title()

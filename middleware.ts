@@ -153,10 +153,22 @@ export async function middleware(request: NextRequest) {
 
     if (!pathLocale) {
       // No locale prefix → redirect to /{detected-locale}/...
+      // Pro SEO 2026 (Google Search Central) : 302 (Temporary) + Vary:
+      // Accept-Language. Le 307 par défaut de NextResponse.redirect dit à
+      // Google "déplacement permanent, canonicalise vers la destination" →
+      // Google fusionne `/` avec `/pt/` (ou `/fr/`) et ignore les autres
+      // locales. Le 302 dit "contenu dynamique selon la requête, garde
+      // toutes les variantes indexées séparément". Couplé avec hreflang
+      // x-default sur le root, c'est la combinaison documentée Google pour
+      // les sites multi-régions avec geo-redirect serveur.
+      // Sources :
+      //   developers.google.com/search/docs/specialty/international/managing-multi-regional-sites
+      //   developers.google.com/search/blog/2013/04/x-default-hreflang-for-international-pages
       locale = detectPreferredLocale(request)
       const url = request.nextUrl.clone()
       url.pathname = `/${locale}${pathname}`
-      const response = NextResponse.redirect(url)
+      const response = NextResponse.redirect(url, 302)
+      response.headers.set('Vary', 'Accept-Language')
       response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
       response.headers.set('Content-Security-Policy', cspHeader)
       return response
