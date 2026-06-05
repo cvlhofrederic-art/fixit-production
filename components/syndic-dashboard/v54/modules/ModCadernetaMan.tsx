@@ -16,11 +16,13 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** Caderneta de Manutenção & Técnica — port byte-exact du ModCadernetaMan du bundle V5.7 (stateful). */
+/** Caderneta de Manutenção & Técnica — port byte-exact V5.7 + Phase 3 : interventions réelles.
+ * Syndic connecté → vraies interventions du cabinet (data.caderneta) + création POST ;
+ * anonyme → preview (Empty byte-exact + toast démo). */
 
 type CadForm = { data: string; estado: string; natureza: string; edificio: string; localizacao: string; prestador: string; custo: string; garantia: string; cee: string; notas: string }
-type Cad = Omit<CadForm, 'custo'> & { id: number; custo: number }
 
 const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
 const naturezaLabel = (v: string) => (({ 'manutencao-corrente': 'Manutenção corrente', 'reparacao': 'Reparação', 'diagnostico': 'Diagnóstico técnico', 'obra-conservacao': 'Obra de conservação', 'obra-beneficiacao': 'Obra de beneficiação', 'inspeccao-legal': 'Inspeção legal obrigatória' } as Record<string, string>)[v] || v)
@@ -28,11 +30,16 @@ const estadoLabel = (v: string) => (({ realizado: 'Realizado', planeado: 'Planea
 const estadoKind = (v: string): PillKind => (({ realizado: 'sage', planeado: 'gold', 'em-curso': 'amber', cancelado: 'rust' } as Record<string, PillKind>)[v])
 
 export default function ModCadernetaMan() {
+  // Phase 3 : vraies interventions du cabinet si syndic connecté, sinon preview vide.
+  const data = useSyndicData()
+  const real = data.authenticated
+  const all = real ? (data.caderneta ?? []) : []
+
   const blank: CadForm = { data: new Date().toISOString().slice(0, 10), estado: 'realizado', natureza: '', edificio: '', localizacao: '', prestador: '', custo: '', garantia: '', cee: 'na', notas: '' }
-  const [items, setItems] = useState<Cad[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<CadForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof CadForm, string>>>({})
+  const [busy, setBusy] = useState(false)
   const { push } = useToast()
 
   const upd = (k: keyof CadForm, v: string) => setForm(s => ({ ...s, [k]: v }))
@@ -43,19 +50,31 @@ export default function ModCadernetaMan() {
     if (!form.data) errs.data = 'A data é obrigatória.'
     if (!form.natureza) errs.natureza = 'Indique a natureza das obras.'
     if (Object.keys(errs).length) { setErrors(errs); return }
-    setItems(prev => [...prev, { ...form, id: Date.now(), custo: Number(form.custo) || 0 }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/caderneta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ data: form.data, estado: form.estado, natureza: form.natureza, edificio: form.edificio, localizacao: form.localizacao, prestador: form.prestador, custo: Number(form.custo) || 0, garantia: form.garantia, cee: form.cee, notas: form.notas }),
+      })
+        .then(r => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Intervenção registada', desc: form.natureza }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpen(false)
-    push({ kind: 'success', title: 'Intervenção registada', desc: form.natureza })
+    push({ kind: 'info', title: 'Intervenção registada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
-  const total = items.reduce((s, i) => s + (Number(i.custo) || 0), 0)
-  const planeadas = items.filter(i => i.estado === 'planeado').length
-  const edifSet = new Set(items.map(i => i.edificio).filter(Boolean))
+  const total = all.reduce((s, i) => s + (Number(i.custo) || 0), 0)
+  const planeadas = all.filter(i => i.estado === 'planeado').length
+  const edifSet = new Set(all.map(i => i.edificio).filter(Boolean))
 
   return (
     <>
       <PageHead title="Caderneta de Manutenção & Técnica" lede="Obras · Equipamentos · Contratos manutenção · Estado datado · CEE"
-        actions={<><Button onClick={() => push({ kind: 'info', title: 'Export PDF', desc: items.length ? `${items.length} intervenções prontas para exportação` : 'Registe a primeira intervenção para exportar.' })}><Icon name="download" />Export PDF</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Intervenção</Button></>} />
+        actions={<><Button onClick={() => push({ kind: 'info', title: 'Export PDF', desc: all.length ? `${all.length} intervenções prontas para exportação` : 'Registe a primeira intervenção para exportar.' })}><Icon name="download" />Export PDF</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Intervenção</Button></>} />
       <Tabs defaultActive="cad" tabs={[
         { id: 'cad', icon: 'book', label: 'Caderneta de manutenção' },
         { id: 'eq', icon: 'cog', label: 'Equipamentos' },
@@ -64,20 +83,20 @@ export default function ModCadernetaMan() {
         { id: 'cee', icon: 'book', label: 'CEE Coletivo' },
       ]} />
       <KPIGrid items={[
-        { icon: 'clipboard', num: items.length, lbl: 'Intervenções' },
+        { icon: 'clipboard', num: all.length, lbl: 'Intervenções' },
         { icon: 'calendar', num: planeadas, lbl: 'Planeadas', accent: planeadas ? 'amber' : undefined },
         { icon: 'coin', num: fmtEUR(total).replace('€', '').trim(), cur: '€', lbl: 'Custo total', accent: 'gold' },
         { icon: 'building', num: edifSet.size, lbl: 'Edifícios' },
       ]} />
       <Panel>
-        {items.length === 0 ? (
+        {all.length === 0 ? (
           <Empty illustration="documentos" title="Caderneta vazia" desc="Registe todas as intervenções para rastreabilidade completa"
             action={<Button variant="gold" onClick={openNew}><Icon name="plus" />+ Primeira intervenção</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Data</th><th>Natureza</th><th>Edifício</th><th>Prestador</th><th>Custo</th><th>Garantia</th><th>Estado</th></tr></thead>
-              <tbody>{items.map(it => (
+              <tbody>{all.map(it => (
                 <tr key={it.id}>
                   <td>{it.data}</td>
                   <td>{naturezaLabel(it.natureza)}</td>
@@ -154,7 +173,7 @@ export default function ModCadernetaMan() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Registar</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
           </ModalFoot>
         </form>
       </Modal>

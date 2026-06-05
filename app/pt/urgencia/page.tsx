@@ -15,14 +15,14 @@ export const metadata: Metadata = {
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
-    images: [{ url: 'https://vitfix.io/og-pt.png', width: 1200, height: 630, alt: 'VITFIX Serviços de Urgência' }],
+    images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630, alt: 'VITFIX Serviços de Urgência' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Serviços de Urgência : VITFIX',
     description:
       'Eletricista, canalizador, pintor, pladur e obras urgentes. Intervenção rápida 24h em Marco de Canaveses e região.',
-    images: ['https://vitfix.io/og-pt.png'],
+    images: ['https://vitfix.io/api/og/?locale=pt'],
   },
   alternates: {
     canonical: 'https://vitfix.io/pt/urgencia/',

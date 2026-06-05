@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       type: 'website',
       siteName: 'VITFIX',
       locale: 'en_GB',
-      images: [{ url: 'https://vitfix.io/og-en.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/api/og/?locale=en', width: 1200, height: 630 }],
     },
     alternates: {
       canonical: `https://vitfix.io${page.canonicalPath}`,

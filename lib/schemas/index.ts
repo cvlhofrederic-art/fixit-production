@@ -10,8 +10,8 @@ import { PHONE_FR, PHONE_PT, PT_NIF_EMPRESA } from '@/lib/constants'
 const COMPANY = {
   name: 'VITFIX',
   url: 'https://vitfix.io',
-  logo: 'https://vitfix.io/og-fr.png',
-  image: 'https://vitfix.io/og-fr.png',
+  logo: 'https://vitfix.io/og-home-fr.png',
+  image: 'https://vitfix.io/og-home-fr.png',
 }
 
 // AggregateRating : N'EST PLUS HARDCODÉ.
