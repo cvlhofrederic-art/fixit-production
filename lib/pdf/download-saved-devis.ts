@@ -28,9 +28,17 @@ interface SavedDevis {
   docValidity?: number
   prestationDate?: string
   /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
-  factureSubType?: 'standard' | 'acompte' | 'situation'
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
   situationNumber?: number
   situationAvancement?: number
+  // Métadonnées acompte/avoir — pilotent le label réglementaire du PDF
+  // (« Acompte N°X sur Y — Z% (sur facture …) », « AVOIR sur facture … » + motif).
+  // Sans elles, le téléchargement depuis la liste affichait un label nu.
+  acompteOrdre?: number
+  acompteTotal?: number
+  acomptePourcentage?: number
+  parentInvoiceNumber?: string
+  avoirMotif?: string
   executionDelay?: string
   executionDelayDays?: number
   executionDelayType?: string
@@ -249,6 +257,13 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     factureSubType: doc.factureSubType,
     situationNumber: doc.situationNumber,
     situationAvancement: doc.situationAvancement,
+    // Métadonnées acompte/avoir → label réglementaire complet du PDF (sinon
+    // « FACTURE D'ACOMPTE » nu au download depuis la liste vs aperçu in-form).
+    acompteOrdre: doc.acompteOrdre,
+    acompteTotal: doc.acompteTotal,
+    acomptePourcentage: doc.acomptePourcentage,
+    parentInvoiceNumber: doc.parentInvoiceNumber,
+    avoirMotif: doc.avoirMotif,
 
     // Lines
     lines: mergedLines,
@@ -416,6 +431,13 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     factureSubType: doc.factureSubType,
     situationNumber: doc.situationNumber,
     situationAvancement: doc.situationAvancement,
+    // Métadonnées acompte/avoir → label réglementaire complet du PDF (sinon
+    // « FACTURE D'ACOMPTE » nu au download depuis la liste vs aperçu in-form).
+    acompteOrdre: doc.acompteOrdre,
+    acompteTotal: doc.acompteTotal,
+    acomptePourcentage: doc.acomptePourcentage,
+    parentInvoiceNumber: doc.parentInvoiceNumber,
+    avoirMotif: doc.avoirMotif,
     executionDelay: delayStr,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',
