@@ -660,7 +660,8 @@ function FacturesSectionV5({
                           Visibles uniquement sur factures émises (envoye/pending),
                           standard (pas acompte/situation/avoir), et avec un total
                           non nul. « → Avoir » désactivé si un avoir existe déjà. */}
-                      {orgRole === 'pro_societe' && (doc.status === 'envoye' || doc.status === 'pending') &&
+                      {/* « → Acompte » : BTP ET artisan (franchise 293 B gérée par le modèle V2). */}
+                      {(orgRole === 'pro_societe' || orgRole === 'artisan') && (doc.status === 'envoye' || doc.status === 'pending') &&
                         subTypeOf(doc) === 'standard' && doc.docType !== 'avoir' && totalTTC > 0 && (
                           <button
                             className="v5-btn v5-btn-sm"
@@ -781,6 +782,8 @@ export function AcompteQuickModal({
     : []
   ).filter(a => a && a.pourcentage > 0).sort((a, b) => a.ordre - b.ordre)
   const sourceDevis = (parent as { sourceDevisNumber?: string }).sourceDevisNumber
+  // Franchise en base (art. 293 B CGI, artisan EI/auto/micro) : pas de mention TVA.
+  const isFranchise = (parent as { tvaEnabled?: boolean }).tvaEnabled === false
 
   const [percentage, setPercentage] = useState<number>(30)
   const [ordre, setOrdre] = useState<number>(existingCount + 1)
@@ -819,8 +822,10 @@ export function AcompteQuickModal({
           → Acompte sur facture {parent.docNumber}
         </h3>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: '#666' }}>
-          Méthode pro BTP 2026 — facturation d&apos;un versement avant prestation (art. 289 CGI).
-          TVA exigible à l&apos;encaissement (BOFIP-TVA-DECLA-30-10-20).
+          Méthode pro 2026 — facturation d&apos;un versement avant prestation (art. 289 CGI).
+          {isFranchise
+            ? ' TVA non applicable (art. 293 B du CGI).'
+            : ' TVA exigible à l\'encaissement (BOFIP-TVA-DECLA-30-10-20).'}
         </p>
         <div style={{ background: 'rgba(255, 193, 7, 0.06)', border: '1px solid rgba(255, 193, 7, 0.4)', borderRadius: 6, padding: 12, marginBottom: 16, fontSize: 12 }}>
           <div><strong>Base facturée :</strong> {parent.docNumber} — {parentTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
