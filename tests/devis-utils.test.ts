@@ -29,11 +29,20 @@ describe('isStableDocId — distingue un id canonique (UUID) d\'un id legacy', (
 })
 
 describe('docIdentityKey', () => {
-  it('priorise id sur docNumber', () => {
-    expect(docIdentityKey({ id: 'abc', docNumber: 'FACT-2026-001' })).toBe('abc')
+  it('numéro DÉFINITIF (FACT-/DEV-/AC-/AV-) prime sur id → anti-doublon', () => {
+    // Même doc émis présent en localStorage (id legacy horodaté) ET en DB (UUID) :
+    // l'identité par numéro évite qu'il apparaisse 2 fois (incident 2026-06-05).
+    expect(docIdentityKey({ id: '1779539827817', docNumber: 'FACT-2026-001' })).toBe('FACT-2026-001')
+    expect(docIdentityKey({ id: 'uuid-1', docNumber: 'AC-2026-002' })).toBe('AC-2026-002')
   })
   it('retombe sur docNumber quand id absent (legacy)', () => {
     expect(docIdentityKey({ docNumber: 'FACT-2026-001' })).toBe('FACT-2026-001')
+  })
+  it('BROUILLON (BR- ou sans numéro) → identité par id (numéro pas encore légal)', () => {
+    expect(docIdentityKey({ id: 'abc', docNumber: 'BR-2026-001' })).toBe('abc')
+    expect(docIdentityKey({ id: 'abc' })).toBe('abc')
+    // BR- sans id → repli sur le numéro provisoire
+    expect(docIdentityKey({ docNumber: 'BR-2026-001' })).toBe('BR-2026-001')
   })
   it('chaîne vide si ni id ni docNumber, ou null', () => {
     expect(docIdentityKey({})).toBe('')
@@ -57,6 +66,13 @@ describe('dedupeDocsByIdentity', () => {
   })
   it('les docs sans identité ne sont jamais écrasés entre eux', () => {
     expect(dedupeDocsByIdentity([{ x: 1 }, { x: 2 }], [{ x: 3 }])).toHaveLength(3)
+  })
+  it('DOUBLON corrigé : même numéro définitif, id legacy (localStorage) vs UUID (DB) → 1 seul', () => {
+    const fromLocal = { id: '1779539827817', docNumber: 'FACT-2026-016', status: 'envoye' }
+    const fromDb = { id: '50e30094-3af7-442b-b2b0-4e8c8fc12b64', docNumber: 'FACT-2026-016', status: 'pending' }
+    const merged = dedupeDocsByIdentity([fromLocal], [fromDb])
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toEqual(fromDb) // incoming (DB) prime
   })
 })
 

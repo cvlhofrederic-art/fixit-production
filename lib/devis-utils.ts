@@ -76,7 +76,15 @@ export function isStableDocId(id: unknown): id is string {
 export function docIdentityKey(
   d: { id?: string | null; docNumber?: string | null } | null | undefined,
 ): string {
-  return (d?.id as string) || (d?.docNumber as string) || ''
+  const num = (d?.docNumber as string) || ''
+  // Numéro DÉFINITIF (DEV-/FACT-/AC-/AV-…, tout sauf brouillon BR-) → identité
+  // par NUMÉRO. Un même document émis présent à la fois en cache localStorage
+  // (id legacy horodaté non-UUID, cf. #352) ET en base (UUID) ne doit pas
+  // apparaître en double : la dédup par id les voyait différents (incident
+  // doublons factures 2026-06-05). Le numéro légal est unique par série/artisan.
+  if (num && !/^BR-/i.test(num)) return num
+  // Brouillon (BR- ou sans numéro légal) : identité par id stable, repli numéro.
+  return (d?.id as string) || num || ''
 }
 
 /**
@@ -87,13 +95,39 @@ export function docIdentityKey(
  * du merge cloud (dashboard) ET du refresh localStorage des listes V5.
  */
 export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
-  const byKey = new Map<string, T>()
-  let noId = 0
-  const keyOf = (d: T): string =>
-    docIdentityKey(d as { id?: string | null; docNumber?: string | null }) || `__noid_${noId++}`
-  for (const d of existing) byKey.set(keyOf(d), d)
-  for (const d of incoming) byKey.set(keyOf(d), d)
-  return Array.from(byKey.values())
+  // Deux docs sont le MÊME document s'ils partagent un id stable OU un numéro
+  // DÉFINITIF (DEV-/FACT-/AC-/AV-). Couvre les deux cas de fusion :
+  //  - brouillon → émis : même id, le numéro légal est attribué à la validation ;
+  //  - cache localStorage (id legacy horodaté non-UUID, cf. #352) vs DB (UUID) :
+  //    même numéro légal → évite les DOUBLONS (incident 2026-06-05).
+  // `incoming` prime à identité égale ; l'ordre d'`existing` est préservé ; les
+  // docs sans identité (ni id ni numéro définitif) ne fusionnent jamais.
+  const result: T[] = []
+  const byId = new Map<string, number>()
+  const byNum = new Map<string, number>()
+  const idOf = (d: T): string => ((d as { id?: string | null })?.id as string) || ''
+  const numOf = (d: T): string => {
+    const n = ((d as { docNumber?: string | null })?.docNumber as string) || ''
+    return n && !/^BR-/i.test(n) ? n : ''
+  }
+  const upsert = (d: T) => {
+    const id = idOf(d)
+    const num = numOf(d)
+    let idx = id && byId.has(id) ? byId.get(id)!
+      : num && byNum.has(num) ? byNum.get(num)!
+      : -1
+    if (idx >= 0) {
+      result[idx] = d // incoming prime à identité égale
+    } else {
+      idx = result.length
+      result.push(d)
+    }
+    if (id) byId.set(id, idx)
+    if (num) byNum.set(num, idx)
+  }
+  for (const d of existing) upsert(d)
+  for (const d of incoming) upsert(d)
+  return result
 }
 
 /**
