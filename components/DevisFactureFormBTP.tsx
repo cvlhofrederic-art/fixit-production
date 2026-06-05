@@ -1430,6 +1430,10 @@ export default function DevisFactureFormBTP({
       // Acomptes
       acomptesEnabled,
       acomptes,
+      // Lien devis → facture (méthode pro 2026) : conserve la référence du devis
+      // source à travers l'émission, pour la traçabilité et l'échéancier d'acomptes.
+      sourceDevisNumber: (initialData as { sourceDevisNumber?: string } | undefined)?.sourceDevisNumber,
+      sourceDevisId: (initialData as { sourceDevisId?: string } | undefined)?.sourceDevisId,
       // Paiement
       paymentMode,
       paymentDelay,

@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { parseServiceRange } from '@/lib/service-utils'
+import { devisLinkFields } from '@/lib/devis-utils'
 import type { Booking, Service } from '@/lib/types'
 
 export function useBookings(
@@ -216,6 +217,10 @@ export function useBookings(
       id: overrideId,
       docType: 'facture',
       docDate: factureDocDate,
+      // Lien devis → facture (méthode pro 2026) : la facture garde la référence
+      // du devis source → traçabilité + reprise de l'échéancier d'acomptes côté
+      // « → Acompte » du module Factures.
+      ...devisLinkFields(devis),
       // Sous-type suggéré par le garde-fou prestation future (méthode pro 2026)
       factureSubType: suggestedSubType || 'standard',
       acomptesEnabled: inheritedAcomptesEnabled,

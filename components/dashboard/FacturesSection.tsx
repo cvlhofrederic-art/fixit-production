@@ -8,7 +8,7 @@ import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
 import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
-import { DevisFactureData } from '@/lib/devis-types'
+import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT, scaleDocumentLines, negateDocumentLines } from '@/lib/devis-totals'
 import { getDocSeq, docIdentityKey, dedupeDocsByIdentity } from '@/lib/devis-utils'
@@ -453,6 +453,16 @@ function FacturesSectionV5({
       subTypeOf(d) === 'acompte' &&
       ((d as unknown as Record<string, unknown>).parentInvoiceNumber as string | undefined) === parentNumber,
     ).length
+  // Ordres d'acomptes déjà émis pour cette facture (échéancier du devis) —
+  // pour désactiver les étapes déjà facturées et empêcher une double émission.
+  const emittedOrdresFor = (parentNumber: string): number[] =>
+    factureDocs
+      .filter(d =>
+        subTypeOf(d) === 'acompte' &&
+        ((d as unknown as Record<string, unknown>).parentInvoiceNumber as string | undefined) === parentNumber,
+      )
+      .map(d => Number((d as unknown as Record<string, unknown>).acompteOrdre))
+      .filter(n => Number.isFinite(n))
   // Vérifie qu'un avoir n'a pas déjà été émis pour cette facture (1 seul avoir
   // par facture, sinon comptabilité ambiguë — cf. BOI-TVA-DECLA-30-20-20-30 §70).
   const hasAvoirFor = (parentNumber: string): boolean =>
@@ -733,6 +743,7 @@ function FacturesSectionV5({
         <AcompteQuickModal
           parent={acompteParent}
           existingCount={countAcomptesFor(acompteParent.docNumber)}
+          emittedOrdres={emittedOrdresFor(acompteParent.docNumber)}
           onClose={() => setAcompteParent(null)}
           onConfirm={async (params) => {
             // Émission DIRECTE (méthode pro 2026) : le % est appliqué à TOUTES
@@ -786,14 +797,25 @@ function FacturesSectionV5({
 function AcompteQuickModal({
   parent,
   existingCount,
+  emittedOrdres = [],
   onClose,
   onConfirm,
 }: {
   parent: PersistedDocument
   existingCount: number
+  emittedOrdres?: number[]
   onClose: () => void
   onConfirm: (p: { percentage: number; ordre: number; total: number; declencheur: string }) => void
 }) {
+  // Échéancier hérité du devis (méthode pro 2026) : la facture porte les
+  // acomptes définis sur le devis (ex. 50/30/20). On les propose en 1 clic ;
+  // le % choisi vient EXACTEMENT du devis, pas d'une saisie libre.
+  const echeancier = (Array.isArray((parent as { acomptes?: DevisAcompte[] }).acomptes)
+    ? ((parent as { acomptes?: DevisAcompte[] }).acomptes as DevisAcompte[])
+    : []
+  ).filter(a => a && a.pourcentage > 0).sort((a, b) => a.ordre - b.ordre)
+  const sourceDevis = (parent as { sourceDevisNumber?: string }).sourceDevisNumber
+
   const [percentage, setPercentage] = useState<number>(30)
   const [ordre, setOrdre] = useState<number>(existingCount + 1)
   const [total, setTotal] = useState<number>(Math.max(existingCount + 1, 3))
@@ -839,6 +861,47 @@ function AcompteQuickModal({
           <div><strong>Acomptes déjà émis :</strong> {existingCount}</div>
           <div style={{ marginTop: 6, color: '#7A5900' }}><strong>Cet acompte :</strong> {calcAcompte.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € — <strong>Restant après :</strong> {remaining.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
         </div>
+
+        {echeancier.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: '#444', marginBottom: 8 }}>
+              <strong>Échéancier du devis{sourceDevis ? ` ${sourceDevis}` : ''}</strong> — 1 clic pour émettre l&apos;acompte :
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {echeancier.map((ac) => {
+                const done = emittedOrdres.includes(ac.ordre)
+                const montant = Math.round((parentTotal * ac.pourcentage / 100) * 100) / 100
+                return (
+                  <button
+                    key={ac.id || ac.ordre}
+                    type="button"
+                    disabled={done}
+                    onClick={() => onConfirm({
+                      percentage: ac.pourcentage,
+                      ordre: ac.ordre,
+                      total: echeancier.length,
+                      declencheur: (ac.declencheur || ac.label || `Acompte ${ac.ordre}`).trim(),
+                    })}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                      padding: '10px 12px', borderRadius: 6, fontSize: 13, textAlign: 'left',
+                      border: `1px solid ${done ? '#ccc' : 'var(--primary-yellow, #FFC107)'}`,
+                      background: done ? '#f5f5f5' : 'rgba(255, 193, 7, 0.08)',
+                      color: done ? '#999' : '#111', fontWeight: 600,
+                      cursor: done ? 'not-allowed' : 'pointer', opacity: done ? 0.6 : 1,
+                    }}
+                  >
+                    <span>Acompte {ac.ordre} — {ac.pourcentage} %{ac.declencheur ? ` · ${ac.declencheur}` : ''}</span>
+                    <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {done ? '✓ émis' : `${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 12 }}>ou montant personnalisé :</div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
           <label style={{ display: 'block', fontSize: 12 }}>
             <span style={{ display: 'block', marginBottom: 4, color: '#444' }}>Pourcentage *</span>
