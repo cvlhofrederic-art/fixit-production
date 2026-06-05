@@ -14,7 +14,7 @@ test.describe('Syndic v54 — modules d14', () => {
   test('Cobrança Judicial (titre + pipeline)', async ({ page }) => {
     await page.getByRole('button', { name: 'Cobrança Judicial', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Cobrança Judicial', level: 1 })).toBeVisible()
-    await expect(page.getByText('Pipeline de cobranca')).toBeVisible()
+    await expect(page.getByText('Pipeline de cobrança')).toBeVisible()
   })
 
   test('Carregamento VE (titre + pedido)', async ({ page }) => {
