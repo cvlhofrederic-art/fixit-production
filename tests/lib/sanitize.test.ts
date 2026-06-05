@@ -62,4 +62,8 @@ describe('sanitizeSvg (anti stored-XSS signatures)', () => {
   it('retourne vide si > 50 ko (anti-DoS)', () => {
     expect(sanitizeSvg('<svg>' + 'a'.repeat(60000) + '</svg>')).toBe('')
   })
+  it('ne laisse pas de motif reconstruit (commentaire/script imbriqués)', () => {
+    expect(sanitizeSvg('<svg><!--<!-- x -->--><path d="M0"/></svg>')).not.toContain('<!--')
+    expect(sanitizeSvg('<svg><scr<script></script>ipt>alert(1)</scr<script></script>ipt><path d="M0"/></svg>')).not.toMatch(/<script/i)
+  })
 })

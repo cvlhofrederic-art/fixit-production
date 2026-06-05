@@ -57,16 +57,24 @@ export function sanitizeSvg(raw: string): string {
   if (raw.length > 50000) return ''
 
   let svg = raw
-    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
-    .replace(/<\?xml[\s\S]*?\?>/gi, '')
-
+  // Strips appliqués EN BOUCLE jusqu'à stabilité : retirer un motif multi-caractères en une
+  // seule passe peut en reconstruire un nouveau (ex. « <!--<!-- -->--> » → « --> »). Le point
+  // fixe garantit qu'aucune séquence dangereuse résiduelle ne subsiste
+  // (corrige js/incomplete-multi-character-sanitization).
   const forbiddenBlocks = ['script', 'foreignObject', 'iframe', 'object', 'embed', 'style', 'animate', 'animateTransform', 'animateMotion', 'set', 'use', 'image']
-  for (const tag of forbiddenBlocks) {
-    svg = svg.replace(new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'gi'), '')
-    svg = svg.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '')
-  }
+  let prev: string
+  do {
+    prev = svg
+    svg = svg
+      .replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
+      .replace(/<\?xml[\s\S]*?\?>/gi, '')
+    for (const tag of forbiddenBlocks) {
+      svg = svg.replace(new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'gi'), '')
+      svg = svg.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '')
+    }
+  } while (svg !== prev)
 
   return svg.replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g, (match, rawTag, rawAttrs) => {
     const tag = rawTag.toLowerCase()
