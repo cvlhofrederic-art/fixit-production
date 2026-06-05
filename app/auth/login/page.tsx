@@ -192,7 +192,7 @@ export default function LoginPage() {
           <p style={{
             textAlign: 'center',
             fontSize: '14px',
-            color: '#999',
+            color: '#555',
             marginTop: '10px',
             marginBottom: '32px',
             fontWeight: 500,
@@ -289,7 +289,7 @@ export default function LoginPage() {
                       {/* Description */}
                       <div style={{
                         fontSize: '11.5px',
-                        color: '#999',
+                        color: '#555',
                         lineHeight: 1.4,
                       }}>
                         {t(space.descKey)}
@@ -301,7 +301,7 @@ export default function LoginPage() {
               <p style={{
                 textAlign: 'center',
                 fontSize: '13px',
-                color: '#999',
+                color: '#555',
                 fontWeight: 500,
               }}>
                 {t('auth.selectSpaceAbove')}
@@ -451,7 +451,7 @@ export default function LoginPage() {
                       position: 'absolute', right: '12px', top: '50%',
                       transform: 'translateY(-50%)',
                       background: 'none', border: 'none', cursor: 'pointer',
-                      color: '#999', padding: '4px', display: 'flex', alignItems: 'center',
+                      color: '#555', padding: '4px', display: 'flex', alignItems: 'center',
                     }}
                     aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
@@ -472,7 +472,7 @@ export default function LoginPage() {
                   Se souvenir de moi
                 </label>
                 <LocaleLink href="/auth/reset-password" style={{
-                  color: '#999', textDecoration: 'none', fontWeight: 600,
+                  color: '#555', textDecoration: 'none', fontWeight: 600,
                   fontSize: '12.5px', transition: 'color 0.2s',
                 }}>
                   {t('auth.forgotPassword')}
@@ -504,7 +504,7 @@ export default function LoginPage() {
               </form>
 
               {/* Divider */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#999', fontSize: '12px', fontWeight: 500 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#555', fontSize: '12px', fontWeight: 500 }}>
                 <div style={{ flex: 1, height: '1px', background: '#EBEBEB' }} />
                 ou
                 <div style={{ flex: 1, height: '1px', background: '#EBEBEB' }} />
@@ -542,7 +542,7 @@ export default function LoginPage() {
               </button>
 
               {/* Sign up link */}
-              <p style={{ textAlign: 'center', fontSize: '13px', color: '#999', marginTop: '4px' }}>
+              <p style={{ textAlign: 'center', fontSize: '13px', color: '#555', marginTop: '4px' }}>
                 {t('auth.noAccount')}{' '}
                 <LocaleLink href={espaceActif.registerHref} style={{
                   color: '#1A1A1A', fontWeight: 700, textDecoration: 'none',
@@ -558,13 +558,13 @@ export default function LoginPage() {
       </div>
 
       {/* ── FOOTER ── */}
-      <footer style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#999' }}>
+      <footer style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#555' }}>
         © 2026 VITFIX ·{' '}
-        <LocaleLink href="/mentions-legales" style={{ color: '#999', textDecoration: 'none' }}>{locale === 'pt' ? 'Avisos legais' : 'Mentions légales'}</LocaleLink>
+        <LocaleLink href="/mentions-legales" style={{ color: '#555', textDecoration: 'underline' }}>{locale === 'pt' ? 'Avisos legais' : 'Mentions légales'}</LocaleLink>
         {' '}·{' '}
-        <LocaleLink href="/confidentialite" style={{ color: '#999', textDecoration: 'none' }}>{locale === 'pt' ? 'Privacidade' : 'Confidentialité'}</LocaleLink>
+        <LocaleLink href="/confidentialite" style={{ color: '#555', textDecoration: 'underline' }}>{locale === 'pt' ? 'Privacidade' : 'Confidentialité'}</LocaleLink>
         {' '}·{' '}
-        <LocaleLink href="/contact" style={{ color: '#999', textDecoration: 'none' }}>Contact</LocaleLink>
+        <LocaleLink href="/contact" style={{ color: '#555', textDecoration: 'underline' }}>Contact</LocaleLink>
       </footer>
     </div>
   )
