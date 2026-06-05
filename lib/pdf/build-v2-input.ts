@@ -108,6 +108,7 @@ export function buildV2Input(
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
     factureSubType, situationNumber, situationAvancement,
+    acompteOrdre, acompteTotal, acomptePourcentage, parentInvoiceNumber, avoirMotif,
     lines, materialLines, fraisAnnexes, customTables, tvaBreakdown,
     acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     isHorsEtablissement,
@@ -179,6 +180,12 @@ export function buildV2Input(
       factureSubType,
       situationNumber,
       situationAvancement,
+      // Métadonnées acompte/avoir pour le label réglementaire (cf. subTypeLabel V2).
+      acompteOrdre,
+      acompteTotal,
+      acomptePourcentage,
+      parentInvoiceNumber,
+      avoirMotif,
       // Échéance facture (art. L441-10 C. com.) : on priorise paymentDue
       // (date ISO override manuel) puis paymentCondition (texte dropdown,
       // "60 jours date facture" etc.). Le helper computeEcheanceDate gère

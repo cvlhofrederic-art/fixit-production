@@ -12,6 +12,7 @@
 
 import { sumMoney, round2 } from '@/lib/money'
 import { computeEcheanceDate } from '@/lib/pdf/payment-due'
+import { buildSubTypeLabel } from '@/lib/pdf/subtype-label'
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -529,14 +530,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFont(FONT, 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text(input.devis.numero, pageW / 2, y, { align: 'center' })
 
-  // Label sous-type facture (méthode pro 2026) — mention légalement requise
-  // pour acompte / situation (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).
-  // Standard et devis : aucun label additionnel.
-  const subTypeLabel = input.devis.docType === 'facture' && input.devis.factureSubType && input.devis.factureSubType !== 'standard'
-    ? input.devis.factureSubType === 'acompte'
-      ? (isPt ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE')
-      : `${isPt ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${input.devis.situationNumber ? ` N° ${input.devis.situationNumber}` : ''}${input.devis.situationAvancement != null ? ` — ${input.devis.situationAvancement}%` : ''}`
-    : null
+  // Label sous-type facture (méthode pro 2026) — mention légalement requise pour
+  // acompte / situation / avoir (art. 289 CGI ; BOI-TVA-DECLA-30-20-20-30 §70).
+  // Helper partagé (mirror V3) → label COMPLET au download depuis la liste :
+  // « Acompte N°X sur Y — Z% (sur facture …) », « AVOIR sur facture … ».
+  const subTypeLabel = buildSubTypeLabel(input.devis, isPt)
   if (subTypeLabel) {
     y += ptToMm(12)
     pdf.setFont(FONT, 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
