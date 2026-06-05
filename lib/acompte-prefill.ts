@@ -27,6 +27,10 @@ export function buildAcomptePrefill(
   const docNumber = (parent.docNumber as string | undefined) || ''
   const docTitle = (parent.docTitle as string | undefined) || docNumber
   const isDevis = parent.docType === 'devis'
+  // Franchise en base (art. 293 B CGI) : artisan EI/auto/micro non assujetti à
+  // la TVA. La mention « TVA exigible à l'encaissement » ne s'applique PAS —
+  // sinon l'acompte contredirait la mention 293 B sur le PDF V2.
+  const isFranchise = parent.tvaEnabled === false
   return {
     ...scaled,
     // Lien devis source : pour un acompte tiré directement d'un devis, on garde
@@ -48,6 +52,9 @@ export function buildAcomptePrefill(
     acompteDeFactureId: (parent.id as string | undefined) ?? docNumber,
     parentInvoiceNumber: docNumber,
     notes: `Acompte ${p.percentage}% (N°${p.ordre} sur ${p.total}) sur ${isDevis ? 'devis' : 'facture'} ${docNumber}. ` +
-           `Déclencheur : ${p.declencheur}. TVA exigible à l'encaissement (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).`,
+           `Déclencheur : ${p.declencheur}.` +
+           (isFranchise
+             ? ' TVA non applicable, art. 293 B du CGI.'
+             : ' TVA exigible à l\'encaissement (art. 289 CGI + BOFIP-TVA-DECLA-30-10-20).'),
   }
 }

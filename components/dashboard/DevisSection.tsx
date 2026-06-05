@@ -662,7 +662,7 @@ function DevisSectionV5({
                       )}
                       <button
                         className="v5-btn v5-btn-sm v5-btn-p"
-                        onClick={() => orgRole === 'pro_societe' ? setFactureChoiceDevis(doc) : convertDevisToFacture(doc)}
+                        onClick={() => (orgRole === 'pro_societe' || orgRole === 'artisan') ? setFactureChoiceDevis(doc) : convertDevisToFacture(doc)}
                       >
                         {t('proDash.devis.facturer')}
                       </button>

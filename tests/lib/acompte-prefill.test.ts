@@ -52,4 +52,16 @@ describe('buildAcomptePrefill', () => {
     expect(PARENT_FACTURE.lines[0].totalHT).toBe(5250)
     expect(PARENT_FACTURE.customTables[0].lines[0].totalHT).toBe(40437)
   })
+
+  it('franchise artisan (tvaEnabled=false) : note 293 B, PAS de « TVA exigible »', () => {
+    const a = buildAcomptePrefill({ ...PARENT_FACTURE, tvaEnabled: false }, { percentage: 50, ordre: 1, total: 2, declencheur: 'x' })
+    expect(String(a.notes)).toMatch(/293\s?B/)
+    expect(String(a.notes)).not.toMatch(/exigible à l'encaissement/i)
+  })
+
+  it('assujetti TVA (tvaEnabled=true) : mention « TVA exigible à l\'encaissement »', () => {
+    const a = buildAcomptePrefill({ ...PARENT_FACTURE, tvaEnabled: true }, { percentage: 50, ordre: 1, total: 2, declencheur: 'x' })
+    expect(String(a.notes)).toMatch(/exigible à l'encaissement/i)
+    expect(String(a.notes)).not.toMatch(/293\s?B/)
+  })
 })
