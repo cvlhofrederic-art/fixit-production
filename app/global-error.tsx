@@ -3,6 +3,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 import Link from "next/link";
+import { attemptChunkReload } from "@/lib/chunk-reload";
 
 export default function GlobalError({
   error,
@@ -12,6 +13,8 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
+    // Bundle périmé après déploiement : recharge une fois avant de signaler.
+    if (attemptChunkReload(error)) return;
     Sentry.captureException(error);
   }, [error]);
 

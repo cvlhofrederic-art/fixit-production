@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { titleCaseAddress, getDocSeq, stableDocId, docIdentityKey, dedupeDocsByIdentity } from '../lib/devis-utils'
+import { titleCaseAddress, getDocSeq, stableDocId, isStableDocId, docIdentityKey, dedupeDocsByIdentity } from '../lib/devis-utils'
 
 describe('stableDocId', () => {
   it('génère un UUID v4 valide', () => {
@@ -8,6 +8,23 @@ describe('stableDocId', () => {
   it('génère des identifiants uniques', () => {
     const ids = new Set(Array.from({ length: 200 }, () => stableDocId()))
     expect(ids.size).toBe(200)
+  })
+})
+
+describe('isStableDocId — distingue un id canonique (UUID) d\'un id legacy', () => {
+  it('vrai pour un UUID (stableDocId / crypto.randomUUID)', () => {
+    expect(isStableDocId('50e30094-3af7-442b-b2b0-4e8c8fc12b64')).toBe(true)
+    expect(isStableDocId(stableDocId())).toBe(true)
+  })
+  it('faux pour un id legacy horodaté (Date.now())', () => {
+    expect(isStableDocId('1779539827817')).toBe(false)
+  })
+  it('faux pour chaîne vide, numéro de doc, ou valeur non-string', () => {
+    expect(isStableDocId('')).toBe(false)
+    expect(isStableDocId('DEV-2026-010')).toBe(false)
+    expect(isStableDocId(null)).toBe(false)
+    expect(isStableDocId(undefined)).toBe(false)
+    expect(isStableDocId(1779539827817)).toBe(false)
   })
 })
 

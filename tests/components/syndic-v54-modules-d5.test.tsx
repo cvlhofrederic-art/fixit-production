@@ -38,7 +38,7 @@ describe('syndic v54 — ModFaturacao', () => {
   it('rend titre, onglets et état vide', () => {
     render(<ModFaturacao />)
     expect(screen.getByRole('heading', { name: 'Faturação & Recibos Verdes' })).toBeTruthy()
-    expect(screen.getByText('Nenhuma fatura nem orçamento nas missões')).toBeTruthy()
+    expect(screen.getByText('Nenhuma fatura emitida')).toBeTruthy()
     expect(screen.getByText('Recibos Verdes & IRS')).toBeTruthy()
   })
 })
