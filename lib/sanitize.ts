@@ -57,47 +57,47 @@ export function sanitizeSvg(raw: string): string {
   if (raw.length > 50000) return ''
 
   let svg = raw
-  // Strips appliqués EN BOUCLE jusqu'à stabilité : retirer un motif multi-caractères en une
-  // seule passe peut en reconstruire un nouveau (ex. « <!--<!-- -->--> » → « --> »). Le point
-  // fixe garantit qu'aucune séquence dangereuse résiduelle ne subsiste
-  // (corrige js/incomplete-multi-character-sanitization).
+  // Chaque suppression est appliquée jusqu'à POINT FIXE via l'idiome `while (s !== (s = s.replace(re,'')))`
+  // (forme reconnue par CodeQL js/incomplete-multi-character-sanitization) : retirer un motif
+  // multi-caractères en une passe peut en reconstruire un (« <!--<!-- -->--> », « <scr<script></script>ipt> »).
+  while (svg !== (svg = svg.replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, ''))) { /* fixpoint CDATA */ }
+  while (svg !== (svg = svg.replace(/<!--[\s\S]*?-->/g, ''))) { /* fixpoint commentaires */ }
+  while (svg !== (svg = svg.replace(/<!DOCTYPE[\s\S]*?>/gi, ''))) { /* fixpoint doctype */ }
+  while (svg !== (svg = svg.replace(/<\?xml[\s\S]*?\?>/gi, ''))) { /* fixpoint xml */ }
   const forbiddenBlocks = ['script', 'foreignObject', 'iframe', 'object', 'embed', 'style', 'animate', 'animateTransform', 'animateMotion', 'set', 'use', 'image']
-  let prev: string
-  do {
-    prev = svg
-    svg = svg
-      .replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, '')
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
-      .replace(/<\?xml[\s\S]*?\?>/gi, '')
-    for (const tag of forbiddenBlocks) {
-      svg = svg.replace(new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'gi'), '')
-      svg = svg.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '')
-    }
-  } while (svg !== prev)
+  for (const tag of forbiddenBlocks) {
+    const reBlock = new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'gi')
+    const reSelf = new RegExp(`<${tag}\\b[^>]*/?>`, 'gi')
+    while (svg !== (svg = svg.replace(reBlock, ''))) { /* fixpoint bloc */ }
+    while (svg !== (svg = svg.replace(reSelf, ''))) { /* fixpoint self-closing */ }
+  }
 
-  return svg.replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g, (match, rawTag, rawAttrs) => {
-    const tag = rawTag.toLowerCase()
-    if (!ALLOWED_SVG_TAGS.has(tag)) return ''
-    if (match.startsWith('</')) return `</${tag}>`
+  // Passe allowlist (tags + attributs), elle aussi jusqu'à point fixe.
+  const filterTags = (input: string): string =>
+    input.replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g, (match, rawTag, rawAttrs) => {
+      const tag = rawTag.toLowerCase()
+      if (!ALLOWED_SVG_TAGS.has(tag)) return ''
+      if (match.startsWith('</')) return `</${tag}>`
 
-    const cleanAttrs: string[] = []
-    const attrRe = /([a-zA-Z:][a-zA-Z0-9:_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
-    let m: RegExpExecArray | null
-    while ((m = attrRe.exec(rawAttrs)) !== null) {
-      const origName = m[1]
-      const name = origName.toLowerCase()
-      const value = m[2] ?? m[3] ?? m[4] ?? ''
-      if (name.startsWith('on')) continue                    // jamais de handlers d'événements
-      if (name === 'href' || name === 'xlink:href') continue // jamais de href (vecteur XSS)
-      if (name === 'style') continue                         // style retiré par sécurité
-      if (!ALLOWED_SVG_ATTRS.has(name)) continue
-      cleanAttrs.push(`${origName}="${value.replace(/"/g, '&quot;')}"`) // casse préservée (viewBox)
-    }
+      const cleanAttrs: string[] = []
+      const attrRe = /([a-zA-Z:][a-zA-Z0-9:_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
+      let m: RegExpExecArray | null
+      while ((m = attrRe.exec(rawAttrs)) !== null) {
+        const origName = m[1]
+        const name = origName.toLowerCase()
+        const value = m[2] ?? m[3] ?? m[4] ?? ''
+        if (name.startsWith('on')) continue                    // jamais de handlers d'événements
+        if (name === 'href' || name === 'xlink:href') continue // jamais de href (vecteur XSS)
+        if (name === 'style') continue                         // style retiré par sécurité
+        if (!ALLOWED_SVG_ATTRS.has(name)) continue
+        cleanAttrs.push(`${origName}="${value.replace(/"/g, '&quot;')}"`) // casse préservée (viewBox)
+      }
 
-    const selfClosing = rawAttrs.trim().endsWith('/')
-    return `<${tag}${cleanAttrs.length ? ' ' + cleanAttrs.join(' ') : ''}${selfClosing ? ' /' : ''}>`
-  })
+      const selfClosing = rawAttrs.trim().endsWith('/')
+      return `<${tag}${cleanAttrs.length ? ' ' + cleanAttrs.join(' ') : ''}${selfClosing ? ' /' : ''}>`
+    })
+  while (svg !== (svg = filterTags(svg))) { /* fixpoint allowlist */ }
+  return svg
 }
 
 /**
