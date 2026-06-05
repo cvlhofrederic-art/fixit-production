@@ -289,3 +289,19 @@ export function isSmallBusinessStatus(status: string, locale: Locale): boolean {
   if (locale === 'pt') return ['eni'].includes(status)
   return ['ae', 'ei'].includes(status)
 }
+
+/**
+ * Champs de liaison devis → facture (méthode pro 2026). Une facture issue d'un
+ * devis garde la référence du devis source (`sourceDevisNumber`/`sourceDevisId`)
+ * pour la traçabilité et la reprise de l'échéancier d'acomptes (50/30/20) côté
+ * facture. Renvoie {} si aucun devis source (création directe).
+ */
+export function devisLinkFields(
+  devis: { id?: unknown; docNumber?: unknown } | null | undefined,
+): { sourceDevisId?: string; sourceDevisNumber?: string } {
+  if (!devis || typeof devis !== 'object') return {}
+  const out: { sourceDevisId?: string; sourceDevisNumber?: string } = {}
+  if (devis.id) out.sourceDevisId = String(devis.id)
+  if (devis.docNumber) out.sourceDevisNumber = String(devis.docNumber)
+  return out
+}
