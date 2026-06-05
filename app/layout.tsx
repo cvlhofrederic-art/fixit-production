@@ -58,9 +58,9 @@ const outfit = Outfit({
 // Économie ~150-300KB sur les pages publiques (perf SEO 2026, LCP mobile).
 
 const sharedMeta = {
-  authors: [{ name: "Vitfix SAS" }] as Metadata['authors'],
-  creator: "Vitfix SAS",
-  publisher: "Vitfix SAS",
+  authors: [{ name: "VITFIX" }] as Metadata['authors'],
+  creator: "VITFIX",
+  publisher: "VITFIX",
   // Google Search Console verification (URL Prefix method).
   // Génère <meta name="google-site-verification" content="..." /> dans le <head>.
   verification: {
@@ -106,8 +106,14 @@ const sharedMeta = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  // MOBILE_BUILD : en mode export statique Capacitor, cookies() / headers() ne
+  // sont pas disponibles (pas de runtime Node). Fallback à 'fr' — l'app mobile
+  // pré-release sert d'abord le marché FR ; la locale peut être switchée
+  // dynamiquement côté client après hydratation.
+  const isMobileBuild = process.env.MOBILE_BUILD === 'true'
+  const locale = (isMobileBuild
+    ? 'fr'
+    : (await cookies()).get('locale')?.value || 'fr') as Locale
 
   // NL and ES landing pages - fall back to EN metadata
   if (locale === 'nl') {
@@ -190,10 +196,16 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Read locale: x-locale header (set by middleware from URL path) takes priority
-  // over cookie, which may be stale when middleware updates it in the response
-  const cookieStore = await cookies()
-  const headerStore = await headers()
-  const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+  // over cookie, which may be stale when middleware updates it in the response.
+  // En mode MOBILE_BUILD (export Capacitor), cookies()/headers() ne sont pas
+  // disponibles — fallback 'fr' qui peut être surchargé côté client.
+  const isMobileBuild = process.env.MOBILE_BUILD === 'true'
+  let locale: Locale = 'fr'
+  if (!isMobileBuild) {
+    const cookieStore = await cookies()
+    const headerStore = await headers()
+    locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+  }
 
   // Pro SEO 2026 : BCP 47 régionalisé sur <html lang> pour cohérence avec
   // hreflang (pt-PT vs pt, fr-FR vs fr). Cible explicitement Portugal (pas
@@ -266,10 +278,10 @@ export default async function RootLayout({
                   '@id': 'https://vitfix.io/#business',
                   name: 'VITFIX',
                   alternateName: 'Vitfix',
-                  legalName: 'Vitfix SAS',
+                  legalName: 'VITFIX — Empresário em Nome Individual',
                   url: 'https://vitfix.io',
                   logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
-                  image: 'https://vitfix.io/og-image.png',
+                  image: locale === 'pt' ? 'https://vitfix.io/api/og/?locale=pt' : locale === 'fr' ? 'https://vitfix.io/api/og/?locale=fr' : 'https://vitfix.io/api/og/?locale=en',
                   description: locale === 'pt'
                     ? 'Plataforma de profissionais verificados para reparações e obras, canalização, eletricidade, faz-tudo em Portugal.'
                     : 'Plateforme d\'artisans vérifiés pour vos travaux, plomberie, électricité, maçonnerie, peinture en France et au Portugal.',
@@ -328,14 +340,14 @@ export default async function RootLayout({
                     'Débarras et nettoyage',
                     'Climatisation et chauffe-eau',
                   ],
+                  taxID: 'PT276873297',
+                  foundingDate: '2024',
                   // aggregateRating intentionnellement OMIS de l'Organization
                   // globale (review #140) :
                   // - Évite incohérence avec ratings per-locale dans
                   //   lib/schemas/index.ts (4.8 FR / 4.9 PT).
                   // - Service pages portent leurs propres ratings localisés.
                   // - Pas de risque Google "Inconsistent ratings warning".
-                  // sameAs, address, taxID, foundingDate intentionnellement omis
-                  // tant que les données réelles ne sont pas fournies par l'utilisateur.
                 },
               ],
             }),

@@ -16,6 +16,8 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
+import { buildDocumentLines } from '@/lib/devis-totals'
 
 interface SavedDevis {
   id?: string
@@ -25,6 +27,10 @@ interface SavedDevis {
   docDate?: string
   docValidity?: number
   prestationDate?: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
+  factureSubType?: 'standard' | 'acompte' | 'situation'
+  situationNumber?: number
+  situationAvancement?: number
   executionDelay?: string
   executionDelayDays?: number
   executionDelayType?: string
@@ -38,6 +44,26 @@ interface SavedDevis {
   companyEmail?: string
   tvaEnabled?: boolean
   tvaNumber?: string
+  // Régime TVA appliqué au document — source de vérité pour les mentions et totaux
+  // (cf. lib/tva-calculator.ts). Si absent, on infère via `autoliquidationBTP`
+  // (legacy flag) ou `tvaEnabled` (franchise quand false).
+  regimeTva?: TvaRegime
+  autoliquidationBTP?: boolean
+  /** N° TVA intra du preneur (override manuel). Sinon PDF V3 calcule auto. */
+  tvaIntraPreneur?: string
+  /** Infos gestion déchets (loi AGEC, art. D.541-45-1 C. env.). */
+  dechetsChantier?: {
+    nature?: string
+    quantiteEstimee?: string
+    unite?: string
+    installationNom?: string
+    installationAdresse?: string
+    modalitesTri?: string
+    coutGestion?: string
+  }
+  /** Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975) — autoliq BTP. */
+  marchePrincipalRef?: string
+  maitreOuvrageFinal?: string
   companyAPE?: string
   insuranceType?: 'rc_pro' | 'decennale' | 'both'
   insuranceName?: string
@@ -202,13 +228,27 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || '',
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today), jamais le docDate hérité du devis. Aligné art. 289 CGI + pratique
+    // Henrri/EBP/Pennylane/Sage. Une facture déjà émise (sentAt présent) garde
+    // sa date historique pour l'archivage probant (arrêté 22 mars 2017).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
+    })(),
     docValidity: doc.docValidity || 30,
     executionDelay: delayStr,
     // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
     // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
     // la date d'émission dans la case DATE PRESTATION.
     prestationDate: doc.prestationDate || '',
+    // Sous-type facture (méthode pro 2026) — pilote le label PDF
+    factureSubType: doc.factureSubType,
+    situationNumber: doc.situationNumber,
+    situationAvancement: doc.situationAvancement,
 
     // Lines
     lines: mergedLines,
@@ -266,44 +306,45 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 // ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
 async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   const { locale, t, artisan } = ctx
+  // Pas de re-construction locale des collections sommées : la source
+  // unique de vérité est `buildDocumentLines` (lib/devis-totals.ts). Elle
+  // applique les règles communes (laborLines > lines, masquage
+  // materialLines/fraisLines si leur flag Enabled === false, aplatissement
+  // customTables, filtres null-safe). Tout site qui sommait à la main
+  // pouvait diverger — régression DEV-2026-005 (+2 800 € phantom).
+  const sourceLines = buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0]) as ProductLine[]
+  // Champs encore référencés par le payload V3 (sections rendues, noms,
+  // flags) — réutilisés tels quels pour respecter la forme attendue par
+  // `generateDevisPdfV3`.
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
   const laborLinesRaw = (doc.laborLines as ProductLine[]) || []
   const fraisLines = ((doc as Record<string, unknown>).fraisLines as ProductLine[]) || []
   const customTables = ((doc as Record<string, unknown>).customTables as { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]) || []
-  const customLines = customTables.flatMap(t => t.lines || [])
-
-  // CORRIGE le bug introduit par H5 (audit interne 04/05/2026) :
-  // Dans le BTP form `buildPayload`, `lines` n'est PAS une union — c'est la
-  // section principale "Main d'œuvre" (renommée DÉMOLITION dans certains cas).
-  // `laborLines` n'est généralement pas dans le storage (pas dans buildPayload).
-  // Donc :
-  //   - laborLines (storage explicite) priorité 1
-  //   - sinon `lines` agit comme labor section (legacy + actuel BTP)
-  // PUIS sommer materialLines + fraisLines + customLines en plus (jamais l'union).
-  // Avant ce fix : `lines` était IGNORÉ quand customTables existaient → la
-  // section DÉMOLITION disparaissait du PDF (5 272,73 € manquants sur Adeline).
   const labor = laborLinesRaw.length > 0 ? laborLinesRaw : lines
-  const sourceLines = [...labor, ...materialLines, ...fraisLines, ...customLines]
   // Sommes via centimes entiers (sumMoney) — zéro drift IEEE 754.
   const subtotalHT = sumMoney(sourceLines.map(l => l.totalHT || 0))
   const tvaEnabled = doc.tvaEnabled !== false
-  // Ventilation TVA : on agrège par taux puis on arrondit (BOFiP §50).
-  const tvaMap = new Map<number, { base: number; amount: number }>()
-  if (tvaEnabled) {
-    sourceLines.filter(l => (l.description || '').trim()).forEach(l => {
-      const cur = tvaMap.get(l.tvaRate || 0) || { base: 0, amount: 0 }
-      cur.base = round2(cur.base + (l.totalHT || 0))
-      tvaMap.set(l.tvaRate || 0, cur)
-    })
-    tvaMap.forEach((v, rate) => { v.amount = round2(v.base * rate / 100) })
-  }
-  const tvaBreakdown = Array.from(tvaMap.entries())
-    .map(([rate, { base, amount }]) => ({ rate, base, amount }))
-    .filter(b => b.rate > 0)
-    .sort((a, b) => b.rate - a.rate)
-  const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
-  const totalTTC = tvaEnabled ? round2(subtotalHT + totalTVA) : subtotalHT
+
+  // Régime TVA effectif — source unique de vérité (lib/tva-calculator.ts).
+  // Le flag explicite `regimeTva` (form V3 actuel) prime ; fallback rétro-compat :
+  // `autoliquidationBTP=true` → 'autoliquidation_btp' ; `tvaEnabled=false` →
+  // 'franchise_293b' ; sinon 'classique'. Sans ce fix, le bouton « Télécharger »
+  // ignorait silencieusement le régime persisté et rendait toujours TVA classique.
+  const effectiveRegime: TvaRegime =
+    doc.regimeTva
+      ?? (doc.autoliquidationBTP
+        ? 'autoliquidation_btp'
+        : (tvaEnabled ? 'classique' : 'franchise_293b'))
+  const tva = computeTva({
+    regime: effectiveRegime,
+    lines: sourceLines
+      .filter(l => (l.description || '').trim())
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    locale: locale === 'pt' ? 'pt' : 'fr',
+  })
+  const tvaBreakdown = tva.breakdown
+  const totalTTC = tva.totalTTC
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
@@ -353,7 +394,17 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
     docTitle: doc.docTitle || `${doc.docType === 'facture' ? 'Facture' : 'Devis'} ${doc.docNumber || ''}`,
-    docDate: doc.docDate || new Date().toISOString().split('T')[0],
+    // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
+    // facture brouillon, la date d'émission au PDF est la date de génération
+    // (today). Aligné art. 289 CGI + pratique Henrri/EBP/Pennylane/Sage.
+    // Une facture déjà émise (sentAt) garde sa date historique (arrêté
+    // 22 mars 2017 — archivage probant).
+    docDate: (() => {
+      const today = new Date().toISOString().split('T')[0]
+      const sentAt = (doc as { sentAt?: string }).sentAt
+      if (doc.docType === 'facture' && !sentAt) return today
+      return doc.docDate || today
+    })(),
     docValidity: doc.docValidity || 30,
     // prestationDate : si vide → reste vide → V3 affiche « À convenir ».
     // Avant : fallback sur doc.docDate (date du jour) → PDF affichait à tort
@@ -361,6 +412,10 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     // la liste devis (path BTP). PR #108 avait fixé le path V2 (ligne 204) mais
     // raté ce path V3. Symptôme : preview = « À convenir » ✓, download = date ✗.
     prestationDate: doc.prestationDate || '',
+    // Sous-type facture (méthode pro 2026) — pilote le label PDF V3
+    factureSubType: doc.factureSubType,
+    situationNumber: doc.situationNumber,
+    situationAvancement: doc.situationAvancement,
     executionDelay: delayStr,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',
@@ -415,7 +470,17 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     customTables: customTables.length > 0 ? customTables : undefined,
     subtotalHT,
     totalTTC,
-    tvaBreakdown: tvaEnabled && tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
+    // Breakdown vide en franchise/autoliquidation (computeTva force []),
+    // donc undefined dans le PDF (pas de ligne TVA détail).
+    tvaBreakdown: tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
+    // Régime + flag legacy passés au PDF V3 pour piloter mentions, colonnes
+    // et label total. PDF V3 priorise `regimeTva` sur `autoliquidationBTP`.
+    regimeTva: effectiveRegime,
+    autoliquidationBTP: effectiveRegime === 'autoliquidation_btp',
+    tvaIntraPreneur: doc.tvaIntraPreneur || undefined,
+    dechetsChantier: doc.dechetsChantier || undefined,
+    marchePrincipalRef: doc.marchePrincipalRef || undefined,
+    maitreOuvrageFinal: doc.maitreOuvrageFinal || undefined,
     acomptesEnabled: doc.acomptesEnabled || false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     acomptes: (doc.acomptes as any) || [],

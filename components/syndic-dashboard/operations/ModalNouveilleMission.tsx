@@ -168,15 +168,15 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
 
             {/* ── Auto-remplissage depuis copropriétaire ── */}
             {coproprios.length > 0 && (
-              <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] rounded-xl border border-blue-200 p-3">
+              <div className="bg-gradient-to-r from-[#F7F4EE] to-[#F7F4EE] rounded-xl border border-[#E4DDD0] p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-blue-800">⚡ {isPt ? 'Preenchimento automático a partir de um condómino' : 'Auto-remplissage depuis un copropriétaire'}</p>
-                    <p className="text-xs text-blue-600 mt-0.5">{isPt ? 'Selecione um condómino para preencher automaticamente as informações' : 'Sélectionnez un copropriétaire pour pré-remplir automatiquement les infos'}</p>
+                    <p className="text-xs font-bold text-[#0D1B2E]">⚡ {isPt ? 'Preenchimento automático a partir de um condómino' : 'Auto-remplissage depuis un copropriétaire'}</p>
+                    <p className="text-xs text-[#0D1B2E] opacity-70 mt-0.5">{isPt ? 'Selecione um condómino para preencher automaticamente as informações' : 'Sélectionnez un copropriétaire pour pré-remplir automatiquement les infos'}</p>
                   </div>
                   <button
                     onClick={() => setShowCoproSearch(!showCoproSearch)}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition"
+                    className="text-xs bg-[#0D1B2E] hover:bg-[#152338] text-white px-3 py-1.5 rounded-lg font-semibold transition"
                   >
                     {showCoproSearch ? (isPt ? '✕ Fechar' : '✕ Fermer') : (isPt ? '🔍 Selecionar' : '🔍 Sélectionner')}
                   </button>
@@ -188,23 +188,23 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                       value={coproSearch}
                       onChange={e => setCoproSearch(e.target.value)}
                       placeholder={locale === 'pt' ? 'Pesquisar por nome, fração, email…' : 'Rechercher par nom, lot, email…'}
-                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white"
+                      className="w-full px-3 py-2 text-sm border border-[#E4DDD0] rounded-lg focus:ring-2 focus:ring-[#C9A84C] focus:outline-none bg-white"
                       autoFocus
                     />
-                    <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-blue-100 shadow-sm">
+                    <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-[#E4DDD0] shadow-sm">
                       {filteredCopros.length === 0 ? (
                         <p className="text-xs text-gray-500 text-center py-3">{locale === 'pt' ? 'Nenhum resultado' : 'Aucun résultat'}</p>
                       ) : filteredCopros.map((c: Coproprio, i: number) => (
                         <button
                           key={c.id || i}
                           onClick={() => autoFillFromCopro(c)}
-                          className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition border-b border-gray-50 last:border-0"
+                          className="w-full text-left px-3 py-2.5 hover:bg-[#F7F4EE] transition border-b border-gray-50 last:border-0"
                         >
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-gray-800">
                                 {c.prenomProprietaire ? `${c.prenomProprietaire} ` : ''}{c.nomProprietaire || '—'}
-                                {c.nomLocataire && <span className="text-xs text-blue-600 ml-1">(loc. {c.prenomLocataire || ''} {c.nomLocataire})</span>}
+                                {c.nomLocataire && <span className="text-xs text-[#C9A84C] ml-1">(loc. {c.prenomLocataire || ''} {c.nomLocataire})</span>}
                               </p>
                               <p className="text-xs text-gray-500">
                                 {c.immeuble && `🏢 ${c.immeuble} · `}
@@ -213,7 +213,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                                 {isPt ? 'Fração' : 'Lot'} {c.numeroPorte || '—'}
                               </p>
                             </div>
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{isPt ? 'Preencher →' : 'Remplir →'}</span>
+                            <span className="text-xs bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] px-2 py-0.5 rounded-full">{isPt ? 'Preencher →' : 'Remplir →'}</span>
                           </div>
                         </button>
                       ))}
@@ -272,8 +272,8 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
             </div>
 
             {/* Localisation */}
-            <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">📍 {isPt ? 'Localização' : 'Localisation'}</p>
+            <div className="bg-[#F7F4EE] rounded-xl p-4 space-y-3">
+              <p className="text-xs font-bold text-[#C9A84C] uppercase tracking-wide">📍 {isPt ? 'Localização' : 'Localisation'}</p>
               {/* Résidence */}
               <div className="relative">
                 <label className="block text-xs font-medium text-gray-700 mb-1">{isPt ? 'Nome do edifício' : 'Nom de la résidence'}</label>

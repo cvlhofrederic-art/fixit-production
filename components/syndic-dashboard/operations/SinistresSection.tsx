@@ -26,14 +26,14 @@ export default function SinistresSection({ user, userRole, artisans = [] }: { us
   const PIPELINE: { key: SinistreStatut; label: string; icon: string; color: string }[] = [
     { key: 'déclaré',        label: t('syndicDash.sinistres.declared'),          icon: '🚨', color: 'bg-red-500' },
     { key: 'artisan_assigné',label: t('syndicDash.sinistres.artisanAssigned'),  icon: '🔨', color: 'bg-[#C9A84C]' },
-    { key: 'en_expertise',   label: t('syndicDash.sinistres.inExpertise'),     icon: '🔍', color: 'bg-blue-500' },
+    { key: 'en_expertise',   label: t('syndicDash.sinistres.inExpertise'),     icon: '🔍', color: 'bg-[#C9A84C]' },
     { key: 'résolution',     label: t('syndicDash.sinistres.resolution'),        icon: '🔧', color: 'bg-[#F7F4EE]0' },
     { key: 'indemnisé',      label: t('syndicDash.sinistres.indemnised'),         icon: '💰', color: 'bg-teal-500' },
     { key: 'clôturé',        label: t('syndicDash.sinistres.closed'),           icon: '✅', color: 'bg-green-500' },
   ]
   const STATUS_COLORS: Record<string, string> = {
     déclaré: 'bg-red-100 text-red-700', artisan_assigné: 'bg-orange-100 text-orange-700',
-    en_expertise: 'bg-blue-100 text-blue-700', résolution: 'bg-[#F7F4EE] text-[#C9A84C]',
+    en_expertise: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]', résolution: 'bg-[#F7F4EE] text-[#C9A84C]',
     indemnisé: 'bg-teal-100 text-teal-700', clôturé: 'bg-green-100 text-green-700', refusé: 'bg-[#F7F4EE] text-gray-600'
   }
   const TYPES = ['Dégât des eaux', 'Incendie', 'Vol / Cambriolage', 'Vandalisme', 'Bris de glace', 'Catastrophe naturelle', 'Effondrement', 'Infiltration', 'Bris de canalisations', 'Autre']
@@ -157,9 +157,9 @@ Le Gestionnaire — Cabinet de Syndic`
             <div className="text-sm text-gray-500">{t('syndicDash.sinistres.urgences')}</div>
             <div className="text-3xl font-bold text-amber-600">{urgents.length}</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]">
             <div className="text-sm text-gray-500">{t('syndicDash.sinistres.estimatedAmount')}</div>
-            <div className="text-2xl font-bold text-blue-600">{totalEstime.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div>
+            <div className="text-2xl font-bold text-[#0D1B2E]">{totalEstime.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div>
           </div>
           <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400">
             <div className="text-sm text-gray-500">{t('syndicDash.sinistres.indemnisations')}</div>
@@ -292,7 +292,7 @@ Le Gestionnaire — Cabinet de Syndic`
                 </div>
                 <div className="bg-[#F7F4EE] rounded-xl p-3">
                   <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">{t('syndicDash.sinistres.estimatedAmount')}</p>
-                  <p className="font-bold text-blue-600 text-lg">{selectedSinistre.montantEstime > 0 ? `${selectedSinistre.montantEstime.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €` : '—'}</p>
+                  <p className="font-bold text-[#0D1B2E] text-lg">{selectedSinistre.montantEstime > 0 ? `${selectedSinistre.montantEstime.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €` : '—'}</p>
                 </div>
                 <div className="bg-[#F7F4EE] rounded-xl p-3">
                   <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">{t('syndicDash.sinistres.indemnisations')}</p>
@@ -342,7 +342,7 @@ Le Gestionnaire — Cabinet de Syndic`
               <div>
                 <button
                   onClick={() => setShowEmailTemplate(!showEmailTemplate)}
-                  className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-100 transition"
+                  className="w-full bg-[#F7F4EE] border border-[#E4DDD0] text-[#0D1B2E] py-2.5 rounded-xl text-sm font-bold hover:bg-[#EDE8DF] transition"
                 >
                   {showEmailTemplate ? `▲ ${t('syndicDash.sinistres.hideEmail')}` : `📧 ${t('syndicDash.sinistres.generateEmail')}`}
                 </button>
@@ -354,7 +354,7 @@ Le Gestionnaire — Cabinet de Syndic`
                         onClick={() => {
                           navigator.clipboard.writeText(generateEmailAssureur(selectedSinistre)).then(() => { setEmailCopied(true); setTimeout(() => setEmailCopied(false), 2000) })
                         }}
-                        className={`text-xs font-bold px-3 py-1 rounded-lg transition ${emailCopied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                        className={`text-xs font-bold px-3 py-1 rounded-lg transition ${emailCopied ? 'bg-green-100 text-green-700' : 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0] hover:bg-[#EDE8DF]'}`}
                       >
                         {emailCopied ? `✅ ${t('syndicDash.sinistres.copied')}` : t('syndicDash.sinistres.copy')}
                       </button>
@@ -373,7 +373,7 @@ Le Gestionnaire — Cabinet de Syndic`
                   {(selectedSinistre.events || []).map((ev, i) => (
                     <div key={ev.id} className="flex gap-3 text-sm">
                       <div className="flex flex-col items-center">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${ev.type === 'statut' ? 'bg-orange-100 text-[#C9A84C]' : ev.type === 'mission' ? 'bg-blue-100 text-blue-600' : 'bg-[#F7F4EE] text-gray-500'}`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${ev.type === 'statut' ? 'bg-orange-100 text-[#C9A84C]' : ev.type === 'mission' ? 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' : 'bg-[#F7F4EE] text-gray-500'}`}>
                           {ev.type === 'statut' ? '→' : ev.type === 'mission' ? '🔨' : '💬'}
                         </div>
                         {i < (selectedSinistre.events?.length || 0) - 1 && <div className="w-px flex-1 bg-gray-200 my-1" />}
@@ -447,7 +447,7 @@ Le Gestionnaire — Cabinet de Syndic`
                 <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.sinistres.lotLabel')}</label><input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder={t('syndicDash.sinistres.lotPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.sinistres.declarantName')}</label><input value={form.declarantNom} onChange={e => setForm({...form, declarantNom: e.target.value})} placeholder="Marie Dupont" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.sinistres.declarantName')}</label><input value={form.declarantNom} onChange={e => setForm({...form, declarantNom: e.target.value})} placeholder={locale === 'pt' ? 'Maria Silva' : 'Marie Dupont'} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
                 <div><label className="block text-sm font-semibold mb-1">{t('syndicDash.sinistres.declarantRole')}</label><select value={form.declarantRole} onChange={e => setForm({...form, declarantRole: e.target.value as any})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none bg-white"><option value="coproprio">{t('syndicDash.sinistres.roleCopro')}</option><option value="locataire">{t('syndicDash.sinistres.roleTenant')}</option><option value="technicien">{t('syndicDash.sinistres.roleTech')}</option><option value="syndic">{t('syndicDash.sinistres.roleSyndic')}</option></select></div>
               </div>
               <div className="grid grid-cols-2 gap-3">

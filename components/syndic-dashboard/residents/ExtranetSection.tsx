@@ -17,12 +17,12 @@ type Signalement = {
 const PRIORITE_COLORS: Record<string, string> = {
   urgente: 'bg-red-100 text-red-700',
   haute: 'bg-orange-100 text-orange-700',
-  normale: 'bg-blue-100 text-blue-700',
+  normale: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',
   basse: 'bg-gray-100 text-gray-500',
 }
 const STATUT_COLORS: Record<string, string> = {
   en_attente: 'bg-amber-100 text-amber-700',
-  en_cours: 'bg-blue-100 text-blue-700',
+  en_cours: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]',
   traite: 'bg-green-100 text-green-700',
   rejete: 'bg-gray-100 text-gray-500',
 }
@@ -61,8 +61,33 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
 
   type Coproprietaire = { id: string; nom: string; email: string; lot: string; tantieme: number; telephone: string; solde: number; dateAdhesion: string; accesActif: boolean }
 
+  // Normalise une entrée copro venant de localStorage : tolère le schéma legacy
+  // (nomProprietaire/emailProprietaire/numeroPorte…) et les champs manquants.
+  const normalizeCopro = (raw: Record<string, unknown>): Coproprietaire => {
+    const r = raw as Record<string, any>
+    const prenom = typeof r.prenomProprietaire === 'string' ? r.prenomProprietaire : ''
+    const nomLegacy = typeof r.nomProprietaire === 'string' ? r.nomProprietaire : ''
+    const fullLegacy = [prenom, nomLegacy].filter(Boolean).join(' ').trim()
+    return {
+      id: String(r.id ?? Date.now()),
+      nom: typeof r.nom === 'string' && r.nom ? r.nom : fullLegacy,
+      email: typeof r.email === 'string' ? r.email : (typeof r.emailProprietaire === 'string' ? r.emailProprietaire : ''),
+      lot: typeof r.lot === 'string' ? r.lot : (typeof r.numeroPorte === 'string' ? r.numeroPorte : ''),
+      tantieme: typeof r.tantieme === 'number' ? r.tantieme : (Number(r.tantieme) || 0),
+      telephone: typeof r.telephone === 'string' ? r.telephone : (typeof r.telephoneProprietaire === 'string' ? r.telephoneProprietaire : ''),
+      solde: typeof r.solde === 'number' ? r.solde : (Number(r.solde) || 0),
+      dateAdhesion: typeof r.dateAdhesion === 'string' ? r.dateAdhesion : '',
+      accesActif: typeof r.accesActif === 'boolean' ? r.accesActif : true,
+    }
+  }
+
   // ── Copros state ──
-  const [copros, setCopros] = useState<Coproprietaire[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]') } catch { return [] } })
+  const [copros, setCopros] = useState<Coproprietaire[]>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]')
+      return Array.isArray(parsed) ? parsed.map(normalizeCopro) : []
+    } catch { return [] }
+  })
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ nom: '', email: '', lot: '', tantieme: '', telephone: '', solde: '' })
   const [showInvite, setShowInvite] = useState<Coproprietaire | null>(null)
@@ -232,7 +257,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
           {/* Stats */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-400"><div className="text-sm text-gray-500">{isPt ? 'Em espera' : 'En attente'}</div><div className="text-3xl font-bold text-amber-600">{signalements.filter(s => s.statut === 'en_attente').length}</div></div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">{isPt ? 'Em curso' : 'En cours'}</div><div className="text-3xl font-bold text-blue-600">{signalements.filter(s => s.statut === 'en_cours').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#C9A84C]"><div className="text-sm text-gray-500">{isPt ? 'Em curso' : 'En cours'}</div><div className="text-3xl font-bold text-[#0D1B2E]">{signalements.filter(s => s.statut === 'en_cours').length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">{isPt ? 'Urgentes' : 'Urgentes'}</div><div className="text-3xl font-bold text-red-600">{signalements.filter(s => s.priorite === 'urgente' && s.statut !== 'traite').length}</div></div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">{isPt ? 'Tratadas' : 'Traitées'}</div><div className="text-3xl font-bold text-green-600">{signalements.filter(s => s.statut === 'traite').length}</div></div>
           </div>
@@ -289,7 +314,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                         {s.demandeurNom && <span>👤 {s.demandeurNom}</span>}
                         {s.numLot && <span>🏠 {isPt ? 'Fração' : 'Lot'} {s.numLot}</span>}
                         {s.batiment && <span>🏗️ {isPt ? 'Bloco' : 'Bât.'} {s.batiment}{s.etage ? ` — ${isPt ? 'Andar' : 'Ét.'} ${s.etage}` : ''}</span>}
-                        {s.estPartieCommune && <span className="text-blue-600 font-semibold">{isPt ? 'Parte comum' : 'Partie commune'}</span>}
+                        {s.estPartieCommune && <span className="text-[#C9A84C] font-semibold">{isPt ? 'Parte comum' : 'Partie commune'}</span>}
                         <span>📅 {new Date(s.createdAt).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                       </div>
                     </div>
@@ -384,7 +409,7 @@ export default function ExtranetSection({ user, userRole }: { user: User; userRo
                 {selected.numLot && <div><span className="text-gray-500">Lot</span><div className="font-semibold">{selected.numLot}</div></div>}
                 {selected.batiment && <div><span className="text-gray-500">Bâtiment / Étage</span><div className="font-semibold">{selected.batiment}{selected.etage ? ` — Ét. ${selected.etage}` : ''}</div></div>}
                 {selected.zoneSignalee && <div><span className="text-gray-500">Zone</span><div className="font-semibold">{selected.zoneSignalee}</div></div>}
-                {selected.estPartieCommune && <div className="col-span-2"><span className="text-blue-600 font-semibold">📌 Partie commune</span></div>}
+                {selected.estPartieCommune && <div className="col-span-2"><span className="text-[#C9A84C] font-semibold">📌 Partie commune</span></div>}
                 <div className="col-span-2"><span className="text-gray-500">Reçue le</span><div className="font-semibold">{new Date(selected.createdAt).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</div></div>
               </div>
 

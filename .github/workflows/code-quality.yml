@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Configurer Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 20
           cache: npm
@@ -36,6 +36,31 @@ jobs:
 
       - name: Vérifier les types TypeScript
         run: npx tsc --noEmit
+
+      - name: Syndic v54 — type IconName synchronisé avec le registre
+        # Gate non-bypassable (vs husky --no-verify) : lib/syndic/icon-names.ts
+        # doit être à jour vs registry.tsx. Si un dev ajoute une icône sans
+        # régénérer, ce check échoue.
+        run: node scripts/codegen-icon-names.mjs --check
+
+  # ── actionlint — Audit statique des workflows GitHub Actions ──────────────
+  # Détecte script-injection (${{ inputs.* }}/${{ github.event.* }} dans run:),
+  # expressions invalides, refs de jobs cassées, shellcheck sur les `run:`.
+  # Cf. https://github.com/rhysd/actionlint
+  actionlint:
+    name: "actionlint — Workflows GitHub Actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Auditer .github/workflows
+        uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
+        with:
+          fail_level: error
+          reporter: github-pr-check
 
   # ── Migrations SQL — Validation syntaxe et cohérence ─────────────────────
   migrations:
@@ -145,6 +170,34 @@ jobs:
           if [ "$TABLES" -lt 5 ]; then
             echo "::error::Moins de 5 tables créées — la baseline a échoué"
             exit 1
+          fi
+
+  # ── Syndic v54 namespace — Isolation tokens et locale ─────────────────────
+  # Garde-fous G1 et G5 du scaffold v54 (cf. PR feat(syndic): scaffold v54)
+  syndic_v54_isolation:
+    name: "Syndic v54 — Isolation namespace"
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: G1 — Aucune :root variable dans v54/tokens/
+        run: |
+          if grep -RnE "^\s*:root" components/syndic-dashboard/v54/tokens/ 2>/dev/null; then
+            echo "::error::Variable CSS :root détectée dans v54/tokens/. Toutes les vars --v54-* doivent être scopées sous #syndic-dashboard-v54."
+            exit 1
+          fi
+
+      - name: G5 — Locale pt-PT uniquement (jamais pt-BR ni pt seul)
+        run: |
+          if grep -RnE "'pt-BR'|\"pt-BR\"" components/syndic-dashboard/v54/ app/syndic/ 2>/dev/null; then
+            echo "::error::Locale 'pt-BR' détectée. V5.4 utilise exclusivement 'pt-PT'."
+            exit 1
+          fi
+          if grep -RnE "'pt'|\"pt\"" components/syndic-dashboard/v54/ app/syndic/ --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "// "; then
+            echo "::warning::Locale 'pt' seule détectée (sans -PT). Préciser 'pt-PT' explicitement."
           fi
 
   # ── SonarCloud — Analyse qualité ──────────────────────────────────────────

@@ -43,10 +43,11 @@ export default function AttestationEditeurPage() {
             <table className="w-full text-sm">
               <tbody>
                 <tr><td className="py-1 pr-4 text-gray-600 align-top w-1/3">Nom commercial</td><td className="py-1 font-medium">Vitfix.io</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Raison sociale</td><td className="py-1 font-medium">SAS Kinnova Group</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">SIRET</td><td className="py-1 font-medium">951 819 010 00012</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Siège social</td><td className="py-1 font-medium">115 Rue Claude Nicolas Ledoux, 13290 Aix-en-Provence, France</td></tr>
-                <tr><td className="py-1 pr-4 text-gray-600 align-top">Représentant légal</td><td className="py-1 font-medium">Frédéric Carvalho, Président</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Dénomination</td><td className="py-1 font-medium">VITFIX</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Forme juridique</td><td className="py-1 font-medium">Empresário em Nome Individual (entrepreneur individuel)</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">NIF</td><td className="py-1 font-medium">276 873 297</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Siège social</td><td className="py-1 font-medium">Portugal</td></tr>
+                <tr><td className="py-1 pr-4 text-gray-600 align-top">Représentant légal</td><td className="py-1 font-medium">Frédéric Carvalho</td></tr>
                 <tr><td className="py-1 pr-4 text-gray-600 align-top">Contact conformité</td><td className="py-1 font-medium">conformite@vitfix.io</td></tr>
               </tbody>
             </table>
@@ -177,7 +178,7 @@ export default function AttestationEditeurPage() {
               Fait à Aix-en-Provence, France, le <strong>5 mai 2026</strong>.
             </p>
             <p className="mt-2">
-              <strong>Frédéric Carvalho</strong>, Président de SAS Kinnova Group, éditeur de Vitfix.io
+              <strong>Frédéric Carvalho</strong>, responsable de VITFIX, éditeur de Vitfix.io
             </p>
             <p className="mt-4 italic">
               Document signé électroniquement et publié à l&apos;URL <code>https://vitfix.io/fr/attestation-editeur/</code>.

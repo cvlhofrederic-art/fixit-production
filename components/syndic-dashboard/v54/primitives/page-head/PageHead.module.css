@@ -1,0 +1,38 @@
+/* PageHead v54 — port byte-exact du bundle V5.7. */
+
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--v54-gold-700);
+}
+
+.pageHead h1 {
+  font-family: var(--v54-font-serif);
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  margin: 8px 0 4px;
+  line-height: 1.05;
+}
+
+.lede {
+  font-size: 13px;
+  color: var(--v54-navy-300);
+  max-width: 560px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}

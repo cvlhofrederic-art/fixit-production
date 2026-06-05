@@ -3,15 +3,15 @@
  * Use these instead of inline schema objects in page files.
  */
 
-import { PHONE_FR, PHONE_PT } from '@/lib/constants'
+import { PHONE_FR, PHONE_PT, PT_NIF_EMPRESA } from '@/lib/constants'
 
 // ── Shared data ──
 
 const COMPANY = {
   name: 'VITFIX',
   url: 'https://vitfix.io',
-  logo: 'https://vitfix.io/og-image.png',
-  image: 'https://vitfix.io/og-image.png',
+  logo: 'https://vitfix.io/og-home-fr.png',
+  image: 'https://vitfix.io/og-home-fr.png',
 }
 
 // AggregateRating : N'EST PLUS HARDCODÉ.
@@ -85,6 +85,10 @@ export function buildBusinessSchema(options: BusinessSchemaOptions) {
     telephone: phone,
     openingHoursSpecification: hours,
     priceRange: '€€',
+  }
+
+  if (!isFr) {
+    schema.taxID = `PT${PT_NIF_EMPRESA}`
   }
 
   if (aggregateRating) {

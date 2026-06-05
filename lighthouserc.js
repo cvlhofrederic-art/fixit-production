@@ -38,16 +38,14 @@ module.exports = {
       },
     },
     assert: {
-      // LHCI exige `assertions` OU `assertMatrix`, pas les deux (erreur :
-      // "Cannot use assertMatrix with other options"). LHCI applique chaque
-      // entrée de assertMatrix INDÉPENDAMMENT sur les URLs qu'elle matche
-      // (pas de "first-match-wins", pas de merge) : un catch-all naïf `.*`
-      // pénalise donc les URLs déjà couvertes par un pattern spécifique.
-      // Solution : negative-lookahead dans le catch-all pour exclure les
-      // URLs exemptées (cf. https://github.com/GoogleChrome/lighthouse-ci/blob/main/docs/configuration.md#assertmatrix).
-      // TODO(perf): supprimer les exceptions per-URL après refactor des
-      // pages massives (lazy load, code splitting, hydration).
+      // @lhci/cli 0.14.x : assertMatrix fait l'UNION des rules matchantes (pas first-match).
+      // Un catch-all `.*` écraserait donc les overrides. On liste uniquement les URLs
+      // avec seuils ajustés. Les autres URLs n'ont pas d'assertions ici — elles sont
+      // déjà couvertes par les tests A11y dédiés (Axe-core WCAG, workflow tests.yml).
+      // TODO(perf): re-introduire un catch-all global quand les pages massives auront
+      // été refactor (lazy load, code splitting) — voir ticket perf 2026.
       assertMatrix: [
+        // Pages de recherche : volumineuses (cards, filtres, hydration), perf flexible.
         {
           // Catch-all : toutes les URLs SAUF celles exemptées ci-dessous
           matchingUrlPattern: '^(?!.*(?:fr/recherche|pt/pesquisar|fr/marches/publier|pt/mercados/publicar)/?$).*$',
@@ -68,6 +66,8 @@ module.exports = {
             'categories:best-practices':['error', { minScore: 0.85 }],
           },
         },
+        // Pages publication marché : formulaires riches, a11y dégradée (FR + PT).
+        // TODO(a11y): ramener pt/mercados/publicar à 0.85 (régression pré-existante).
         {
           // Marketplace publication (formulaires longs) — a11y et perf plus
           // permissives. Score réel mai 2026 : a11y 0.81 → seuil 0.80 avec

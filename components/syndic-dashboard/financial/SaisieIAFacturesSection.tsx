@@ -287,7 +287,7 @@ const ANOMALIE_LABELS: Record<AnomalieType, string> = {
 const ANOMALIE_COLORS: Record<AnomalieType, { bg: string; color: string }> = {
   doublon: { bg: '#FDEDEC', color: '#E74C3C' },
   montant_anormal: { bg: '#FEF5E7', color: '#E67E22' },
-  fournisseur_inconnu: { bg: '#EBF5FB', color: '#2980B9' },
+  fournisseur_inconnu: { bg: '#EBF5FB', color: '#0D1B2E' },
   tva_incorrecte: { bg: '#F5EEF8', color: '#8E44AD' },
 }
 
@@ -681,7 +681,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
             onClick={() => { setEditingField({ factureId, field }); setEditValue(String(value)) }}
             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sd-border, #E4DDD0)')}
             onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}
-            title="Cliquer pour modifier"
+            title={isPt ? 'Clicar para editar' : 'Cliquer pour modifier'}
           >
             {isNumber ? formatPrice(value as number) : (value || '—')}
           </div>
@@ -845,7 +845,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                     background: item.type === 'pdf' ? '#FDEDEC' : '#EBF5FB',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 12, fontWeight: 700,
-                    color: item.type === 'pdf' ? '#E74C3C' : '#2980B9',
+                    color: item.type === 'pdf' ? '#E74C3C' : '#0D1B2E',
                   }}>
                     {item.type.toUpperCase()}
                   </div>
@@ -914,7 +914,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                         background: facture.fichierType === 'pdf' ? '#FDEDEC' : '#EBF5FB',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 13, fontWeight: 700,
-                        color: facture.fichierType === 'pdf' ? '#E74C3C' : '#2980B9',
+                        color: facture.fichierType === 'pdf' ? '#E74C3C' : '#0D1B2E',
                       }}>
                         {facture.fichierType.toUpperCase()}
                       </div>
@@ -978,7 +978,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                     background: 'var(--sd-cream, #F7F4EE)',
                   }}>
                     <div>
-                      <label style={labelStyle}>Categorie</label>
+                      <label style={labelStyle}>{isPt ? 'Categoria' : 'Categorie'}</label>
                       <select
                         style={selectStyle}
                         value={facture.categorie}
@@ -988,23 +988,23 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                       </select>
                     </div>
                     <div>
-                      <label style={labelStyle}>Imputation immeuble</label>
+                      <label style={labelStyle}>{isPt ? 'Imputação edifício' : 'Imputation immeuble'}</label>
                       <input
                         style={inputStyle}
                         value={facture.imputationImmeuble}
                         onChange={e => handleFieldEdit(facture.id, 'imputationImmeuble', e.target.value)}
-                        placeholder="Nom de l'immeuble"
+                        placeholder={isPt ? 'Nome do edifício' : 'Nom de l\'immeuble'}
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>Cle de repartition</label>
+                      <label style={labelStyle}>{isPt ? 'Chave de repartição' : 'Cle de repartition'}</label>
                       <select
                         style={selectStyle}
                         value={facture.cleRepartition}
                         onChange={e => handleFieldEdit(facture.id, 'cleRepartition', e.target.value)}
                       >
-                        <option value="charges_generales">Charges generales</option>
-                        <option value="charges_speciales">Charges speciales</option>
+                        <option value="charges_generales">{isPt ? 'Encargos gerais' : 'Charges generales'}</option>
+                        <option value="charges_speciales">{isPt ? 'Encargos especiais' : 'Charges speciales'}</option>
                       </select>
                     </div>
                   </div>
@@ -1025,31 +1025,31 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               gap: 12, alignItems: 'end',
             }}>
               <div>
-                <label style={labelStyle}>Fournisseur</label>
-                <input style={inputStyle} value={filterFournisseur} onChange={e => setFilterFournisseur(e.target.value)} placeholder="Filtrer..." />
+                <label style={labelStyle}>{isPt ? 'Fornecedor' : 'Fournisseur'}</label>
+                <input style={inputStyle} value={filterFournisseur} onChange={e => setFilterFournisseur(e.target.value)} placeholder={isPt ? 'Filtrar...' : 'Filtrer...'} />
               </div>
               <div>
-                <label style={labelStyle}>Categorie</label>
+                <label style={labelStyle}>{isPt ? 'Categoria' : 'Categorie'}</label>
                 <select style={selectStyle} value={filterCategorie} onChange={e => setFilterCategorie(e.target.value as CategorieFacture | '')}>
-                  <option value="">Toutes</option>
+                  <option value="">{isPt ? 'Todas' : 'Toutes'}</option>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Immeuble</label>
-                <input style={inputStyle} value={filterImmeuble} onChange={e => setFilterImmeuble(e.target.value)} placeholder="Filtrer..." />
+                <label style={labelStyle}>{isPt ? 'Edifício' : 'Immeuble'}</label>
+                <input style={inputStyle} value={filterImmeuble} onChange={e => setFilterImmeuble(e.target.value)} placeholder={isPt ? 'Filtrar...' : 'Filtrer...'} />
               </div>
               <div>
-                <label style={labelStyle}>Montant min</label>
+                <label style={labelStyle}>{isPt ? 'Montante mín.' : 'Montant min'}</label>
                 <input style={inputStyle} type="number" value={filterMontantMin} onChange={e => setFilterMontantMin(e.target.value)} placeholder="0" />
               </div>
               <div>
-                <label style={labelStyle}>Montant max</label>
+                <label style={labelStyle}>{isPt ? 'Montante máx.' : 'Montant max'}</label>
                 <input style={inputStyle} type="number" value={filterMontantMax} onChange={e => setFilterMontantMax(e.target.value)} placeholder="99999" />
               </div>
               <div>
                 <button style={btnPrimary} onClick={handleExportCSV}>
-                  Exporter Excel
+                  {isPt ? 'Exportar Excel' : 'Exporter Excel'}
                 </button>
               </div>
             </div>
@@ -1127,7 +1127,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                   padding: '10px 0 0', marginTop: 8,
                   fontSize: 14, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)',
                 }}>
-                  <span>Total general</span>
+                  <span>{isPt ? 'Total geral' : 'Total general'}</span>
                   <span>{formatPrice(totalGeneral)}</span>
                 </div>
               </div>
@@ -1135,7 +1135,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               {/* Total par fournisseur */}
               <div style={cardStyle}>
                 <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)', margin: '0 0 12px' }}>
-                  Total par fournisseur
+                  {isPt ? 'Total por fornecedor' : 'Total par fournisseur'}
                 </h4>
                 {Object.entries(totalParFournisseur).sort((a, b) => b[1] - a[1]).map(([fr, total]) => (
                   <div key={fr} style={{
@@ -1165,21 +1165,21 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FDEDEC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\u26A0\uFE0F'}</div>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)', lineHeight: 1 }}>{data.anomalies.length}</div>
-                <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Anomalies detectees</div>
+                <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Anomalias detetadas' : 'Anomalies detectees'}</div>
               </div>
             </div>
             <div style={{ ...cardStyle, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EAFAF1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\uD83D\uDCB0'}</div>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#27AE60', lineHeight: 1 }}>{formatPrice(totalEconomies)}</div>
-                <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>Economies identifiees</div>
+                <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'Poupanças identificadas' : 'Economies identifiees'}</div>
               </div>
             </div>
             <div style={{ ...cardStyle, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FEF5E7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\uD83D\uDD0D'}</div>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#E67E22', lineHeight: 1 }}>{activeAnomalies.length}</div>
-                <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>A traiter</div>
+                <div style={{ fontSize: 11, color: 'var(--sd-ink-3, #8A9BB0)' }}>{isPt ? 'A tratar' : 'A traiter'}</div>
               </div>
             </div>
           </div>
@@ -1189,7 +1189,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
             <div style={{ ...cardStyle, textAlign: 'center', padding: 48 }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>{'\u2705'}</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sd-navy, #0D1B2E)' }}>
-                Aucune anomalie detectee
+                {isPt ? 'Nenhuma anomalia detetada' : 'Aucune anomalie detectee'}
               </div>
             </div>
           ) : (
@@ -1281,27 +1281,27 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                   <div>
-                    <label style={labelStyle}>Nom</label>
-                    <input style={inputStyle} value={fournisseurForm.nom} onChange={e => setFournisseurForm(p => ({ ...p, nom: e.target.value }))} placeholder="Nom du fournisseur" />
+                    <label style={labelStyle}>{isPt ? 'Nome' : 'Nom'}</label>
+                    <input style={inputStyle} value={fournisseurForm.nom} onChange={e => setFournisseurForm(p => ({ ...p, nom: e.target.value }))} placeholder={isPt ? 'Nome do fornecedor' : 'Nom du fournisseur'} />
                   </div>
                   <div>
-                    <label style={labelStyle}>SIRET</label>
-                    <input style={inputStyle} value={fournisseurForm.siret} onChange={e => setFournisseurForm(p => ({ ...p, siret: e.target.value }))} placeholder="14 chiffres" />
+                    <label style={labelStyle}>{isPt ? 'NIF' : 'SIRET'}</label>
+                    <input style={inputStyle} value={fournisseurForm.siret} onChange={e => setFournisseurForm(p => ({ ...p, siret: e.target.value }))} placeholder={isPt ? '9 dígitos' : '14 chiffres'} />
                   </div>
                   <div>
                     <label style={labelStyle}>IBAN</label>
-                    <input style={inputStyle} value={fournisseurForm.iban} onChange={e => setFournisseurForm(p => ({ ...p, iban: e.target.value }))} placeholder="FR76 ..." />
+                    <input style={inputStyle} value={fournisseurForm.iban} onChange={e => setFournisseurForm(p => ({ ...p, iban: e.target.value }))} placeholder={isPt ? 'PT50 ...' : 'FR76 ...'} />
                   </div>
                   <div>
-                    <label style={labelStyle}>Categorie</label>
+                    <label style={labelStyle}>{isPt ? 'Categoria' : 'Categorie'}</label>
                     <select style={selectStyle} value={fournisseurForm.categorie} onChange={e => setFournisseurForm(p => ({ ...p, categorie: e.target.value as CategorieFacture }))}>
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button style={btnPrimary} onClick={handleAddFournisseur}>Enregistrer</button>
-                  <button style={btnSecondary} onClick={() => setShowAddFournisseur(false)}>Annuler</button>
+                  <button style={btnPrimary} onClick={handleAddFournisseur}>{isPt ? 'Guardar' : 'Enregistrer'}</button>
+                  <button style={btnSecondary} onClick={() => setShowAddFournisseur(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
                 </div>
               </div>
             )}
@@ -1311,7 +1311,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--sd-cream, #F7F4EE)' }}>
-                    {['Nom', 'SIRET', 'IBAN', 'Categorie', ''].map(h => (
+                    {(isPt ? ['Nome', 'NIF', 'IBAN', 'Categoria', ''] : ['Nom', 'SIRET', 'IBAN', 'Categorie', '']).map(h => (
                       <th key={h} style={{
                         padding: '10px 14px', textAlign: 'left',
                         fontSize: 11, fontWeight: 700,
@@ -1338,7 +1338,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                           style={{ background: 'none', border: 'none', color: '#E74C3C', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
                           onClick={() => handleDeleteFournisseur(fr.id)}
                         >
-                          Supprimer
+                          {isPt ? 'Eliminar' : 'Supprimer'}
                         </button>
                       </td>
                     </tr>
@@ -1346,7 +1346,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                   {data.config.fournisseurs.length === 0 && (
                     <tr>
                       <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--sd-ink-3, #8A9BB0)' }}>
-                        Aucun fournisseur reference
+                        {isPt ? 'Nenhum fornecedor referenciado' : 'Aucun fournisseur reference'}
                       </td>
                     </tr>
                   )}
@@ -1359,10 +1359,10 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
           <div style={cardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--sd-navy, #0D1B2E)', margin: 0 }}>
-                Seuils d'alerte par categorie
+                {isPt ? 'Limites de alerta por categoria' : 'Seuils d\'alerte par categorie'}
               </h3>
               <button style={btnPrimary} onClick={() => setShowAddSeuil(true)}>
-                + Modifier
+                + {isPt ? 'Editar' : 'Modifier'}
               </button>
             </div>
 
@@ -1374,19 +1374,19 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 400 }}>
                   <div>
-                    <label style={labelStyle}>Categorie</label>
+                    <label style={labelStyle}>{isPt ? 'Categoria' : 'Categorie'}</label>
                     <select style={selectStyle} value={seuilForm.categorie} onChange={e => setSeuilForm(p => ({ ...p, categorie: e.target.value as CategorieFacture }))}>
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={labelStyle}>Montant max (EUR)</label>
+                    <label style={labelStyle}>{isPt ? 'Montante máx. (EUR)' : 'Montant max (EUR)'}</label>
                     <input style={inputStyle} type="number" value={seuilForm.montantMax} onChange={e => setSeuilForm(p => ({ ...p, montantMax: e.target.value }))} placeholder="5000" />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button style={btnPrimary} onClick={handleAddSeuil}>Enregistrer</button>
-                  <button style={btnSecondary} onClick={() => setShowAddSeuil(false)}>Annuler</button>
+                  <button style={btnPrimary} onClick={handleAddSeuil}>{isPt ? 'Guardar' : 'Enregistrer'}</button>
+                  <button style={btnSecondary} onClick={() => setShowAddSeuil(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
                 </div>
               </div>
             )}
@@ -1468,12 +1468,12 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                     saveData(updated)
                   }}
                 >
-                  <option value="fr">Francais</option>
-                  <option value="en">Anglais</option>
-                  <option value="de">Allemand</option>
-                  <option value="es">Espagnol</option>
-                  <option value="pt">Portugais</option>
-                  <option value="it">Italien</option>
+                  <option value="fr">{isPt ? 'Francês' : 'Francais'}</option>
+                  <option value="en">{isPt ? 'Inglês' : 'Anglais'}</option>
+                  <option value="de">{isPt ? 'Alemão' : 'Allemand'}</option>
+                  <option value="es">{isPt ? 'Espanhol' : 'Espagnol'}</option>
+                  <option value="pt">{isPt ? 'Português' : 'Portugais'}</option>
+                  <option value="it">{isPt ? 'Italiano' : 'Italien'}</option>
                 </select>
               </div>
 
@@ -1483,10 +1483,10 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
                 border: '1px solid var(--sd-border, #E4DDD0)',
               }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--sd-navy, #0D1B2E)', marginBottom: 4 }}>
-                  Regles de classification automatique
+                  {isPt ? 'Regras de classificação automática' : 'Regles de classification automatique'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--sd-ink-3, #8A9BB0)', marginBottom: 12 }}>
-                  Les factures sont classees automatiquement en fonction du fournisseur reference et des mots-cles detectes dans la description.
+                  {isPt ? 'As faturas são classificadas automaticamente em função do fornecedor referenciado e das palavras-chave detetadas na descrição.' : 'Les factures sont classees automatiquement en fonction du fournisseur reference et des mots-cles detectes dans la description.'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)' }}>
                   <div style={{ marginBottom: 4 }}><strong>Energie</strong> : EDF, ENGIE, Veolia, gaz, electricite, eau</div>

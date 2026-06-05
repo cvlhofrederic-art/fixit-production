@@ -6,9 +6,13 @@
  * All data is passed via the PdfV3Input interface.
  */
 
-import type { ProductLine, DevisAcompte, SignatureData } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, SignatureData, DechetsChantierInfo } from '@/lib/devis-types'
 import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-utils'
 import type { Locale } from '@/lib/i18n/config'
+import { getMentionLegale } from '@/lib/tva-calculator'
+import { computeFrTvaIntra } from '@/lib/tva-intra'
+import { computeAcomptesAmounts } from '@/lib/money'
+import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -63,6 +67,27 @@ export interface PdfV3Input {
   docValidity: number
   prestationDate: string
   executionDelay: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts).
+   *  Pilote le titre du PDF et les mentions légales :
+   *    - 'standard' (défaut) : facture finale après prestation
+   *    - 'acompte'           : versement avant prestation (TVA exigible à l'encaissement)
+   *    - 'situation'         : facturation à l'avancement (BTP chantier long)
+   *    - 'avoir'             : note de crédit (montants négatifs) sur facture émise */
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
+  /** N° de situation BTP (1, 2, 3...) — affiché dans le titre si fourni. */
+  situationNumber?: number
+  /** Pourcentage d'avancement (0-100) — affiché en mention si fourni. */
+  situationAvancement?: number
+  /** N° d'ordre dans une série d'acomptes fractionnés (affiché « Acompte N°X sur Y »). */
+  acompteOrdre?: number
+  /** Nombre total d'acomptes prévus (« sur Y »). */
+  acompteTotal?: number
+  /** Pourcentage de la base TTC représenté par l'acompte (1-100). */
+  acomptePourcentage?: number
+  /** Numéro de la facture parente (FACT-YYYY-NNN) que l'acompte/avoir référence. */
+  parentInvoiceNumber?: string
+  /** Motif d'annulation/correction pour avoir (5-500 chars). */
+  avoirMotif?: string
 
   // Company
   companyStatus: string
@@ -75,6 +100,16 @@ export interface PdfV3Input {
   companyEmail: string
   tvaEnabled: boolean
   tvaNumber: string
+  /** N° TVA intra du preneur (donneur d'ordre). Obligatoire en autoliquidation
+   *  BTP (art. 242 nonies A I-3° annexe II CGI). Auto-calculé depuis le SIRET
+   *  client si non fourni. */
+  tvaIntraPreneur?: string
+  /** Informations gestion déchets — art. D.541-45-1 C. env. (loi AGEC). */
+  dechetsChantier?: DechetsChantierInfo
+  /** Référence marché principal (autoliquidation BTP, loi 75-1334) — facultatif. */
+  marchePrincipalRef?: string
+  /** Maître d'ouvrage final (nom + adresse) — caractérisation sous-traitance. */
+  maitreOuvrageFinal?: string
   insuranceName: string
   insuranceNumber: string
   insuranceCoverage: string
@@ -137,7 +172,15 @@ export interface PdfV3Input {
   // Sous-traitance BTP autoliquidation (art. 283, 2 nonies CGI) : quand le
   // pro est sous-traitant, il NE collecte PAS la TVA — le donneur d'ordre
   // l'autoliquide. Mention obligatoire sur le devis/facture.
+  // [LEGACY] Conservé pour rétro-compat ; la source de vérité est désormais
+  // `regimeTva` ci-dessous.
   autoliquidationBTP?: boolean
+  // Régime TVA au niveau document — source unique de vérité pour les mentions
+  // légales et le calcul des totaux. Voir lib/tva-calculator.ts.
+  //   classique           : TVA collectée par taux
+  //   franchise_293b      : franchise en base, CGI art. 293 B (abrogé 1er sept 2026)
+  //   autoliquidation_btp : sous-traitance BTP, CGI art. 283, 2 nonies
+  regimeTva?: 'classique' | 'franchise_293b' | 'autoliquidation_btp'
 
   // Acomptes
   acomptesEnabled: boolean
@@ -216,7 +259,7 @@ function splitAddress(addr: string): { street: string; city: string | null } {
 
 // ─── Main generator ──────────────────────────────────────
 
-export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string }> {
+export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string; pdfArrayBuffer: ArrayBuffer }> {
   // FR-V8 audit fix : garde stricte sur ptFiscalData. Vitfix n'est PAS certifié
   // AT (Decreto-Lei 28/2019). Émettre un PDF avec un certNumber arbitraire =
   // délit fiscal PT (1500-150 000€). Tant que la certification n'est pas
@@ -247,6 +290,18 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     companyAPE: _s(input.companyAPE),
     companyCapital: _s(input.companyCapital),
     tvaNumber: _s(input.tvaNumber),
+    tvaIntraPreneur: input.tvaIntraPreneur ? _s(input.tvaIntraPreneur) : undefined,
+    marchePrincipalRef: input.marchePrincipalRef ? _s(input.marchePrincipalRef) : undefined,
+    maitreOuvrageFinal: input.maitreOuvrageFinal ? _s(input.maitreOuvrageFinal) : undefined,
+    dechetsChantier: input.dechetsChantier ? {
+      nature: input.dechetsChantier.nature ? _s(input.dechetsChantier.nature) : undefined,
+      quantiteEstimee: input.dechetsChantier.quantiteEstimee ? _s(input.dechetsChantier.quantiteEstimee) : undefined,
+      unite: input.dechetsChantier.unite ? _s(input.dechetsChantier.unite) : undefined,
+      installationNom: input.dechetsChantier.installationNom ? _s(input.dechetsChantier.installationNom) : undefined,
+      installationAdresse: input.dechetsChantier.installationAdresse ? _s(input.dechetsChantier.installationAdresse) : undefined,
+      modalitesTri: input.dechetsChantier.modalitesTri ? _s(input.dechetsChantier.modalitesTri) : undefined,
+      coutGestion: input.dechetsChantier.coutGestion ? _s(input.dechetsChantier.coutGestion) : undefined,
+    } : undefined,
     // Assurance / médiateur (insuranceType est un enum strict, pas user-typable)
     insuranceName: _s(input.insuranceName),
     insuranceNumber: _s(input.insuranceNumber),
@@ -303,9 +358,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     locale, localeFormats, t,
     docType, docNumber, docTitle, docDate, docValidity,
     prestationDate, executionDelay,
+    factureSubType, situationNumber, situationAvancement,
+    acompteOrdre, acompteTotal, acomptePourcentage, parentInvoiceNumber, avoirMotif,
     companyStatus, companyName, companySiret, companyAddress,
     companyRCS, companyCapital, companyPhone, companyEmail,
-    tvaEnabled, tvaNumber,
+    tvaEnabled, tvaNumber, tvaIntraPreneur, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
     decennaleEligibility,
     mediatorName, mediatorUrl, isHorsEtablissement,
@@ -314,7 +371,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     interventionEspacesCommuns, interventionExterieur,
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
-    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP,
+    lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP, regimeTva,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -322,6 +379,30 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ptFiscalData,
     svgToImageDataUrl, fetchFreshLogo,
   } = sanitizedInput
+
+  // ─── Régime TVA effectif ───
+  // Source unique de vérité : `regimeTva` (nouveau champ). Fallback rétro-compat :
+  // `autoliquidationBTP` (legacy flag) → 'autoliquidation_btp', `!tvaEnabled` →
+  // 'franchise_293b'. Par défaut 'classique'.
+  const effectiveRegime: 'classique' | 'franchise_293b' | 'autoliquidation_btp' =
+    regimeTva
+      ?? (autoliquidationBTP ? 'autoliquidation_btp' : (tvaEnabled ? 'classique' : 'franchise_293b'))
+  // showTva : true uniquement en régime classique. En franchise/autoliquidation,
+  // pas de breakdown TVA, total = HT.
+  const showTva = effectiveRegime === 'classique' && tvaEnabled
+  // showTvaColumn : la colonne TVA % apparaît aussi en autoliquidation BTP,
+  // affichée à 0 % pour rendre explicite l'absence de TVA collectée par
+  // le sous-traitant (lecture client : pas d'ambiguïté entre franchise et
+  // autoliq sur la facture). Franchise 293 B : colonne masquée car le
+  // statut « non assujetti » impose la mention textuelle, pas une ligne 0 %.
+  const showTvaColumn = showTva || effectiveRegime === 'autoliquidation_btp'
+  // Mention légale obligatoire — source unique : lib/tva-calculator.ts (locale-aware).
+  // FR : art. 293 B CGI / art. 283, 2 nonies CGI
+  // PT : art. 53.º CIVA / art. 2.º n.º 1 al. j) CIVA (inversão do sujeito passivo)
+  const regimeLegalMention: string | null = getMentionLegale(
+    effectiveRegime,
+    locale === 'pt' ? 'pt' : 'fr',
+  )
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
@@ -366,6 +447,19 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // ─── Helpers ───
   const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const ptToMm = (pt: number) => pt / 2.835
+
+  /**
+   * Résout une date d'échéance de paiement depuis 3 formats possibles :
+   *   1) ISO ("2026-06-15") — utilisée telle quelle
+   *   2) Nombre de jours ("30", "60") — additionné à docDate
+   *   3) Texte libre ("Comptant à réception", "30 jours") — extrait préfixe
+   *      numérique, sinon affiche le texte tel quel
+   * Sans ce helper, `new Date("Comptant à réception")` retourne « Invalid Date ».
+   */
+  // Helper partagé V2 + V3 — parse "X jours" / "X jours fin de mois" /
+  // "Comptant à réception" / date ISO. Aligné art. L441-10 C. com.
+  const formatPaymentDueDate = (raw: string): string =>
+    sharedFormatPaymentDueDate(raw, docDate, dateLocaleStr)
 
   const drawHLine = (x1: number, yPos: number, x2: number, color = COLOR_BORDER, width = 0.18) => {
     pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
@@ -457,12 +551,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
   const titleMaxW = pageW - 2 * (mR + logoZoneW)
   pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  // PT-V1 : Vitfix non-certifié AT (Decreto-Lei 28/2019). Côté PT, toute
-  // facture devient une « Pró-forma » non-fiscale. Devis (Orçamento) reste
-  // valide en PT car non-fiscal par nature.
   const rawTitle = docTitle || (docType === 'devis'
     ? (locale === 'pt' ? 'Orçamento' : 'Devis')
-    : (locale === 'pt' ? 'Pró-forma' : 'Facture'))
+    : (locale === 'pt' ? 'Fatura' : 'Facture'))
   const safeTitle = sanitizeForHelvetica(rawTitle)
   // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
   // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
@@ -482,19 +573,52 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
   y += 3
 
-  // ── PT Proforma watermark (PT-V1) ──
-  // Si on émet en mode PT et qu'on n'a PAS de ptFiscalData (cas par défaut
-  // depuis la désactivation 2026-05), on affiche un avertissement clair que
-  // le document n'a pas de valeur fiscale.
-  if (locale === 'pt' && !ptFiscalData && docType === 'facture') {
-    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#B91C1C')
-    pdf.text('PRÓ-FORMA — NÃO É FATURA', pageW / 2, y, { align: 'center' })
-    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-    y += 4
-    pdf.setFontSize(6.5)
-    pdf.text('Sem valor fiscal. Para emitir fatura legal, utilize software certificado AT.', pageW / 2, y, { align: 'center' })
-    y += 3.5
-    pdf.setFontSize(9)
+  // Label sous-type facture (méthode pro 2026) — mention légalement requise
+  // pour acompte / situation / avoir :
+  //  - acompte  : art. 289 CGI + BOFIP-TVA-DECLA-30-10-20 (TVA exigible à
+  //               l'encaissement). Mention « FACTURE D'ACOMPTE » + N°X/Y si
+  //               fractionnement (méthode pro BTP 2026).
+  //  - situation: BOFIP BOI-TVA-CHAMP-10-30 §240 (chantier long, avancement %).
+  //  - avoir    : BOI-TVA-DECLA-30-20-20-30 §70 + art. 272 CGI (rectification
+  //               TVA collectée / déductible). Mention « AVOIR » + référence
+  //               facture parente (méthode pro BTP 2026).
+  // Standard et devis : aucun label additionnel.
+  let subTypeLabel: string | null = null
+  if (docType === 'facture' && factureSubType && factureSubType !== 'standard') {
+    if (factureSubType === 'acompte') {
+      const base = locale === 'pt' ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE'
+      const ordreSuffix = (acompteOrdre && acompteTotal)
+        ? ` N°${acompteOrdre} ${locale === 'pt' ? 'de' : 'sur'} ${acompteTotal}`
+        : ''
+      const pctSuffix = acomptePourcentage != null ? ` — ${acomptePourcentage}%` : ''
+      // Mention du document source (méthode pro : un acompte référence toujours
+      // la facture/le devis auquel il se rattache). Idem avoir → parentInvoiceNumber.
+      const refSuffix = parentInvoiceNumber
+        ? ` (${locale === 'pt' ? 'sobre fatura' : 'sur facture'} ${parentInvoiceNumber})`
+        : ''
+      subTypeLabel = `${base}${ordreSuffix}${pctSuffix}${refSuffix}`
+    } else if (factureSubType === 'situation') {
+      subTypeLabel = `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
+    } else if (factureSubType === 'avoir') {
+      const base = locale === 'pt' ? 'NOTA DE CRÉDITO (AVOIR)' : 'AVOIR'
+      subTypeLabel = parentInvoiceNumber
+        ? `${base} ${locale === 'pt' ? 'sobre fatura' : 'sur facture'} ${parentInvoiceNumber}`
+        : base
+    }
+  }
+  if (subTypeLabel) {
+    y += 2
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
+    y += 3
+    // Pour les avoirs, on affiche aussi le motif d'annulation en petit gris
+    // sous le label (preuve fiscale Code commerce L123-22).
+    if (factureSubType === 'avoir' && avoirMotif) {
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      const motifLines = pdf.splitTextToSize(`Motif : ${avoirMotif}`, pageW * 0.7) as string[]
+      pdf.text(motifLines, pageW / 2, y, { align: 'center' })
+      y += motifLines.length * 2.6 + 1
+    }
   }
 
   // ── PT Fiscal: ATCUD + Hash ──
@@ -591,7 +715,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companyAddress) {
     const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
     const sp = splitAddress(addrNorm)
-    const addrText = `Adresse : ${sp.street}`
+    const addrText = `${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`
     let addrFs = 10
     pdf.setFontSize(addrFs)
     if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 9; pdf.setFontSize(addrFs) }
@@ -599,7 +723,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.text(addrText, emTx, ey2); ey2 += ptToMm(14)
     pdf.setFontSize(10)
     if (sp.city) {
-      pdf.text(`Ville : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
+      pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
     }
   }
   // Helper : rendu d'une ligne d'identité avec ramping fontSize 10→9→8 si débordement
@@ -614,8 +738,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setFontSize(10)
   }
   if (companyPhone) { drawEmitterLine(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`) }
-  if (companyEmail) { drawEmitterLine(`E-mail : ${companyEmail}`) }
-  if (companySiret) { drawEmitterLine(`SIRET : ${companySiret}`) }
+  if (companyEmail) { drawEmitterLine(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${companyEmail}`) }
+  if (companySiret) { drawEmitterLine(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${companySiret}`) }
   if (companyRCS) {
     // Auto-détection RCS vs RM (mutuellement exclusifs en droit français) :
     //   - RCS (Registre du Commerce et des Sociétés) → SAS, SARL, EURL, SASU,
@@ -645,9 +769,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     )
     drawEmitterLine(rmDisplay)
   }
-  if (tvaEnabled && tvaNumber) { drawEmitterLine(`TVA Intra. : ${tvaNumber}`) }
-  if (companyAPE) { drawEmitterLine(`APE / NAF : ${companyAPE}`) }
-  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} EUR`) }
+  if (tvaEnabled && tvaNumber) { drawEmitterLine(`${locale === 'pt' ? 'NIF intracom.' : 'TVA Intra.'} : ${tvaNumber}`) }
+  if (companyAPE) { drawEmitterLine(`${locale === 'pt' ? 'CAE' : 'APE / NAF'} : ${companyAPE}`) }
+  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} ${locale === 'pt' ? '€' : 'EUR'}`) }
 
   // Destinataire
   let dy3 = boxStartY + boxPadTop
@@ -661,10 +785,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Ordre : Adresse → Ville → Intervention → Bât/Étage → … → Tél → Email → SIRET
   if (clientAddress) {
     const sp = splitAddress(clientAddress)
-    const cAL = pdf.splitTextToSize(`Adresse : ${sp.street}`, destMaxW)
+    const cAL = pdf.splitTextToSize(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`, destMaxW)
     pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
     if (sp.city) {
-      pdf.text(`Ville : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
+      pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
     }
   }
   if (interventionAddress || interventionBatiment || interventionEtage) {
@@ -674,25 +798,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       const iAL = pdf.splitTextToSize(`${interventionLabel} : ${sp.street}`, destMaxW)
       pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
       if (sp.city) {
-        pdf.text(`Ville : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
+        pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
       }
     }
     const batEtParts: string[] = []
-    if (interventionBatiment) batEtParts.push(`Bât. ${interventionBatiment}`)
-    if (interventionEtage) batEtParts.push(`Étage ${interventionEtage}`)
+    if (interventionBatiment) batEtParts.push(`${locale === 'pt' ? 'Edif.' : 'Bât.'} ${interventionBatiment}`)
+    if (interventionEtage) batEtParts.push(`${locale === 'pt' ? 'Andar' : 'Étage'} ${interventionEtage}`)
     if (batEtParts.length > 0) {
       pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
     }
     if (interventionEspacesCommuns) {
-      pdf.text(`Lieu : Espaces communs, ${interventionEspacesCommuns}`, destTx, dy3); dy3 += ptToMm(14)
+      const prefix = locale === 'pt' ? 'Local : Áreas comuns' : 'Lieu : Espaces communs'
+      pdf.text(`${prefix}, ${interventionEspacesCommuns}`, destTx, dy3); dy3 += ptToMm(14)
     }
     if (interventionExterieur) {
-      pdf.text(`Lieu : Extérieur, ${interventionExterieur}`, destTx, dy3); dy3 += ptToMm(14)
+      const prefix = locale === 'pt' ? 'Local : Exterior' : 'Lieu : Extérieur'
+      pdf.text(`${prefix}, ${interventionExterieur}`, destTx, dy3); dy3 += ptToMm(14)
     }
   }
   if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+  if (clientEmail) { pdf.text(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
+  if (clientSiret) { pdf.text(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+  // Autoliquidation BTP : n° TVA intra du preneur OBLIGATOIRE sur la facture
+  // (art. 242 nonies A I-3° annexe II CGI). Champ saisi explicitement sinon
+  // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
+  if (effectiveRegime === 'autoliquidation_btp') {
+    const tvaIntraDest = tvaIntraPreneur || computeFrTvaIntra(clientSiret)
+    if (tvaIntraDest) {
+      pdf.text(`TVA Intra. : ${tvaIntraDest}`, destTx, dy3); dy3 += ptToMm(14)
+    }
+  }
 
   y = boxStartY + boxH + 4
 
@@ -715,7 +850,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     : [
         { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
         { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : (locale === 'pt' ? 'A combinar' : 'À convenir') },
-        { label: locale === 'pt' ? 'VENCIMENTO' : 'ÉCHÉANCE', value: paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---' },
+        { label: locale === 'pt' ? 'VENCIMENTO' : 'ÉCHÉANCE', value: formatPaymentDueDate(paymentDue) },
         { label: locale === 'pt' ? 'MODO PAGAMENTO' : 'MODE RÈGLEMENT', value: paymentMode || '---' },
       ]
 
@@ -739,8 +874,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   y += dateBoxH + 4
 
   // ═══ 6. TABLEAU PRESTATIONS (autoTable) ═══
+  // Colonne TVA : visible en régime classique ET en autoliquidation BTP
+  // (affichée à 0 % côté autoliq, voir showTvaColumn). En franchise 293 B,
+  // colonne masquée — la mention textuelle « TVA non applicable, art. 293 B »
+  // suffit (BOFiP BOI-TVA-DECLA-30-20 §50).
   const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
-  const tableHead = tvaEnabled
+  const tableHead = showTvaColumn
     ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
     : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
@@ -757,7 +896,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // vide en bas de page. rowPageBreak:'avoid' continue à protéger chaque sub-row
   // individuelle (étape jamais coupée au milieu de son texte).
   type RowKind = 'parent' | 'desc' | 'etape'
-  const colCount = tvaEnabled ? 6 : 5
+  const colCount = showTvaColumn ? 6 : 5
   const emptyCols = (text: string): string[] => {
     const r = Array(colCount).fill('')
     r[0] = text
@@ -788,7 +927,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
       // 1. Row parent (motif + colonnes prix complètes)
       const parentRow: any[] = [title, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
-      if (tvaEnabled) parentRow.push(`${l.tvaRate}%`)
+      // Autoliquidation : TVA forcée à 0 % sur toutes les lignes (le donneur
+      // d'ordre l'autoliquide). Le tvaRate state-side peut rester à 20/10 si
+      // l'artisan a basculé en autoliq après saisie — on n'affiche jamais sa
+      // valeur dans ce régime.
+      if (showTvaColumn) {
+        parentRow.push(effectiveRegime === 'autoliquidation_btp' ? '0 %' : `${l.tvaRate}%`)
+      }
       parentRow.push(localeFormats.currencyFormat(l.totalHT))
       rows.push(parentRow)
       rowKinds.push('parent')
@@ -806,15 +951,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         rowKinds.push('desc')
       }
 
-      // 4. Rows étapes (1 row par étape, numérotées)
+      // 4. Rows étapes (1 row par étape, numérotées) — descriptives uniquement, pas de prix
       if (l.etapes && l.etapes.length > 0) {
         const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
         sortedEtapes.forEach((e, i) => {
-          const unitSuffix = e.unit ? ` / ${formatUnitForPdf(e.unit)}` : ''
-          const priceSuffix = e.prixHT != null && e.prixHT > 0
-            ? ` — ${localeFormats.currencyFormat(e.prixHT)}${unitSuffix}`
-            : ''
-          const etapeText = `${i + 1}. ${sanitizeForHelvetica(e.designation)}${priceSuffix}`
+          const etapeText = `${i + 1}. ${sanitizeForHelvetica(e.designation)}`
           rows.push(emptyCols(etapeText))
           rowKinds.push('etape')
         })
@@ -849,7 +990,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     2: { cellWidth: contentW * 0.08, halign: 'center' },
     3: { cellWidth: contentW * 0.19, halign: 'center' },
   }
-  if (tvaEnabled) {
+  if (showTvaColumn) {
     colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
     colStyles[5] = { cellWidth: contentW * 0.21, halign: 'right' }
   } else {
@@ -862,7 +1003,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     2: { halign: 'center' },
     3: { halign: 'center' },
   }
-  if (tvaEnabled) {
+  if (showTvaColumn) {
     headColStyles[4] = { halign: 'center' }
     headColStyles[5] = { halign: 'right' }
   } else {
@@ -937,7 +1078,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
           data.cell.styles.halign = headColStyles[data.column.index].halign
         }
         if (data.section === 'body') {
-          const lastCol = tvaEnabled ? 5 : 4
+          const lastCol = showTvaColumn ? 5 : 4
           const kind: RowKind | undefined = rowKinds?.[data.row.index]
           // Style des sub-rows (description et étapes) : police plus petite,
           // padding compact, indentation à gauche pour bien distinguer la
@@ -995,19 +1136,28 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   type RenderedSection = { name: string; rows: ProductLine[] }
   const sections: RenderedSection[] = []
 
-  if (laborLines && laborLines.some(l => l.description.trim())) {
-    sections.push({ name: linesName || defaultLaborLabel, rows: laborLines })
+  // Helper : une ligne est "remplie" si sa description (après trim) est non-vide.
+  // Nullish-safe : si `l` ou `l.description` est manquant (cas localStorage
+  // corrompu ou migration partielle), on ne throw pas — on considère la
+  // ligne comme vide. Avant ce guard, une ligne {description: undefined}
+  // faisait throw `l.description.trim is not a function` → PDF en erreur
+  // OU section silencieusement ignorée selon le path.
+  const hasFilled = (arr: ProductLine[] | undefined): boolean =>
+    Array.isArray(arr) && arr.some(l => l && typeof l.description === 'string' && l.description.trim().length > 0)
+
+  if (hasFilled(laborLines)) {
+    sections.push({ name: linesName || defaultLaborLabel, rows: laborLines as ProductLine[] })
   }
-  if (materialLinesEnabled !== false && materialLines && materialLines.some(l => l.description.trim())) {
-    sections.push({ name: materialLinesName || defaultMaterialLabel, rows: materialLines })
+  if (materialLinesEnabled !== false && hasFilled(materialLines)) {
+    sections.push({ name: materialLinesName || defaultMaterialLabel, rows: materialLines as ProductLine[] })
   }
-  if (fraisLinesEnabled !== false && fraisLines && fraisLines.some(l => l.description.trim())) {
-    sections.push({ name: fraisLinesName || defaultFraisLabel, rows: fraisLines })
+  if (fraisLinesEnabled !== false && hasFilled(fraisLines)) {
+    sections.push({ name: fraisLinesName || defaultFraisLabel, rows: fraisLines as ProductLine[] })
   }
   if (customTables && customTables.length > 0) {
     for (const ct of customTables) {
-      if (ct.lines && ct.lines.some(l => l.description.trim())) {
-        sections.push({ name: ct.name || 'Section', rows: ct.lines })
+      if (ct && hasFilled(ct.lines)) {
+        sections.push({ name: ct.name || 'Section', rows: ct.lines as ProductLine[] })
       }
     }
   }
@@ -1046,7 +1196,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Pre-calcul du nombre de taux TVA distincts pour estimer la hauteur du bloc
   // totaux et éviter qu'il déborde sur les mentions légales / le footer (bug
   // visible : TOTAL TTC clippé en bas de page sur devis multi-sections).
-  const tvaRatesPreview = tvaEnabled
+  const tvaRatesPreview = showTva
     ? new Set(
         (sections.length > 0 ? sections.flatMap(s => s.rows) : lines)
           .filter(l => l.description.trim() && l.tvaRate > 0)
@@ -1068,13 +1218,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
   pdf.rect(mL, y, contentW, stH, 'FD')
 
-  if (!tvaEnabled) {
+  // Mention légale courte dans la barre sous-total : selon régime, on indique
+  // l'absence de TVA et la base réglementaire (franchise 293 B vs autoliquidation
+  // 283-2 nonies). En régime classique, rien.
+  if (regimeLegalMention) {
     pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-    pdf.text(locale === 'pt' ? 'IVA não aplicável, art. 53.º CIVA' : 'TVA non applicable, art. 293 B CGI', mL + boxPadX, y + stH / 2 + 1)
+    pdf.text(regimeLegalMention, mL + boxPadX, y + stH / 2 + 1)
   }
 
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  const stLabel = tvaEnabled ? (locale === 'pt' ? 'Subtotal HT' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
+  const stLabel = showTva ? (locale === 'pt' ? 'Subtotal s/IVA' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
   pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
@@ -1086,7 +1239,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // bases). Élimine le drift form ↔ PDF observé sur 50+ lignes.
   // Fallback : si pas de tvaBreakdown fourni (legacy callers), on recalcule
   // avec la même logique d'arrondi par taux.
-  if (tvaEnabled) {
+  if (showTva) {
     let breakdown: Array<{ rate: number; base: number; amount: number }> = []
     if (tvaBreakdownInput && tvaBreakdownInput.length > 0) {
       breakdown = tvaBreakdownInput
@@ -1114,7 +1267,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.setFillColor(COLOR_WHITE)
       pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(`TVA ${rate}% sur ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
+      const tvaPrefix = locale === 'pt' ? 'IVA' : 'TVA'
+      const tvaSep = locale === 'pt' ? 's/' : 'sur'
+      pdf.text(`${tvaPrefix} ${rate}% ${tvaSep} ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
       pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
       pdf.text(localeFormats.currencyFormat(amount), xRight - boxPadX, y + 4, { align: 'right' })
       y += 6
@@ -1144,8 +1299,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // Le TOTAL affiché DÉDUIT effectivement la remise — sinon le client lit
   // "Remise -500€" puis "TOTAL 12 500€" alors qu'il devrait payer 12 000€
   // (bug audit 03/05/2026 finding CRITIQUE #6 + ÉLEVÉ).
-  const totalRaw = tvaEnabled ? totalTTC : subtotalHT
-  const totalVal = Math.max(0, Math.round((totalRaw - discountAmount) * 100) / 100)
+  // NB : pas de Math.max(0, …) — un avoir (note de crédit) a un total négatif
+  // par construction (cf. Task #1 intégration mode AVOIR BTP).
+  const totalRaw = showTva ? totalTTC : subtotalHT
+  const totalVal = Math.round((totalRaw - discountAmount) * 100) / 100
   const totBoxX = boxX_dest
   const totBoxW = destBoxW
   // totH déjà déclaré plus haut (estimation totalsBlockH)
@@ -1153,7 +1310,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.setFillColor(COLOR_BG_GRAY)
   pdf.rect(totBoxX, y, totBoxW, totH, 'F')
   pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const totalLabel = tvaEnabled ? (locale === 'pt' ? 'TOTAL TTC' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
+  const totalLabel = showTva ? (locale === 'pt' ? 'TOTAL c/IVA' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
   pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
   pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
 
@@ -1319,7 +1476,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     // hauteur du bloc CONDITIONS. La page-break a déjà été checkée plus haut
     // pour l'ensemble des deux colonnes.
     if (validAcomptes.length > 0) {
-      const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
+      const acompteTotal = showTva ? totalTTC : subtotalHT
+      // Calcul des montants via helper computeAcomptesAmounts (lib/money.ts) :
+      // si Σ pourcentages === 100 %, le dernier acompte absorbe le résidu
+      // d'arrondi pour garantir Σ montants === total au centime près
+      // (convention comptable EBP/Sage/Henrri). Sans ça, l'écart de 0,01 €
+      // observé sur DEV-2026-002 (50+30+20 % de 733,33 € = 733,34 €) restait.
+      const acompteAmounts = computeAcomptesAmounts(
+        acompteTotal,
+        validAcomptes.map(ac => ({ pourcentage: ac.pourcentage })),
+      )
       const acY = condStartY + sigBoxH + 4
       pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
       pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
@@ -1327,15 +1493,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, acY + 5)
       let ay = acY + 12
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      for (const ac of validAcomptes) {
-        const montant = acompteTotal * ac.pourcentage / 100
+      validAcomptes.forEach((ac, idx) => {
+        const montant = acompteAmounts[idx] ?? 0
         const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
         pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
         pdf.setFont('helvetica', 'bold')
         pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
         pdf.setFont('helvetica', 'normal')
         ay += ptToMm(13)
-      }
+      })
     }
 
     // y final = bas le plus bas des deux colonnes + marge
@@ -1346,7 +1512,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const payLines: string[] = []
     if (paymentCondition) payLines.push(paymentCondition)
     if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
-    if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', new Date(paymentDue).toLocaleDateString(dateLocaleStr)))
+    if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', formatPaymentDueDate(paymentDue)))
     if (iban) payLines.push(bic ? t('devis.pdf.ibanBicLabel').replace('{iban}', iban).replace('{bic}', bic) : t('devis.pdf.ibanLabel').replace('{iban}', iban))
     payLines.push(t('devis.pdf.latePenalties'))
     if (discount) payLines.push(t('devis.pdf.earlyDiscountYes').replace('{discount}', discount))
@@ -1360,14 +1526,19 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
     payLines.push(t('devis.pdf.contestationClause'))
 
-    const condStartY = y
-    let measureY = condStartY + 10
+    // Pré-mesure AVANT le rect : si le bloc CONDITIONS déborde sous la marge
+    // bottom (pageH - 15), checkPageBreak saute en page suivante. Sinon le
+    // rect + texte se superposent au footer "Page X/Y" (régression observée
+    // FACT-2026-002 : ligne contestationClause poussait sous le footer).
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal')
+    let measuredH = 10
     payLines.forEach(line => {
       const wrapped = pdf.splitTextToSize(line, contentW - 8)
-      measureY += wrapped.length * ptToMm(13) + 0.5
+      measuredH += wrapped.length * ptToMm(13) + 0.5
     })
-    const condH = Math.max(measureY - condStartY + 2, 20)
+    const condH = Math.max(measuredH + 2, 20)
+    checkPageBreak(condH + 4)
+    const condStartY = y
 
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
     pdf.rect(mL, condStartY, contentW, condH, 'FD')
@@ -1451,19 +1622,43 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companySiret) legal1 += ` SIRET : ${companySiret}.`
   if (companyAPE) legal1 += ` APE : ${companyAPE}.`
 
-  // 2. TVA / IVA
-  if (!tvaEnabled) {
-    legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
+  // 2. Mention TVA / IVA — pilotée par le régime effectif et locale-aware
+  // (source unique : lib/tva-calculator.ts/getMentionLegale). La mention est
+  // OBLIGATOIRE pour que la facture soit conforme (FR : requalification +
+  // amende 50 % des droits ; PT : sanção prévia ao abrigo do RGIT).
+  //
+  //   FR : art. 293 B CGI / art. 283, 2 nonies CGI
+  //   PT : art. 53.º CIVA / art. 2.º n.º 1 al. j) CIVA (inversão do sujeito passivo)
+  const localeForMention = locale === 'pt' ? 'pt' : 'fr'
+  if (effectiveRegime === 'autoliquidation_btp') {
+    // En autoliquidation, le prestataire DOIT être assujetti — donc le numéro
+    // intracom est requis et apposé en plus de la mention légale du régime.
+    if (tvaNumber) {
+      legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
+    }
+    const mention = getMentionLegale('autoliquidation_btp', localeForMention)
+    if (mention) legal1 += ` ${mention}`
+    // Caractérisation sous-traitance (loi n°75-1334 du 31/12/1975).
+    // L'autoliquidation BTP n'est valide qu'en cadre de sous-traitance avec
+    // un donneur d'ordre assujetti à la TVA et un marché principal identifié.
+    // En cas de contrôle fiscal, ces mentions caractérisent la sous-traitance
+    // et sécurisent l'autoliquidation.
+    if (locale !== 'pt' && clientName) {
+      legal1 += ` Cadre de sous-traitance (loi n° 75-1334 du 31/12/1975) : prestation réalisée en sous-traitance pour le compte de ${clientName}.`
+      if (marchePrincipalRef) {
+        legal1 += ` Marché principal : ${marchePrincipalRef}.`
+      }
+      const mo = maitreOuvrageFinal || interventionAddress
+      if (mo) {
+        legal1 += ` Maître d'ouvrage final / lieu d'exécution : ${mo}.`
+      }
+    }
+  } else if (effectiveRegime === 'franchise_293b') {
+    const mention = getMentionLegale('franchise_293b', localeForMention)
+    if (mention) legal1 += ` ${mention}`
   } else if (tvaNumber) {
+    // Régime classique
     legal1 += locale === 'pt' ? ` NIF intracomunitário : ${tvaNumber}.` : ` TVA intracommunautaire : ${tvaNumber}.`
-  }
-
-  // 2bis. Autoliquidation BTP sous-traitance (art. 283, 2 nonies CGI) — quand
-  // le pro BTP est sous-traitant, le donneur d'ordre autoliquide la TVA.
-  // La mention est OBLIGATOIRE pour que la facture soit conforme (sinon
-  // requalification + amende 50% des droits).
-  if (autoliquidationBTP && locale !== 'pt') {
-    legal1 += ' Autoliquidation par le preneur — TVA due par le donneur d\'ordre (art. 283, 2 nonies CGI).'
   }
 
   // TVA taux réduit (remplace CERFA supprimé fév. 2025 par mention simplifiée
@@ -1471,7 +1666,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // 3 critères BOI-TVA-LIQ-30-20-90 + engagement signature client.
   // Itère sur les sections rendues (sections.flatMap) pour BTP multi-sections,
   // pas sur `lines` legacy qui peut être incomplet.
-  if (tvaEnabled && locale !== 'pt') {
+  if (showTva && locale !== 'pt') {
     const allRenderedLines = (input.laborLines && input.laborLines.length > 0)
       || (input.materialLines && input.materialLines.length > 0)
       || (input.fraisLines && input.fraisLines.length > 0)
@@ -1523,36 +1718,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       : 'Devis gratuit (art. L.111-1 C. conso.). Pour les prestations de dépannage, réparation et entretien : arrêté du 24 janvier 2017.'
   } else {
     // Facture — date d'échéance précise OBLIGATOIRE B2B (art. L.441-9 4° C. com.)
-    // `paymentDue` peut arriver dans 3 formats selon le caller :
-    //   1) Date ISO ("2026-06-15") — utilisée directement
-    //   2) Nombre de jours en string ("30") — additionné à docDate
-    //   3) Texte libre ("30 jours", "Comptant", "À réception") — parsé en
-    //      nombre via parseInt (extrait le préfixe numérique) ou fallback 30
-    // Hotfix audit 04/05/2026 BUG-2 : avant, parseInt('2026-06-15')
-    // retournait 2026 → mention "échéance dans 2026 jours" = 17/11/2031.
-    let dueDateStr = '---'
-    const isoMatch = (paymentDue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (isoMatch) {
-      // Format ISO date — utiliser tel quel
-      const dueAbs = new Date(paymentDue)
-      if (!isNaN(dueAbs.getTime())) {
-        dueDateStr = dueAbs.toLocaleDateString(dateLocaleStr)
-      }
-    } else {
-      // Texte libre / nombre de jours — parseInt extrait le préfixe numérique
-      const numericMatch = (paymentDue || '').match(/^\s*(\d+)/)
-      const paymentDelayDays = numericMatch ? parseInt(numericMatch[1], 10) : 30
-      const safeDelayDays = Number.isFinite(paymentDelayDays) && paymentDelayDays > 0 && paymentDelayDays <= 365
-        ? paymentDelayDays : 30
-      const computedDue = new Date(docDate)
-      if (!isNaN(computedDue.getTime())) {
-        computedDue.setDate(computedDue.getDate() + safeDelayDays)
-        dueDateStr = computedDue.toLocaleDateString(dateLocaleStr)
-      } else if (paymentDue) {
-        // Fallback affiche le texte libre tel quel ("Comptant", "À réception")
-        dueDateStr = paymentDue
-      }
-    }
+    // Utilise le helper `formatPaymentDueDate` (3 formats supportés : ISO, jours,
+    // texte libre). Évite les « Invalid Date » sur saisies type "Comptant à réception".
+    const dueDateStr = formatPaymentDueDate(paymentDue)
     if (locale === 'pt') {
       legal2 = `Condições de pagamento : vencimento ${dueDateStr}. Modo : ${paymentMode || '---'}. Penalidades por atraso : taxa de juro legal em vigor (DL 62/2013).`
     } else {
@@ -1621,13 +1789,32 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // 9. Loi AGEC — gestion des déchets de chantier (FR uniquement).
-  // Le décret 2020-1817 (art. R.541-12-2 C. env.) s'applique aux devis de
-  // construction, rénovation, démolition et jardinage. Il ne s'applique
-  // pas aux prestations de service pure sans déchets de chantier
-  // (nettoyage, déménagement, diagnostic…) — on saute la mention pour
-  // `decennaleEligibility === 'never'` qui marque ces métiers.
+  // Le décret 2020-1817 (art. D.541-45-1 C. env.) impose 4 infos précises
+  // dans le devis : nature, quantité estimée, installation collecte, modalités
+  // de tri (+ coût). Si l'utilisateur a renseigné le bloc dechetsChantier,
+  // on émet la mention structurée conforme. Sinon fallback mention courte
+  // L.541-21-2-1 (acceptable mais moins défensif au contrôle).
+  // S'applique aux devis construction/rénovation/démolition/jardinage —
+  // pas aux prestations service pures (decennaleEligibility === 'never').
   if (locale !== 'pt' && decennaleEligibility !== 'never') {
-    legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
+    const d = dechetsChantier
+    const hasDetails = d && (d.nature || d.quantiteEstimee || d.installationNom || d.modalitesTri)
+    if (hasDetails) {
+      const qty = d!.quantiteEstimee && d!.unite
+        ? `${d!.quantiteEstimee} ${d!.unite}`
+        : (d!.quantiteEstimee || (d!.unite || 'non estimée'))
+      const installation = d!.installationNom
+        ? (d!.installationAdresse ? `${d!.installationNom}, ${d!.installationAdresse}` : d!.installationNom)
+        : 'à définir avant intervention'
+      legal3 += ' Gestion des déchets de chantier (loi AGEC, art. D.541-45-1 C. env.) :'
+      legal3 += ` nature : ${d!.nature || 'inertes et non dangereux non inertes'} ; `
+      legal3 += `quantité estimée : ${qty} ; `
+      legal3 += `installation de collecte/traitement : ${installation} ; `
+      legal3 += `modalités de tri : ${d!.modalitesTri || 'tri sélectif sur chantier'} ; `
+      legal3 += `coût : ${d!.coutGestion || 'inclus dans la prestation'}.`
+    } else {
+      legal3 += ' Conformément à l\'art. L.541-21-2-1 C. env. (loi AGEC), les déchets de chantier seront évacués vers des installations de traitement agréées. Coût de gestion inclus dans la prestation.'
+    }
   }
 
   const legal4 = locale === 'pt'
@@ -1651,8 +1838,92 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(legalWrapped, mL, pageH - legalBottomMargin - legalHeight)
   y = pageH - legalBottomMargin
 
-  // ═══ PAGE 2 — RÉTRACTATION ═══
-  // Page rétractation — FR uniquement, particuliers seulement (art. L. 221-18 C. conso.)
+  // ═══ PAGE — RÉTRACTATION PT (DL 24/2014) ═══
+  if (docType === 'devis' && isHorsEtablissement && isParticulier && locale === 'pt') {
+    pdf.addPage()
+    let ry = 8
+
+    pdf.setFillColor(COLOR_ACCENT)
+    pdf.rect(mL, ry, contentW, ptToMm(3), 'F')
+    ry += ptToMm(3) + 8
+
+    pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('DIREITO DE LIVRE RESOLUCAO', mL, ry)
+    ry += 5
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('Art. 10.o do Decreto-Lei n.o 24/2014', mL, ry)
+    ry += 8
+
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    const ptRetTexts = [
+      'O cliente dispoe de um prazo de 14 dias de calendario, a contar da assinatura do presente orcamento, para exercer o seu direito de livre resolucao, sem necessidade de justificacao nem de pagamento de penalidades.',
+      'Para exercer este direito, o cliente pode utilizar o formulario abaixo ou enviar qualquer declaracao inequivoca em que manifeste a sua vontade de resolver o contrato.',
+      'Nenhum pagamento pode ser exigido antes do termo do prazo de 7 dias a contar da assinatura, salvo trabalhos urgentes expressamente solicitados pelo cliente.',
+    ]
+    ptRetTexts.forEach(txt => {
+      const wrapped = pdf.splitTextToSize(txt, contentW)
+      pdf.text(wrapped, mL, ry)
+      ry += wrapped.length * ptToMm(13) + 4
+    })
+
+    ry += 2
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text('Renuncia ao prazo de livre resolucao (art. 17.o DL 24/2014)', mL, ry)
+    ry += 5
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    const renunciaText = 'Caso o cliente solicite expressamente o inicio dos trabalhos antes do termo do prazo de 14 dias de livre resolucao, declara reconhecer que perdera esse direito assim que o servico for integralmente prestado (art. 17.o n.o 1 al. a) DL 24/2014).'
+    const renunciaWrapped = pdf.splitTextToSize(renunciaText, contentW)
+    pdf.text(renunciaWrapped, mL, ry)
+    ry += renunciaWrapped.length * ptToMm(13) + 6
+
+    // Checkboxes
+    pdf.setDrawColor(COLOR_TEXT); pdf.setLineWidth(0.3)
+    pdf.rect(mL, ry - 2.5, 3, 3)
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold')
+    pdf.text('Sim, solicito o inicio imediato e renuncio ao prazo.', mL + 5, ry)
+    pdf.rect(xRight - 18, ry - 2.5, 3, 3)
+    pdf.text('Nao.', xRight - 14, ry)
+    ry += 12
+
+    // Formulário
+    pdf.setFillColor(COLOR_ACCENT)
+    pdf.rect(mL, ry, contentW, 8, 'F')
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_WHITE)
+    pdf.text('FORMULARIO DE LIVRE RESOLUCAO', mL + boxPadX, ry + 5.5)
+    ry += 12
+
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    const ptFormAttention = `A atencao de: ${companyName}, ${companyAddress}`
+    if (companyPhone) {
+      pdf.text(`${ptFormAttention} -- Tel.: ${companyPhone}`, mL + boxPadX, ry)
+      ry += 5
+      if (companyEmail) { pdf.text(`Email: ${companyEmail}`, mL + boxPadX, ry); ry += 6 }
+    } else {
+      pdf.text(ptFormAttention, mL + boxPadX, ry); ry += 6
+    }
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.text('Pela presente notifico a minha resolucao do contrato relativo a prestacao de servicos supra.', mL + boxPadX, ry)
+    ry += 8
+
+    const ptFormFields = [
+      'Encomendado em / recebido em :',
+      'Nome do cliente :',
+      'Morada :',
+      'Data : ___ / ___ / ______',
+      'Assinatura :',
+    ]
+    ptFormFields.forEach(f => {
+      pdf.text(f, mL + boxPadX, ry)
+      if (!f.startsWith('Data') && !f.startsWith('Assinatura')) {
+        const fw = pdf.getTextWidth(f) + 2
+        drawHLine(mL + boxPadX + fw, ry + 0.5, xRight - boxPadX, COLOR_BORDER, 0.2)
+      }
+      ry += 8
+    })
+  }
+
+  // ═══ PAGE — RÉTRACTATION FR (L. 221-18 C. conso.) ═══
   if (docType === 'devis' && isHorsEtablissement && isParticulier && locale !== 'pt') {
     pdf.addPage()
     let ry = 8
@@ -1831,7 +2102,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.setPage(p)
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
     pdf.text(footerDocRef, mL, pageH - 3.2)
-    pdf.text(`Page ${p}/${totalPgs}`, xRight - 2, pageH - 3.2, { align: 'right' })
+    pdf.text(`${locale === 'pt' ? 'Página' : 'Page'} ${p}/${totalPgs}`, xRight - 2, pageH - 3.2, { align: 'right' })
   }
 
   // ─── Save / Preview ───
@@ -1866,6 +2137,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     && docType === 'facture'
     && locale === 'fr'
     && tvaEnabled
+    && effectiveRegime === 'classique'  // CII reverse-charge mapping non implémenté V1 — skip XML en autoliquidation
     && clientType === 'professionnel'
 
   let outputBytes: Uint8Array | null = null
@@ -1966,5 +2238,5 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.save(filename)
   }
 
-  return { filename }
+  return { filename, pdfArrayBuffer: pdf.output('arraybuffer') as ArrayBuffer }
 }

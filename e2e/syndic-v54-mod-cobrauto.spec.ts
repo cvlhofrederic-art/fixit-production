@@ -1,0 +1,19 @@
+import { test, expect, type Page } from '@playwright/test'
+
+/** Étape d (batch d17) — navigation shell vers Cobrança Automática. Build prod, gated. */
+
+test.describe.configure({ timeout: 120_000 })
+
+test.describe('Syndic v54 — Cobrança Automática', () => {
+  test.beforeEach(async ({ page }: { page: Page }) => {
+    await page.goto('/fr/syndic/dev/dashboard/', { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await page.locator('#syndic-dashboard-v54').waitFor({ state: 'attached', timeout: 60_000 })
+    await page.locator('[data-hydrated="true"]').waitFor({ state: 'attached', timeout: 30_000 })
+  })
+
+  test('Cobrança automática (titre + état vide)', async ({ page }) => {
+    await page.getByRole('button', { name: 'Cobrança automática', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Cobrança Automática · Juros & Sanções', level: 1 })).toBeVisible()
+    await expect(page.getByText('Nenhum processo', { exact: true })).toBeVisible()
+  })
+})

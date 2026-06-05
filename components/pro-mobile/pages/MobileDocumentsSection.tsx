@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 
+// API base : '' en web (Workers SSR), 'https://vitfix.io' au build mobile
+// Capacitor (export statique) via NEXT_PUBLIC_API_URL. Le runtime
+// capacitor://localhost ne peut pas résoudre les paths /api/ relatifs.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
+
 // ─── Compliance Wallet Types ──────────────────────────────────────────────────
 const COMPLIANCE_TYPES = [
   { key: 'decennale',      label: 'RC Décennale',         labelKey: 'proDash.wallet.assuranceDecennale', icon: '🛡️', renewYears: 1 },
@@ -570,7 +575,7 @@ export default function MobileDocumentsSection({
                     if (selectedBookingId) formData.append('booking_id', selectedBookingId)
                     const session = await supabase.auth.getSession()
                     const token = session.data.session?.access_token
-                    const res = await fetch('/api/artisan-photos', {
+                    const res = await fetch(`${API_BASE}/api/artisan-photos`, {
                       method: 'POST',
                       headers: { 'Authorization': `Bearer ${token}` },
                       body: formData,

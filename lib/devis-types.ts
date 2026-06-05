@@ -3,6 +3,29 @@
 // Extracted from components/DevisFactureForm.tsx
 // ═══════════════════════════════════════════════
 
+// ── Gestion des déchets de chantier (loi AGEC, décret 2020-1817) ──
+// Art. D.541-45-1 C. env. : 4 infos obligatoires dans le devis BTP :
+//   1. Nature des déchets (inertes / non dangereux non inertes / dangereux)
+//   2. Estimation des quantités
+//   3. Nom + adresse de l'installation de collecte/traitement
+//   4. Modalités de tri sur chantier (+ coût, qui peut rester "inclus")
+export interface DechetsChantierInfo {
+  /** Ex. « Inertes (gravats, terres) et non dangereux non inertes (bois, plastique) ». */
+  nature?: string
+  /** Estimation quantitative — chiffre seul, ex. « 2.5 ». */
+  quantiteEstimee?: string
+  /** Unité de mesure — ex. m³, kg, L, t. */
+  unite?: string
+  /** Raison sociale de l'installation de collecte/traitement. */
+  installationNom?: string
+  /** Adresse complète de l'installation. */
+  installationAdresse?: string
+  /** Modalités de tri pratiquées sur le chantier. */
+  modalitesTri?: string
+  /** Coût de gestion — peut rester « Inclus dans la prestation ». */
+  coutGestion?: string
+}
+
 // ── Signature types ──
 export interface SignatureData {
   svg_data: string
@@ -107,6 +130,22 @@ export const FRAIS_ANNEXES_UNITES = [
   { value: 'heure', label: 'Heure' },
 ] as const
 
+// CustomTable — sections de prestations additionnelles renommables/masquables.
+// Parité avec le système BTP V3 : permet à un artisan EI de créer plusieurs
+// blocs de prestations (ex. "DEPENSES PARC COROT (0F25-602G)") groupés par
+// catégorie sémantique (labor / material / frais) ou neutres.
+//
+// Le rendu PDF V2 utilise mode_affichage='sections' pour grouper les lignes
+// par section (cf. lib/pdf/devis-generator-v2.ts). Le label affiché est
+// `customTable.name` ; la category sert juste à choisir une icône/couleur côté
+// UI et à grouper les sous-totaux dans le résumé.
+export interface CustomTable {
+  id: string
+  name: string
+  category?: 'labor' | 'material' | 'frais'
+  lines: ProductLine[]
+}
+
 export interface DevisFactureData {
   id?: string
   docType: 'devis' | 'facture'
@@ -151,6 +190,36 @@ export interface DevisFactureData {
   executionDelay: string
   executionDelayDays: number
   executionDelayType: 'ouvres' | 'calendaires'
+  // Sous-type facture (méthode pro 2026) — distingue les quatre cas légaux :
+  //  - 'standard' : facture finale émise après prestation (art. 289 CGI)
+  //  - 'acompte'  : facture d'acompte émise à l'encaissement, avant prestation
+  //                 (TVA exigible à l'encaissement depuis 01/01/2023)
+  //  - 'situation': facture de situation BTP (chantier long, avancement)
+  //  - 'avoir'    : note de crédit annulant tout ou partie d'une facture émise
+  //                 (BOI-TVA-DECLA-30-20-20-30 §70 ; art. 272 CGI). Montants
+  //                 négatifs. Préfixe AV- via RPC next_doc_number. Référence
+  //                 facture parente dans avoirDeFactureId.
+  // Sur docType='devis', toujours undefined. Numérotation FACT-/AV- séparée
+  // par RPC next_doc_number (séquence chronologique par préfixe et par artisan,
+  // conforme Bpifrance / art. 242 nonies A annexe II CGI).
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
+  /** Numéro de situation pour facture de situation BTP (1, 2, 3...) */
+  situationNumber?: number
+  /** Pourcentage d'avancement pour facture de situation BTP (0-100) */
+  situationAvancement?: number
+  /** Numéro d'ordre dans une série d'acomptes fractionnés (1, 2, 3...). */
+  acompteOrdre?: number
+  /** Nombre total d'acomptes prévus dans la série (ex. 3 pour "Acompte 2 sur 3"). */
+  acompteTotal?: number
+  /** Pourcentage de la base TTC représenté par cet acompte (1-100). */
+  acomptePourcentage?: number
+  /** ID de la facture parente sur laquelle s'impute cet acompte. */
+  acompteDeFactureId?: string
+  /** ID de la facture parente annulée (totalement ou partiellement) par cet avoir. */
+  avoirDeFactureId?: string
+  /** Motif d'annulation/correction (5-500 chars) — obligatoire pour les avoirs.
+   *  Preuve fiscale (Code commerce L123-22, conservation 10 ans). */
+  avoirMotif?: string
   // Payment (facture only)
   paymentMode: string
   paymentDue: string
@@ -162,6 +231,9 @@ export interface DevisFactureData {
   lines: ProductLine[]
   materialLines?: ProductLine[]
   fraisAnnexes: FraisAnnexeItem[]
+  // Tables additionnelles (parité BTP V3) — sections nommables ajoutées
+  // dynamiquement par l'artisan, persistées dans raw_data (pas de migration DB).
+  customTables?: CustomTable[]
   ordreDeService?: string
   chantierId?: string
   // Étapes d'intervention (descriptif pour le client)

@@ -58,7 +58,7 @@ function ModuleSelector({
           {selectedModules.length} {locale === 'pt' ? 'módulo(s) ativado(s)' : `module${selectedModules.length > 1 ? 's' : ''} activé${selectedModules.length > 1 ? 's' : ''}`}
         </p>
         <div className="flex gap-2">
-          <button type="button" onClick={onSelectAll} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+          <button type="button" onClick={onSelectAll} className="text-xs text-[#C9A84C] hover:text-[#B8963D] hover:underline">
             {locale === 'pt' ? 'Ativar tudo' : 'Tout activer'}
           </button>
           <button type="button" onClick={onReset} className="text-xs text-[#C9A84C] hover:text-[#B8963D] hover:underline">
@@ -152,9 +152,35 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await res.json()
-      setMembers(data.members || [])
+      const apiMembers: TeamMember[] = data.members || []
+
+      // Fallback démo PT : si locale='pt' et API ne renvoie pas de colaboradores,
+      // utiliser le seed localStorage (set démo investisseur).
+      if (locale === 'pt' && apiMembers.length === 0 && session?.user?.id) {
+        try {
+          const seeded = localStorage.getItem(`fixit_team_pt_demo_${session.user.id}`)
+          if (seeded) {
+            const parsed = JSON.parse(seeded) as TeamMember[]
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setMembers(parsed)
+              return
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      setMembers(apiMembers)
     } catch (e) {
       console.error(e)
+      // Fallback démo PT en cas d'erreur API
+      if (locale === 'pt') {
+        try {
+          const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+          if (session?.user?.id) {
+            const seeded = localStorage.getItem(`fixit_team_pt_demo_${session.user.id}`)
+            if (seeded) setMembers(JSON.parse(seeded) as TeamMember[])
+          }
+        } catch { /* ignore */ }
+      }
     } finally {
       setLoading(false)
     }
@@ -269,7 +295,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
   )
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -478,7 +504,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
                                 navigator.clipboard.writeText(url)
                                 toast.success(t('syndicDash.equipe.linkCopied'))
                               }}
-                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-200 hover:bg-blue-50 transition"
+                              className="text-xs text-[#C9A84C] hover:text-[#B8963D] px-2 py-1 rounded border border-[#E4DDD0] hover:bg-[#F7F4EE] transition"
                             >
                               {t('syndicDash.equipe.copyLink')}
                             </button>
@@ -515,6 +541,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
           {[
             { role: 'syndic_admin', descKey: 'syndicDash.equipe.roleDesc.admin' },
             { role: 'syndic_tech', descKey: 'syndicDash.equipe.roleDesc.tech' },
+            { role: 'syndic_technicien', descKey: 'syndicDash.equipe.roleDesc.technicien' },
             { role: 'syndic_secretaire', descKey: 'syndicDash.equipe.roleDesc.secretary' },
             { role: 'syndic_gestionnaire', descKey: 'syndicDash.equipe.roleDesc.manager' },
             { role: 'syndic_comptable', descKey: 'syndicDash.equipe.roleDesc.accountant' },

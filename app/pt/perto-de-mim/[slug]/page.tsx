@@ -104,7 +104,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+      images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: { canonical: `https://vitfix.io/pt/perto-de-mim/${slug}/` },

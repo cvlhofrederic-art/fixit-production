@@ -1,16 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+import { getSecret } from '@/lib/env'
 
 // ── Analyseur Devis/Factures Syndic — Expert Juridique & Prix du Marché ──────
-// Pipeline : Analyse + Extraction + SIRET + Scoring (4 étapes)
+// Pipeline : Analyse + Extraction + Vérification entreprise + Scoring (4 étapes)
+// FR et PT ont des cadres juridiques + prix + obligations totalement distincts.
 
-const SYSTEM_PROMPT = `Tu es un expert en marchés publics, droit de la copropriété et prix du marché des travaux du bâtiment en France. Tu travailles pour un cabinet de syndic professionnel.
+const SYSTEM_PROMPT_FR = `Tu es un expert en marchés publics, droit de la copropriété et prix du marché des travaux du bâtiment EN FRANCE. Tu travailles pour un cabinet de syndic professionnel français.
 
 Ton rôle est d'analyser des devis et factures de travaux pour :
 
@@ -33,7 +33,7 @@ Vérifier la présence des mentions obligatoires selon la loi française :
 - Délai de rétractation (14 jours pour particuliers, non applicable en copropriété mais à signaler)
 - Pour copropriété : référence au mandat syndic si demandé par le syndic
 
-**2. ANALYSE DES PRIX & BENCHMARK MARCHÉ 2024-2025**
+**2. ANALYSE DES PRIX & BENCHMARK MARCHÉ FRANCE 2024-2025**
 
 PLOMBERIE :
 - Débouchage simple : 80-200€ HT, Fuite robinet : 60-150€ HT
@@ -76,7 +76,7 @@ MAÇONNERIE :
 - Prix excessif (> 30%) → facturation abusive
 - Mentions manquantes → devis non valide juridiquement
 - Pas de RC Pro → risque en cas de sinistre
-- Garantie décennale absente pour gros travaux → risque majeur
+- Garantie décennale absente pour gros travaux → risque majeur (loi Spinetta 1978)
 - TVA incorrecte → sur-facturation
 - Conditions abusives (acompte > 30%)
 
@@ -101,8 +101,8 @@ MAÇONNERIE :
 
 ## 💰 ANALYSE DES PRIX
 
-| Prestation | Prix demandé | Prix marché | Écart | Verdict |
-|-----------|-------------|------------|-------|---------|
+| Prestation | Prix demandé | Prix marché FR | Écart | Verdict |
+|-----------|-------------|---------------|-------|---------|
 
 **Conclusion prix** : [Analyse globale]
 
@@ -125,9 +125,317 @@ MAÇONNERIE :
 **Action recommandée** : [VALIDER / DEMANDER CORRECTIONS / REFUSER]
 
 ---
+Réponds toujours en français, avec un ton professionnel et précis. Le cadre légal est exclusivement français — ne JAMAIS mentionner NIF, IVA portugais, Lei 8/2022, alvará ou ATCUD.`
+
+const SYSTEM_PROMPT_PT = `És um especialista em contratação pública, direito do condomínio e preços de mercado de obras de construção EM PORTUGAL. Trabalhas para um gabinete de administração de condomínios profissional português.
+
+A tua função é analisar orçamentos e faturas de obras para :
+
+**1. CONFORMIDADE JURÍDICA E LEGAL (PORTUGAL)**
+Verificar a presença das menções obrigatórias segundo a legislação portuguesa :
+- Designação social completa e morada da empresa
+- Número de NIPC (Pessoa Coletiva) ou NIF (Empresário em Nome Individual)
+- Número de matrícula na Conservatória do Registo Comercial
+- Código de Atividade Económica (CAE) adequado às obras
+- Alvará de construção (Lei 41/2015) — obrigatório para obras > 16.750 € ou trabalhos especializados
+- Seguro de responsabilidade civil profissional (recomendado, não obrigatório por lei mas exigível pelo condomínio)
+- Garantia legal de 5 anos para obras de construção/reabilitação (DL 67/2003, art. 5º) — equivalente português da garantia décennale
+- Garantia de bom funcionamento de 2 anos para equipamentos (DL 67/2003)
+- Data de emissão do documento
+- Número sequencial único do orçamento/fatura
+- Para faturas: ATCUD (Código Único de Documento, Portaria 195/2020), exportação SAF-T PT (DL 28/2019)
+- Designação precisa dos trabalhos (natureza, quantidade, unidade)
+- Preços unitários (com indicação se com ou sem IVA), taxa de IVA aplicável
+- IVA Portugal 2024-2025 :
+  - 23% (taxa normal continente, 22% Açores, 18% Madeira)
+  - 13% (taxa intermédia)
+  - 6% (taxa reduzida — obras de reabilitação em prédios > 30 anos ou em ARU/Áreas de Reabilitação Urbana — Lei 8/2022)
+- Prazo de execução das obras
+- Condições de pagamento (entrada/sinal, prestações)
+- Validade do orçamento (Código Civil art. 224º)
+- Penalizações por atraso (se fatura)
+- Para condomínio : referência à deliberação da assembleia e ao mandato do administrador
+
+**⚠️ REGRAS DE APLICABILIDADE — NÃO LISTAR O QUE NÃO SE APLICA**
+
+Na secção ❌ MENÇÕES EM FALTA, inclui APENAS itens efetivamente obrigatórios e ausentes para este documento concreto. Se um item não se aplica ao caso, NÃO o menciones de todo — nem sequer com "(não aplicável)".
+
+a) **ENI / Trabalhador independente** (NIF pessoa singular 1XX/2XX, menções "Recibos verdes" ou "Trabalhador independente") :
+   - NÃO tem matrícula na Conservatória do Registo Comercial (só sociedades com NIPC 5XX XXX XXX).
+   - NÃO precisa de alvará se montante < 16 750 € e obra não especializada.
+   - Seguro RC profissional : recomendado mas NÃO obrigatório por lei — se ausente, assinalar como recomendação, não como falha obrigatória.
+
+b) **Orçamento (não fatura)** :
+   - ATCUD (Portaria 195/2020) — NÃO aplicável, só faturas. NÃO mencionar.
+   - SAF-T PT (DL 28/2019) — NÃO aplicável, só faturas. NÃO mencionar.
+
+c) **Montante < 16 750 € e obra não especializada** (instalações simples, motorizações de portões, canalizações, pintura, serralharia ligeira) :
+   - Alvará de construção (Lei 41/2015) — NÃO obrigatório. NÃO mencionar.
+
+**2. ANÁLISE DOS PREÇOS & BENCHMARK MERCADO PORTUGAL 2024-2025**
+
+CANALIZAÇÃO :
+- Desentupimento simples : 60-150€, Fuga de torneira : 50-100€
+- Substituição de cilindro/termoacumulador 100L : 600-1200€
+- Coluna montante : 150-400€/ml, Instalação sanitários completa : 350-800€
+
+ELETRICIDADE :
+- Quadro elétrico monofásico : 500-1000€, Trifásico : 800-2000€
+- Adaptação a regras técnicas (Portaria 949-A/2006) : 1500-4000€
+- Intercomunicador/videoporteiro : 150-700€, Iluminação áreas comuns : 600-1800€
+
+PINTURA :
+- Interior (preparação + 2 demãos) : 15-40€/m²
+- Reabilitação fachada com reboco : 30-80€/m², só pintura : 20-60€/m²
+
+CARPINTARIA/SERRALHARIA :
+- Porta de entrada de prédio : 1500-5000€, Porta de patamar : 600-2000€
+- Janela vidro duplo : 350-1000€/u, Portão automático : 1500-5000€
+
+FECHADURAS / SEGURANÇA :
+- Fechadura : 120-350€, Código de acesso : 250-700€, Videoporteiro de prédio : 400-1700€
+
+ELEVADORES :
+- Manutenção anual obrigatória (DL 320/2002) : 1200-4000€/ano, Revisão : 2500-6500€
+
+COBERTURAS :
+- Substituição de telhas : 60-130€/m², Impermeabilização de terraço : 40-100€/m²
+
+ESPAÇOS VERDES :
+- Corte de sebes : 25-70€/h, Poda de árvore : 150-700€/un
+- Manutenção mensal espaços verdes : 150-700€/mês
+
+LIMPEZA :
+- Áreas comuns diária : 250-700€/mês, Limpeza de vidros : 1,5-7€/m²
+
+ALVENARIA :
+- Fissuração em fachada : 40-130€/m², Regularização de pavimento : 8-25€/m²
+
+**3. DETEÇÃO DE RISCOS JURÍDICOS (PORTUGAL)**
+- Preço excessivo (> 30%) → faturação abusiva
+- Menções obrigatórias em falta → orçamento juridicamente inválido
+- Sem alvará para obras > 16.750 € → trabalho ilegal (Lei 41/2015) — risco MAIOR
+- Sem garantia de 5 anos (DL 67/2003) → risco em caso de defeito de construção
+- IVA incorreto (23% aplicado em vez de 6% para reabilitação em ARU) → sobrefaturação
+- Condições abusivas (sinal > 30%) → DL 67/2003 art. 4º
+- Sem ATCUD numa fatura emitida em 2024+ → não conformidade fiscal (Portaria 195/2020) — SÓ faturas, nunca orçamentos
+
+**FORMATO DE RESPOSTA OBRIGATÓRIO**
+
+## 🔍 ANÁLISE DO DOCUMENTO
+
+**Tipo de documento** : [Orçamento / Fatura / Nota de crédito / Pró-forma]
+**Empresa** : [Nome da empresa]
+**Natureza das obras** : [Descrição curta]
+**Montante** : [Montante sem IVA] s/ IVA / [Montante c/ IVA] c/ IVA
+
+---
+
+## ✅ MENÇÕES LEGAIS PRESENTES
+[Lista com ✅]
+
+## ❌ MENÇÕES EM FALTA / NÃO CONFORMES
+[Lista com ❌ — APENAS itens aplicáveis ao caso concreto. Respeitar as REGRAS DE APLICABILIDADE acima.]
+
+---
+
+## 💰 ANÁLISE DOS PREÇOS
+
+| Prestação | Preço pedido | Preço mercado PT | Variação | Veredicto |
+|-----------|-------------|------------------|----------|-----------|
+
+**Conclusão preço** : [Análise global]
+
+---
+
+## ⚠️ RISCOS JURÍDICOS DETETADOS
+[Lista numerada com nível : 🔴 ELEVADO / 🟡 MÉDIO / 🟢 BAIXO]
+
+---
+
+## 📋 RECOMENDAÇÕES ADMINISTRADOR
+[3-5 recomendações acionáveis]
+
+---
+
+## 🏷️ VEREDICTO GLOBAL
+
+**Pontuação de conformidade** : X/10
+**Estado** : [✅ CONFORME / ⚠️ PARCIALMENTE CONFORME / ❌ NÃO CONFORME]
+**Ação recomendada** : [VALIDAR / PEDIR CORREÇÕES / RECUSAR]
+
+---
+Responde sempre em português europeu (PT-PT), com tom profissional e preciso. O enquadramento legal é exclusivamente português — NUNCA mencionar SIRET, RC Pro, garantie décennale, TVA 5,5%/10%/20% ou outras noções francesas.`
+
+// ── Prompts SEGURO (analyse certificats d'assurance prestataires) ──────────
+
+const SEGURO_PROMPT_FR = `Tu es un expert en assurances du bâtiment et droit de la copropriété EN FRANCE. Tu travailles pour un cabinet de syndic professionnel.
+
+Ton rôle est d'analyser des certificats d'assurance, attestations RC Pro, et polices d'assurance de prestataires pour vérifier leur conformité avant toute intervention en copropriété.
+
+**ÉLÉMENTS À VÉRIFIER :**
+
+1. **IDENTIFICATION DU PRESTATAIRE**
+- Raison sociale et adresse
+- SIRET / SIREN
+- Activité déclarée (cohérence avec les travaux prévus)
+
+2. **VALIDITÉ DE LA POLICE**
+- Numéro de police / contrat
+- Assureur (nom de la compagnie)
+- Dates d'effet et d'échéance — la police est-elle en cours de validité ?
+- Renouvellement tacite ou non
+
+3. **COUVERTURES OBLIGATOIRES COPROPRIÉTÉ**
+- RC Professionnelle (Responsabilité Civile Pro) — obligatoire
+- Garantie décennale (loi Spinetta 1978) — obligatoire pour travaux de structure, étanchéité, fondations
+- RC Exploitation — couvre les dommages causés pendant l'activité
+- Garantie biennale (bon fonctionnement) — 2 ans sur équipements
+- Assurance accidents du travail (si salariés)
+
+4. **MONTANTS ET FRANCHISES**
+- Plafond de garantie (capital assuré) — est-il suffisant pour les travaux prévus ?
+- Franchise par sinistre
+- Sous-limites éventuelles
+
+5. **EXCLUSIONS ET LIMITATIONS**
+- Exclusions notables (amiante, travaux en hauteur, sous-traitance…)
+- Limitations géographiques
+- Limitations d'activité
+
+6. **CONFORMITÉ COPROPRIÉTÉ**
+- Les activités couvertes correspondent-elles au métier du prestataire ?
+- Le montant de garantie est-il proportionnel aux travaux envisagés ?
+- La police est-elle à jour des cotisations ?
+
+**FORMAT DE RÉPONSE OBLIGATOIRE**
+
+## 🛡️ ANALYSE DU CERTIFICAT D'ASSURANCE
+
+**Prestataire** : [Nom entreprise]
+**Assureur** : [Compagnie d'assurance]
+**N° Police** : [Numéro]
+**Période de validité** : [Date début] → [Date fin]
+
+---
+
+## ✅ COUVERTURES CONFIRMÉES
+[Liste avec ✅ — type de garantie, montant couvert]
+
+## ❌ COUVERTURES MANQUANTES OU INSUFFISANTES
+[Liste avec ❌]
+
+---
+
+## 📊 DÉTAIL DES GARANTIES
+
+| Garantie | Couvert | Plafond | Franchise | Verdict |
+|----------|---------|---------|-----------|---------|
+
+---
+
+## ⚠️ POINTS D'ATTENTION
+[Liste numérotée avec niveau : 🔴 CRITIQUE / 🟡 ATTENTION / 🟢 OK]
+
+---
+
+## 📋 RECOMMANDATIONS SYNDIC
+[3-5 recommandations actionnables]
+
+---
+
+## 🏷️ VERDICT GLOBAL
+
+**Statut assurance** : [✅ VALIDE ET CONFORME / ⚠️ VALIDE AVEC RÉSERVES / ❌ NON CONFORME]
+**Action recommandée** : [AUTORISER L'INTERVENTION / DEMANDER COMPLÉMENTS / REFUSER — ASSURANCE INSUFFISANTE]
+
+---
 Réponds toujours en français, avec un ton professionnel et précis.`
 
-const EXTRACT_PROMPT = `Tu es un extracteur de données. À partir d'un devis ou d'une facture, extrais les informations clés au format JSON strict.
+const SEGURO_PROMPT_PT = `És um especialista em seguros de construção e direito do condomínio EM PORTUGAL. Trabalhas para um gabinete de administração de condomínios profissional.
+
+A tua função é analisar certificados de seguro, apólices RC Profissional e atestados de seguro de prestadores para verificar a sua conformidade antes de qualquer intervenção em condomínio.
+
+**ELEMENTOS A VERIFICAR :**
+
+1. **IDENTIFICAÇÃO DO PRESTADOR**
+- Designação social e morada
+- NIF / NIPC
+- Atividade declarada (coerência com as obras previstas)
+
+2. **VALIDADE DA APÓLICE**
+- Número da apólice / contrato
+- Seguradora (nome da companhia)
+- Datas de início e termo — a apólice está em vigor ?
+- Renovação tácita ou não
+
+3. **COBERTURAS OBRIGATÓRIAS CONDOMÍNIO**
+- RC Profissional (Responsabilidade Civil) — recomendada, exigível pelo condomínio
+- Garantia legal de 5 anos para obras (DL 67/2003, art. 5º) — defeitos de construção
+- Garantia de bom funcionamento de 2 anos (DL 67/2003) — equipamentos
+- RC Exploração — cobre danos causados durante a atividade
+- Seguro de acidentes de trabalho (obrigatório se tem trabalhadores — Lei 98/2009)
+
+4. **MONTANTES E FRANQUIAS**
+- Capital segurado (plafond de garantia) — é suficiente para as obras previstas ?
+- Franquia por sinistro
+- Sublimites eventuais
+
+5. **EXCLUSÕES E LIMITAÇÕES**
+- Exclusões notáveis (amianto, trabalhos em altura, subempreitada…)
+- Limitações geográficas
+- Limitações de atividade
+
+6. **CONFORMIDADE CONDOMÍNIO**
+- As atividades cobertas correspondem ao ofício do prestador ?
+- O montante de garantia é proporcional às obras previstas ?
+- A apólice está com os pagamentos em dia ?
+
+**FORMATO DE RESPOSTA OBRIGATÓRIO**
+
+## 🛡️ ANÁLISE DO CERTIFICADO DE SEGURO
+
+**Prestador** : [Nome da empresa]
+**Seguradora** : [Companhia de seguros]
+**N° Apólice** : [Número]
+**Período de validade** : [Data início] → [Data fim]
+
+---
+
+## ✅ COBERTURAS CONFIRMADAS
+[Lista com ✅ — tipo de garantia, montante coberto]
+
+## ❌ COBERTURAS EM FALTA OU INSUFICIENTES
+[Lista com ❌]
+
+---
+
+## 📊 DETALHE DAS GARANTIAS
+
+| Garantia | Coberta | Capital | Franquia | Veredicto |
+|----------|---------|---------|----------|-----------|
+
+---
+
+## ⚠️ PONTOS DE ATENÇÃO
+[Lista numerada com nível : 🔴 CRÍTICO / 🟡 ATENÇÃO / 🟢 OK]
+
+---
+
+## 📋 RECOMENDAÇÕES ADMINISTRADOR
+[3-5 recomendações acionáveis]
+
+---
+
+## 🏷️ VEREDICTO GLOBAL
+
+**Estado do seguro** : [✅ VÁLIDO E CONFORME / ⚠️ VÁLIDO COM RESERVAS / ❌ NÃO CONFORME]
+**Ação recomendada** : [AUTORIZAR INTERVENÇÃO / PEDIR COMPLEMENTOS / RECUSAR — SEGURO INSUFICIENTE]
+
+---
+Responde sempre em português europeu (PT-PT), com tom profissional e preciso.`
+
+const EXTRACT_PROMPT_FR = `Tu es un extracteur de données. À partir d'un devis ou d'une facture FRANÇAIS, extrais les informations clés au format JSON strict.
 
 ⚠️ DISTINCTION PRESTATIONS vs DESCRIPTIONS vs ÉTAPES :
 - Une ligne avec QTÉ + PRIX = PRESTATION (type: "prestation")
@@ -139,7 +447,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans 
 Champs à extraire :
 {
   "artisan_nom": "nom complet de l'entreprise/artisan (string, '' si non trouvé)",
-  "artisan_siret": "numéro SIRET (string, '' si non trouvé)",
+  "artisan_siret": "numéro SIRET français à 14 chiffres (string, '' si non trouvé)",
   "artisan_metier": "corps de métier (string, ex: 'Plomberie', 'Électricité', '' si non trouvé)",
   "type_document": "devis ou facture ou autre",
   "description_travaux": "description courte des travaux (string, max 100 chars)",
@@ -155,12 +463,102 @@ Champs à extraire :
   "artisan_email": "email (string, '' si non trouvé)",
   "artisan_telephone": "téléphone (string, '' si non trouvé)",
   "priorite": "urgente|normale|planifiee",
-  "mentions_presentes": ["SIRET", "TVA", "RC Pro", ...],
-  "mentions_manquantes": ["Garantie décennale", ...],
+  "mentions_presentes": ["SIRET", "TVA", "RC Pro", "Garantie décennale", ...],
+  "mentions_manquantes": ["RC Pro", "Garantie décennale", ...],
   "numero_document": "numéro du devis/facture (string, '' si non trouvé)",
   "date_document": "date au format YYYY-MM-DD (string, '' si non trouvé)",
   "statut_juridique": ""
 }`
+
+const EXTRACT_PROMPT_PT = `És um extrator de dados. A partir de um orçamento ou fatura PORTUGUÊS, extrai a informação chave em formato JSON estrito.
+
+⚠️ DISTINÇÃO PRESTAÇÕES vs DESCRIÇÕES vs ETAPAS — REGRA ABSOLUTA :
+- Uma linha que TEM AO MESMO TEMPO quantidade + unidade (Serviço, m², h…) + preço (€) = PRESTAÇÃO (type: "prestation"). É a ÚNICA categoria com prix_unitaire_ht > 0.
+- Uma linha entre parênteses ou sob um título de prestação = DESCRIÇÃO (type: "description"). prix_unitaire_ht = 0.
+- Uma linha numerada (1. 2. 3…) que detalha um sub-passo = ETAPA (type: "etape"). prix_unitaire_ht = 0.
+
+EXEMPLO PRÁTICO — bloco típico de um orçamento PT :
+\`\`\`
+Inspeção prévia do sistema elétrico
+(Diagnóstico técnico prévio)
+1. Verificação do quadro e ponto de alimentação 230 V
+2. Avaliação das folhas e pilares
+3. Dimensionamento e elaboração do orçamento
+1 Serviço 80,00 € 80,00 €
+\`\`\`
+DEVE produzir EXATAMENTE :
+\`\`\`
+{ "designation": "Inspeção prévia do sistema elétrico", "type": "prestation", "quantite": 1, "unite": "Serviço", "prix_unitaire_ht": 80, "total_ht": 80 },
+{ "designation": "(Diagnóstico técnico prévio)", "type": "description", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 },
+{ "designation": "1. Verificação do quadro e ponto de alimentação 230 V", "type": "etape", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 },
+{ "designation": "2. Avaliação das folhas e pilares", "type": "etape", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 },
+{ "designation": "3. Dimensionamento e elaboração do orçamento", "type": "etape", "quantite": 0, "unite": "", "prix_unitaire_ht": 0, "total_ht": 0 }
+\`\`\`
+
+NUNCA atribuas o preço de uma prestação a uma das suas etapas/descrições. NUNCA marques uma etapa ou descrição como type "prestation". Se hesitares, marca como "description" — é melhor não-contar do que contar errado.
+
+Responde APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown, sem backticks.
+
+⚠️ As chaves do JSON ficam em francês (artisan_nom, artisan_siret, etc.) por compatibilidade com a base de dados — mas o conteúdo vem do documento PT :
+- "artisan_siret" → o NIF/NIPC português (9 dígitos) se presente, '' caso contrário
+- "tva_taux" → a taxa de IVA aplicada (23, 13, 6 para continente, ou 22, 13, 5 Açores, ou 18, 9, 4 Madeira)
+- "montant_ht" → o montante sem IVA (em PT diz-se "valor sem IVA")
+- "montant_ttc" → o montante com IVA
+- "mentions_presentes" / "mentions_manquantes" devem usar os termos portugueses : "NIPC", "NIF", "IVA", "Alvará", "ATCUD", "Garantia legal DL 84/2021", "Garantia 5 anos DL 67/2003", "Seguro RC", "CAE", "Matrícula Conservatória"
+  ⚠️ mentions_manquantes : incluir APENAS menções obrigatórias E aplicáveis ao caso :
+  - Se orçamento (não fatura) → NÃO incluir ATCUD nem SAF-T.
+  - Se ENI/trabalhador independente → NÃO incluir Matrícula Conservatória.
+  - Se montante < 16 750 € e obra simples → NÃO incluir Alvará.
+
+Campos a extrair :
+{
+  "artisan_nom": "nome completo da empresa/profissional (string, '' se não encontrado)",
+  "artisan_siret": "NIF/NIPC português 9 dígitos (string, '' se não encontrado)",
+  "artisan_metier": "área de atividade (string, ex: 'Canalização', 'Eletricidade', '' se não encontrado)",
+  "type_document": "devis ou facture ou autre",
+  "description_travaux": "descrição curta das obras (string, max 100 chars)",
+  "immeuble": "nome ou morada do local de intervenção (string, '' se não encontrado)",
+  "prestations": [
+    { "designation": "nome da prestação", "type": "prestation|description|etape", "quantite": 1, "unite": "u/m²/h/ml/forfait", "prix_unitaire_ht": 0, "total_ht": 0 }
+  ],
+  "montant_ht": 0,
+  "montant_ttc": 0,
+  "tva_taux": 0,
+  "tva_montant": 0,
+  "date_intervention": "YYYY-MM-DD (string, '' se não encontrado)",
+  "artisan_email": "email (string, '' se não encontrado)",
+  "artisan_telephone": "telefone (string, '' se não encontrado)",
+  "priorite": "urgente|normale|planifiee",
+  "mentions_presentes": ["NIPC", "IVA", "Alvará", "ATCUD", ...],
+  "mentions_manquantes": ["só menções obrigatórias E aplicáveis ao caso concreto"],
+  "numero_document": "número do orçamento/fatura (string, '' se não encontrado)",
+  "date_document": "data formato YYYY-MM-DD (string, '' se não encontrado)",
+  "statut_juridique": "ENI se 'Trabalhador independente'/'Recibos verdes'/NIF 1XX ou 2XX ; Lda/SA/Unipessoal se sociedade com NIPC 5XX"
+}`
+
+// ── Filtre post-LLM : retire les mentions ❌ marquées non-applicables ───────
+// Le LLM ignore souvent l'instruction du prompt et liste quand même les items
+// avec "(não aplicável...)" / "(não obrigatório para...)". On filtre nous-mêmes.
+// Les recommandations légitimes (ex: "recomendado, mas não obrigatório") restent.
+function filterNonApplicableMentionsPt(analysis: string): string {
+  if (!analysis) return analysis
+  const REMOVE_PATTERNS = [
+    /\(\s*não\s+aplicáve(l|is)/i,
+    /\(\s*não\s+obrigatóri[oa]\s+(para|nesta|neste|a este)/i,
+    /\(\s*N\s*\/?\s*A\s*[)\,]/i,
+    /\(\s*sem\s+aplicação/i,
+    /\(\s*inaplicáve(l|is)/i,
+  ]
+  return analysis
+    .split('\n')
+    .filter(line => {
+      if (!/[❌✗✘]/.test(line)) return true
+      // Recommandations légitimes (ex: "Seguro RC (recomendado, mas não obrigatório por lei)")
+      if (/recomend(ad[oa]|ação|a-se)/i.test(line)) return true
+      return !REMOVE_PATTERNS.some(p => p.test(line))
+    })
+    .join('\n')
+}
 
 // ── Vérification SIRET via API interne ──────────────────────────────────────
 async function verifySiret(siret: string, req: NextRequest): Promise<{ verified: boolean; company?: Record<string, unknown> }> {
@@ -223,6 +621,7 @@ async function saveAnalysis(
 }
 
 export async function POST(req: NextRequest) {
+  const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
   const ip = getClientIP(req)
   const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60_000)
   if (!rateOk) return rateLimitResponse()
@@ -236,43 +635,121 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { content, filename } = body
+  const { content, filename, locale: rawLocale, type } = body
+  const locale: 'fr' | 'pt' = rawLocale === 'pt' ? 'pt' : 'fr'
+  const isPt = locale === 'pt'
+  const isSeguro = type === 'seguro'
 
   if (!content || content.trim().length < 10) {
-    return NextResponse.json({ error: 'Contenu du document trop court ou vide' }, { status: 400 })
+    return NextResponse.json(
+      { error: isPt ? 'Conteúdo do documento muito curto ou vazio' : 'Contenu du document trop court ou vide' },
+      { status: 400 },
+    )
   }
 
   if (!GROQ_API_KEY) {
-    return NextResponse.json({ error: 'Clé API Groq manquante' }, { status: 500 })
+    return NextResponse.json(
+      { error: isPt ? 'Chave API Groq não configurada' : 'Clé API Groq non configurée' },
+      { status: 500 },
+    )
   }
 
   const userPrompt = filename
-    ? `Voici le contenu du document "${filename}" à analyser :\n\n${content}`
-    : `Voici le contenu du document à analyser :\n\n${content}`
+    ? (isPt
+      ? `Eis o conteúdo do documento "${filename}" para analisar :\n\n${content}`
+      : `Voici le contenu du document "${filename}" à analyser :\n\n${content}`)
+    : (isPt
+      ? `Eis o conteúdo do documento para analisar :\n\n${content}`
+      : `Voici le contenu du document à analyser :\n\n${content}`)
 
   const vitfix = content.includes('[VITFIX-DEVIS-METADATA]') || /DEV-\d{4}-\d{3,}/.test(content)
+  const systemPrompt = isSeguro
+    ? (isPt ? SEGURO_PROMPT_PT : SEGURO_PROMPT_FR)
+    : (isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR)
+  const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
+
+  async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
+    // 1) Groq 70b — primary
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+        signal: AbortSignal.timeout(30000),
+      })
+      if (res.ok) return res.json()
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 4000))
+        const retry = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          signal: AbortSignal.timeout(30000),
+        })
+        if (retry.ok) return retry.json()
+      }
+    } catch (e) { logger.warn('[analyse-devis] Groq failed:', e) }
+
+    // 2) Cerebras llama3.1-70b — fallback
+    const CEREBRAS_KEY = await getSecret('CEREBRAS_API_KEY')
+    if (CEREBRAS_KEY) {
+      try {
+        const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${CEREBRAS_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'llama3.1-70b', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          signal: AbortSignal.timeout(30000),
+        })
+        if (res.ok) return res.json()
+        const errText = await res.text().catch(() => '')
+        logger.error('[analyse-devis] Cerebras failed:', res.status, errText.substring(0, 200))
+      } catch (e) { logger.error('[analyse-devis] Cerebras fetch error:', e) }
+    }
+
+    throw new Error('Tous les providers LLM sont indisponibles')
+  }
 
   try {
-    const [analyseData, extractData] = await Promise.all([
-      callGroqWithRetry({
+    // ── Mode SEGURO : analyse seule (pas d'extraction JSON ni scoring) ──
+    if (isSeguro) {
+      const analyseData = await callLLM({
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 5000,
+      })
+      const analysis = analyseData.choices?.[0]?.message?.content || ''
+      return NextResponse.json({ analysis, type: 'seguro' })
+    }
+
+    // ── Mode standard : Analyse + Extraction + Scoring (devis/factures) ──
+    const [analyseData, extractData] = await Promise.all([
+      callLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
         max_tokens: 5000,
       }),
-      callGroqWithRetry({
+      callLLM({
         messages: [
-          { role: 'system', content: EXTRACT_PROMPT },
-          { role: 'user', content: `Document à analyser :\n\n${content}` },
+          { role: 'system', content: extractPrompt },
+          { role: 'user', content: isPt
+            ? `Documento para analisar :\n\n${content}`
+            : `Document à analyser :\n\n${content}` },
         ],
         temperature: 0,
         max_tokens: 1200,
       }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
     ])
 
-    const analysis = analyseData.choices?.[0]?.message?.content || ''
+    let analysis = analyseData.choices?.[0]?.message?.content || ''
+    // PT : post-filter to remove ❌ items the LLM marked "(não aplicável)" despite
+    // the prompt instruction. Recommendations stay (matched on "recomendado").
+    if (isPt) analysis = filterNonApplicableMentionsPt(analysis)
 
     let extracted: Record<string, unknown> = {}
     try {
@@ -285,15 +762,37 @@ export async function POST(req: NextRequest) {
       logger.warn('Extraction JSON failed (non-bloquant):', e)
     }
 
-    // ── SIRET + Scoring ──
-    const siretResult = await verifySiret(extracted.artisan_siret as string || '', req)
+    // ── Vérification entreprise + Scoring (dispatch FR/PT) ──
+    // FR : SIRET via API verify-siret (Sirene).
+    // PT : NIF checksum local (algorithme AT modulo 11), pas d'API externe.
+    let scores: AnalyseScores
+    let siretResult: { verified: boolean; company?: Record<string, unknown> }
 
-    const scores = calculateScores(
-      (extracted.mentions_presentes || []) as string[],
-      (extracted.mentions_manquantes || []) as string[],
-      extracted,
-      siretResult.verified
-    )
+    if (isPt) {
+      const { validateNif, extractNif } = await import('@/lib/nif-pt')
+      const { calculateScoresPt } = await import('@/lib/analyse-devis-scoring-pt')
+      // Fallback déterministe : si le LLM JSON extractor a laissé artisan_siret
+      // vide ou invalide, on scanne le texte brut nous-mêmes.
+      let nifRaw = (extracted.artisan_siret as string) || ''
+      if (!nifRaw || !validateNif(nifRaw)) {
+        const fromText = extractNif(content)
+        if (fromText) {
+          nifRaw = fromText
+          extracted.artisan_siret = fromText
+        }
+      }
+      const nifVerified = validateNif(nifRaw)
+      siretResult = { verified: nifVerified }
+      scores = calculateScoresPt(extracted, content, { nifVerified })
+    } else {
+      siretResult = await verifySiret((extracted.artisan_siret as string) || '', req)
+      scores = calculateScores(
+        (extracted.mentions_presentes || []) as string[],
+        (extracted.mentions_manquantes || []) as string[],
+        extracted,
+        siretResult.verified,
+      )
+    }
 
     const totalTokens = (analyseData.usage?.total_tokens || 0) + (extractData?.usage?.total_tokens || 0)
 
@@ -318,7 +817,11 @@ export async function POST(req: NextRequest) {
       tokens: totalTokens,
     })
   } catch (err) {
-    logger.error('Analyse devis error:', err)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : String(err)
+    logger.error('[syndic/analyse-devis] Pipeline error', { error: errMsg })
+    return NextResponse.json(
+      { error: isPt ? `Erro: ${errMsg.slice(0, 120)}` : `Erreur : ${errMsg.slice(0, 120)}` },
+      { status: 500 },
+    )
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "fixit-production",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -25,7 +25,9 @@
     "scan:all": "npm run scan:secrets && npm run scan:deps && npm run scan:code",
     "scan:lighthouse": "lhci autorun",
     "analyze": "ANALYZE=true next build",
-    "build:cloudflare": "npx @opennextjs/cloudflare build"
+    "build:cloudflare": "npx @opennextjs/cloudflare build",
+    "seed:legal-corpus": "tsx scripts/seed-max-legal-corpus.ts",
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -51,6 +53,7 @@
     "@upstash/redis": "^1.37.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cron-parser": "^5.5.0",
     "date-fns": "^4.1.0",
     "dompurify": "^3.3.1",
     "html2canvas": "^1.4.1",
@@ -92,8 +95,11 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.2",
     "exceljs": "^4.4.0",
+    "husky": "^9.1.7",
     "jsdom": "^28.1.0",
     "pg": "^8.18.0",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.18",

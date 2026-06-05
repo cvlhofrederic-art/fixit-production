@@ -98,7 +98,7 @@ const BATCH_CONFIGS: BatchConfig[] = [
     label: 'Encerramento de Exercício',
     emoji: '📊',
     description: 'Fechar exercício fiscal: balanço, relatório de contas, preparar novo ano',
-    color: '#8B5CF6',
+    color: '#C9A84C',
     steps: [
       'Verificar lançamentos pendentes',
       'Calcular saldos finais',
@@ -114,7 +114,7 @@ const BATCH_CONFIGS: BatchConfig[] = [
     label: 'Atualização Fundo de Reserva',
     emoji: '🏦',
     description: 'Recalcular e atualizar fundo de reserva legal (mín. 10% orçamento - DL 268/94)',
-    color: '#0EA5E9',
+    color: '#1A7A6E',
     steps: [
       'Carregar orçamento aprovado',
       'Calcular 10% mínimo legal',
@@ -144,7 +144,7 @@ const BATCH_CONFIGS: BatchConfig[] = [
     label: 'Convocatória AG em Lote',
     emoji: '📬',
     description: 'Enviar convocatórias para Assembleia Geral a todos os condóminos',
-    color: '#EC4899',
+    color: '#0D1B2E',
     steps: [
       'Carregar lista de condóminos',
       'Preparar ordem de trabalhos',
@@ -400,10 +400,10 @@ export default function ProcessamentosLoteSection({ user, userRole }: Props) {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
-          { emoji: '▶️', label: 'Execuções totais', value: totalExecutions, color: '#0EA5E9' },
+          { emoji: '▶️', label: 'Execuções totais', value: totalExecutions, color: '#1A7A6E' },
           { emoji: '✅', label: 'Concluídas', value: successExecutions, color: '#22C55E' },
           { emoji: '❌', label: 'Com erros', value: errorExecutions, color: '#EF4444' },
-          { emoji: '⏰', label: 'Agendamentos ativos', value: activeSchedules, color: '#8B5CF6' },
+          { emoji: '⏰', label: 'Agendamentos ativos', value: activeSchedules, color: '#C9A84C' },
         ].map(s => (
           <div key={s.label} style={{ background: '#fff', border: '1px solid #E4DDD0', borderRadius: 12, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

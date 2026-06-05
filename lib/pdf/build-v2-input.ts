@@ -9,7 +9,7 @@
  */
 
 import type { DevisGeneratorInput } from './devis-generator-v2'
-import type { ProductLine, DevisAcompte, FraisAnnexeItem } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, FraisAnnexeItem, CustomTable } from '@/lib/devis-types'
 import { sumMoney, computeAcomptesAmounts } from '@/lib/money'
 
 export interface BuildV2InputParams {
@@ -30,6 +30,11 @@ export interface BuildV2InputParams {
   tvaEnabled: boolean
   paymentMode: string
   paymentCondition: string
+  /** Date d'échéance facture saisie manuellement par l'utilisateur (ISO
+   *  YYYY-MM-DD). Sert d'override sur paymentCondition. Si vide, le PDF
+   *  parse paymentCondition (ex: "60 jours") pour calculer l'échéance.
+   *  Source unique de vérité : lib/pdf/payment-due.ts. */
+  paymentDue?: string | null
 
   // Client
   clientName: string
@@ -51,6 +56,15 @@ export interface BuildV2InputParams {
   docValidity: number
   executionDelay: string
   prestationDate: string
+  /** Sous-type facture (méthode pro 2026, cf. lib/devis-types.ts). */
+  factureSubType?: 'standard' | 'acompte' | 'situation' | 'avoir'
+  situationNumber?: number
+  situationAvancement?: number
+  acompteOrdre?: number
+  acompteTotal?: number
+  acomptePourcentage?: number
+  parentInvoiceNumber?: string
+  avoirMotif?: string
 
   // Lines
   lines: ProductLine[]
@@ -58,6 +72,11 @@ export interface BuildV2InputParams {
   // (sinon acompte 30% sur 1500 € HT = 300 € au lieu de 450 €).
   materialLines?: ProductLine[]
   fraisAnnexes?: FraisAnnexeItem[]
+  // Tables custom (parité BTP V3) — sections de prestations supplémentaires
+  // ajoutées dynamiquement par l'artisan. Lignes flattenées dans `lignes`
+  // avec marker `section: 'custom_<tableId>'`. Inclues dans totalNet pour
+  // calcul correct des acomptes.
+  customTables?: CustomTable[]
   // Ventilation TVA pré-calculée par le form (single source of truth) — V2
   // l'utilisera pour afficher le détail TVA multi-taux quand auto-entrepreneur
   // bascule en TVA après dépassement du seuil 293 B.
@@ -84,11 +103,12 @@ export function buildV2Input(
     logoUrl, companyName, artisanCompanyName, companySiret,
     artisanRm, companyAddress, companyPhone, companyEmail, artisanRcPro,
     insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
-    tvaEnabled, paymentMode, paymentCondition,
+    tvaEnabled, paymentMode, paymentCondition, paymentDue,
     clientName, clientSiret, clientAddress, clientPhone, clientEmail,
     interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns, interventionExterieur,
     docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
-    lines, materialLines, fraisAnnexes, tvaBreakdown,
+    factureSubType, situationNumber, situationAvancement,
+    lines, materialLines, fraisAnnexes, customTables, tvaBreakdown,
     acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     isHorsEtablissement,
   } = params
@@ -99,10 +119,17 @@ export function buildV2Input(
   const validLabor = lines.filter(l => l.description.trim())
   const validMaterials = (materialLines || []).filter(l => l.description.trim())
   const validFrais = (fraisAnnexes || []).filter(f => (f.designation || '').trim())
+  // Lignes des tables custom (flattenées avec un marker section pour le PDF)
+  const validCustomTables = (customTables || []).map(t => ({
+    ...t,
+    lines: t.lines.filter(l => l.description.trim()),
+  })).filter(t => t.lines.length > 0)
+  const validCustomLines = validCustomTables.flatMap(t => t.lines)
   const totalNet = sumMoney([
     ...validLabor.map(l => l.totalHT || 0),
     ...validMaterials.map(l => l.totalHT || 0),
     ...validFrais.map(f => f.total_ht || 0),
+    ...validCustomLines.map(l => l.totalHT || 0),
   ])
   // Acomptes répartis avec le dernier qui rattrape le résidu d'arrondi
   // (convention comptable Henrri/EBP/Sage). Évite que la somme des acomptes
@@ -149,20 +176,56 @@ export function buildV2Input(
       delai_execution: executionDelay || 'À convenir',
       date_prestation: prestationDate ? new Date(prestationDate) : null,
       docType,
+      factureSubType,
+      situationNumber,
+      situationAvancement,
+      // Échéance facture (art. L441-10 C. com.) : on priorise paymentDue
+      // (date ISO override manuel) puis paymentCondition (texte dropdown,
+      // "60 jours date facture" etc.). Le helper computeEcheanceDate gère
+      // les 3 formats. Pour devis, ignoré (utilise validite_jours).
+      paymentDue: paymentDue || paymentCondition || null,
     },
-    mode_affichage: 'bloc' as const,
-    lignes: lines.filter(l => l.description.trim()).map(l => ({
-      designation: l.description,
-      quantite: l.qty,
-      unite: l.unit || 'u',
-      prix_unitaire: l.priceHT,
-      total: l.totalHT,
-      section: null,
-      etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
-        ordre: e.ordre,
-        designation: e.designation,
+    // mode_affichage : passe en 'sections' s'il y a des tables custom non vides
+    // → le PDF V2 groupe les lignes par section (cf. devis-generator-v2.ts).
+    // Sinon, comportement classique 'bloc' (toutes les lignes dans une seule table).
+    mode_affichage: validCustomTables.length > 0 ? ('sections' as const) : ('bloc' as const),
+    lignes: [
+      // Lignes principales (labor) — section null/'labor' selon mode
+      ...lines.filter(l => l.description.trim()).map(l => ({
+        designation: l.description,
+        lineDetail: l.lineDetail || undefined,
+        quantite: l.qty,
+        unite: l.unit || 'u',
+        prix_unitaire: l.priceHT,
+        total: l.totalHT,
+        section: validCustomTables.length > 0 ? 'labor' : null,
+        etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
+          ordre: e.ordre,
+          designation: e.designation,
+        })),
       })),
-    })),
+      // Lignes des tables custom — flattenées avec marker section `custom_<id>`.
+      // Le generator V2 lit ce marker dans SECTION_LABELS pour afficher le nom
+      // personnalisé de la table comme titre de section.
+      ...validCustomTables.flatMap(tbl => tbl.lines.map(l => ({
+        designation: l.description,
+        lineDetail: l.lineDetail || undefined,
+        quantite: l.qty,
+        unite: l.unit || 'u',
+        prix_unitaire: l.priceHT,
+        total: l.totalHT,
+        section: `custom_${tbl.id}`,
+        etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
+          ordre: e.ordre,
+          designation: e.designation,
+        })),
+      }))),
+    ],
+    // Custom section labels — utilisés par le PDF V2 pour libeller les sections
+    // dynamiques (au-delà des labels figés labor/material/frais).
+    customSectionLabels: validCustomTables.length > 0
+      ? Object.fromEntries(validCustomTables.map(t => [`custom_${t.id}`, t.name]))
+      : undefined,
     acomptes: acomptesEnabled ? acomptes.map((ac, i) => ({
       label: ac.label,
       // Le dernier acompte absorbe le résidu d'arrondi (cf. acomptesAmounts).

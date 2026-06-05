@@ -408,14 +408,14 @@ export default function MissionDetailsModal({
 
               {/* ── Lien de suivi GPS ── */}
               {localData.trackingToken && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                    <p className="text-sm font-bold text-blue-800">{isPt ? 'Seguimento GPS ativo' : 'Suivi GPS actif'}</p>
+                    <span className="w-2 h-2 bg-[#C9A84C] rounded-full animate-pulse" />
+                    <p className="text-sm font-bold text-[#0D1B2E]">{isPt ? 'Seguimento GPS ativo' : 'Suivi GPS actif'}</p>
                   </div>
-                  <p className="text-xs text-blue-600 mb-2">{isPt ? 'O profissional partilha a sua localização em direto. Partilhe este link com o condómino:' : 'L\'artisan partage sa position en direct. Partagez ce lien au copropriétaire :'}</p>
+                  <p className="text-xs text-[#0D1B2E] opacity-70 mb-2">{isPt ? 'O profissional partilha a sua localização em direto. Partilhe este link com o condómino:' : 'L\'artisan partage sa position en direct. Partagez ce lien au copropriétaire :'}</p>
                   <div className="flex gap-2">
-                    <code className="flex-1 text-xs bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-blue-700 truncate">
+                    <code className="flex-1 text-xs bg-white border border-[#E4DDD0] rounded-lg px-2 py-1.5 text-[#0D1B2E] truncate">
                       {typeof window !== 'undefined' ? `${window.location.origin}/tracking/${localData.trackingToken}` : `/tracking/${localData.trackingToken}`}
                     </code>
                     <button
@@ -423,7 +423,7 @@ export default function MissionDetailsModal({
                         const url = `${window.location.origin}/tracking/${localData.trackingToken}`
                         navigator.clipboard.writeText(url).catch(() => toast.error(isPt ? 'Impossível copiar o link' : 'Impossible de copier le lien'))
                       }}
-                      className="flex-shrink-0 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition"
+                      className="flex-shrink-0 bg-[#0D1B2E] text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#152338] transition"
                     >
                       {isPt ? 'Copiar' : 'Copier'}
                     </button>
@@ -432,7 +432,7 @@ export default function MissionDetailsModal({
                     href={`/tracking/${localData.trackingToken}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-medium"
+                    className="mt-2 flex items-center gap-1.5 text-xs text-[#C9A84C] hover:underline font-medium"
                   >
                     📍 {isPt ? 'Ver o seguimento em direto →' : 'Voir le suivi en direct →'}
                   </a>
@@ -448,9 +448,9 @@ export default function MissionDetailsModal({
           {/* ── TAB LOCATAIRE ── */}
           {activeTab === 'locataire' && (
             <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-blue-800 mb-1">📍 {isPt ? 'Ficha do residente / localização' : 'Fiche locataire / localisation'}</p>
-                <p className="text-xs text-blue-600">{isPt ? 'Estas informações são guardadas na ordem de missão e no relatório.' : 'Ces informations sont enregistrées dans l\'ordre de mission et le rapport.'}</p>
+              <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-4">
+                <p className="text-sm font-semibold text-[#0D1B2E] mb-1">📍 {isPt ? 'Ficha do residente / localização' : 'Fiche locataire / localisation'}</p>
+                <p className="text-xs text-[#0D1B2E] opacity-70">{isPt ? 'Estas informações são guardadas na ordem de missão e no relatório.' : 'Ces informations sont enregistrées dans l\'ordre de mission et le rapport.'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -631,7 +631,7 @@ export default function MissionDetailsModal({
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">{isPt ? 'Duração da intervenção' : 'Durée intervention'}</label>
-                  <input className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-[#C9A84C] outline-none" placeholder="Ex: 2h30" value={localData.dureeIntervention || ''} onChange={e => setLocalData(d => ({...d, dureeIntervention: e.target.value}))} onBlur={() => onUpdate(localData)} />
+                  <input className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-[#C9A84C] outline-none" placeholder={isPt ? 'Ex: 2h30' : 'Ex: 2h30'} value={localData.dureeIntervention || ''} onChange={e => setLocalData(d => ({...d, dureeIntervention: e.target.value}))} onBlur={() => onUpdate(localData)} />
                 </div>
               </div>
               {(isPt ? [
@@ -682,7 +682,7 @@ export default function MissionDetailsModal({
           {mission.statut !== 'terminee' && mission.statut !== 'annulee' && (
             <button
               onClick={() => { const u = { ...localData, statut: 'terminee' as const }; onUpdate(u) }}
-              className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition"
+              className="flex-1 px-4 py-2.5 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-xl text-sm font-semibold transition"
             >
               🏁 {isPt ? 'Marcar como concluída' : 'Marquer terminée'}
             </button>

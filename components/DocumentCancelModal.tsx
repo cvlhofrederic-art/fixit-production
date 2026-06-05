@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { supabase } from '@/lib/supabase'
 
 interface DocumentCancelModalProps {
   open: boolean
@@ -52,9 +53,16 @@ export default function DocumentCancelModal({
     }
     setSubmitting(true)
     try {
+      // Bearer token requis par /api/document-cancel (cf. lib/auth-helpers.ts
+      // getAuthUser : 401 si pas d'Authorization header). Sans ça, l'annulation
+      // retourne systématiquement Unauthorized en production.
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader: Record<string, string> = session?.access_token
+        ? { 'Authorization': `Bearer ${session.access_token}` }
+        : {}
       const res = await fetch('/api/document-cancel', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ docType, numero: docNumber, reason: reason.trim() }),
       })
       const data = await res.json()

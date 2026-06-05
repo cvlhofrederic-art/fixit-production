@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import type { EmailAnalysed } from '../types'
 import { TYPE_EMAIL_CONFIG } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
-export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNavigateParams: () => void }) {
+// onNavigateParams kept for backward compatibility — the empty-state CTA now
+// triggers OAuth directly (cf. handleConnectGmail), but parent still passes the prop.
+export default function EmailsSection({ syndicId, onNavigateParams: _onNavigateParams }: { syndicId: string; onNavigateParams: () => void }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -23,6 +26,9 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
   const [sendingResponse, setSendingResponse] = useState(false)
   const [sendSuccess, setSendSuccess] = useState(false)
   const [sendError, setSendError] = useState('')
+  // Gmail OAuth connect state
+  const [connecting, setConnecting] = useState(false)
+  const [connectError, setConnectError] = useState('')
 
   const loadEmails = async () => {
     setLoading(true)
@@ -41,6 +47,46 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
   }
 
   useEffect(() => { loadEmails() }, [filterUrgence, filterStatut])
+
+  // ── Handle return from Gmail OAuth callback ─────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const isPtMsg = locale === 'pt'
+    if (params.get('email_connected') === 'true') {
+      const email = decodeURIComponent(params.get('email') || '')
+      toast.success(isPtMsg
+        ? `Gmail ligado : ${email || 'caixa sincronizada'}`
+        : `Gmail connecté : ${email || 'boîte synchronisée'}`)
+      window.history.replaceState({}, '', window.location.pathname)
+      loadEmails()
+    } else if (params.get('email_error')) {
+      toast.error(isPtMsg
+        ? `Erro de ligação Gmail : ${params.get('email_error')}`
+        : `Erreur connexion Gmail : ${params.get('email_error')}`)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleConnectGmail = async () => {
+    if (connecting) return
+    setConnecting(true)
+    setConnectError('')
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setConnectError(locale === 'pt' ? 'Sessão expirada — atualize a página' : 'Session expirée — actualisez la page')
+        setConnecting(false)
+        return
+      }
+      window.location.href = `/api/email-agent/connect?token=${encodeURIComponent(session.access_token)}`
+    } catch {
+      setConnectError(locale === 'pt' ? 'Erro ao iniciar a ligação' : 'Erreur au démarrage de la connexion')
+      setConnecting(false)
+    }
+  }
 
   const handlePoll = async () => {
     setPolling(true)
@@ -129,7 +175,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
   }
 
   const STATUT_CONFIG = {
-    nouveau:      { label: isPt ? 'Novo'           : 'Nouveau',       color: 'bg-blue-100 text-blue-700' },
+    nouveau:      { label: isPt ? 'Novo'           : 'Nouveau',       color: 'bg-[#F7F4EE] text-[#0D1B2E] border border-[#E4DDD0]' },
     traite:       { label: isPt ? 'Tratado'        : 'Traité',        color: 'bg-green-100 text-green-700' },
     archive:      { label: isPt ? 'Arquivado'      : 'Archivé',       color: 'bg-[#F7F4EE] text-gray-500' },
     mission_cree: { label: isPt ? 'Missão criada'  : 'Mission créée', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
@@ -172,13 +218,18 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               ? 'O Fixy irá analisar automaticamente todos os emails recebidos — urgências, tipos de pedido, sugestões de ações e rascunhos de resposta.'
               : 'Fixy analysera automatiquement tous vos emails entrants — urgences, types de demandes, suggestions d\'actions et brouillons de réponse.'}
           </p>
-          <button onClick={onNavigateParams}
-            className="bg-[#0D1B2E] hover:bg-[#152338] text-white px-6 py-2.5 rounded-lg font-semibold transition inline-flex items-center gap-2">
+          <button onClick={handleConnectGmail} disabled={connecting}
+            className="bg-[#0D1B2E] hover:bg-[#152338] text-white px-6 py-2.5 rounded-lg font-semibold transition inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="white" d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z"/>
             </svg>
-            {isPt ? 'Ligar Gmail nas Definições' : 'Connecter Gmail dans les Paramètres'}
+            {connecting
+              ? (isPt ? 'A ligar…' : 'Connexion…')
+              : (isPt ? 'Ligar Gmail' : 'Connecter Gmail')}
           </button>
+          {connectError && (
+            <p className="mt-3 text-xs text-red-600">{connectError}</p>
+          )}
         </div>
       )}
 
@@ -188,7 +239,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
           {emails.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: isPt ? 'Por tratar' : 'Non traités', nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
+                { label: isPt ? 'Por tratar' : 'Non traités', nb: stats.nouveaux, emoji: '📬', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
                 { label: isPt ? 'Urgentes'   : 'Urgents',     nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-[#F7F4EE] border-gray-200' },
                 { label: isPt ? 'Tratados'   : 'Traités',     nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
                 { label: isPt ? 'Total'      : 'Total',       nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
@@ -264,7 +315,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                   <div key={email.id}
                     onClick={() => setSelectedEmail(email)}
                     className={`bg-white rounded-xl shadow-sm border-2 p-4 cursor-pointer hover:border-[#C9A84C] transition ${
-                      email.urgence === 'haute' && isNew ? 'border-red-200 bg-red-50/30' : isNew ? 'border-blue-100' : 'border-gray-100'
+                      email.urgence === 'haute' && isNew ? 'border-red-200 bg-red-50/30' : isNew ? 'border-[#E4DDD0]' : 'border-gray-100'
                     }`}>
                     <div className="flex items-start justify-between gap-3">
                       {/* Gauche */}
@@ -337,7 +388,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
                   { label: isPt ? 'Total analisados' : 'Total analysés',  nb: stats.total,    emoji: '📧', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
-                  { label: isPt ? 'Por tratar'       : 'Non traités',      nb: stats.nouveaux, emoji: '📬', color: 'bg-blue-50 border-blue-200' },
+                  { label: isPt ? 'Por tratar'       : 'Non traités',      nb: stats.nouveaux, emoji: '📬', color: 'bg-[#F7F4EE] border-[#E4DDD0]' },
                   { label: isPt ? '🔴 Urgentes'       : '🔴 Urgents',        nb: stats.urgents,  emoji: '🔴', color: stats.urgents > 0 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-200' },
                   { label: isPt ? 'Tratados'         : 'Traités',          nb: stats.traites,  emoji: '✅', color: 'bg-green-50 border-green-200' },
                 ].map(s => (
@@ -453,13 +504,13 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
               {selectedEmail.reponse_suggeree && selectedEmail.statut !== 'repondu' && (
                 <div>
                   <p className="text-xs font-bold text-gray-500 mb-2">{isPt ? '✉️ RASCUNHO DE RESPOSTA (gerado pelo Fixy)' : '✉️ BROUILLON DE RÉPONSE (généré par Fixy)'}</p>
-                  <div className="bg-blue-50 rounded-xl p-4 text-sm border border-blue-100">
+                  <div className="bg-[#F7F4EE] rounded-xl p-4 text-sm border border-[#E4DDD0]">
                     <textarea
                       value={draftResponse || selectedEmail.reponse_suggeree}
                       onChange={e => setDraftResponse(e.target.value)}
                       onFocus={() => { if (!draftResponse) setDraftResponse(selectedEmail.reponse_suggeree || '') }}
                       rows={6}
-                      className="w-full bg-white border border-blue-200 rounded-lg p-3 text-sm text-gray-700 resize-y focus:outline-none focus:border-blue-400"
+                      className="w-full bg-white border border-[#E4DDD0] rounded-lg p-3 text-sm text-gray-700 resize-y focus:outline-none focus:border-[#C9A84C]"
                       placeholder={isPt ? 'Edite o rascunho se necessário...' : 'Modifiez le brouillon si nécessaire...'}
                     />
                     <p className="text-[11px] text-gray-400 mt-1 mb-3">

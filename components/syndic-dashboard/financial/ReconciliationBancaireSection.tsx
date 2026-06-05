@@ -54,7 +54,7 @@ const STATUS_STYLES: Record<MatchStatus, { bg: string; color: string; label: str
   matched:   { bg: '#E6F4F2', color: '#1A7A6E', label: 'Reconciliado' },
   partial:   { bg: '#FEF5E4', color: '#D4830A', label: 'Parcial' },
   unmatched: { bg: '#FDECEA', color: '#C0392B', label: 'Pendente' },
-  manual:    { bg: '#E8EDF4', color: '#2C5282', label: 'Manual' },
+  manual:    { bg: '#E8EDF4', color: '#0D1B2E', label: 'Manual' },
 }
 
 const NOMES_PT = [
