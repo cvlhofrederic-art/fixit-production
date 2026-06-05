@@ -266,7 +266,7 @@ export default async function RootLayout({
                   legalName: 'VITFIX — Empresário em Nome Individual',
                   url: 'https://vitfix.io',
                   logo: { '@type': 'ImageObject', url: 'https://vitfix.io/logo.png' },
-                  image: locale === 'pt' ? 'https://vitfix.io/og-pt.png' : locale === 'fr' ? 'https://vitfix.io/og-fr.png' : 'https://vitfix.io/og-en.png',
+                  image: locale === 'pt' ? 'https://vitfix.io/api/og/?locale=pt' : locale === 'fr' ? 'https://vitfix.io/api/og/?locale=fr' : 'https://vitfix.io/api/og/?locale=en',
                   description: locale === 'pt'
                     ? 'Plataforma de profissionais verificados para reparações e obras, canalização, eletricidade, faz-tudo em Portugal.'
                     : 'Plateforme d\'artisans vérifiés pour vos travaux, plomberie, électricité, maçonnerie, peinture en France et au Portugal.',

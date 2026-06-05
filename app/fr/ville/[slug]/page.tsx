@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { FR_CITIES, FR_SERVICES, getFrCityBySlug } from '@/lib/data/fr-seo-pages-data'
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     alternates: { canonical: `https://vitfix.io/fr/ville/${slug}/` },
-    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-fr.png', width: 1200, height: 630 }] },
+    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'fr' }) },
   }
 }
 
@@ -42,8 +43,8 @@ export default async function FrVillePage({ params }: { params: Promise<{ slug: 
         name: `VITFIX : Artisans à ${city.name}`,
         description: `Services artisans à ${city.name} : plombier, électricien, peintre, serrurier, chauffagiste. Professionnels vérifiés, devis gratuit, réponse en 2h.`,
         url: `https://vitfix.io/fr/ville/${slug}/`,
-        image: 'https://vitfix.io/og-fr.png',
-        logo: 'https://vitfix.io/og-fr.png',
+        image: 'https://vitfix.io/api/og/?locale=fr',
+        logo: 'https://vitfix.io/api/og/?locale=fr',
         areaServed: { '@type': 'City', name: city.name },
         telephone: PHONE_FR,
         address: {

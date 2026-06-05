@@ -15,20 +15,27 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
-/** AG Digitais — port byte-exact du ModAGDigit du bundle V5.7 (stateful : Modal + Toast). */
+/** AG Digitais — port byte-exact V5.7 + Phase 3 : AG réelles (table syndic_assemblees via route v54).
+ * Syndic connecté → vraies AG du cabinet (data.assembleias) + création POST ;
+ * anonyme → preview (Empty byte-exact + toast démo). */
 
 type AGForm = { titulo: string; edificio: string; dataHora: string; tipo: string; local: string; quorum: number | string; milesimos: number | string; ordem: string }
-type AG = AGForm & { id: number; estado: string }
 
 const fmtDateTime = (v: string) => v ? new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(v)) : '—'
 
 export default function ModAGDigit() {
+  // Phase 3 : vraies AG du cabinet si syndic connecté, sinon preview vide.
+  const data = useSyndicData()
+  const real = data.authenticated
+  const all = real ? (data.assembleias ?? []) : []
+
   const blank: AGForm = { titulo: '', edificio: '', dataHora: '', tipo: 'ordinaria', local: '', quorum: 50, milesimos: 10000, ordem: '' }
-  const [items, setItems] = useState<AG[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<AGForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof AGForm, string>>>({})
+  const [busy, setBusy] = useState(false)
   const { push } = useToast()
 
   const upd = (k: keyof AGForm, v: string) => setForm(s => ({ ...s, [k]: v }))
@@ -40,12 +47,24 @@ export default function ModAGDigit() {
     if (!form.dataHora) errs.dataHora = 'A data e hora são obrigatórias.'
     if (Number(form.quorum) < 0 || Number(form.quorum) > 100) errs.quorum = 'O quórum deve estar entre 0 e 100 %.'
     if (Object.keys(errs).length) { setErrors(errs); return }
-    setItems(prev => [...prev, { ...form, id: Date.now(), estado: 'em-curso' }])
+    if (real && data.token) {
+      setBusy(true)
+      fetch('/api/syndic/ag-v54', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ titulo: form.titulo, edificio: form.edificio, dataHora: form.dataHora, tipo: form.tipo, local: form.local, quorum: Number(form.quorum) || 0, milesimos: Number(form.milesimos) || 0, ordem: form.ordem }),
+      })
+        .then(r => { if (!r.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'AG criada', desc: form.titulo }) })
+        .catch(() => push({ kind: 'error', title: 'Erro ao criar AG', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setBusy(false))
+      return
+    }
     setOpen(false)
-    push({ kind: 'success', title: 'AG criada', desc: form.titulo })
+    push({ kind: 'info', title: 'AG criada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
-  const counts = { total: items.length, emCurso: items.filter(i => i.estado === 'em-curso').length, encerradas: items.filter(i => i.estado === 'encerrada').length }
+  const counts = { total: all.length, emCurso: all.filter(i => i.estado === 'em-curso').length, encerradas: all.filter(i => i.estado === 'encerrada').length }
 
   return (
     <>
@@ -58,7 +77,7 @@ export default function ModAGDigit() {
         { icon: 'poll', num: 0, lbl: 'Resoluções totais', accent: 'gold' },
       ]} />
       <Panel>
-        {items.length === 0 ? (
+        {all.length === 0 ? (
           <Empty illustration="ag" title="Nenhuma AG"
             desc="Organize as suas assembleias gerais 100% online com votação por correspondência"
             action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Criar a primeira AG</Button>} />
@@ -66,7 +85,7 @@ export default function ModAGDigit() {
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Título</th><th>Edifício</th><th>Data</th><th>Tipo</th><th>Quórum</th><th>Estado</th></tr></thead>
-              <tbody>{items.map(it => (
+              <tbody>{all.map(it => (
                 <tr key={it.id}>
                   <td>{it.titulo}</td>
                   <td>{it.edificio || '—'}</td>
@@ -120,7 +139,7 @@ export default function ModAGDigit() {
           </ModalBody>
           <ModalFoot>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Criar a AG</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar a AG</button>
           </ModalFoot>
         </form>
       </Modal>

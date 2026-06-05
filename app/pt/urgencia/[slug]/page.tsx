@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllUrgencyCombos, getUrgencyCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/og-pt.png', width: 1200, height: 630 }],
+      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'pt' }),
     },
     twitter: {
       card: 'summary_large_image',

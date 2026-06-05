@@ -189,6 +189,265 @@ export interface Vistoria {
 export const fetchVistorias = (token: string): Promise<Vistoria[]> =>
   getList<Vistoria>('/api/syndic/vistorias', token, 'vistorias')
 
+/** Obligation légale / échéance (Phase 3 — ModPrazosLegais). camelCase. */
+export interface PrazoLegal {
+  id: string
+  immeuble: string
+  titulo: string
+  tipo: string
+  dataLimite: string
+  /** pendente | realizado */
+  statut: string
+  notes: string
+}
+
+export const fetchPrazos = (token: string): Promise<PrazoLegal[]> =>
+  getList<PrazoLegal>('/api/syndic/prazos', token, 'prazos')
+
+/** Aviso / annonce quadro (Phase 3 — ModQuadroAvisos). camelCase. */
+export interface Aviso {
+  id: string
+  immeuble: string
+  titulo: string
+  descricao: string
+  /** manutencao | assembleia | financeiro | seguranca | social | outro */
+  categoria: string
+  /** normal | importante | urgente */
+  prioridade: string
+  fixado: boolean
+  views: number
+  createdAt: string
+}
+
+export const fetchAvisos = (token: string): Promise<Aviso[]> =>
+  getList<Aviso>('/api/syndic/avisos', token, 'avisos')
+
+/** Reembolso pro-rata (Phase 3 — ModReembolsos). camelCase renvoyé par l'API. */
+export interface Reembolso {
+  id: string
+  immeuble: string
+  antigoProprietario: string
+  fracao: string
+  dataVenda: string
+  quotasPagas: number
+  montanteReembolso: number
+  metodo: string
+  /** pendente | liquidado | bloqueado */
+  statut: string
+  notes: string
+}
+
+export const fetchReembolsos = (token: string): Promise<Reembolso[]> =>
+  getList<Reembolso>('/api/syndic/reembolsos', token, 'reembolsos')
+
+/** Procuration AG (Phase 3 — ModProcuracoes). camelCase renvoyé par l'API. */
+export interface Procuracao {
+  id: string
+  immeuble: string
+  condomino: string
+  procurador: string
+  fracao: string
+  dataValidade: string
+  agRef: string
+  /** valida | expirada */
+  statut: string
+  notes: string
+}
+
+export const fetchProcuracoes = (token: string): Promise<Procuracao[]> =>
+  getList<Procuracao>('/api/syndic/procuracoes', token, 'procuracoes')
+
+/** Sécurité incendie / SCIE (Phase 3 — ModSegEdificio). camelCase. */
+export interface SegEdificio {
+  id: string
+  immeuble: string
+  /** 1 | 2 | 3 | 4 (catégorie de risque RT-SCIE) */
+  categoria: string
+  encarregado: string
+  planoEmergencia: boolean
+  ultimoExercicio: string
+  notes: string
+}
+
+export const fetchSegEdificio = (token: string): Promise<SegEdificio[]> =>
+  getList<SegEdificio>('/api/syndic/seg-edificio', token, 'segEdificios')
+
+/** Intervention de la caderneta de manutenção (Phase 3 — ModCadernetaMan). camelCase. */
+export interface Caderneta {
+  id: string
+  data: string
+  /** realizado | planeado | em-curso | cancelado */
+  estado: string
+  /** manutencao-corrente | reparacao | diagnostico | obra-conservacao | obra-beneficiacao | inspeccao-legal */
+  natureza: string
+  edificio: string
+  localizacao: string
+  prestador: string
+  custo: number
+  garantia: string
+  /** na | A+ | A | B | B- | C | D | E | F */
+  cee: string
+  notas: string
+}
+
+export const fetchCaderneta = (token: string): Promise<Caderneta[]> =>
+  getList<Caderneta>('/api/syndic/caderneta', token, 'caderneta')
+
+/** Certificat énergétique SCE (Phase 3 — ModCertEnerg). camelCase renvoyé par l'API. */
+export interface CertEnergetico {
+  id: string
+  numero: string
+  edificio: string
+  perito: string
+  /** A+ | A | B | B- | C | D | E | F */
+  classe: string
+  dataEmissao: string
+  dataValidade: string
+  notas: string
+}
+
+export const fetchCertEnerg = (token: string): Promise<CertEnergetico[]> =>
+  getList<CertEnergetico>('/api/syndic/cert-energ', token, 'certificados')
+
+/** Déclaration d'encargos (Phase 3 — ModDeclEncargos, Lei 8/2022). camelCase. */
+export interface DeclEncargo {
+  id: string
+  fracao: string
+  condomino: string
+  edificio: string
+  dataPedido: string
+  prazoLimite: string
+  encargosCorrentes: number
+  divida: number
+  /** pendente | emitida | concluida */
+  estado: string
+  notas: string
+}
+
+export const fetchDeclEncargos = (token: string): Promise<DeclEncargo[]> =>
+  getList<DeclEncargo>('/api/syndic/decl-encargos', token, 'declaracoes')
+
+/** Édifice configuré au FCR (Phase 3 — ModFCR). camelCase renvoyé par l'API. */
+export interface FcrEdificio {
+  id: string
+  nome: string
+  endereco: string
+  orcamentoAnual: number
+  percentagemFCR: number
+  saldoInicial: number
+}
+
+/** Mouvement FCR (Phase 3 — ModFCR). camelCase renvoyé par l'API. */
+export interface FcrMovimento {
+  id: string
+  edificio: string
+  /** entrada | saida */
+  tipo: string
+  data: string
+  montante: number
+  descricao: string
+}
+
+export const fetchFcrEdificios = (token: string): Promise<FcrEdificio[]> =>
+  getList<FcrEdificio>('/api/syndic/fcr-edificios', token, 'edificios')
+
+export const fetchFcrMovimentos = (token: string): Promise<FcrMovimento[]> =>
+  getList<FcrMovimento>('/api/syndic/fcr-movimentos', token, 'movimentos')
+
+/** Assemblée générale v54 (Phase 3 — ModAGDigit). Réutilise syndic_assemblees (route /api/syndic/ag-v54, mapping PT↔FR côté serveur). */
+export interface AgV54 {
+  id: string
+  titulo: string
+  edificio: string
+  dataHora: string
+  /** ordinaria | extraordinaria | urgente */
+  tipo: string
+  local: string
+  quorum: number
+  milesimos: number
+  ordem: string
+  /** em-curso | encerrada */
+  estado: string
+}
+
+export const fetchAgV54 = (token: string): Promise<AgV54[]> =>
+  getList<AgV54>('/api/syndic/ag-v54', token, 'assembleias')
+
+/** Contabilidade Condomínio (Phase 3 — ModContabCond) — 4 entités, route consolidée /api/syndic/contab. */
+export interface ContabFracao { id: string; identificacao: string; permilagem: number; proprietario: string; tipo: string; notas: string }
+export interface ContabChamada { id: string; titulo: string; edificio: string; dataEmissao: string; dataVencimento: string; montante: number; distribuicao: string; notas: string; liquidadas: number }
+export interface ContabDiario { id: string; data: string; tipo: string; conta: string; montante: number; descricao: string }
+export interface ContabOrcamento { id: string; ano: string; edificio: string; totalPrevisto: number; rubricas: string; notas: string; aprovado: boolean }
+export interface ContabData { fracoes: ContabFracao[]; chamadas: ContabChamada[]; diario: ContabDiario[]; orcamentos: ContabOrcamento[] }
+
+export async function fetchContab(token: string): Promise<ContabData> {
+  const res = await fetch('/api/syndic/contab', { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`/api/syndic/contab → HTTP ${res.status}`)
+  const j = (await res.json()) as Partial<ContabData>
+  return { fracoes: j.fracoes ?? [], chamadas: j.chamadas ?? [], diario: j.diario ?? [], orcamentos: j.orcamentos ?? [] }
+}
+
+/** Impayé (Phase 3 — ModCobrAuto, table syndic_impayes relationnelle). camelCase. */
+export interface Impaye {
+  id: string
+  immeubleId: string
+  coproprioId: string
+  montant: number
+  /** charges_courantes | travaux | fonds_reserve | interets_retard | frais_relance | autre */
+  nature: string
+  depuis: string
+  derniereRelanceAt: string
+  nbRelances: number
+  /** ouvert | en_recouvrement | solde | passe_perte */
+  statut: string
+  notes: string
+}
+
+export const fetchImpayes = (token: string): Promise<Impaye[]> =>
+  getList<Impaye>('/api/syndic/impayes', token, 'impayes')
+
+/** Procédure de recouvrement (Phase 3 — ModCobrJud, table syndic_recouvrement). camelCase. */
+export interface Recouvrement {
+  id: string
+  immeubleId: string
+  coproprioId: string
+  impayeId: string
+  /** amiable | mise_en_demeure | huissier | tribunal | saisie | accord_paiement */
+  procedure: string
+  /** en_cours | suspendu | cloture_succes | cloture_echec */
+  statut: string
+  montantInitial: number
+  montantRecouvre: number
+  dateOuverture: string
+  dateCloture: string
+  avocatHuissier: string
+  prochaineEcheance: string
+  notes: string
+}
+
+export const fetchRecouvrement = (token: string): Promise<Recouvrement[]> =>
+  getList<Recouvrement>('/api/syndic/recouvrement', token, 'recouvrements')
+
+/** Facture condomínio (Phase 3 — ModFaturacao, table syndic_factures_copro). camelCase. */
+export interface FaturaCopro {
+  id: string
+  coproprioId: string
+  immeubleId: string
+  numeroFatura: string
+  emiseLe: string
+  echeance: string
+  montantHt: number
+  tvaTaux: number
+  montantTtc: number
+  description: string
+  /** a_regler | partiellement_regle | reglee | contestee | annulee */
+  statut: string
+  pdfUrl: string
+}
+
+export const fetchFaturas = (token: string): Promise<FaturaCopro[]> =>
+  getList<FaturaCopro>('/api/syndic/factures-copro', token, 'faturas')
+
 /** Endpoints des 5 agents IA syndic (route id → API). */
 const AGENT_ENDPOINTS: Record<string, string> = {
   fixy: '/api/syndic/fixy-syndic',
