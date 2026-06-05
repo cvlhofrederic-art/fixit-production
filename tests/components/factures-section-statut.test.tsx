@@ -85,12 +85,30 @@ describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
     expect(screen.queryByText('FACT-2026-019')).not.toBeInTheDocument()
   })
 
+  it('une facture EN RETARD (overdue) est dans « Émises », PAS dans « Brouillons »', async () => {
+    const overdue = { ...FACT_EMISE, id: 'ov-1', docNumber: 'FACT-2026-021', status: 'overdue' }
+    const draft = { ...FACT_EMISE, id: 'dr-1', docNumber: 'FACT-2026-022', status: 'draft' }
+    render(<FacturesSection {...props(vi.fn(), [overdue, draft])} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-021')).toBeInTheDocument())
+    // Brouillons : seulement le vrai brouillon
+    fireEvent.click(screen.getByRole('button', { name: /^Brouillons/ }))
+    expect(screen.getByText('FACT-2026-022')).toBeInTheDocument()
+    expect(screen.queryByText('FACT-2026-021')).not.toBeInTheDocument()
+    // Émises : l'overdue (en retard reste émise)
+    fireEvent.click(screen.getByRole('button', { name: /^Émises/ }))
+    expect(screen.getByText('FACT-2026-021')).toBeInTheDocument()
+    expect(screen.queryByText('FACT-2026-022')).not.toBeInTheDocument()
+  })
+
   it('« Marquer payée » → statut paid (state) + sync DB', async () => {
     const setSavedDocuments = vi.fn()
     render(<FacturesSection {...props(setSavedDocuments, [FACT_EMISE])} />)
     await waitFor(() => expect(screen.getByText('FACT-2026-020')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Marquer payée'))
 
+    // markPaid attend désormais la confirmation DB AVANT de mettre à jour l'UI
+    // (toast « payée » seulement après succès) → on attend l'appel async.
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalled())
     // State : la facture passe à 'paid'
     const updater = setSavedDocuments.mock.calls[0][0] as (p: unknown[]) => unknown[]
     const result = updater([FACT_EMISE]) as Array<{ docNumber: string; status: string }>
