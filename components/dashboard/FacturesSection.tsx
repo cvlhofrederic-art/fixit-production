@@ -841,25 +841,27 @@ export function AcompteQuickModal({
                   <button
                     key={ac.id || ac.ordre}
                     type="button"
-                    disabled={done}
+                    // Toujours cliquable : la ré-émission reste possible (avoir +
+                    // nouvel acompte, correction…). Un acompte déjà émis est juste
+                    // marqué visuellement « déjà émis » (vert), pas désactivé.
                     onClick={() => onConfirm({
                       percentage: ac.pourcentage,
                       ordre: ac.ordre,
                       total: echeancier.length,
                       declencheur: (ac.declencheur || ac.label || `Acompte ${ac.ordre}`).trim(),
                     })}
+                    title={done ? 'Acompte déjà émis — cliquez pour le ré-émettre' : undefined}
                     style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
                       padding: '10px 12px', borderRadius: 6, fontSize: 13, textAlign: 'left',
-                      border: `1px solid ${done ? '#ccc' : 'var(--primary-yellow, #FFC107)'}`,
-                      background: done ? '#f5f5f5' : 'rgba(255, 193, 7, 0.08)',
-                      color: done ? '#999' : '#111', fontWeight: 600,
-                      cursor: done ? 'not-allowed' : 'pointer', opacity: done ? 0.6 : 1,
+                      border: `1px solid ${done ? '#16a34a' : 'var(--primary-yellow, #FFC107)'}`,
+                      background: done ? 'rgba(22, 163, 74, 0.06)' : 'rgba(255, 193, 7, 0.08)',
+                      color: '#111', fontWeight: 600, cursor: 'pointer', opacity: 1,
                     }}
                   >
-                    <span>Acompte {ac.ordre} — {ac.pourcentage} %{ac.declencheur ? ` · ${ac.declencheur}` : ''}</span>
-                    <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {done ? '✓ émis' : `${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
+                    <span>Acompte {ac.ordre} — {ac.pourcentage} %{ac.declencheur ? ` · ${ac.declencheur}` : ''}{done ? ' · ✓ déjà émis' : ''}</span>
+                    <span style={{ fontWeight: 700, whiteSpace: 'nowrap', color: done ? '#16a34a' : '#111' }}>
+                      {montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </span>
                   </button>
                 )
