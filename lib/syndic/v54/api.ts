@@ -616,3 +616,31 @@ export interface Votacao {
 
 export const fetchVotacoes = (token: string): Promise<Votacao[]> =>
   getList<Votacao>('/api/syndic/votacoes', token, 'votacoes')
+
+// ── Lot 7 : NPS Pós-Intervenção + Orçamentos & Obras ──
+export interface Nps {
+  id: string
+  prestador: string
+  condomino: string
+  intervencao: string
+  tipo: string
+  nota: number
+  comentario: string
+}
+export interface Obra {
+  id: string
+  titulo: string
+  tipo: string
+  descricao: string
+  local: string
+  prazo: string
+  estado: 'orcamentacao' | 'aprovacao_ag' | 'execucao' | 'concluida'
+  orcamento: number
+  empresa: string
+  numOrcamentos: number
+}
+
+export const fetchNps = (token: string): Promise<Nps[]> =>
+  getList<Nps>('/api/syndic/nps', token, 'nps')
+export const fetchObras = (token: string): Promise<Obra[]> =>
+  getList<Obra>('/api/syndic/obras', token, 'obras')
