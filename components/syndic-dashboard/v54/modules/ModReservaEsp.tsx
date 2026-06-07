@@ -106,10 +106,10 @@ export default function ModReservaEsp() {
           </Pill>
         ))}
         <div style={{ flex: 1 }}></div>
-        <Button variant="ghost" aria-label="Mês anterior" title="Mês anterior">←</Button>
+        <Button variant="ghost" aria-label="Mês anterior" title="Mês anterior" onClick={() => push({ kind: 'info', title: 'Mês anterior', desc: 'Navegação dinâmica do calendário em breve' })}>←</Button>
         <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, padding: '8px 16px' }}>Maio 2026</div>
-        <Button variant="ghost" aria-label="Mês seguinte" title="Mês seguinte">→</Button>
-        <Button>Hoje</Button><Button>Semana</Button><Button variant="primary">Mês</Button>
+        <Button variant="ghost" aria-label="Mês seguinte" title="Mês seguinte" onClick={() => push({ kind: 'info', title: 'Mês seguinte', desc: 'Navegação dinâmica do calendário em breve' })}>→</Button>
+        <Button onClick={() => push({ kind: 'info', title: 'Hoje', desc: 'A mostrar a semana atual' })}>Hoje</Button><Button onClick={() => push({ kind: 'info', title: 'Vista semanal', desc: 'Em breve' })}>Semana</Button><Button variant="primary" onClick={() => push({ kind: 'info', title: 'Vista mensal', desc: 'Vista ativa' })}>Mês</Button>
       </div>
       <Panel flush>
         <div className="calendar">
