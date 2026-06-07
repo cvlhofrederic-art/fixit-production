@@ -9,6 +9,7 @@ import { Toggle } from '../primitives/toggle'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Definições — port byte-exact du ModDefinicoes du bundle V5.7. */
 
@@ -27,6 +28,7 @@ const NOTIFS = [
 ] as const
 
 export default function ModDefinicoes() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Definições" lede="Conta, perfil, gabinete e notificações" />
@@ -35,10 +37,10 @@ export default function ModDefinicoes() {
           <div style={{ flex: 1 }}><b style={{ fontSize: 15 }}>Teste gratuito</b><div style={{ fontSize: 12, color: 'var(--v54-gold-700)', marginTop: 2, fontWeight: 600 }}>30 dias restantes · Acesso completo</div></div>
           <Pill kind="dark" noDot>TRIAL</Pill>
         </div>
-        <Button variant="gold" style={{ width: '100%', padding: 14, justifyContent: 'center' }}>Escolher uma subscrição → a partir de 49 €/mês</Button>
+        <Button variant="gold" style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon('Subscrição', 'Planos a partir de 49 €/mês — em breve')}>Escolher uma subscrição → a partir de 49 €/mês</Button>
       </Panel>
       <Panel title="Agente Email Fixy" sub="Conecte a sua caixa Gmail para que o Fixy analise automaticamente os seus emails: urgências, tipos de pedidos, sugestões de ações.">
-        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }}>Ligar a sua caixa Gmail</Button>
+        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon('Ligar Gmail', 'Integração Gmail em desenvolvimento')}>Ligar a sua caixa Gmail</Button>
       </Panel>
       <Panel title="O Meu Perfil">
         <div style={{ padding: 14, background: 'var(--v54-cream)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
@@ -47,10 +49,10 @@ export default function ModDefinicoes() {
         </div>
         <div style={{ marginBottom: 14 }}>
           <span style={fieldLabel}>A minha assinatura digital</span>
-          <Button style={{ padding: '18px', border: '2px dashed var(--v54-line-strong)', background: 'var(--v54-paper)' }}>Desenhar a minha assinatura</Button>
+          <Button style={{ padding: '18px', border: '2px dashed var(--v54-line-strong)', background: 'var(--v54-paper)' }} onClick={soon('Desenhar assinatura')}>Desenhar a minha assinatura</Button>
         </div>
         <Alert icon="alert" title="Nenhuma assinatura configurada">Os PDFs gerados não terão assinatura.</Alert>
-        <Button variant="primary">Guardar assinatura</Button>
+        <Button variant="primary" onClick={soon('Guardar assinatura')}>Guardar assinatura</Button>
       </Panel>
       <Panel title="O Meu Gabinete">
         <div className={m.cardGrid}>
@@ -60,7 +62,7 @@ export default function ModDefinicoes() {
         <div style={{ marginTop: 14 }}><label htmlFor="def-morada" style={fieldLabel}>Morada do gabinete</label><textarea id="def-morada" rows={2} placeholder="Ex: Rua das Flores 123, 1000-001 Lisboa" style={fieldCtrl} /></div>
         <div style={{ marginTop: 14 }}>
           <span style={fieldLabel}>Logo do gabinete</span>
-          <Button><Icon name="image" />Carregar logo (PNG/JPG/WebP, max 2 MB)</Button>
+          <Button onClick={soon('Carregar logo')}><Icon name="image" />Carregar logo (PNG/JPG/WebP, max 2 MB)</Button>
         </div>
       </Panel>
       <Panel title="Notificações">
