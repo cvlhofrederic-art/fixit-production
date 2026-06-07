@@ -9,6 +9,7 @@ import { Alert } from '../primitives/alert'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Acessibilidade dos Edifícios — port byte-exact du ModAcessibilidade du bundle V5.7. */
 
@@ -23,11 +24,12 @@ const CRITERIOS: [string, string, Cor][] = [
 ]
 
 export default function ModAcessibilidade() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · DL 163/2006" title="Acessibilidade dos Edifícios"
         lede="Checklist 23 critérios · Análise IA fotografias por Alfredo · Plano de conformidade · Atestação PDF"
-        actions={<><Button><Icon name="upload" />Upload fotos do edifício</Button><Button variant="gold"><Icon name="bot" />Análise IA Alfredo</Button></>} />
+        actions={<><Button onClick={soon('Upload de fotos')}><Icon name="upload" />Upload fotos do edifício</Button><Button variant="gold" onClick={soon('Análise IA Alfredo', 'Diagnóstico de acessibilidade em desenvolvimento')}><Icon name="bot" />Análise IA Alfredo</Button></>} />
       <Alert kind="gold" icon="scale" title="Decreto-Lei n.° 163/2006 de 8 de agosto">
         Todos os edifícios construídos ou objeto de reabilitação após 22 de agosto de 2007 devem cumprir as normas técnicas de acessibilidade. O administrador deve poder atestar a conformidade ou apresentar plano de correção.
       </Alert>
@@ -47,7 +49,7 @@ export default function ModAcessibilidade() {
       <Panel>
         <Empty illustration="condominos" title="Nenhum edifício avaliado"
           desc="Faça upload de fotografias e plantas. Alfredo deteta automaticamente: rampas, larguras de portas, casas de banho adaptadas, sinalética, percursos acessíveis."
-          action={<Button variant="primary"><Icon name="bot" />Iniciar avaliação IA</Button>} />
+          action={<Button variant="primary" onClick={soon('Iniciar avaliação IA')}><Icon name="bot" />Iniciar avaliação IA</Button>} />
       </Panel>
       <Panel title="Critérios DL 163/2006 — Edifícios Habitacionais">
         <div className={m.cardGrid3}>
