@@ -140,7 +140,7 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
       <Panel
         title="Orçamento global — Exercício 2026"
         sub="Repartição orçamental por categoria · atualizado há 2 horas"
-        right={<><Pill kind="sage">Em curso</Pill><Button><Icon name="download" />Exportar</Button></>}
+        right={<><Pill kind="sage">Em curso</Pill><Button onClick={() => push({ kind: 'info', title: 'Exportar', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="download" />Exportar</Button></>}
       >
         <div className={styles.budgetFigures}>
           <div><div style={eyebrowStyle}>Orçamento total</div><div style={figVal}>188 000<span style={{ color: 'var(--v54-gold-700)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>Exercício 2026</div></div>

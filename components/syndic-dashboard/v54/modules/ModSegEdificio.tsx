@@ -77,7 +77,7 @@ export default function ModSegEdificio() {
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · DL 220/2008 (RSCIE) + PORTARIA 1532/2008" title="Segurança Contra Incêndio"
         lede="Classificação UT 1-12 · Categoria risco 1/2/3/4 · Encarregado de Segurança · Plano emergência · Exercícios"
-        actions={<><Button onClick={openNew}><Icon name="building" />Classificar edifício</Button><Button variant="gold"><Icon name="bot" />Gerar plano emergência (Alfredo)</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="building" />Classificar edifício</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Gerar plano de emergência', desc: 'Geração via Alfredo em desenvolvimento' })}><Icon name="bot" />Gerar plano emergência (Alfredo)</Button></>} />
       <Alert kind="gold" icon="scale" title="Regime Jurídico de Segurança Contra Incêndio">
         Todos os edifícios habitacionais (UT I) com altura &gt; 9m ou &gt; 9 pisos = <strong>categoria risco 3 ou 4</strong>. Obrigam <strong>Encarregado de Segurança</strong> designado + plano emergência + exercícios de evacuação anuais.
       </Alert>

@@ -14,6 +14,7 @@ import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
 import { Field } from '../primitives/field'
 import { FormRow } from '../primitives/form-row'
 import Icon from '../primitives/icon/Icon'
+import { useComingSoon } from './use-coming-soon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -29,6 +30,7 @@ type NpsForm = { prestador: string; condomino: string; intervencao: string; tipo
 const notaKind = (n: number): PillKind => (n >= 9 ? 'sage' : n <= 6 ? 'rust' : 'amber')
 
 export default function ModNPSPosIntervencao() {
+  const soon = useComingSoon()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Nps[] = real ? (data.nps ?? []) : []
@@ -61,7 +63,7 @@ export default function ModNPSPosIntervencao() {
     <>
       <PageHead eyebrow="OPERACIONAL · NPS PÓS-INTERVENÇÃO" title="NPS Pós-Intervenção"
         lede="Auto-envio 48h após fecho ordem serviço · NPS + comentário · Rating Marketplace · Alfredo agrega insights"
-        actions={<><Button onClick={openNew}><Icon name="plus" />Registar resposta</Button><Button variant="gold"><Icon name="chart" />Ver dashboard prestadores</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="plus" />Registar resposta</Button><Button variant="gold" onClick={soon('Dashboard prestadores', 'Painel de prestadores em desenvolvimento')}><Icon name="chart" />Ver dashboard prestadores</Button></>} />
       <Alert kind="sage" icon="check" title="Loop fechado qualidade prestadores">
         Cada intervenção fechada dispara um inquérito 48h depois. As respostas alimentam o rating no Marketplace e o Alfredo deteta prestadores em descida de satisfação antes que escalone.
       </Alert>

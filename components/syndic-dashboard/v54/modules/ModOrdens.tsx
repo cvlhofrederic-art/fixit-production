@@ -150,7 +150,7 @@ export default function ModOrdens() {
         title="Ordens de serviço"
         lede="Acompanhamento das missões em curso, pedidos pendentes e histórico"
         actions={<>
-          <Button><Icon name="search" />Filtros</Button>
+          <Button onClick={() => push({ kind: 'info', title: 'Filtros', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="search" />Filtros</Button>
           <Button variant="gold" onClick={openNew}><Icon name="plus" />Nova missão</Button>
         </>}
       />

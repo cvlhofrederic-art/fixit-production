@@ -121,7 +121,7 @@ export default function ModProfissionais() {
         title="Profissionais"
         lede={lede}
         actions={<>
-          <Button><Icon name="check" />Sincro conformidade</Button>
+          <Button onClick={() => push({ kind: 'info', title: 'Sincronizar conformidade', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="check" />Sincro conformidade</Button>
           <Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar um profissional</Button>
         </>}
       />
@@ -151,7 +151,7 @@ export default function ModProfissionais() {
             {p[8] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido até {p[8]}</div>}
             {p[9] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>Decenal válido</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <Button style={{ flex: 1, justifyContent: 'center' }}><Icon name="chat" />Sem conta ligada</Button>
+              <Button style={{ flex: 1, justifyContent: 'center' }} onClick={() => push({ kind: 'info', title: 'Mensagens', desc: 'Nenhuma conta de mensagens ligada' })}><Icon name="chat" />Sem conta ligada</Button>
               <Button variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMissaoArtisan(p[0])}>Criar missão</Button>
               <Button variant="ghost" aria-label="Eliminar profissional" title="Eliminar" onClick={() => setDelTarget({ id, name: p[0] })}><Icon name="trash" /></Button>
             </div>
