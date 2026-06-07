@@ -8,6 +8,7 @@ import { Progress } from '../primitives/progress'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Carregamento de Veículos Elétricos — port byte-exact du ModCarregamentoVE du bundle V5.7. */
 
@@ -18,6 +19,7 @@ const REQUESTS = [
 ] as const
 
 export default function ModCarregamentoVE() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Carregamento de Veículos Elétricos" lede="Gestão de infraestrutura VE em condomínios · DL 101-D/2020 · Art.° 59.°-A" />
@@ -35,7 +37,7 @@ export default function ModCarregamentoVE() {
         { id: 'leg', icon: 'scale', label: 'Legislação' },
         { id: 'inc', icon: 'coin', label: 'Incentivos' },
       ]} />
-      <Button variant="primary" style={{ marginBottom: 14 }}><Icon name="plus" />+ Registar Novo Pedido</Button>
+      <Button variant="primary" style={{ marginBottom: 14 }} onClick={soon('Registar pedido', 'Gestão de carregamento VE em desenvolvimento')}><Icon name="plus" />+ Registar Novo Pedido</Button>
       {REQUESTS.map((p) => (
         <div key={p[0]} className={m.card} style={{ padding: 22, marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -47,8 +49,8 @@ export default function ModCarregamentoVE() {
               <div style={{ fontSize: 12.5, color: 'var(--v54-navy-500)' }}>{p[1]}</div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              {p[2] === 'Pendente' && <Button variant="primary" size="sm">Analisar</Button>}
-              <Button variant="ghost" size="sm" aria-label="Mais ações" title="Mais ações"><Icon name="download" /></Button>
+              {p[2] === 'Pendente' && <Button variant="primary" size="sm" onClick={soon('Analisar pedido')}>Analisar</Button>}
+              <Button variant="ghost" size="sm" aria-label="Mais ações" title="Mais ações" onClick={soon('Mais ações')}><Icon name="download" /></Button>
             </div>
           </div>
           <div style={{ margin: '14px 0 6px' }}><Progress pct={p[6]} kind={p[7]} /></div>

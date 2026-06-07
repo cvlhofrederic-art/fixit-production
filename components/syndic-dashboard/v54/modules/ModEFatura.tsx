@@ -7,6 +7,7 @@ import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Integração e-Fatura AT — port byte-exact du ModEFatura du bundle V5.7. */
 
@@ -17,6 +18,7 @@ const sumLbl = { fontSize: 11, color: 'var(--v54-navy-300)' } as const
 const sumVal = { fontFamily: 'var(--v54-font-serif)', fontSize: 22 } as const
 
 export default function ModEFatura() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Integração e-Fatura AT" lede="Submissão de faturas e documentos à Autoridade Tributária e Aduaneira" />
@@ -54,13 +56,13 @@ export default function ModEFatura() {
             </tbody>
           </table>
         </div>
-        <Button style={{ marginTop: 10 }}><Icon name="plus" />+ Adicionar linha</Button>
+        <Button style={{ marginTop: 10 }} onClick={soon('Adicionar linha')}><Icon name="plus" />+ Adicionar linha</Button>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 18, padding: 14, background: 'var(--v54-paper)', borderRadius: 10 }}>
           <div><div style={sumLbl}>Total s/ IVA (HT)</div><div style={sumVal}>0,00 €</div></div>
           <div><div style={sumLbl}>IVA</div><div style={sumVal}>0,00 €</div></div>
           <div><div style={sumLbl}>Total c/ IVA (TTC)</div><div style={{ ...sumVal, color: 'var(--v54-gold-700)' }}>0,00 €</div></div>
         </div>
-        <Button variant="gold" style={{ width: '100%', marginTop: 18, padding: 14, justifyContent: 'center' }}><Icon name="upload" />Submeter ao e-Fatura</Button>
+        <Button variant="gold" style={{ width: '100%', marginTop: 18, padding: 14, justifyContent: 'center' }} onClick={soon('Submeter ao e-Fatura', 'Integração e-Fatura (AT) em desenvolvimento')}><Icon name="upload" />Submeter ao e-Fatura</Button>
       </Panel>
     </>
   )
