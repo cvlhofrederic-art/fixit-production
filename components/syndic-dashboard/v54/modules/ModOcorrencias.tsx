@@ -9,6 +9,7 @@ import { Pill, type PillKind } from '../primitives/pill'
 import { Progress, type ProgressKind } from '../primitives/progress'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
+import { useComingSoon } from './use-coming-soon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -38,6 +39,7 @@ const prioLabel = (p: string): string => PRIO_LABEL[p] ?? 'Média'
 const prioKind = (p: string): PillKind => (p === 'urgente' ? 'rust' : p === 'haute' ? 'amber' : 'sage')
 
 export default function ModOcorrencias() {
+  const soon = useComingSoon()
   // Phase 3 : vrais signalements du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
@@ -67,7 +69,7 @@ export default function ModOcorrencias() {
   return (
     <>
       <PageHead title="Ocorrências e Manutenção" lede="Gestão de incidentes, manutenções e reportes do condomínio"
-        actions={<Button variant="gold"><Icon name="plus" />+ Nova ocorrência</Button>} />
+        actions={<Button variant="gold" onClick={soon('Nova ocorrência', 'Criação de ocorrências em desenvolvimento')}><Icon name="plus" />+ Nova ocorrência</Button>} />
       <Tabs defaultActive="painel" tabs={[
         { id: 'painel', icon: 'chart', label: 'Painel' },
         { id: 'oc', icon: 'clipboard', label: 'Ocorrências' },

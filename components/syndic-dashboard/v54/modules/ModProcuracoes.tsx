@@ -74,7 +74,7 @@ export default function ModProcuracoes() {
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · CC ART. 1433.° N.° 3" title="Procurações & Lista de Presenças"
         lede="Arquivo de procurações escritas · Lista de presenças assinada · Léa OCR + validação NIF"
-        actions={<><Button onClick={openNew}><Icon name="upload" />Registar procuração</Button><Button variant="gold"><Icon name="bank" />Gerar lista presenças AG</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="upload" />Registar procuração</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Lista de presenças AG', desc: 'Geração de lista em desenvolvimento' })}><Icon name="bank" />Gerar lista presenças AG</Button></>} />
       <Alert kind="gold" icon="scale" title="Enquadramento legal">
         Todo o condómino pode ser representado em assembleia por procuração escrita (CC art. 1433.°-3). A lista de presenças é obrigatória em qualquer AG (DL 268/94 art. 1.°-3) e deve ser conservada com a ata.
       </Alert>

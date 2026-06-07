@@ -7,10 +7,12 @@ import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
+import { useComingSoon } from './use-coming-soon'
 
 /** Assembleia Geral Digital — port byte-exact du ModAGLive du bundle V5.7. */
 
 export default function ModAGLive() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Assembleia Geral Digital" lede="Sessão em tempo real · Votação instantânea · Controlo de presenças · Ata automática" />
@@ -31,7 +33,7 @@ export default function ModAGLive() {
           illustration="ag"
           title="Nenhuma AG em curso"
           desc="Agende uma AG ou inicie uma sessão agendada"
-          action={<Button variant="gold"><Icon name="calendar" />Agendar nova AG</Button>}
+          action={<Button variant="gold" onClick={soon('Agendar nova AG', 'Agendamento de assembleias em desenvolvimento')}><Icon name="calendar" />Agendar nova AG</Button>}
         />
       </Panel>
     </>
