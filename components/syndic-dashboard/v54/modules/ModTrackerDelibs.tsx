@@ -51,6 +51,8 @@ export default function ModTrackerDelibs() {
   const [errors, setErrors] = useState<Partial<Record<keyof DelibForm, string>>>({})
   const { busy, create } = useSyndicCreate('/api/syndic/deliberacoes')
   const { push } = useToast()
+  const [tab, setTab] = useState('todas')
+  const shown = all.filter(d => tab === 'todas' ? true : tab === 'pen' ? d.estado === 'pendente' : tab === 'em' ? d.estado === 'em_curso' : tab === 'atr' ? (d.estado === 'atrasada' || (d.estado !== 'concluida' && !!d.prazo && (daysTo(d.prazo) ?? 0) < 0)) : d.estado === 'concluida')
 
   const upd = (k: keyof DelibForm, v: string) => setForm(s => ({ ...s, [k]: v }))
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
@@ -86,7 +88,7 @@ export default function ModTrackerDelibs() {
         { icon: 'check', num: concluidas, lbl: 'Concluídas no prazo', accent: concluidas ? 'sage' : undefined },
         { icon: 'pause', num: bloqueadas, lbl: 'Bloqueadas (justificadas)' },
       ]} />
-      <Tabs defaultActive="todas" tabs={[
+      <Tabs active={tab} onChange={setTab} tabs={[
         { id: 'todas', label: 'Todas as deliberações' },
         { id: 'pen', label: 'Pendentes' },
         { id: 'em', label: 'Em curso' },
@@ -101,11 +103,13 @@ export default function ModTrackerDelibs() {
           <Empty illustration="ag" title="Nenhuma deliberação para acompanhar"
             desc="Quando uma ata for finalizada com Atas IA, as deliberações são extraídas automaticamente e atribuídas com prazos legais."
             action={<Button variant="primary" onClick={openNew}><Icon name="plus" />+ Nova ação manual</Button>} />
+        ) : shown.length === 0 ? (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>Sem deliberações nesta vista.</div>
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Deliberação</th><th>AG</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead>
-              <tbody>{all.map(d => (
+              <tbody>{shown.map(d => (
                 <tr key={d.id}><td><b>{d.deliberacao}</b></td><td>{d.ag || '—'}</td><td>{d.responsavel || '—'}</td><td>{d.prazo || '—'}</td><td><Pill kind={estadoKind(d.estado)} noDot>{estadoLabel(d.estado)}</Pill></td></tr>
               ))}</tbody>
             </table>

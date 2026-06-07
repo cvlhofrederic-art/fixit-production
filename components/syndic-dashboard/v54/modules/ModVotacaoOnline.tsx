@@ -41,6 +41,7 @@ export default function ModVotacaoOnline() {
   const real = data.authenticated
   const all: Votacao[] = real ? (data.votacoes ?? []) : PREVIEW
   const { busy, create } = useSyndicCreate('/api/syndic/votacoes')
+  const [tab, setTab] = useState('ativ')
 
   const blank: VotForm = { titulo: '', descricao: '', edificio: '', estado: 'aberta', maioria: 'simples', artigo: '', prazo: '', permTotal: '1000', options: 'A favor\nContra\nAbstenção' }
   const [open, setOpen] = useState(false)
@@ -74,7 +75,7 @@ export default function ModVotacaoOnline() {
         { icon: 'ban', num: rejeitadas, lbl: 'Rejeitadas', accent: rejeitadas ? 'rust' : undefined },
         { icon: 'chart', num: `${partMedia}%`, lbl: 'Participação média' },
       ]} />
-      <Tabs defaultActive="ativ" tabs={[
+      <Tabs active={tab} onChange={setTab} tabs={[
         { id: 'ativ', icon: 'chart', label: 'Votações Ativas', badge: ativas },
         { id: 'hist', icon: 'folder', label: 'Histórico', badge: aprovadas + rejeitadas },
         { id: 'cfg', icon: 'cog', label: 'Configuração' },
@@ -83,7 +84,7 @@ export default function ModVotacaoOnline() {
       {real && all.length === 0 ? (
         <Empty illustration="ag" title="Sem deliberações" desc="Crie a primeira deliberação para votação eletrónica em AG"
           action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Nova deliberação</Button>} />
-      ) : all.map((v) => (
+      ) : all.filter(v => tab === 'hist' ? v.estado !== 'aberta' : tab === 'ativ' ? v.estado === 'aberta' : true).map((v) => (
         <div key={v.id} className={m.card} style={{ padding: 22, marginBottom: 14, position: 'relative' }}>
           {v.prazo && (
             <div style={{ position: 'absolute', top: 18, right: 22, fontSize: 11, color: 'var(--v54-navy-300)' }}>Prazo: {v.prazo}</div>
