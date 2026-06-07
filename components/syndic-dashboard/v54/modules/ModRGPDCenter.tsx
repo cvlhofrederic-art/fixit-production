@@ -9,6 +9,7 @@ import { Alert } from '../primitives/alert'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** RGPD Compliance Center — port byte-exact du ModRGPDCenter du bundle V5.7. */
 
@@ -23,11 +24,12 @@ const DIREITOS: [string, string, Cor][] = [
 ]
 
 export default function ModRGPDCenter() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · REGULAMENTO (UE) 2016/679 + EAA 2025" title="RGPD Compliance Center"
         lede="Registo tratamentos · Direitos titulares · Resposta em 30 dias · Logs imutáveis · Fixy classifica + redige"
-        actions={<><Button><Icon name="upload" />Nova solicitação titular</Button><Button variant="gold"><Icon name="doc" />Exportar registo tratamentos</Button></>} />
+        actions={<><Button onClick={soon('Nova solicitação titular')}><Icon name="upload" />Nova solicitação titular</Button><Button variant="gold" onClick={soon('Exportar registo de tratamentos')}><Icon name="doc" />Exportar registo tratamentos</Button></>} />
       <Alert kind="gold" icon="scale" title="Obrigações RGPD para administradores de condomínio">
         Manter <strong>registo de atividades de tratamento</strong> (art. 30.°). Responder a pedidos de exercício de direitos (acesso, retificação, oposição, esquecimento, portabilidade) em <strong>30 dias</strong>. Notificar CNPD violações em <strong>72h</strong>.
       </Alert>
@@ -49,7 +51,7 @@ export default function ModRGPDCenter() {
       <Panel>
         <Empty illustration="documentos" title="Nenhuma solicitação ativa"
           desc="Quando um condómino exerce um direito RGPD, Fixy classifica em 5 segundos (acesso · retificação · oposição · esquecimento · portabilidade) e prepara o draft de resposta com a data coletada."
-          action={<Button variant="primary"><Icon name="bell" />Simular solicitação</Button>} />
+          action={<Button variant="primary" onClick={soon('Simular solicitação')}><Icon name="bell" />Simular solicitação</Button>} />
       </Panel>
       <Panel title="Direitos RGPD do titular — 30 dias resposta">
         <div className={m.cardGrid3}>
