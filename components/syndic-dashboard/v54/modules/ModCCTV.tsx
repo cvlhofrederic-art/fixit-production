@@ -8,15 +8,17 @@ import { Alert } from '../primitives/alert'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Câmaras de Vigilância — port byte-exact du ModCCTV du bundle V5.7. */
 
 export default function ModCCTV() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead eyebrow="RGPD + DL 35/2004" title="Câmaras de Vigilância"
         lede="Inventário · Sinalização auto-gerada · Logs acesso · Retenção 30 dias máximo · CNPD compliance"
-        actions={<><Button><Icon name="plus" />+ Registar câmara</Button><Button variant="gold"><Icon name="doc" />Gerar cartazes sinalização</Button></>} />
+        actions={<><Button onClick={soon('Registar câmara', 'Gestão de videovigilância em desenvolvimento')}><Icon name="plus" />+ Registar câmara</Button><Button variant="gold" onClick={soon('Gerar cartazes de sinalização')}><Icon name="doc" />Gerar cartazes sinalização</Button></>} />
       <Alert kind="gold" icon="scale" title="Videovigilância em condomínio — regras">
         <strong>Autorização CNPD</strong> obrigatória (ou notificação simplificada). <strong>Sinalização visível</strong> nas entradas (cartaz com fim · responsável · contactos). <strong>Retenção máxima 30 dias</strong>. <strong>Acesso restrito</strong> (logs obrigatórios).
       </Alert>

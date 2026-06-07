@@ -5,6 +5,7 @@ import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Ocorrências — Classificador IA — port byte-exact du ModOcClassif du bundle V5.7. */
 
@@ -12,6 +13,7 @@ const fieldLabel = { fontSize: 11, fontWeight: 600, color: 'var(--v54-navy-500)'
 const fieldCtrl = { width: '100%', padding: '10px 12px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, background: '#fff', fontSize: 13, color: 'var(--v54-ink)', fontFamily: 'inherit' } as const
 
 export default function ModOcClassif() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Ocorrências — Classificador IA" lede="Envie texto e/ou foto — a IA categoriza, prioriza, localiza e cria a ocorrência automaticamente" />
@@ -19,8 +21,8 @@ export default function ModOcClassif() {
         <Panel>
           <div style={{ marginBottom: 14 }}><label htmlFor="oc-ed" style={fieldLabel}>Edifício</label><select id="oc-ed" style={fieldCtrl}><option>Selecione um edifício…</option></select></div>
           <div style={{ marginBottom: 14 }}><label htmlFor="oc-desc" style={fieldLabel}>Descrição do problema (texto livre, como uma mensagem WhatsApp)</label><textarea id="oc-desc" rows={6} placeholder="Ex: Está a chover dentro do elevador do 3.° andar, parece uma fuga no telhado…" style={fieldCtrl} /></div>
-          <Button><Icon name="image" />Adicionar Foto</Button>
-          <Button variant="primary" style={{ width: '100%', marginTop: 14, padding: 14, justifyContent: 'center' }}><Icon name="sparkle" />Analisar e Classificar</Button>
+          <Button onClick={soon('Adicionar foto')}><Icon name="image" />Adicionar Foto</Button>
+          <Button variant="primary" style={{ width: '100%', marginTop: 14, padding: 14, justifyContent: 'center' }} onClick={soon('Análise IA', 'Classificação de ocorrências em desenvolvimento')}><Icon name="sparkle" />Analisar e Classificar</Button>
         </Panel>
         <Panel>
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
