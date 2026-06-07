@@ -9,6 +9,7 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Os Meus Módulos — port byte-exact du ModOsMeusModulos du bundle V5.7 (catalogue 90 módulos + ordem menu). */
 
@@ -145,6 +146,7 @@ const orderRow = { padding: '12px 16px', marginBottom: 8, border: '1px solid var
 const arrowBtn = { padding: '2px 8px', minHeight: 'auto', lineHeight: 1 } as const
 
 export default function ModOsMeusModulos() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Os meus módulos" lede="90 módulos profissionais · Ative só o que precisa · Os desativados deixam de aparecer no menu lateral · 4 módulos V5 fusionados como secções nos módulos parentes"
@@ -172,7 +174,7 @@ export default function ModOsMeusModulos() {
       ))}
 
       <Panel title="Ordem do menu" sub="Arraste ou utilize ▲▼ — a barra lateral atualiza-se em tempo real"
-        right={<Button>↻ Redefinir</Button>}>
+        right={<Button onClick={soon('Redefinir ordem')}>↻ Redefinir</Button>}>
         {orderSections.map((sec, si) => (
           <div key={si} style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-gold-700)', margin: '14px 0 8px' }}>{sec[0]}</div>
@@ -184,8 +186,8 @@ export default function ModOsMeusModulos() {
                 {it[3] && <Pill kind="gold" noDot>{it[3]}</Pill>}
                 <div style={{ fontFamily: 'var(--v54-font-mono)', fontSize: 13, color: 'var(--v54-navy-300)', fontWeight: 600, minWidth: 24, textAlign: 'right' }}>{it[2]}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label="Subir na ordem" title="Subir">▲</Button>
-                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label="Descer na ordem" title="Descer">▼</Button>
+                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label="Subir na ordem" title="Subir" onClick={soon('Reordenar módulos')}>▲</Button>
+                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label="Descer na ordem" title="Descer" onClick={soon('Reordenar módulos')}>▼</Button>
                 </div>
               </div>
             ))}

@@ -7,6 +7,7 @@ import { Panel } from '../primitives/panel'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Button } from '../primitives/button'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Coprop } from '@/lib/syndic/v54/api'
 
@@ -53,6 +54,7 @@ function coproToRow(c: Coprop): Row {
 }
 
 export default function ModMapaQuotas() {
+  const soon = useComingSoon()
   // Phase 2 : quotas réelles du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
@@ -81,7 +83,7 @@ export default function ModMapaQuotas() {
         <div className={m.cardGrid3} style={{ marginBottom: 14 }}>
           <div><label htmlFor="mq-orc" style={fieldLabel}>Orçamento anual (EUR)</label><input id="mq-orc" defaultValue="48000" style={fieldCtrl} /></div>
           <div><label htmlFor="mq-fcr" style={fieldLabel}>FCR (10%)</label><input id="mq-fcr" type="range" min="0" max="100" defaultValue="50" aria-label="Valor" style={fieldCtrl} /></div>
-          <div><label htmlFor="mq-modo" style={fieldLabel}>Modo de cálculo</label><div id="mq-modo" style={{ display: 'flex', gap: 4 }}><Button size="sm" style={{ flex: 1 }}>Fixa</Button><Button size="sm" style={{ flex: 1 }}>Por área (m²)</Button><Button size="sm" variant="primary" style={{ flex: 1 }}>Permilagem</Button></div></div>
+          <div><label htmlFor="mq-modo" style={fieldLabel}>Modo de cálculo</label><div id="mq-modo" style={{ display: 'flex', gap: 4 }}><Button size="sm" style={{ flex: 1 }} onClick={soon('Modo: Fixa', 'Cálculo por quota fixa em breve')}>Fixa</Button><Button size="sm" style={{ flex: 1 }} onClick={soon('Modo: Por área', 'Cálculo por m² em breve')}>Por área (m²)</Button><Button size="sm" variant="primary" style={{ flex: 1 }} onClick={soon('Modo: Permilagem', 'Modo ativo')}>Permilagem</Button></div></div>
         </div>
       </Panel>
       <Panel flush>
