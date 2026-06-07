@@ -127,7 +127,7 @@ export default function ModEdificios() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button onClick={() => openEdit(im)}><Icon name="pencil" />Editar</Button>
-              <Button aria-label="Suspender edifício" title="Suspender"><Icon name="ban" /></Button>
+              <Button aria-label="Suspender edifício" title="Suspender" onClick={() => push({ kind: 'info', title: 'Suspender edifício', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="ban" /></Button>
               <Button variant="gold" onClick={() => setMissaoImovel(b[0])}><Icon name="plus" />Nova missão</Button>
             </div>
           </div>

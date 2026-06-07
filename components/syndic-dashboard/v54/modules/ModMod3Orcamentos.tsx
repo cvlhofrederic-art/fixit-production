@@ -12,6 +12,7 @@ import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
 import { Field } from '../primitives/field'
 import { FormRow } from '../primitives/form-row'
 import Icon from '../primitives/icon/Icon'
+import { useComingSoon } from './use-coming-soon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -40,6 +41,7 @@ const PREVIEW: Obra[] = [
 ]
 
 export default function ModMod3Orcamentos() {
+  const soon = useComingSoon()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Obra[] = real ? (data.obras ?? []) : PREVIEW
@@ -106,7 +108,7 @@ export default function ModMod3Orcamentos() {
                     <Pill kind="sage" noDot>{o.numOrcamentos}/3 orçamentos</Pill>
                     <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
                       {i === 0
-                        ? <Button size="sm"><Icon name="chart" />Comparar</Button>
+                        ? <Button size="sm" onClick={soon('Comparar orçamentos', 'Comparação de orçamentos em desenvolvimento')}><Icon name="chart" />Comparar</Button>
                         : <select className={clsx(btnCss.btn, btnCss.sm)} style={{ flex: 1 }} aria-label="Estado da obra"><option>{titulo}</option></select>}
                     </div>
                   </Panel>

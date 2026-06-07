@@ -7,6 +7,7 @@ import { Panel } from '../primitives/panel'
 import { Pill } from '../primitives/pill'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
+import { useComingSoon } from './use-coming-soon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
 
@@ -32,6 +33,7 @@ const AVISOS = [
 const qaBtn = { padding: '18px', flexDirection: 'column', gap: 10, minHeight: 110, background: 'var(--v54-cream)' } as const
 
 export default function ModPortal() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Portal do Condómino" lede="Vista única do condómino: conta, documentos, comunicações, pedidos" />
@@ -51,7 +53,7 @@ export default function ModPortal() {
       <Panel title="Ações rápidas">
         <div className={m.cardGrid4}>
           {ACTIONS.map((a) => (
-            <Button key={a[1]} style={qaBtn}>
+            <Button key={a[1]} style={qaBtn} onClick={soon(a[1])}>
               <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--v54-cream)', display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}><Icon name={a[0]} /></div>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{a[1]}</div>
             </Button>

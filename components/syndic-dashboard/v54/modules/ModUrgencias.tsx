@@ -1,3 +1,5 @@
+'use client'
+
 import { PageHead } from '../primitives/page-head'
 import { Panel } from '../primitives/panel'
 import { Tabs } from '../primitives/tabs'
@@ -7,6 +9,7 @@ import { Button } from '../primitives/button'
 import { Alert } from '../primitives/alert'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 /** Urgências Técnicas — page net-new (module catalogue-only en V5.7, aucune source byte-exact).
@@ -32,6 +35,7 @@ const ESTADO: Record<string, [string, PillKind]> = {
 }
 
 export default function ModUrgencias() {
+  const soon = useComingSoon()
   const data = useSyndicData()
   const real = data.authenticated
   // Urgences actives = missions prioritaires non clôturées.
@@ -49,7 +53,7 @@ export default function ModUrgencias() {
   return (
     <>
       <PageHead title="Urgências Técnicas" lede="Despacho imediato para o profissional VITFIX disponível"
-        actions={<Button variant="gold"><Icon name="plus" />Nova urgência</Button>} />
+        actions={<Button variant="gold" onClick={soon('Nova urgência', 'Despacho de urgências em desenvolvimento')}><Icon name="plus" />Nova urgência</Button>} />
       <Tabs defaultActive="ativas" tabs={[
         { id: 'ativas', icon: 'siren', label: 'Ativas' },
         { id: 'despacho', icon: 'sat', label: 'Despacho' },

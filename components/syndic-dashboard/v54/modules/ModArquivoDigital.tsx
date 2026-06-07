@@ -1,3 +1,5 @@
+'use client'
+
 import { PageHead } from '../primitives/page-head'
 import { Panel } from '../primitives/panel'
 import { Pill } from '../primitives/pill'
@@ -9,6 +11,7 @@ import { Empty } from '../primitives/empty'
 import { SectionDivider } from '../primitives/section-divider'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 
 /** Arquivo Digital Certificado — port byte-exact du ModArquivoDigital du bundle V5.7
  * (assets L37698-37748) + sa sous-section ProjetoAprovSection (L39767-39795, co-localisée).
@@ -31,13 +34,14 @@ const CATEGORIAS: ArqCat[] = [
 
 /** Sous-section « Projeto Aprovado & Licenças » (DL 268/94). */
 function ProjetoAprovSection() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead
         eyebrow="OBRIGAÇÃO LEGAL · DL 268/94 ART. 2.°"
         title="Arquivo Projeto Aprovado & Licenças"
         lede="Cópias autenticadas · Projeto aprovado Câmara · Alvará · Licença utilização · Audit trail imutável"
-        actions={<Button variant="gold"><Icon name="upload" />Upload documento autenticado</Button>}
+        actions={<Button variant="gold" onClick={soon('Upload documento autenticado', 'Depósito de documentos em desenvolvimento')}><Icon name="upload" />Upload documento autenticado</Button>}
       />
       <Alert kind="gold" icon="scale" title="DL 268/94 art. 2.° — Documentos obrigatórios">
         Devem ficar depositadas à guarda do administrador as cópias autenticadas dos documentos utilizados para instruir o processo de constituição da propriedade horizontal, designadamente o projeto aprovado pela entidade pública competente.
@@ -61,7 +65,7 @@ function ProjetoAprovSection() {
           illustration="documentos"
           title="Arquivo vazio"
           desc="Os documentos depositados aqui são imutáveis. Cada acesso, upload ou substituição fica registado no audit trail."
-          action={<Button variant="primary"><Icon name="upload" />Depositar primeiro documento</Button>}
+          action={<Button variant="primary" onClick={soon('Depositar documento', 'Depósito de documentos em desenvolvimento')}><Icon name="upload" />Depositar primeiro documento</Button>}
         />
       </Panel>
     </>
@@ -69,6 +73,7 @@ function ProjetoAprovSection() {
 }
 
 export default function ModArquivoDigital() {
+  const soon = useComingSoon()
   return (
     <>
       <PageHead title="Arquivo Digital Certificado" lede="Arquivo eletrónico com integridade garantida por hash SHA-256 · Pesquisa avançada · Retenção legal · Projeto aprovado & licenças" />
@@ -85,7 +90,7 @@ export default function ModArquivoDigital() {
         { icon: 'archive', num: '2.5 MB', lbl: 'Armazenamento', accent: 'sage' },
         { icon: 'calendar', num: '2025-02-10', lbl: 'Último upload' },
       ]} />
-      <Panel title="Árvore de documentos" right={<Button variant="gold"><Icon name="plus" />+ Carregar documento</Button>} flush>
+      <Panel title="Árvore de documentos" right={<Button variant="gold" onClick={soon('Carregar documento', 'Carregamento de documentos em desenvolvimento')}><Icon name="plus" />+ Carregar documento</Button>} flush>
         {CATEGORIAS.map((cat, i) => (
           <div key={i} style={{ borderBottom: i < 3 ? '1px solid var(--v54-line)' : 'none' }}>
             <div style={{ padding: '14px 22px', background: cat.docs ? 'var(--v54-gold-50)' : '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -104,8 +109,8 @@ export default function ModArquivoDigital() {
                       <td>{d.imovel}</td>
                       <td className={m.mono} style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{d.hash}</td>
                       <td>
-                        <Button size="sm" variant="ghost" aria-label="Ver fatura" title="Ver"><Icon name="eye" /></Button>{' '}
-                        <Button size="sm" variant="ghost" aria-label="Descarregar" title="Descarregar"><Icon name="download" /></Button>
+                        <Button size="sm" variant="ghost" aria-label="Ver fatura" title="Ver" onClick={soon('Ver documento', 'Visualização de documentos em desenvolvimento')}><Icon name="eye" /></Button>{' '}
+                        <Button size="sm" variant="ghost" aria-label="Descarregar" title="Descarregar" onClick={soon('Descarregar documento', 'Descarregamento em desenvolvimento')}><Icon name="download" /></Button>
                       </td>
                     </tr>
                   ))}</tbody>

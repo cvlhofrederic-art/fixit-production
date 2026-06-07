@@ -9,6 +9,7 @@ import { Pill } from '../primitives/pill'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import { useComingSoon } from './use-coming-soon'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 /**
@@ -22,6 +23,7 @@ const selectStyle = { padding: '10px 14px', border: '1px solid var(--v54-line-st
 const searchIcon = { position: 'absolute', left: 12, top: 11, width: 14, height: 14, color: 'var(--v54-navy-300)' } as const
 
 export default function ModCondominos() {
+  const soon = useComingSoon()
   // Phase 2 : vrais condóminos du cabinet si syndic connecté, sinon mock/vide (preview).
   const data = useSyndicData()
   const real = data.authenticated
@@ -33,9 +35,9 @@ export default function ModCondominos() {
         title="Condóminos & Inquilinos"
         lede="Proprietários · Arrendatários · Frações · Permilagens"
         actions={<>
-          <Button><Icon name="upload" />Import Gecond</Button>
-          <Button><Icon name="download" />Export CSV</Button>
-          <Button variant="gold"><Icon name="plus" />Adicionar</Button>
+          <Button onClick={soon('Importar Gecond', 'Importação Gecond em desenvolvimento')}><Icon name="upload" />Import Gecond</Button>
+          <Button onClick={soon('Exportar CSV', 'Exportação CSV em desenvolvimento')}><Icon name="download" />Export CSV</Button>
+          <Button variant="gold" onClick={soon('Adicionar condómino', 'Criação de condóminos em desenvolvimento')}><Icon name="plus" />Adicionar</Button>
         </>}
       />
       <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
@@ -77,7 +79,7 @@ export default function ModCondominos() {
             illustration="condominos"
             title="Nenhum condómino encontrado"
             desc="Adicione condóminos manualmente ou importe-os via Gecond / CSV."
-            action={<Button variant="gold"><Icon name="plus" />Adicionar primeiro condómino</Button>}
+            action={<Button variant="gold" onClick={soon('Adicionar condómino', 'Criação de condóminos em desenvolvimento')}><Icon name="plus" />Adicionar primeiro condómino</Button>}
           />
         )}
       </Panel>

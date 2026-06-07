@@ -78,7 +78,7 @@ export default function ModReembolsos() {
     <>
       <PageHead eyebrow="OPERACIONAL · MUDANÇA DE PROPRIEDADE" title="Reembolsos Automáticos"
         lede="Pro-rata temporis na venda de fração · Max Expert calcula · Open Banking executa · Lei 8/2022 prazos"
-        actions={<><Button onClick={openNew}><Icon name="users" />Registar mudança proprietário</Button><Button variant="gold"><Icon name="refresh" />Ver reembolsos pendentes</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="users" />Registar mudança proprietário</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Reembolsos pendentes', desc: 'Vista de reembolsos em desenvolvimento' })}><Icon name="refresh" />Ver reembolsos pendentes</Button></>} />
       <Alert kind="gold" icon="scale" title="Direito a reembolso pro-rata na venda">
         Quando um condómino vende mid-year, as quotas pré-pagas devem ser reembolsadas proporcionalmente. <strong>Fórmula</strong>: <code style={codeStyle}>quotas_pagas × (dias_restantes / dias_periodo)</code>. Lei 8/2022 fixa prazo notificação venda em 15 dias.
       </Alert>
