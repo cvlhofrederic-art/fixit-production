@@ -46,6 +46,7 @@ export default function ModEnquetes() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<EnqForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof EnqForm, string>>>({})
+  const [tab, setTab] = useState('ativas')
   const [busy, setBusy] = useState(false)
   const { push } = useToast()
 
@@ -87,7 +88,7 @@ export default function ModEnquetes() {
         { icon: 'chart', num: `${partMedia}%`, lbl: 'Participação Média', accent: 'sage' },
         { icon: 'users', num: totalRespostas, lbl: 'Total Respostas', accent: 'sage' },
       ]} />
-      <Tabs defaultActive="ativas" tabs={[
+      <Tabs active={tab} onChange={(id) => { if (id === 'criar') openNew(); else setTab(id) }} tabs={[
         { id: 'ativas', icon: 'chart', label: 'Enquetes Ativas', badge: ativas },
         { id: 'hist', icon: 'folder', label: 'Histórico', badge: historico },
         { id: 'criar', icon: 'pencil', label: 'Criar Enquete' },
@@ -95,7 +96,7 @@ export default function ModEnquetes() {
       {real && all.length === 0 ? (
         <Empty illustration="documentos" title="Sem enquetes" desc="Lance a primeira consulta aos condóminos"
           action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Nova Enquete</Button>} />
-      ) : all.map(s => (
+      ) : all.filter(s => tab === 'hist' ? s.estado === 'encerrada' : s.estado !== 'encerrada').map(s => (
         <div key={s.id} style={surveyCard}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div style={{ flex: 1 }}>
