@@ -14,6 +14,7 @@ import { Field } from '../primitives/field'
 import { FormRow } from '../primitives/form-row'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import { useDocumentUpload } from './use-document-upload'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -47,6 +48,7 @@ export default function ModElevadores() {
 
   // Phase 3 écritures : « + Registar elevador » → POST /api/syndic/elevadores.
   const { push } = useToast()
+  const upload = useDocumentUpload()
   const blank = { immeuble: '', marca: '', categoria: 'habitacional', ema: '', ultimaInspecao: '', proximaInspecao: '', estado: 'conforme' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(blank)
@@ -80,7 +82,7 @@ export default function ModElevadores() {
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · DL 320/2002 + LEI 65/2013" title="Gestão de Elevadores"
         lede="Contrato EMA obrigatório · Inspeções periódicas 2/4/6 anos · Comunicação Câmara em 48h se risco grave"
-        actions={<><Button onClick={openNew}><Icon name="plus" />+ Registar elevador</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Upload relatório de inspeção', desc: 'Carregamento de relatórios em desenvolvimento' })}><Icon name="upload" />Upload relatório inspeção</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="plus" />+ Registar elevador</Button><Button variant="gold" onClick={upload('autre')}><Icon name="upload" />Upload relatório inspeção</Button></>} />
       <Alert kind="gold" icon="scale" title="Periodicidade obrigatória das inspeções — Art. 8.° DL 320/2002">
         <strong>2 anos</strong> — edifícios comerciais ou serviços abertos ao público.<br />
         <strong>4 anos</strong> — edifícios mistos ou habitacionais com &gt; 32 fogos / &gt; 8 pisos.<br />
