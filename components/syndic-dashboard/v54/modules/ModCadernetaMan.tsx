@@ -17,6 +17,7 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 
 /** Caderneta de Manutenção & Técnica — port byte-exact V5.7 + Phase 3 : interventions réelles.
  * Syndic connecté → vraies interventions du cabinet (data.caderneta) + création POST ;
@@ -71,10 +72,26 @@ export default function ModCadernetaMan() {
   const planeadas = all.filter(i => i.estado === 'planeado').length
   const edifSet = new Set(all.map(i => i.edificio).filter(Boolean))
 
+  const exportPdf = () => {
+    if (!real || all.length === 0) { push({ kind: 'info', title: 'Export PDF', desc: real ? 'Registe a primeira intervenção para exportar.' : 'Conecte-se como síndico para exportar.' }); return }
+    const eur = (n: number) => `${(n || 0).toLocaleString('pt-PT')} €`
+    downloadReportPdf('caderneta-manutencao.pdf', {
+      title: 'Caderneta de Manutenção',
+      subtitle: 'Obras · Equipamentos · Estado datado',
+      kpis: [
+        { label: 'Intervenções', value: String(all.length) },
+        { label: 'Planeadas', value: String(planeadas) },
+        { label: 'Custo total', value: eur(total) },
+        { label: 'Edifícios', value: String(edifSet.size) },
+      ],
+      tables: [{ headers: ['Data', 'Natureza', 'Edifício', 'Prestador', 'Custo', 'Estado'], rows: all.map((i) => [i.data || '—', naturezaLabel(i.natureza), i.edificio || '—', i.prestador || '—', eur(Number(i.custo) || 0), estadoLabel(i.estado)]) }],
+    })
+  }
+
   return (
     <>
       <PageHead title="Caderneta de Manutenção & Técnica" lede="Obras · Equipamentos · Contratos manutenção · Estado datado · CEE"
-        actions={<><Button onClick={() => push({ kind: 'info', title: 'Export PDF', desc: all.length ? `${all.length} intervenções prontas para exportação` : 'Registe a primeira intervenção para exportar.' })}><Icon name="download" />Export PDF</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Intervenção</Button></>} />
+        actions={<><Button onClick={exportPdf}><Icon name="download" />Export PDF</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Intervenção</Button></>} />
       <Tabs defaultActive="cad" tabs={[
         { id: 'cad', icon: 'book', label: 'Caderneta de manutenção' },
         { id: 'eq', icon: 'cog', label: 'Equipamentos' },
