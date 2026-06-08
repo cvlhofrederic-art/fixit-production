@@ -8,6 +8,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 
 /** Relatório de Gestão — port byte-exact du ModRelGestao du bundle V5.7 + Phase 3 :
  * pré-remplissage du formulaire + preview avec les agrégats réels (lecture seule) depuis
@@ -65,6 +66,17 @@ export default function ModRelGestao() {
   // Remount des inputs non-contrôlés quand les données async arrivent (defaultValue ne se met pas à jour seul).
   const formKey = real ? `r-${nEdif}-${nInterv}-${despAno}-${orcAnual}-${montantObras}` : 'anon'
 
+  const exportPdf = () => {
+    if (!real) { push({ kind: 'info', title: 'Descarregar PDF', desc: 'Conecte-se como síndico para gerar o relatório.' }); return }
+    const obs = (document.getElementById('rg-obs') as HTMLTextAreaElement | null)?.value || ''
+    downloadReportPdf('relatorio-gestao.pdf', {
+      title: 'Relatório de Gestão',
+      subtitle: 'Art.º 1436.º CC · Lei 8/2022',
+      kpis: fields.map((f) => ({ label: f[0], value: f[1] })),
+      notes: obs || undefined,
+    })
+  }
+
   return (
     <>
       <PageHead title="Relatório de Gestão" lede="Relatório anual · Prestação de contas · Art.° 1436.° CC · Lei 8/2022" />
@@ -76,7 +88,7 @@ export default function ModRelGestao() {
         right={<>
           <select aria-label="Mês" style={selectStyle}><option>Abril</option></select>
           <select aria-label="Ano" style={selectStyle}><option>2026</option></select>
-          <Button variant="gold" onClick={() => push({ kind: 'info', title: 'Geração de PDF', desc: 'Funcionalidade em desenvolvimento.' })}><Icon name="download" />Descarregar PDF</Button>
+          <Button variant="gold" onClick={exportPdf}><Icon name="download" />Descarregar PDF</Button>
         </>}
       >
         <div className={m.cardGrid3} key={formKey}>
