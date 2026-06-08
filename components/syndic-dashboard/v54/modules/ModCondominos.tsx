@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, type FormEvent } from 'react'
+import clsx from 'clsx'
 import { PageHead } from '../primitives/page-head'
 import { KPIGrid } from '../primitives/kpi'
 import { Tabs } from '../primitives/tabs'
@@ -7,10 +9,15 @@ import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
 import { Pill } from '../primitives/pill'
 import { Button } from '../primitives/button'
+import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { Field } from '../primitives/field'
+import { FormRow } from '../primitives/form-row'
 import Icon from '../primitives/icon/Icon'
+import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
 import { useToast } from '../primitives/toast'
+import { useSyndicCreate } from './use-syndic-create'
 import { downloadCsv } from '@/lib/syndic/v54/export-csv'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
@@ -43,6 +50,27 @@ export default function ModCondominos() {
       coproprios.map((c) => [c.immeuble, c.batiment, c.etage, c.numeroPorte, c.proprietario, c.email, c.telefone, c.tantieme ?? '', c.ocupado ? 'Ocupado' : 'Vago', c.solde ?? '']),
     )
   }
+
+  // Création condómino → POST /api/syndic/coproprios (mappé camelCase côté serveur).
+  const { busy, create } = useSyndicCreate('/api/syndic/coproprios')
+  const blank = { immeuble: '', batiment: '', etage: '', numeroPorte: '', nomProprietaire: '', emailProprietaire: '', telephoneProprietaire: '', tantieme: '', estOccupe: 'true' }
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState(blank)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const upd = (k: keyof typeof blank, v: string) => setForm((s) => ({ ...s, [k]: v }))
+  const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!form.nomProprietaire.trim()) { setErrors({ nomProprietaire: 'Indique o nome do proprietário.' }); return }
+    create(
+      {
+        immeuble: form.immeuble, batiment: form.batiment, etage: Number(form.etage) || 0, numeroPorte: form.numeroPorte,
+        nomProprietaire: form.nomProprietaire, emailProprietaire: form.emailProprietaire, telephoneProprietaire: form.telephoneProprietaire,
+        tantieme: Number(form.tantieme) || 0, estOccupe: form.estOccupe === 'true',
+      },
+      { okTitle: 'Condómino adicionado', desc: form.nomProprietaire, onDone: () => setOpen(false) },
+    )
+  }
   return (
     <>
       <PageHead
@@ -51,7 +79,7 @@ export default function ModCondominos() {
         actions={<>
           <Button onClick={soon('Importar Gecond', 'Importação Gecond em desenvolvimento')}><Icon name="upload" />Import Gecond</Button>
           <Button onClick={exportCsv}><Icon name="download" />Export CSV</Button>
-          <Button variant="gold" onClick={soon('Adicionar condómino', 'Criação de condóminos em desenvolvimento')}><Icon name="plus" />Adicionar</Button>
+          <Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar</Button>
         </>}
       />
       <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
@@ -93,10 +121,60 @@ export default function ModCondominos() {
             illustration="condominos"
             title="Nenhum condómino encontrado"
             desc="Adicione condóminos manualmente ou importe-os via Gecond / CSV."
-            action={<Button variant="gold" onClick={soon('Adicionar condómino', 'Criação de condóminos em desenvolvimento')}><Icon name="plus" />Adicionar primeiro condómino</Button>}
+            action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar primeiro condómino</Button>}
           />
         )}
       </Panel>
+
+      <Modal open={open} onClose={() => setOpen(false)} labelledBy="copro-modal-title" size="md">
+        <ModalHead icon="users" id="copro-modal-title" title="Adicionar condómino" onClose={() => setOpen(false)} />
+        <form onSubmit={submit} noValidate>
+          <ModalBody>
+            <Field label="Proprietário" required full name="copro-nome" error={errors.nomProprietaire}>
+              <input type="text" placeholder="Nome do proprietário" value={form.nomProprietaire} onChange={(e) => upd('nomProprietaire', e.target.value)} />
+            </Field>
+            <FormRow>
+              <Field label="Email" name="copro-email">
+                <input type="email" placeholder="email@exemplo.pt" value={form.emailProprietaire} onChange={(e) => upd('emailProprietaire', e.target.value)} />
+              </Field>
+              <Field label="Telefone" name="copro-tel">
+                <input type="tel" placeholder="9XX XXX XXX" value={form.telephoneProprietaire} onChange={(e) => upd('telephoneProprietaire', e.target.value)} />
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Edifício" name="copro-imovel">
+                <input type="text" placeholder="Ex.: Edifício Aurora" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+              </Field>
+              <Field label="Bloco" name="copro-bloco">
+                <input type="text" placeholder="A, B…" value={form.batiment} onChange={(e) => upd('batiment', e.target.value)} />
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Andar" name="copro-andar">
+                <input type="number" inputMode="numeric" placeholder="0" value={form.etage} onChange={(e) => upd('etage', e.target.value)} />
+              </Field>
+              <Field label="Porta / Fração" name="copro-porta">
+                <input type="text" placeholder="Esq., Dto., 21…" value={form.numeroPorte} onChange={(e) => upd('numeroPorte', e.target.value)} />
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Permilagem" hint="‰ (millièmes)" name="copro-perm">
+                <input type="number" min="0" max="1000" inputMode="numeric" placeholder="0" value={form.tantieme} onChange={(e) => upd('tantieme', e.target.value)} />
+              </Field>
+              <Field label="Ocupação" name="copro-ocup">
+                <select value={form.estOccupe} onChange={(e) => upd('estOccupe', e.target.value)}>
+                  <option value="true">Ocupado</option>
+                  <option value="false">Vago</option>
+                </select>
+              </Field>
+            </FormRow>
+          </ModalBody>
+          <ModalFoot>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar condómino</button>
+          </ModalFoot>
+        </form>
+      </Modal>
     </>
   )
 }
