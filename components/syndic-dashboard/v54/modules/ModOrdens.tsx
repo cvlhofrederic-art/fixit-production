@@ -40,7 +40,7 @@ const ORDERS = [
 const statusKind = (s: string): PillKind => (s === 'Pendente' ? 'amber' : 'sage')
 
 type Row = readonly [string, string, string, string, string, string, string]
-type OrderItem = { row: Row; id?: string; statut?: string; artisan?: string }
+type OrderItem = { row: Row; id?: string; statut?: string; artisan?: string; priorite?: string }
 
 /** Statut mission Supabase → libellé PT affiché (Phase 2). */
 function missionStatusLabel(statut: string): string {
@@ -65,11 +65,13 @@ function missionToRow(mi: Mission): Row {
 
 export default function ModOrdens() {
   const [tab, setTab] = useState<string>('todas')
+  const [showFilter, setShowFilter] = useState(false)
+  const [query, setQuery] = useState('')
   // Phase 2 : vraies missions du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
   const orders: ReadonlyArray<OrderItem> = real
-    ? data.missions.map((mi) => ({ row: missionToRow(mi), id: mi.id, statut: mi.statut, artisan: mi.artisan }))
+    ? data.missions.map((mi) => ({ row: missionToRow(mi), id: mi.id, statut: mi.statut, artisan: mi.artisan, priorite: mi.priorite }))
     : ORDERS.map((r) => ({ row: r }))
   const tabs = real
     ? [
@@ -79,6 +81,14 @@ export default function ModOrdens() {
         { id: 'conc', label: 'Concluídas', count: data.missions.filter((mi) => mi.statut === 'terminee').length },
       ]
     : TABS
+
+  // Filtrage par onglet (statut/priorité) + recherche texte (édifice, descrição, profissional).
+  const q = query.trim().toLowerCase()
+  const shown = orders.filter((it) => {
+    const tabOk = tab === 'urg' ? it.priorite === 'urgente' : tab === 'curso' ? it.row[0] === 'Em curso' : tab === 'conc' ? it.row[0] === 'Concluída' : true
+    const queryOk = !q || [it.row[2], it.row[3], it.row[5]].join(' ').toLowerCase().includes(q)
+    return tabOk && queryOk
+  })
 
   // Phase 2 écritures : « Nova missão » → POST /api/syndic/missions (réel si connecté).
   const { push } = useToast()
@@ -150,7 +160,7 @@ export default function ModOrdens() {
         title="Ordens de serviço"
         lede="Acompanhamento das missões em curso, pedidos pendentes e histórico"
         actions={<>
-          <Button onClick={() => push({ kind: 'info', title: 'Filtros', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="search" />Filtros</Button>
+          <Button onClick={() => setShowFilter((v) => !v)}><Icon name="search" />Filtros</Button>
           <Button variant="gold" onClick={openNew}><Icon name="plus" />Nova missão</Button>
         </>}
       />
@@ -161,8 +171,16 @@ export default function ModOrdens() {
           </button>
         ))}
       </div>
+      {showFilter && (
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <Icon name="search" style={{ position: 'absolute', left: 12, top: 11, width: 14, height: 14, color: 'var(--v54-navy-300)' }} />
+          <input aria-label="Pesquisar ordens" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Pesquisar por edifício, descrição, profissional…" style={{ width: '100%', padding: '10px 12px 10px 36px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, fontSize: 13 }} />
+        </div>
+      )}
       <Panel flush>
-        {orders.map((it) => { const o = it.row; return (
+        {shown.length === 0 ? (
+          <div style={{ padding: '36px 22px', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>Nenhuma ordem corresponde aos filtros.</div>
+        ) : shown.map((it) => { const o = it.row; return (
           <div key={o[1]} style={{ padding: '18px 22px', borderBottom: '1px solid var(--v54-line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <Pill noDot>Normal</Pill>
