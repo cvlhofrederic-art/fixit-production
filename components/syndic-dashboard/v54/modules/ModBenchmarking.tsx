@@ -14,6 +14,7 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
 import { healthScore } from '@/lib/syndic/v54/building-score'
+import { downloadCsv } from '@/lib/syndic/v54/export-csv'
 
 /** Benchmarking Imóveis — port V5.7 + lot 5 fonctionnel.
  * Syndic connecté → ranking dérivé des édifices réels (data.immeubles, aucune table
@@ -52,11 +53,22 @@ export default function ModBenchmarking() {
   const melhor = ranked[0]?.im.nom || '—'
   const percentilMedio = ranked.length ? Math.round(ranked.reduce((s, r) => s + r.score, 0) / ranked.length) : 0
   const outliers = ranked.filter(r => r.score < 60).length
+  const exportBenchmarking = () => {
+    if (!real || ranked.length === 0) {
+      push({ kind: 'info', title: 'Exportar benchmarking', desc: real ? 'Adicione edifícios para exportar.' : 'Conecte-se como síndico para exportar.' })
+      return
+    }
+    downloadCsv(
+      'benchmarking-edificios.csv',
+      ['Posição', 'Edifício', 'Score saúde', 'Custo / fração (€)'],
+      ranked.map((r) => [r.pos, r.im.nom, r.score, Math.round(r.custo)]),
+    )
+  }
 
   return (
     <>
       <PageHead title="Benchmarking Imóveis" lede="Comparação de KPIs entre edifícios · Rankings · Percentis · Alertas de outliers · Exportação"
-        actions={<Button variant="gold" onClick={() => push({ kind: 'info', title: 'Exportar benchmarking', desc: ranked.length ? `${ranked.length} edifícios prontos para exportação` : 'Adicione edifícios para exportar.' })}><Icon name="download" />Exportar</Button>} />
+        actions={<Button variant="gold" onClick={exportBenchmarking}><Icon name="download" />Exportar</Button>} />
       <Tabs defaultActive="ranking" tabs={[
         { id: 'ranking', icon: 'chart', label: 'Ranking' },
         { id: 'kpis', icon: 'target', label: 'KPIs' },
