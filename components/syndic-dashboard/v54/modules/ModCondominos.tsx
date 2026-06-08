@@ -10,6 +10,8 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import { useToast } from '../primitives/toast'
+import { downloadCsv } from '@/lib/syndic/v54/export-csv'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 /**
@@ -29,6 +31,18 @@ export default function ModCondominos() {
   const real = data.authenticated
   const coproprios = data.coproprios ?? []
   const ocupados = coproprios.filter((c) => c.ocupado).length
+  const { push } = useToast()
+  const exportCsv = () => {
+    if (!real || coproprios.length === 0) {
+      push({ kind: 'info', title: 'Exportar CSV', desc: real ? 'Nenhum condómino para exportar.' : 'Conecte-se como síndico para exportar.' })
+      return
+    }
+    downloadCsv(
+      'condominos.csv',
+      ['Fração', 'Bloco', 'Andar', 'Porta', 'Proprietário', 'Email', 'Telefone', 'Permilagem', 'Ocupação', 'Saldo (€)'],
+      coproprios.map((c) => [c.immeuble, c.batiment, c.etage, c.numeroPorte, c.proprietario, c.email, c.telefone, c.tantieme ?? '', c.ocupado ? 'Ocupado' : 'Vago', c.solde ?? '']),
+    )
+  }
   return (
     <>
       <PageHead
@@ -36,7 +50,7 @@ export default function ModCondominos() {
         lede="Proprietários · Arrendatários · Frações · Permilagens"
         actions={<>
           <Button onClick={soon('Importar Gecond', 'Importação Gecond em desenvolvimento')}><Icon name="upload" />Import Gecond</Button>
-          <Button onClick={soon('Exportar CSV', 'Exportação CSV em desenvolvimento')}><Icon name="download" />Export CSV</Button>
+          <Button onClick={exportCsv}><Icon name="download" />Export CSV</Button>
           <Button variant="gold" onClick={soon('Adicionar condómino', 'Criação de condóminos em desenvolvimento')}><Icon name="plus" />Adicionar</Button>
         </>}
       />
