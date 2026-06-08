@@ -18,6 +18,7 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 
 /** Procurações & Lista de Presenças — port byte-exact V5.7 + Phase 3 : tracker réel. */
 
@@ -70,11 +71,21 @@ export default function ModProcuracoes() {
     push({ kind: 'info', title: 'Procuração registada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
+  const exportPresencas = () => {
+    if (!real || all.length === 0) { push({ kind: 'info', title: 'Lista de presenças AG', desc: real ? 'Registe procurações para gerar a lista.' : 'Conecte-se como síndico para gerar a lista.' }); return }
+    const statutLabel = (s: string) => (s === 'expirada' ? 'Expirada' : 'Válida')
+    downloadReportPdf('lista-presencas-ag.pdf', {
+      title: 'Lista de Presenças — Assembleia Geral',
+      subtitle: 'CC art. 1433.º-3 · DL 268/94 art. 1.º-3',
+      tables: [{ headers: ['Condómino', 'Fração', 'Representado por', 'Validade', 'Estado', 'Assinatura'], rows: all.map((p) => [p.condomino || '—', p.fracao || '—', p.procurador || '—', p.dataValidade || '—', statutLabel(p.statut), '']) }],
+    })
+  }
+
   return (
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · CC ART. 1433.° N.° 3" title="Procurações & Lista de Presenças"
         lede="Arquivo de procurações escritas · Lista de presenças assinada · Léa OCR + validação NIF"
-        actions={<><Button onClick={openNew}><Icon name="upload" />Registar procuração</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Lista de presenças AG', desc: 'Geração de lista em desenvolvimento' })}><Icon name="bank" />Gerar lista presenças AG</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="upload" />Registar procuração</Button><Button variant="gold" onClick={exportPresencas}><Icon name="bank" />Gerar lista presenças AG</Button></>} />
       <Alert kind="gold" icon="scale" title="Enquadramento legal">
         Todo o condómino pode ser representado em assembleia por procuração escrita (CC art. 1433.°-3). A lista de presenças é obrigatória em qualquer AG (DL 268/94 art. 1.°-3) e deve ser conservada com a ata.
       </Alert>
