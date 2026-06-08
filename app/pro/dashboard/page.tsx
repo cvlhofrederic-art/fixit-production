@@ -14,7 +14,7 @@ import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
-import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
+import { fetchDocumentsFromSupabase, persistEmittedDocsToCache } from '@/lib/document-sync'
 import { dedupeDocsByIdentity } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -338,7 +338,14 @@ function DashboardPage() {
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
           // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity).
-          setSavedDocuments(prev => dedupeDocsByIdentity(prev, sbDocs as typeof prev))
+          setSavedDocuments(prev => {
+            const merged = dedupeDocsByIdentity(prev, sbDocs as typeof prev)
+            // Hydrate le cache localStorage des docs émis (même clé que la lecture
+            // ci-dessus : user.id sur ce chemin admin/sans-profil) → le fallback de
+            // numérotation voit les docs DB-only (anti-collision). Brouillons exclus.
+            persistEmittedDocsToCache(user.id, merged as Array<Record<string, unknown>>)
+            return merged
+          })
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
@@ -375,7 +382,12 @@ function DashboardPage() {
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
       setSavedDocuments(prev => {
-        return dedupeDocsByIdentity(prev, sbDocs as typeof prev)
+        const merged = dedupeDocsByIdentity(prev, sbDocs as typeof prev)
+        // Hydrate le cache localStorage des docs émis (même clé que la lecture
+        // ci-dessus : aid = artisanData.id) → le fallback de numérotation voit les
+        // docs DB-only (anti-collision cross-device). Brouillons exclus (drafts_*).
+        persistEmittedDocsToCache(aid, merged as Array<Record<string, unknown>>)
+        return merged
       })
     }).catch(() => {})
 

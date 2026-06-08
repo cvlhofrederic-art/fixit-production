@@ -356,6 +356,93 @@ describe('POST /api/devis/sync', () => {
     expect(json.incoming).toBe('pending')
   })
 
+  // ── Filet de sécurité : collision de NUMÉRO entre deux documents DIFFÉRENTS ──
+  // Cause racine du bug « doc qui disparaît » : un device sans numérotation
+  // serveur retire un FACT-2026-001 déjà PAYÉ en base (autre id) → le sync voit
+  // un paid→pending interdit (409) → l'ancien comportement DROPPAIT le nouveau
+  // doc. Désormais on distingue : si la ligne existante porte un id DIFFÉRENT de
+  // l'id stable entrant, c'est une collision de numéro → body { numero_collision }.
+  it('returns 409 { numero_collision } when an existing row shares the numéro but has a DIFFERENT id', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    // Ligne existante en base : FACT-2026-001 déjà payée, appartenant au même
+    // artisan MAIS portant un id différent de celui du doc entrant.
+    mockStatusLookup.mockResolvedValue({
+      data: {
+        id: '99999999-9999-4999-8999-999999999999',
+        status: 'paid',
+        content_hash: null,
+        artisan_user_id: ARTISAN_USER_ID,
+      },
+      error: null,
+    })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const incoming = {
+      id: '11111111-1111-4111-8111-111111111111', // id stable DIFFÉRENT
+      docType: 'facture',
+      docNumber: 'FACT-2026-001',
+      clientName: 'x',
+      status: 'envoye', // → pending (transition arrière interdite vs paid)
+    }
+    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: incoming }) as never)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.error).toBe('numero_collision')
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('keeps the normal conflict body when the SAME id document hits an invalid transition', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    const SAME_ID = '11111111-1111-4111-8111-111111111111'
+    // Ligne existante = LE MÊME document (id identique) déjà payé.
+    mockStatusLookup.mockResolvedValue({
+      data: { id: SAME_ID, status: 'paid', content_hash: null, artisan_user_id: ARTISAN_USER_ID },
+      error: null,
+    })
+
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const incoming = {
+      id: SAME_ID,
+      docType: 'facture',
+      docNumber: 'FACT-2026-001',
+      clientName: 'x',
+      status: 'envoye', // → pending : vrai conflit de transition du même doc
+    }
+    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: incoming }) as never)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.error).toMatch(/Invalid status transition/i)
+    expect(json.current).toBe('paid')
+    expect(json.incoming).toBe('pending')
+  })
+
+  it('legacy (id NON-UUID → identité par numéro) ne déclenche PAS numero_collision sur sa propre ligne', async () => {
+    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+    mockCheckRateLimit.mockResolvedValue(true)
+    // Ligne existante = la version DB du doc legacy (id serveur), retrouvée par numéro.
+    mockStatusLookup.mockResolvedValue({
+      data: { id: '99999999-9999-4999-8999-999999999999', status: 'paid', content_hash: null, artisan_user_id: ARTISAN_USER_ID },
+      error: null,
+    })
+    const { POST } = await import('@/app/api/devis/sync/route')
+    const incoming = {
+      id: '1779539827817', // id LEGACY horodaté (non-UUID) → docId = null côté route
+      docType: 'facture',
+      docNumber: 'FACT-2026-001',
+      clientName: 'x',
+      status: 'envoye',
+    }
+    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: incoming }) as never)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    // docId null (legacy) → PAS une collision de numéro : conflit de transition normal,
+    // jamais une renumérotation à tort de sa propre ligne déjà synchronisée.
+    expect(json.error).not.toBe('numero_collision')
+    expect(json.error).toMatch(/Invalid status transition/i)
+  })
+
   it('allows valid devis transition draft → sent', async () => {
     mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
     mockCheckRateLimit.mockResolvedValue(true)
