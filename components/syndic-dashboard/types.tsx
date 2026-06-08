@@ -16,6 +16,8 @@ export interface Immeuble {
   nbInterventions: number
   budgetAnnuel: number
   depensesAnnee: number
+  /** Statut de gestion : ativo | suspenso. */
+  statut?: string
   // ── Géolocalisation ──
   latitude?: number
   longitude?: number
