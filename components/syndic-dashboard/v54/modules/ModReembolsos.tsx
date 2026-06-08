@@ -37,6 +37,8 @@ export default function ModReembolsos() {
   const data = useSyndicData()
   const real = data.authenticated
   const all = real ? (data.reembolsos ?? []) : []
+  const [tab, setTab] = useState('pend')
+  const shown = tab === 'pend' ? all.filter((r) => r.statut === 'pendente') : tab === 'liq' ? all.filter((r) => r.statut === 'liquidado') : all
 
   const liquidadosN = all.filter((r) => r.statut === 'liquidado').length
   const totalLiquidado = all.filter((r) => r.statut === 'liquidado').reduce((s, r) => s + (r.montanteReembolso || 0), 0)
@@ -78,7 +80,7 @@ export default function ModReembolsos() {
     <>
       <PageHead eyebrow="OPERACIONAL · MUDANÇA DE PROPRIEDADE" title="Reembolsos Automáticos"
         lede="Pro-rata temporis na venda de fração · Max Expert calcula · Open Banking executa · Lei 8/2022 prazos"
-        actions={<><Button onClick={openNew}><Icon name="users" />Registar mudança proprietário</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Reembolsos pendentes', desc: 'Vista de reembolsos em desenvolvimento' })}><Icon name="refresh" />Ver reembolsos pendentes</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="users" />Registar mudança proprietário</Button><Button variant="gold" onClick={() => setTab('pend')}><Icon name="refresh" />Ver reembolsos pendentes</Button></>} />
       <Alert kind="gold" icon="scale" title="Direito a reembolso pro-rata na venda">
         Quando um condómino vende mid-year, as quotas pré-pagas devem ser reembolsadas proporcionalmente. <strong>Fórmula</strong>: <code style={codeStyle}>quotas_pagas × (dias_restantes / dias_periodo)</code>. Lei 8/2022 fixa prazo notificação venda em 15 dias.
       </Alert>
@@ -90,7 +92,7 @@ export default function ModReembolsos() {
         { icon: 'alert', num: real ? bloqueados : 0, lbl: 'Bloqueados (rever)', accent: 'rust' },
         { icon: 'bot', num: 'Max Expert', lbl: 'Motor cálculo' },
       ]} />
-      <Tabs defaultActive="pend" tabs={[
+      <Tabs active={tab} onChange={setTab} tabs={[
         { id: 'pend', icon: 'clock', label: `Pendentes (${real ? aProcessar : 0})` },
         { id: 'liq', icon: 'check', label: 'Liquidados' },
         { id: 'todos', label: 'Todos (12m)' },
@@ -100,9 +102,9 @@ export default function ModReembolsos() {
           <table className={m.tbl}>
             <thead><tr><th>Antigo proprietário</th><th>Fração</th><th>Data venda</th><th>Quotas pagas</th><th>Dias restantes</th><th>Reembolso</th><th>Método</th><th>Estado</th></tr></thead>
             <tbody>
-              {all.length === 0 ? (
+              {shown.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--v54-navy-400)' }}>Nenhum reembolso em curso.</td></tr>
-              ) : all.map((r) => (
+              ) : shown.map((r) => (
                 <tr key={r.id}>
                   <td>{r.antigoProprietario || '—'}</td>
                   <td>{r.fracao || '—'}</td>
