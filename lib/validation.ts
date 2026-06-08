@@ -401,6 +401,7 @@ export const syndicImmeubleSchema = z.object({
   reglementMajoriteAg: z.string().max(5000).optional(),
   reglementFondsTravaux: z.boolean().optional(),
   reglementFondsRoulementPct: z.number().min(0).max(100).optional(),
+  statut: z.enum(['ativo', 'suspenso']).optional(),
 })
 
 // ── Syndic Contrat schema (Phase 3 — ModContratos) ────────────────────────

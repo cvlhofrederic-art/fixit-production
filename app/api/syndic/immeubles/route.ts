@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('syndic_immeubles')
-      .select('id, nom, adresse, ville, code_postal, nb_lots, annee_construction, type_immeuble, gestionnaire, prochain_controle, nb_interventions, budget_annuel, depenses_annee, latitude, longitude, geoloc_activee, rayon_detection, reglement_texte, reglement_pdf_nom, reglement_date_maj, reglement_charges_repartition, reglement_majorite_ag, reglement_fonds_travaux, reglement_fonds_roulement_pct, created_at')
+      .select('id, nom, adresse, ville, code_postal, nb_lots, annee_construction, type_immeuble, gestionnaire, prochain_controle, nb_interventions, budget_annuel, depenses_annee, latitude, longitude, geoloc_activee, rayon_detection, reglement_texte, reglement_pdf_nom, reglement_date_maj, reglement_charges_repartition, reglement_majorite_ag, reglement_fonds_travaux, reglement_fonds_roulement_pct, statut, created_at')
       .eq('cabinet_id', cabinetId)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       reglementMajoriteAg: i.reglement_majorite_ag || '',
       reglementFondsTravaux: i.reglement_fonds_travaux || false,
       reglementFondsRoulementPct: i.reglement_fonds_roulement_pct || 0,
+      statut: i.statut || 'ativo',
     }))
 
     const response = NextResponse.json({ immeubles })
@@ -154,6 +155,7 @@ export async function PATCH(request: NextRequest) {
     if (updates.reglementMajoriteAg !== undefined) dbUpdates.reglement_majorite_ag = updates.reglementMajoriteAg
     if (updates.reglementFondsTravaux !== undefined) dbUpdates.reglement_fonds_travaux = updates.reglementFondsTravaux
     if (updates.reglementFondsRoulementPct !== undefined) dbUpdates.reglement_fonds_roulement_pct = updates.reglementFondsRoulementPct
+    if (updates.statut !== undefined) dbUpdates.statut = updates.statut
 
     const { data, error } = await supabaseAdmin
       .from('syndic_immeubles')

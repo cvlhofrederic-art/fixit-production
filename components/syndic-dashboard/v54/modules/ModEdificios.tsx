@@ -99,6 +99,29 @@ export default function ModEdificios() {
 
   // Phase 2 raccourci : « Nova missão » sur une carte → Nova missão pré-remplie pour cet edifício.
   const [missaoImovel, setMissaoImovel] = useState<string | null>(null)
+  // Phase A : Suspender / Reativar un edifício → PATCH statut.
+  const [suspendTarget, setSuspendTarget] = useState<Immeuble | null>(null)
+  const [suspendBusy, setSuspendBusy] = useState(false)
+  const confirmSuspend = () => {
+    const im = suspendTarget
+    if (!im) return
+    const novo = im.statut === 'suspenso' ? 'ativo' : 'suspenso'
+    if (real && data.token) {
+      setSuspendBusy(true)
+      fetch('/api/syndic/immeubles', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ id: im.id, statut: novo }),
+      })
+        .then((res) => { if (!res.ok) throw new Error() })
+        .then(() => { data.refresh?.(); setSuspendTarget(null); push({ kind: 'success', title: novo === 'suspenso' ? 'Edifício suspenso' : 'Edifício reativado', desc: im.nom }) })
+        .catch(() => push({ kind: 'error', title: 'Erro', desc: 'Tente novamente mais tarde' }))
+        .finally(() => setSuspendBusy(false))
+      return
+    }
+    setSuspendTarget(null)
+    push({ kind: 'info', title: 'Ação (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+  }
   return (
     <>
       <PageHead
@@ -123,11 +146,12 @@ export default function ModEdificios() {
                 <Pill noDot>{b[2]} frações</Pill>
                 <Pill noDot>Construído em {b[3]}</Pill>
                 <Pill kind={b[8] === 'Regulamento OK' ? 'sage' : 'amber'} noDot>{b[8]}</Pill>
+                {im?.statut === 'suspenso' && <Pill kind="rust" noDot>Suspenso</Pill>}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button onClick={() => openEdit(im)}><Icon name="pencil" />Editar</Button>
-              <Button aria-label="Suspender edifício" title="Suspender" onClick={() => push({ kind: 'info', title: 'Suspender edifício', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="ban" /></Button>
+              <Button aria-label={im?.statut === 'suspenso' ? 'Reativar edifício' : 'Suspender edifício'} title={im?.statut === 'suspenso' ? 'Reativar' : 'Suspender'} onClick={() => im ? setSuspendTarget(im) : push({ kind: 'info', title: 'Suspender edifício', desc: 'Disponível com sessão de síndico.' })}><Icon name={im?.statut === 'suspenso' ? 'check' : 'ban'} /></Button>
               <Button variant="gold" onClick={() => setMissaoImovel(b[0])}><Icon name="plus" />Nova missão</Button>
             </div>
           </div>
@@ -181,6 +205,21 @@ export default function ModEdificios() {
             <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{editId ? 'Guardar' : 'Adicionar'}</button>
           </ModalFoot>
         </form>
+      </Modal>
+
+      <Modal open={suspendTarget != null} onClose={() => setSuspendTarget(null)} labelledBy="susp-title" size="sm">
+        <ModalHead icon="ban" id="susp-title" title={suspendTarget?.statut === 'suspenso' ? 'Reativar edifício' : 'Suspender edifício'} onClose={() => setSuspendTarget(null)} />
+        <ModalBody>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+            {suspendTarget?.statut === 'suspenso'
+              ? <>Reativar <b>{suspendTarget?.nom}</b> na gestão ativa?</>
+              : <>Suspender <b>{suspendTarget?.nom}</b> da gestão ativa? O edifício e o seu histórico são conservados — pode reativá-lo a qualquer momento.</>}
+          </p>
+        </ModalBody>
+        <ModalFoot>
+          <Button variant="ghost" onClick={() => setSuspendTarget(null)}>Cancelar</Button>
+          <Button variant={suspendTarget?.statut === 'suspenso' ? 'gold' : 'danger'} onClick={confirmSuspend} disabled={suspendBusy}>{suspendTarget?.statut === 'suspenso' ? 'Reativar' : 'Suspender'}</Button>
+        </ModalFoot>
       </Modal>
 
       <NovaMissaoModal open={missaoImovel != null} onClose={() => setMissaoImovel(null)} prefillImmeuble={missaoImovel ?? ''} lockImmeuble />
