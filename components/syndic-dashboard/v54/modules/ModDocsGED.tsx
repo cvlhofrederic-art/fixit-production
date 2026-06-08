@@ -6,6 +6,7 @@ import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Button } from '../primitives/button'
+import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
@@ -13,6 +14,7 @@ import { useComingSoon } from './use-coming-soon'
 import { useDocumentUpload } from './use-document-upload'
 import {
   useLeaDocuments,
+  useLeaDocActions,
   docTypeLabel,
   docTypeKind,
   docTypeIcon,
@@ -81,6 +83,7 @@ export default function ModDocsGED() {
   const authed = data.authenticated
   const { docs, refresh } = useLeaDocuments({ enabled: authed })
   const upload = useDocumentUpload(refresh)
+  const actions = useLeaDocActions(refresh)
 
   const rows: Row[] = authed ? realRows(docs) : mockRows()
   const nFat = authed ? docs.filter((d) => d.type.startsWith('facture')).length : 1
@@ -144,7 +147,16 @@ export default function ModDocsGED() {
                     <td>{d.edificio}</td>
                     <td>{d.tecnico}</td>
                     <td className={m.numCell}>{d.data}</td>
-                    <td style={{ textAlign: 'right' }}><Button variant="ghost" size="sm" aria-label="Mais opções" title="Mais opções" onClick={soon('Opções do documento')}>⋯</Button></td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {authed ? (
+                        <>
+                          <Button variant="ghost" size="sm" aria-label="Abrir documento" title="Abrir" onClick={() => actions.open(d.id)}><Icon name="eye" /></Button>{' '}
+                          <Button variant="ghost" size="sm" aria-label="Eliminar documento" title="Eliminar" onClick={() => actions.askDelete({ id: d.id, filename: d.nome })}><Icon name="trash" /></Button>
+                        </>
+                      ) : (
+                        <Button variant="ghost" size="sm" aria-label="Mais opções" title="Mais opções" onClick={soon('Opções do documento')}>⋯</Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -152,6 +164,17 @@ export default function ModDocsGED() {
           </div>
         )}
       </Panel>
+
+      <Modal open={!!actions.pending} onClose={actions.cancelDelete} labelledBy="ged-del-title" size="sm">
+        <ModalHead icon="trash" id="ged-del-title" title="Eliminar documento" onClose={actions.cancelDelete} />
+        <ModalBody>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>Pretende eliminar definitivamente <b>{actions.pending?.filename}</b>? O ficheiro é removido do arquivo e do índice da Léa. Esta ação é irreversível.</p>
+        </ModalBody>
+        <ModalFoot>
+          <Button variant="ghost" onClick={actions.cancelDelete}>Cancelar</Button>
+          <Button variant="danger" onClick={actions.confirmDelete} disabled={actions.busy}>Eliminar</Button>
+        </ModalFoot>
+      </Modal>
     </>
   )
 }
