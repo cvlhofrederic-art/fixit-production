@@ -15,6 +15,7 @@ import { Field } from '../primitives/field'
 import { FormRow } from '../primitives/form-row'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import { useDocumentUpload } from './use-document-upload'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -53,6 +54,7 @@ export default function ModContratos() {
 
   // Phase 3 écritures : « + Novo contrato » → POST /api/syndic/contratos.
   const { push } = useToast()
+  const upload = useDocumentUpload(() => data.refresh?.())
   const blank = { fornecedor: '', categoria: 'limpezas', custoMensal: '', custoAnual: '', dataFim: '', immeuble: '' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(blank)
@@ -86,7 +88,7 @@ export default function ModContratos() {
     <>
       <PageHead eyebrow="GESTÃO OPERACIONAL · CENTRALIZADO" title="Contratos com Prestadores"
         lede="Limpezas · Elevadores · Segurança · Jardim · Dedetização · Alertas renovação J-90/60/30 · 3 Orçamentos auto"
-        actions={<><Button onClick={() => push({ kind: 'info', title: 'Upload contrato PDF', desc: 'Análise via Léa em desenvolvimento' })}><Icon name="upload" />Upload contrato PDF (Léa)</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Novo contrato</Button></>} />
+        actions={<><Button onClick={upload('contrat')}><Icon name="upload" />Upload contrato PDF (Léa)</Button><Button variant="gold" onClick={openNew}><Icon name="plus" />+ Novo contrato</Button></>} />
       <Alert kind="sage" icon="check" title="Tempo + Léa = renovações nunca esquecidas">
         Léa extrai datas/valores/partes dos PDFs em segundos. Tempo agenda alertas J-90 · J-60 · J-30 antes do término. A J-60 auto-dispara workflow <strong>3 Orçamentos</strong> para re-concorrência.
       </Alert>

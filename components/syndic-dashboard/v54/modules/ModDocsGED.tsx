@@ -6,6 +6,7 @@ import { Panel } from '../primitives/panel'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
+import { useDocumentUpload } from './use-document-upload'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
@@ -38,6 +39,7 @@ const tipoKind = (tipo: string): PillKind => {
 
 export default function ModDocsGED() {
   const soon = useComingSoon()
+  const upload = useDocumentUpload()
   return (
     <>
       <PageHead
@@ -45,7 +47,7 @@ export default function ModDocsGED() {
         lede="Arquivo digital de todos os documentos — pesquisa, filtros, transmissão à contabilidade"
         actions={<>
           <Button aria-label="Mudar vista para grelha" title="Vista grelha" onClick={soon('Vista em grelha')}><Icon name="grid" /></Button>
-          <Button variant="gold" onClick={soon('Adicionar documento')}><Icon name="plus" />Adicionar um documento</Button>
+          <Button variant="gold" onClick={upload('autre')}><Icon name="plus" />Adicionar um documento</Button>
         </>}
       />
       <div style={{ fontSize: 12, color: 'var(--v54-navy-300)', marginBottom: 14 }}>GED — 10 documentos · 1 relatórios · 1 faturas · 1 orçamentos</div>
