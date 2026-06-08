@@ -553,10 +553,14 @@ export default function DevisFactureForm({
     }
 
     // 2) Fallback : RPC Supabase direct (SECURITY DEFINER)
+    // ⚠️ next_doc_number exige auth.uid() = p_artisan_user_id → on passe l'UID
+    // D'AUTH (artisan.user_id), pas l'id PROFIL (artisan.id, réservé à la clé
+    // localStorage). Ancien bug : artisan.id ici → 'unauthorized' → fallback
+    // local → collisions de numéro cross-device. Cf. lib/doc-number.ts (aligné).
     try {
-      if (artisan?.id) {
+      if (artisan?.user_id) {
         const { data, error } = await supabase.rpc('next_doc_number', {
-          p_artisan_user_id: artisan.id,
+          p_artisan_user_id: artisan.user_id,
           p_doc_type: docType,
           p_year: year,
         })

@@ -192,8 +192,11 @@ export async function POST(request: NextRequest) {
   // Propriétaire de la ligne existante (le cas échéant) — pour le contrôle IDOR
   // ci-dessous. On le récupère dans le même lookup pour éviter un round-trip.
   let existingOwner: string | null = null
+  // Id de la ligne existante : sert à distinguer une vraie transition (même doc)
+  // d'une COLLISION DE NUMÉRO entre deux documents différents (cf. plus bas).
+  let existingId: string | null = null
   {
-    const sel = supabaseAdmin.from(table).select('status, content_hash, artisan_user_id')
+    const sel = supabaseAdmin.from(table).select('id, status, content_hash, artisan_user_id')
     const { data: existing, error: lookupErr } = await (
       docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
     ).maybeSingle()
@@ -201,7 +204,7 @@ export async function POST(request: NextRequest) {
       // Fallback si la colonne content_hash n'existe pas (migration 081 non appliquée).
       // Ne JAMAIS swallow silently une vraie erreur DB : retour 500.
       if (/column .*content_hash.* does not exist/i.test(lookupErr.message || '')) {
-        const selFb = supabaseAdmin.from(table).select('status, artisan_user_id')
+        const selFb = supabaseAdmin.from(table).select('id, status, artisan_user_id')
         const fb = await (
           docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
         ).maybeSingle()
@@ -215,6 +218,7 @@ export async function POST(request: NextRequest) {
         }
         currentStatus = (fb.data?.status as string) || null
         existingOwner = (fb.data?.artisan_user_id as string) || null
+        existingId = (fb.data?.id as string) || null
       } else {
         logger.error(`[devis-sync] status lookup failed ${docRec.docNumber}:`, lookupErr.message)
         Sentry.captureException(lookupErr, {
@@ -227,6 +231,7 @@ export async function POST(request: NextRequest) {
       currentStatus = (existing?.status as string) || null
       existingContentHash = (existing?.content_hash as string) || null
       existingOwner = (existing?.artisan_user_id as string) || null
+      existingId = (existing?.id as string) || null
     }
   }
 
@@ -248,6 +253,25 @@ export async function POST(request: NextRequest) {
 
   const docTypeForGuard: 'devis' | 'facture' = docType
   if (currentStatus && !canTransition(currentStatus, incomingStatus, docTypeForGuard)) {
+    // Discriminateur COLLISION DE NUMÉRO vs vraie transition.
+    // Si la ligne existante (retrouvée par numéro ou par id) porte un id
+    // DIFFÉRENT de l'id stable entrant, ce n'est PAS une transition arrière du
+    // même document : ce sont DEUX documents distincts qui se disputent le même
+    // numéro légal (typiquement après un fallback de numérotation localStorage
+    // sur un device neuf — cause racine du bug « doc qui disparaît »). On le
+    // signale par un corps distinct `numero_collision` pour que le client
+    // renumérote le doc entrant et resynchronise, AU LIEU de le perdre.
+    // Le cas même-id (existingId === docId, ou pas d'id stable des deux côtés)
+    // reste un vrai conflit de transition → réponse inchangée.
+    // NB : on exige docId NON-NULL (id canonique entrant). Un doc LEGACY (docId
+    // null, retrouvé par numéro) qui resync SA PROPRE ligne ne doit JAMAIS être
+    // vu comme une collision (sinon renumérotation à tort) → vrai conflit.
+    const isNumberCollision =
+      !!existingId && !!docId && existingId !== docId
+    if (isNumberCollision) {
+      logger.warn(`[devis-sync] numero collision ${docRec.docNumber} existing=${existingId} incoming=${docId ?? '(no-id)'}`)
+      return NextResponse.json({ error: 'numero_collision' }, { status: 409 })
+    }
     logger.warn(`[devis-sync] invalid transition ${currentStatus} -> ${incomingStatus} on ${docRec.docNumber}`)
     return NextResponse.json({
       error: 'Invalid status transition',

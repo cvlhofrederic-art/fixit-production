@@ -913,10 +913,14 @@ export default function DevisFactureFormBTP({
     } catch { /* fallthrough */ }
 
     // 2) RPC Supabase direct
+    // ⚠️ next_doc_number exige auth.uid() = p_artisan_user_id → UID D'AUTH
+    // (artisan.user_id), pas l'id PROFIL (artisan.id, réservé au fallback local).
+    // Ancien bug : artisan.id ici → 'unauthorized' → fallback → collisions
+    // cross-device. Cf. lib/doc-number.ts + DevisFactureForm.tsx (alignés).
     try {
-      if (artisan?.id) {
+      if (artisan?.user_id) {
         const { data, error } = await supabase.rpc('next_doc_number', {
-          p_artisan_user_id: artisan.id,
+          p_artisan_user_id: artisan.user_id,
           p_doc_type: rpcDocType,
           p_year: year,
         })
@@ -934,7 +938,7 @@ export default function DevisFactureFormBTP({
     docNumberRef.current = fallback
     setDocNumber(fallback)
     return fallback
-  }, [artisan?.id, docType, factureSubType])
+  }, [artisan?.id, artisan?.user_id, docType, factureSubType])
 
   // Méthode pro (modèle Stripe) : un brouillon n'a PAS de numéro. docNumber reste
   // vide tant que le document n'est pas validé ; le numéro légal (DEV-/FACT-/AV-/

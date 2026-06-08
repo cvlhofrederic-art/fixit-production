@@ -40,9 +40,20 @@ export function localFallbackDocNumber(artisanId: string | undefined, docType: D
 export async function fetchNextDocNumber(docType: DocSeriesType, artisanId: string | undefined): Promise<string> {
   const year = new Date().getFullYear()
 
-  // 1) API HTTP avec Bearer token
+  // Session récupérée UNE fois : l'access_token sert à l'API, l'uid d'auth
+  // (session.user.id) au RPC. ⚠️ next_doc_number (SECURITY DEFINER) exige
+  // auth.uid() = p_artisan_user_id : il faut donc l'UID D'AUTH, pas l'id PROFIL
+  // `artisanId` (qui ne sert qu'à la clé localStorage). L'ancien code passait
+  // `artisanId` → 'unauthorized' systématique → fallback local → collisions de
+  // numéro selon l'ordinateur (cause racine du bug « doc qui disparaît »).
+  let session: { access_token?: string; user?: { id?: string } } | null = null
   try {
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data } = await supabase.auth.getSession()
+    session = data.session
+  } catch { /* pas de session → on dégrade vers le fallback local */ }
+
+  // 1) API HTTP avec Bearer token (source autoritaire : le serveur lit auth.uid)
+  try {
     const authHeader: Record<string, string> = session?.access_token
       ? { Authorization: `Bearer ${session.access_token}` }
       : {}
@@ -57,11 +68,12 @@ export async function fetchNextDocNumber(docType: DocSeriesType, artisanId: stri
     }
   } catch { /* fallthrough */ }
 
-  // 2) RPC Supabase direct
+  // 2) RPC Supabase direct — AVEC L'UID D'AUTH (session.user.id), pas l'id profil
   try {
-    if (artisanId) {
+    const authUid = session?.user?.id
+    if (authUid) {
       const { data, error } = await supabase.rpc('next_doc_number', {
-        p_artisan_user_id: artisanId,
+        p_artisan_user_id: authUid,
         p_doc_type: docType,
         p_year: year,
       })
@@ -69,6 +81,6 @@ export async function fetchNextDocNumber(docType: DocSeriesType, artisanId: stri
     }
   } catch { /* fallthrough */ }
 
-  // 3) Fallback localStorage
+  // 3) Fallback localStorage (clé = id profil `artisanId`)
   return localFallbackDocNumber(artisanId, docType)
 }
