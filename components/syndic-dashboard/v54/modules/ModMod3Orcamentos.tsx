@@ -12,11 +12,10 @@ import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
 import { Field } from '../primitives/field'
 import { FormRow } from '../primitives/form-row'
 import Icon from '../primitives/icon/Icon'
-import { useComingSoon } from './use-coming-soon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import type { Obra } from '@/lib/syndic/v54/api'
+import type { Obra, Orcamento } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
 
 /** Orçamentos & Obras (3 orçamentos) — port V5.7 + lot 7 fonctionnel.
@@ -41,11 +40,28 @@ const PREVIEW: Obra[] = [
 ]
 
 export default function ModMod3Orcamentos() {
-  const soon = useComingSoon()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Obra[] = real ? (data.obras ?? []) : PREVIEW
   const { busy, create } = useSyndicCreate('/api/syndic/obras')
+
+  // Phase A : comparaison « 3 orçamentos » par obra → POST /api/syndic/orcamentos.
+  const orc = useSyndicCreate('/api/syndic/orcamentos')
+  const [compareObra, setCompareObra] = useState<Obra | null>(null)
+  const orcBlank = { empresa: '', valor: '', prazoDias: '' }
+  const [orcForm, setOrcForm] = useState(orcBlank)
+  const orcUpd = (k: keyof typeof orcBlank, v: string) => setOrcForm(s => ({ ...s, [k]: v }))
+  const orcamentosObra: Orcamento[] = compareObra
+    ? (data.orcamentos ?? []).filter(x => x.obraId === compareObra.id).slice().sort((a, b) => a.valor - b.valor)
+    : []
+  const addOrcamento = (e: FormEvent) => {
+    e.preventDefault()
+    if (!compareObra || !orcForm.empresa.trim()) return
+    orc.create(
+      { obraId: compareObra.id, empresa: orcForm.empresa, valor: Number(orcForm.valor) || 0, prazoDias: Number(orcForm.prazoDias) || undefined },
+      { okTitle: 'Orçamento adicionado', desc: orcForm.empresa, onDone: () => setOrcForm(orcBlank) },
+    )
+  }
 
   const blank: ObraForm = { titulo: '', tipo: '', descricao: '', local: '', prazo: '', estado: 'orcamentacao', orcamento: '', empresa: '', numOrcamentos: '' }
   const [open, setOpen] = useState(false)
@@ -108,7 +124,7 @@ export default function ModMod3Orcamentos() {
                     <Pill kind="sage" noDot>{o.numOrcamentos}/3 orçamentos</Pill>
                     <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
                       {i === 0
-                        ? <Button size="sm" onClick={soon('Comparar orçamentos', 'Comparação de orçamentos em desenvolvimento')}><Icon name="chart" />Comparar</Button>
+                        ? <Button size="sm" onClick={() => setCompareObra(o)}><Icon name="chart" />Comparar</Button>
                         : <select className={clsx(btnCss.btn, btnCss.sm)} style={{ flex: 1 }} aria-label="Estado da obra"><option>{titulo}</option></select>}
                     </div>
                   </Panel>
@@ -118,6 +134,47 @@ export default function ModMod3Orcamentos() {
           )
         })}
       </div>
+
+      <Modal open={compareObra != null} onClose={() => setCompareObra(null)} labelledBy="cmp-title" size="md">
+        <ModalHead icon="chart" id="cmp-title" title="Comparar orçamentos" onClose={() => setCompareObra(null)} />
+        <ModalBody>
+          <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, marginBottom: 4 }}>{compareObra?.titulo}</div>
+          <div style={{ fontSize: 12, color: 'var(--v54-navy-300)', marginBottom: 14 }}>Lei 8/2022 — mínimo 3 orçamentos antes da aprovação em AG.</div>
+          {orcamentosObra.length === 0 ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>Nenhum orçamento registado. Adicione abaixo.</div>
+          ) : (
+            <div className={m.tblWrap}>
+              <table className={m.tbl}>
+                <thead><tr><th>Empresa</th><th>Valor</th><th>Prazo</th></tr></thead>
+                <tbody>{orcamentosObra.map((x, idx) => (
+                  <tr key={x.id}>
+                    <td><b>{x.empresa || '—'}</b> {x.recomendado && <Pill kind="gold" noDot>Recomendado</Pill>}</td>
+                    <td className={m.numCell}>{fmtEUR(x.valor)} {idx === 0 && orcamentosObra.length > 1 && <Pill kind="sage" noDot>Mais baixo</Pill>}</td>
+                    <td className={m.numCell}>{x.prazoDias != null ? `${x.prazoDias} dias` : '—'}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+          <form onSubmit={addOrcamento} style={{ marginTop: 16 }} noValidate>
+            <FormRow>
+              <Field label="Empresa" name="orc-emp">
+                <input type="text" placeholder="Nome da empresa" value={orcForm.empresa} onChange={e => orcUpd('empresa', e.target.value)} />
+              </Field>
+              <Field label="Valor (€)" name="orc-val">
+                <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={orcForm.valor} onChange={e => orcUpd('valor', e.target.value)} />
+              </Field>
+            </FormRow>
+            <Field label="Prazo (dias)" name="orc-prz">
+              <input type="number" min="0" inputMode="numeric" placeholder="—" value={orcForm.prazoDias} onChange={e => orcUpd('prazoDias', e.target.value)} />
+            </Field>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={orc.busy} style={{ marginTop: 10 }}><Icon name="plus" />Adicionar orçamento</button>
+          </form>
+        </ModalBody>
+        <ModalFoot>
+          <Button variant="ghost" onClick={() => setCompareObra(null)}>Fechar</Button>
+        </ModalFoot>
+      </Modal>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="obra-modal-title" size="md">
         <ModalHead icon="construction" id="obra-modal-title" title="Nova obra" onClose={() => setOpen(false)} />
