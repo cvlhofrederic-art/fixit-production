@@ -28,8 +28,16 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
+// Renumérotation : mock de fetchNextDocNumber (séquence serveur) pour le test du
+// filet anti-collision côté client (syncDocumentSafe doit renuméroter et resync).
+const mockFetchNextDocNumber = vi.fn()
+vi.mock('@/lib/doc-number', () => ({
+  fetchNextDocNumber: (...args: unknown[]) => mockFetchNextDocNumber(...args),
+}))
+
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
 }))
 
 vi.mock('sonner', () => ({
@@ -191,5 +199,96 @@ describe('syncDocumentToSupabase — refresh + retry', () => {
     const result = await syncDocumentToSupabase({ docType: 'devis' }, 'artisan-1')
     expect(result).toEqual(expect.objectContaining({ ok: false, kind: 'validation' }))
     expect(mockFetch).not.toHaveBeenCalled()
+  })
+})
+
+// ── Filet anti-collision : 409 { numero_collision } → renumérote + resync 1× ──
+// Cause racine du bug « doc qui disparaît » : un device neuf retombait sur le
+// fallback localStorage et émettait FACT-2026-001 alors qu'un FACT-2026-001
+// PAYÉ existait déjà en base (autre doc) → 409 → l'ancien code DROPPAIT le doc.
+// syncDocumentSafe doit désormais : tirer un nouveau numéro (fetchNextDocNumber),
+// réécrire docNumber/numero en localStorage ET en mémoire, retenter UNE fois.
+describe('syncDocumentSafe — renumérotation sur collision de numéro', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+    getSession.mockReset()
+    refreshSession.mockReset()
+    mockFetchNextDocNumber.mockReset()
+    localStorage.clear()
+    getSession.mockResolvedValue({ data: freshSession('token-A') })
+  })
+
+  function collisionResponse() {
+    return { status: 409, text: async () => JSON.stringify({ error: 'numero_collision' }) }
+  }
+
+  it('renumérote le doc et resync une fois après numero_collision (doc NON perdu)', async () => {
+    const ARTISAN = 'artisan-collide'
+    const doc: Record<string, unknown> = {
+      id: '11111111-1111-4111-8111-111111111111',
+      docType: 'facture',
+      docNumber: 'FACT-2026-001',
+      status: 'envoye',
+    }
+    // Le doc est déjà persisté en localStorage (comme après saveAndSend).
+    localStorage.setItem(`fixit_documents_${ARTISAN}`, JSON.stringify([{ ...doc }]))
+
+    // 1er sync → collision ; 2e sync (après renumérotation) → 200.
+    mockFetch
+      .mockResolvedValueOnce(collisionResponse())
+      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ id: 'row-1', numero: 'FACT-2026-007' }) })
+    mockFetchNextDocNumber.mockResolvedValue('FACT-2026-007')
+
+    const { syncDocumentSafe } = await import('../lib/document-sync')
+    await syncDocumentSafe(doc, ARTISAN)
+
+    // fetchNextDocNumber appelé avec le bon type + artisanId
+    expect(mockFetchNextDocNumber).toHaveBeenCalledWith('facture', ARTISAN)
+    // Deux POST : l'échec puis le retry avec le nouveau numéro
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const secondBody = JSON.parse((mockFetch.mock.calls[1]![1] as { body: string }).body)
+    expect(secondBody.doc.docNumber).toBe('FACT-2026-007')
+
+    // Le doc en mémoire est renuméroté (pas perdu)
+    expect(doc.docNumber).toBe('FACT-2026-007')
+
+    // localStorage réécrit avec le nouveau numéro
+    const stored = JSON.parse(localStorage.getItem(`fixit_documents_${ARTISAN}`) || '[]')
+    expect(stored).toHaveLength(1)
+    expect(stored[0].docNumber).toBe('FACT-2026-007')
+
+    // Pas de toast de perte sur le chemin résolu (le doc est sauvé)
+    const { toast } = await import('sonner')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('toaste seulement si le retry après renumérotation échoue encore', async () => {
+    const ARTISAN = 'artisan-collide-2'
+    const doc: Record<string, unknown> = {
+      id: '22222222-2222-4222-8222-222222222222',
+      docType: 'facture',
+      docNumber: 'FACT-2026-001',
+      status: 'envoye',
+    }
+    localStorage.setItem(`fixit_documents_${ARTISAN}`, JSON.stringify([{ ...doc }]))
+
+    // collision puis 500 persistant (retry exponentiel épuisé) sur le 2e numéro
+    mockFetch
+      .mockResolvedValueOnce(collisionResponse())
+      .mockResolvedValue({ status: 500, text: async () => 'down' })
+    mockFetchNextDocNumber.mockResolvedValue('FACT-2026-007')
+
+    vi.useFakeTimers()
+    const { syncDocumentSafe } = await import('../lib/document-sync')
+    const p = syncDocumentSafe(doc, ARTISAN)
+    await vi.runAllTimersAsync()
+    await p
+    vi.useRealTimers()
+
+    // La renumérotation a bien eu lieu (doc renuméroté, jamais silencieusement perdu)
+    expect(doc.docNumber).toBe('FACT-2026-007')
+    // Mais comme le retry échoue, on surface un toast
+    const { toast } = await import('sonner')
+    expect(toast.error).toHaveBeenCalled()
   })
 })

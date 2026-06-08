@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'tok' } } }) },
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'tok', user: { id: 'uid-auth' } } } }) },
     rpc: vi.fn(),
   },
 }))
@@ -23,7 +23,7 @@ const YEAR = new Date().getFullYear()
 beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
-  ;(supabase.auth.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { session: { access_token: 'tok' } } })
+  ;(supabase.auth.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { session: { access_token: 'tok', user: { id: 'uid-auth' } } } })
 })
 
 describe('localFallbackDocNumber', () => {
@@ -54,6 +54,21 @@ describe('fetchNextDocNumber', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: () => Promise.resolve({}) }))
     ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: `AC-${YEAR}-008`, error: null })
     await expect(fetchNextDocNumber('acompte', ART)).resolves.toBe(`AC-${YEAR}-008`)
+    vi.unstubAllGlobals()
+  })
+
+  it('2b) la RPC reçoit l\'auth uid (session.user.id), PAS l\'id profil passé pour le localStorage', async () => {
+    // Bug cross-device : l'ancien code passait l'id PROFIL (artisan.id) au RPC
+    // next_doc_number, qui exige auth.uid() = p_artisan_user_id → 'unauthorized'
+    // systématique → fallback localStorage → collisions selon l'ordinateur.
+    // L'uid d'auth doit venir de la session, l'id profil ne sert qu'à la clé localStorage.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: () => Promise.resolve({}) }))
+    ;(supabase.auth.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { session: { access_token: 'tok', user: { id: 'uid-auth' } } },
+    })
+    ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: `AC-${YEAR}-008`, error: null })
+    await fetchNextDocNumber('acompte', 'profil-id-different')
+    expect(supabase.rpc).toHaveBeenCalledWith('next_doc_number', expect.objectContaining({ p_artisan_user_id: 'uid-auth' }))
     vi.unstubAllGlobals()
   })
 
