@@ -658,3 +658,17 @@ export interface Evento {
 }
 export const fetchEventos = (token: string): Promise<Evento[]> =>
   getList<Evento>('/api/syndic/eventos', token, 'eventos')
+
+// ── Phase A : Orçamentos (devis individuels par obra — comparaison 3 orçamentos) ──
+export interface Orcamento {
+  id: string
+  obraId: string
+  empresa: string
+  valor: number
+  prazoDias: number | null
+  validade: string
+  notas: string
+  recomendado: boolean
+}
+export const fetchOrcamentos = (token: string): Promise<Orcamento[]> =>
+  getList<Orcamento>('/api/syndic/orcamentos', token, 'orcamentos')
