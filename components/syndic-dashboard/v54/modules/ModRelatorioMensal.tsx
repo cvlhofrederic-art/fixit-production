@@ -8,6 +8,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 
 /** Relatório Mensal — port byte-exact du ModRelatorioMensal du bundle V5.7 (aperçu PDF) + Phase 3 :
  * aperçu calculé (lecture seule) depuis data.missions filtrées par mois, avec sélecteurs Mês/Ano
@@ -71,6 +72,17 @@ export default function ModRelatorioMensal() {
   const periodLabel = real ? `${monthName(selMonth)} ${selYear}` : 'Abril 2026'
   const geradoA = real ? isoToBR(fallback + '-' + String(new Date().getDate()).padStart(2, '0')) : '24/05/2026'
 
+  const exportPdf = () => {
+    if (!real) { push({ kind: 'info', title: 'Descarregar PDF', desc: 'Conecte-se como síndico para gerar o relatório.' }); return }
+    downloadReportPdf(`relatorio-mensal-${period}.pdf`, {
+      title: 'Relatório Mensal de Gestão',
+      subtitle: 'Síntese mensal de gestão',
+      periodLabel,
+      kpis: stats.map((s) => ({ label: s[1], value: s[0] })),
+      tables: [{ caption: 'Intervenções do mês', headers: ['Descrição', 'Profissional', 'Data', 'Montante'], rows: interv.map((r) => [r[0], r[1], r[2], r[3]]) }],
+    })
+  }
+
   return (
     <>
       <PageHead title="Relatório Mensal" lede="Síntese mensal de gestão — descarregar PDF ou enviar aos condóminos" />
@@ -97,7 +109,7 @@ export default function ModRelatorioMensal() {
             )}
           </div>
           <Button onClick={() => emDesenvolvimento('Envio por email')}><Icon name="mail" />Enviar aos condóminos</Button>
-          <Button variant="gold" onClick={() => emDesenvolvimento('Geração de PDF')}><Icon name="download" />Descarregar PDF</Button>
+          <Button variant="gold" onClick={exportPdf}><Icon name="download" />Descarregar PDF</Button>
         </div>
       </Panel>
       <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--v54-navy-300)', margin: '8px 0 14px' }}>Pré-visualização do relatório — este conteúdo será gerado em PDF</div>
