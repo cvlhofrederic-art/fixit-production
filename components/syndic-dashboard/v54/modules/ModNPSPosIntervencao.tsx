@@ -14,7 +14,6 @@ import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
 import { Field } from '../primitives/field'
 import { FormRow } from '../primitives/form-row'
 import Icon from '../primitives/icon/Icon'
-import { useComingSoon } from './use-coming-soon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
@@ -29,11 +28,29 @@ type NpsForm = { prestador: string; condomino: string; intervencao: string; tipo
 
 const notaKind = (n: number): PillKind => (n >= 9 ? 'sage' : n <= 6 ? 'rust' : 'amber')
 
+/** Agrégation NPS par clé (prestador / tipo) : nombre, note moyenne, NPS = %promo − %detr. */
+type AggRow = { label: string; n: number; media: number; nps: number }
+function aggregateNps(rows: Nps[], key: (n: Nps) => string): AggRow[] {
+  const map = new Map<string, Nps[]>()
+  for (const r of rows) {
+    const k = key(r) || '—'
+    const arr = map.get(k)
+    if (arr) arr.push(r); else map.set(k, [r])
+  }
+  return Array.from(map.entries())
+    .map(([label, rs]) => {
+      const promo = rs.filter(r => r.nota >= 9).length
+      const detr = rs.filter(r => r.nota <= 6).length
+      return { label, n: rs.length, media: Math.round((rs.reduce((s, r) => s + r.nota, 0) / rs.length) * 10) / 10, nps: Math.round(((promo - detr) / rs.length) * 100) }
+    })
+    .sort((a, b) => b.nps - a.nps)
+}
+
 export default function ModNPSPosIntervencao() {
-  const soon = useComingSoon()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Nps[] = real ? (data.nps ?? []) : []
+  const [tab, setTab] = useState('resp')
   const { busy, create } = useSyndicCreate('/api/syndic/nps')
 
   const blank: NpsForm = { prestador: '', condomino: '', intervencao: '', tipo: '', nota: '', comentario: '' }
@@ -58,12 +75,14 @@ export default function ModNPSPosIntervencao() {
   const passivos = all.filter(n => n.nota === 7 || n.nota === 8).length
   const npsMedio = all.length ? Math.round(((promotores - detratores) / all.length) * 100) : 0
   const prestadores = new Set(all.map(n => n.prestador).filter(Boolean)).size
+  const agg = tab === 'prest' ? aggregateNps(all, n => n.prestador) : aggregateNps(all, n => n.tipo || n.intervencao)
+  const aggLabel = tab === 'prest' ? 'Prestador' : 'Tipo de intervenção'
 
   return (
     <>
       <PageHead eyebrow="OPERACIONAL · NPS PÓS-INTERVENÇÃO" title="NPS Pós-Intervenção"
         lede="Auto-envio 48h após fecho ordem serviço · NPS + comentário · Rating Marketplace · Alfredo agrega insights"
-        actions={<><Button onClick={openNew}><Icon name="plus" />Registar resposta</Button><Button variant="gold" onClick={soon('Dashboard prestadores', 'Painel de prestadores em desenvolvimento')}><Icon name="chart" />Ver dashboard prestadores</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="plus" />Registar resposta</Button><Button variant="gold" onClick={() => setTab('prest')}><Icon name="chart" />Ver dashboard prestadores</Button></>} />
       <Alert kind="sage" icon="check" title="Loop fechado qualidade prestadores">
         Cada intervenção fechada dispara um inquérito 48h depois. As respostas alimentam o rating no Marketplace e o Alfredo deteta prestadores em descida de satisfação antes que escalone.
       </Alert>
@@ -75,7 +94,7 @@ export default function ModNPSPosIntervencao() {
         { icon: 'mail', num: passivos, lbl: 'Passivos (7-8)', accent: 'gold' },
         { icon: 'wrench', num: prestadores, lbl: 'Prestadores avaliados' },
       ]} />
-      <Tabs defaultActive="resp" tabs={[
+      <Tabs active={tab} onChange={setTab} tabs={[
         { id: 'resp', icon: 'poll', label: 'Respostas recentes' },
         { id: 'prest', icon: 'wrench', label: 'Por prestador' },
         { id: 'tipo', icon: 'tag', label: 'Por tipo intervenção' },
@@ -85,12 +104,21 @@ export default function ModNPSPosIntervencao() {
           <Empty illustration="mensagens" title="Nenhum inquérito enviado ainda"
             desc="Quando uma ordem de serviço for marcada como Concluída, um inquérito (1 pergunta NPS + 1 comentário) é enviado automaticamente 48 horas depois ao condómino que abriu."
             action={<Button variant="primary" onClick={openNew}><Icon name="plus" />Registar primeira resposta</Button>} />
-        ) : (
+        ) : tab === 'resp' ? (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
               <thead><tr><th>Prestador</th><th>Condómino</th><th>Intervenção</th><th>Nota</th><th>Comentário</th></tr></thead>
               <tbody>{all.map(n => (
                 <tr key={n.id}><td><b>{n.prestador || '—'}</b></td><td>{n.condomino || '—'}</td><td>{n.intervencao || n.tipo || '—'}</td><td><Pill kind={notaKind(n.nota)} noDot>{n.nota}/10</Pill></td><td>{n.comentario || '—'}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={m.tblWrap}>
+            <table className={m.tbl}>
+              <thead><tr><th>{aggLabel}</th><th>Respostas</th><th>Nota média</th><th>NPS</th></tr></thead>
+              <tbody>{agg.map(r => (
+                <tr key={r.label}><td><b>{r.label}</b></td><td className={m.numCell}>{r.n}</td><td className={m.numCell}>{r.media.toFixed(1)}</td><td><Pill kind={r.nps >= 0 ? 'sage' : 'rust'} noDot>{r.nps}</Pill></td></tr>
               ))}</tbody>
             </table>
           </div>
