@@ -121,7 +121,7 @@ export default function ModProfissionais() {
         title="Profissionais"
         lede={lede}
         actions={<>
-          <Button onClick={() => push({ kind: 'info', title: 'Sincronizar conformidade', desc: 'Funcionalidade em desenvolvimento' })}><Icon name="check" />Sincro conformidade</Button>
+          <Button onClick={() => { data.refresh?.(); push({ kind: real ? 'success' : 'info', title: 'Conformidade sincronizada', desc: real ? 'Dados de conformidade atualizados.' : 'Conecte-se como síndico para sincronizar.' }) }}><Icon name="check" />Sincro conformidade</Button>
           <Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar um profissional</Button>
         </>}
       />
