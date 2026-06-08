@@ -8,6 +8,7 @@ import { Empty } from '../primitives/empty'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import { useComingSoon } from './use-coming-soon'
+import { useDocumentUpload } from './use-document-upload'
 
 /** Documentos de Intervenções — port byte-exact du ModDocsInterv du bundle V5.7. */
 
@@ -16,12 +17,13 @@ const searchIcon = { position: 'absolute', left: 12, top: 11, width: 14, height:
 
 export default function ModDocsInterv() {
   const soon = useComingSoon()
+  const upload = useDocumentUpload()
   return (
     <>
       <PageHead
         title="Documentos de Intervenções"
         lede="Faturas · Orçamentos · Relatórios · Fotos — Transmissão à contabilidade"
-        actions={<Button variant="gold" onClick={soon('Adicionar documento')}><Icon name="plus" />Adicionar documento</Button>}
+        actions={<Button variant="gold" onClick={upload('autre')}><Icon name="plus" />Adicionar documento</Button>}
       />
       <KPIGrid items={[
         { icon: 'file', num: 0, lbl: 'Total documentos', sub: 'Todas as categorias' },
@@ -47,7 +49,7 @@ export default function ModDocsInterv() {
           illustration="documentos"
           title="Nenhum documento"
           desc="Adicione faturas, orçamentos e relatórios de intervenção"
-          action={<Button variant="gold" onClick={soon('Adicionar documento')}><Icon name="plus" />Adicionar documento</Button>}
+          action={<Button variant="gold" onClick={upload('autre')}><Icon name="plus" />Adicionar documento</Button>}
         />
       </Panel>
     </>
