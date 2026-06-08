@@ -404,6 +404,17 @@ export const syndicImmeubleSchema = z.object({
   statut: z.enum(['ativo', 'suspenso']).optional(),
 })
 
+// ── Syndic Orçamento schema (Phase A — comparaison 3 devis, Lei 8/2022) ──
+export const syndicOrcamentoSchema = z.object({
+  obraId: z.string().uuid(),
+  empresa: z.string().max(200).optional(),
+  valor: z.number().min(0).optional(),
+  prazoDias: z.number().int().min(0).max(3650).optional(),
+  validade: z.string().max(100).optional(),
+  notas: z.string().max(2000).optional(),
+  recomendado: z.boolean().optional(),
+})
+
 // ── Syndic Contrat schema (Phase 3 — ModContratos) ────────────────────────
 export const syndicContratSchema = z.object({
   immeuble: z.string().max(200).optional(),
