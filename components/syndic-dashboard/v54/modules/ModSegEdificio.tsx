@@ -73,11 +73,33 @@ export default function ModSegEdificio() {
     push({ kind: 'info', title: 'Edifício classificado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
   }
 
+  // Phase C : « Gerar plano emergência (Alfredo) » → /api/syndic/seg-edificio-plano.
+  const [planoOpen, setPlanoOpen] = useState(false)
+  const [planoForm, setPlanoForm] = useState({ edificio: '', categoria: '1', encarregado: '' })
+  const [planoBusy, setPlanoBusy] = useState(false)
+  const [planoText, setPlanoText] = useState('')
+  const pUpd = (k: keyof typeof planoForm, v: string) => setPlanoForm((s) => ({ ...s, [k]: v }))
+  const openPlano = () => { setPlanoForm({ edificio: '', categoria: '1', encarregado: '' }); setPlanoText(''); setPlanoOpen(true) }
+  const gerarPlano = () => {
+    if (!planoForm.edificio.trim()) { push({ kind: 'info', title: 'Edifício', desc: 'Indique o edifício.' }); return }
+    if (!real || !data.token) { push({ kind: 'info', title: 'Plano de emergência', desc: 'Conecte-se como síndico para usar o Alfredo.' }); return }
+    setPlanoBusy(true)
+    fetch('/api/syndic/seg-edificio-plano', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+      body: JSON.stringify({ edificio: planoForm.edificio, categoria: planoForm.categoria, encarregado: planoForm.encarregado }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json() })
+      .then((d) => setPlanoText(typeof d.plano === 'string' ? d.plano : ''))
+      .catch(() => push({ kind: 'error', title: 'Erro', desc: 'Não foi possível gerar o plano.' }))
+      .finally(() => setPlanoBusy(false))
+  }
+
   return (
     <>
       <PageHead eyebrow="OBRIGAÇÃO LEGAL · DL 220/2008 (RSCIE) + PORTARIA 1532/2008" title="Segurança Contra Incêndio"
         lede="Classificação UT 1-12 · Categoria risco 1/2/3/4 · Encarregado de Segurança · Plano emergência · Exercícios"
-        actions={<><Button onClick={openNew}><Icon name="building" />Classificar edifício</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Gerar plano de emergência', desc: 'Geração via Alfredo em desenvolvimento' })}><Icon name="bot" />Gerar plano emergência (Alfredo)</Button></>} />
+        actions={<><Button onClick={openNew}><Icon name="building" />Classificar edifício</Button><Button variant="gold" onClick={openPlano}><Icon name="bot" />Gerar plano emergência (Alfredo)</Button></>} />
       <Alert kind="gold" icon="scale" title="Regime Jurídico de Segurança Contra Incêndio">
         Todos os edifícios habitacionais (UT I) com altura &gt; 9m ou &gt; 9 pisos = <strong>categoria risco 3 ou 4</strong>. Obrigam <strong>Encarregado de Segurança</strong> designado + plano emergência + exercícios de evacuação anuais.
       </Alert>
@@ -163,6 +185,33 @@ export default function ModSegEdificio() {
             <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Classificar</button>
           </ModalFoot>
         </form>
+      </Modal>
+
+      <Modal open={planoOpen} onClose={() => setPlanoOpen(false)} labelledBy="plano-title" size="md">
+        <ModalHead icon="bot" id="plano-title" title="Gerar plano de emergência (Alfredo)" onClose={() => setPlanoOpen(false)} />
+        <ModalBody>
+          <FormRow>
+            <Field label="Edifício" name="plano-ed">
+              <input type="text" placeholder="Nome do edifício" value={planoForm.edificio} onChange={(e) => pUpd('edificio', e.target.value)} />
+            </Field>
+            <Field label="Categoria de risco" name="plano-cat">
+              <select value={planoForm.categoria} onChange={(e) => pUpd('categoria', e.target.value)}>
+                <option value="1">Categoria 1</option>
+                <option value="2">Categoria 2</option>
+                <option value="3">Categoria 3</option>
+                <option value="4">Categoria 4</option>
+              </select>
+            </Field>
+          </FormRow>
+          <Field label="Encarregado de Segurança" full name="plano-enc">
+            <input type="text" placeholder="Nome (opcional)" value={planoForm.encarregado} onChange={(e) => pUpd('encarregado', e.target.value)} />
+          </Field>
+          {planoText && <div style={{ marginTop: 14, maxHeight: 320, overflow: 'auto', background: 'var(--v54-paper)', border: '1px solid var(--v54-line)', borderRadius: 8, padding: 14, fontSize: 12.5, whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{planoText}</div>}
+        </ModalBody>
+        <ModalFoot>
+          <Button variant="ghost" onClick={() => setPlanoOpen(false)}>Fechar</Button>
+          <button type="button" className={clsx(btnCss.btn, btnCss.gold)} disabled={planoBusy} onClick={gerarPlano}>{planoBusy ? 'A gerar…' : (planoText ? 'Regenerar' : 'Gerar plano')}</button>
+        </ModalFoot>
       </Modal>
     </>
   )
