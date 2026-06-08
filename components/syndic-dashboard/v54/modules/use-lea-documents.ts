@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useToast } from '../primitives/toast'
 import type { PillKind } from '../primitives/pill'
 import type { IconName } from '@/lib/syndic/icon-names'
 
@@ -125,4 +126,74 @@ export function useLeaDocuments(opts: { enabled: boolean }): UseLeaDocumentsResu
   }, [refresh])
 
   return { docs, loading, refresh }
+}
+
+/** Référence minimale d'un document pour les actions (ouvrir / supprimer). */
+export interface LeaDocRef { id: string; filename: string }
+
+interface UseLeaDocActionsResult {
+  /** Ouvre le document dans un nouvel onglet via une signed URL (10 min). */
+  open: (id: string) => Promise<void>
+  /** Document en attente de confirmation de suppression (null = aucune). */
+  pending: LeaDocRef | null
+  /** Arme la confirmation de suppression pour un document. */
+  askDelete: (doc: LeaDocRef) => void
+  /** Annule la confirmation de suppression. */
+  cancelDelete: () => void
+  /** Confirme et exécute la suppression (Storage + row) puis rafraîchit. */
+  confirmDelete: () => Promise<void>
+  busy: boolean
+}
+
+/**
+ * Actions sur un document Léa : ouverture (signed URL) et suppression (avec
+ * confirmation à deux temps via `pending`). Utilise les endpoints existants
+ * GET/DELETE /api/syndic/lea-documents/[id]. `onChanged` rafraîchit la liste.
+ */
+export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult {
+  const { push } = useToast()
+  const [pending, setPending] = useState<LeaDocRef | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const open = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/syndic/lea-documents/${id}`)
+      if (!res.ok) {
+        push({ kind: 'error', title: 'Não foi possível abrir', desc: 'Documento indisponível ou sessão expirada.' })
+        return
+      }
+      const data = (await res.json()) as { signed_url?: string }
+      if (data.signed_url) window.open(data.signed_url, '_blank', 'noopener,noreferrer')
+    } catch {
+      push({ kind: 'error', title: 'Erro de rede', desc: 'Não foi possível abrir o documento.' })
+    }
+  }, [push])
+
+  const confirmDelete = useCallback(async () => {
+    if (!pending) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/syndic/lea-documents/${pending.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        push({ kind: 'error', title: 'Erro ao eliminar', desc: 'Tente novamente mais tarde.' })
+        return
+      }
+      push({ kind: 'success', title: 'Documento eliminado', desc: pending.filename })
+      setPending(null)
+      onChanged?.()
+    } catch {
+      push({ kind: 'error', title: 'Erro de rede', desc: 'Não foi possível eliminar o documento.' })
+    } finally {
+      setBusy(false)
+    }
+  }, [pending, push, onChanged])
+
+  return {
+    open,
+    pending,
+    askDelete: setPending,
+    cancelDelete: () => setPending(null),
+    confirmDelete,
+    busy,
+  }
 }
