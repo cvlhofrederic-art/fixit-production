@@ -672,3 +672,12 @@ export interface Orcamento {
 }
 export const fetchOrcamentos = (token: string): Promise<Orcamento[]> =>
   getList<Orcamento>('/api/syndic/orcamentos', token, 'orcamentos')
+
+// ── Phase A3 : préférences sidebar (ordre + masqués), 1 ligne par cabinet ──
+export interface DashboardPrefs { itemOrder: string[]; itemsHidden: string[] }
+export const fetchDashboardPrefs = async (token: string): Promise<DashboardPrefs> => {
+  const res = await fetch('/api/syndic/dashboard-prefs', { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) return { itemOrder: [], itemsHidden: [] }
+  const json = (await res.json()) as { prefs?: Partial<DashboardPrefs> }
+  return { itemOrder: json.prefs?.itemOrder ?? [], itemsHidden: json.prefs?.itemsHidden ?? [] }
+}

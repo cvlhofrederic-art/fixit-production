@@ -155,3 +155,34 @@ export const SIDE_TITLES: Record<string, string> = Object.fromEntries(
 
 /** Routes « agent » qui rendent AgentChatPage plutôt qu'un placeholder. */
 export const AGENT_ROUTES = new Set(['fixy', 'max', 'lea', 'alfredo', 'tempo'])
+
+// ── Phase A3 : préférences sidebar (ordre + masqués) ──────────────────────────
+/** Items jamais masquables (anti-verrouillage : accès garanti à l'éditeur + logout). */
+export const NEVER_HIDE = new Set(['modulos', 'logout'])
+
+/**
+ * Applique les préférences (ordre + masqués) à la sidebar. Réordonne les items
+ * À L'INTÉRIEUR de chaque section (les sous-en-têtes gardent leur position),
+ * masque les items cachés, retire les sections vides. Sans prefs → SIDEBAR
+ * inchangée (gated → préserve le rendu byte-exact par défaut).
+ */
+export function applySidebarPrefs(sidebar: SidebarSection[], prefs?: { itemOrder?: string[]; itemsHidden?: string[] }): SidebarSection[] {
+  const order = prefs?.itemOrder ?? []
+  const hidden = (prefs?.itemsHidden ?? []).filter((id) => !NEVER_HIDE.has(id))
+  if (order.length === 0 && hidden.length === 0) return sidebar
+  const hiddenSet = new Set(hidden)
+  const orderIdx = new Map(order.map((id, i) => [id, i] as const))
+  const rank = (id: string) => orderIdx.get(id) ?? Number.MAX_SAFE_INTEGER
+  return sidebar
+    .map((sec) => {
+      const kept = sec.entries.filter((e) => !isItem(e) || !hiddenSet.has(e.id))
+      const queue = kept.filter(isItem).sort((a, b) => rank(a.id) - rank(b.id))
+      const entries: SidebarEntry[] = kept.map((e) => (isItem(e) ? (queue.shift() ?? e) : e))
+      return { ...sec, entries }
+    })
+    .filter((sec) => sec.entries.some(isItem))
+}
+
+/** Toutes les entrées-items (hors logout), à plat avec leur section — pour l'éditeur de préférences. */
+export const SIDEBAR_EDITABLE: { section: string; id: string; label: string; icon: IconName }[] =
+  SIDEBAR.flatMap((sec) => sec.entries.filter(isItem).filter((e) => e.id !== 'logout').map((e) => ({ section: sec.title, id: e.id, label: e.label, icon: e.icon })))
