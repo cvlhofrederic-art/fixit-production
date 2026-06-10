@@ -46,6 +46,7 @@ import {
 import { toast } from 'sonner'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
+import { DecimalInput } from '@/components/common/DecimalInput'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
@@ -74,36 +75,8 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
  * tant que l'utilisateur tape. Au blur, le buffer est libéré et le champ
  * reprend le rendu formaté.
  */
-function DecimalInput(props: {
-  value: number
-  onChangeNumber: (n: number) => void
-  format: (n: number) => string
-  parse: (s: string) => number
-  placeholder?: string
-  style?: React.CSSProperties
-  title?: string
-  disabled?: boolean
-  className?: string
-  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
-  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
-}) {
-  const { value, onChangeNumber, format, parse, onFocus, onBlur, ...rest } = props
-  const [raw, setRaw] = useState<string | null>(null)
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      {...rest}
-      value={raw ?? format(value)}
-      onFocus={(e) => { setRaw(format(value)); e.target.select(); onFocus?.(e) }}
-      onChange={(e) => {
-        setRaw(e.target.value)
-        onChangeNumber(parse(e.target.value))
-      }}
-      onBlur={(e) => { setRaw(null); onBlur?.(e) }}
-    />
-  )
-}
+// DecimalInput : extrait dans components/common/DecimalInput.tsx (partagé avec
+// le formulaire BTP, audit 2026-06-10).
 
 // ═══════════════════════════════════════════════
 // COMPONENT

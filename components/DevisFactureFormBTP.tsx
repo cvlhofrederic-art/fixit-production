@@ -31,6 +31,7 @@ import { mapLegalFormToCode, titleCaseAddress, stableDocId } from '@/lib/devis-u
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { localFallbackDocNumber } from '@/lib/doc-number'
+import { DecimalInput } from '@/components/common/DecimalInput'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
@@ -170,49 +171,9 @@ const fmt = (n: number) =>
 // fmtN / fmtN4 / fmtQty : extraits dans lib/devis-format.ts (partagés avec le
 // formulaire artisan, audit 2026-06-10). fmt (€) reste local (non mutualisé).
 
-/**
- * Input contrôlé qui tolère la saisie en cours d'une virgule décimale FR.
- *
- * Problème résolu : un input contrôlé `value={fmt(parse(typed))}` reformate
- * à chaque frappe, ce qui supprime la virgule trailing au moment où
- * l'utilisateur la tape (ex. "90," → parse=90 → fmt="90" → comma stripped).
- * L'utilisateur "n'arrive plus à écrire la virgule".
- *
- * Solution : tant que l'input a le focus, on garde l'**input brut** tel que
- * l'utilisateur l'a tapé dans un état local (raw). On parse en parallèle
- * pour maintenir la réactivité (totaux, TVA, etc.) mais sans réécrire le
- * champ. Au blur, on libère le buffer et le champ reprend le rendu formaté.
- *
- * Compat clavier FR : type="text" + inputMode="decimal" → numpad mobile +
- * saisie virgule autorisée par le navigateur.
- */
-function DecimalInput(props: {
-  value: number
-  onChangeNumber: (n: number) => void
-  format: (n: number) => string
-  parse: (s: string) => number
-  placeholder?: string
-  style?: React.CSSProperties
-  title?: string
-  disabled?: boolean
-}) {
-  const { value, onChangeNumber, format, parse, ...rest } = props
-  const [raw, setRaw] = React.useState<string | null>(null)
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      {...rest}
-      value={raw ?? format(value)}
-      onFocus={() => setRaw(format(value))}
-      onChange={(e) => {
-        setRaw(e.target.value)
-        onChangeNumber(parse(e.target.value))
-      }}
-      onBlur={() => setRaw(null)}
-    />
-  )
-}
+// DecimalInput : extrait dans components/common/DecimalInput.tsx (partagé avec
+// le formulaire artisan, audit 2026-06-10). Gagne au passage le select() au
+// focus (saisie par-dessus sans effacer) — harmonisation UX autorisée par Frédéric.
 
 // localFallbackDocNumber (numéro local-only, DERNIER recours, conforme art.
 // 242 nonies A I 2° CGI) : importé de lib/doc-number.ts (canonique, partagé
