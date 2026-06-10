@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
@@ -1081,8 +1082,9 @@ export default function MobileDashboard() {
     })
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
-    const { data: bData } = await supabase.from('bookings').select('*, services(name)')
-      .eq('artisan_id', artisanData.id).order('booking_date', { ascending: false }).limit(50)
+    // Historique COMPLET (paginé, borné) — l'ancien .limit(50) faussait les
+    // KPI mobiles (CA/compteurs) calculés depuis ce tableau (fix 2026-06-10).
+    const { data: bData } = await fetchAllBookings(supabase, artisanData.id)
     setBookings(bData || [])
 
     const { data: sData } = await supabase.from('services').select('*').eq('artisan_id', artisanData.id)
