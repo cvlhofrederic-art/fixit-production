@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════
 -- RLS — Verrouillage marches_messages / marches_evaluations
 -- ═══════════════════════════════════════════════════════════════
--- Audit 2026-06-10 (Vague 1 sécurité).
+-- Audit 2026-06-10 (Vague 1 sécurité) + durcissements review adversariale.
 --
 -- AVANT : 008_marches_v3_features.sql posait des policies permissives :
 --   marches_messages_read   FOR SELECT USING (true)
@@ -10,7 +10,8 @@
 -- → tout utilisateur authentifié pouvait lire/écrire TOUS les messages
 --   (sender_email + contenu = exposition RGPD) et toutes les évaluations.
 --   La migration 20260522_rls_critical_fixes.sql documentait l'exposition
---   mais ne corrigeait que l'INSERT des évaluations.
+--   mais ne corrigeait que l'INSERT des évaluations (sans corréler la
+--   candidature au marché — corrigé ici aussi).
 --
 -- ACCÈS LÉGITIME : 100 % via les routes API (app/api/marches/[id]/messages,
 -- /evaluation) qui utilisent supabaseAdmin (service_role → bypass RLS) et
@@ -19,16 +20,26 @@
 -- → verrouiller la RLS au seul participant authentifié ne casse rien et
 --   ajoute une défense en profondeur.
 --
+-- Garanties de ces policies (chemin client-direct) :
+--   1. Seuls les participants (publisher authentifié du marché, artisan de la
+--      candidature) lisent/écrivent leur fil.
+--   2. La candidature est CORRÉLÉE au marché (c.marche_id = marche_id) — sans
+--      cela un artisan pouvait écrire dans le fil d'un autre marché via sa
+--      propre candidature.
+--   3. sender_type est LIÉ à la branche satisfaite — un artisan ne peut pas
+--      insérer un message estampillé 'publisher' (anti-usurpation/phishing).
+--
 -- Le publisher anonyme (publisher_user_id NULL, accès par access_token) passe
 -- par l'API/service_role : non concerné par ces policies `authenticated`.
 --
 -- auth.uid() encapsulé dans (SELECT auth.uid()) pour éviter la ré-évaluation
--- par ligne (cf. advisor perf auth_rls_initplan).
+-- par ligne (cf. advisor perf auth_rls_initplan). Migration idempotente.
 -- ═══════════════════════════════════════════════════════════════
 
 -- ── marches_messages ────────────────────────────────────────────
 DROP POLICY IF EXISTS "marches_messages_read" ON public.marches_messages;
 DROP POLICY IF EXISTS "marches_messages_insert" ON public.marches_messages;
+DROP POLICY IF EXISTS "marches_messages_select" ON public.marches_messages;
 
 CREATE POLICY "marches_messages_select" ON public.marches_messages
   FOR SELECT TO authenticated
@@ -39,25 +50,36 @@ CREATE POLICY "marches_messages_select" ON public.marches_messages
     )
     OR EXISTS (
       SELECT 1 FROM public.marches_candidatures c
-      WHERE c.id = candidature_id AND c.artisan_user_id = (SELECT auth.uid())
+      WHERE c.id = candidature_id
+        AND c.marche_id = marches_messages.marche_id
+        AND c.artisan_user_id = (SELECT auth.uid())
     )
   );
 
 CREATE POLICY "marches_messages_insert" ON public.marches_messages
   FOR INSERT TO authenticated
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.marches m
-      WHERE m.id = marche_id AND m.publisher_user_id = (SELECT auth.uid())
+    (
+      sender_type = 'publisher'
+      AND EXISTS (
+        SELECT 1 FROM public.marches m
+        WHERE m.id = marche_id AND m.publisher_user_id = (SELECT auth.uid())
+      )
     )
-    OR EXISTS (
-      SELECT 1 FROM public.marches_candidatures c
-      WHERE c.id = candidature_id AND c.artisan_user_id = (SELECT auth.uid())
+    OR (
+      sender_type = 'artisan'
+      AND EXISTS (
+        SELECT 1 FROM public.marches_candidatures c
+        WHERE c.id = candidature_id
+          AND c.marche_id = marches_messages.marche_id
+          AND c.artisan_user_id = (SELECT auth.uid())
+      )
     )
   );
 
--- ── marches_evaluations (SELECT seul ; l'INSERT scoping vient de 20260522) ──
+-- ── marches_evaluations ─────────────────────────────────────────
 DROP POLICY IF EXISTS "evaluations_read" ON public.marches_evaluations;
+DROP POLICY IF EXISTS "evaluations_select" ON public.marches_evaluations;
 
 CREATE POLICY "evaluations_select" ON public.marches_evaluations
   FOR SELECT TO authenticated
@@ -68,6 +90,36 @@ CREATE POLICY "evaluations_select" ON public.marches_evaluations
     )
     OR EXISTS (
       SELECT 1 FROM public.marches_candidatures c
-      WHERE c.id = candidature_id AND c.artisan_user_id = (SELECT auth.uid())
+      WHERE c.id = candidature_id
+        AND c.marche_id = marches_evaluations.marche_id
+        AND c.artisan_user_id = (SELECT auth.uid())
+    )
+  );
+
+-- Re-création de l'INSERT (posé par 20260522_rls_critical_fixes.sql) avec :
+--   - corrélation candidature ↔ marché (manquante dans 20260522)
+--   - liaison evaluator_type ↔ branche (un artisan ne peut pas déposer une
+--     évaluation estampillée 'publisher', et inversement)
+--   - (SELECT auth.uid()) anti-initplan
+DROP POLICY IF EXISTS "evaluations_insert" ON public.marches_evaluations;
+
+CREATE POLICY "evaluations_insert" ON public.marches_evaluations
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    (
+      evaluator_type = 'publisher'
+      AND EXISTS (
+        SELECT 1 FROM public.marches m
+        WHERE m.id = marche_id AND m.publisher_user_id = (SELECT auth.uid())
+      )
+    )
+    OR (
+      evaluator_type = 'artisan'
+      AND EXISTS (
+        SELECT 1 FROM public.marches_candidatures c
+        WHERE c.id = candidature_id
+          AND c.marche_id = marches_evaluations.marche_id
+          AND c.artisan_user_id = (SELECT auth.uid())
+      )
     )
   );

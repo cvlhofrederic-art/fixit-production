@@ -87,7 +87,8 @@ export const fixyAiSchema = z.object({
   artisan_id: z.string().uuid(),
   context: z.record(z.string(), z.unknown()).optional(),
   conversation_history: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    // SÉCURITÉ : 'system' interdit — le system prompt vit côté serveur
+    role: z.enum(['user', 'assistant']),
     content: z.string(),
   })).max(20).optional(),
   locale: z.string().max(5).optional(),
@@ -709,20 +710,22 @@ export const artisanAbsenceSchema = z.object({
 })
 
 // ── Comptable AI schema ────────────────────────────────────────────────────
+// SÉCURITÉ : role 'system' INTERDIT côté client (injection de prompt — le
+// system prompt est construit exclusivement côté serveur). Le champ
+// systemPrompt a été supprimé pour la même raison (audit 2026-06-10).
 export const comptableAiRequestSchema = z.object({
   message: z.string().min(1, 'Message requis').max(5000).optional(),
   artisan_id: z.string().uuid('artisan_id doit être un UUID valide').optional(),
   context: z.record(z.string(), z.unknown()).optional(),
   financialContext: z.record(z.string(), z.unknown()).optional(),
   conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    role: z.enum(['user', 'assistant']),
     content: z.string().max(10000),
   })).max(30).optional(),
   messages: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    role: z.enum(['user', 'assistant']),
     content: z.string().max(10000),
   })).max(30).optional(),
-  systemPrompt: z.string().max(20000).optional(),
   locale: z.string().max(5).optional(),
 })
 
@@ -950,18 +953,21 @@ export const proChannelSchema = z.object({
 // ── Simulateur Travaux schema ──────────────────────────────────────────────
 export const simulateurTravauxSchema = z.object({
   messages: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    // SÉCURITÉ : 'system' interdit — le system prompt vit côté serveur
+    // (SimulateurChat.tsx n'envoie que user/assistant)
+    role: z.enum(['user', 'assistant']),
     content: z.string().max(10000),
   })).min(1).max(30),
 })
 
 // ── Copro AI schema ────────────────────────────────────────────────────────
+// SÉCURITÉ : systemPrompt client supprimé + role 'system' interdit (injection
+// de prompt — le system prompt vit côté serveur ; audit 2026-06-10).
 export const coproAiSchema = z.object({
   messages: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    role: z.enum(['user', 'assistant']),
     content: z.string().max(10000),
   })).min(1).max(30),
-  systemPrompt: z.string().max(20000).optional(),
   stream: z.boolean().optional(),
 })
 
@@ -971,7 +977,8 @@ export const fixyChatSchema = z.object({
   role: z.string().max(50).optional(),
   context: z.record(z.string(), z.unknown()).optional(),
   conversation_history: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    // SÉCURITÉ : 'system' interdit — le system prompt vit côté serveur
+    role: z.enum(['user', 'assistant']),
     content: z.string().max(10000),
   })).max(30).optional(),
   locale: z.string().max(5).optional(),
@@ -1054,7 +1061,8 @@ export const syndicMaxAiSchema = z.object({
   message: z.string().min(1).max(5000),
   syndic_context: z.record(z.string(), z.unknown()).optional(),
   conversation_history: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    // SÉCURITÉ : 'system' interdit — le system prompt vit côté serveur
+    role: z.enum(['user', 'assistant']),
     content: z.string().max(10000),
   })).max(50).optional(),
   stream: z.boolean().optional(),

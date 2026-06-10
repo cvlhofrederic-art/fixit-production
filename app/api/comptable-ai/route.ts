@@ -860,9 +860,12 @@ export async function POST(request: NextRequest) {
       // JAMAIS un systemPrompt fourni par le client (injection de prompt / contournement
       // des guardrails métier + abus de coût LLM).
       const systemPrompt = buildSystemPrompt({})
+      // Défense en profondeur : rôles coercés user/assistant (un message
+      // role:'system' injecté par le client contournerait les guardrails même
+      // sans customSystemPrompt). Le schéma Zod les interdit déjà.
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...(directMessages as Array<{ role: string; content: string }>).slice(-20).map(m => ({ role: m.role, content: m.content })),
+        ...(directMessages as Array<{ role: string; content: string }>).slice(-20).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       ]
 
       if (!GROQ_API_KEY) {
@@ -1100,7 +1103,9 @@ ${buildEnrichedSections(ctx)}`
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...(conversationHistory as Array<{ role: string; content: string }> || []).slice(-10),
+      // Rôles coercés user/assistant — défense en profondeur anti-injection.
+      ...((conversationHistory as Array<{ role: string; content: string }> || []).slice(-10)
+        .map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))),
       { role: 'user', content: message },
     ]
 

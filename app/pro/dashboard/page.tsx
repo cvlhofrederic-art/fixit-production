@@ -311,8 +311,11 @@ function DashboardPage() {
     // Store pro team role in localStorage for usePermissions hook
     if (role === 'pro_societe') {
       try {
-        const teamRole = user.app_metadata?.pro_team_role || user.user_metadata?.pro_team_role
-        const companyId = user.app_metadata?.company_id || user.user_metadata?.company_id
+        // app_metadata UNIQUEMENT (source serveur) — le fallback user_metadata
+        // (forgeable client) a été retiré : isProGerant côté serveur ne lit que
+        // app_metadata, un fallback UI divergent masquerait les 403 (audit 2026-06-10).
+        const teamRole = user.app_metadata?.pro_team_role
+        const companyId = user.app_metadata?.company_id
         if (teamRole) localStorage.setItem('fixit_pro_team_role', teamRole)
         else localStorage.removeItem('fixit_pro_team_role')
         if (companyId) localStorage.setItem('fixit_pro_company_id', companyId)
