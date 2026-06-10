@@ -8,6 +8,35 @@
 //   LANGFUSE_HOST        — https://cloud.langfuse.com (ou self-hosted)
 
 import { Langfuse } from "langfuse";
+import { createHash } from "node:crypto";
+
+// ── Pseudonymisation RGPD (audit 2026-06-10, Vague 4) ───────────────────────
+// Langfuse est un sous-traitant SaaS : on n'y envoie JAMAIS d'identifiant
+// direct (UUID Supabase = donnée personnelle, RGPD art. 4(1)) ni de PII brute
+// (emails, téléphones) dans les prompts/réponses. Le hash salé corrèle les
+// traces d'un même utilisateur sans permettre de remonter à la personne.
+const PII_SALT = process.env.LANGFUSE_PII_SALT || process.env.LANGFUSE_PUBLIC_KEY || "vitfix-lf";
+
+export function pseudonymizeUserId(userId?: string): string | undefined {
+  if (!userId) return undefined;
+  return createHash("sha256").update(`${PII_SALT}:${userId}`).digest("hex").slice(0, 16);
+}
+
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
+// Formats FR (+33/0X XX XX XX XX) et PT (+351 XXX XXX XXX, 9 chiffres)
+const PHONE_RE = /(?:\+33|\+351|0)\s?[1-9](?:[\s.\-]?\d{2,3}){3,4}/g;
+const MAX_TRACE_TEXT = 2000;
+
+// Sérialise puis nettoie une valeur destinée à Langfuse : PII masquée,
+// texte tronqué (les prompts complets restent consultables côté serveur via
+// les logs internes, pas chez le sous-traitant).
+export function scrubForTrace(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  const raw = typeof value === "string" ? value : JSON.stringify(value);
+  let s = raw.replace(EMAIL_RE, "[email]").replace(PHONE_RE, "[tel]");
+  if (s.length > MAX_TRACE_TEXT) s = `${s.slice(0, MAX_TRACE_TEXT)}… [tronqué ${raw.length} chars]`;
+  return s;
+}
 
 // Singleton — initialisé une seule fois, réutilisé partout
 let langfuseInstance: Langfuse | null = null;
@@ -65,7 +94,7 @@ export function createAgentTrace(params: TraceParams) {
 
   const trace = langfuse.trace({
     name: params.agentName,
-    userId: params.userId,
+    userId: pseudonymizeUserId(params.userId),
     sessionId: params.sessionId,
     metadata: params.metadata,
   });
@@ -75,8 +104,8 @@ export function createAgentTrace(params: TraceParams) {
       trace.generation({
         name: `${params.agentName}-llm`,
         model: gen.model,
-        input: gen.input,
-        output: gen.output,
+        input: scrubForTrace(gen.input),
+        output: scrubForTrace(gen.output),
         usage: {
           input: gen.tokensInput,
           output: gen.tokensOutput,
@@ -152,10 +181,10 @@ export async function traceAgent<T>(
       if (lf) {
         const t = lf.trace({
           name: `agent:${params.agent_id}`,
-          userId: params.user_id,
+          userId: pseudonymizeUserId(params.user_id),
           sessionId: params.conversation_id,
-          input: params.prompt,
-          output: params.response,
+          input: scrubForTrace(params.prompt),
+          output: scrubForTrace(params.response),
           metadata: {
             ...params.metadata,
             latency_ms,
@@ -178,7 +207,7 @@ export function traceSimulateurV2(payload: SimulateurV2TracePayload): void {
   try {
     lf.trace({
       name: 'simulateur-travaux',
-      userId: payload.userId,
+      userId: pseudonymizeUserId(payload.userId),
       sessionId: payload.sessionId,
       tags: [`arm:${payload.arm}`, payload.mode ? `mode:${payload.mode}` : 'mode:none'],
       metadata: {

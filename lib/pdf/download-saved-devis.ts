@@ -15,7 +15,7 @@ import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2 } from '@/lib/money'
-import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
 
@@ -216,7 +216,9 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     insuranceNumber: fresh.insuranceNumber,
     insuranceCoverage: fresh.insuranceCoverage,
     insuranceType: fresh.insuranceType,
-    tvaEnabled: doc.tvaEnabled !== false,
+    // Legacy sans flag : inférence franchise 293 B depuis companyStatus
+    // (EI/auto FR, ENI PT) — cf. resolveTvaEnabledV2 (audit 2026-06-10).
+    tvaEnabled: resolveTvaEnabledV2(doc),
     paymentMode: doc.paymentMode || 'Virement bancaire',
     paymentCondition: doc.paymentCondition || doc.escompte || '',
 

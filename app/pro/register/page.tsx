@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
 import { trackEvent, AnalyticsEventType } from '@/lib/analytics'
@@ -213,7 +214,11 @@ function FormulaireArtisan() {
     try {
       const stored = localStorage.getItem('vtfx_referral_code')
       if (stored) setReferralCode(stored)
-    } catch {}
+    } catch (e) {
+      // Échec toléré (Safari navigation privée) : le parrainage retombe sur
+      // searchParams/cookie, déjà testés au-dessus.
+      console.warn('[register] localStorage read failed:', e)
+    }
   }, [searchParams])
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null)
   const [insurancePreview, setInsurancePreview] = useState<string>('')
@@ -363,12 +368,18 @@ function FormulaireArtisan() {
         // Init app_metadata.role (server-only) via endpoint dédié
         try {
           const token = (await supabase.auth.getSession()).data.session?.access_token ?? ''
-          await fetch('/api/auth/init-role', {
+          const roleRes = await fetch('/api/auth/init-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ role: 'artisan' }),
           })
-        } catch { /* non-bloquant */ }
+          if (!roleRes.ok) throw new Error(`init-role HTTP ${roleRes.status}`)
+        } catch (e) {
+          // Non-bloquant pour l'inscription, mais un compte sans rôle ne peut pas
+          // accéder au dashboard : on prévient l'utilisateur et on trace.
+          console.warn('[register] init-role failed:', e)
+          toast.warning('Initialisation du compte incomplète — si le tableau de bord ne charge pas, déconnectez-vous puis reconnectez-vous.')
+        }
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
@@ -392,7 +403,11 @@ function FormulaireArtisan() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}` },
             body: JSON.stringify({ artisan_id: profileData.id }),
-          }).catch(() => { /* KYC non-bloquant */ })
+          }).catch((e) => {
+            // KYC volontairement non-bloquant (tourne en arrière-plan), mais on
+            // trace l'échec — sinon un KYC jamais déclenché est invisible.
+            console.warn('[register] kyc-orchestrate failed:', e)
+          })
 
           // ── Spécialités granulaires — lier le profil aux spécialités choisies ──────
           try {
@@ -433,7 +448,7 @@ function FormulaireArtisan() {
             }
             // Supprimer le cookie vitfix_ref
             document.cookie = 'vitfix_ref=; max-age=0; path=/; SameSite=Lax; Secure'
-            try { localStorage.removeItem('vtfx_referral_code') } catch {}
+            try { localStorage.removeItem('vtfx_referral_code') } catch (e) { console.warn('[register] localStorage cleanup failed:', e) }
           }
         }
         trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: 'artisan' })
@@ -912,12 +927,18 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       // Init app_metadata.role (server-only, non forgeable) via endpoint dédié
       if (authData.session?.access_token) {
         try {
-          await fetch('/api/auth/init-role', {
+          const roleRes = await fetch('/api/auth/init-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
             body: JSON.stringify({ role: org.role }),
           })
-        } catch { /* non-bloquant */ }
+          if (!roleRes.ok) throw new Error(`init-role HTTP ${roleRes.status}`)
+        } catch (e) {
+          // Non-bloquant pour l'inscription, mais un compte sans rôle ne peut pas
+          // accéder au dashboard : on prévient l'utilisateur et on trace.
+          console.warn('[register] init-role failed:', e)
+          toast.warning('Initialisation du compte incomplète — si le tableau de bord ne charge pas, déconnectez-vous puis reconnectez-vous.')
+        }
       }
 
       // Upload documents using the session token from signUp
@@ -978,7 +999,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session?.access_token ?? ''}` },
               body: JSON.stringify({ artisan_id: btpProfile.id }),
-            }).catch(() => { /* KYC non-bloquant */ })
+            }).catch((e) => {
+            // KYC volontairement non-bloquant (tourne en arrière-plan), mais on
+            // trace l'échec — sinon un KYC jamais déclenché est invisible.
+            console.warn('[register] kyc-orchestrate failed:', e)
+          })
           }
         } catch { /* Création profil BTP non-bloquante */ }
       }
