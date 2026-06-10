@@ -155,13 +155,16 @@ export function isProSocieteRole(user: User): boolean {
 }
 
 // ── Vérifie qu'un utilisateur est gérant pro_societe ─────────────────────────
-// Le gérant est l'utilisateur sans company_id dans ses metadata (il EST la company)
-// ou avec pro_team_role === 'GERANT'
+// Le gérant est l'utilisateur sans pro_team_role dans app_metadata (il EST la company)
+// ou avec pro_team_role === 'GERANT'.
+// ⚠️ SÉCURITÉ : on lit app_metadata (server-only, non forgeable), JAMAIS user_metadata
+// qui est modifiable par le client via supabase.auth.updateUser() — un sous-compte
+// pourrait sinon s'auto-promouvoir GERANT.
 export function isProGerant(user: User): boolean {
   const role = getUserRole(user)
   if (role === 'super_admin') return true
   if (role !== 'pro_societe') return false
-  const teamRole = user.user_metadata?.pro_team_role
+  const teamRole = user.app_metadata?.pro_team_role
   return !teamRole || teamRole === 'GERANT'
 }
 

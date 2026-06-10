@@ -84,8 +84,10 @@ export async function POST(request: NextRequest) {
         exec = exec || (raw.executionDelay as string)
           || (raw.executionDelayDays ? String(raw.executionDelayDays) : '')
         prestation = prestation || (raw.prestationDate as string) || ''
-      } catch {
-        // Pas bloquant — on évalue avec ce qu'on a
+      } catch (e) {
+        // Non bloquant — on évalue avec ce qu'on a, mais on trace (peut masquer
+        // une absence de délai/date d'exécution → contournement validation L.111-1).
+        logger.warn('[devis-sign] fallback raw_data lookup failed', { docNumber, error: e instanceof Error ? e.message : String(e) })
       }
     }
     if (!exec?.trim() || !prestation?.trim()) {
