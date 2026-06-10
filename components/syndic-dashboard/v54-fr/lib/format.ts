@@ -5,7 +5,11 @@
 
 import type { KeyboardEvent } from 'react'
 
-export const TODAY = new Date('2026-06-04')
+// Minuit LOCAL (forme constructeur, pas littéral ISO) : un littéral date-only
+// est parsé minuit UTC, que Intl re-projette ensuite dans le fuseau d'exécution
+// → libellés différents entre SSR (UTC sur Workers) et client (Europe/Paris…),
+// donc mismatch d'hydratation. Minuit local est identique des deux côtés.
+export const TODAY = new Date(2026, 5, 4)
 
 export const fmtEUR = (n: number): string =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
