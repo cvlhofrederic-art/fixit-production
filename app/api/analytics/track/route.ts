@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
 
 // ── Zod schema ───────────────────────────────────────────────────────────────
 
@@ -30,36 +31,14 @@ const batchSchema = z.object({
   events: z.array(eventSchema).min(1).max(100),
 })
 
-// ── In-memory rate limiter (per session, 50 events/min) ─────────────────────
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Distribué via lib/rate-limit (Upstash Redis). L'ancien Map en mémoire était
+// sans effet sur Cloudflare Workers (un compteur par isolate → contournable par
+// distribution naturelle des requêtes ; audit 2026-06-10, Vague 3). Double clé :
+// session_id (fourni par le client, forgeable) + IP (non forgeable) pour borner
+// le flood de la table analytics_events. 50 événements/min par session et par IP.
 
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
 const RATE_LIMIT = 50
-const WINDOW_MS = 60_000
-
-function checkRateLimit(sessionId: string, eventCount: number): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(sessionId)
-
-  if (!entry || now - entry.windowStart > WINDOW_MS) {
-    rateLimitMap.set(sessionId, { count: eventCount, windowStart: now })
-    return true
-  }
-
-  if (entry.count + eventCount > RATE_LIMIT) return false
-  entry.count += eventCount
-  return true
-}
-
-// Periodically prune stale entries (every 5 min, keep map small)
-if (typeof globalThis !== 'undefined') {
-  const PRUNE_INTERVAL = 5 * 60_000
-  setInterval(() => {
-    const cutoff = Date.now() - WINDOW_MS * 2
-    for (const [key, val] of rateLimitMap) {
-      if (val.windowStart < cutoff) rateLimitMap.delete(key)
-    }
-  }, PRUNE_INTERVAL).unref?.()
-}
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
@@ -82,8 +61,17 @@ export async function POST(req: NextRequest) {
   const { events } = parsed.data
 
   // All events in a batch share the same session_id (first event's)
+  // NB : checkRateLimit compte par requête (sliding window) ; un batch peut
+  // contenir jusqu'à 100 événements, donc on consomme ceil(n/10) jetons pour
+  // garder une borne proportionnelle au volume réel.
   const sessionId = events[0].session_id
-  if (!checkRateLimit(sessionId, events.length)) {
+  const ip = getClientIP(req)
+  const tokens = Math.max(1, Math.ceil(events.length / 10))
+  const checks = await Promise.all([
+    ...Array.from({ length: tokens }, () => checkRateLimit(`analytics_track_${sessionId}`, RATE_LIMIT, 60_000)),
+    ...Array.from({ length: tokens }, () => checkRateLimit(`analytics_track_ip_${ip}`, RATE_LIMIT * 2, 60_000)),
+  ])
+  if (checks.some((ok) => !ok)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
   }
 
