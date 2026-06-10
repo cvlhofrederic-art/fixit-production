@@ -850,13 +850,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Accès non autorisé à ces données' }, { status: 403 })
       }
     }
-    const { message, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt, locale: bodyLocale } = body as { message?: string; conversationHistory?: unknown[]; messages?: unknown[]; systemPrompt?: string; locale?: string }
+    const { message, conversationHistory, messages: directMessages, locale: bodyLocale } = body as { message?: string; conversationHistory?: unknown[]; messages?: unknown[]; locale?: string }
     const financialContext = body.financialContext as Record<string, unknown> | undefined
     const locale = (bodyLocale || financialContext?.locale) as string | undefined
 
-    // ── Mode direct (agent copropriété) : messages + systemPrompt fournis directement ──
+    // ── Mode direct (agent copropriété) : messages fournis directement ──
     if (directMessages && Array.isArray(directMessages)) {
-      const systemPrompt = customSystemPrompt || buildSystemPrompt({})
+      // SÉCURITÉ : le system prompt est TOUJOURS construit côté serveur. On n'accepte
+      // JAMAIS un systemPrompt fourni par le client (injection de prompt / contournement
+      // des guardrails métier + abus de coût LLM).
+      const systemPrompt = buildSystemPrompt({})
       const messages = [
         { role: 'system', content: systemPrompt },
         ...(directMessages as Array<{ role: string; content: string }>).slice(-20).map(m => ({ role: m.role, content: m.content })),
