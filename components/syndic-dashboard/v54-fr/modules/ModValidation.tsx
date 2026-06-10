@@ -60,7 +60,7 @@ export default function ModValidation() {
         lede="Chaque acte suit un circuit : préparé par le gestionnaire ou le comptable, vérifié par le juriste, puis validé et signé par la direction. Les actions dépendent de votre rôle."
         actions={<Pill kind="dark" noDot>Connecté : {ROLE_LABEL[role] || role}</Pill>}
       />
-      <Alert icon="shield" title={`Vous agissez en tant que « ${role} »`}>
+      <Alert kind="sage" icon="shield" title={`Vous agissez en tant que « ${role} »`}>
         {role === 'Juridique'
           ? 'Vous pouvez vérifier les actes préparés avant transmission à la direction.'
           : role === 'Direction'

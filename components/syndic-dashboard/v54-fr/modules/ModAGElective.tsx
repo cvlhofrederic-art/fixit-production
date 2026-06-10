@@ -96,7 +96,7 @@ export default function ModAGElective() {
             <li>Renouvellement du conseil syndical</li>
             <li>Questions diverses</li>
           </ol>
-          <Alert icon="scale" title="La désignation du syndic est portée en tête de l'ordre du jour, conformément à l'objet de la mission." />
+          <Alert kind="sage" icon="scale" title="La désignation du syndic est portée en tête de l'ordre du jour, conformément à l'objet de la mission." />
         </Panel>
       </div>
       <CreateModal
