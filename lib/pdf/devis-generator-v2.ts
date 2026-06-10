@@ -1221,17 +1221,30 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     `${T.generatedBy} ${genDate}.`,
   ].filter(Boolean).join(' ')
 
-  const legalY = pageH - 18
-  if (y < legalY - 2) {
-    drawHLine(ML, legalY, xRight, COLOR.BORDER, 0.18)
-    pdf.setFont(FONT, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
-    pdf.text(pdf.splitTextToSize(legalParagraph, contentW), ML, legalY + 3)
-  } else {
-    y += 4
-    drawHLine(ML, y, xRight, COLOR.BORDER, 0.18); y += 3
-    pdf.setFont(FONT, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
-    const lw = pdf.splitTextToSize(legalParagraph, contentW)
-    pdf.text(lw, ML, y); y += lw.length * ptToMm(10)
+  // PT : paragraphe légal plus long qu'en FR (DL 24/2014 + Livro de Reclamações
+  // + CNIACC font 4 lignes au lieu de 2-3) → on remonte le slot pour éviter
+  // que la dernière ligne ne chevauche le numéro de page (rendu à pageH - 3.2).
+  const legalY = isPt ? pageH - 24 : pageH - 18
+  // Si la branche inline ferait déborder le footer sous le numéro de page,
+  // on diffère son rendu au bas de la dernière page (i.e. de la page
+  // rétractation B2C si elle existe, sinon de la page courante après une
+  // addPage finale). Évite le chevauchement footer × n° de page sur les
+  // orçamentos PT courts.
+  pdf.setFont(FONT, 'normal'); pdf.setFontSize(6.5)
+  const _legalLines = pdf.splitTextToSize(legalParagraph, contentW)
+  const _legalH = _legalLines.length * ptToMm(10) + 7
+  const _deferLegalToLastPage = y >= legalY - 2 && (y + _legalH) > (pageH - 5)
+  if (!_deferLegalToLastPage) {
+    if (y < legalY - 2) {
+      drawHLine(ML, legalY, xRight, COLOR.BORDER, 0.18)
+      pdf.setTextColor(COLOR.TEXT_LIGHT)
+      pdf.text(_legalLines, ML, legalY + 3)
+    } else {
+      y += 4
+      drawHLine(ML, y, xRight, COLOR.BORDER, 0.18); y += 3
+      pdf.setTextColor(COLOR.TEXT_LIGHT)
+      pdf.text(_legalLines, ML, y); y += _legalLines.length * ptToMm(10)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1293,6 +1306,16 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     ry += 8
   }
   } // end B2C retractation guard
+
+  // Rendu différé du footer légal (cas PT court où la branche inline aurait
+  // débordé sous le numéro de page). On le pose au slot fixe de la dernière
+  // page créée — celle de la rétractation si elle existe, sinon la page
+  // courante (la branche de garde sigH ci-dessus l'aura déjà créée si nécessaire).
+  if (_deferLegalToLastPage) {
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    drawHLine(ML, legalY, xRight, COLOR.BORDER, 0.18)
+    pdf.text(_legalLines, ML, legalY + 3)
+  }
 
   // ═══════════════════════════════════════════════════════════
   // PAGINATION
