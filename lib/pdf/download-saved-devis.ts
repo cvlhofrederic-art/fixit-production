@@ -16,6 +16,7 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2 } from '@/lib/money'
 import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
 
@@ -117,25 +118,8 @@ interface DownloadContext {
   useBtpDesign?: boolean
 }
 
-function svgToImageDataUrl(svgString: string, width: number, height: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(svgBlob)
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = width * 2
-      canvas.height = height * 2
-      const ctx = canvas.getContext('2d')!
-      ctx.scale(2, 2)
-      ctx.drawImage(img, 0, 0, width, height)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/png'))
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render failed')) }
-    img.src = url
-  })
-}
+// svgToImageDataUrl : extrait dans lib/signature-canvas.ts (3e copie identique
+// détectée par SonarCloud — partagé avec les deux formulaires devis).
 
 function currencyFormat(n: number, locale: Locale): string {
   const fmt = new Intl.NumberFormat(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
