@@ -285,16 +285,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
     }
 
-    // Sync user_metadata if user has accepted
+    // Sync app_metadata si le membre a accepté.
+    // ⚠️ SÉCURITÉ : pro_team_role DOIT vivre dans app_metadata (non forgeable côté
+    // client) car isProGerant() s'appuie dessus pour l'authz. Ne JAMAIS l'écrire dans
+    // user_metadata (modifiable via supabase.auth.updateUser).
     if ((role || is_active !== undefined) && existing.user_id) {
       try {
-        const metaUpdates: Record<string, unknown> = { company_id: companyId }
+        const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
+        const metaUpdates: Record<string, unknown> = {
+          ...(existingFull?.user?.app_metadata || {}),
+          company_id: companyId,
+        }
         if (role) metaUpdates.pro_team_role = role
         await supabaseAdmin.auth.admin.updateUserById(existing.user_id, {
-          user_metadata: metaUpdates,
+          app_metadata: metaUpdates,
         })
       } catch (e) {
-        logger.error('[PRO_TEAM] Failed to update user_metadata:', e)
+        logger.error('[PRO_TEAM] Failed to update app_metadata:', e)
       }
     }
 
