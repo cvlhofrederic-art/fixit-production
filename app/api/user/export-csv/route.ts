@@ -81,7 +81,9 @@ export async function GET(request: NextRequest) {
               phone: clientUser.user_metadata?.phone || '',
             })
           }
-        } catch {}
+        } catch (e) {
+          logger.warn('[export-csv] client lookup failed', { client_id: cid, error: e instanceof Error ? e.message : String(e) })
+        }
       }
 
       // Deduplicate by client_id
@@ -132,7 +134,9 @@ export async function GET(request: NextRequest) {
               phone: clientUser.user_metadata?.phone || '',
             })
           }
-        } catch {}
+        } catch (e) {
+          logger.warn('[export-csv] client lookup failed', { client_id: cid, error: e instanceof Error ? e.message : String(e) })
+        }
       }
 
       const rows = (bookings || []).map(b => {

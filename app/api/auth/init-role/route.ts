@@ -19,20 +19,19 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 //     (admin/setup, pro/invite, syndic/invite, set-pro-role)
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Rôles assignables via self-init après signup. Les rôles privilégiés
-// (super_admin, admin, syndic_admin, etc.) NE sont PAS dans cette liste :
-// ils ne peuvent être attribués qu'en server-to-server via /api/admin/setup,
-// /api/syndic/team, /api/syndic/invite, /api/pro/invite.
+// Rôles assignables via self-init après signup (onboarding public ouvert).
+// SÉCURITÉ : les rôles à privilèges ou dormants — syndic, coproprio,
+// pro_conciergerie, pro_gestionnaire (+ super_admin, admin) — NE sont PAS
+// auto-assignables. Ils ne peuvent être attribués qu'en server-to-server via
+// /api/admin/setup, /api/syndic/team, /api/syndic/invite, /api/pro/invite.
+// pro_societe reste ici car l'onboarding BTP public le pose via cet endpoint
+// (app/pro/register) ; il ne donne accès qu'à sa propre société vide.
 const ALLOWED_SELF_ROLES = new Set([
   'client',
   'artisan',
-  'coproprio',
-  'locataire',
   'particulier',
-  'syndic',
+  'locataire',
   'pro_societe',
-  'pro_conciergerie',
-  'pro_gestionnaire',
 ])
 
 const initRoleSchema = z.object({
