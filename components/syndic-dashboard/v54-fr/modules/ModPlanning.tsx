@@ -19,6 +19,7 @@ import FormRow from '@/components/syndic-dashboard/v54/primitives/form-row/FormR
 import { useToast } from '@/components/syndic-dashboard/v54/primitives/toast'
 import Icon from '@/components/syndic-dashboard/v54/primitives/icon/Icon'
 import btnCss from '@/components/syndic-dashboard/v54/primitives/button/Button.module.css'
+import { onKeyActivate } from '../lib/format'
 
 type Member = { id: string; name: string; role: string; accent: string }
 type Day = { key: string; short: string; long: string; date: string }
@@ -195,7 +196,7 @@ export default function ModPlanning() {
             <Fragment key={`row-${slot.idx}`}>
               <div className="week-hour">{slot.label}</div>
               {visibleDays.map((d) => (
-                <div key={`c-${d.key}-${slot.idx}`} className="week-cell" role="button" tabIndex={-1} onClick={() => push({ kind: 'info', title: 'Nouvel événement', desc: `${d.long} à ${slot.label}` })} />
+                <div key={`c-${d.key}-${slot.idx}`} className="week-cell" role="button" tabIndex={-1} aria-label={`Nouvel événement ${d.long} à ${slot.label}`} onClick={() => push({ kind: 'info', title: 'Nouvel événement', desc: `${d.long} à ${slot.label}` })} onKeyDown={onKeyActivate(() => push({ kind: 'info', title: 'Nouvel événement', desc: `${d.long} à ${slot.label}` }))} />
               ))}
             </Fragment>
           ))}
