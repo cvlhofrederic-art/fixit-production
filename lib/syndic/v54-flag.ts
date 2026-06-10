@@ -15,3 +15,15 @@
  * pourquoi il vit sur une route dédiée et non en remplacement du dashboard réel.
  */
 export const SYNDIC_V54_LIVE = true
+
+/**
+ * Bascule prod de la route LIVE du dashboard syndic judiciaire FR (/syndic/v54-fr).
+ *
+ * Même mécanique que SYNDIC_V54_LIVE, pour la déclinaison française « syndic
+ * judiciaire » (loi du 10 juillet 1965 / décret du 17 mars 1967) du design v54 :
+ *   true  → /syndic/v54-fr est servi en production (données mock).
+ *   false → /syndic/v54-fr renvoie 404 (rollback sans suppression de code).
+ *
+ * Indépendant du flag PT : chaque marché se déploie / rollback séparément.
+ */
+export const SYNDIC_V54_FR_LIVE = true

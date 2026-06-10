@@ -14,6 +14,23 @@ export interface AgentConversation {
   bucket?: 'ontem' | 'esta-semana' | 'mais-antigas'
 }
 
+/** Textes de l'interface — surchargeables par locale (défauts = bundle PT, byte-exact). */
+export interface AgentChatPageLabels {
+  asideAria: string
+  heading: string
+  hidePanel: string
+  newConversation: string
+  searchPlaceholder: string
+  searchAria: string
+  empty: string
+  bucketLabels: Record<'ontem' | 'esta-semana' | 'mais-antigas', string>
+  docsButton: string
+  send: string
+  typing: string
+  inputAria: (name: string) => string
+  errorReply: string
+}
+
 export interface AgentChatPageProps {
   /** Source de l'image mascotte (le bundle passait une clé d'un map global ;
    *  ici on découple : le consommateur fournit l'src). */
@@ -28,6 +45,8 @@ export interface AgentChatPageProps {
   contextSelector?: { label: ReactNode; options: string[] }
   showDocsBtn?: boolean
   inputPlaceholder?: string
+  /** Surcharge partielle des textes UI (locale FR…). Omis = chaînes PT du bundle. */
+  labels?: Partial<AgentChatPageLabels>
   /** Overrides optionnels ; par défaut → toast (comportement byte-exact bundle). */
   onSend?: (value: string) => void
   /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2). */
@@ -38,10 +57,21 @@ export interface AgentChatPageProps {
 }
 
 const BUCKETS = ['ontem', 'esta-semana', 'mais-antigas'] as const
-const BUCKET_LABEL: Record<(typeof BUCKETS)[number], string> = {
-  ontem: 'ONTEM',
-  'esta-semana': 'ESTA SEMANA',
-  'mais-antigas': 'MAIS ANTIGAS',
+
+const DEFAULT_LABELS: AgentChatPageLabels = {
+  asideAria: 'Histórico de conversas',
+  heading: 'CONVERSAS',
+  hidePanel: 'Esconder painel',
+  newConversation: '+ Nova conversa',
+  searchPlaceholder: 'Procurar conversas…',
+  searchAria: 'Procurar conversas',
+  empty: 'Nenhuma conversa ainda. Inicie a primeira para começar.',
+  bucketLabels: { ontem: 'ONTEM', 'esta-semana': 'ESTA SEMANA', 'mais-antigas': 'MAIS ANTIGAS' },
+  docsButton: 'Documentos',
+  send: 'Enviar',
+  typing: 'A escrever…',
+  inputAria: (name) => `Pergunta a ${name}`,
+  errorReply: 'Desculpe, ocorreu um erro ao contactar o assistente. Tente novamente.',
 }
 
 /**
@@ -61,8 +91,10 @@ export default function AgentChatPage({
   mascot, name, title, intro, introDetail,
   suggestions = [], conversations = [], alert, contextSelector, showDocsBtn,
   inputPlaceholder = 'Faça uma pergunta…',
+  labels,
   onSend, onAsk, onNewConversation, onOpenDocs, onSelectConversation,
 }: AgentChatPageProps) {
+  const L: AgentChatPageLabels = { ...DEFAULT_LABELS, ...labels, bucketLabels: { ...DEFAULT_LABELS.bucketLabels, ...labels?.bucketLabels } }
   const [inputVal, setInputVal] = useState('')
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [busy, setBusy] = useState(false)
@@ -85,7 +117,7 @@ export default function AgentChatPage({
       setBusy(true)
       onAsk(v)
         .then((resp) => setMessages((prev) => [...prev, { role: 'assistant', content: resp }]))
-        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: 'Desculpe, ocorreu um erro ao contactar o assistente. Tente novamente.' }]))
+        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: L.errorReply }]))
         .finally(() => setBusy(false))
       return
     }
@@ -113,28 +145,28 @@ export default function AgentChatPage({
 
   return (
     <div className={styles.page}>
-      <aside className={styles.convSide} aria-label="Histórico de conversas">
+      <aside className={styles.convSide} aria-label={L.asideAria}>
         <div className={styles.convHead}>
-          <h3>CONVERSAS</h3>
-          <button type="button" className={styles.iconOnly} aria-label="Esconder painel" title="Esconder">
+          <h3>{L.heading}</h3>
+          <button type="button" className={styles.iconOnly} aria-label={L.hidePanel} title={L.hidePanel}>
             <Icon name="chevron-left" />
           </button>
         </div>
         <button type="button" className={clsx(styles.btn, styles.gold, styles.newconv)} onClick={newConv}>
-          + Nova conversa
+          {L.newConversation}
         </button>
         <div className={styles.convSearch}>
           <Icon name="search" />
-          <input type="text" placeholder="Procurar conversas…" aria-label="Procurar conversas" />
+          <input type="text" placeholder={L.searchPlaceholder} aria-label={L.searchAria} />
         </div>
         <div className={styles.convList}>
           {conversations.length === 0 ? (
-            <p className={styles.convEmpty}>Nenhuma conversa ainda. Inicie a primeira para começar.</p>
+            <p className={styles.convEmpty}>{L.empty}</p>
           ) : (
             BUCKETS.map((bk) =>
               buckets[bk].length > 0 ? (
                 <section key={bk}>
-                  <div className={styles.convBucket}>{BUCKET_LABEL[bk]}</div>
+                  <div className={styles.convBucket}>{L.bucketLabels[bk]}</div>
                   {buckets[bk].map((c) => (
                     <button key={c.id} type="button" className={styles.convItem} onClick={() => selectConv(c)}>
                       <Icon name="chat" />
@@ -174,7 +206,7 @@ export default function AgentChatPage({
             )}
             {showDocsBtn && (
               <button type="button" className={styles.btn} onClick={openDocs}>
-                <Icon name="doc" />Documentos
+                <Icon name="doc" />{L.docsButton}
               </button>
             )}
           </div>
@@ -220,7 +252,7 @@ export default function AgentChatPage({
                 {msg.content}
               </div>
             ))}
-            {busy && <div style={{ alignSelf: 'flex-start', padding: '10px 14px', color: 'var(--v54-navy-300)', fontSize: 13 }}>A escrever…</div>}
+            {busy && <div style={{ alignSelf: 'flex-start', padding: '10px 14px', color: 'var(--v54-navy-300)', fontSize: 13 }}>{L.typing}</div>}
           </div>
         )}
 
@@ -232,10 +264,10 @@ export default function AgentChatPage({
             placeholder={inputPlaceholder}
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            aria-label={`Pergunta a ${name}`}
+            aria-label={L.inputAria(name)}
           />
           <button type="submit" className={clsx(styles.btn, styles.gold, styles.send)} disabled={!inputVal.trim() || busy}>
-            Enviar
+            {L.send}
           </button>
         </form>
       </main>

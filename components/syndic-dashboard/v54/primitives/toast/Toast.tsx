@@ -60,7 +60,15 @@ export function useToast(): ToastApi {
  * Visuel byte-exact ; classes en CSS Module (les `.vfx-toast*` du bundle étaient
  * un préfixe anti-collision global, inutile sous CSS Modules).
  */
-export function ToastProvider({ children }: { children: ReactNode }) {
+export interface ToastProviderProps {
+  children: ReactNode
+  /** Libellé accessible du bouton fermer (défaut bundle : « Fechar notificação »). */
+  closeLabel?: string
+  /** Libellé accessible de la région des toasts (défaut bundle : « Notificações »). */
+  regionLabel?: string
+}
+
+export function ToastProvider({ children, closeLabel = 'Fechar notificação', regionLabel = 'Notificações' }: ToastProviderProps) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const idRef = useRef(0)
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -100,7 +108,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className={styles.viewport} role="region" aria-label="Notificações">
+      <div className={styles.viewport} role="region" aria-label={regionLabel}>
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -121,7 +129,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               type="button"
               className={styles.close}
               onClick={() => dismiss(t.id)}
-              aria-label="Fechar notificação"
+              aria-label={closeLabel}
             >
               ×
             </button>
