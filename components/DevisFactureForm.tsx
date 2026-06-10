@@ -44,6 +44,9 @@ import {
   stableDocId,
 } from '@/lib/devis-utils'
 import { toast } from 'sonner'
+import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
+import { svgToImageDataUrl } from '@/lib/signature-canvas'
+import { DecimalInput } from '@/components/common/DecimalInput'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
@@ -54,22 +57,8 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 // HELPERS — saisie décimale FR + input buffered (parité BTP)
 // ═══════════════════════════════════════════════
 
-// Format quantité : "1", "1,5", '' si 0/null (compat clavier FR + mobile).
-const fmtQty = (n: number | null | undefined): string => {
-  if (!n || !Number.isFinite(n)) return ''
-  return n.toString().replace('.', ',')
-}
-// Format prix HT : 2 décimales virgule FR, '' si 0.
-const fmtN = (n: number | null | undefined): string => {
-  if (!n || !Number.isFinite(n)) return ''
-  return n.toFixed(2).replace('.', ',')
-}
-// Format prix unitaire 4 décimales (étude de prix, parité BTP).
-const fmtN4 = (n: number | null | undefined): string => {
-  if (!n || !Number.isFinite(n)) return ''
-  const fixed = n.toFixed(4).replace(/\.?0+$/, '')
-  return fixed.replace('.', ',')
-}
+// fmtQty / fmtN / fmtN4 : extraits dans lib/devis-format.ts (partagés avec le
+// formulaire BTP, audit 2026-06-10).
 
 /**
  * Input contrôlé qui tolère la saisie en cours d'une virgule/point décimal.
@@ -86,36 +75,8 @@ const fmtN4 = (n: number | null | undefined): string => {
  * tant que l'utilisateur tape. Au blur, le buffer est libéré et le champ
  * reprend le rendu formaté.
  */
-function DecimalInput(props: {
-  value: number
-  onChangeNumber: (n: number) => void
-  format: (n: number) => string
-  parse: (s: string) => number
-  placeholder?: string
-  style?: React.CSSProperties
-  title?: string
-  disabled?: boolean
-  className?: string
-  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
-  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
-}) {
-  const { value, onChangeNumber, format, parse, onFocus, onBlur, ...rest } = props
-  const [raw, setRaw] = useState<string | null>(null)
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      {...rest}
-      value={raw ?? format(value)}
-      onFocus={(e) => { setRaw(format(value)); e.target.select(); onFocus?.(e) }}
-      onChange={(e) => {
-        setRaw(e.target.value)
-        onChangeNumber(parse(e.target.value))
-      }}
-      onBlur={(e) => { setRaw(null); onBlur?.(e) }}
-    />
-  )
-}
+// DecimalInput : extrait dans components/common/DecimalInput.tsx (partagé avec
+// le formulaire BTP, audit 2026-06-10).
 
 // ═══════════════════════════════════════════════
 // COMPONENT
@@ -627,25 +588,8 @@ export default function DevisFactureForm({
     setSigSigning(false)
   }, [sigPoints, sigNom, sigBuildSVG, docNumber])
 
-  const svgToImageDataUrl = useCallback((svgString: string, width: number, height: number): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(svgBlob)
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = width * 2
-        canvas.height = height * 2
-        const ctx = canvas.getContext('2d')!
-        ctx.scale(2, 2)
-        ctx.drawImage(img, 0, 0, width, height)
-        URL.revokeObjectURL(url)
-        resolve(canvas.toDataURL('image/png'))
-      }
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render failed')) }
-      img.src = url
-    })
-  }, [])
+  // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (partagé avec le
+  // formulaire BTP, audit 2026-06-10).
 
   // Référence du devis d'origine (si conversion devis → facture)
   const sourceDevisRef = isConversion ? initialData.docNumber : null
