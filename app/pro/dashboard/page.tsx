@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
@@ -400,8 +401,10 @@ function DashboardPage() {
     prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], artisanData.user_id || artisanData.id)
 
     // Parallel fetch: bookings + services (non-blocking, UI already visible)
+    // Bookings : historique COMPLET (paginé, borné) — l'ancien .limit(20)
+    // faussait CA/compteurs/inbox calculés depuis ce tableau (fix 2026-06-10).
     const [bookingsRes, servicesRes] = await Promise.all([
-      supabase.from('bookings').select('*, services(name)').eq('artisan_id', aid).order('booking_date', { ascending: false }).limit(20),
+      fetchAllBookings(supabase, aid),
       supabase.from('services').select('*').eq('artisan_id', aid),
     ])
     if (!isMountedRef.current) return // Composant démonté pendant le fetch
@@ -417,8 +420,15 @@ function DashboardPage() {
     setBookings(mergedBookings)
     setServices(servicesRes.data || [])
 
-    // Auto-add clients from bookings (deferred, non-blocking)
-    const confirmed = mergedBookings.filter((b: Booking) => b.status === 'confirmed' || b.status === 'completed')
+    // Auto-add clients from bookings (deferred, non-blocking).
+    // Borné aux 100 plus récents (tableau trié desc) : l'objet du mécanisme est
+    // d'attraper les confirmations récentes — les anciennes ont déjà été
+    // auto-ajoutées lors des sessions passées. Sans borne, le chargement de
+    // l'historique complet ferait O(n) parse/stringify localStorage sur le
+    // main thread à chaque ouverture du dashboard.
+    const confirmed = mergedBookings
+      .filter((b: Booking) => b.status === 'confirmed' || b.status === 'completed')
+      .slice(0, 100)
     requestAnimationFrame(() => { for (const b of confirmed) autoAddClientFromBooking(b) })
   }
 
@@ -1516,7 +1526,9 @@ function DashboardPage() {
             const [availRes, svcRes, bkRes, dsRes, absRes] = await Promise.all([
               fetch(`/api/availability?artisan_id=${artisan.id}`),
               supabase.from('services').select('*').eq('artisan_id', artisan.id).order('created_at'),
-              supabase.from('bookings').select('*, services(name)').eq('artisan_id', artisan.id).order('booking_date', { ascending: false }).limit(50),
+              // Historique complet (paginé, borné) — parité avec le chargement
+              // initial, sinon le refresh Fixy re-tronquerait CA/compteurs.
+              fetchAllBookings(supabase, artisan.id),
               fetch(`/api/availability-services?artisan_id=${artisan.id}`),
               fetch(`/api/artisan-absences?artisan_id=${artisan.id}`),
             ])
