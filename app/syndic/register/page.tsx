@@ -75,15 +75,27 @@ export default function SyndicRegisterPage() {
       })
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
 
-      // Init app_metadata.role='syndic' (server-only)
+      // Le rôle syndic n'est PLUS auto-assignable (audit 2026-06-10) : init-role
+      // répond 403 — les comptes syndic sont provisionnés par un admin
+      // (scope syndic dormant, réactivé sur invitation uniquement).
       if (signUpData.session?.access_token) {
         try {
-          await fetch('/api/auth/init-role', {
+          const roleRes = await fetch('/api/auth/init-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${signUpData.session.access_token}` },
             body: JSON.stringify({ role: 'syndic' }),
           })
-        } catch { /* non-bloquant */ }
+          if (!roleRes.ok) {
+            setError('Les comptes syndic sont créés sur invitation uniquement. Contactez-nous à contact@vitfix.io pour activer votre accès.')
+            setLoading(false)
+            return
+          }
+        } catch (e) {
+          console.warn('[syndic/register] init-role failed:', e)
+          setError('Une erreur est survenue lors de l\'initialisation du compte. Réessayez ou contactez contact@vitfix.io.')
+          setLoading(false)
+          return
+        }
       }
 
       setSuccess(true)

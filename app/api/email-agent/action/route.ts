@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentActionPostSchema } from '@/lib/validation'
 
@@ -22,9 +22,14 @@ export async function POST(request: NextRequest) {
     const { email_id, syndic_id, action, note } = validation.data
 
     // Sécurité : le syndic_id du body DOIT correspondre à l'utilisateur authentifié
-    // ou être un membre du même cabinet
-    if (user.id !== syndic_id && user.user_metadata?.cabinet_id !== syndic_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // ou au cabinet résolu CÔTÉ SERVEUR (syndic_team_members). Ne JAMAIS lire
+    // user_metadata.cabinet_id : modifiable côté client via
+    // supabase.auth.updateUser → écriture cross-cabinet (audit 2026-06-10).
+    if (user.id !== syndic_id) {
+      const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+      if (cabinetId !== syndic_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     // Valider l'action

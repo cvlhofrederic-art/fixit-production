@@ -22,15 +22,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const v = validateBody(coproAiSchema, body)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
-    const { messages, systemPrompt, stream } = v.data
+    const { messages, stream } = v.data
 
     if (!GROQ_API_KEY) {
       return NextResponse.json({ reply: '⚠️ Service IA temporairement indisponible. Veuillez réessayer plus tard.' })
     }
 
+    // SÉCURITÉ : system prompt construit côté serveur uniquement (le
+    // systemPrompt client est supprimé — injection de prompt, audit 2026-06-10).
+    // Défense en profondeur : les rôles client sont coercés user/assistant même
+    // si le schéma Zod les restreint déjà.
     const groqMessages = [
-      { role: 'system', content: systemPrompt || 'Tu es Fixy, un assistant IA pour copropriétaires et locataires. Tu es amical, patient et pédagogue. Réponds toujours en français.' },
-      ...messages.slice(-20).map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
+      { role: 'system', content: 'Tu es Fixy, un assistant IA pour copropriétaires et locataires. Tu es amical, patient et pédagogue. Réponds toujours en français.' },
+      ...messages.slice(-20).map((m: { role: string; content: string }) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
     ]
 
     // ── Mode streaming SSE ──

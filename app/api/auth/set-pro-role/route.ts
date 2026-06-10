@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
+// SÉCURITÉ (audit 2026-06-10) : cet endpoint permettait à tout utilisateur
+// authentifié de s'auto-assigner pro_societe / pro_conciergerie /
+// pro_gestionnaire (caller.id === user_id passait sans autre garde), en
+// contournement direct de l'allowlist de /api/auth/init-role. Politique
+// alignée sur init-role :
+//   - self-set : UNIQUEMENT pro_societe (onboarding BTP public), et UNIQUEMENT
+//     si aucun rôle n'est encore défini (anti re-promotion)
+//   - pro_conciergerie / pro_gestionnaire (dormants) : super_admin uniquement
 const setProRoleSchema = z.object({
   user_id: z.string().uuid(),
   role: z.enum(['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']),
@@ -15,12 +24,14 @@ function getAnon() {
 
 /**
  * POST /api/auth/set-pro-role
- * Sets the correct role in user metadata after PRO company registration.
- * Uses the admin service key to bypass Supabase email confirmation restrictions.
- * Auth: caller must be the target user or a super_admin.
+ * Sets the correct role in app_metadata after PRO company registration.
+ * Auth : self-set limité à pro_societe sans rôle préexistant ; sinon super_admin.
  */
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`set_pro_role_${ip}`, 10, 60_000))) return rateLimitResponse()
+
     // Authenticate caller
     const token = req.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -34,10 +45,21 @@ export async function POST(req: NextRequest) {
 
     const { user_id, role, org_type } = parsed.data
 
-    // Authorize: caller must be the target user or super_admin (app_metadata only)
     const callerRole = caller.app_metadata?.role
-    if (caller.id !== user_id && callerRole !== 'super_admin') {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    const isSuperAdmin = callerRole === 'super_admin'
+
+    if (!isSuperAdmin) {
+      // Self-set uniquement, et uniquement pro_societe
+      if (caller.id !== user_id) {
+        return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+      }
+      if (role !== 'pro_societe') {
+        return NextResponse.json({ error: 'Rôle non auto-assignable — attribution par un administrateur uniquement' }, { status: 403 })
+      }
+      // Anti re-promotion : refus si un rôle est déjà défini (même garde que init-role)
+      if (callerRole) {
+        return NextResponse.json({ error: 'Rôle déjà défini — changement via un flow admin uniquement' }, { status: 403 })
+      }
     }
 
     // Écrit dans app_metadata (server-only, non forgeable côté client)
