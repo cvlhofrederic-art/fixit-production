@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { it, expect, vi, afterEach } from 'vitest'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 
 // Audit 2026-06-10 (Vague 4) — helper canvas extrait à l'identique des deux
@@ -6,6 +6,16 @@ import { svgToImageDataUrl } from '@/lib/signature-canvas'
 // URL et canvas pour vérifier le contrat (résolution data URL @2x / rejet).
 
 afterEach(() => vi.restoreAllMocks())
+
+// Image factice : déclenche onload (ok=true) ou onerror (ok=false) à l'affectation de src.
+function stubImage(ok: boolean) {
+  class FakeImg {
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    set src(_v: string) { setTimeout(() => (ok ? this.onload?.() : this.onerror?.()), 0) }
+  }
+  vi.stubGlobal('Image', FakeImg)
+}
 
 function stubCanvas() {
   const canvas = {
@@ -23,8 +33,7 @@ function stubCanvas() {
 
 it('résout en data URL PNG @2x quand l\'image charge', async () => {
   const canvas = stubCanvas()
-  class FakeImg { onload: (() => void) | null = null; onerror: (() => void) | null = null; set src(_v: string) { setTimeout(() => this.onload?.(), 0) } }
-  vi.stubGlobal('Image', FakeImg)
+  stubImage(true)
   const out = await svgToImageDataUrl('<svg/>', 100, 50)
   expect(out).toBe('data:image/png;base64,MOCK')
   expect(canvas.width).toBe(200)   // @2x
@@ -33,7 +42,6 @@ it('résout en data URL PNG @2x quand l\'image charge', async () => {
 
 it('rejette si le rendu SVG échoue', async () => {
   stubCanvas()
-  class FakeImg { onload: (() => void) | null = null; onerror: (() => void) | null = null; set src(_v: string) { setTimeout(() => this.onerror?.(), 0) } }
-  vi.stubGlobal('Image', FakeImg)
+  stubImage(false)
   await expect(svgToImageDataUrl('<svg/>', 10, 10)).rejects.toThrow('SVG render failed')
 })
