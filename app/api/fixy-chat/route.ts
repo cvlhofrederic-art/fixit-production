@@ -195,6 +195,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
+  // Double clé : user_id (non contournable par rotation IP/VPN — borne le coût
+  // Groq réel par compte) + IP (borne le flood multi-comptes depuis une machine).
+  if (!(await checkRateLimit(`fixy_chat_user_${user.id}`, 15, 60_000))) return rateLimitResponse()
   if (!(await checkRateLimit(`fixy_chat_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   if (!GROQ_API_KEY) {

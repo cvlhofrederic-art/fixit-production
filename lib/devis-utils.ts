@@ -159,6 +159,36 @@ export const getDocTime = (doc: { sentAt?: string; savedAt?: string; docDate?: s
   return Number.isFinite(t) ? t : 0
 }
 
+/** Extrait le préfixe de série d'un numéro de doc (ex: 'FACT', 'AC', 'AV', 'BR', 'DEV').
+ *  Retourne '' si le format `<PREFIX>-<YEAR>-<SEQ>` n'est pas reconnu. */
+export const getDocSeries = (doc: { docNumber?: string }): string => {
+  const m = (doc.docNumber || '').match(/^([A-Z]+)-\d{4}-\d+$/)
+  return m ? m[1] : ''
+}
+
+/**
+ * Comparator « du plus récent au plus ancien » pour les listes Devis/Factures.
+ *
+ * Au sein d'une **même série** (FACT vs FACT, AC vs AC, …) : `getDocSeq` DESC.
+ * Les numéros d'une même série sont émis dans l'ordre, donc le seq DESC
+ * correspond à l'attente utilisateur (FACT-2026-004 au-dessus de FACT-2026-003).
+ *
+ * Entre **séries différentes** (AC vs FACT) : `getDocTime` DESC puis seq tiebreak.
+ * Évite qu'un acompte récent AC-2026-002 (séq 2) ne tombe sous une vieille
+ * FACT-2026-017 (séq 17) — les compteurs étant indépendants par série.
+ */
+export const compareDocsForList = (
+  a: { docNumber?: string; sentAt?: string; savedAt?: string; docDate?: string },
+  b: { docNumber?: string; sentAt?: string; savedAt?: string; docDate?: string },
+): number => {
+  const seriesA = getDocSeries(a)
+  const seriesB = getDocSeries(b)
+  if (seriesA && seriesA === seriesB) {
+    return getDocSeq(b) - getDocSeq(a)
+  }
+  return getDocTime(b) - getDocTime(a) || getDocSeq(b) - getDocSeq(a)
+}
+
 /** Convertit la valeur stockée en affichage PDF lisible (m2→m², m3→m³) */
 export const formatUnitForPdf = (unit: string, customUnit?: string): string => {
   if (unit === 'autre') return customUnit || 'u'
@@ -337,6 +367,25 @@ export function isSocieteStatus(status: string, locale: Locale): boolean {
 export function isSmallBusinessStatus(status: string, locale: Locale): boolean {
   if (locale === 'pt') return ['eni'].includes(status)
   return ['ae', 'ei'].includes(status)
+}
+
+/**
+ * Régime TVA effectif d'un document V2 (artisan) — audit 2026-06-10, Vague 4.
+ * Un flag explicite `tvaEnabled` (boolean) est TOUJOURS respecté (un
+ * auto-entrepreneur peut légitimement être assujetti après dépassement du
+ * seuil 293 B). Pour un doc legacy SANS flag, on infère depuis companyStatus :
+ * EI / auto-entrepreneur (FR) et ENI (PT) sont en franchise par défaut —
+ * l'ancien défaut « TVA applicable » rendait des PDF non conformes à
+ * l'art. 293 B CGI pour ces statuts. Sans companyStatus non plus, on conserve
+ * le comportement historique (TVA activée).
+ */
+export function resolveTvaEnabledV2(
+  doc: { tvaEnabled?: unknown; companyStatus?: unknown },
+): boolean {
+  if (typeof doc.tvaEnabled === 'boolean') return doc.tvaEnabled
+  const status = String(doc.companyStatus || '')
+  if (!status) return true
+  return !(isSmallBusinessStatus(status, 'fr') || isSmallBusinessStatus(status, 'pt'))
 }
 
 /**

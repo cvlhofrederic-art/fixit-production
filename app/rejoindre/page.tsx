@@ -40,8 +40,9 @@ export default function RejoindreParrainage() {
 
       // Poser le cookie
       document.cookie = `${COOKIE_NAME}=${refCode}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Lax; Secure`
-      // Backup localStorage
-      try { localStorage.setItem('vtfx_referral_code', refCode) } catch {}
+      // Backup localStorage (échec toléré : Safari navigation privée — le
+      // cookie posé juste au-dessus reste la source principale)
+      try { localStorage.setItem('vtfx_referral_code', refCode) } catch (e) { console.warn('[rejoindre] localStorage backup failed:', e) }
 
       setLoading(false)
     } catch {
