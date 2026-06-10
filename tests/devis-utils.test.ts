@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { titleCaseAddress, getDocSeq, stableDocId, isStableDocId, docIdentityKey, dedupeDocsByIdentity } from '../lib/devis-utils'
+import { titleCaseAddress, getDocSeq, stableDocId, isStableDocId, docIdentityKey, dedupeDocsByIdentity, compareDocsForList, getDocSeries } from '../lib/devis-utils'
 
 describe('stableDocId', () => {
   it('génère un UUID v4 valide', () => {
@@ -176,5 +176,70 @@ describe('getDocSeq — tri factures par numéro émis', () => {
     expect(getDocSeq({})).toBe(Number.MAX_SAFE_INTEGER)
     expect(getDocSeq({ docNumber: '' })).toBe(Number.MAX_SAFE_INTEGER)
     expect(getDocSeq({ docNumber: 'truc-bidule' })).toBe(Number.MAX_SAFE_INTEGER)
+  })
+})
+
+describe('getDocSeries — extrait le préfixe de série', () => {
+  it('reconnaît les séries usuelles', () => {
+    expect(getDocSeries({ docNumber: 'FACT-2026-001' })).toBe('FACT')
+    expect(getDocSeries({ docNumber: 'AC-2026-002' })).toBe('AC')
+    expect(getDocSeries({ docNumber: 'AV-2026-003' })).toBe('AV')
+    expect(getDocSeries({ docNumber: 'BR-2026-004' })).toBe('BR')
+    expect(getDocSeries({ docNumber: 'DEV-2026-005' })).toBe('DEV')
+    expect(getDocSeries({ docNumber: 'ORC-2026-038' })).toBe('ORC')
+  })
+  it('renvoie chaîne vide si numéro absent ou malformé', () => {
+    expect(getDocSeries({})).toBe('')
+    expect(getDocSeries({ docNumber: '' })).toBe('')
+    expect(getDocSeries({ docNumber: 'brouillon' })).toBe('')
+  })
+})
+
+describe('compareDocsForList — tri liste Devis/Factures', () => {
+  it('même série : seq DESC (résout le bug user du 8 juin — FACT-003 ne doit pas passer avant FACT-004)', () => {
+    // Scénario réel : 4 factures FACT- avec timestamps NON alignés sur le seq.
+    // FACT-003 a été ré-enregistrée APRÈS FACT-004 → savedAt 003 > savedAt 004,
+    // mais l'utilisateur attend l'ordre numérique strict.
+    const docs = [
+      { docNumber: 'FACT-2026-003', savedAt: '2026-06-08T15:00:00.000Z' },
+      { docNumber: 'FACT-2026-004', savedAt: '2026-06-08T10:00:00.000Z' },
+      { docNumber: 'FACT-2026-002', savedAt: '2026-06-05T09:00:00.000Z' },
+      { docNumber: 'FACT-2026-001', savedAt: '2026-05-20T09:00:00.000Z' },
+    ]
+    const sorted = [...docs].sort(compareDocsForList).map(d => d.docNumber)
+    expect(sorted).toEqual(['FACT-2026-004', 'FACT-2026-003', 'FACT-2026-002', 'FACT-2026-001'])
+  })
+
+  it('séries différentes : un acompte récent passe AVANT une facture plus ancienne (préserve l\'intent de getDocTime)', () => {
+    // Cas couvert par devis-doc-time.test.ts — préservé via le fallback time.
+    const docs = [
+      { docNumber: 'FACT-2026-017', sentAt: '2026-06-04T09:00:00.000Z' },
+      { docNumber: 'AC-2026-002', sentAt: '2026-06-05T15:00:00.000Z' },
+    ]
+    const sorted = [...docs].sort(compareDocsForList).map(d => d.docNumber)
+    expect(sorted).toEqual(['AC-2026-002', 'FACT-2026-017'])
+  })
+
+  it('séries mixtes intercalées : seq DESC par série + time DESC entre séries', () => {
+    const docs = [
+      { docNumber: 'AC-2026-001', sentAt: '2026-05-01T10:00:00.000Z' },
+      { docNumber: 'FACT-2026-005', sentAt: '2026-06-03T10:00:00.000Z' },
+      { docNumber: 'AC-2026-002', sentAt: '2026-06-08T10:00:00.000Z' },
+      { docNumber: 'FACT-2026-006', sentAt: '2026-06-07T10:00:00.000Z' },
+    ]
+    const sorted = [...docs].sort(compareDocsForList).map(d => d.docNumber)
+    // AC-002 (08/06) > FACT-006 (07/06) > FACT-005 (03/06) > AC-001 (01/05)
+    // mais FACT-005 et FACT-006 doivent rester groupés en seq DESC
+    // entre eux. Comparator transitif → résultat : AC-002, FACT-006, FACT-005, AC-001.
+    expect(sorted).toEqual(['AC-2026-002', 'FACT-2026-006', 'FACT-2026-005', 'AC-2026-001'])
+  })
+
+  it('docs sans numéro (brouillons) restent triés par date', () => {
+    const docs = [
+      { savedAt: '2026-06-05T10:00:00.000Z' },
+      { savedAt: '2026-06-08T10:00:00.000Z' },
+    ]
+    const sorted = [...docs].sort(compareDocsForList).map(d => d.savedAt)
+    expect(sorted).toEqual(['2026-06-08T10:00:00.000Z', '2026-06-05T10:00:00.000Z'])
   })
 })

@@ -11,7 +11,7 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
-import { getDocSeq, getDocTime, docIdentityKey, dedupeDocsByIdentity, isStableDocId } from '@/lib/devis-utils'
+import { getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId } from '@/lib/devis-utils'
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
@@ -479,11 +479,13 @@ function FacturesSectionV5({
         d.clientName?.toLowerCase().includes(q)
       )
     })
-    // Tri « du plus récent au plus ancien » par DATE D'ÉMISSION (sentAt/savedAt/
-    // docDate), pas par numéro de séquence : les séries sont indépendantes (AC-
-    // a son propre compteur), donc un acompte récent AC-2026-002 ne doit pas
-    // tomber sous FACT-2026-003+. getDocSeq départage à date égale.
-    .sort((a, b) => getDocTime(b) - getDocTime(a) || getDocSeq(b) - getDocSeq(a))
+    // Tri « du plus récent au plus ancien » via compareDocsForList :
+    // - même série (FACT vs FACT) : seq DESC strict — l'utilisateur attend
+    //   FACT-2026-004 au-dessus de FACT-2026-003 même si 003 a été ré-enregistrée
+    //   plus tard (savedAt plus récent).
+    // - séries différentes (AC vs FACT) : time DESC — un acompte récent
+    //   AC-2026-002 reste au-dessus d'une vieille FACT-2026-017.
+    .sort(compareDocsForList)
 
   const getV5Badge = (doc: PersistedDocument) => {
     // Accepte les statuts FR (localStorage) ET EN (DB Supabase).
