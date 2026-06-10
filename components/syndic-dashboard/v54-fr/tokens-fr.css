@@ -1,0 +1,13 @@
+/* Tokens d'extension FR — port du bloc « safety overrides » du mockup v8
+ * (l.3513 : gold-200/300, rust-600, sage-600, absents de l'échelle de base).
+ * Scopé #syndic-dashboard-v54 comme tokens.css (jamais :root) ; le PT ne
+ * référence aucune de ces variables → zéro effet sur /syndic/v54.
+ * Consommés par : montants débiteurs/créditeurs (rust-600/sage-600 — ModCompta,
+ * ModBudget, ModNPS, ModOpenBanking, ModExtranet), accents dorés (ModCockpit). */
+
+#syndic-dashboard-v54 {
+  --v54-gold-200: #EBDDC2;
+  --v54-gold-300: #E0CBA6;
+  --v54-rust-600: #A24E2F;
+  --v54-sage-600: #376B54;
+}

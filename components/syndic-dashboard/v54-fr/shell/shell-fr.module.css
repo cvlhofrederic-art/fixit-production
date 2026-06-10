@@ -1,0 +1,202 @@
+/* Styles propres au shell FR (panneau notifications + sélecteur de rôle) —
+ * port du CSS .notifs-* du mockup v8, variables --v54-*. Le layout du shell
+ * (sidebar, topbar, content…) vient de ../../v54/shell/Shell.module.css. */
+
+.notifsWrap {
+  position: relative;
+  display: inline-block;
+}
+
+.notifsPanel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 400px;
+  max-width: calc(100vw - 24px);
+  background: var(--v54-paper);
+  border: 1px solid var(--v54-line);
+  border-radius: var(--v54-r-lg);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+  overflow: hidden;
+  animation: notifsFade 0.14s ease-out;
+}
+@keyframes notifsFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.notifsHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--v54-line);
+  background: var(--v54-cream);
+}
+.notifsTitle {
+  margin: 0;
+  font-family: var(--v54-font-serif);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+  line-height: 1;
+}
+.notifsSub {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--v54-navy-500);
+  font-weight: 600;
+}
+.notifsMarkAll {
+  border: none;
+  background: transparent;
+  color: var(--v54-gold-700);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.notifsMarkAll:hover { background: var(--v54-gold-50); }
+.notifsMarkAll:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+
+.notifsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.notifsItem {
+  border-bottom: 1px solid var(--v54-line);
+}
+.notifsItem:last-child {
+  border-bottom: none;
+}
+.notifsItemBtn {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-items: flex-start;
+  transition: background 0.1s;
+  position: relative;
+}
+.notifsItemBtn:hover { background: var(--v54-cream); }
+.notifsItemBtn:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: -2px; }
+.unread .notifsItemBtn { background: rgba(193, 154, 91, 0.06); }
+.unread .notifsItemBtn:hover { background: rgba(193, 154, 91, 0.12); }
+
+.notifsItemIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--v54-navy-700);
+  background: var(--v54-navy-100);
+}
+.notifsItemIcon svg {
+  width: 16px;
+  height: 16px;
+}
+.kindMission   { background: var(--v54-gold-100);  color: var(--v54-gold-700); }
+.kindPayment   { background: var(--v54-sage-100);  color: var(--v54-sage-700); }
+.kindDebt      { background: var(--v54-rust-100);  color: var(--v54-rust-700); }
+.kindInsurance { background: var(--v54-amber-100); color: var(--v54-amber-700); }
+.kindAg        { background: var(--v54-gold-50);   color: var(--v54-gold-700); }
+.kindLegal     { background: var(--v54-amber-50);  color: var(--v54-amber-700); }
+.kindMessage   { background: var(--v54-navy-100);  color: var(--v54-navy-700); }
+.kindEquipa    { background: var(--v54-sage-50);   color: var(--v54-sage-700); }
+
+.notifsItemContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.notifsItemTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v54-navy-900);
+  line-height: 1.3;
+}
+.notifsItemDesc {
+  font-size: 12px;
+  color: var(--v54-navy-500);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notifsItemTime {
+  font-size: 10.5px;
+  color: var(--v54-navy-300);
+  margin-top: 4px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.notifsItemDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v54-gold-500);
+  flex-shrink: 0;
+  margin-top: 6px;
+  box-shadow: 0 0 0 2px rgba(193, 154, 91, 0.2);
+}
+.notifsFoot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--v54-line);
+  background: var(--v54-cream);
+  text-align: center;
+}
+.notifsFootBtn {
+  border: none;
+  background: transparent;
+  color: var(--v54-gold-700);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.notifsFootBtn:hover { text-decoration: underline; }
+.notifsFootBtn:focus-visible { outline: 2px solid var(--v54-gold-500); outline-offset: 1px; }
+
+/* Sélecteur de rôle (topbar) */
+.roleField {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--v54-navy-500);
+}
+.roleField svg {
+  width: 14px;
+  height: 14px;
+}
+.roleSelect {
+  border: 1px solid var(--v54-line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  background: #fff;
+  color: var(--v54-ink);
+}
