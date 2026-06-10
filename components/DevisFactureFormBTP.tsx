@@ -28,6 +28,10 @@ import {
   type ServiceBasic,
 } from '@/lib/devis-types'
 import { mapLegalFormToCode, titleCaseAddress, stableDocId } from '@/lib/devis-utils'
+import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
+import { svgToImageDataUrl } from '@/lib/signature-canvas'
+import { localFallbackDocNumber } from '@/lib/doc-number'
+import { DecimalInput } from '@/components/common/DecimalInput'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
@@ -164,104 +168,17 @@ const TYPES_ASSURANCE = [
 const fmt = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
-// Format numérique pour inputs de saisie : vide quand n=0/null, sinon virgule FR
-// ("90,91" pas "90.91"). Couple avec inputMode="decimal" + parseDecimalInput
-// pour permettre la saisie naturelle avec virgule ou point.
-const fmtN = (n: number | null | undefined): string => {
-  if (!n || !Number.isFinite(n)) return ''
-  return n.toFixed(2).replace('.', ',')
-}
+// fmtN / fmtN4 / fmtQty : extraits dans lib/devis-format.ts (partagés avec le
+// formulaire artisan, audit 2026-06-10). fmt (€) reste local (non mutualisé).
 
-// Format prix unitaire HT 4 décimales (étude de prix BTP). Idem vide si 0.
-const fmtN4 = (n: number | null | undefined): string => {
-  if (!n || !Number.isFinite(n)) return ''
-  // Garde 4 décimales max mais retire les zéros traînants (9.0909 → "9,0909"
-  // mais 9.09 → "9,09" et 9.0 → "9").
-  const fixed = n.toFixed(4).replace(/\.?0+$/, '')
-  return fixed.replace('.', ',')
-}
+// DecimalInput : extrait dans components/common/DecimalInput.tsx (partagé avec
+// le formulaire artisan, audit 2026-06-10). Gagne au passage le select() au
+// focus (saisie par-dessus sans effacer) — harmonisation UX autorisée par Frédéric.
 
-// Format quantité : toString natif JS avec virgule FR. Pas de zéros forcés
-// (1 → "1", 1.5 → "1,5", 0 → ''). Compatible inputMode="decimal" sur tous
-// les claviers FR (mobile + desktop).
-const fmtQty = (n: number | null | undefined): string => {
-  if (!n || !Number.isFinite(n)) return ''
-  return n.toString().replace('.', ',')
-}
-
-/**
- * Input contrôlé qui tolère la saisie en cours d'une virgule décimale FR.
- *
- * Problème résolu : un input contrôlé `value={fmt(parse(typed))}` reformate
- * à chaque frappe, ce qui supprime la virgule trailing au moment où
- * l'utilisateur la tape (ex. "90," → parse=90 → fmt="90" → comma stripped).
- * L'utilisateur "n'arrive plus à écrire la virgule".
- *
- * Solution : tant que l'input a le focus, on garde l'**input brut** tel que
- * l'utilisateur l'a tapé dans un état local (raw). On parse en parallèle
- * pour maintenir la réactivité (totaux, TVA, etc.) mais sans réécrire le
- * champ. Au blur, on libère le buffer et le champ reprend le rendu formaté.
- *
- * Compat clavier FR : type="text" + inputMode="decimal" → numpad mobile +
- * saisie virgule autorisée par le navigateur.
- */
-function DecimalInput(props: {
-  value: number
-  onChangeNumber: (n: number) => void
-  format: (n: number) => string
-  parse: (s: string) => number
-  placeholder?: string
-  style?: React.CSSProperties
-  title?: string
-  disabled?: boolean
-}) {
-  const { value, onChangeNumber, format, parse, ...rest } = props
-  const [raw, setRaw] = React.useState<string | null>(null)
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      {...rest}
-      value={raw ?? format(value)}
-      onFocus={() => setRaw(format(value))}
-      onChange={(e) => {
-        setRaw(e.target.value)
-        onChangeNumber(parse(e.target.value))
-      }}
-      onBlur={() => setRaw(null)}
-    />
-  )
-}
-
-/**
- * Génère un numéro de document local-only (DERNIER recours).
- *
- * Préfixe DEV-/FACT-/AV- selon docType. Compatible avec la séquence serveur
- * `next_doc_number` RPC (cf. supabase/migrations/022_doc_sequences.sql).
- *
- * Conformité art. 242 nonies A I 2° CGI : numérotation continue, sans
- * rupture, par séquence chronologique unique. Cette fonction est un
- * fallback temporaire — la source de vérité reste la RPC serveur.
- */
-const localFallbackDocNumber = (artisanId: string | undefined, docType: 'devis' | 'facture' | 'avoir' | 'acompte'): string => {
-  const year = new Date().getFullYear()
-  // Séries dédiées par type : DEV- (devis), FACT- (facture), AC- (acompte), AV- (avoir).
-  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : docType === 'acompte' ? 'AC' : 'AV'
-  try {
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]')
-    const all = [...docs, ...drafts]
-    const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
-    const maxSeq = all
-      .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
-      .filter(Boolean)
-      .map(Number)
-      .reduce((a: number, b: number) => Math.max(a, b), 0)
-    return `${prefix}-${year}-${String(maxSeq + 1).padStart(3, '0')}`
-  } catch {
-    return `${prefix}-${year}-001`
-  }
-}
+// localFallbackDocNumber (numéro local-only, DERNIER recours, conforme art.
+// 242 nonies A I 2° CGI) : importé de lib/doc-number.ts (canonique, partagé
+// avec fetchNextDocNumber). La copie locale identique a été supprimée — audit
+// 2026-06-10.
 
 // Identité document : UUID stable via stableDocId() (lib/devis-utils). Un
 // brouillon n'a PAS de numéro (numéro légal tiré à la validation seulement) ;
@@ -1850,25 +1767,8 @@ export default function DevisFactureFormBTP({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allServices, tvaEnabled])
 
-  const svgToImageDataUrl = useCallback((svgString: string, width: number, height: number): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(svgBlob)
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = width * 2
-        canvas.height = height * 2
-        const ctx = canvas.getContext('2d')!
-        ctx.scale(2, 2)
-        ctx.drawImage(img, 0, 0, width, height)
-        URL.revokeObjectURL(url)
-        resolve(canvas.toDataURL('image/png'))
-      }
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render failed')) }
-      img.src = url
-    })
-  }, [])
+  // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (partagé avec le
+  // formulaire artisan, audit 2026-06-10).
 
   const generatePdf = async (action: 'preview' | 'download') => {
     setPdfLoading(true)
