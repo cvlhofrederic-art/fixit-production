@@ -5,6 +5,7 @@ import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 // crypto.randomUUID() is available globally (Web Crypto API)
 import { getAuthUser, unauthorizedResponse, verifyArtisanOwnership } from '@/lib/auth-helpers'
 import { checkRateLimit as checkRL } from '@/lib/rate-limit'
+import { storePendingConfirmation, consumePendingConfirmation } from '@/lib/pending-confirmations'
 import { fixyAiSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
@@ -14,35 +15,21 @@ export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
-// ── Pending confirmations (in-memory, TTL 5min) ─────────────────────────────
-const pendingConfirmations = new Map<string, {
-  tool: string
-  params: Record<string, unknown>
-  artisanId: string
-  expiresAt: number
-}>()
-
-// Cleanup expired tokens every 2 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [token, data] of pendingConfirmations) {
-    if (data.expiresAt < now) pendingConfirmations.delete(token)
-  }
-}, 120_000)
+// ── Pending confirmations (Upstash Redis, TTL 5min) ─────────────────────────
+// Store distribué (lib/pending-confirmations) : sur Cloudflare Workers, un Map
+// module-level perd les tokens créés par un autre isolate → confirmation vocale
+// intermittente (audit 2026-06-10, Vague 3). Le TTL est géré par Redis (EX),
+// plus de setInterval (inopérant sur Workers).
 
 // ── Validate and consume a pending confirmation (breaks taint flow) ──────────
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-function consumePendingAction(rawToken: unknown, artisanId: string): { tool: string; params: Record<string, unknown> } | null {
+async function consumePendingAction(rawToken: unknown, artisanId: string): Promise<{ tool: string; params: Record<string, unknown> } | null> {
   if (typeof rawToken !== 'string' || !UUID_V4_RE.test(rawToken)) return null
-  const key = String(rawToken)
-  const pending = pendingConfirmations.get(key)
+  const pending = await consumePendingConfirmation(String(rawToken))
   if (!pending) return null
-  if (pending.expiresAt && Date.now() > pending.expiresAt) {
-    pendingConfirmations.delete(key)
-    return null
-  }
+  // Consommation atomique (GETDEL) : en cas de mismatch d'ownership le token est
+  // déjà invalidé — comportement volontairement strict (un token ne sert qu'une fois).
   if (pending.artisanId !== artisanId) return null
-  pendingConfirmations.delete(key)
   return { tool: pending.tool, params: pending.params }
 }
 
@@ -430,11 +417,10 @@ export async function POST(request: NextRequest) {
       const toolDef = TOOLS[pc.tool]
       if (toolDef && toolDef.requiresConfirmation) {
         const token = crypto.randomUUID()
-        pendingConfirmations.set(token, {
+        await storePendingConfirmation(token, {
           tool: pc.tool,
           params: pc.params || {},
           artisanId: artisan_id,
-          expiresAt: Date.now() + 5 * 60 * 1000,
         })
         pendingConf = {
           tool: pc.tool,
@@ -460,11 +446,10 @@ export async function POST(request: NextRequest) {
       if (toolDef.requiresConfirmation) {
         if (!pendingConf) {
           const token = crypto.randomUUID()
-          pendingConfirmations.set(token, {
+          await storePendingConfirmation(token, {
             tool: toolName,
             params: action.params || {},
             artisanId: artisan_id,
-            expiresAt: Date.now() + 5 * 60 * 1000,
           })
           pendingConf = {
             tool: toolName,
@@ -570,7 +555,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Validate token + lookup + TTL + ownership in one pure function (breaks taint)
-    const pending = consumePendingAction(rawToken, artisan_id)
+    const pending = await consumePendingAction(rawToken, artisan_id)
     if (!pending) {
       return NextResponse.json({ success: false, detail: 'Action expirée, invalide ou déjà traitée.' })
     }
