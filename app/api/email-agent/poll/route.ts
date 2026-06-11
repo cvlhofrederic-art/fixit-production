@@ -221,8 +221,41 @@ export async function POST(request: NextRequest) {
         // 3. Récupérer les emails Gmail
         const messages = await fetchGmailMessages(accessToken, 20, first_run)
         let newCount = 0
+        let skippedKnown = 0
+
+        // ALF-2 — Idempotence : la requête Gmail (`is:unread`) ne retire jamais
+        // le label UNREAD (pas de scope gmail.modify garanti). Sans garde, chaque
+        // exécution (cron quotidien + push temps réel) relancerait classifyFn +
+        // draftFn (2 appels Groq) sur les MÊMES emails, et l'upsert
+        // (onConflict syndic_id,gmail_message_id) écraserait draft_status →
+        // 'pending_review', écrasant des brouillons déjà revus. On charge donc en
+        // UNE requête les gmail_message_id déjà présents en base pour ce syndic
+        // et on saute les messages connus, QUEL QUE SOIT leur statut.
+        let knownIds = new Set<string>()
+        if (messages.length > 0) {
+          const { data: knownRows, error: knownErr } = await supabaseAdmin
+            .from('syndic_emails_analysed')
+            .select('gmail_message_id')
+            .eq('syndic_id', sid)
+            .in('gmail_message_id', messages.map((m: { id: string }) => m.id))
+          if (knownErr) {
+            // Impossible de distinguer connu/nouveau → on ne traite RIEN :
+            // retraiter écraserait des brouillons revus. Les messages restent
+            // unread, le prochain poll les reprendra.
+            logger.error(`[email-agent/poll] Dedup query failed for ${sid}:`, knownErr)
+            results.push({ syndic_id: sid, error: 'Erreur de déduplication' })
+            continue
+          }
+          knownIds = new Set(
+            (knownRows || []).map((r: { gmail_message_id: string }) => r.gmail_message_id),
+          )
+        }
 
         for (const msg of messages) {
+          if (knownIds.has(msg.id)) {
+            skippedKnown++
+            continue
+          }
           const headers = extractHeaders(msg.payload?.headers || [])
           const bodyText = extractBody(msg.payload)
           const receivedAt = new Date(parseInt(msg.internalDate)).toISOString()
@@ -277,7 +310,16 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        results.push({ syndic_id: sid, emails_processed: messages.length, new_emails: newCount })
+        if (skippedKnown > 0) {
+          logger.info(`[email-agent/poll] ${skippedKnown} message(s) déjà en base skippé(s) pour ${sid}`)
+        }
+
+        results.push({
+          syndic_id: sid,
+          emails_processed: messages.length,
+          new_emails: newCount,
+          skipped_known: skippedKnown,
+        })
 
       } catch (syndicErr: unknown) {
         logger.error(`[email-agent/poll] Error for syndic ${sid}:`, syndicErr)
