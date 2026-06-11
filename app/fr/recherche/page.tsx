@@ -221,7 +221,7 @@ function RechercheContent() {
       // detectedCountry = 'FR' | 'PT' - mappe vers la colonne `language` qui existe dans profiles_artisan
       const detectedLang = detectedCountry === 'PT' ? 'pt' : 'fr'
 
-      let query = supabase
+      const query = supabase
         .from('profiles_artisan')
         .select('*, services(*)')
         .eq('active', true)

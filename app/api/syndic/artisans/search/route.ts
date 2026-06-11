@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       const meta = u.raw_user_meta_data || {}
 
       // Téléphone : user_metadata.phone OR .telephone
-      let telephone = meta.phone || meta.telephone || ''
+      const telephone = meta.phone || meta.telephone || ''
       // SIRET : user_metadata.siret en priorité
       let siret = meta.siret || ''
       // Métier : via categories du profil artisan
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
         const u = authUser.user
         const meta = u.user_metadata || {}
 
-        let telephone = meta.phone || meta.telephone || ''
+        const telephone = meta.phone || meta.telephone || ''
         let siret = meta.siret || ''
         let metier = meta.metier || ''
 
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
   const u = foundUser
   const meta = u.user_metadata || {}
 
-  let telephone = meta.phone || meta.telephone || ''
+  const telephone = meta.phone || meta.telephone || ''
   let siret = meta.siret || ''
   let metier = meta.metier || ''
 

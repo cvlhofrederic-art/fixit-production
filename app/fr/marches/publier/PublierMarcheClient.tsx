@@ -325,7 +325,6 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
           toast.error('Impossible de charger le marché à dupliquer')
         })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Apply template

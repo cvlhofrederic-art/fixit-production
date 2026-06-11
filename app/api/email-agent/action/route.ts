@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email non trouvé' }, { status: 404 })
     }
 
-    let updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
     switch (action) {
       case 'archiver':

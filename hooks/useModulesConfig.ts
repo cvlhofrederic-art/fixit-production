@@ -69,7 +69,6 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     { id: 'parrainage', icon: '🎁', label: isPt ? 'Apadrinhamento' : 'Parrainage', description: isPt ? 'Apadrinhe artesãos, ganhe meses grátis' : 'Parrainez des artisans, gagnez des mois gratuits', category: 'vitrine' },
     // ── Compte (locked) ──
     { id: 'settings', icon: '⚙️', label: isPt ? 'O meu perfil' : 'Mon profil', description: isPt ? 'Definições da conta' : 'Paramètres du compte', category: 'compte', locked: true },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [isPt])
 
   const MODULES_STORAGE_KEY = useMemo(() => `fixit_modules_config_${artisanId || 'default'}`, [artisanId])

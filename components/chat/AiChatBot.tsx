@@ -194,7 +194,6 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [voiceTranscript, setVoiceTranscript] = useState('')
   const [recordingDuration, setRecordingDuration] = useState(0)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Web Speech API has no built-in TS types
   const recognitionRef = useRef<ReturnType<typeof Object> | null>(null)
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
 

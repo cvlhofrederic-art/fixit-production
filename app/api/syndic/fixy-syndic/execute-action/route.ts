@@ -22,7 +22,6 @@ const ExecuteActionSchema = z.object({
       'create_document',
       'create_event',
     ]),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arguments variant selon l'action
     args: z.record(z.string(), z.unknown()),
   }),
   conversation_id: z.string().uuid().optional(),

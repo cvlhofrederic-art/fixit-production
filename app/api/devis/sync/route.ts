@@ -380,7 +380,6 @@ export async function POST(request: NextRequest) {
   // Fallback si raw_data n'existe pas en DB (migration 074 pas appliquee).
   // Ce code de defense en profondeur reproduit le pattern lib/document-sync.ts.
   if (result.error && /column .*raw_data.* does not exist/i.test(result.error.message || '')) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { raw_data: _omit, ...legacy } = payload
     result = await tryUpsert(legacy)
   }

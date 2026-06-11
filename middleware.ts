@@ -1,3 +1,9 @@
+// ⚠️ NE PAS migrer vers la convention `proxy.ts` malgré le warning de dépréciation
+// de Next 16. Vérifié 2026-06-11 (audit P1, BLD-03) : proxy.ts compile en
+// middleware Node.js OBLIGATOIRE, et @opennextjs/cloudflare (y compris dernière
+// version) sort en process.exit(1) sur le middleware Node → le deploy casserait.
+// Suivre github.com/opennextjs/opennextjs-cloudflare issues #1277 / #617 avant
+// toute migration. middleware.ts en edge est le seul état fonctionnel.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 

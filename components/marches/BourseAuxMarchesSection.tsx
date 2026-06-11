@@ -273,7 +273,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const token = sess?.session?.access_token
       if (!token) { setScanError('Session expirée'); return }
       const loc = artisan?.city || (isPt ? 'Porto' : 'Marseille')
-      // eslint-disable-next-line no-console
       console.log('[scan] Envoi:', { metiers, location: loc, country: isPt ? 'PT' : 'FR' })
       const res = await fetch('/api/marches/scan', {
         method: 'POST',

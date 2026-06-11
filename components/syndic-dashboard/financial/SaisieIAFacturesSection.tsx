@@ -497,7 +497,7 @@ export default function SaisieIAFacturesSection({ user, userRole }: { user: User
   const handleAddSeuil = () => {
     if (!seuilForm.montantMax) return
     const existing = data.config.seuils.findIndex(s => s.categorie === seuilForm.categorie)
-    let updatedSeuils = [...data.config.seuils]
+    const updatedSeuils = [...data.config.seuils]
     if (existing >= 0) {
       updatedSeuils[existing] = { categorie: seuilForm.categorie, montantMax: parseFloat(seuilForm.montantMax) }
     } else {

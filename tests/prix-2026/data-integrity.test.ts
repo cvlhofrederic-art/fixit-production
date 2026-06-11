@@ -36,7 +36,6 @@ describe('PRIX_2026 — data integrity', () => {
   it('warns on lines older than 365 days', () => {
     const stale = PRIX_2026.filter(l => ageDays(l.lastVerified) > MAX_AGE_DAYS_WARN)
     if (stale.length > 0) {
-      // eslint-disable-next-line no-console
       console.warn(`[prix-2026] ${stale.length} line(s) need refresh: ${stale.map(s => s.taskId).join(', ')}`)
     }
     expect(true).toBe(true) // warning, not failure

@@ -16,7 +16,7 @@
 // Idempotent : si app_metadata.role est déjà défini, le user est ignoré.
 // ──────────────────────────────────────────────────────────────────────────────
 
-const { createClient } = require('@supabase/supabase-js')
+import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

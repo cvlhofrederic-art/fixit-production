@@ -205,7 +205,7 @@ export function parseComplemento(comp: string): { batiment: string; etage: numbe
   const c = comp.trim()
   let etage = 0
   let porte = ''
-  let batiment = ''
+  const batiment = ''
 
   // Patterns courants : "1o Esquerdo", "2o Dto", "R/C Esquerdo", "Cave 1", "3o Andar Frente"
   // Étage

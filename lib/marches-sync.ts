@@ -112,7 +112,7 @@ export async function upsertMarches(
 
   // Find existing records by source_id to avoid duplicates
   const sourceIds = rows.map(r => r.source_id).filter(Boolean)
-  let existingSet = new Set<string>()
+  const existingSet = new Set<string>()
 
   // Query existing in chunks of 100 (PostgREST .in() limit)
   for (let i = 0; i < sourceIds.length; i += 100) {

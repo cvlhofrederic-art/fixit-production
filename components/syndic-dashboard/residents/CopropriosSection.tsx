@@ -251,7 +251,7 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
 
     const reader = new FileReader()
     reader.onload = (ev) => {
-      let text = ev.target?.result as string
+      const text = ev.target?.result as string
       // Try to detect and handle Windows-1252 encoding issues
       if (text && text.includes('\ufffd')) {
         // Mojibake detected, try reading as Latin-1
