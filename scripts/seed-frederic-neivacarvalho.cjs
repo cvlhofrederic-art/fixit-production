@@ -203,7 +203,7 @@ async function main() {
   console.log('═'.repeat(62))
   console.log(`👤 Nom        : ${FULL_NAME}`)
   console.log(`📧 Email      : ${EMAIL}`)
-  console.log(`🔐 Password   : ${PASSWORD}`)
+  console.log('🔐 Password   : (valeur de SEED_PASSWORD — non affichée)')
   console.log(`🏢 SIRET      : 880 978 978 00018`)
   console.log(`🧽 APE        : 8121Z — Nettoyage courant des bâtiments`)
   console.log(`📍 Adresse    : Allée Hippolyte Gondrexon, RDC — 13830 Roquefort-la-bédoule`)

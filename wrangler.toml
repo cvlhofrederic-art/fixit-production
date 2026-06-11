@@ -47,12 +47,17 @@ binding = "AI"
 # Migrated from vercel.json crons.
 # Routes < 30s CPU can be triggered directly.
 # Routes > 30s must use Queues (see queue bindings below).
-# AUCUN [triggers] ici : le worker OpenNext n'exporte pas de handler `scheduled`
-# (audit P1, CFG-03) — des crons declares ici ne s'executeraient JAMAIS.
+# crons = [] EXPLICITE et NE PAS supprimer la clé : wrangler ne déprovisionne
+# les schedules déjà déployés QUE si la clé est présente (PUT /schedules sauté
+# si elle est absente) — la liste vide retire les 5 crons fantômes posés par
+# les anciens deploys. Le worker OpenNext n'exporte pas de handler `scheduled`
+# (audit P1, CFG-03) : des crons déclarés ici ne s'exécuteraient JAMAIS.
 # Tous les crons passent par GitHub Actions :
 #   .github/workflows/crons.yml                      (health, referral, booking/devis reminders, email-agent poll)
 #   .github/workflows/run-automations.yml            (tempo automations, 5 min)
 #   .github/workflows/run-lea-documents-process.yml  (Lea OCR safety net, 15 min)
+[triggers]
+crons = []
 
 # ── Queue Bindings ─────────────────────────────────────��─────────────────────
 # For long-running jobs that exceed Workers 30s CPU limit.
@@ -153,6 +158,5 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   LANGFUSE_HOST
 #   LANGFUSE_PII_SALT
 #   RAPPORT_IA_ACTIF
-#   VITFIX_PT_NIF
 #   PT_FISCAL_CERT_NUMBER
 #   PT_FISCAL_PRIVATE_KEY
