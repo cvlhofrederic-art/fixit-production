@@ -33,7 +33,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Node 22 minimum : wrangler ≥ 4.86 le requiert (le deploy échouait en
+          # boucle sur Node 20 — « Wrangler requires at least Node.js v22.0.0 »).
+          node-version: "22"
           cache: "npm"
 
       - name: Install dependencies
