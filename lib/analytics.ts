@@ -66,7 +66,7 @@ function getSessionId(): string {
 
 // ── Queue & flush ────────────────────────────────────────────────────────────
 
-let queue: AnalyticsEvent[] = []
+const queue: AnalyticsEvent[] = []
 let flushTimer: ReturnType<typeof setInterval> | null = null
 let _userId: string | undefined
 let _userTraits: Record<string, unknown> = {}

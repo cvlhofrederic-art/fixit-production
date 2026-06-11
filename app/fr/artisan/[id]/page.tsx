@@ -412,7 +412,6 @@ export default function ArtisanProfilePage() {
       availability.some(a => a.day_of_week === dow && a.is_available && (a.slot_type || 'rdv') === slotType)
     )
     return active.length > 0 ? active : displayOrder // fallback if none active
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availability, selectedService])
 
   const dayHeaders = useMemo(() => {

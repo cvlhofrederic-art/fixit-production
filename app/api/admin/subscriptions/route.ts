@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch user emails for these subscriptions
     const userIds = subs?.map(s => s.user_id).filter(Boolean) || []
-    let emailMap = new Map<string, string>()
+    const emailMap = new Map<string, string>()
 
     if (userIds.length > 0) {
       const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000, page: 1 })

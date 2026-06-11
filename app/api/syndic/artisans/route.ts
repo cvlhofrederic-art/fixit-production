@@ -275,9 +275,9 @@ export async function POST(request: NextRequest) {
   // 2. Vérifier si l'artisan a déjà une RC Pro + Décennale dans le storage
   //    Chemins possibles : wallet/${auth_user_id}/... OU wallet/${profile_id}/...
   let rcProValide = false
-  let rcProExpiration: string | null = null
+  const rcProExpiration: string | null = null
   let decennaleValide = false
-  let decennaleExpiration: string | null = null
+  const decennaleExpiration: string | null = null
 
   if (artisanUserId) {
     const basePaths: string[] = [artisanUserId]

@@ -904,7 +904,6 @@ export default function DevisFactureFormBTP({
     if (regimeTva === 'classique' && !tva.invariantOk) {
       const inv = assertInvoiceInvariant(totalHT, totalTva, totalTTC)
       if (process.env.NODE_ENV !== 'production') {
-        // eslint-disable-next-line no-console
         console.warn('[BTP totaux] invariant cassé', { totalHT, totalTva, totalTTC, delta: inv.delta })
       }
       try {

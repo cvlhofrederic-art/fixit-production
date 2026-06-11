@@ -335,7 +335,6 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
         if (d.company) setCompanyData(d.company)
       } catch {}
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artisan?.id])
 
   const saveRapports = (updated: RapportIntervention[]) => {
