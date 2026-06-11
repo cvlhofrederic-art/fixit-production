@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -32,6 +34,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+# secrets locaux wrangler (Cloudflare Workers)
+.dev.vars*
 
 # vercel
 .vercel
@@ -44,6 +49,10 @@ next-env.d.ts
 security/outputs/*
 !security/outputs/.gitkeep
 .worktrees/
+# worktrees du harness Claude — NE PAS retirer : sans cette entrée, le scanner
+# de sources Tailwind v4 (et ESLint) crawle 70+ copies du repo → build/lint
+# locaux bloqués indéfiniment (audit P1 : BLD-01/TSC-01)
+.claude/worktrees/
 .claude/scheduled_tasks.lock
 .claude/v57-decoded.html
 .claude/v57-decoded.assets.txt
@@ -52,3 +61,13 @@ security/outputs/*
 # supabase CLI cache (project-ref, version pins)
 supabase/.temp/
 tmp/lighthouse-v54/
+
+# scripts one-off de génération de documents clients (PII réelles — RGPD,
+# repo public : ne jamais versionner)
+scripts/gen-*.ts
+scripts/gen-*.cjs
+
+# copies de conflit / sauvegardes iCloud
+*.bak
+* 2.*
+* 3.*
