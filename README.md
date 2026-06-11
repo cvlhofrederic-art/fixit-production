@@ -77,27 +77,24 @@ npm run mobile:open:android  # Ouvrir Android Studio
 
 Copier `.env.example` vers `.env.local` et remplir les valeurs.
 
+**L'inventaire canonique et commenté de toutes les variables est [`.env.example`](.env.example)** (rôle, requis/optionnel, où obtenir chaque clé). Le classement requis/optionnel est validé au démarrage par `lib/env.ts`. Tableau des variables critiques :
+
 | Variable | Requise | Description |
 |----------|---------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | URL du projet Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Clé publique Supabase (safe pour le browser) |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Clé service Supabase — **jamais exposée côté client** |
-| `NEXT_PUBLIC_APP_URL` | ✅ | URL publique de l'app (redirections OAuth, emails) |
-| `GROQ_API_KEY` | ✅ | Clé Groq pour les agents IA (Fixy, Léa, Max) |
-| `ADMIN_EMAIL` | ✅ | Email du compte super_admin |
-| `CRON_SECRET` | ✅ | Secret pour authentifier les cron jobs |
-| `RESEND_API_KEY` | ✅ | Clé Resend pour l'envoi d'emails |
-| `GOOGLE_CLIENT_ID` | ⚡ | OAuth Google (agent email syndic) |
-| `GOOGLE_CLIENT_SECRET` | ⚡ | OAuth Google (agent email syndic) |
+| `NEXT_PUBLIC_APP_URL` | ⚡ | URL publique de l'app (sitemaps, invitations, emails) |
+| `GROQ_API_KEY` | ⚡ | Clé Groq pour les agents IA (Fixy, Léa, Max) |
+| `RESEND_API_KEY` | ⚡ | Clé Resend pour l'envoi d'emails |
 | `STRIPE_SECRET_KEY` | ⚡ | Paiements Stripe (abonnements) |
-| `STRIPE_WEBHOOK_SECRET` | ⚡ | Vérification signatures webhooks Stripe |
-| `UPSTASH_REDIS_REST_URL` | ⚡ | Rate limiting distribué |
-| `UPSTASH_REDIS_REST_TOKEN` | ⚡ | Rate limiting distribué |
-| `TAVILY_API_KEY` | ⚡ | Recherche produits (agent matériaux) |
-| `ENCRYPTION_KEY` | ⚡ | Chiffrement AES des tokens OAuth (32+ chars) |
+| `DOC_HASH_SECRET` | ⚡ | Chaînage cryptographique des devis/factures émis (32+ chars) |
+| `CRON_SECRET` | ⚡ | Secret pour authentifier les cron jobs |
 | `NEXT_PUBLIC_SENTRY_DSN` | ⚡ | Monitoring erreurs Sentry |
 
-✅ = Requise pour fonctionner · ⚡ = Optionnelle (fonctionnalité désactivée si absente)
+✅ = Requise pour fonctionner (`validateEnv()` échoue en dev si absente) · ⚡ = Optionnelle (fonctionnalité désactivée si absente)
+
+En production (Cloudflare Workers), les secrets sont définis via `wrangler secret put` — jamais de fichier `.env`.
 
 ---
 
@@ -234,7 +231,7 @@ app/api/
 
 ### Bugs connus (ne pas réintroduire)
 
-- **Blocs roses syndic dashboard** : causé par Sentry Session Replay. Sentry client est désactivé dans `sentry.client.config.ts` — ne pas le réactiver.
+- **Blocs roses syndic dashboard** : causé par Sentry Session Replay. Le client Sentry (`instrumentation-client.ts`) garde Replay désactivé (`replaysSessionSampleRate: 0`) — ne jamais réactiver Replay.
 - **Crash Realtime syndic** : la table `syndic_notifications` génère des CHANNEL_ERROR en boucle. Le dashboard syndic coupe le channel après 3 échecs consécutifs.
 
 ---
