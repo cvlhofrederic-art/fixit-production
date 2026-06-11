@@ -1,5 +1,5 @@
-const { createClient } = require('@supabase/supabase-js')
-const crypto = require('crypto')
+import { createClient } from '@supabase/supabase-js'
+import crypto from 'node:crypto'
 
 // ── Production guard ──
 if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('prod')) {
@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SUPABASE_UR
 // Utilisation de la clé service_role pour bypass RLS
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 const SEED_PASSWORD = process.env.SEED_PASSWORD || crypto.randomUUID()

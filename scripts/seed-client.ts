@@ -1,4 +1,5 @@
-const { createClient } = require('@supabase/supabase-js')
+import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +12,7 @@ async function seedClient() {
   const email = process.env.SEED_CLIENT_EMAIL || 'test@example.com'
   // Fallback aléatoire comme seed-artisan.ts — jamais de mot de passe connu
   // publiquement (repo public).
-  const password = process.env.SEED_CLIENT_PASSWORD || require('crypto').randomUUID()
+  const password = process.env.SEED_CLIENT_PASSWORD || randomUUID()
 
   // Check if user already exists
   const { data: existingUsers } = await supabase.auth.admin.listUsers()
