@@ -20,8 +20,7 @@ name: Crons quotidiens (ex-wrangler.toml)
 #
 # Secrets requis (GitHub > Settings > Secrets > Actions) :
 #   - CRON_SECRET — doit être identique au secret Worker (`wrangler secret put CRON_SECRET`).
-#     ⚠️ Au moment de la création de ce workflow, CRON_SECRET n'existe PAS encore
-#     dans les secrets GitHub (run-lea-documents-process.yml le référence déjà à vide).
+#     Provisionné le 2026-06-11 (rotation simultanée GitHub + Worker).
 #
 # Retry : uniquement sur les routes idempotentes (health = lecture seule,
 # email-agent-poll = upsert onConflict). PAS de retry HTTP sur referral /
@@ -74,9 +73,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Trigger referral cron endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -s https://vitfix.io/api/cron/referral \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
             --max-time 120 \
             --fail-with-body
 
@@ -87,9 +88,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Trigger booking-reminder cron endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -s https://vitfix.io/api/cron/booking-reminder \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
             --max-time 120 \
             --fail-with-body
 
@@ -100,9 +103,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Trigger devis-reminder cron endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -s https://vitfix.io/api/cron/devis-reminder \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
             --max-time 120 \
             --fail-with-body
 
@@ -115,9 +120,11 @@ jobs:
       - name: Trigger email-agent poll endpoint
         # POST sans syndic_id = mode cron (tous les syndics connectés).
         # Body JSON vide explicite pour éviter le warning de parse côté route.
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -s -X POST https://vitfix.io/api/email-agent/poll \
-            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            -H "x-cron-key: ${CRON_SECRET}" \
             -H "Content-Type: application/json" \
             -d '{}' \
             --max-time 120 \

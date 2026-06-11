@@ -32,8 +32,12 @@ try {
         event.tags = { ...event.tags, agent_context: "fixy-ai-artisan" };
       }
 
-      // Redact PII from error messages and breadcrumbs
-      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+      // Redact PII from error messages and breadcrumbs.
+      // Regex email volontairement large mais LINÉAIRE (hotspot Sonar ReDoS :
+      // l'ancienne forme [a-zA-Z0-9.-]+\.[a-zA-Z]{2,} backtrackait en O(n²)
+      // sur des chaînes de points — les messages d'erreur peuvent contenir de
+      // l'entrée utilisateur). Sur-matcher est sans risque ici : on caviarde.
+      const emailRegex = /[^\s@]+@[^\s@]+/g;
       const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}/g;
 
       function redactPII(str: string): string {
