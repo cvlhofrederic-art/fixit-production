@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
@@ -12,7 +13,22 @@ import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-
 
 export const maxDuration = 60
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
+const INTERNAL_TRIGGER_HEADER = 'x-internal-trigger'
+
+// ── Auth interne serveur-à-serveur (webhook Gmail → poll ciblé) ───────────────
+// Compare le header x-internal-trigger à INTERNAL_POLL_TOKEN en temps constant
+// (timingSafeEqual via nodejs_compat, même pattern que webhooks/resend).
+// Token absent/vide côté serveur = refus systématique — jamais d'égalité
+// vide==vide. Le check de longueur préalable est requis par timingSafeEqual
+// (ne fuit que la longueur, pas le contenu).
+function isValidInternalTrigger(provided: string | null): boolean {
+  const expected = process.env.INTERNAL_POLL_TOKEN
+  if (!provided || !expected) return false
+  const providedBuf = Buffer.from(provided)
+  const expectedBuf = Buffer.from(expected)
+  if (providedBuf.length !== expectedBuf.length) return false
+  return timingSafeEqual(providedBuf, expectedBuf)
+}
 
 // ── Lit les emails Gmail via l'API ────────────────────────────────────────────
 async function fetchGmailMessages(accessToken: string, maxResults = 20, firstRun = false) {
@@ -102,20 +118,33 @@ export async function POST(request: NextRequest) {
     let syndicIds: string[] = []
 
     if (syndic_id) {
-      // Si syndic_id fourni → vérifier auth utilisateur
-      const user = await getAuthUser(request)
-      if (!user) {
-        return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+      const internalTrigger = request.headers.get(INTERNAL_TRIGGER_HEADER)
+      if (internalTrigger !== null) {
+        // Appel interne serveur-à-serveur (webhook Gmail) — pas de cookies.
+        // Header présent mais invalide/vide → 401, on ne retombe JAMAIS sur
+        // l'auth cookie (pas de fallback silencieux pour un appel machine).
+        if (!isValidInternalTrigger(internalTrigger)) {
+          logger.warn('[email-agent/poll] x-internal-trigger invalide ou INTERNAL_POLL_TOKEN non configuré')
+          return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+        }
+        // Token valide → scopé au seul syndic_id transmis par le webhook
+        syndicIds = [syndic_id]
+      } else {
+        // Si syndic_id fourni → vérifier auth utilisateur (cookies)
+        const user = await getAuthUser(request)
+        if (!user) {
+          return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+        }
+        // Vérifier que l'utilisateur est bien le syndic ou membre de son cabinet
+        if (!isSyndicRole(user) && getUserRole(user) !== 'super_admin') {
+          return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
+        }
+        const userCabinetId = await resolveCabinetId(user, supabaseAdmin)
+        if (userCabinetId !== syndic_id && getUserRole(user) !== 'super_admin') {
+          return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
+        }
+        syndicIds = [syndic_id]
       }
-      // Vérifier que l'utilisateur est bien le syndic ou membre de son cabinet
-      if (!isSyndicRole(user) && getUserRole(user) !== 'super_admin') {
-        return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
-      }
-      const userCabinetId = await resolveCabinetId(user, supabaseAdmin)
-      if (userCabinetId !== syndic_id && getUserRole(user) !== 'super_admin') {
-        return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
-      }
-      syndicIds = [syndic_id]
     } else {
       // Appel cron → vérifier clé cron (guard contre CRON_SECRET undefined)
       const cronKey = request.headers.get('x-cron-key')
