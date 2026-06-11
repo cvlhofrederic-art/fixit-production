@@ -33,16 +33,13 @@ try {
       }
 
       // Redact PII from error messages and breadcrumbs.
-      // Regex email volontairement large mais LINÉAIRE (hotspot Sonar ReDoS :
-      // l'ancienne forme [a-zA-Z0-9.-]+\.[a-zA-Z]{2,} backtrackait en O(n²)
-      // sur des chaînes de points — les messages d'erreur peuvent contenir de
-      // l'entrée utilisateur). Sur-matcher est sans risque ici : on caviarde.
-      const emailRegex = /[^\s@]+@[^\s@]+/g;
-      // Même contrainte de linéarité : ≥6 chiffres séparés d'au plus 3
-      // séparateurs — la classe de séparateurs EXCLUT les chiffres, donc
-      // aucune ambiguïté de backtracking. Sur-matche les dates comme
-      // l'ancienne forme : sans incidence pour du caviardage.
-      const phoneRegex = /\+?\d(?:[\s().-]{0,3}\d){5,}/g;
+      // Regex volontairement larges (sur-matcher est sans risque : on caviarde)
+      // mais à quantifieurs BORNÉS — les messages d'erreur peuvent contenir de
+      // l'entrée utilisateur, et les formes non bornées ([a-zA-Z0-9.-]+\.…)
+      // donnaient un backtracking super-linéaire (hotspot Sonar S5852/ReDoS).
+      // Bornes = limites RFC 5321 (local 64, domaine 255) et 20 chiffres max.
+      const emailRegex = /[^\s@]{1,64}@[^\s@]{1,255}/g;
+      const phoneRegex = /\+?\d(?:[\s().-]{0,3}\d){5,19}/g;
 
       function redactPII(str: string): string {
         return str.replace(emailRegex, "[EMAIL]").replace(phoneRegex, "[PHONE]");
