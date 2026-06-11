@@ -38,7 +38,11 @@ try {
       // sur des chaînes de points — les messages d'erreur peuvent contenir de
       // l'entrée utilisateur). Sur-matcher est sans risque ici : on caviarde.
       const emailRegex = /[^\s@]+@[^\s@]+/g;
-      const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}/g;
+      // Même contrainte de linéarité : ≥6 chiffres séparés d'au plus 3
+      // séparateurs — la classe de séparateurs EXCLUT les chiffres, donc
+      // aucune ambiguïté de backtracking. Sur-matche les dates comme
+      // l'ancienne forme : sans incidence pour du caviardage.
+      const phoneRegex = /\+?\d(?:[\s().-]{0,3}\d){5,}/g;
 
       function redactPII(str: string): string {
         return str.replace(emailRegex, "[EMAIL]").replace(phoneRegex, "[PHONE]");
