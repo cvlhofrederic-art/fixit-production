@@ -14,9 +14,15 @@ if (!URL_BASE || !KEY) {
   process.exit(1)
 }
 
-const EMAIL = 'cvlho.frederic@gmail.com'
-const PASSWORD = '***REMOVED***'
+// SEED_PASSWORD obligatoire : jamais de mot de passe en dur (repo public).
+const EMAIL = process.env.SEED_EMAIL || 'cvlho.frederic@gmail.com'
+const PASSWORD = process.env.SEED_PASSWORD
 const FULL_NAME = 'Frédéric Neiva Carvalho'
+
+if (!PASSWORD) {
+  console.error('❌ SEED_PASSWORD manquante — usage : SEED_PASSWORD=... node --env-file=.env.local scripts/seed-frederic-neivacarvalho.cjs')
+  process.exit(1)
+}
 
 // ── HTTP helper sur Supabase REST + Auth admin ───────────────────────────────
 async function sb(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {

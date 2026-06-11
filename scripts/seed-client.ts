@@ -9,7 +9,9 @@ async function seedClient() {
   console.log('👤 Création du compte client...\n')
 
   const email = process.env.SEED_CLIENT_EMAIL || 'test@example.com'
-  const password = process.env.SEED_CLIENT_PASSWORD || 'ChangeMe123!'
+  // Fallback aléatoire comme seed-artisan.ts — jamais de mot de passe connu
+  // publiquement (repo public).
+  const password = process.env.SEED_CLIENT_PASSWORD || require('crypto').randomUUID()
 
   // Check if user already exists
   const { data: existingUsers } = await supabase.auth.admin.listUsers()

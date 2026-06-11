@@ -15,8 +15,11 @@ export const maxDuration = 60 // 60 secondes max
 
 export async function GET(request: NextRequest) {
   // Vérification CRON_SECRET
+  // Guard explicite : sans CRON_SECRET défini côté Worker, un appel
+  // « Authorization: Bearer undefined » passerait la comparaison brute.
+  const cronSecret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
