@@ -47,23 +47,12 @@ binding = "AI"
 # Migrated from vercel.json crons.
 # Routes < 30s CPU can be triggered directly.
 # Routes > 30s must use Queues (see queue bindings below).
-[triggers]
-crons = [
-  # Health check — daily 6 AM UTC
-  "0 6 * * *",
-  # Referral processing — daily 2 AM UTC
-  "0 2 * * *",
-  # Booking reminders — daily 7 AM UTC
-  "0 7 * * *",
-  # Devis reminders — daily 7:30 AM UTC
-  "30 7 * * *",
-  # Email agent poll — daily 8 AM UTC (must be batched < 30s)
-  "0 8 * * *",
-  # Tempo automations — every 5 min (via GitHub Actions, see .github/workflows/run-automations.yml)
-  # Note: Cloudflare Workers scheduled min granularity = 1 min. GitHub Actions min = 5 min.
-  # The actual trigger is handled by GitHub Actions cron to avoid hitting Worker CPU limits.
-  # Léa documents OCR/extraction safety net — every 15 min (via GitHub Actions, see .github/workflows/run-lea-documents-process.yml)
-]
+# AUCUN [triggers] ici : le worker OpenNext n'exporte pas de handler `scheduled`
+# (audit P1, CFG-03) — des crons declares ici ne s'executeraient JAMAIS.
+# Tous les crons passent par GitHub Actions :
+#   .github/workflows/crons.yml                      (health, referral, booking/devis reminders, email-agent poll)
+#   .github/workflows/run-automations.yml            (tempo automations, 5 min)
+#   .github/workflows/run-lea-documents-process.yml  (Lea OCR safety net, 15 min)
 
 # ── Queue Bindings ─────────────────────────────────────��─────────────────────
 # For long-running jobs that exceed Workers 30s CPU limit.
@@ -125,7 +114,6 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   GROQ_API_KEY
 #   STRIPE_SECRET_KEY
 #   STRIPE_WEBHOOK_SECRET
-#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 #   STRIPE_PRICE_ARTISAN_PRO
 #   STRIPE_PRICE_SYNDIC_ESSENTIAL
 #   STRIPE_PRICE_SYNDIC_PREMIUM
@@ -136,13 +124,22 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   RESEND_API_KEY
 #   RESEND_FROM_EMAIL
 #   CRON_SECRET
-#   ENCRYPTION_KEY
+#   OAUTH_TOKENS_ENCRYPTION_KEY   (>= 32 chars — lib/oauth/tokens.ts throw si absente)
+#   DOC_HASH_SECRET               (chaine d'integrite ISCA — lib/document-integrity.ts throw)
+#   INTERNAL_POLL_TOKEN           (webhook→poll email-agent — openssl rand -hex 32)
+#   GMAIL_WEBHOOK_SECRET
+#   PA_INBOUND_SECRET
+#   RESEND_WEBHOOK_SECRET
 #   ADMIN_EMAIL
+#   ADMIN_PASSWORD
+#   ADMIN_EMAIL_2
+#   ADMIN_PASSWORD_2
 #   INTERNAL_API_SECRET
 #
 # MEDIUM:
 #   TAVILY_API_KEY
 #   OPENROUTER_API_KEY
+#   CEREBRAS_API_KEY              (fallback provider Groq)
 #   GOOGLE_CLIENT_ID
 #   GOOGLE_CLIENT_SECRET
 #   NEXT_PUBLIC_SENTRY_DSN
@@ -154,8 +151,7 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   LANGFUSE_SECRET_KEY
 #   LANGFUSE_PUBLIC_KEY
 #   LANGFUSE_HOST
-#   DOCUSEAL_API_KEY
-#   DOCUSEAL_API_URL
+#   LANGFUSE_PII_SALT
 #   RAPPORT_IA_ACTIF
 #   VITFIX_PT_NIF
 #   PT_FISCAL_CERT_NUMBER

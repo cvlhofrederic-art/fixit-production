@@ -1,0 +1,125 @@
+name: Crons quotidiens (ex-wrangler.toml)
+
+# Reprend les 5 cron triggers déclarés dans wrangler.toml [triggers] qui ne
+# tournaient JAMAIS : le worker généré par @opennextjs/cloudflare n'exporte
+# pas de handler `scheduled` (audit CFG-03). Même pattern que
+# run-automations.yml et run-lea-documents-process.yml : GitHub Actions
+# schedule → curl vers la route de prod.
+#
+# Correspondance horaires (les crons wrangler.toml étaient déjà exprimés en
+# UTC ; GitHub Actions schedule est aussi en UTC → schedules identiques) :
+#   ┌────────────────────┬─────────────┬──────────────────────────────┬────────────────────────────────┐
+#   │ Job                │ Cron (UTC)  │ Paris (CET/CEST = UTC+1/+2)  │ Route                          │
+#   ├────────────────────┼─────────────┼──────────────────────────────┼────────────────────────────────┤
+#   │ health             │ 0 6 * * *   │ 07:00 / 08:00                │ GET  /api/health               │
+#   │ referral           │ 0 2 * * *   │ 03:00 / 04:00                │ GET  /api/cron/referral        │
+#   │ booking-reminders  │ 0 7 * * *   │ 08:00 / 09:00                │ GET  /api/cron/booking-reminder│
+#   │ devis-reminders    │ 30 7 * * *  │ 08:30 / 09:30                │ GET  /api/cron/devis-reminder  │
+#   │ email-agent-poll   │ 0 8 * * *   │ 09:00 / 10:00                │ POST /api/email-agent/poll     │
+#   └────────────────────┴─────────────┴──────────────────────────────┴────────────────────────────────┘
+#
+# Secrets requis (GitHub > Settings > Secrets > Actions) :
+#   - CRON_SECRET — doit être identique au secret Worker (`wrangler secret put CRON_SECRET`).
+#     ⚠️ Au moment de la création de ce workflow, CRON_SECRET n'existe PAS encore
+#     dans les secrets GitHub (run-lea-documents-process.yml le référence déjà à vide).
+#
+# Retry : uniquement sur les routes idempotentes (health = lecture seule,
+# email-agent-poll = upsert onConflict). PAS de retry HTTP sur referral /
+# booking-reminder / devis-reminder : ces routes envoient des emails sans
+# marqueur transactionnel — un retry après échec partiel enverrait des doublons.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # health
+    - cron: '0 2 * * *'   # referral
+    - cron: '0 7 * * *'   # booking-reminders
+    - cron: '30 7 * * *'  # devis-reminders
+    - cron: '0 8 * * *'   # email-agent-poll
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Cron à déclencher manuellement'
+        type: choice
+        default: all
+        options:
+          - all
+          - health
+          - referral
+          - booking-reminders
+          - devis-reminders
+          - email-agent-poll
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Health check (06:00 UTC)
+    if: github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'health'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger health endpoint
+        # Route publique (pas d'auth) — renvoie 503 si dégradé → le job rougit.
+        run: |
+          curl -s https://vitfix.io/api/health \
+            --max-time 120 \
+            --retry 3 --retry-delay 30 \
+            --fail-with-body
+
+  referral:
+    name: Referral J+7 (02:00 UTC)
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'referral'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger referral cron endpoint
+        run: |
+          curl -s https://vitfix.io/api/cron/referral \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 120 \
+            --fail-with-body
+
+  booking-reminders:
+    name: Rappels interventions J-1 (07:00 UTC)
+    if: github.event.schedule == '0 7 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'booking-reminders'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger booking-reminder cron endpoint
+        run: |
+          curl -s https://vitfix.io/api/cron/booking-reminder \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 120 \
+            --fail-with-body
+
+  devis-reminders:
+    name: Relances devis J+3 (07:30 UTC)
+    if: github.event.schedule == '30 7 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'devis-reminders'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger devis-reminder cron endpoint
+        run: |
+          curl -s https://vitfix.io/api/cron/devis-reminder \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 120 \
+            --fail-with-body
+
+  email-agent-poll:
+    name: Email agent poll Alfredo (08:00 UTC)
+    if: github.event.schedule == '0 8 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'email-agent-poll'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger email-agent poll endpoint
+        # POST sans syndic_id = mode cron (tous les syndics connectés).
+        # Body JSON vide explicite pour éviter le warning de parse côté route.
+        run: |
+          curl -s -X POST https://vitfix.io/api/email-agent/poll \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --max-time 120 \
+            --retry 2 --retry-delay 30 \
+            --fail-with-body
