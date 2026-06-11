@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     "*.cjs",
     // Dev tooling (CJS bootstrap, not part of the application bundle)
     ".claude/**",
+    // Worktrees du harness : copies complètes du repo avec leur propre .next —
+    // sans ces ignores, `npm run lint` local ne termine jamais (audit P1, TSC-01).
+    ".worktrees/**",
+    "**/.next/**",
     // Vendored/minified third-party bundles — not source code
     "public/**",
   ]),

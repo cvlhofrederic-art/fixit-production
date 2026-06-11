@@ -1,10 +1,15 @@
 # ── Qualité de code — SonarCloud, ESLint, TypeScript ──────────────────────────
-# Analyse qualité, linting et vérification des types sur chaque PR.
+# Analyse qualité, linting et vérification des types sur chaque PR
+# ET sur chaque push main : le déploiement (deploy-cloudflare.yml) part sur
+# push main et next build (Next 16) n'exécute plus ESLint — sans ce trigger,
+# un push direct sur main partait en prod sans aucun lint (audit P1, TSC-02).
 
 name: "Qualité de code"
 
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 permissions:

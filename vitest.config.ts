@@ -18,8 +18,12 @@ export default defineConfig({
     isolate: true,
     testTimeout: 30000,
     coverage: {
-      reporter: ['text', 'json', 'html'],
-      include: ['lib/**', 'app/api/**'],
+      // lcov requis par SonarCloud (sonar.typescript.lcov.reportPaths) ;
+      // périmètre aligné sur sonar.sources (app, lib, components, hooks) —
+      // sinon la couverture Sonar de components/ et hooks/ est structurellement
+      // nulle (audit P1, CFG-12).
+      reporter: ['text', 'json', 'html', 'lcov'],
+      include: ['lib/**', 'app/api/**', 'components/**', 'hooks/**'],
     },
   },
   resolve: {
