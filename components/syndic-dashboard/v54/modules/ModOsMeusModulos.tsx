@@ -1,17 +1,22 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { PageHead } from '../primitives/page-head'
 import { Panel } from '../primitives/panel'
 import { Pill } from '../primitives/pill'
 import { Alert } from '../primitives/alert'
 import { Toggle } from '../primitives/toggle'
 import { Button } from '../primitives/button'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { SIDEBAR_EDITABLE } from '../shell/sidebar-config'
 
-/** Os Meus Módulos — port byte-exact du ModOsMeusModulos du bundle V5.7 (catalogue 90 módulos + ordem menu). */
+/** Os Meus Módulos — anonyme : catalogue mock byte-exact (preview) ; authentifié :
+ * éditeur réel de la barre latérale (réordonner ▲▼ + masquer + persistance cabinet). */
 
 const cardSections: [string, [string, string, string][]][] = [
   ['GESTÃO CORRENTE', [
@@ -145,7 +150,8 @@ const cardIco = { width: 42, height: 42, borderRadius: 12, background: 'var(--v5
 const orderRow = { padding: '12px 16px', marginBottom: 8, border: '1px solid var(--v54-line)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 14, background: '#fff' } as const
 const arrowBtn = { padding: '2px 8px', minHeight: 'auto', lineHeight: 1 } as const
 
-export default function ModOsMeusModulos() {
+/** Catalogue mock byte-exact (preview anonyme). */
+function MockCatalog() {
   const soon = useComingSoon()
   return (
     <>
@@ -200,4 +206,91 @@ export default function ModOsMeusModulos() {
       </Alert>
     </>
   )
+}
+
+/** Éditeur réel (authentifié) : réordonne/masque les items de la vraie sidebar + persiste. */
+function RealEditor() {
+  const data = useSyndicData()
+  const { push } = useToast()
+  const defaultOrder = useMemo(() => SIDEBAR_EDITABLE.map((e) => e.id), [])
+  const [order, setOrder] = useState<string[]>(() => {
+    const saved = (data.dashboardPrefs?.itemOrder ?? []).filter((id) => defaultOrder.includes(id))
+    const savedSet = new Set(saved)
+    return [...saved, ...defaultOrder.filter((id) => !savedSet.has(id))]
+  })
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(data.dashboardPrefs?.itemsHidden ?? []))
+  const [busy, setBusy] = useState(false)
+
+  const sections = useMemo(() => {
+    const rank = (id: string) => order.indexOf(id)
+    const bySection = new Map<string, { id: string; label: string; icon: IconName }[]>()
+    for (const e of SIDEBAR_EDITABLE) {
+      const arr = bySection.get(e.section) ?? []
+      arr.push({ id: e.id, label: e.label, icon: e.icon })
+      bySection.set(e.section, arr)
+    }
+    return [...bySection.entries()].map(([section, items]) => ({ section, items: [...items].sort((a, b) => rank(a.id) - rank(b.id)) }))
+  }, [order])
+
+  const move = (id: string, neighborId?: string) => {
+    if (!neighborId) return
+    setOrder((prev) => {
+      const next = [...prev]
+      const ia = next.indexOf(id)
+      const ib = next.indexOf(neighborId)
+      if (ia < 0 || ib < 0) return prev
+      next[ia] = neighborId
+      next[ib] = id
+      return next
+    })
+  }
+  const toggle = (id: string) => setHidden((h) => { const n = new Set(h); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const reset = () => { setOrder(defaultOrder); setHidden(new Set()) }
+  const save = () => {
+    if (!data.token) { push({ kind: 'info', title: 'Guardar', desc: 'Conecte-se como síndico.' }); return }
+    setBusy(true)
+    fetch('/api/syndic/dashboard-prefs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+      body: JSON.stringify({ itemOrder: order, itemsHidden: [...hidden] }),
+    })
+      .then((r) => { if (!r.ok) throw new Error() })
+      .then(() => { data.refresh?.(); push({ kind: 'success', title: 'Menu guardado', desc: 'A barra lateral foi atualizada.' }) })
+      .catch(() => push({ kind: 'error', title: 'Erro ao guardar', desc: 'Tente novamente mais tarde.' }))
+      .finally(() => setBusy(false))
+  }
+
+  const ativos = SIDEBAR_EDITABLE.length - hidden.size
+  return (
+    <>
+      <PageHead title="Os meus módulos" lede="Reordene (▲▼) e ative/desative os módulos da barra lateral. As alterações aplicam-se ao menu do seu gabinete após guardar."
+        actions={<><Pill kind="gold" noDot>{ativos}/{SIDEBAR_EDITABLE.length} ativos</Pill><Button onClick={reset}>↻ Redefinir</Button><Button variant="gold" disabled={busy} onClick={save}><Icon name="check" />{busy ? 'A guardar…' : 'Guardar'}</Button></>} />
+      {sections.map((sec) => (
+        <Panel key={sec.section} title={sec.section}>
+          {sec.items.map((it, i) => {
+            const isHidden = hidden.has(it.id)
+            return (
+              <div key={it.id} style={orderRow}>
+                <div style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}>{it.icon ? <Icon name={it.icon} style={{ width: 18, height: 18 }} /> : null}</div>
+                <div style={{ flex: 1, fontSize: 13.5, fontWeight: 500, opacity: isHidden ? 0.45 : 1 }}>{it.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label={`Subir ${it.label}`} title="Subir" disabled={i === 0} onClick={() => move(it.id, sec.items[i - 1]?.id)}>▲</Button>
+                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label={`Descer ${it.label}`} title="Descer" disabled={i === sec.items.length - 1} onClick={() => move(it.id, sec.items[i + 1]?.id)}>▼</Button>
+                </div>
+                <Toggle on={!isHidden} onToggle={() => toggle(it.id)} aria-label={`Mostrar ${it.label}`} />
+              </div>
+            )
+          })}
+        </Panel>
+      ))}
+      <Alert kind="gold" icon="sparkle" title="Dica">
+        Os módulos desativados desaparecem da barra lateral mas permanecem acessíveis a qualquer momento. « Os Meus Módulos » nunca pode ser ocultado.
+      </Alert>
+    </>
+  )
+}
+
+export default function ModOsMeusModulos() {
+  const data = useSyndicData()
+  return data.authenticated ? <RealEditor /> : <MockCatalog />
 }
