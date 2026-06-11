@@ -56,6 +56,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+          # Sans wranglerVersion, l'action installe SA version par défaut
+          # (vieille) au lieu de celle du lockfile : les assets @vercel/og de
+          # next 16.2.9 cassent son module-collector. 4.100.0 = version validée
+          # par dry-run (clone propre, build OpenNext 1.19.11). Garder aligné
+          # avec devDependencies.wrangler.
+          wranglerVersion: "4.100.0"
 
       - name: Smoke test
         run: |
