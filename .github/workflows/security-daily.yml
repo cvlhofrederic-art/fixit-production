@@ -36,11 +36,15 @@ jobs:
         run: |
           CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-results.json 2>/dev/null || echo "0")
           HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-results.json 2>/dev/null || echo "0")
-          echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
-          echo "high=$HIGH" >> "$GITHUB_OUTPUT"
-          echo "### Trivy Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Critical: $CRITICAL" >> "$GITHUB_STEP_SUMMARY"
-          echo "- High: $HIGH" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "critical=$CRITICAL"
+            echo "high=$HIGH"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Trivy Results"
+            echo "- Critical: $CRITICAL"
+            echo "- High: $HIGH"
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$CRITICAL" -gt 0 ]; then
             echo "status=failed" >> "$GITHUB_OUTPUT"
           else
@@ -100,15 +104,21 @@ jobs:
             COUNT=$(wc -l < nuclei-results.txt)
             CRITICAL=$(grep -c "\[critical\]" nuclei-results.txt || true)
             HIGH=$(grep -c "\[high\]" nuclei-results.txt || true)
-            echo "findings=$COUNT" >> "$GITHUB_OUTPUT"
-            echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
-            echo "### Nuclei Results" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Total findings: $COUNT" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Critical: $CRITICAL" >> "$GITHUB_STEP_SUMMARY"
-            echo "- High: $HIGH" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "findings=$COUNT"
+              echo "critical=$CRITICAL"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "### Nuclei Results"
+              echo "- Total findings: $COUNT"
+              echo "- Critical: $CRITICAL"
+              echo "- High: $HIGH"
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "findings=0" >> "$GITHUB_OUTPUT"
-            echo "critical=0" >> "$GITHUB_OUTPUT"
+            {
+              echo "findings=0"
+              echo "critical=0"
+            } >> "$GITHUB_OUTPUT"
             echo "### Nuclei: Clean" >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -144,14 +154,20 @@ jobs:
           if [ -f semgrep-results.json ]; then
             ERRORS=$(cat semgrep-results.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(len([r for r in d.get('results',[]) if r.get('extra',{}).get('severity','') == 'ERROR']))" 2>/dev/null || echo "0")
             TOTAL=$(cat semgrep-results.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('results',[])))" 2>/dev/null || echo "0")
-            echo "errors=$ERRORS" >> "$GITHUB_OUTPUT"
-            echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
-            echo "### Semgrep Results" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Errors: $ERRORS" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Total findings: $TOTAL" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "errors=$ERRORS"
+              echo "total=$TOTAL"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "### Semgrep Results"
+              echo "- Errors: $ERRORS"
+              echo "- Total findings: $TOTAL"
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "errors=0" >> "$GITHUB_OUTPUT"
-            echo "total=0" >> "$GITHUB_OUTPUT"
+            {
+              echo "errors=0"
+              echo "total=0"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/upload-artifact@v4
@@ -197,14 +213,15 @@ jobs:
           |---------|--------|---------|
           REPORT_EOF
 
-          echo "| Trivy (deps) | $( [ "$TRIVY_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $TRIVY_STATUS" ) | Dependency vulnerabilities |" >> report.md
-          echo "| Gitleaks | $( [ "$GITLEAKS_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $GITLEAKS_STATUS" ) | Secret detection |" >> report.md
-          echo "| Nuclei (DAST) | $( [ "$NUCLEI_STATUS" == "success" ] && echo "✅ Pass" || echo "⚠️ $NUCLEI_STATUS" ) | Web vulnerability scan |" >> report.md
-          echo "| Semgrep (SAST) | $( [ "$SEMGREP_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $SEMGREP_STATUS" ) | Static code analysis |" >> report.md
-
-          echo "" >> report.md
-          echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
-          echo "Date: $(date -u +'%Y-%m-%d %H:%M UTC')" >> report.md
+          {
+            echo "| Trivy (deps) | $( [ "$TRIVY_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $TRIVY_STATUS" ) | Dependency vulnerabilities |"
+            echo "| Gitleaks | $( [ "$GITLEAKS_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $GITLEAKS_STATUS" ) | Secret detection |"
+            echo "| Nuclei (DAST) | $( [ "$NUCLEI_STATUS" == "success" ] && echo "✅ Pass" || echo "⚠️ $NUCLEI_STATUS" ) | Web vulnerability scan |"
+            echo "| Semgrep (SAST) | $( [ "$SEMGREP_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $SEMGREP_STATUS" ) | Static code analysis |"
+            echo ""
+            echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "Date: $(date -u +'%Y-%m-%d %H:%M UTC')"
+          } >> report.md
 
       - name: Create issue if failures
         if: steps.report.outputs.has_failures == 'true'

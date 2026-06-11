@@ -72,7 +72,7 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.3",
-    "@opennextjs/cloudflare": "^1.19.3",
+    "@opennextjs/cloudflare": "^1.19.11",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
@@ -95,7 +95,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.8",
-    "wrangler": "^4.84.1"
+    "wrangler": "^4.100.0"
   },
   "overrides": {
     "uuid": "^14.0.0"
