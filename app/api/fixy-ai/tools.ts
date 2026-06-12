@@ -49,7 +49,7 @@ export const TOOLS: Record<string, ToolDef> = {
         .from('availability').select('id, artisan_id, day_of_week, is_available, start_time, end_time, slot_type').eq('artisan_id', artisanId).or('slot_type.eq.rdv,slot_type.is.null').order('day_of_week')
       if (!data || data.length === 0) return { success: true, detail: 'Aucune disponibilité configurée.', data: [] }
       const lines = data.map(a =>
-        `${DAY_NAMES[a.day_of_week]}: ${a.is_available ? `${a.start_time?.substring(0, 5)}-${a.end_time?.substring(0, 5)}` : 'FERMÉ'}`
+        `${a.day_of_week != null ? DAY_NAMES[a.day_of_week] : '?'}: ${a.is_available ? `${a.start_time?.substring(0, 5)}-${a.end_time?.substring(0, 5)}` : 'FERMÉ'}`
       )
       return { success: true, detail: lines.join('\n'), data }
     },
@@ -266,7 +266,7 @@ export const TOOLS: Record<string, ToolDef> = {
       if (p.day_of_week === 'all') {
         const { data: avail } = await supabaseAdmin
           .from('availability').select('day_of_week').eq('artisan_id', artisanId).eq('is_available', true)
-        days = (avail || []).map(a => a.day_of_week)
+        days = (avail || []).map(a => a.day_of_week).filter((d): d is number => d !== null)
       } else {
         days = [Number(p.day_of_week)]
       }
@@ -543,7 +543,7 @@ export const TOOLS: Record<string, ToolDef> = {
 
       if (!bookings || bookings.length === 0) return { success: true, detail: 'Aucun client trouve.' }
 
-      const clientIds = [...new Set(bookings.map(b => b.client_id).filter(Boolean))]
+      const clientIds = [...new Set(bookings.map(b => b.client_id).filter((id): id is string => id !== null))]
       let matchedClient: { id: string; name: string; email: string; phone: string; address: string } | null = null
       let matchedBookings: typeof bookings = []
 
@@ -888,7 +888,9 @@ export const TOOLS: Record<string, ToolDef> = {
     execute: async (_params, artisanId) => {
       const { data, error } = await supabaseAdmin
         .from('artisan_absences')
-        .select('id, artisan_id, start_date, end_date, reason, label, source, created_at')
+        // NB : pas de colonne `source` dans le schéma live d'artisan_absences —
+        // la requêter faisait échouer tout le select (400 PostgREST).
+        .select('id, artisan_id, start_date, end_date, reason, label, created_at')
         .eq('artisan_id', artisanId)
         .order('start_date')
 

@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, artisanPaymentInfoSchema } from '@/lib/validation'
+import type { Json } from '@/lib/database-types'
 
 // GET — Récupérer les infos paiement de l'artisan
 export async function GET(request: NextRequest) {
@@ -59,7 +60,9 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabaseAdmin
       .from('profiles_artisan')
       .update({
-        paiement_modes,
+        // Cast documenté métier → jsonb : paiement_modes sort d'un body JSON
+        // validé par Zod (z.array(z.record)), donc sérialisable par construction.
+        paiement_modes: paiement_modes as Json,
         paiement_mention_devis: paiement_mention_devis ?? true,
         paiement_mention_facture: paiement_mention_facture ?? true,
       })

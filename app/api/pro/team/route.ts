@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 import { validateBody, proTeamInviteSchema } from '@/lib/validation'
 import { ROLE_LABELS, isValidProTeamRole } from '@/lib/permissions'
 import type { ProTeamRole } from '@/lib/permissions'
+import type { TablesInsert, TablesUpdate } from '@/lib/database-types'
 
 // ── GET /api/pro/team ────────────────────────────────────────────────────────
 // List team members for the authenticated company
@@ -20,7 +21,8 @@ export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`pro_team_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
-  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  // resolveCompanyId retombe toujours sur user.id (le null déclaré est inatteignable)
+  const companyId = (await resolveCompanyId(user, supabaseAdmin)) ?? user.id
 
   // Self-healing : si le gérant n'apparaît pas comme membre (cas des sociétés
   // inscrites avant l'auto-init au signup), on l'ajoute idempotamment ici.
@@ -136,7 +138,7 @@ export async function POST(request: NextRequest) {
   // Generate invitation token
   const inviteToken = randomHex(24)
 
-  const insertData: Record<string, unknown> = {
+  const insertData: TablesInsert<'pro_team_members'> = {
     company_id: companyId,
     email: email.toLowerCase().trim(),
     full_name: full_name.trim(),
@@ -246,7 +248,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
   }
 
-  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  // resolveCompanyId retombe toujours sur user.id (le null déclaré est inatteignable)
+  const companyId = (await resolveCompanyId(user, supabaseAdmin)) ?? user.id
 
   // Verify member belongs to this company
   const { data: existing } = await supabaseAdmin
@@ -265,7 +268,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Impossible de modifier le rôle du gérant' }, { status: 403 })
   }
 
-  const updates: Record<string, unknown> = {}
+  const updates: TablesUpdate<'pro_team_members'> = {}
   if (role !== undefined) {
     if (!isValidProTeamRole(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
     updates.role = role
@@ -361,7 +364,8 @@ export async function DELETE(request: NextRequest) {
   const memberId = searchParams.get('member_id')
   if (!memberId) return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
 
-  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  // resolveCompanyId retombe toujours sur user.id (le null déclaré est inatteignable)
+  const companyId = (await resolveCompanyId(user, supabaseAdmin)) ?? user.id
 
   // Prevent deleting the gérant
   const { data: target } = await supabaseAdmin

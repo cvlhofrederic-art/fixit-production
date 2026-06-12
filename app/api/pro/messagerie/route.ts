@@ -4,6 +4,7 @@ import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
 import { proMessagerieSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import type { Json, TablesInsert } from '@/lib/database-types'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
@@ -192,7 +193,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Insérer le message
-    const msgPayload: Record<string, unknown> = {
+    const msgPayload: TablesInsert<'conversation_messages'> = {
       conversation_id: conv.id,
       sender_id: body.sender_id || contact_id,
       type: type || 'text',
@@ -301,8 +302,21 @@ export async function PATCH(req: NextRequest) {
 
     // Mettre à jour le statut (+ heure d'arrivée + durée si accepte)
     const durationMin = duration_hours ? Math.round(parseFloat(duration_hours) * 60) : null
-    const updatedOrdre = {
-      ...msg.ordre_mission,
+    // Cast documenté jsonb → métier : ordre_mission est une colonne jsonb libre
+    // dont la structure est posée par le POST ordre_mission ci-dessus.
+    // Index signature Json pour rester compatible colonne jsonb à l'écriture.
+    type OrdreMission = {
+      titre?: string
+      date_souhaitee?: string
+      mission_id?: string
+      statut?: string
+      arrival_time?: string
+      duration_minutes?: number
+      [key: string]: Json | undefined
+    }
+    const ordreBase = (msg.ordre_mission ?? {}) as OrdreMission
+    const updatedOrdre: OrdreMission = {
+      ...ordreBase,
       statut: action,
       ...(action === 'accepte' && arrival_time ? { arrival_time } : {}),
       ...(action === 'accepte' && durationMin ? { duration_minutes: durationMin } : {}),

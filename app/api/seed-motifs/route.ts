@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import defaultMotifs from '@/lib/default-motifs.json'
 import { validateBody, seedMotifsSchema } from '@/lib/validation'
 import { getAuthUser } from '@/lib/auth-helpers'
+import type { TablesInsert } from '@/lib/database-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     // Collecter les motifs à insérer (dédupliqués par nom)
     const seenNames = new Set<string>()
-    const motifsToInsert: Record<string, unknown>[] = []
+    const motifsToInsert: TablesInsert<'services'>[] = []
     const etapesMap: Record<string, string[]> = {} // nom → étapes
 
     for (const metierId of metierIds) {

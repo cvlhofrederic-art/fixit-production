@@ -13,8 +13,11 @@ export async function loadRefTaux(): Promise<RefTaux[]> {
     .select('*')
     .order('date_debut_validite', { ascending: false })
   if (error) throw new Error(`Failed to load ref_taux: ${error.message}`)
-  const taux = (data ?? []).map((row) => ({
+  const taux: RefTaux[] = (data ?? []).map((row) => ({
     ...row,
+    // Cast documenté DB → métier : juridiction est typée string en DB mais
+    // contrainte aux valeurs du référentiel ('FR' | 'PT', cf. seeds ref_taux).
+    juridiction: row.juridiction as Juridiction,
     taux: Number(row.taux),
     seuil_min: row.seuil_min != null ? Number(row.seuil_min) : null,
     seuil_max: row.seuil_max != null ? Number(row.seuil_max) : null,

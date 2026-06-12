@@ -110,7 +110,9 @@ export async function POST(request: NextRequest) {
     if (!designation?.trim()) return NextResponse.json({ error: 'designation requis' }, { status: 400 })
 
     // Auto-calculate ordre if not provided
-    let finalOrdre = ordre
+    // (le schéma accepte aussi un tableau pour l'action reorder — pour create,
+    // seul un nombre est valide, sinon on retombe sur l'auto-calcul)
+    let finalOrdre = typeof ordre === 'number' ? ordre : undefined
     if (finalOrdre === undefined || finalOrdre === null) {
       const { data: existing } = await supabaseAdmin
         .from('service_etapes')

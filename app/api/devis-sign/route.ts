@@ -5,6 +5,19 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { devisSignSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { sanitizeSvg } from '@/lib/sanitize'
+import type { Json } from '@/lib/database-types'
+
+// Structure métier du jsonb `metadata` d'un message devis_sent (rempli par le
+// form artisan). Index signature Json pour rester compatible colonne jsonb.
+type DevisSentMetadata = {
+  signed?: boolean
+  docNumber?: string
+  totalStr?: string
+  executionDelay?: string
+  executionDelayDays?: number | string
+  prestationDate?: string
+  [key: string]: Json | undefined
+}
 
 /**
  * POST /api/devis-sign
@@ -53,14 +66,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message devis introuvable ou déjà signé' }, { status: 404 })
     }
 
+    // Cast documenté jsonb → métier : metadata est une colonne jsonb libre,
+    // sa structure est garantie par le form artisan qui émet le devis_sent.
+    const meta = (devisMsg.metadata ?? {}) as DevisSentMetadata
+
     // Vérifier si déjà signé
-    if (devisMsg.metadata?.signed) {
+    if (meta.signed) {
       return NextResponse.json({ error: 'Ce devis a déjà été signé' }, { status: 400 })
     }
 
     const signedAt = new Date().toISOString()
-    const docNumber = devisMsg.metadata?.docNumber || 'N/A'
-    const totalStr = devisMsg.metadata?.totalStr || ''
+    const docNumber = meta.docNumber || 'N/A'
+    const totalStr = meta.totalStr || ''
 
     // Garde-fou L.111-1 C. conso. : un devis signé doit comporter un délai
     // d'exécution ET une date de prestation. Sans ces 2 informations, le devis
@@ -68,9 +85,9 @@ export async function POST(request: NextRequest) {
     // refus d'exécution (Cass. 1re civ., 22 oct. 2014 n°13-23.346).
     // Source des champs : metadata du devis_sent (rempli par le form artisan)
     // OU raw_data du devis en DB (fallback si metadata incomplète).
-    let exec = devisMsg.metadata?.executionDelay
-      || (devisMsg.metadata?.executionDelayDays ? String(devisMsg.metadata.executionDelayDays) : '')
-    let prestation = devisMsg.metadata?.prestationDate || ''
+    let exec = meta.executionDelay
+      || (meta.executionDelayDays ? String(meta.executionDelayDays) : '')
+    let prestation = meta.prestationDate || ''
     if (!exec || !prestation) {
       // Fallback : on regarde le devis en DB via docNumber
       try {
@@ -107,7 +124,7 @@ export async function POST(request: NextRequest) {
       .from('booking_messages')
       .update({
         metadata: {
-          ...devisMsg.metadata,
+          ...meta,
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
@@ -136,7 +153,7 @@ export async function POST(request: NextRequest) {
         content: `✅ Devis N°${docNumber} signé électroniquement par ${signer_name.trim()}`,
         type: 'devis_signed',
         metadata: {
-          ...devisMsg.metadata,
+          ...meta,
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
@@ -152,13 +169,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur lors de la signature' }, { status: 500 })
     }
 
-    // 3. Notifier l'artisan
+    // 3. Notifier l'artisan (artisan_id nullable en DB : pas de notification si absent)
     try {
-      const { data: artisanProfile } = await supabaseAdmin
-        .from('profiles_artisan')
-        .select('user_id')
-        .eq('id', booking.artisan_id)
-        .single()
+      const { data: artisanProfile } = booking.artisan_id
+        ? await supabaseAdmin
+            .from('profiles_artisan')
+            .select('user_id')
+            .eq('id', booking.artisan_id)
+            .single()
+        : { data: null }
 
       if (artisanProfile?.user_id) {
         await supabaseAdmin

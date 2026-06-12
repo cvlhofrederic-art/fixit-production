@@ -142,6 +142,16 @@ export async function POST(request: NextRequest) {
       const pays = (artisan.language === 'pt' ? 'PT' : 'FR') as 'FR' | 'PT'
       const { periode_label, date_debut, date_fin, ca_periode, taux_applique, cotisations_estimees, date_limite } = body
 
+      // Ces champs sont optionnels dans le schéma Zod mais NOT NULL en DB :
+      // sans eux, l'insert échouait silencieusement (erreur non vérifiée) tout
+      // en répondant success — on renvoie désormais un 400 explicite.
+      if (!periode_label || !date_debut || !date_fin || !date_limite) {
+        return NextResponse.json(
+          { error: 'Champs requis manquants : periode_label, date_debut, date_fin, date_limite' },
+          { status: 400 }
+        )
+      }
+
       // Upsert la déclaration
       const { data: existing } = await supabaseAdmin
         .from('declarations_sociales')

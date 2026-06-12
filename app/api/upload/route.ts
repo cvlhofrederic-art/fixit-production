@@ -142,16 +142,19 @@ export async function POST(request: NextRequest) {
       const allowedFields = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
       if (allowedFields.includes(field)) {
         // Trouver l'artisan : d'abord par id, puis par user_id (fallback)
+        // NB : la colonne portfolio_photos n'existe pas dans le schéma live de
+        // profiles_artisan (audit P2 data layer) — la requêter faisait échouer les
+        // 3 selects (400 PostgREST) → toute mise à jour profil post-upload tombait en 404.
         let artisanRow = (await supabaseAdmin
           .from('profiles_artisan')
-          .select('id, user_id, portfolio_photos')
+          .select('id, user_id')
           .eq('id', artisanId)
           .single()).data
         if (!artisanRow) {
           // Fallback : artisanId pourrait être le user_id (admin override ou mismatch)
           artisanRow = (await supabaseAdmin
             .from('profiles_artisan')
-            .select('id, user_id, portfolio_photos')
+            .select('id, user_id')
             .eq('user_id', artisanId)
             .single()).data
         }
@@ -159,7 +162,7 @@ export async function POST(request: NextRequest) {
           // Dernier fallback : chercher par user_id de l'utilisateur connecté
           artisanRow = (await supabaseAdmin
             .from('profiles_artisan')
-            .select('id, user_id, portfolio_photos')
+            .select('id, user_id')
             .eq('user_id', user.id)
             .single()).data
         }
@@ -173,30 +176,13 @@ export async function POST(request: NextRequest) {
         const verifiedArtisanId = artisanRow.id
 
         if (field === 'portfolio_photo') {
-          // Append to portfolio_photos JSONB array
-          const photoMeta = formData.get('photo_meta') as string | null
-          const photoUrl = formData.get('photo_url') as string | null
-          const targetUrl = photoUrl || publicUrl
-          let meta: Record<string, unknown> = {}
-          try { meta = photoMeta ? JSON.parse(photoMeta) : {} } catch { /* invalid JSON, use empty */ }
-          const newEntry = {
-            url: targetUrl,
-            title: meta.title || 'Réalisation',
-            category: meta.category || 'Autre',
-            uploadedAt: new Date().toISOString(),
-            id: Date.now().toString(),
-          }
-          const existing: Array<Record<string, unknown>> = artisanRow.portfolio_photos || []
-          const { error: updateError } = await supabaseAdmin
-            .from('profiles_artisan')
-            .update({
-              portfolio_photos: [newEntry, ...existing],
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', verifiedArtisanId)
-          if (updateError) {
-            logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
-          }
+          // DÉSACTIVÉ : la colonne portfolio_photos n'existe pas dans le schéma live
+          // de profiles_artisan (audit P2 data layer) — cet append jsonb n'a jamais pu
+          // s'exécuter (le select échouait avant d'arriver ici). Le fichier est bien
+          // uploadé dans Storage ; la persistance du portfolio attend une migration
+          // (colonne jsonb ou table dédiée). L'erreur n'était déjà pas bloquante
+          // (loggée puis réponse 200), le comportement HTTP est donc inchangé.
+          logger.warn('[UPLOAD] portfolio_photo non persisté — colonne portfolio_photos absente du schéma live', { artisanId: verifiedArtisanId })
         } else {
           const { error: updateError } = await supabaseAdmin
             .from('profiles_artisan')

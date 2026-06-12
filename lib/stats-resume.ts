@@ -235,7 +235,7 @@ export async function getResumeActivite(
   ])
 
   // Calculer les totaux
-  const sumPriceTtc = (rows: { price_ttc: number }[] | null) =>
+  const sumPriceTtc = (rows: { price_ttc: number | null }[] | null) =>
     (rows || []).reduce((s, r) => s + (r.price_ttc || 0), 0)
 
   const totalRevenusPeriode = sumPriceTtc(revenusPeriode.data)

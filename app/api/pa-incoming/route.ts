@@ -95,15 +95,21 @@ export async function POST(request: NextRequest) {
   } = payload as Record<string, string | number | undefined>
 
   // Validation minimale (à étoffer avec Zod côté FR-V2d full implementation)
-  if (!pa_message_id || !source_pa || !artisan_siret || !numero || !date_emission) {
+  // emetteur_siret et format sont NOT NULL en DB (084_factures_recues_pa.sql) :
+  // les exiger ici renvoie un 400 propre au lieu d'un échec d'insert en 500.
+  if (!pa_message_id || !source_pa || !artisan_siret || !numero || !date_emission || !emetteur_siret || !format) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
+
+  // Coercition en string après garde (le payload peut porter des nombres JSON)
+  const paMessageId = String(pa_message_id)
+  const sourcePa = String(source_pa)
 
   // ── 3. Résoudre l'artisan destinataire via SIRET ──
   const { data: artisan, error: artisanErr } = await supabaseAdmin
     .from('profiles_artisan')
     .select('user_id')
-    .eq('siret', artisan_siret)
+    .eq('siret', String(artisan_siret))
     .maybeSingle()
 
   if (artisanErr) {
@@ -123,8 +129,8 @@ export async function POST(request: NextRequest) {
   const { data: existing } = await supabaseAdmin
     .from('factures_recues')
     .select('id')
-    .eq('source_pa', source_pa)
-    .eq('pa_message_id', pa_message_id)
+    .eq('source_pa', sourcePa)
+    .eq('pa_message_id', paMessageId)
     .maybeSingle()
 
   if (existing) {
@@ -135,21 +141,21 @@ export async function POST(request: NextRequest) {
     .from('factures_recues')
     .insert({
       artisan_user_id: artisan.user_id,
-      emetteur_siret,
-      emetteur_name: emetteur_name || '',
-      emetteur_email: emetteur_email || null,
-      numero,
-      date_emission,
-      date_echeance: date_echeance || null,
+      emetteur_siret: String(emetteur_siret),
+      emetteur_name: emetteur_name ? String(emetteur_name) : '',
+      emetteur_email: emetteur_email ? String(emetteur_email) : null,
+      numero: String(numero),
+      date_emission: String(date_emission),
+      date_echeance: date_echeance ? String(date_echeance) : null,
       total_ht_cents: Number(total_ht_cents) || 0,
       total_tva_cents: Number(total_tva_cents) || 0,
       total_ttc_cents: Number(total_ttc_cents) || 0,
-      currency: currency || 'EUR',
-      format,
-      source_pa,
-      pa_message_id,
-      raw_xml: raw_xml || null,
-      pdf_url: pdf_url || null,
+      currency: currency ? String(currency) : 'EUR',
+      format: String(format),
+      source_pa: sourcePa,
+      pa_message_id: paMessageId,
+      raw_xml: raw_xml ? String(raw_xml) : null,
+      pdf_url: pdf_url ? String(pdf_url) : null,
       status: 'received',
     })
     .select('id')

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
+import type { Json } from '@/lib/database-types'
 
 // ── Zod schema ───────────────────────────────────────────────────────────────
 
@@ -80,7 +81,9 @@ export async function POST(req: NextRequest) {
     event_type: e.event_type,
     user_id: e.user_id ?? null,
     session_id: e.session_id,
-    properties: e.properties,
+    // Cast documenté métier → jsonb : properties sort d'un body JSON parsé
+    // (z.record), donc JSON-sérialisable par construction.
+    properties: e.properties as Json,
     page_url: e.page_url,
     user_agent: e.user_agent,
     created_at: e.timestamp,

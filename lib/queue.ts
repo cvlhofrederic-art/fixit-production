@@ -37,42 +37,21 @@ export async function enqueueJob(job: QueueJob): Promise<{ queued: boolean; jobI
     }
   }
 
-  // Fallback: store in Supabase queue table for async processing
-  try {
-    const { supabaseAdmin } = await import('@/lib/supabase-server')
-    const { error } = await supabaseAdmin
-      .from('background_jobs')
-      .insert({
-        id: jobId,
-        type: job.type,
-        payload: job.payload,
-        status: 'pending',
-        scheduled_at: job.scheduledAt || new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      })
-    if (error) throw error
-    logger.info(`[queue] Job ${job.type} stored in Supabase fallback`, { jobId })
-    return { queued: true, jobId }
-  } catch (err) {
-    logger.warn(`[queue] Supabase fallback failed, job ${job.type} not queued`, err)
-    return { queued: false, jobId }
-  }
+  // Fallback Supabase RETIRÉ : la table background_jobs n'existe pas dans le
+  // schéma live et n'est pas dans le lot de migrations en attente (audit P2
+  // data layer). L'insert échouait systématiquement → on retournait déjà
+  // { queued: false }. Même sémantique, sans requête morte.
+  logger.warn(`[queue] No queue backend available, job ${job.type} not queued`, { jobId })
+  return { queued: false, jobId }
 }
 
 /**
  * Check the status of a background job.
+ *
+ * Toujours null : la table background_jobs n'existe pas dans le schéma live
+ * (audit P2 data layer) — l'ancienne requête échouait et retournait déjà null.
+ * À réimplémenter quand un backend de queue persistant existera.
  */
-export async function getJobStatus(jobId: string): Promise<{ status: string; result?: unknown } | null> {
-  try {
-    const { supabaseAdmin } = await import('@/lib/supabase-server')
-    const { data, error } = await supabaseAdmin
-      .from('background_jobs')
-      .select('status, result, error')
-      .eq('id', jobId)
-      .single()
-    if (error || !data) return null
-    return { status: data.status, result: data.result }
-  } catch {
-    return null
-  }
+export async function getJobStatus(_jobId: string): Promise<{ status: string; result?: unknown } | null> {
+  return null
 }

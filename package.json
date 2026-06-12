@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint --max-warnings=968",
+    "lint": "eslint --max-warnings=959",
     "mobile:build": "bash scripts/build-mobile.sh both",
     "mobile:ios": "bash scripts/build-mobile.sh ios",
     "mobile:android": "bash scripts/build-mobile.sh android",

@@ -118,6 +118,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Le booking doit être terminé pour laisser un avis' }, { status: 400 })
     }
 
+    // artisan_id nullable en DB : sans artisan rattaché, pas d'avis possible
+    // (l'insert échouait de toute façon — booking_reviews.artisan_id est NOT NULL)
+    if (!booking.artisan_id) {
+      return NextResponse.json({ error: 'Booking sans artisan rattaché' }, { status: 400 })
+    }
+
     // Vérifier pas de doublon
     const { data: existing } = await supabaseAdmin
       .from('booking_reviews')

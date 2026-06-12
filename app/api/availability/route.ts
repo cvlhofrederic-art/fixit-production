@@ -149,6 +149,10 @@ export async function PUT(request: NextRequest) {
     if (!availRow) {
       return NextResponse.json({ error: 'Créneau introuvable' }, { status: 404 })
     }
+    // artisan_id nullable en DB : un créneau orphelin n'est rattachable à personne → refus
+    if (!availRow.artisan_id) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+    }
     const { data: artisanProfile } = await supabaseAdmin
       .from('profiles_artisan')
       .select('user_id')

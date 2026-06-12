@@ -53,9 +53,12 @@ export async function GET(req: NextRequest) {
   )
 
   // 3. Fetch approved artisan profiles
+  // NB : les colonnes first_name / last_name n'existent pas dans le schéma live
+  // de profiles_artisan (audit P2 data layer) — les requêter faisait échouer
+  // tout le select (400 PostgREST) → la recherche répondait toujours 500.
   let artisanQuery = supabaseAdmin
     .from('profiles_artisan')
-    .select('id, user_id, company_name, first_name, last_name, email, phone, company_city, naf_code, naf_label, verified, kyc_status, categories')
+    .select('id, user_id, company_name, email, phone, company_city, naf_code, naf_label, verified, kyc_status, categories')
     .in('user_id', userIds)
     .eq('kyc_status', 'approved')
 
@@ -72,7 +75,7 @@ export async function GET(req: NextRequest) {
 
   const results = (artisans ?? []).map(a => ({
     ...a,
-    verified_source: verifiedSourceMap[a.user_id] ?? 'self_declared',
+    verified_source: (a.user_id && verifiedSourceMap[a.user_id]) || 'self_declared',
     profile_type: 'artisan' as const,
   }))
 

@@ -33,10 +33,18 @@ export async function DELETE(request: NextRequest) {
   const errors: string[] = []
   const deleted: string[] = []
 
-  // Helper : supprime de manière sécurisée et log le résultat
-  const safeDelete = async (table: string, column: string, id: string) => {
+  // Helper : supprime de manière sécurisée et log le résultat.
+  // La requête delete est construite TYPÉE au call-site ; le helper ne fait que
+  // collecter succès/échecs. Les tables absentes du schéma live (pt_fiscal_*,
+  // availability_services, tracking_sessions — audit P2 data layer) ne sont
+  // plus visées : il n'y a rien à supprimer dedans, et leurs échecs permanents
+  // forçaient un 207 « suppression partielle » systématique.
+  const safeDelete = async (
+    table: string,
+    run: () => PromiseLike<{ error: { message: string } | null }>,
+  ) => {
     try {
-      const { error } = await supabaseAdmin.from(table).delete().eq(column, id)
+      const { error } = await run()
       if (error) {
         errors.push(`${table}: ${error.message}`)
       } else {
@@ -59,63 +67,75 @@ export async function DELETE(request: NextRequest) {
     // ── Phase 2 : Supprimer dans l'ordre des dépendances (FK) ──
 
     // 2a. Messages de booking (anonymiser)
-    await safeDelete('booking_messages', 'sender_id', userId)
+    await safeDelete('booking_messages', () => supabaseAdmin.from('booking_messages').delete().eq('sender_id', userId))
 
     // 2b. Bookings (en tant que client)
-    await safeDelete('bookings', 'client_id', userId)
+    await safeDelete('bookings', () => supabaseAdmin.from('bookings').delete().eq('client_id', userId))
 
     // 2c. Artisan-specific tables (si artisan)
     if (artisanId) {
-      // Documents fiscaux PT (avant les séries à cause des FK)
-      await safeDelete('pt_fiscal_documents', 'artisan_id', artisanId)
-      await safeDelete('pt_fiscal_series', 'artisan_id', artisanId)
+      // Documents fiscaux PT : tables pt_fiscal_documents / pt_fiscal_series
+      // ABSENTES du schéma live (lockdown fiscal volontaire, audit FNC-08) —
+      // rien à supprimer, plus de tentative.
 
       // Factures et devis
-      await safeDelete('factures', 'artisan_user_id', userId)
-      await safeDelete('devis', 'artisan_user_id', userId)
+      await safeDelete('factures', () => supabaseAdmin.from('factures').delete().eq('artisan_user_id', userId))
+      await safeDelete('devis', () => supabaseAdmin.from('devis').delete().eq('artisan_user_id', userId))
 
       // Services (avant profil à cause des FK)
-      await safeDelete('services', 'artisan_id', artisanId)
+      await safeDelete('services', () => supabaseAdmin.from('services').delete().eq('artisan_id', artisanId))
 
       // Photos artisan
-      await safeDelete('artisan_photos', 'artisan_id', artisanId)
+      await safeDelete('artisan_photos', () => supabaseAdmin.from('artisan_photos').delete().eq('artisan_id', artisanId))
 
-      // Disponibilité et absences
-      await safeDelete('availability_services', 'artisan_id', artisanId)
-      await safeDelete('artisan_absences', 'artisan_id', artisanId)
-      await safeDelete('artisan_notifications', 'artisan_id', artisanId)
+      // Disponibilité et absences (availability_services n'existe pas en live — retiré)
+      await safeDelete('artisan_absences', () => supabaseAdmin.from('artisan_absences').delete().eq('artisan_id', artisanId))
+      await safeDelete('artisan_notifications', () => supabaseAdmin.from('artisan_notifications').delete().eq('artisan_id', artisanId))
 
       // Bookings (en tant qu'artisan)
-      await safeDelete('bookings', 'artisan_id', artisanId)
+      await safeDelete('bookings', () => supabaseAdmin.from('bookings').delete().eq('artisan_id', artisanId))
 
       // Profil artisan
-      await safeDelete('profiles_artisan', 'user_id', userId)
+      await safeDelete('profiles_artisan', () => supabaseAdmin.from('profiles_artisan').delete().eq('user_id', userId))
     }
 
     // 2d. Profil client
-    await safeDelete('profiles_client', 'user_id', userId)
+    await safeDelete('profiles_client', () => supabaseAdmin.from('profiles_client').delete().eq('user_id', userId))
 
     // 2e. Syndic tables (si syndic/admin)
-    // Supprimer d'abord les tables dépendantes
-    await safeDelete('syndic_signalement_messages', 'syndic_id', userId)
-    await safeDelete('syndic_signalements', 'cabinet_id', userId)
-    await safeDelete('syndic_missions', 'cabinet_id', userId)
-    await safeDelete('syndic_messages', 'cabinet_id', userId)
-    await safeDelete('syndic_planning_events', 'cabinet_id', userId)
-    await safeDelete('syndic_notifications', 'syndic_id', userId)
-    await safeDelete('syndic_artisans', 'cabinet_id', userId)
-    await safeDelete('syndic_immeubles', 'cabinet_id', userId)
-    await safeDelete('syndic_team_members', 'cabinet_id', userId)
+    // Supprimer d'abord les tables dépendantes.
+    // NB : syndic_signalement_messages n'a PAS de colonne syndic_id (l'ancien
+    // delete échouait toujours) — on passe par les signalements du cabinet
+    // (FK signalement_id), AVANT la suppression des signalements eux-mêmes.
+    {
+      const { data: ownSignalements } = await supabaseAdmin
+        .from('syndic_signalements')
+        .select('id')
+        .eq('cabinet_id', userId)
+      const signalementIds = (ownSignalements || []).map(s => s.id)
+      if (signalementIds.length > 0) {
+        await safeDelete('syndic_signalement_messages', () =>
+          supabaseAdmin.from('syndic_signalement_messages').delete().in('signalement_id', signalementIds))
+      }
+    }
+    await safeDelete('syndic_signalements', () => supabaseAdmin.from('syndic_signalements').delete().eq('cabinet_id', userId))
+    await safeDelete('syndic_missions', () => supabaseAdmin.from('syndic_missions').delete().eq('cabinet_id', userId))
+    await safeDelete('syndic_messages', () => supabaseAdmin.from('syndic_messages').delete().eq('cabinet_id', userId))
+    await safeDelete('syndic_planning_events', () => supabaseAdmin.from('syndic_planning_events').delete().eq('cabinet_id', userId))
+    await safeDelete('syndic_notifications', () => supabaseAdmin.from('syndic_notifications').delete().eq('syndic_id', userId))
+    await safeDelete('syndic_artisans', () => supabaseAdmin.from('syndic_artisans').delete().eq('cabinet_id', userId))
+    await safeDelete('syndic_immeubles', () => supabaseAdmin.from('syndic_immeubles').delete().eq('cabinet_id', userId))
+    await safeDelete('syndic_team_members', () => supabaseAdmin.from('syndic_team_members').delete().eq('cabinet_id', userId))
 
     // Tokens OAuth et emails analysés
-    await safeDelete('syndic_oauth_tokens', 'syndic_id', userId)
-    await safeDelete('syndic_emails_analysed', 'syndic_id', userId)
+    await safeDelete('syndic_oauth_tokens', () => supabaseAdmin.from('syndic_oauth_tokens').delete().eq('syndic_id', userId))
+    await safeDelete('syndic_emails_analysed', () => supabaseAdmin.from('syndic_emails_analysed').delete().eq('syndic_id', userId))
 
     // 2f. Subscriptions
-    await safeDelete('subscriptions', 'user_id', userId)
+    await safeDelete('subscriptions', () => supabaseAdmin.from('subscriptions').delete().eq('user_id', userId))
 
-    // 2g. Tracking sessions
-    await safeDelete('tracking_sessions', 'artisan_id', userId)
+    // 2g. Tracking sessions : table tracking_sessions absente du schéma live
+    // (audit P2 data layer) — rien à supprimer, plus de tentative.
 
     // 2h. Audit log de la suppression (avant suppression du user auth)
     try {

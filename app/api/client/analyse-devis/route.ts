@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
+import type { Json } from '@/lib/database-types'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -393,12 +394,15 @@ async function saveAnalysis(
       score_prix_ecart: data.scores.prix.ecart_moyen_pct,
       score_confiance: data.scores.confiance,
       action_recommandee: data.scores.action_recommandee,
-      extracted: data.extracted,
+      // Casts documentés métier → jsonb : structures issues du moteur de scoring
+      // (interfaces lib/analyse-devis-scoring.ts), composées uniquement de
+      // primitifs et tableaux JSON-sérialisables.
+      extracted: data.extracted as Json,
       scores_details: {
         conformite: data.scores.conformite.details,
         prix: data.scores.prix.details,
         messages_negociation: data.scores.messages_negociation,
-      },
+      } as unknown as Json,
       messages_negociation: data.scores.messages_negociation,
       analysis_text: data.analysisText,
       model: data.model || null,

@@ -20,10 +20,15 @@ export async function GET(request: NextRequest) {
 
   const userId = user.id
 
-  // Helper : récupérer silencieusement (table peut ne pas exister)
-  const safeSelect = async (table: string, column: string, id: string): Promise<Record<string, unknown>[]> => {
+  // Helper : récupérer silencieusement — la requête est construite TYPÉE au
+  // call-site, ce helper neutralise seulement les échecs (RGPD : mieux vaut un
+  // export partiel qu'un 500). Les tables absentes du schéma live (pt_fiscal_*)
+  // ne sont plus requêtées du tout — voir section 9.
+  const safeSelect = async <T extends Record<string, unknown>>(
+    query: PromiseLike<{ data: T[] | null }>,
+  ): Promise<Record<string, unknown>[]> => {
     try {
-      const { data } = await supabaseAdmin.from(table).select('*').eq(column, id)
+      const { data } = await query
       return data || []
     } catch { return [] }
   }
@@ -52,16 +57,16 @@ export async function GET(request: NextRequest) {
     }
 
     // 4. Bookings (en tant que client)
-    const clientBookings = await safeSelect('bookings', 'client_id', userId)
+    const clientBookings = await safeSelect(supabaseAdmin.from('bookings').select('*').eq('client_id', userId))
 
     // 5. Bookings (en tant qu'artisan)
     let artisanBookings: Record<string, unknown>[] = []
     if (artisanProfile) {
-      artisanBookings = await safeSelect('bookings', 'artisan_id', artisanProfile.id)
+      artisanBookings = await safeSelect(supabaseAdmin.from('bookings').select('*').eq('artisan_id', artisanProfile.id))
     }
 
     // 6. Messages de booking
-    const messages = await safeSelect('booking_messages', 'sender_id', userId)
+    const messages = await safeSelect(supabaseAdmin.from('booking_messages').select('*').eq('sender_id', userId))
 
     // 7. Profil client
     const { data: clientProfile } = await supabaseAdmin
@@ -71,32 +76,31 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     // 8. Devis et factures
-    const devis = await safeSelect('devis', 'artisan_user_id', userId)
-    const factures = await safeSelect('factures', 'artisan_user_id', userId)
+    const devis = await safeSelect(supabaseAdmin.from('devis').select('*').eq('artisan_user_id', userId))
+    const factures = await safeSelect(supabaseAdmin.from('factures').select('*').eq('artisan_user_id', userId))
 
-    // 9. Documents fiscaux PT
-    let ptFiscalSeries: Record<string, unknown>[] = []
-    let ptFiscalDocuments: Record<string, unknown>[] = []
-    if (artisanProfile) {
-      ptFiscalSeries = await safeSelect('pt_fiscal_series', 'artisan_id', artisanProfile.id)
-      ptFiscalDocuments = await safeSelect('pt_fiscal_documents', 'artisan_id', artisanProfile.id)
-    }
+    // 9. Documents fiscaux PT — tables pt_fiscal_series / pt_fiscal_documents
+    // ABSENTES du schéma live (lockdown fiscal volontaire, audit FNC-08).
+    // Les requêtes échouaient déjà silencieusement → [] ; on garde les clés
+    // dans l'export pour la stabilité du contrat de réponse.
+    const ptFiscalSeries: Record<string, unknown>[] = []
+    const ptFiscalDocuments: Record<string, unknown>[] = []
 
     // 10. Photos artisan
     let artisanPhotos: Record<string, unknown>[] = []
     if (artisanProfile) {
-      artisanPhotos = await safeSelect('artisan_photos', 'artisan_id', artisanProfile.id)
+      artisanPhotos = await safeSelect(supabaseAdmin.from('artisan_photos').select('*').eq('artisan_id', artisanProfile.id))
     }
 
     // 11. Syndic data (si syndic)
-    const syndicEmails = await safeSelect('syndic_emails_analysed', 'syndic_id', userId)
-    const syndicMissions = await safeSelect('syndic_missions', 'cabinet_id', userId)
-    const syndicImmeubles = await safeSelect('syndic_immeubles', 'cabinet_id', userId)
-    const syndicArtisans = await safeSelect('syndic_artisans', 'cabinet_id', userId)
-    const syndicTeam = await safeSelect('syndic_team_members', 'cabinet_id', userId)
-    const syndicMessages = await safeSelect('syndic_messages', 'cabinet_id', userId)
-    const syndicSignalements = await safeSelect('syndic_signalements', 'cabinet_id', userId)
-    const syndicPlanningEvents = await safeSelect('syndic_planning_events', 'cabinet_id', userId)
+    const syndicEmails = await safeSelect(supabaseAdmin.from('syndic_emails_analysed').select('*').eq('syndic_id', userId))
+    const syndicMissions = await safeSelect(supabaseAdmin.from('syndic_missions').select('*').eq('cabinet_id', userId))
+    const syndicImmeubles = await safeSelect(supabaseAdmin.from('syndic_immeubles').select('*').eq('cabinet_id', userId))
+    const syndicArtisans = await safeSelect(supabaseAdmin.from('syndic_artisans').select('*').eq('cabinet_id', userId))
+    const syndicTeam = await safeSelect(supabaseAdmin.from('syndic_team_members').select('*').eq('cabinet_id', userId))
+    const syndicMessages = await safeSelect(supabaseAdmin.from('syndic_messages').select('*').eq('cabinet_id', userId))
+    const syndicSignalements = await safeSelect(supabaseAdmin.from('syndic_signalements').select('*').eq('cabinet_id', userId))
+    const syndicPlanningEvents = await safeSelect(supabaseAdmin.from('syndic_planning_events').select('*').eq('cabinet_id', userId))
 
     // 12. Subscription
     const { data: subscription } = await supabaseAdmin
