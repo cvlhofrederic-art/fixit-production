@@ -7,6 +7,7 @@
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getStripe } from '@/lib/stripe'
 import { getUserSubscription } from '@/lib/subscription'
+import { logger } from '@/lib/logger'
 
 // ── Constantes ──────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ export async function computeRiskScore(referralId: string): Promise<number> {
     .single()
 
   if (error || !ref) {
-    console.error('[referral] computeRiskScore — referral introuvable:', referralId)
+    logger.error('[referral] computeRiskScore — referral introuvable:', { referralId, error: error?.message })
     return 0
   }
 
@@ -102,7 +103,8 @@ export async function computeRiskScore(referralId: string): Promise<number> {
     .single()
 
   // Charger le filleul (peut être null si pas encore inscrit)
-  let filleul: { id: string; user_id: string; email: string } | null = null
+  // user_id/email sont nullables en base (cf. lib/database-types.ts)
+  let filleul: { id: string; user_id: string | null; email: string | null } | null = null
   if (ref.filleul_id) {
     const { data } = await supabaseAdmin
       .from('profiles_artisan')
@@ -274,8 +276,9 @@ export async function checkAutoParrainage(parrainId: string, filleulId: string):
   if (parrain.user_id === filleul.user_id) return true
 
   // 4. Comparaison Stripe (customer + payment method)
-  const parrainSub = await getUserSubscription(parrain.user_id)
-  const filleulSub = await getUserSubscription(filleul.user_id)
+  // user_id nullable en base → pas d'abonnement rattachable sans user_id
+  const parrainSub = parrain.user_id ? await getUserSubscription(parrain.user_id) : null
+  const filleulSub = filleul.user_id ? await getUserSubscription(filleul.user_id) : null
 
   if (parrainSub?.stripe_customer_id && filleulSub?.stripe_customer_id) {
     // 4a. Même customer Stripe
@@ -300,7 +303,7 @@ export async function checkAutoParrainage(parrainId: string, filleulId: string):
       }
     } catch (err) {
       // Stripe error — ne pas bloquer, mais logger
-      console.warn('[referral] checkAutoParrainage — erreur Stripe:', err)
+      logger.warn('[referral] checkAutoParrainage — erreur Stripe:', { error: String(err) })
     }
   }
 
@@ -334,13 +337,13 @@ export async function distributeReferralReward(
     .single()
 
   if (error || !ref) {
-    console.error('[referral] distributeReward — referral introuvable:', referralId)
+    logger.error('[referral] distributeReward — referral introuvable:', { referralId, error: error?.message })
     return 'error'
   }
 
   // 1. Vérifier le statut
   if (!['paiement_valide', 'periode_verification'].includes(ref.statut)) {
-    console.warn('[referral] distributeReward — statut incorrect:', ref.statut)
+    logger.warn('[referral] distributeReward — statut incorrect:', { referralId, statut: ref.statut })
     return 'error'
   }
 
@@ -355,7 +358,8 @@ export async function distributeReferralReward(
 
   if (!filleul) return 'error'
 
-  const filleulSub = await getUserSubscription(filleul.user_id)
+  // user_id nullable en base → pas d'abonnement rattachable sans user_id
+  const filleulSub = filleul.user_id ? await getUserSubscription(filleul.user_id) : null
   if (!filleulSub || filleulSub.status === 'canceled') {
     // Filleul a annulé → bloquer + logger
     await supabaseAdmin.from('referrals').update({
@@ -394,7 +398,7 @@ export async function distributeReferralReward(
   const stripe = getStripe()
 
   // Créditer le parrain
-  const parrainSub = await getUserSubscription(parrain.user_id)
+  const parrainSub = parrain.user_id ? await getUserSubscription(parrain.user_id) : null
   if (parrainSub?.stripe_customer_id) {
     try {
       await stripe.customers.createBalanceTransaction(parrainSub.stripe_customer_id, {
@@ -403,7 +407,7 @@ export async function distributeReferralReward(
         description: `Parrainage validé — 1 mois offert (ref: ${ref.code})`,
       })
     } catch (err) {
-      console.error('[referral] Stripe credit parrain failed:', err)
+      logger.error('[referral] Stripe credit parrain failed:', { referralId }, err)
     }
   }
 
@@ -416,13 +420,13 @@ export async function distributeReferralReward(
         description: `Bonus filleul — 1 mois offert (parrain: ${ref.code})`,
       })
     } catch (err) {
-      console.error('[referral] Stripe credit filleul failed:', err)
+      logger.error('[referral] Stripe credit filleul failed:', { referralId }, err)
     }
   }
 
   // ── Mise à jour DB : profiles_artisan ──
   await supabaseAdmin.from('profiles_artisan').update({
-    credit_mois_gratuits: (parrain.credit_mois_gratuits || 0) + ref.mois_offerts_parrain,
+    credit_mois_gratuits: (parrain.credit_mois_gratuits || 0) + (ref.mois_offerts_parrain ?? 0),
     total_parrainages_reussis: (parrain.total_parrainages_reussis || 0) + 1,
   }).eq('id', ref.parrain_id)
 
@@ -435,7 +439,7 @@ export async function distributeReferralReward(
 
   if (filleulProfile) {
     await supabaseAdmin.from('profiles_artisan').update({
-      credit_mois_gratuits: (filleulProfile.credit_mois_gratuits || 0) + ref.mois_offerts_filleul,
+      credit_mois_gratuits: (filleulProfile.credit_mois_gratuits || 0) + (ref.mois_offerts_filleul ?? 0),
     }).eq('id', ref.filleul_id)
   }
 
@@ -444,14 +448,14 @@ export async function distributeReferralReward(
     {
       artisan_id: ref.parrain_id,
       type: 'parrainage_parrain',
-      mois_credits: ref.mois_offerts_parrain,
+      mois_credits: ref.mois_offerts_parrain ?? 0,
       referral_id: referralId,
       description: `Parrainage validé — filleul ${ref.filleul_id}`,
     },
     {
       artisan_id: ref.filleul_id,
       type: 'parrainage_filleul',
-      mois_credits: ref.mois_offerts_filleul,
+      mois_credits: ref.mois_offerts_filleul ?? 0,
       referral_id: referralId,
       description: `Bonus filleul — parrain ${ref.parrain_id}`,
     },
@@ -493,12 +497,13 @@ async function logRiskEvent(
  * Récupère un parrain à partir de son code de parrainage.
  * Retourne null si le code n'existe pas ou si l'artisan est flagged.
  */
+// Champs nullables : reflète le schéma réel (cf. lib/database-types.ts)
 export async function getParrainByCode(code: string): Promise<{
   id: string
-  user_id: string
-  company_name: string
-  email: string
-  referral_flagged: boolean
+  user_id: string | null
+  company_name: string | null
+  email: string | null
+  referral_flagged: boolean | null
 } | null> {
   const { data } = await supabaseAdmin
     .from('profiles_artisan')

@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { evaluateCron } from '@/lib/scheduler/cron-evaluator'
 import { executeTaskHandler } from '@/lib/scheduler/task-handlers'
 import { logger } from '@/lib/logger'
+import type { Json } from '@/lib/database-types'
 
 export const maxDuration = 60
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const results: Array<{ automation_id: string; status: string; emails_sent: number }> = []
 
-  for (const automation of ((dueAutomations ?? []) as Record<string, unknown>[])) {
+  for (const automation of dueAutomations ?? []) {
     // 2. Insert run record (status=running)
     const { data: run } = await supabaseAdmin
       .from('syndic_automation_runs')
@@ -53,9 +54,11 @@ export async function POST(req: NextRequest) {
     let result
     try {
       result = await executeTaskHandler({
+        // jsonb → métier : Row DB (params: Json, locale: string) vers le contrat
+        // Automation du handler (params: Record, locale: 'fr' | 'pt')
         automation: automation as unknown as Parameters<typeof executeTaskHandler>[0]['automation'],
         supabase: supabaseAdmin as Parameters<typeof executeTaskHandler>[0]['supabase'],
-        runId: (run as { id: string }).id,
+        runId: run.id,
       })
     } catch (err) {
       result = {
@@ -75,17 +78,18 @@ export async function POST(req: NextRequest) {
         emails_sent: result.emails_sent,
         docs_generated: result.docs_generated,
         error_message: result.error_message ?? null,
-        result_meta: result.result_meta ?? null,
+        // métier → jsonb : result_meta est un objet JSON-sérialisable (cf. HandlerResult)
+        result_meta: (result.result_meta ?? null) as Json,
       })
-      .eq('id', (run as { id: string }).id)
+      .eq('id', run.id)
 
     // 5. Update automation : last_run_at, run_count, next_run_at, failure_count
-    const cronEval = evaluateCron(automation.cron_expr as string, {
-      timezone: automation.timezone as string,
+    const cronEval = evaluateCron(automation.cron_expr, {
+      timezone: automation.timezone,
       currentDate: now,
     })
     const newFailureCount =
-      result.status === 'failed' ? ((automation.failure_count as number) ?? 0) + 1 : 0
+      result.status === 'failed' ? automation.failure_count + 1 : 0
 
     await supabaseAdmin
       .from('syndic_automations')
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
         last_run_status: result.status,
         last_run_message: result.error_message ?? null,
         next_run_at: cronEval.next.toISOString(),
-        run_count: ((automation.run_count as number) ?? 0) + 1,
+        run_count: automation.run_count + 1,
         failure_count: newFailureCount,
       })
       .eq('id', automation.id)
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest) {
     if (result.status === 'failed' && newFailureCount === 3) {
       try {
         const { data: adminUser } = await supabaseAdmin.auth.admin.getUserById(
-          automation.cabinet_id as string,
+          automation.cabinet_id,
         )
         const email = adminUser?.user?.email
         if (email) {
@@ -114,9 +118,9 @@ export async function POST(req: NextRequest) {
             html: `
               <p>Une de vos automatisations Vitfix a échoué <strong>3 fois consécutives</strong>.</p>
               <ul>
-                <li><strong>Nom</strong> : ${String(automation.name ?? '')}</li>
-                <li><strong>Type</strong> : ${String(automation.task_type ?? '')}</li>
-                <li><strong>Cron</strong> : <code>${String(automation.cron_expr ?? '')}</code></li>
+                <li><strong>Nom</strong> : ${automation.name}</li>
+                <li><strong>Type</strong> : ${automation.task_type}</li>
+                <li><strong>Cron</strong> : <code>${automation.cron_expr}</code></li>
                 <li><strong>Dernière erreur</strong> : ${result.error_message ?? 'inconnue'}</li>
               </ul>
               <p>Connectez-vous à votre dashboard pour diagnostiquer ou mettre en pause.</p>
@@ -130,7 +134,7 @@ export async function POST(req: NextRequest) {
     }
 
     results.push({
-      automation_id: automation.id as string,
+      automation_id: automation.id,
       status: result.status,
       emails_sent: result.emails_sent,
     })
