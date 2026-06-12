@@ -1411,7 +1411,9 @@ export default function DevisFactureForm({
     let freshInsuranceName = insuranceName
     let freshInsuranceNumber = insuranceNumber
     let freshInsuranceCoverage = insuranceCoverage
-    let freshInsuranceType = insuranceType
+    // Élargi à string : la colonne DB insurance_type est `string | null` et les
+    // consommateurs (overrides.insType de getV2InputParams) acceptent string | null.
+    let freshInsuranceType: string = insuranceType
     let freshInsuranceExpiry: string | null = null
     try {
       const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type, insurance_expiry').eq('id', artisan?.id).single()

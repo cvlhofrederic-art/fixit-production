@@ -10,6 +10,7 @@ import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
+import type { Json } from '@/lib/database-types'
 
 interface CompanyData {
   name?: string
@@ -348,10 +349,14 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
         for (const r of updated) {
           const { id, rapportNumber, interventionDate, linkedPhotoIds, status, ...rest } = r
           const isLocalId = !id || id.startsWith('rap_')
-          const row: Record<string, unknown> = {
+          const row = {
+            // owner_id NOT NULL + RLS owner (migration 064) : sans lui, l'insert
+            // échouait silencieusement et la sync cloud était morte (audit P2).
+            owner_id: session.user.id,
             titre: rapportNumber || '',
             date: interventionDate || '',
-            contenu: rest,
+            // métier → jsonb : champs restants du RapportIntervention sérialisés tels quels
+            contenu: rest as Json,
             photos: linkedPhotoIds || [],
             status: status || 'brouillon',
           }

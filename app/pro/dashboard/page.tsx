@@ -364,7 +364,13 @@ function DashboardPage() {
     if (user.app_metadata?.role === 'super_admin' && !(artisanData as { legal_form?: string }).legal_form) {
       (artisanData as { legal_form?: string }).legal_form = 'SARL'
     }
-    setArtisan(artisanData)
+    // Row DB → type métier Artisan : les colonnes nullable du Row portent des null
+    // là où le type métier déclare `?: string` — le runtime a toujours porté ces
+    // null (PostgREST), les consommateurs traitent null/undefined pareil (||, ?.).
+    // NB : select('*') conservé ici sciemment (TSQ-07) : profil du PROPRIÉTAIRE
+    // authentifié (RLS), et l'objet alimente initSettingsForm + de nombreuses
+    // sections qui lisent des colonnes hors interface (rm, rc_pro, legal_form…).
+    setArtisan(artisanData as Artisan)
     supabase.from('profiles_artisan').update({ last_seen_at: new Date().toISOString() }).eq('id', artisanData.id).then()
     initSettingsForm(artisanData, user.email || '')
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)

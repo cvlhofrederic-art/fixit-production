@@ -256,6 +256,8 @@ function RechercheContent() {
           const h = sinLat * sinLat + Math.cos(userCoords.lat * Math.PI / 180) * Math.cos(a.latitude * Math.PI / 180) * sinLon * sinLon
           dist = R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
         }
+        // Row DB (colonnes nullable + jointure services) → type métier Artisan
+        // (ArtisanCard) : null au runtime depuis toujours, l'UI est tolérante (||, ?.).
         return {
           ...a,
           city: extractedCity,
@@ -263,7 +265,7 @@ function RechercheContent() {
           // Only real subscribers (user_id != null) get the booking button
           source: a.user_id ? 'registered' as const : 'catalogue' as const,
           telephone_pro: a.user_id ? null : (a.phone || null),
-        }
+        } as Artisan
       })
 
       // Client-side category filter for registered artisans
@@ -463,9 +465,11 @@ function RechercheContent() {
 
       // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
       // PT : uniquement Porto. FR : toutes les villes françaises (location filter affine).
+      // TSQ-07 : colonnes énumérées (au lieu de '*') — uniquement celles consommées
+      // par le mapping catalogList + les filtres ci-dessous.
       let catalogQuery = supabase
         .from('artisans_catalogue')
-        .select('*')
+        .select('id, nom_entreprise, specialite, metier, google_note, google_avis, pappers_verifie, ville, arrondissement, adresse, telephone_pro')
         .order('google_note', { ascending: false, nullsFirst: false })
 
       if (detectedCountry === 'PT') {
@@ -548,7 +552,8 @@ function RechercheContent() {
           .or('slot_type.eq.rdv,slot_type.is.null')
           .order('day_of_week')
 
-        setAllAvailability(availData || [])
+        // Row DB → type métier Availability (nullabilité près, l'UI est tolérante)
+        setAllAvailability((availData || []) as Availability[])
 
         const todayStr = format(new Date(), 'yyyy-MM-dd')
         const { data: bookingsData } = await supabase
@@ -558,7 +563,8 @@ function RechercheContent() {
           .gte('booking_date', todayStr)
           .in('status', ['confirmed', 'pending'])
 
-        setAllBookings(bookingsData || [])
+        // Row DB → type métier Booking (nullabilité près)
+        setAllBookings((bookingsData || []) as Booking[])
       } else {
         setAllAvailability([])
         setAllBookings([])

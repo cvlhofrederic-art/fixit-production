@@ -1071,7 +1071,11 @@ export default function MobileDashboard() {
     const { data: artisanData } = await supabase
       .from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (!artisanData) { router.push(`/${locale}/auth/login`); return }
-    setArtisan(artisanData)
+    // Row DB → type métier Artisan : colonnes nullable (null au runtime depuis
+    // toujours via PostgREST) là où le métier déclare `?:` — consommateurs
+    // tolérants (||, ?.). select('*') conservé sciemment (TSQ-07) : profil du
+    // PROPRIÉTAIRE authentifié (RLS), lu par settingsForm + nombreuses vues mobile.
+    setArtisan(artisanData as Artisan)
     setSettingsForm({
       company_name: artisanData.company_name || '',
       phone: artisanData.phone || '',
@@ -1088,7 +1092,8 @@ export default function MobileDashboard() {
     setBookings(bData || [])
 
     const { data: sData } = await supabase.from('services').select('*').eq('artisan_id', artisanData.id)
-    setServices(sData || [])
+    // Row DB → type métier Service (mêmes colonnes, nullabilité près)
+    setServices((sData || []) as Service[])
 
     try {
       // Mobile ne pilote que la plage RDV directe (pas Visite & devis qui se gère sur dashboard).
@@ -1454,7 +1459,8 @@ export default function MobileDashboard() {
     }).select('*, services(name)').single()
     setSavingRdv(false)
     if (!error && data) {
-      setBookings(prev => [data, ...prev])
+      // Row DB (+ jointure services(name)) → type métier Booking
+      setBookings(prev => [data as Booking, ...prev])
       setShowNewRdv(false)
       setNewRdv({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '' })
 
@@ -1505,7 +1511,8 @@ export default function MobileDashboard() {
     }).select().single()
     setSavingMotif(false)
     if (data) {
-      setServices(prev => [...prev, data])
+      // Row DB → type métier Service
+      setServices(prev => [...prev, data as Service])
       // Save price range + duration estimate + pricing unit in localStorage
       const updatedRanges = { ...serviceRanges, [data.id]: { priceMin: pMin, priceMax: pMax, durationEstimate: motifForm.duration_estimate || '', pricingUnit: motifForm.pricing_unit || 'forfait' } }
       setServiceRanges(updatedRanges)
