@@ -39,7 +39,8 @@ describe('/api/email-agent/webhook', () => {
     vi.clearAllMocks()
     resetAfterCallbacks()
     sb.maybeSingle.mockResolvedValue({
-      data: { syndic_id: SYNDIC_ID, email_compte: 'syndic@example.com' },
+      data: { syndic_id: SYNDIC_ID, email: 'syndic@example.com' },
+      error: null,
     })
     vi.stubEnv('GMAIL_WEBHOOK_SECRET', GMAIL_SECRET)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')))
@@ -70,10 +71,22 @@ describe('/api/email-agent/webhook', () => {
   })
 
   it('retourne ignored si aucun syndic pour cet email', async () => {
-    sb.maybeSingle.mockResolvedValue({ data: null })
+    sb.maybeSingle.mockResolvedValue({ data: null, error: null })
     const res = await callWebhookPOST(makeWebhookRequest({ token: GMAIL_SECRET }))
     const data = await expectJson(res, 200)
     expect(data.status).toBe('ignored')
+    expect(mockAfter).not.toHaveBeenCalled()
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
+  it('erreur DB au lookup → 500 (Pub/Sub retente) + logger.error, aucun poll déclenché (TSQ-10)', async () => {
+    sb.maybeSingle.mockResolvedValue({ data: null, error: { message: 'db down' } })
+    const res = await callWebhookPOST(makeWebhookRequest({ token: GMAIL_SECRET }))
+    expect(res.status).toBe(500)
+    expect(logger.error).toHaveBeenCalledWith(
+      'webhook: lookup syndic_oauth_tokens failed',
+      expect.objectContaining({ error: 'db down' }),
+    )
     expect(mockAfter).not.toHaveBeenCalled()
     expect(globalThis.fetch).not.toHaveBeenCalled()
   })

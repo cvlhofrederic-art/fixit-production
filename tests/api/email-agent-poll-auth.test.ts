@@ -20,6 +20,7 @@ import {
   makeAlfredoDraftMock,
   makeAlfredoPipelineMock,
   makeAuthHelperSpies,
+  makeCronPollRequest,
   makeLoggerMock,
   makeLoggerSpies,
   makeOauthTokensMock,
@@ -36,12 +37,14 @@ import {
 const auth = makeAuthHelperSpies()
 vi.mock('@/lib/auth-helpers', () => auth)
 
-// supabaseAdmin chaînable — le fallback "plain token" retourne data:null
-// → la boucle `continue` immédiatement, aucun appel Gmail.
+// supabaseAdmin chaînable — couvre le listing cron (select syndic_id).
 const tokens = makeTokensChain()
 vi.mock('@/lib/supabase-server', () => makeSupabaseAdminMock(() => tokens.chain))
 
-vi.mock('@/lib/oauth/tokens', () => makeOauthTokensMock())
+// getDecryptedToken mocké à null → la boucle `continue` immédiatement
+// (token absent = reconnexion requise), aucun appel Gmail.
+const mockGetDecryptedToken = vi.fn()
+vi.mock('@/lib/oauth/tokens', () => makeOauthTokensMock(mockGetDecryptedToken))
 vi.mock('@/lib/syndic/alfredo-pipeline', () => makeAlfredoPipelineMock())
 vi.mock('@/lib/syndic/alfredo-load-client-context', () => makeAlfredoContextMock())
 vi.mock('@/lib/syndic/alfredo-classify', () => makeAlfredoClassifyMock())
@@ -55,6 +58,7 @@ vi.mock('@/lib/logger', () => makeLoggerMock(logger))
 beforeEach(() => {
   vi.clearAllMocks()
   tokens.single.mockResolvedValue({ data: null, error: null })
+  mockGetDecryptedToken.mockResolvedValue(null)
   vi.stubEnv('INTERNAL_POLL_TOKEN', INTERNAL_TOKEN)
 })
 
@@ -74,9 +78,9 @@ describe('POST /api/email-agent/poll — auth interne x-internal-trigger', () =>
   it('token valide → scopé au seul syndic_id transmis', async () => {
     const res = await callPollPOST(makePollRequest({ internalToken: INTERNAL_TOKEN }))
     expect(res.status).toBe(200)
-    // La boucle ne traite que ce syndic : 1 seul lookup token plain
-    expect(tokens.chain.eq).toHaveBeenCalledWith('syndic_id', SYNDIC_ID)
-    expect(tokens.single).toHaveBeenCalledTimes(1)
+    // La boucle ne traite que ce syndic : 1 seul lookup token (chiffré)
+    expect(mockGetDecryptedToken).toHaveBeenCalledTimes(1)
+    expect(mockGetDecryptedToken).toHaveBeenCalledWith(expect.anything(), SYNDIC_ID)
   })
 
   it('token invalide → 401', async () => {
@@ -155,5 +159,37 @@ describe('POST /api/email-agent/poll — chemin cookie inchangé (pas de header)
     const res = await callPollPOST(makePollRequest())
     const data = await expectJson(res, 200)
     expect(data.success).toBe(true)
+  })
+})
+
+describe('POST /api/email-agent/poll — échecs DB gérés, jamais avalés (TSQ-10)', () => {
+  it('chemin cron : échec du SELECT syndic_oauth_tokens → 500 + logger.error (pas de succès à vide)', async () => {
+    vi.stubEnv('CRON_SECRET', 'cron-secret-test')
+    ;(tokens.chain.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      Promise.resolve({ data: null, error: { message: 'db down' } }),
+    )
+    const res = await callPollPOST(makeCronPollRequest('cron-secret-test'))
+    const data = await expectJson(res, 500)
+    expect(data.success).toBeUndefined()
+    expect(logger.error).toHaveBeenCalled()
+  })
+
+  it('getDecryptedToken throw (erreur DB) → échec compté dans results + logger.error', async () => {
+    mockGetDecryptedToken.mockRejectedValue(new Error('getDecryptedToken failed: db down'))
+    const res = await callPollPOST(makePollRequest({ internalToken: INTERNAL_TOKEN }))
+    const data = await expectJson(res, 200)
+    expect(data.results[0]).toMatchObject({ syndic_id: SYNDIC_ID, error: 'Erreur de traitement' })
+    expect(logger.error).toHaveBeenCalled()
+  })
+
+  it('token absent (null) → résultat explicite « reconnexion requise » + logger.warn', async () => {
+    mockGetDecryptedToken.mockResolvedValue(null)
+    const res = await callPollPOST(makePollRequest({ internalToken: INTERNAL_TOKEN }))
+    const data = await expectJson(res, 200)
+    expect(data.results[0]).toMatchObject({
+      syndic_id: SYNDIC_ID,
+      error: 'Token Gmail absent — reconnexion requise',
+    })
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(SYNDIC_ID))
   })
 })

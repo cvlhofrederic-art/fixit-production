@@ -5,6 +5,7 @@ import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId, refreshGmailA
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
 import { getDecryptedToken, setEncryptedToken } from '@/lib/oauth/tokens'
+import type { TablesInsert } from '@/lib/database-types'
 import { processIncomingEmail } from '@/lib/syndic/alfredo-pipeline'
 import { loadClientContext } from '@/lib/syndic/alfredo-load-client-context'
 import { classifyEmailWithGroq } from '@/lib/syndic/alfredo-classify'
@@ -153,41 +154,38 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { data: tokens } = await supabaseAdmin
+      const { data: tokens, error: tokensError } = await supabaseAdmin
         .from('syndic_oauth_tokens')
         .select('syndic_id')
-      syndicIds = (tokens || []).map((t: { syndic_id: string }) => t.syndic_id)
+      if (tokensError) {
+        // TSQ-10 : un échec du SELECT tokens doit être loggé et remonter en
+        // erreur — jamais répondre succès sur une liste vide par accident.
+        logger.error('[email-agent/poll] Lecture syndic_oauth_tokens échouée:', tokensError)
+        return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+      }
+      syndicIds = (tokens || []).map((t) => t.syndic_id)
     }
 
     const results: Record<string, unknown>[] = []
 
     for (const sid of syndicIds) {
       try {
-        // 1. Récupérer les tokens OAuth du syndic (encrypted en priorité, fallback plain)
-        let accessToken: string | null = null
-        let refreshToken: string | null = null
-        let expiresAt: string | null = null
-
-        const encrypted = await getDecryptedToken(supabaseAdmin, sid).catch(() => null)
-        if (encrypted) {
-          accessToken = encrypted.access_token
-          refreshToken = encrypted.refresh_token
-          expiresAt = encrypted.expires_at
-        } else {
-          // Fallback à la version plain (rows pas encore backfillées)
-          const { data: plain } = await supabaseAdmin
-            .from('syndic_oauth_tokens')
-            .select('access_token, refresh_token, token_expiry')
-            .eq('syndic_id', sid)
-            .single()
-          if (plain) {
-            accessToken = plain.access_token
-            refreshToken = plain.refresh_token
-            expiresAt = plain.token_expiry
-          }
+        // 1. Récupérer les tokens OAuth du syndic — chiffrement applicatif
+        // UNIQUEMENT (colonnes access_token_enc/refresh_token_enc, version 2).
+        // Plus de fallback sur les colonnes claires legacy (dépréciées).
+        // Une erreur DB fait throw getDecryptedToken → catch per-syndic
+        // ci-dessous : l'échec est loggé et compté, pas avalé (TSQ-10).
+        const decrypted = await getDecryptedToken(supabaseAdmin, sid)
+        if (!decrypted?.access_token || !decrypted.refresh_token) {
+          // Aucun token exploitable (jamais connecté, ligne legacy v1/null,
+          // ou payload indéchiffrable) → re-connexion OAuth requise.
+          logger.warn(`[email-agent/poll] Aucun token OAuth déchiffrable pour ${sid} — re-connexion Gmail requise`)
+          results.push({ syndic_id: sid, error: 'Token Gmail absent — reconnexion requise' })
+          continue
         }
-
-        if (!accessToken || !refreshToken) continue
+        let accessToken = decrypted.access_token
+        const refreshToken = decrypted.refresh_token
+        const expiresAt = decrypted.expires_at
 
         // 2. Rafraîchir le token si expiré (avec 5min de marge)
         const isExpired = expiresAt ? new Date(expiresAt) < new Date(Date.now() + 5 * 60 * 1000) : true
@@ -196,7 +194,9 @@ export async function POST(request: NextRequest) {
           if (refreshed) {
             accessToken = refreshed.access_token
             const newExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
-            // Dual-write : encrypted + plain
+            // Persistance chiffrée uniquement (plus de dual-write plain) —
+            // un échec n'interrompt pas le poll : le token frais reste valide
+            // en mémoire pour ce run, le prochain run rafraîchira de nouveau.
             try {
               await setEncryptedToken(supabaseAdmin, {
                 syndic_id: sid,
@@ -207,13 +207,16 @@ export async function POST(request: NextRequest) {
             } catch (encErr) {
               logger.error(`[email-agent/poll] setEncryptedToken failed for ${sid}:`, encErr)
             }
-            await supabaseAdmin
-              .from('syndic_oauth_tokens')
-              .update({ access_token: accessToken, token_expiry: newExpiry, updated_at: new Date().toISOString() })
-              .eq('syndic_id', sid)
           } else {
             // Refresh échoué → token révoqué, nettoyer
-            await supabaseAdmin.from('syndic_oauth_tokens').delete().eq('syndic_id', sid)
+            const { error: deleteError } = await supabaseAdmin
+              .from('syndic_oauth_tokens')
+              .delete()
+              .eq('syndic_id', sid)
+            if (deleteError) {
+              logger.error(`[email-agent/poll] Suppression token révoqué échouée pour ${sid}:`, deleteError)
+            }
+            results.push({ syndic_id: sid, error: 'Token Gmail révoqué — reconnexion requise' })
             continue
           }
         }
@@ -291,12 +294,17 @@ export async function POST(request: NextRequest) {
               }
             },
             insertFn: async (row) => {
+              // Le contrat insertFn du pipeline expose Record<string, unknown> ;
+              // la ligne est construite par processIncomingEmail avec les champs
+              // requis (syndic_id, gmail_message_id…) → rétrécissement vers
+              // l'Insert typé de la table (pas un contournement `as any`).
+              const insertRow: TablesInsert<'syndic_emails_analysed'> = {
+                ...(row as TablesInsert<'syndic_emails_analysed'>),
+                gmail_thread_id: (msg.threadId as string | undefined) ?? null,
+              }
               const res = await supabaseAdmin
                 .from('syndic_emails_analysed')
-                .upsert(
-                  { ...row, gmail_thread_id: msg.threadId },
-                  { onConflict: 'syndic_id,gmail_message_id' },
-                )
+                .upsert(insertRow, { onConflict: 'syndic_id,gmail_message_id' })
                 .select('id')
                 .single()
               return { data: res.data ? { id: res.data.id } : null, error: res.error }
