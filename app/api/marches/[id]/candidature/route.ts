@@ -39,14 +39,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // V2: Vérifier le nombre maximum de candidatures
-  if (marche.max_candidatures && marche.candidatures_count >= marche.max_candidatures) {
+  if (marche.max_candidatures && (marche.candidatures_count ?? 0) >= marche.max_candidatures) {
     return NextResponse.json({ error: 'Nombre maximum de candidatures atteint' }, { status: 409 })
   }
 
   // Vérifier que l'utilisateur est un artisan pro
+  // (colonne réelle : company_city — `city` n'existe pas sur profiles_artisan,
+  // la requête échouait en prod → 403 systématique sur toute candidature)
   const { data: artisan, error: artisanError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select('id, subscription_tier, company_name, city, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
+    .select('id, subscription_tier, company_name, company_city, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
     .eq('user_id', user.id)
     .single()
 
@@ -55,16 +57,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // Vérifier l'abonnement Pro (via profil ou table subscriptions)
+  // (colonne réelle : plan_id — `plan` n'existe pas sur subscriptions, la requête
+  // échouait en prod → les abonnés Stripe sans subscription_tier étaient rejetés)
   let isPro = artisan.subscription_tier === 'artisan_pro'
   if (!isPro) {
     const { data: sub } = await supabaseAdmin
       .from('subscriptions')
-      .select('status, plan')
+      .select('status, plan_id')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .single()
 
-    isPro = !!sub && sub.plan === 'artisan_pro'
+    isPro = !!sub && sub.plan_id === 'artisan_pro'
   }
 
   if (!isPro) {
@@ -111,14 +115,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const v = validation.data
 
   // Insérer la candidature
+  // (colonne réelle : artisan_company_name — `artisan_name` et `artisan_city`
+  // n'existent pas sur marches_candidatures, l'insert échouait en prod)
   const { data: candidature, error: insertError } = await supabaseAdmin
     .from('marches_candidatures')
     .insert({
       marche_id: marcheId,
       artisan_id: artisan.id,
       artisan_user_id: user.id,
-      artisan_name: artisan.company_name || 'Artisan',
-      artisan_city: artisan.city || null,
+      artisan_company_name: artisan.company_name || 'Artisan',
       price: v.price,
       timeline: v.timeline,
       description: v.description,
@@ -134,18 +139,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  // Incrémenter le compteur de candidatures sur le marché
-  await supabaseAdmin.rpc('increment_counter', {
-    table_name: 'marches',
-    column_name: 'candidatures_count',
-    row_id: marcheId,
-  }).then(null, () => {
-    // Fallback : mise à jour directe si la fonction RPC n'existe pas
-    return supabaseAdmin
+  // Mettre à jour le compteur de candidatures sur le marché.
+  // La RPC increment_counter n'existe pas en base (l'appel échouait toujours) et
+  // l'ancien fallback read-modify-write (valeur lue + 1) perdait des incréments
+  // concurrents. À la place : COUNT serveur sur marches_candidatures (source de
+  // vérité) puis update — convergent même en cas de candidatures simultanées.
+  const { count, error: countError } = await supabaseAdmin
+    .from('marches_candidatures')
+    .select('id', { count: 'exact', head: true })
+    .eq('marche_id', marcheId)
+
+  if (countError) {
+    logger.error('[marches/candidature] candidatures count error', { error: countError.message, marcheId })
+  } else {
+    const { error: counterError } = await supabaseAdmin
       .from('marches')
-      .update({ candidatures_count: (marche as Record<string, unknown>).candidatures_count as number + 1 || 1 })
+      .update({ candidatures_count: count ?? 0 })
       .eq('id', marcheId)
-  })
+    if (counterError) {
+      logger.error('[marches/candidature] candidatures_count update error', { error: counterError.message, marcheId })
+    }
+  }
 
   return NextResponse.json({ candidature }, { status: 201 })
 }
@@ -204,9 +218,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (marche && token === marche.access_token) {
       // Publisher : voir toutes les candidatures
+      // (alias artisan_name : colonne réelle artisan_company_name, lue par le front)
       const { data: candidatures, error } = await supabaseAdmin
         .from('marches_candidatures')
-        .select('*')
+        .select('*, artisan_name:artisan_company_name')
         .eq('marche_id', marcheId)
         .order('created_at', { ascending: false })
         .range(from, to)

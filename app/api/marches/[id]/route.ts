@@ -32,16 +32,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Vue publique : masquer le access_token et les infos sensibles
-  const publicMarche = { ...marche }
-  delete publicMarche.access_token
-  delete publicMarche.publisher_email
-  delete publicMarche.publisher_phone
+  // (déstructuration plutôt que delete : les propriétés du Row typé ne sont pas optionnelles)
+  const { access_token: _accessToken, publisher_email: _publisherEmail, publisher_phone: _publisherPhone, ...publicMarche } = marche
 
   // Si le token correspond, c'est le publisher → inclure les candidatures
   if (token && token === marche.access_token) {
+    // alias artisan_name : la colonne réelle est artisan_company_name (le front
+    // GererMarcheClient lit c.artisan_name) — pas de colonne artisan_name en base.
     const { data: candidatures } = await supabaseAdmin
       .from('marches_candidatures')
-      .select('*')
+      .select('*, artisan_name:artisan_company_name')
       .eq('marche_id', id)
       .order('created_at', { ascending: false })
 

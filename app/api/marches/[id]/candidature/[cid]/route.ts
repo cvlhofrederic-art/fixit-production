@@ -58,8 +58,10 @@ export async function PATCH(
     }
 
     // ── Fetch candidature and verify it belongs to this marche ──
+    // (table réelle : marches_candidatures — `marche_candidatures` n'existe pas,
+    // le PATCH accept/reject échouait en prod en 404 systématique)
     const { data: candidature, error: candidatureError } = await supabaseAdmin
-      .from('marche_candidatures')
+      .from('marches_candidatures')
       .select('id, marche_id, artisan_id, status')
       .eq('id', candidatureId)
       .single()
@@ -77,7 +79,7 @@ export async function PATCH(
 
     // ── Update candidature status ──
     const { data: updated, error: updateError } = await supabaseAdmin
-      .from('marche_candidatures')
+      .from('marches_candidatures')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', candidatureId)
       .select()
