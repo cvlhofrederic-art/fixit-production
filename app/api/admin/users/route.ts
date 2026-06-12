@@ -3,6 +3,7 @@ import { getAuthUser, isSuperAdmin, unauthorizedResponse } from '@/lib/auth-help
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { adminUsersQuerySchema } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (authError) {
-      console.error('[admin/users] Auth list error:', authError.message)
+      logger.error('[admin/users] Auth list error', { error: authError.message })
       return NextResponse.json({ error: 'Failed to list users' }, { status: 500 })
     }
 
@@ -59,11 +60,17 @@ export async function GET(request: NextRequest) {
     const paged = users.slice((page - 1) * limit, page * limit)
 
     // Fetch subscription data for these users
+    // Colonnes réelles de `subscriptions` : plan_id / status (cf. lib/database-types.ts)
     const userIds = paged.map(u => u.id)
-    const { data: subs } = await supabaseAdmin
+    const { data: subs, error: subsError } = await supabaseAdmin
       .from('subscriptions')
-      .select('user_id, subscription_plan, subscription_status')
+      .select('user_id, plan_id, status')
       .in('user_id', userIds)
+
+    if (subsError) {
+      // Mode dégradé : la liste utilisateurs reste exploitable sans les abonnements
+      logger.warn('[admin/users] Subscriptions query failed — plans affichés par défaut', { error: subsError.message })
+    }
 
     const subsMap = new Map(subs?.map(s => [s.user_id, s]) || [])
 
@@ -77,8 +84,8 @@ export async function GET(request: NextRequest) {
         role: u.app_metadata?.role || 'unknown',
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at || null,
-        subscription_plan: sub?.subscription_plan || 'starter',
-        subscription_status: sub?.subscription_status || null,
+        subscription_plan: sub?.plan_id || 'starter',
+        subscription_status: sub?.status || null,
       }
     })
 
@@ -87,7 +94,7 @@ export async function GET(request: NextRequest) {
       pagination: { page, limit, total, totalPages },
     })
   } catch (error) {
-    console.error('[admin/users] Error:', error instanceof Error ? error.message : error)
+    logger.error('[admin/users] Error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   if (!(await checkRateLimit(`admin_setup_${ip}`, 5, 60_000))) return rateLimitResponse()
 
   // ── Vérification authentification ────────────────────────────────────────
-  const user = await getAuthUser(request as any)
+  const user = await getAuthUser(request)
   if (!user) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   if (step === 'tables' || step === 'all') {
     try {
       // Tables should exist from migrations. Verify they're present.
-      const tablesToCheck = ['syndic_immeubles', 'syndic_signalements', 'syndic_signalement_messages', 'syndic_missions']
+      const tablesToCheck = ['syndic_immeubles', 'syndic_signalements', 'syndic_signalement_messages', 'syndic_missions'] as const
       const tableErrors: string[] = []
       for (const table of tablesToCheck) {
         const { error } = await supabaseAdmin.from(table).select('id').limit(0)
