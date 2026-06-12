@@ -7,6 +7,10 @@
 -- devis, factures syndic, contrats, RIB, ata AG, relevés bancaires…). L'extraction
 -- OCR + embeddings + RAG search arrivent en P2/P3 (champs nullable préparés ici).
 --
+-- 2026-06-12 (audit Phase 2, réconciliation registre) : migration jamais
+-- appliquée en prod ; rendue idempotente (DROP POLICY IF EXISTS) avant le
+-- `supabase db push` du runbook supabase/REPAIR-RUNBOOK.md.
+--
 -- Patterns réutilisés :
 --   - Bucket privé + RLS folder = cabinet_id (cf 20260518_cabinet_backups_bucket.sql)
 --   - Table syndic_* avec cabinet_id (cf 20260516_lea_compta_tables.sql)
@@ -17,16 +21,19 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('syndic-documents', 'syndic-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS syndic_documents_select ON storage.objects;
 CREATE POLICY syndic_documents_select ON storage.objects FOR SELECT USING (
   bucket_id = 'syndic-documents'
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
+DROP POLICY IF EXISTS syndic_documents_insert ON storage.objects;
 CREATE POLICY syndic_documents_insert ON storage.objects FOR INSERT WITH CHECK (
   bucket_id = 'syndic-documents'
   AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
 );
 
+DROP POLICY IF EXISTS syndic_documents_delete ON storage.objects;
 CREATE POLICY syndic_documents_delete ON storage.objects FOR DELETE USING (
   bucket_id = 'syndic-documents'
   AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
@@ -101,18 +108,22 @@ CREATE INDEX IF NOT EXISTS idx_syndic_documents_embedding_hnsw
 -- ── 4. RLS — strict isolation par cabinet_id ─────────────────────────────────
 ALTER TABLE syndic_documents ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS syndic_documents_select_own ON syndic_documents;
 CREATE POLICY syndic_documents_select_own
   ON syndic_documents FOR SELECT
   USING (cabinet_id = auth.uid());
 
+DROP POLICY IF EXISTS syndic_documents_insert_own ON syndic_documents;
 CREATE POLICY syndic_documents_insert_own
   ON syndic_documents FOR INSERT
   WITH CHECK (cabinet_id = auth.uid());
 
+DROP POLICY IF EXISTS syndic_documents_update_own ON syndic_documents;
 CREATE POLICY syndic_documents_update_own
   ON syndic_documents FOR UPDATE
   USING (cabinet_id = auth.uid());
 
+DROP POLICY IF EXISTS syndic_documents_delete_own ON syndic_documents;
 CREATE POLICY syndic_documents_delete_own
   ON syndic_documents FOR DELETE
   USING (cabinet_id = auth.uid());

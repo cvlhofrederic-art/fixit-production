@@ -7,6 +7,9 @@
 -- Léa de les remplir via le tool generate_pdf.
 --
 -- Pattern réutilisé : bucket privé + RLS folder = cabinet_id (cf 20260518).
+-- 2026-06-12 (audit Phase 2, réconciliation registre) : migration jamais
+-- appliquée en prod ; rendue idempotente (DROP POLICY IF EXISTS) avant le
+-- `supabase db push` du runbook supabase/REPAIR-RUNBOOK.md.
 
 -- ── 1. Bucket Storage pour les templates et les PDFs générés ─────────────────
 INSERT INTO storage.buckets (id, name, public)
@@ -17,27 +20,33 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('syndic-pdf-generated', 'syndic-pdf-generated', false)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS syndic_pdf_templates_select ON storage.objects;
 CREATE POLICY syndic_pdf_templates_select ON storage.objects FOR SELECT USING (
   bucket_id = 'syndic-pdf-templates'
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
+DROP POLICY IF EXISTS syndic_pdf_templates_insert ON storage.objects;
 CREATE POLICY syndic_pdf_templates_insert ON storage.objects FOR INSERT WITH CHECK (
   bucket_id = 'syndic-pdf-templates'
   AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
 );
+DROP POLICY IF EXISTS syndic_pdf_templates_delete ON storage.objects;
 CREATE POLICY syndic_pdf_templates_delete ON storage.objects FOR DELETE USING (
   bucket_id = 'syndic-pdf-templates'
   AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
 );
 
+DROP POLICY IF EXISTS syndic_pdf_generated_select ON storage.objects;
 CREATE POLICY syndic_pdf_generated_select ON storage.objects FOR SELECT USING (
   bucket_id = 'syndic-pdf-generated'
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
+DROP POLICY IF EXISTS syndic_pdf_generated_insert ON storage.objects;
 CREATE POLICY syndic_pdf_generated_insert ON storage.objects FOR INSERT WITH CHECK (
   bucket_id = 'syndic-pdf-generated'
   AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
 );
+DROP POLICY IF EXISTS syndic_pdf_generated_delete ON storage.objects;
 CREATE POLICY syndic_pdf_generated_delete ON storage.objects FOR DELETE USING (
   bucket_id = 'syndic-pdf-generated'
   AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
@@ -102,20 +111,27 @@ CREATE INDEX IF NOT EXISTS idx_syndic_pdf_generated_template
 
 -- ── 5. RLS strict scopée par cabinet_id ──────────────────────────────────────
 ALTER TABLE syndic_pdf_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS syndic_pdf_templates_select_own ON syndic_pdf_templates;
 CREATE POLICY syndic_pdf_templates_select_own ON syndic_pdf_templates
   FOR SELECT USING (cabinet_id = auth.uid());
+DROP POLICY IF EXISTS syndic_pdf_templates_insert_own ON syndic_pdf_templates;
 CREATE POLICY syndic_pdf_templates_insert_own ON syndic_pdf_templates
   FOR INSERT WITH CHECK (cabinet_id = auth.uid());
+DROP POLICY IF EXISTS syndic_pdf_templates_update_own ON syndic_pdf_templates;
 CREATE POLICY syndic_pdf_templates_update_own ON syndic_pdf_templates
   FOR UPDATE USING (cabinet_id = auth.uid());
+DROP POLICY IF EXISTS syndic_pdf_templates_delete_own ON syndic_pdf_templates;
 CREATE POLICY syndic_pdf_templates_delete_own ON syndic_pdf_templates
   FOR DELETE USING (cabinet_id = auth.uid());
 
 ALTER TABLE syndic_pdf_generated ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS syndic_pdf_generated_select_own ON syndic_pdf_generated;
 CREATE POLICY syndic_pdf_generated_select_own ON syndic_pdf_generated
   FOR SELECT USING (cabinet_id = auth.uid());
+DROP POLICY IF EXISTS syndic_pdf_generated_insert_own ON syndic_pdf_generated;
 CREATE POLICY syndic_pdf_generated_insert_own ON syndic_pdf_generated
   FOR INSERT WITH CHECK (cabinet_id = auth.uid());
+DROP POLICY IF EXISTS syndic_pdf_generated_delete_own ON syndic_pdf_generated;
 CREATE POLICY syndic_pdf_generated_delete_own ON syndic_pdf_generated
   FOR DELETE USING (cabinet_id = auth.uid());
 

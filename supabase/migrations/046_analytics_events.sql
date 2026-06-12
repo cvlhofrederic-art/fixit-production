@@ -30,6 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_analytics_events_session
 -- ── RLS: only service_role can INSERT/SELECT ─────────────────────────────────
 ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "analytics_events_service_role_all" ON analytics_events;
 CREATE POLICY "analytics_events_service_role_all" ON analytics_events
   FOR ALL
   USING (auth.role() = 'service_role')
@@ -37,9 +38,19 @@ CREATE POLICY "analytics_events_service_role_all" ON analytics_events
 
 -- ── Auto-delete after 90 days (pg_cron) ─────────────────────────────────────
 -- Enable via Supabase Dashboard > Database > Extensions > pg_cron
--- Then run once:
-SELECT cron.schedule(
-  'analytics_events_cleanup',
-  '0 4 * * 0',
-  $$DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days'$$
-);
+-- 2026-06-12 (réconciliation registre, audit Phase 2) : cette migration est
+-- rejouée par `db push` après `migration repair --status reverted 046`
+-- (table droppée à la main en prod). Le cron.schedule nu échouait si pg_cron
+-- est absent → garde défensive, pattern 058_cron_cleanup.sql.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.schedule(
+      'analytics_events_cleanup',
+      '0 4 * * 0',
+      $job$DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days'$job$
+    );
+  ELSE
+    RAISE WARNING 'pg_cron non disponible — purge analytics_events (90 j) non planifiée. Enable via Dashboard > Database > Extensions.';
+  END IF;
+END $$;
