@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── Helper : catégories artisan → libellé métier syndic ──────────────────────
 function categoriesToMetier(categories: string[]): string {
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
 
   // ── Isolation multi-tenant : résoudre le cabinet_id du syndic ──
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   // ── Stratégie 0 : vérifier d'abord dans syndic_artisans du cabinet ──
   // Limite la recherche au périmètre du syndic connecté
@@ -83,103 +85,34 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // ── Stratégie 1 : requête SQL directe via RPC (la plus fiable)
-  try {
-    const { data: rawUsers, error: sqlError } = await supabaseAdmin
-      .rpc('get_user_by_email', { p_email: email })
-
-    if (!sqlError && rawUsers && rawUsers.length > 0) {
-      const u = rawUsers[0]
-      const userId = u.id
-      const meta = u.raw_user_meta_data || {}
-
-      // Téléphone : user_metadata.phone OR .telephone
-      const telephone = meta.phone || meta.telephone || ''
-      // SIRET : user_metadata.siret en priorité
-      let siret = meta.siret || ''
-      // Métier : via categories du profil artisan
-      let metier = meta.metier || ''
-
-      const profile = await enrichFromProfile(userId)
-      if (profile) {
-        if (!telephone && profile.categories) {
-          // pas de phone dans le profil, on garde vide
-        }
-        if (!siret && profile.siret) siret = profile.siret
-        if (!metier && profile.categories) metier = categoriesToMetier(profile.categories)
-      }
-
-      return NextResponse.json({
-        found: true,
-        name: meta.full_name || u.email,
-        role: meta.role || 'inconnu',
-        userId,
-        telephone,
-        siret,
-        metier,
-      })
-    }
-  } catch {
-    // La fonction RPC n'existe peut-être pas — on continue avec le fallback
-  }
-
-  // ── Stratégie 2 : getUserById via admin API après lookup SQL direct
-  try {
-    const { data: adminData, error: adminError } = await supabaseAdmin
-      .from('auth.users' as any)
-      .select('id, email, raw_user_meta_data')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (!adminError && adminData) {
-      const userId = adminData.id
-      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId)
-      if (authUser?.user) {
-        const u = authUser.user
-        const meta = u.user_metadata || {}
-
-        const telephone = meta.phone || meta.telephone || ''
-        let siret = meta.siret || ''
-        let metier = meta.metier || ''
-
-        const profile = await enrichFromProfile(userId)
-        if (profile) {
-          if (!siret && profile.siret) siret = profile.siret
-          if (!metier && profile.categories) metier = categoriesToMetier(profile.categories)
-        }
-
-        return NextResponse.json({
-          found: true,
-          name: meta.full_name || u.email,
-          role: meta.role || 'inconnu',
-          userId: u.id,
-          telephone,
-          siret,
-          metier,
-        })
-      }
-    }
-  } catch {
-    // Continuer vers le fallback pagination
-  }
-
-  // ── Stratégie 3 (fallback fiable) : listUsers paginé
+  // ── Stratégie 1 (unique recherche auth) : listUsers paginé ──────────────────
+  // Les deux anciennes stratégies étaient mortes (TSQ-06 / FNC-07) :
+  //   - .rpc('get_user_by_email') : la fonction n'existe dans aucune migration ni en live ;
+  //   - .from('auth.users') : PostgREST n'expose pas le schéma auth — erreur systématique.
+  // ⚠️ Plafond connu : 10 pages × 1000 = 10 000 comptes parcourus au maximum.
+  // Au-delà de 10 000 comptes auth, un email existant peut être déclaré
+  // « found: false » à tort — logger.warn ci-dessous le signale.
   let page = 1
   const perPage = 1000
+  const maxPages = 10
   let foundUser = null
+  let listExhausted = false // true si on a vu la fin réelle de la liste (ou une erreur)
 
-  while (page <= 10) {
+  while (page <= maxPages) {
     const { data: pageData, error: pageErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
-    if (pageErr || !pageData?.users?.length) break
+    if (pageErr || !pageData?.users?.length) { listExhausted = true; break }
 
-    const match = pageData.users.find((u: { email?: string }) => u.email?.toLowerCase() === email)
+    const match = pageData.users.find((u) => u.email?.toLowerCase() === email)
     if (match) { foundUser = match; break }
 
-    if (pageData.users.length < perPage) break
+    if (pageData.users.length < perPage) { listExhausted = true; break }
     page++
   }
 
   if (!foundUser) {
+    if (!listExhausted) {
+      logger.warn('[syndic/artisans/search] listUsers : plafond de pagination atteint (10 000 comptes) sans trouver l\'email — le found:false peut être un faux négatif')
+    }
     return NextResponse.json({ found: false })
   }
 

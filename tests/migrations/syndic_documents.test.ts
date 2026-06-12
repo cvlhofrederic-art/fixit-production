@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-describe('Migration 20260521_lea_documents.sql', () => {
+describe('Migration 20260521000002_lea_documents.sql', () => {
   const sql = readFileSync(
-    join(process.cwd(), 'supabase/migrations/20260521_lea_documents.sql'),
+    join(process.cwd(), 'supabase/migrations/20260521000002_lea_documents.sql'),
     'utf-8',
   )
 

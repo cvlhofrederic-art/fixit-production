@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
 
   // ── Résolution cabinetId (super_admin peut agir sur n'importe quel cabinet) ──
   let cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   if (isSuperAdmin(user)) {
     const targetEmail = body.artisan_email?.toLowerCase()
     const targetUserId = body.artisan_user_id
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
         .from('syndic_artisans')
         .select('cabinet_id, nom')
       if (allArtisans) {
-        const nameMatch = allArtisans.find((a: { nom?: string; cabinet_id?: string }) => {
+        const nameMatch = allArtisans.find((a) => {
           const aNorm = (a.nom || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           const normParts = normName.split(/\s+/)
           return normParts.every((p: string) => aNorm.includes(p)) || aNorm.includes(normName)
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
     if (artErr) logger.error('[assign-mission] Strategy D query error:', artErr.message)
     if (allCabinetArtisans && allCabinetArtisans.length > 0) {
       const normParts = normName.split(/\s+/)
-      const match = allCabinetArtisans.find((a: { nom?: string; cabinet_id?: string; artisan_user_id?: string; email?: string; id?: string }) => {
+      const match = allCabinetArtisans.find((a) => {
         const aNorm = (a.nom || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         return normParts.every((p: string) => aNorm.includes(p)) || aNorm.includes(normName)
       })
@@ -334,7 +335,7 @@ export async function POST(request: NextRequest) {
 
       if (existingConv) {
         convId = existingConv.id
-        console.info(`[ASSIGN] Conversation existante trouvée : ${convId}`)
+        logger.info(`[ASSIGN] Conversation existante trouvée : ${convId}`)
       } else {
         // INSERT minimal (seulement les colonnes de base pour éviter erreur de schema)
         const { data: newConv, error: createErr } = await supabaseAdmin
@@ -358,11 +359,11 @@ export async function POST(request: NextRequest) {
             .eq('contact_id', user.id)
             .maybeSingle()
           convId = retryConv?.id || null
-          if (convId) console.info(`[ASSIGN] Conversation retrouvée après retry : ${convId}`)
+          if (convId) logger.info(`[ASSIGN] Conversation retrouvée après retry : ${convId}`)
           else logger.error(`[ASSIGN] ❌ Conversation introuvable même après retry`)
         } else {
           convId = newConv?.id || null
-          console.info(`[ASSIGN] Conversation créée : ${convId}`)
+          logger.info(`[ASSIGN] Conversation créée : ${convId}`)
         }
       }
     } catch (e) {
@@ -390,7 +391,7 @@ export async function POST(request: NextRequest) {
         if (msgErr) {
           logger.error('[ASSIGN] ❌ Erreur insertion message v2:', { message: msgErr.message, details: msgErr.details, hint: msgErr.hint })
         } else {
-          console.info(`[ASSIGN] ✅ Message ordre de mission inséré dans conversation ${convId}`)
+          logger.info(`[ASSIGN] ✅ Message ordre de mission inséré dans conversation ${convId}`)
           // Mettre à jour last_message_at pour que la conversation remonte dans la liste
           const { error: updErr } = await supabaseAdmin
             .from('conversations')
@@ -406,7 +407,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  console.info(`[ASSIGN] ── Fin : artisan_found=${!!artisanUserId} booking=${bookingId} conv=${convId} resolvedBy=${resolvedBy} ──`)
+  logger.info(`[ASSIGN] ── Fin : artisan_found=${!!artisanUserId} booking=${bookingId} conv=${convId} resolvedBy=${resolvedBy} ──`)
 
   return NextResponse.json({
     success: true,

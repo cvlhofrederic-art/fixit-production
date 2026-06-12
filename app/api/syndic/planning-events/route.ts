@@ -39,7 +39,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
+    // TEN-02 : cabinet_id est TEXT en live sur cette table (pas uuid) — le type
+    // généré est string, l'uuid sérialisé passe tel quel. Ne pas « corriger » ici.
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
     const { data, error } = await supabaseAdmin
       .from('syndic_planning_events')
@@ -90,6 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
 
     const eventValidation = validateBody(planningEventSchema, body)
@@ -153,6 +157,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 

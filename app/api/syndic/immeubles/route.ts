@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import type { Database } from '@/lib/database-types'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { validateBody, syndicImmeubleSchema } from '@/lib/validation'
 
@@ -14,6 +16,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`immeubles_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
     const { data, error } = await supabaseAdmin
       .from('syndic_immeubles')
@@ -56,7 +59,7 @@ export async function GET(request: NextRequest) {
     response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=60, stale-while-revalidate=120')
     return response
   } catch (err) {
-    console.error('[syndic/immeubles/GET] Unexpected error:', err)
+    logger.error('[syndic/immeubles/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -69,7 +72,10 @@ export async function POST(request: NextRequest) {
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`immeubles_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
+    // TEN-05 : syndic_immeubles.cabinet_id est NULLABLE en live — le guard garantit
+    // qu'on fournit TOUJOURS un cabinet_id non null à l'insert.
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const rawBody = await request.json()
     const v = validateBody(syndicImmeubleSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ immeuble: data })
   } catch (err) {
-    console.error('[syndic/immeubles/POST] Unexpected error:', err)
+    logger.error('[syndic/immeubles/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -123,13 +129,14 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`immeubles_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const rawBody = await request.json()
     const patchSchema = syndicImmeubleSchema.extend({ id: z.string().uuid() })
     const v = validateBody(patchSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { id, ...updates } = v.data
 
-    const dbUpdates: Record<string, any> = {
+    const dbUpdates: Database['public']['Tables']['syndic_immeubles']['Update'] = {
       updated_at: new Date().toISOString(),
     }
     if (updates.nom !== undefined) dbUpdates.nom = updates.nom
@@ -168,7 +175,7 @@ export async function PATCH(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ immeuble: data })
   } catch (err) {
-    console.error('[syndic/immeubles/PATCH] Unexpected error:', err)
+    logger.error('[syndic/immeubles/PATCH] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -182,6 +189,7 @@ export async function DELETE(request: NextRequest) {
     if (!(await checkRateLimit(`immeubles_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
 
@@ -196,7 +204,7 @@ export async function DELETE(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[syndic/immeubles/DELETE] Unexpected error:', err)
+    logger.error('[syndic/immeubles/DELETE] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

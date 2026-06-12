@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`fcrmov_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { from, to } = parsePagination(new URL(request.url))
 
     const { data, error } = await supabaseAdmin
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`fcrmov_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
 
     const validation = validateBody(syndicFcrMovimentoSchema, body)

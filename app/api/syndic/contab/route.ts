@@ -22,13 +22,15 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`contab_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
-    const eq = (t: string, cols: string) => supabaseAdmin.from(t).select(cols).eq('cabinet_id', cabinetId).order('created_at', { ascending: false }).limit(500)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
+    // Tables et colonnes en littéraux : le client typé <Database> ne peut pas
+    // inférer les types avec un nom de table dynamique (ancien helper eq(t, cols)).
     const [fr, ch, di, or] = await Promise.all([
-      eq('syndic_contab_fracoes', 'id, identificacao, permilagem, proprietario, tipo, notas'),
-      eq('syndic_contab_chamadas', 'id, titulo, edificio, data_emissao, data_vencimento, montante, distribuicao, notas, liquidadas'),
-      eq('syndic_contab_diario', 'id, data, tipo, conta, montante, descricao'),
-      eq('syndic_contab_orcamentos', 'id, ano, edificio, total_previsto, rubricas, notas, aprovado'),
+      supabaseAdmin.from('syndic_contab_fracoes').select('id, identificacao, permilagem, proprietario, tipo, notas').eq('cabinet_id', cabinetId).order('created_at', { ascending: false }).limit(500),
+      supabaseAdmin.from('syndic_contab_chamadas').select('id, titulo, edificio, data_emissao, data_vencimento, montante, distribuicao, notas, liquidadas').eq('cabinet_id', cabinetId).order('created_at', { ascending: false }).limit(500),
+      supabaseAdmin.from('syndic_contab_diario').select('id, data, tipo, conta, montante, descricao').eq('cabinet_id', cabinetId).order('created_at', { ascending: false }).limit(500),
+      supabaseAdmin.from('syndic_contab_orcamentos').select('id, ano, edificio, total_previsto, rubricas, notas, aprovado').eq('cabinet_id', cabinetId).order('created_at', { ascending: false }).limit(500),
     ])
 
     const fracoes = asRows(fr.data).map((r) => ({ id: r.id, identificacao: r.identificacao || '', permilagem: num(r.permilagem), proprietario: r.proprietario || '', tipo: r.tipo || 'habitacao', notas: r.notas || '' }))
@@ -51,41 +53,48 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`contab_post_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const entity = body?.entity
 
-    let table: string
-    let row: Record<string, unknown>
+    // Réponse commune aux 4 inserts typés (nom de table en littéral requis par le client <Database>)
+    const respond = (res: { data: unknown; error: { message: string } | null }) => {
+      if (res.error) {
+        logger.error('[syndic/contab/POST] insert error:', res.error)
+        return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+      }
+      return NextResponse.json({ item: res.data })
+    }
+
     if (entity === 'frac') {
       const v = validateBody(syndicContabFracaoSchema, body)
       if (!v.success) return NextResponse.json({ error: 'Données invalides', details: v.error }, { status: 400 })
-      table = 'syndic_contab_fracoes'
-      row = { identificacao: v.data.identificacao, permilagem: v.data.permilagem ?? 0, proprietario: v.data.proprietario || '', tipo: v.data.tipo || 'habitacao', notas: v.data.notas || '' }
-    } else if (entity === 'cham') {
+      return respond(await supabaseAdmin.from('syndic_contab_fracoes')
+        .insert({ cabinet_id: cabinetId, identificacao: v.data.identificacao, permilagem: v.data.permilagem ?? 0, proprietario: v.data.proprietario || '', tipo: v.data.tipo || 'habitacao', notas: v.data.notas || '' })
+        .select().single())
+    }
+    if (entity === 'cham') {
       const v = validateBody(syndicContabChamadaSchema, body)
       if (!v.success) return NextResponse.json({ error: 'Données invalides', details: v.error }, { status: 400 })
-      table = 'syndic_contab_chamadas'
-      row = { titulo: v.data.titulo, edificio: v.data.edificio || '', data_emissao: v.data.dataEmissao || null, data_vencimento: v.data.dataVencimento || null, montante: v.data.montante ?? 0, distribuicao: v.data.distribuicao || 'milesimos', notas: v.data.notas || '', liquidadas: 0 }
-    } else if (entity === 'diar') {
+      return respond(await supabaseAdmin.from('syndic_contab_chamadas')
+        .insert({ cabinet_id: cabinetId, titulo: v.data.titulo, edificio: v.data.edificio || '', data_emissao: v.data.dataEmissao || null, data_vencimento: v.data.dataVencimento || null, montante: v.data.montante ?? 0, distribuicao: v.data.distribuicao || 'milesimos', notas: v.data.notas || '', liquidadas: 0 })
+        .select().single())
+    }
+    if (entity === 'diar') {
       const v = validateBody(syndicContabDiarioSchema, body)
       if (!v.success) return NextResponse.json({ error: 'Données invalides', details: v.error }, { status: 400 })
-      table = 'syndic_contab_diario'
-      row = { data: v.data.data || null, tipo: v.data.tipo || 'debito', conta: v.data.conta, montante: v.data.montante ?? 0, descricao: v.data.descricao }
-    } else if (entity === 'orc') {
+      return respond(await supabaseAdmin.from('syndic_contab_diario')
+        .insert({ cabinet_id: cabinetId, data: v.data.data || null, tipo: v.data.tipo || 'debito', conta: v.data.conta, montante: v.data.montante ?? 0, descricao: v.data.descricao })
+        .select().single())
+    }
+    if (entity === 'orc') {
       const v = validateBody(syndicContabOrcamentoSchema, body)
       if (!v.success) return NextResponse.json({ error: 'Données invalides', details: v.error }, { status: 400 })
-      table = 'syndic_contab_orcamentos'
-      row = { ano: v.data.ano, edificio: v.data.edificio || '', total_previsto: v.data.totalPrevisto ?? 0, rubricas: v.data.rubricas || '', notas: v.data.notas || '', aprovado: false }
-    } else {
-      return NextResponse.json({ error: 'Entité inconnue' }, { status: 400 })
+      return respond(await supabaseAdmin.from('syndic_contab_orcamentos')
+        .insert({ cabinet_id: cabinetId, ano: v.data.ano, edificio: v.data.edificio || '', total_previsto: v.data.totalPrevisto ?? 0, rubricas: v.data.rubricas || '', notas: v.data.notas || '', aprovado: false })
+        .select().single())
     }
-
-    const { data, error } = await supabaseAdmin.from(table).insert({ cabinet_id: cabinetId, ...row }).select().single()
-    if (error) {
-      logger.error('[syndic/contab/POST] insert error:', error)
-      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
-    }
-    return NextResponse.json({ item: data })
+    return NextResponse.json({ error: 'Entité inconnue' }, { status: 400 })
   } catch (err) {
     logger.error('[syndic/contab/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

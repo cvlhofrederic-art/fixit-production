@@ -2,6 +2,7 @@ import { randomHex } from '@/lib/crypto-compat'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import type { Database } from '@/lib/database-types'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { sendEmail, templateTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
 
   // Trouver le cabinet_id : si admin → son propre id, si employé → son cabinet_id
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const { data, error } = await supabaseAdmin
     .from('syndic_team_members')
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
   const inviteToken = randomHex(24)
 
   // Préparer l'insertion avec custom_modules optionnels
-  const insertData: Record<string, unknown> = {
+  const insertData: Database['public']['Tables']['syndic_team_members']['Insert'] = {
     cabinet_id: cabinetId,
     email: email.toLowerCase().trim(),
     full_name: full_name.trim(),
@@ -186,6 +188,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   // Vérifier que ce membre appartient bien à ce cabinet
   const { data: existing } = await supabaseAdmin
@@ -257,6 +260,7 @@ export async function DELETE(request: NextRequest) {
   if (!memberId) return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
 
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const { error } = await supabaseAdmin
     .from('syndic_team_members')

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { canalInterneSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // ── Canal Interne équipe — réutilise la table syndic_messages avec message_type='canal_interne'
 
@@ -18,10 +19,13 @@ export async function GET(request: NextRequest) {
     }
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
+    // ⚠️ Schéma live : syndic_messages n'a PAS de colonne `read` (boolean) mais
+    // `read_at` (timestamptz nullable). lu = read_at non null.
     const { data, error } = await supabaseAdmin
       .from('syndic_messages')
-      .select('id, sender_role, content, mission_id, read, created_at')
+      .select('id, sender_role, content, mission_id, read_at, created_at')
       .eq('cabinet_id', cabinetId)
       .eq('message_type', 'canal_interne')
       .order('created_at', { ascending: true })
@@ -35,14 +39,14 @@ export async function GET(request: NextRequest) {
       auteurRole: m.sender_role?.split('|')[1] || '',
       texte: m.content || '',
       heure: new Date(m.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      lu: m.read ?? false,
+      lu: m.read_at !== null,
       sujet: m.mission_id || '',
       createdAt: m.created_at,
     }))
 
     return NextResponse.json({ messages })
   } catch (err) {
-    console.error('[syndic/canal-interne/GET] Unexpected error:', err)
+    logger.error('[syndic/canal-interne/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -59,6 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
 
     const validationResult = validateBody(canalInterneSchema, body)
@@ -75,9 +80,12 @@ export async function POST(request: NextRequest) {
         sender_role: `${body.auteur || user.user_metadata?.full_name || 'Équipe'}|${body.auteurRole || getUserRole(user)}`,
         content: body.texte,
         message_type: 'canal_interne',
-        artisan_user_id: null,
+        // ⚠️ Colonne NOT NULL en live alors que le canal interne n'a pas d'artisan :
+        // on stocke l'expéditeur. Les lectures canal-interne filtrent uniquement
+        // sur cabinet_id + message_type, jamais sur artisan_user_id.
+        artisan_user_id: user.id,
         mission_id: body.sujet || null,
-        read: false,
+        read_at: null, // non lu — la colonne live est read_at (timestamptz), pas read (boolean)
       })
       .select()
       .single()
@@ -97,7 +105,7 @@ export async function POST(request: NextRequest) {
       }
     })
   } catch (err) {
-    console.error('[syndic/canal-interne/POST] Unexpected error:', err)
+    logger.error('[syndic/canal-interne/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -111,18 +119,20 @@ export async function PATCH(request: NextRequest) {
     }
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
+    // Marquer lu = poser read_at (timestamptz live) sur les messages non lus (read_at IS NULL)
     const { error } = await supabaseAdmin
       .from('syndic_messages')
-      .update({ read: true })
+      .update({ read_at: new Date().toISOString() })
       .eq('cabinet_id', cabinetId)
       .eq('message_type', 'canal_interne')
-      .eq('read', false)
+      .is('read_at', null)
 
     if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[syndic/canal-interne/PATCH] Unexpected error:', err)
+    logger.error('[syndic/canal-interne/PATCH] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { Json } from '@/lib/database-types'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
@@ -604,12 +605,14 @@ async function saveAnalysis(
       score_prix_ecart: data.scores.prix.ecart_moyen_pct,
       score_confiance: data.scores.confiance,
       action_recommandee: data.scores.action_recommandee,
-      extracted: data.extracted,
+      // Frontière jsonb : extracted vient du JSON renvoyé par le LLM, scores_details
+      // est un objet de types métier (interfaces sans index signature) JSON-sérialisable.
+      extracted: data.extracted as Json,
       scores_details: {
         conformite: data.scores.conformite.details,
         prix: data.scores.prix.details,
         messages_negociation: data.scores.messages_negociation,
-      },
+      } as unknown as Json,
       messages_negociation: data.scores.messages_negociation,
       analysis_text: data.analysisText,
       model: data.model || null,

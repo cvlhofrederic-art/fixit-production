@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const missionId = searchParams.get('mission_id')
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     const isSyndic = isSyndicRole(user)
     const isArtisan = getUserRole(user) === 'artisan'
 
@@ -26,9 +27,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    // ⚠️ Schéma live : pas de colonne `read` sur syndic_messages — uniquement read_at
     let query = supabaseAdmin
       .from('syndic_messages')
-      .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, message_type, mission_id, read_at, read, created_at')
+      .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, message_type, mission_id, read_at, created_at')
       .order('created_at', { ascending: true })
       .limit(100)
 

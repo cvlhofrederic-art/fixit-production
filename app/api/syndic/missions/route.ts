@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import type { Database, Json } from '@/lib/database-types'
 import { syndicMissionSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`missions_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { from, to } = parsePagination(new URL(request.url))
 
     const { data, error } = await supabaseAdmin
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`missions_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
 
     // Validation Zod — empêche l'injection de champs arbitraires
@@ -112,8 +115,9 @@ export async function POST(request: NextRequest) {
         demandeur_email: v.demandeurEmail || null,
         est_partie_commune: v.estPartieCommune || false,
         zone_signalee: v.zoneSignalee || null,
-        canal_messages: v.canalMessages || [],
-        demandeur_messages: v.demandeurMessages || [],
+        // jsonb → métier : Zod valide z.array(z.unknown()) (messages libres), la colonne est Json
+        canal_messages: (v.canalMessages || []) as Json,
+        demandeur_messages: (v.demandeurMessages || []) as Json,
       })
       .select()
       .single()
@@ -138,13 +142,14 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`missions_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const { id, ...updates } = body
 
     if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
 
     // Mapper camelCase → snake_case
-    const dbUpdates: Record<string, any> = {
+    const dbUpdates: Database['public']['Tables']['syndic_missions']['Update'] = {
       updated_at: new Date().toISOString(),
     }
     if (updates.statut !== undefined) dbUpdates.statut = updates.statut
@@ -187,6 +192,7 @@ export async function DELETE(request: NextRequest) {
     if (!(await checkRateLimit(`missions_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 

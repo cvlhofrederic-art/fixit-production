@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`recouvr_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { from, to } = parsePagination(new URL(request.url))
 
     const { data, error } = await supabaseAdmin
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`recouvr_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const validation = validateBody(syndicRecouvrementSchema, body)
     if (!validation.success) return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
@@ -74,7 +76,9 @@ export async function POST(request: NextRequest) {
         statut: v.statut || 'en_cours',
         montant_initial: v.montantInitial ?? 0,
         montant_recouvre: v.montantRecouvre ?? 0,
-        date_ouverture: v.dateOuverture || null,
+        // date_ouverture est NOT NULL en live — insérer null faisait échouer la
+        // requête (23502). Défaut : la date du jour (date d'ouverture de la procédure).
+        date_ouverture: v.dateOuverture || new Date().toISOString().split('T')[0],
         avocat_huissier: v.avocatHuissier || null,
         prochaine_echeance: v.prochaineEcheance || null,
         notes: v.notes || null,
@@ -102,6 +106,7 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`recouvr_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const validation = validateBody(syndicRecouvrementUpdateSchema, body)
     if (!validation.success) return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })

@@ -8,6 +8,7 @@
 //   - rfqs, rfq_items, offers, offer_items, suppliers, analytics_events
 //     (20260612000005_tables_droppees_restaurees.sql)
 //   - factures_recues (084_factures_recues_pa.sql)
+//   - syndic_eventos (20260605000002_syndic_v54_eventos.sql)
 //   - syndic_documents (20260521000002_lea_documents.sql)
 //   - syndic_pdf_templates, syndic_pdf_generated (20260521000004_lea_pdf_templates.sql)
 //   - RPC search_syndic_documents_hybrid (20260521000003_lea_documents_hybrid_search.sql)
@@ -448,6 +449,45 @@ type PendingTables = {
         referencedColumns: ["id"]
       },
     ]
+  }
+  syndic_eventos: {
+    Row: {
+      cabinet_id: string
+      created_at: string
+      dia: string
+      edificio: string
+      hora_fim: string
+      hora_inicio: string
+      id: string
+      responsavel: string
+      tipo: string
+      titulo: string
+    }
+    Insert: {
+      cabinet_id: string
+      created_at?: string
+      dia?: string
+      edificio?: string
+      hora_fim?: string
+      hora_inicio?: string
+      id?: string
+      responsavel?: string
+      tipo?: string
+      titulo?: string
+    }
+    Update: {
+      cabinet_id?: string
+      created_at?: string
+      dia?: string
+      edificio?: string
+      hora_fim?: string
+      hora_inicio?: string
+      id?: string
+      responsavel?: string
+      tipo?: string
+      titulo?: string
+    }
+    Relationships: []
   }
   syndic_pdf_generated: {
     Row: {

@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`copros_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
     // Filtres optionnels
     const immeuble = request.nextUrl.searchParams.get('immeuble')
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`copros_post_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const body = await request.json()
     const batchValidation = validateBody(syndicCopropriosBatchSchema, body)
     if (!batchValidation.success) {
@@ -101,25 +103,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Maximum 500 copropriétaires par requête' }, { status: 400 })
     }
 
+    // Coercitions explicites : items est un Record<string, unknown> (schéma passthrough),
+    // le client typé <Database> exige string/number/boolean stricts.
+    const str = (x: unknown): string => (x ? String(x) : '')
+    const strOrNull = (x: unknown): string | null => (x ? String(x) : null)
+
     const insertData = items.map(item => ({
       cabinet_id: cabinetId,
-      immeuble: item.immeuble || '',
-      batiment: item.batiment || '',
+      immeuble: str(item.immeuble),
+      batiment: str(item.batiment),
       etage: typeof item.etage === 'number' ? item.etage : parseInt(item.etage as string) || 0,
-      numero_porte: item.numeroPorte || item.numero_porte || '',
-      nom_proprietaire: item.nomProprietaire || item.nom_proprietaire || '',
-      prenom_proprietaire: item.prenomProprietaire || item.prenom_proprietaire || '',
-      email_proprietaire: ((item.emailProprietaire || item.email_proprietaire || '') as string).toLowerCase().trim(),
-      tel_proprietaire: item.telephoneProprietaire || item.tel_proprietaire || '',
-      nom_locataire: item.nomLocataire || item.nom_locataire || null,
-      prenom_locataire: item.prenomLocataire || item.prenom_locataire || null,
-      email_locataire: item.emailLocataire || item.email_locataire ? ((item.emailLocataire || item.email_locataire || '') as string).toLowerCase().trim() : null,
-      tel_locataire: item.telephoneLocataire || item.tel_locataire || null,
-      est_occupe: item.estOccupe ?? item.est_occupe ?? false,
-      notes: item.notes || null,
-      tantieme: item.tantieme || 0,
-      solde: item.solde || 0,
-      acces_portail: item.acces_portail ?? item.accesPortail ?? false,
+      numero_porte: str(item.numeroPorte || item.numero_porte),
+      nom_proprietaire: str(item.nomProprietaire || item.nom_proprietaire),
+      prenom_proprietaire: str(item.prenomProprietaire || item.prenom_proprietaire),
+      email_proprietaire: str(item.emailProprietaire || item.email_proprietaire).toLowerCase().trim(),
+      tel_proprietaire: str(item.telephoneProprietaire || item.tel_proprietaire),
+      nom_locataire: strOrNull(item.nomLocataire || item.nom_locataire),
+      prenom_locataire: strOrNull(item.prenomLocataire || item.prenom_locataire),
+      email_locataire: (item.emailLocataire || item.email_locataire) ? str(item.emailLocataire || item.email_locataire).toLowerCase().trim() : null,
+      tel_locataire: strOrNull(item.telephoneLocataire || item.tel_locataire),
+      est_occupe: Boolean(item.estOccupe ?? item.est_occupe ?? false),
+      notes: strOrNull(item.notes),
+      tantieme: Number(item.tantieme) || 0,
+      solde: Number(item.solde) || 0,
+      acces_portail: Boolean(item.acces_portail ?? item.accesPortail ?? false),
     }))
 
     const { data, error } = await supabaseAdmin
@@ -156,6 +163,7 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`copros_patch_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const body = await request.json()
     const { id, ...fields } = body
 
@@ -235,6 +243,7 @@ export async function DELETE(request: NextRequest) {
     if (!(await checkRateLimit(`copros_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const coproId = request.nextUrl.searchParams.get('id')
 
     if (!coproId) {

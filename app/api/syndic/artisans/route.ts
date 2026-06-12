@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
 
   // cabinet_id = soit le user lui-même (admin), soit son cabinet_id (employé)
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   // Super admin sans cabinet_id → voir TOUS les artisans de tous les cabinets
   let query = supabaseAdmin
@@ -87,7 +88,8 @@ export async function GET(request: NextRequest) {
 
       if (profiles) {
         for (const p of profiles) {
-          profileIdMap.set(p.user_id, p.id)
+          // user_id est nullable en live — ignorer les profils orphelins
+          if (p.user_id) profileIdMap.set(p.user_id, p.id)
         }
       }
     } catch { /* storage check failed, non-blocking */ }
@@ -168,6 +170,7 @@ export async function POST(request: NextRequest) {
   }
 
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const body = await request.json()
   const validation = validateBody(syndicArtisanSchema, body)
@@ -383,6 +386,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const body = await request.json()
   const { artisan_id, ...updates } = body
 
@@ -417,6 +421,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
 
