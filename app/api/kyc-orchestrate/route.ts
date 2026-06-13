@@ -209,17 +209,18 @@ async function checkPtRegistry(
 // Market determination
 // ---------------------------------------------------------------------------
 
+// La colonne `country` n'existe pas sur profiles_artisan (schéma live, audit P2) :
+// l'ancienne branche PT était morte → tout artisan PT (NIF 9 chiffres) tombait en
+// validateSiretFormat et finissait auto-rejeté. Le marché dérive désormais de
+// `language` ('fr' | 'pt'), colonne live posée à l'inscription.
 function determineMarket(artisan: {
-  country?: string | null
+  language?: string | null
   kyc_market?: string | null
 }): KycMarket {
   if (artisan.kyc_market === 'fr_artisan') return 'fr_artisan'
   if (artisan.kyc_market === 'fr_btp') return 'fr_btp'
   if (artisan.kyc_market === 'pt_artisan') return 'pt_artisan'
-  if (
-    artisan.country === 'PT' ||
-    artisan.country === 'pt'
-  ) return 'pt_artisan'
+  if (artisan.language === 'pt') return 'pt_artisan'
   return 'fr_artisan'
 }
 
@@ -259,7 +260,7 @@ export async function POST(request: NextRequest) {
   // faisait échouer tout le select (400 PostgREST) → la route répondait toujours 404.
   const { data: artisan, error: fetchError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select('id, user_id, siret, company_name, kbis_url, kyc_market')
+    .select('id, user_id, siret, company_name, kbis_url, kyc_market, language')
     .eq('id', artisan_id)
     .single()
 

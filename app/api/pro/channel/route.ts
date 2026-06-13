@@ -34,10 +34,14 @@ export async function GET(request: NextRequest) {
     // On réutilise la table syndic_messages avec cabinet_id = pro user_id
     // NB : pas de colonnes `type` ni `metadata` dans le schéma live de
     // syndic_messages (audit P2 data layer) — les requêter faisait échouer
-    // tout le select (400 PostgREST). Le type de message vit dans message_type.
+    // tout le select (400 PostgREST). Le type de message vit dans message_type,
+    // aliasé en `type` car le front lit msg.type (CanalProSection.tsx).
+    // `metadata` n'a pas de colonne de destination : non persisté, donc le bloc
+    // voice_location du front (msg.metadata) reste muet au rechargement — il ne
+    // s'affiche que sur le message optimiste local, jusqu'à une migration dédiée.
     let query = supabaseAdmin
       .from('syndic_messages')
-      .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, message_type, mission_id, read_at, created_at')
+      .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, type:message_type, mission_id, read_at, created_at')
       .order('created_at', { ascending: true })
       .limit(200)
 

@@ -139,8 +139,11 @@ export async function POST(request: NextRequest) {
 
     // Si artisan_id + field fournis, mettre à jour le profil
     if (artisanId && field) {
-      const allowedFields = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
-      if (allowedFields.includes(field)) {
+      // id_document_url n'a PAS de colonne sur profiles_artisan (schéma live, audit P2) :
+      // l'URL de la pièce d'identité vit dans auth user_metadata (comme la branche BTP
+      // du register et la lecture côté admin/kyc) — traité à part ci-dessous.
+      const allowedFields = ['insurance_url', 'kbis_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
+      if (allowedFields.includes(field) || field === 'id_document_url') {
         // Trouver l'artisan : d'abord par id, puis par user_id (fallback)
         // NB : la colonne portfolio_photos n'existe pas dans le schéma live de
         // profiles_artisan (audit P2 data layer) — la requêter faisait échouer les
@@ -175,7 +178,24 @@ export async function POST(request: NextRequest) {
         }
         const verifiedArtisanId = artisanRow.id
 
-        if (field === 'portfolio_photo') {
+        if (field === 'id_document_url') {
+          // Stockage dans auth user_metadata (merge des clés existantes) — pas de
+          // colonne profil. admin/kyc GET relit cette clé pour le dashboard admin.
+          const { data: authUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(artisanRow.user_id ?? user.id)
+          if (getUserError) {
+            logger.error('[UPLOAD] Lecture user_metadata échouée (id_document_url non persisté):', getUserError)
+            // On retourne quand même l'URL car l'upload a réussi
+          } else {
+            const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(
+              artisanRow.user_id ?? user.id,
+              { user_metadata: { ...(authUser.user?.user_metadata ?? {}), id_document_url: publicUrl } }
+            )
+            if (metaError) {
+              logger.error('[UPLOAD] Mise à jour user_metadata échouée (id_document_url non persisté):', metaError)
+              // On retourne quand même l'URL car l'upload a réussi
+            }
+          }
+        } else if (field === 'portfolio_photo') {
           // DÉSACTIVÉ : la colonne portfolio_photos n'existe pas dans le schéma live
           // de profiles_artisan (audit P2 data layer) — cet append jsonb n'a jamais pu
           // s'exécuter (le select échouait avant d'arriver ici). Le fichier est bien

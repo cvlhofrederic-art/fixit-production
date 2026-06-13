@@ -6,7 +6,9 @@ import { adminKycQuerySchema, adminKycPatchSchema, validateBody } from '@/lib/va
 
 // NB : profiles_artisan n'a PAS de colonnes first_name/last_name ni id_document_url
 // (cf. lib/database-types.ts et le même constat dans app/api/kyc-orchestrate/route.ts).
-// Le nom de la personne et l'URL de la pièce d'identité vivent dans auth user_metadata.
+// Le nom de la personne et l'URL de la pièce d'identité vivent dans auth user_metadata :
+// le GET enrichit chaque ligne depuis getUserById (le front lit row.first_name,
+// row.last_name et row.id_document_url — app/admin/dashboard/page.tsx).
 interface KycRow {
   id: string
   user_id: string | null
@@ -26,6 +28,19 @@ interface KycRow {
   kbis_url: string | null
   kyc_market: string | null
   created_at: string | null
+  first_name: string | null
+  last_name: string | null
+  id_document_url: string | null
+}
+
+// full_name (user_metadata) → { first_name, last_name } attendus par le front
+function splitFullName(fullName: unknown): { first_name: string | null; last_name: string | null } {
+  if (typeof fullName !== 'string' || !fullName.trim()) {
+    return { first_name: null, last_name: null }
+  }
+  const parts = fullName.trim().split(/\s+/)
+  const first = parts.shift() ?? null
+  return { first_name: first, last_name: parts.length > 0 ? parts.join(' ') : null }
 }
 
 // GET /api/admin/kyc — List artisans by KYC status (paginated)
@@ -67,7 +82,29 @@ export async function GET(request: NextRequest) {
 
   const total = count ?? 0
   const totalPages = Math.ceil(total / limit)
-  const rows: KycRow[] = data ?? []
+
+  // Enrichissement depuis auth user_metadata, limité aux user_ids de la PAGE
+  // courante (≤ limit, max 100) — getUserById en parallèle, pas de listUsers global.
+  const userIds = [...new Set((data ?? []).map(r => r.user_id).filter((id): id is string => id !== null))]
+  const metaByUserId = new Map<string, Record<string, unknown>>()
+  await Promise.all(userIds.map(async (uid) => {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.getUserById(uid)
+    if (authError) {
+      logger.warn('[admin/kyc] Auth user lookup failed — ligne renvoyée sans nom/pièce d\'identité', { error: authError.message, userId: uid })
+      return
+    }
+    if (authData.user?.user_metadata) metaByUserId.set(uid, authData.user.user_metadata)
+  }))
+
+  const rows: KycRow[] = (data ?? []).map(r => {
+    const meta = r.user_id ? metaByUserId.get(r.user_id) : undefined
+    const idDocUrl = meta?.id_document_url
+    return {
+      ...r,
+      ...splitFullName(meta?.full_name),
+      id_document_url: typeof idDocUrl === 'string' ? idDocUrl : null,
+    }
+  })
 
   return NextResponse.json({
     data: rows,

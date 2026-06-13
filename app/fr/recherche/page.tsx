@@ -38,6 +38,24 @@ import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 // Helpers
 // ------------------------------------------------------------------
 
+// REGR-7 : page publique servie avec la clé ANON — projection énumérée, jamais `*`.
+// Uniquement les colonnes réellement lues par le pipeline de recherche
+// (mapping fetchData → filtres catégorie/lieu → tri/distance → ArtisanCard/getProfilePath) :
+// - identité/lien : id, user_id (source registered/catalogue), slug
+// - carte : company_name, bio, categories, hourly_rate, rating_avg, rating_count,
+//   verified, active, profile_photo_url
+// - localisation : company_city, company_postal_code, intervention_zones,
+//   zone_radius_km, latitude, longitude
+// - contact : phone (affiché uniquement pour les fiches sans user_id)
+// EXCLUES (sensibles, ne doivent JAMAIS partir côté ANON) : kbis_extracted,
+// kbis_extracted_encrypted, kyc_checks, kyc_rejection_reason, kyc_*,
+// insurance_scan_data, siret_encrypted, nif_encrypted, pii_encryption_version,
+// certidao_extracted, email, siret, siren, referral_*, marches_*, paiement_*…
+// `services(*)` conservé : la table services n'a aucune PII
+// (nom, description, durée, prix, flags de validation).
+const ARTISAN_SEARCH_COLUMNS =
+  'id, user_id, slug, company_name, bio, categories, hourly_rate, rating_avg, rating_count, verified, active, profile_photo_url, company_city, company_postal_code, phone, intervention_zones, zone_radius_km, latitude, longitude, services(*)'
+
 function generateTimeSlots(
   avail: Availability,
   dateStr: string,
@@ -223,7 +241,7 @@ function RechercheContent() {
 
       const query = supabase
         .from('profiles_artisan')
-        .select('*, services(*)')
+        .select(ARTISAN_SEARCH_COLUMNS)
         .eq('active', true)
         .eq('language', detectedLang)
 

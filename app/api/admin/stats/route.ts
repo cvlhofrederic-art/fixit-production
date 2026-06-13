@@ -105,13 +105,27 @@ export async function GET(request: NextRequest) {
     )
 
     // Subscriptions breakdown
+    // Valeurs réelles de plan_id (lib/stripe.ts PLANS) : artisan_starter / artisan_pro /
+    // syndic_essential / syndic_premium. Le front (KPI « Abonnés Pro », liste par plan)
+    // consomme les buckets starter / pro / business → normalisation plan_id → bucket.
+    // Les plans syndic_* sont volontairement IGNORÉS : le KPI « Abonnés Pro » compte les
+    // artisans, et le scope syndic est dormant — les compter dans `pro` gonflerait le chiffre.
+    const PLAN_BUCKETS: Record<string, 'starter' | 'pro' | 'business'> = {
+      artisan_starter: 'starter',
+      artisan_pro: 'pro',
+      // valeurs legacy brutes éventuelles
+      starter: 'starter',
+      pro: 'pro',
+      business: 'business',
+    }
     const subsByPlan: Record<string, number> = { starter: 0, pro: 0, business: 0 }
     const subsByStatus: Record<string, number> = { active: 0, canceled: 0, past_due: 0, trialing: 0 }
     if (subscriptionsResult.data) {
       for (const s of subscriptionsResult.data) {
-        const plan = (s.plan_id || 'starter').toLowerCase()
+        const plan = (s.plan_id || 'artisan_starter').toLowerCase()
         const status = (s.status || 'unknown').toLowerCase()
-        if (plan in subsByPlan) subsByPlan[plan]++
+        const bucket = PLAN_BUCKETS[plan]
+        if (bucket) subsByPlan[bucket]++
         if (status in subsByStatus) subsByStatus[status]++
       }
     }

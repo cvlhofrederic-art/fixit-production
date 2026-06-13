@@ -26,9 +26,17 @@ export async function GET(request: NextRequest) {
       .from('subscriptions')
       .select('*', { count: 'exact' })
 
-    // Colonnes réelles de `subscriptions` : plan_id / status (cf. lib/database-types.ts)
+    // Colonnes réelles de `subscriptions` : plan_id / status (cf. lib/database-types.ts).
+    // Le filtre front envoie starter / pro / business, mais les valeurs réelles de
+    // plan_id sont artisan_starter / artisan_pro (lib/stripe.ts PLANS) → on matche les
+    // deux formes (valeur préfixée + éventuel legacy brut). `business` n'a aucun plan
+    // documenté : le filtre brut est conservé tel quel (résultat vide, comme avant).
+    const PLAN_FILTER_MAP: Record<string, string[]> = {
+      starter: ['artisan_starter', 'starter'],
+      pro: ['artisan_pro', 'pro'],
+    }
     if (planFilter) {
-      query = query.eq('plan_id', planFilter)
+      query = query.in('plan_id', PLAN_FILTER_MAP[planFilter] ?? [planFilter])
     }
     if (statusFilter) {
       query = query.eq('status', statusFilter)
