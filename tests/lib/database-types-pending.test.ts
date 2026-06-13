@@ -100,7 +100,13 @@ function parsePendingKeys(source: string, typeName: string): string[] {
   const lines = source.split('\n')
   const declLine = findLine(lines, new RegExp(`^(export )?type ${typeName} = \\{`))
   if (declLine === -1) {
-    if (new RegExp(`\\b${typeName}\\b`).test(source)) {
+    // Détecte une référence RÉELLE (hors commentaires) à l'identifiant : une
+    // mention en prose dans l'en-tête ne doit pas faire croire à un pending
+    // à demi-supprimé. On retire les commentaires // … et /* … */ avant le test.
+    const codeOnly = source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '')
+    if (new RegExp(`\\b${typeName}\\b`).test(codeOnly)) {
       throw new Error(`Parseur: \`${typeName}\` est référencé dans lib/database-types.ts mais sa déclaration n'est pas localisable — adapter le test`)
     }
     return []

@@ -73,7 +73,9 @@ CREATE TABLE IF NOT EXISTS public.offers (
   delivery_days INTEGER,
   comment TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
-  token TEXT NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  -- pgcrypto vit dans le schéma `extensions` chez Supabase : qualifier le schéma
+  -- (le search_path de `supabase db push` ne l'inclut pas, contrairement au SQL editor).
+  token TEXT NOT NULL UNIQUE DEFAULT encode(extensions.gen_random_bytes(32), 'hex'),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Types générés depuis le schéma Supabase LIVE (projet irluhepekbqgquveaett)
-// Génération : MCP supabase generate_typescript_types — 2026-06-12 (audit P2, TSQ-01)
+// Génération : supabase gen types typescript --linked — 2026-06-13 (post-lot DB P2)
 // Régénérer après toute migration : supabase gen types typescript --linked
 // NE PAS éditer à la main.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,6 +17,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -95,6 +120,39 @@ export type Database = {
           tokens_used?: number | null
           user_id?: string
           user_type?: string
+        }
+        Relationships: []
+      }
+      analytics_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          page_url: string | null
+          properties: Json | null
+          session_id: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          page_url?: string | null
+          properties?: Json | null
+          session_id: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          page_url?: string | null
+          properties?: Json | null
+          session_id?: string
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1176,7 +1234,7 @@ export type Database = {
         Row: {
           anonymized_at: string | null
           artisan_id: string
-          artisan_user_id: string | null
+          artisan_user_id: string
           cancelled_at: string | null
           cancelled_by_user_id: string | null
           cancelled_reason: string | null
@@ -1222,7 +1280,7 @@ export type Database = {
         Insert: {
           anonymized_at?: string | null
           artisan_id: string
-          artisan_user_id?: string | null
+          artisan_user_id: string
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
           cancelled_reason?: string | null
@@ -1268,7 +1326,7 @@ export type Database = {
         Update: {
           anonymized_at?: string | null
           artisan_id?: string
-          artisan_user_id?: string | null
+          artisan_user_id?: string
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
           cancelled_reason?: string | null
@@ -1312,6 +1370,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "devis_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_artisan"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "devis_chantier_id_fkey"
             columns: ["chantier_id"]
@@ -1506,7 +1571,7 @@ export type Database = {
         Row: {
           anonymized_at: string | null
           artisan_id: string
-          artisan_user_id: string | null
+          artisan_user_id: string
           avoir_de_facture_id: string | null
           cancelled_at: string | null
           cancelled_by_user_id: string | null
@@ -1553,7 +1618,7 @@ export type Database = {
         Insert: {
           anonymized_at?: string | null
           artisan_id: string
-          artisan_user_id?: string | null
+          artisan_user_id: string
           avoir_de_facture_id?: string | null
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
@@ -1600,7 +1665,7 @@ export type Database = {
         Update: {
           anonymized_at?: string | null
           artisan_id?: string
-          artisan_user_id?: string | null
+          artisan_user_id?: string
           avoir_de_facture_id?: string | null
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
@@ -1646,6 +1711,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "factures_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_artisan"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "factures_avoir_de_facture_id_fkey"
             columns: ["avoir_de_facture_id"]
             isOneToOne: false
@@ -1688,6 +1760,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      factures_recues: {
+        Row: {
+          artisan_notes: string | null
+          artisan_user_id: string
+          currency: string
+          date_echeance: string | null
+          date_emission: string
+          emetteur_email: string | null
+          emetteur_name: string
+          emetteur_siret: string
+          format: string
+          id: string
+          numero: string
+          pa_message_id: string
+          paid_at: string | null
+          pdf_url: string | null
+          raw_xml: string | null
+          received_at: string
+          source_pa: string
+          status: string
+          total_ht_cents: number
+          total_ttc_cents: number
+          total_tva_cents: number
+          validated_at: string | null
+        }
+        Insert: {
+          artisan_notes?: string | null
+          artisan_user_id: string
+          currency?: string
+          date_echeance?: string | null
+          date_emission: string
+          emetteur_email?: string | null
+          emetteur_name: string
+          emetteur_siret: string
+          format: string
+          id?: string
+          numero: string
+          pa_message_id: string
+          paid_at?: string | null
+          pdf_url?: string | null
+          raw_xml?: string | null
+          received_at?: string
+          source_pa: string
+          status?: string
+          total_ht_cents?: number
+          total_ttc_cents?: number
+          total_tva_cents?: number
+          validated_at?: string | null
+        }
+        Update: {
+          artisan_notes?: string | null
+          artisan_user_id?: string
+          currency?: string
+          date_echeance?: string | null
+          date_emission?: string
+          emetteur_email?: string | null
+          emetteur_name?: string
+          emetteur_siret?: string
+          format?: string
+          id?: string
+          numero?: string
+          pa_message_id?: string
+          paid_at?: string | null
+          pdf_url?: string | null
+          raw_xml?: string | null
+          received_at?: string
+          source_pa?: string
+          status?: string
+          total_ht_cents?: number
+          total_ttc_cents?: number
+          total_tva_cents?: number
+          validated_at?: string | null
+        }
+        Relationships: []
       }
       idempotency_keys: {
         Row: {
@@ -2400,6 +2547,111 @@ export type Database = {
           type_contrat?: string | null
         }
         Relationships: []
+      }
+      offer_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          offer_id: string
+          product_name: string
+          quantity: number
+          rfq_item_id: string | null
+          total_price: number | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          offer_id: string
+          product_name: string
+          quantity: number
+          rfq_item_id?: string | null
+          total_price?: number | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          offer_id?: string
+          product_name?: string
+          quantity?: number
+          rfq_item_id?: string | null
+          total_price?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_offer_items_rfq_item"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offer_items_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offers: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          delivery_days: number | null
+          id: string
+          rfq_id: string
+          status: string
+          supplier_email: string
+          supplier_id: string | null
+          supplier_name: string
+          token: string
+          total_price: number | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          delivery_days?: number | null
+          id?: string
+          rfq_id: string
+          status?: string
+          supplier_email: string
+          supplier_id?: string | null
+          supplier_name: string
+          token?: string
+          total_price?: number | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          delivery_days?: number | null
+          id?: string
+          rfq_id?: string
+          status?: string
+          supplier_email?: string
+          supplier_id?: string | null
+          supplier_name?: string
+          token?: string
+          total_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_offers_supplier"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offers_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       photos: {
         Row: {
@@ -3451,6 +3703,83 @@ export type Database = {
           },
         ]
       }
+      rfq_items: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          product_name: string
+          product_ref: string | null
+          quantity: number
+          rfq_id: string
+          unit: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          product_name: string
+          product_ref?: string | null
+          quantity?: number
+          rfq_id: string
+          unit?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          product_name?: string
+          product_ref?: string | null
+          quantity?: number
+          rfq_id?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_items_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfqs: {
+        Row: {
+          country: string
+          created_at: string | null
+          id: string
+          message: string | null
+          status: string
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          country: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          country?: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       service_etapes: {
         Row: {
           created_at: string | null
@@ -3831,6 +4160,36 @@ export type Database = {
           stripe_subscription_id?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          active: boolean | null
+          categories: string[] | null
+          country: string
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean | null
+          categories?: string[] | null
+          country: string
+          created_at?: string | null
+          email: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean | null
+          categories?: string[] | null
+          country?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -5115,6 +5474,74 @@ export type Database = {
         }
         Relationships: []
       }
+      syndic_documents: {
+        Row: {
+          cabinet_id: string
+          embedding: string | null
+          error_message: string | null
+          extracted_metadata: Json | null
+          extracted_text: string | null
+          filename: string
+          id: string
+          immeuble_id: string | null
+          mime_type: string
+          processed_at: string | null
+          size_bytes: number
+          status: Database["public"]["Enums"]["syndic_document_status"]
+          storage_path: string
+          tags: string[] | null
+          type: Database["public"]["Enums"]["syndic_document_type"]
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          cabinet_id: string
+          embedding?: string | null
+          error_message?: string | null
+          extracted_metadata?: Json | null
+          extracted_text?: string | null
+          filename: string
+          id?: string
+          immeuble_id?: string | null
+          mime_type: string
+          processed_at?: string | null
+          size_bytes: number
+          status?: Database["public"]["Enums"]["syndic_document_status"]
+          storage_path: string
+          tags?: string[] | null
+          type?: Database["public"]["Enums"]["syndic_document_type"]
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          cabinet_id?: string
+          embedding?: string | null
+          error_message?: string | null
+          extracted_metadata?: Json | null
+          extracted_text?: string | null
+          filename?: string
+          id?: string
+          immeuble_id?: string | null
+          mime_type?: string
+          processed_at?: string | null
+          size_bytes?: number
+          status?: Database["public"]["Enums"]["syndic_document_status"]
+          storage_path?: string
+          tags?: string[] | null
+          type?: Database["public"]["Enums"]["syndic_document_type"]
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "syndic_documents_immeuble_id_fkey"
+            columns: ["immeuble_id"]
+            isOneToOne: false
+            referencedRelation: "syndic_immeubles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       syndic_elevadores: {
         Row: {
           cabinet_id: string
@@ -5310,6 +5737,45 @@ export type Database = {
           tipo?: string
           titulo?: string
           total?: number
+        }
+        Relationships: []
+      }
+      syndic_eventos: {
+        Row: {
+          cabinet_id: string
+          created_at: string
+          dia: string
+          edificio: string
+          hora_fim: string
+          hora_inicio: string
+          id: string
+          responsavel: string
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          cabinet_id: string
+          created_at?: string
+          dia?: string
+          edificio?: string
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          responsavel?: string
+          tipo?: string
+          titulo?: string
+        }
+        Update: {
+          cabinet_id?: string
+          created_at?: string
+          dia?: string
+          edificio?: string
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          responsavel?: string
+          tipo?: string
+          titulo?: string
         }
         Relationships: []
       }
@@ -6015,9 +6481,7 @@ export type Database = {
       }
       syndic_oauth_tokens: {
         Row: {
-          access_token: string | null
           access_token_enc: string | null
-          access_token_encrypted: string | null
           created_at: string | null
           email: string | null
           encryption_version: number
@@ -6026,16 +6490,12 @@ export type Database = {
           oauth_nonce: string | null
           oauth_nonce_expires_at: string | null
           provider: string
-          refresh_token: string | null
           refresh_token_enc: string | null
-          refresh_token_encrypted: string | null
           syndic_id: string
           updated_at: string | null
         }
         Insert: {
-          access_token?: string | null
           access_token_enc?: string | null
-          access_token_encrypted?: string | null
           created_at?: string | null
           email?: string | null
           encryption_version?: number
@@ -6044,16 +6504,12 @@ export type Database = {
           oauth_nonce?: string | null
           oauth_nonce_expires_at?: string | null
           provider?: string
-          refresh_token?: string | null
           refresh_token_enc?: string | null
-          refresh_token_encrypted?: string | null
           syndic_id: string
           updated_at?: string | null
         }
         Update: {
-          access_token?: string | null
           access_token_enc?: string | null
-          access_token_encrypted?: string | null
           created_at?: string | null
           email?: string | null
           encryption_version?: number
@@ -6062,9 +6518,7 @@ export type Database = {
           oauth_nonce?: string | null
           oauth_nonce_expires_at?: string | null
           provider?: string
-          refresh_token?: string | null
           refresh_token_enc?: string | null
-          refresh_token_encrypted?: string | null
           syndic_id?: string
           updated_at?: string | null
         }
@@ -6194,6 +6648,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      syndic_pdf_generated: {
+        Row: {
+          cabinet_id: string
+          field_values: Json
+          filename: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          size_bytes: number
+          storage_path: string
+          template_id: string | null
+        }
+        Insert: {
+          cabinet_id: string
+          field_values?: Json
+          filename: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          size_bytes: number
+          storage_path: string
+          template_id?: string | null
+        }
+        Update: {
+          cabinet_id?: string
+          field_values?: Json
+          filename?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          size_bytes?: number
+          storage_path?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "syndic_pdf_generated_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "syndic_pdf_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      syndic_pdf_templates: {
+        Row: {
+          cabinet_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          locale: string
+          name: string
+          placeholders: Json
+          storage_path: string
+          type: Database["public"]["Enums"]["syndic_pdf_template_type"]
+          updated_at: string
+        }
+        Insert: {
+          cabinet_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          locale?: string
+          name: string
+          placeholders?: Json
+          storage_path: string
+          type?: Database["public"]["Enums"]["syndic_pdf_template_type"]
+          updated_at?: string
+        }
+        Update: {
+          cabinet_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          locale?: string
+          name?: string
+          placeholders?: Json
+          storage_path?: string
+          type?: Database["public"]["Enums"]["syndic_pdf_template_type"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       syndic_planning_events: {
         Row: {
@@ -7211,14 +7754,6 @@ export type Database = {
         Returns: string
       }
       export_user_data: { Args: { p_user_id: string }; Returns: Json }
-      get_decrypted_oauth_token: {
-        Args: { p_syndic_id: string }
-        Returns: {
-          access_token: string
-          expires_at: string
-          refresh_token: string
-        }[]
-      }
       haversine_distance: {
         Args: { lat1: number; lat2: number; lon1: number; lon2: number }
         Returns: number
@@ -7274,19 +7809,51 @@ export type Database = {
           vector_score: number
         }[]
       }
-      set_encrypted_oauth_token: {
+      search_syndic_documents_hybrid: {
         Args: {
-          p_access_token: string
-          p_encryption_version?: number
-          p_expires_at: string
-          p_refresh_token: string
-          p_syndic_id: string
+          filter_immeuble_id?: string
+          filter_type?: Database["public"]["Enums"]["syndic_document_type"]
+          match_count?: number
+          p_cabinet_id: string
+          query_embedding: string
+          query_locale?: string
+          query_text: string
         }
-        Returns: undefined
+        Returns: {
+          bm25_score: number
+          extracted_metadata: Json
+          filename: string
+          id: string
+          immeuble_id: string
+          rrf_score: number
+          snippet: string
+          status: Database["public"]["Enums"]["syndic_document_status"]
+          type: Database["public"]["Enums"]["syndic_document_type"]
+          uploaded_at: string
+          vector_score: number
+        }[]
       }
     }
     Enums: {
-      [_ in never]: never
+      syndic_document_status: "pending" | "processing" | "processed" | "error"
+      syndic_document_type:
+        | "facture_artisan"
+        | "facture_syndic"
+        | "devis"
+        | "contrat"
+        | "rib"
+        | "ata_ag"
+        | "releve_bancaire"
+        | "pv_assemblee"
+        | "autre"
+      syndic_pdf_template_type:
+        | "chamada_quotas"
+        | "lettre_relance_impaye"
+        | "ata_ag"
+        | "pv_assemblee"
+        | "convocation_ag"
+        | "avis_passage"
+        | "autre"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7412,8 +7979,32 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  public: {
+  graphql_public: {
     Enums: {},
   },
+  public: {
+    Enums: {
+      syndic_document_status: ["pending", "processing", "processed", "error"],
+      syndic_document_type: [
+        "facture_artisan",
+        "facture_syndic",
+        "devis",
+        "contrat",
+        "rib",
+        "ata_ag",
+        "releve_bancaire",
+        "pv_assemblee",
+        "autre",
+      ],
+      syndic_pdf_template_type: [
+        "chamada_quotas",
+        "lettre_relance_impaye",
+        "ata_ag",
+        "pv_assemblee",
+        "convocation_ag",
+        "avis_passage",
+        "autre",
+      ],
+    },
+  },
 } as const
-
