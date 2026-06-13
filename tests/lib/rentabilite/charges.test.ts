@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase', () => ({
 import { calculeChargesSociales, calculeChargesFiscales } from '@/lib/rentabilite/charges'
 import type { RefTaux } from '@/lib/rentabilite/types'
 
-// Mock ref_taux matching the 061_seed_ref_taux.sql data
+// Mock ref_taux matching the 089_seed_ref_taux.sql data
 const mockTaux: RefTaux[] = [
   // FR — cotisations sociales
   { id: '1', juridiction: 'FR', type_charge: 'cotisations_sociales', regime: 'auto_entrepreneur', taux: 22, seuil_min: null, seuil_max: null, date_debut_validite: '2026-01-01', date_fin_validite: null, source_reglementaire: 'URSSAF barème 2026 — activité artisanale BTP', description: null },

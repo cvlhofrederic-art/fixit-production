@@ -1,4 +1,4 @@
--- 20260608_reconcile_doc_sequences.sql
+-- 20260608000001_reconcile_doc_sequences.sql
 --
 -- Réaligne le compteur serveur `doc_sequences` sur le DERNIER numéro réellement
 -- émis, par (artisan_user_id, série, année). Idempotent : `GREATEST` ne baisse

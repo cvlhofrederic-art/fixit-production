@@ -89,8 +89,20 @@ CREATE TABLE IF NOT EXISTS public.offer_items (
 );
 
 -- FK durcies (équivalent 055 — DB-15) : noms identiques à 055 pour cohérence.
+-- LOT-5 (2026-06-13) : si 025 vient d'être REJOUÉE par `db push` (runbook,
+-- étape 5 — elle passe AVANT ce fichier), ses tables portent les FK INLINE par
+-- défaut : offers_supplier_id_fkey (NO ACTION) et offer_items_rfq_item_id_fkey
+-- (NO ACTION). Sans les dropper d'abord, on aurait DEUX FK contradictoires sur
+-- la même colonne (NO ACTION + SET NULL / CASCADE) — le NO ACTION bloquerait
+-- les suppressions que SET NULL/CASCADE sont censées gérer. DROP IF EXISTS :
+-- no-op si 025 n'a pas (re)créé ces FK.
 DO $$
 BEGIN
+  ALTER TABLE public.offers
+    DROP CONSTRAINT IF EXISTS offers_supplier_id_fkey;
+  ALTER TABLE public.offer_items
+    DROP CONSTRAINT IF EXISTS offer_items_rfq_item_id_fkey;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'fk_offers_supplier' AND conrelid = 'public.offers'::regclass

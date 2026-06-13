@@ -229,7 +229,7 @@ Conformément au brief livrable §4 « liste explicite de ce que tu n'as pas fai
 |---|---|
 | **Étape 5 — TRUNCATE prod + re-ingestion** | Action **destructive** + **exige Bearer super_admin** ET **redéploiement du worker** (CF AI binding pour BGE-M3). Le MCP Supabase est en read-only (protection harness). Décision déléguée à l'utilisateur — la séquence complète figure en §5 Path A. |
 | **Baseline éval run sur prod** | Exige **JWT user syndic**. L'harness refuse à juste titre l'exploration des credentials locaux. Cependant, le diagnostic empirique §2.1 montre que la catégorie 03-matiere-couverte est structurellement impossible à passer sur la prod actuelle (0 chunks pour DL 320/2002, DL 220/2008, etc.). |
-| **Apply migration `20260521_max_v11_toc_filter.sql`** | Le MCP Supabase est read-only — l'application via MCP a renvoyé `Cannot apply migration in read-only mode`. La migration sera appliquée par le pipeline de déploiement standard du repo. |
+| **Apply migration `20260521000005_max_v11_toc_filter.sql`** | Le MCP Supabase est read-only — l'application via MCP a renvoyé `Cannot apply migration in read-only mode`. La migration sera appliquée par le pipeline de déploiement standard du repo. |
 | **Exposition de tools natifs Groq** `kb_search` / `kb_get_section` | Anthropic §brief : *« n'augmenter la complexité que si l'éval prouve un gain mesurable »*. Sans baseline run, pas de preuve → on s'abstient. À reconsidérer si la baseline montre que le retrieval pré-LLM rate des chunks. |
 | **Implémentation du service de sync DRE/ELI** ([`nota-tecnica-...md`](nota-tecnica-integracao-dre-plataforma.md)) | Hors scope des Étapes 1-6 du brief. Vision moyen terme exigeant produit + jurista responsable. Chantier séparé. |
 | **Réserves de sceau résiduelles** (J1) | Règle absolue : pas modifier le contenu juridique. Le jurista tranche, pas moi. |
@@ -291,7 +291,7 @@ Lance le dev server (`npm run dev`), ingère localement, lance les évals sur `l
 - **Tests unitaires** : 79/79 passent (parser 26 + prompt v1.1 16 + validate 15 + autres syndic 22). Aucun autre suite touchée.
 - **TypeScript** : `npx tsc --noEmit` — 0 erreur introduite (1 erreur pré-existante `cron-parser` sans rapport).
 - **Pas de modification des autres agents IA** : `lib/syndic/max-parser.ts`, `max-strict-prompt.ts`, `max-validate.ts`, `max-legal-rag.ts`, `legal-corpus-pt-md.ts` sont scope Max exclusivement. `lib/groq.ts` non modifié. `lib/langfuse.ts` non modifié.
-- **Migration SQL** [`20260521_max_v11_toc_filter.sql`](../../supabase/migrations/20260521_max_v11_toc_filter.sql) : `CREATE OR REPLACE FUNCTION` idempotent. Aucune destruction de schéma.
+- **Migration SQL** [`20260521000005_max_v11_toc_filter.sql`](../../supabase/migrations/20260521000005_max_v11_toc_filter.sql) : `CREATE OR REPLACE FUNCTION` idempotent. Aucune destruction de schéma.
 - **Pas de breaking change côté API** : la réponse JSON de `/api/syndic/max-ai` est strictement étendue (`retrieval.chunk_ids` et `retrieval.eval_run_id` optionnels ajoutés ; tout le reste inchangé).
 
 ---

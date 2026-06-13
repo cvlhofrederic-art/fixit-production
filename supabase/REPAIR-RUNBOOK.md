@@ -2,7 +2,7 @@
 
 > **Contexte** (audit Phase 2/9 Data Layer, 2026-06-12) : le registre
 > `supabase_migrations.schema_migrations` est arrêté à `20260513_alfredo_drafts`
-> (84 entrées) alors que le repo compte 133 fichiers. 47 migrations ont été
+> (82 entrées) alors que le repo compte 133 fichiers. 47 migrations ont été
 > appliquées **à la main** hors registre ; 5 migrations enregistrées ont vu leurs
 > objets **DROPpés à la main** (025, 028, 040, 046, 20260412) ; 4 migrations
 > n'ont **jamais** été appliquées (084 + les 3 Léa 20260521).
@@ -52,7 +52,7 @@ D'où les renommages (versions uniques, format CLI, ordre stable) :
 | `20260610_*.sql` (3) | `20260610000001…03_…` |
 
 Les nouvelles migrations de l'audit suivent le même schéma :
-`20260612000001` → `20260612000007` (les noms `20260612a…g` initialement
+`20260612000001` → `20260612000008` (les noms `20260612a…g` initialement
 envisagés auraient été **ignorés** par la CLI, cf. point 1).
 
 `015`, `088`, `089` : numéros 3 chiffres libres (014→020 et >087 inoccupés),
@@ -110,15 +110,68 @@ SELECT count(*) FROM factures WHERE avoir_de_facture_id IS NULL
 -- INT-07 : filleuls en doublon
 SELECT filleul_id, count(*) FROM referrals WHERE filleul_id IS NOT NULL
 GROUP BY filleul_id HAVING count(*) > 1;
--- INT-08 : créneaux bookings en doublon
+-- INT-08 : créneaux bookings en doublon — résultat NON VIDE ATTENDU (4 groupes
+-- connus, cf. 2a-bis) : ne PAS corriger à la main, la migration 20260612000003
+-- les neutralise en SOFT (deleted_at), mais dérouler la REVUE HUMAINE 2a-bis.
 SELECT artisan_id, booking_date, booking_time, count(*) FROM bookings
 WHERE status IS DISTINCT FROM 'cancelled' AND deleted_at IS NULL
   AND booking_date IS NOT NULL AND booking_time IS NOT NULL
 GROUP BY 1, 2, 3 HAVING count(*) > 1;
 ```
 
-> Un résultat non vide → corriger les données AVANT l'étape 5 (les migrations
-> 20260612000001/3 échoueront proprement sinon).
+> Un résultat non vide sur les requêtes INT-02 / C-04 / CHECK / INT-07 →
+> corriger les données AVANT l'étape 5 (les migrations 20260612000001/3
+> échoueront proprement sinon). Pour INT-08 (bookings), voir 2a-bis : la
+> migration 20260612000003 gère les doublons elle-même (soft-delete), mais la
+> revue humaine reste OBLIGATOIRE avant push.
+
+### 2a-bis. REVUE HUMAINE des doublons de créneaux bookings (OBLIGATOIRE avant push)
+
+État live vérifié par l'audit (2026-06-12/13) : **4 groupes** de doublons,
+tous du **même artisan** (`745a1498…`), tous à **09:00**, dates
+**2026-03-11 / 2026-03-12 / 2026-03-13** et **2026-05-13**, status
+`confirmed` — le motif (même artisan, même heure, jours consécutifs) ressemble
+fortement à des **données de test** de cet artisan, pas à de vraies
+réservations clients.
+
+Lister chaque groupe AVANT push et confirmer qu'aucune ligne n'est une vraie
+réservation client à préserver :
+
+```sql
+SELECT b.id, b.artisan_id, b.booking_date, b.booking_time, b.status,
+       b.client_id, b.created_at,
+       row_number() OVER (PARTITION BY b.artisan_id, b.booking_date, b.booking_time
+                          ORDER BY b.created_at ASC NULLS LAST, b.id ASC) AS rang
+FROM bookings b
+JOIN (
+  SELECT artisan_id, booking_date, booking_time FROM bookings
+  WHERE status IS DISTINCT FROM 'cancelled' AND deleted_at IS NULL
+    AND booking_date IS NOT NULL AND booking_time IS NOT NULL
+  GROUP BY 1, 2, 3 HAVING count(*) > 1
+) d USING (artisan_id, booking_date, booking_time)
+WHERE b.status IS DISTINCT FROM 'cancelled' AND b.deleted_at IS NULL
+ORDER BY b.artisan_id, b.booking_date, b.booking_time, rang;
+```
+
+- `rang = 1` (created_at le plus ancien) = ligne **conservée** par 20260612000003.
+- `rang > 1` = lignes qui recevront `deleted_at = now()` (soft, récupérable —
+  jamais de DELETE).
+- Si une ligne `rang > 1` doit être conservée à la place de la `rang = 1`
+  (vraie réservation) : intervertir à la main AVANT push (soft-deleter la
+  mauvaise), puis re-dérouler 2a.
+
+### 2d. Pré-requis OAuth (20260612000008)
+
+```sql
+SELECT count(*) FROM syndic_oauth_tokens;   -- audit 2026-06-12 : 0 ligne
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_name = 'syndic_oauth_tokens'
+  AND column_name IN ('access_token_enc', 'refresh_token_enc');  -- attendu : bytea (avant push)
+```
+
+> Un count > 0 n'est PAS bloquant : la conversion `convert_from(<col>,'UTF8')`
+> de 20260612000008 préserve les payloads base64 écrits par le code v2
+> (lib/oauth/tokens.ts). Noter simplement le count pour le contrôle post-push.
 
 ### 2b. Les 5 index « doublons » sont bien des index simples (pas de contrainte)
 
@@ -149,8 +202,6 @@ WHERE n.nspname = 'public' AND proname IN
 SELECT count(*) FROM ref_taux;                       -- 089 (seed) : > 0 attendu
 SELECT conname FROM pg_constraint
 WHERE conname IN ('devis_numero_artisan_user_unique','factures_numero_artisan_user_unique'); -- 087
-SELECT policyname FROM pg_policies
-WHERE schemaname = 'storage' AND policyname = 'artisan_photos_insert';                       -- 088
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'factures' AND column_name = 'avoir_de_facture_id';                       -- 20260514
 ```
@@ -158,6 +209,17 @@ WHERE table_name = 'factures' AND column_name = 'avoir_de_facture_id';          
 > Toute sonde NULL/vide → la migration correspondante n'est PAS appliquée :
 > la retirer de la liste « applied » de l'étape 3 et la laisser être appliquée
 > par `db push` (vérifier d'abord son idempotence).
+>
+> **EXCEPTION — 088 (`088_fix_artisan_photos_rls.sql`)** : marquer « applied »
+> **d'office**, SANS sonde. L'ancienne sonde (`policyname =
+> 'artisan_photos_insert'`) renvoie 0 ligne en live — cette policy n'a JAMAIS
+> existé : le `DROP POLICY IF EXISTS "artisan_photos_insert"` de 088 était un
+> **no-op** (la policy permissive réellement en place s'appelle
+> `auth_write_artisan_photos`, traitée par 20260612000004 + étape 5-bis).
+> Appliquer la règle générale ferait REJOUER 088 par push, et son `CREATE
+> POLICY` sur `storage.objects` planterait le push (`must be owner of table
+> objects` — owner = `supabase_storage_admin`, cf. étape 5-bis). L'état que 088
+> visait est créé manuellement à l'étape 5-bis.
 
 ## Étape 3 — `migration repair --status applied` (47 versions hors registre)
 

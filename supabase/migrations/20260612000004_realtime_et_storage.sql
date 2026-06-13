@@ -10,6 +10,16 @@
 --            088_fix_artisan_photos_rls.sql droppait le mauvais nom).
 --
 -- IMPORTANT : entièrement idempotente.
+--
+-- ⚠️ OWNERSHIP storage (LOT-2/LOT-3, 2026-06-13) : storage.objects (et
+-- storage.buckets) appartiennent à supabase_storage_admin. Le rôle qui exécute
+-- les migrations (postgres) ne peut PAS y faire de DDL (DROP/CREATE POLICY) —
+-- le SQL Editor du Dashboard a la MÊME limite (il exécute en postgres).
+-- Les statements storage ci-dessous sont donc wrappés DO $$ … EXCEPTION WHEN
+-- insufficient_privilege : la migration n'échoue pas, elle émet un WARNING et
+-- l'action est à reporter manuellement via Dashboard > Storage (étape 5-bis
+-- du REPAIR-RUNBOOK). Le INSERT storage.buckets est du DML normalement couvert
+-- par les GRANTs standards — gardé aussi par précaution.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ── 1. C-01 — Publication Realtime ────────────────────────────────────────────
@@ -51,11 +61,24 @@ END $$;
 -- Le flux est donc 100 % service_role (qui bypasse la RLS de storage.objects).
 -- Policies minimales = AUCUNE policy pour anon/authenticated : bucket privé,
 -- deny par défaut. On ne crée volontairement aucune policy storage.objects ici.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('tracking', 'tracking', false)
-ON CONFLICT (id) DO NOTHING;
+DO $$
+BEGIN
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('tracking', 'tracking', false)
+  ON CONFLICT (id) DO NOTHING;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'storage.buckets : privilèges insuffisants pour créer le bucket "tracking" — à créer via Dashboard > Storage > New bucket (privé, public = false). Cf. REPAIR-RUNBOOK étape 5-bis.';
+END $$;
 
 -- ── 3. MIG-04 — retrait de la policy permissive non tracée ────────────────────
 -- La policy owner légitime (artisan_photos_owner_insert, vérifiée en live par
 -- l'audit) reste en place pour les uploads des artisans.
-DROP POLICY IF EXISTS auth_write_artisan_photos ON storage.objects;
+-- DDL sur storage.objects → très probablement insufficient_privilege (cf.
+-- en-tête) : le WARNING renvoie vers l'étape manuelle Dashboard.
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS auth_write_artisan_photos ON storage.objects;
+  RAISE NOTICE 'MIG-04 : policy auth_write_artisan_photos supprimée (ou déjà absente)';
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'storage.objects : privilèges insuffisants (owner = supabase_storage_admin) — supprimer la policy auth_write_artisan_photos via Dashboard > Storage > Policies. Cf. REPAIR-RUNBOOK étape 5-bis.';
+END $$;

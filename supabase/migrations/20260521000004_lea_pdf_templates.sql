@@ -10,47 +10,65 @@
 -- 2026-06-12 (audit Phase 2, réconciliation registre) : migration jamais
 -- appliquée en prod ; rendue idempotente (DROP POLICY IF EXISTS) avant le
 -- `supabase db push` du runbook supabase/REPAIR-RUNBOOK.md.
+-- 2026-06-13 (LOT-2/LOT-3) : storage.objects/storage.buckets appartiennent à
+-- supabase_storage_admin — le rôle de migration (postgres) ne peut pas y faire
+-- de DDL, et le SQL Editor a la même limite. Section storage wrappée
+-- DO $$ … EXCEPTION WHEN insufficient_privilege → WARNING + report manuel via
+-- Dashboard > Storage (REPAIR-RUNBOOK, étape 5-bis).
 
 -- ── 1. Bucket Storage pour les templates et les PDFs générés ─────────────────
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('syndic-pdf-templates', 'syndic-pdf-templates', false)
-ON CONFLICT (id) DO NOTHING;
+DO $$
+BEGIN
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('syndic-pdf-templates', 'syndic-pdf-templates', false)
+  ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('syndic-pdf-generated', 'syndic-pdf-generated', false)
-ON CONFLICT (id) DO NOTHING;
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('syndic-pdf-generated', 'syndic-pdf-generated', false)
+  ON CONFLICT (id) DO NOTHING;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'storage.buckets : privilèges insuffisants — créer les buckets "syndic-pdf-templates" et "syndic-pdf-generated" (privés) via Dashboard > Storage > New bucket. Cf. REPAIR-RUNBOOK étape 5-bis.';
+END $$;
 
-DROP POLICY IF EXISTS syndic_pdf_templates_select ON storage.objects;
-CREATE POLICY syndic_pdf_templates_select ON storage.objects FOR SELECT USING (
-  bucket_id = 'syndic-pdf-templates'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
-DROP POLICY IF EXISTS syndic_pdf_templates_insert ON storage.objects;
-CREATE POLICY syndic_pdf_templates_insert ON storage.objects FOR INSERT WITH CHECK (
-  bucket_id = 'syndic-pdf-templates'
-  AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
-);
-DROP POLICY IF EXISTS syndic_pdf_templates_delete ON storage.objects;
-CREATE POLICY syndic_pdf_templates_delete ON storage.objects FOR DELETE USING (
-  bucket_id = 'syndic-pdf-templates'
-  AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
-);
+-- Policies storage (DDL → owner supabase_storage_admin requis ; bloc atomique :
+-- en cas d'insufficient_privilege, AUCUNE des 6 policies n'est posée et le
+-- WARNING renvoie vers l'étape manuelle Dashboard).
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS syndic_pdf_templates_select ON storage.objects;
+  CREATE POLICY syndic_pdf_templates_select ON storage.objects FOR SELECT USING (
+    bucket_id = 'syndic-pdf-templates'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+  DROP POLICY IF EXISTS syndic_pdf_templates_insert ON storage.objects;
+  CREATE POLICY syndic_pdf_templates_insert ON storage.objects FOR INSERT WITH CHECK (
+    bucket_id = 'syndic-pdf-templates'
+    AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
+  );
+  DROP POLICY IF EXISTS syndic_pdf_templates_delete ON storage.objects;
+  CREATE POLICY syndic_pdf_templates_delete ON storage.objects FOR DELETE USING (
+    bucket_id = 'syndic-pdf-templates'
+    AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
+  );
 
-DROP POLICY IF EXISTS syndic_pdf_generated_select ON storage.objects;
-CREATE POLICY syndic_pdf_generated_select ON storage.objects FOR SELECT USING (
-  bucket_id = 'syndic-pdf-generated'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
-DROP POLICY IF EXISTS syndic_pdf_generated_insert ON storage.objects;
-CREATE POLICY syndic_pdf_generated_insert ON storage.objects FOR INSERT WITH CHECK (
-  bucket_id = 'syndic-pdf-generated'
-  AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
-);
-DROP POLICY IF EXISTS syndic_pdf_generated_delete ON storage.objects;
-CREATE POLICY syndic_pdf_generated_delete ON storage.objects FOR DELETE USING (
-  bucket_id = 'syndic-pdf-generated'
-  AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
-);
+  DROP POLICY IF EXISTS syndic_pdf_generated_select ON storage.objects;
+  CREATE POLICY syndic_pdf_generated_select ON storage.objects FOR SELECT USING (
+    bucket_id = 'syndic-pdf-generated'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+  DROP POLICY IF EXISTS syndic_pdf_generated_insert ON storage.objects;
+  CREATE POLICY syndic_pdf_generated_insert ON storage.objects FOR INSERT WITH CHECK (
+    bucket_id = 'syndic-pdf-generated'
+    AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
+  );
+  DROP POLICY IF EXISTS syndic_pdf_generated_delete ON storage.objects;
+  CREATE POLICY syndic_pdf_generated_delete ON storage.objects FOR DELETE USING (
+    bucket_id = 'syndic-pdf-generated'
+    AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
+  );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'storage.objects : privilèges insuffisants (owner = supabase_storage_admin) — créer les policies syndic_pdf_templates_select/insert/delete et syndic_pdf_generated_select/insert/delete via Dashboard > Storage > Policies (définitions dans ce fichier). Cf. REPAIR-RUNBOOK étape 5-bis.';
+END $$;
 
 -- ── 2. Enum types templates ──────────────────────────────────────────────────
 DO $$ BEGIN
