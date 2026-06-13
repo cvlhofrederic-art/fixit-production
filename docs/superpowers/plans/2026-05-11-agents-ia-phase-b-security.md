@@ -1,5 +1,12 @@
 # Plan B — Agents IA Syndic : Security Hardening (Phase 2/4)
 
+> ⚠️ **Note 2026-06-13 (audit P2 — OAUT-3) :** la partie « encryption pgcrypto
+> des tokens OAuth » de ce plan est obsolète. Le script
+> `scripts/migrate-encrypt-oauth-tokens.ts` a été supprimé (flux v1 mort,
+> backfill sans objet). Remplacement : AES-256-GCM applicatif dans
+> `lib/oauth/tokens.ts` + `supabase/migrations/20260612000008_oauth_cleanup.sql`.
+> Document conservé tel quel pour l'historique.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Corriger 2 vulnérabilités RGPD bloquantes identifiées dans la cartographie : (1) sanitization PII des contextes envoyés à Groq dans les prompts d'agents Fixy/Max/Léa, (2) chiffrement symétrique pgcrypto des tokens OAuth Gmail stockés en clair dans `syndic_oauth_tokens`.

@@ -9,6 +9,7 @@ import {
   getEncryptionKey,
   encryptToken,
   decryptToken,
+  normalizeStoredPayload,
   setEncryptedToken,
   getDecryptedToken,
 } from '@/lib/oauth/tokens'
@@ -115,6 +116,34 @@ describe('lib/oauth/tokens — encryptToken / decryptToken', () => {
     await expect(decryptToken(Buffer.from('court').toString('base64'))).rejects.toThrow(
       /payload trop court/,
     )
+  })
+})
+
+// Simule la relecture PostgREST d'une colonne BYTEA : la chaîne base64 écrite
+// est rendue au format hex Postgres '\x…' (état live tant que 20260612000008
+// n'a pas converti les colonnes en text).
+function asPostgrestBytea(base64Payload: string): string {
+  return '\\x' + Buffer.from(base64Payload, 'utf8').toString('hex')
+}
+
+describe('lib/oauth/tokens — normalizeStoredPayload (compat BYTEA, OAUT-1)', () => {
+  it('valeur sans préfixe \\x (colonne text) → inchangée', () => {
+    expect(normalizeStoredPayload('YWJjZGVm')).toBe('YWJjZGVm')
+    expect(normalizeStoredPayload('')).toBe('')
+  })
+
+  it('format hex PostgREST \\x… → décodé vers la chaîne base64 d\'origine', () => {
+    const base64 = Buffer.from('n-importe-quoi').toString('base64')
+    expect(normalizeStoredPayload(asPostgrestBytea(base64))).toBe(base64)
+  })
+
+  it('round-trip complet : encryptToken → relecture bytea hex → decryptToken', async () => {
+    const encrypted = await encryptToken('ya29.un-access-token')
+    const luDepuisPostgrest = asPostgrestBytea(encrypted)
+    expect(luDepuisPostgrest.startsWith('\\x')).toBe(true)
+    await expect(
+      decryptToken(normalizeStoredPayload(luDepuisPostgrest)),
+    ).resolves.toBe('ya29.un-access-token')
   })
 })
 
@@ -241,6 +270,23 @@ describe('lib/oauth/tokens — getDecryptedToken', () => {
     })
     await expect(getDecryptedToken(client, 's1')).resolves.toBeNull()
     expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it('colonnes *_enc relues au format bytea hex (\\x…) → déchiffrées quand même (OAUT-1)', async () => {
+    const accessEnc = await encryptToken('access-bytea')
+    const refreshEnc = await encryptToken('refresh-bytea')
+    const { client } = makeSelectClient({
+      access_token_enc: asPostgrestBytea(accessEnc),
+      refresh_token_enc: asPostgrestBytea(refreshEnc),
+      expires_at: '2026-06-12T12:00:00.000Z',
+      encryption_version: 2,
+    })
+    await expect(getDecryptedToken(client, 's1')).resolves.toEqual({
+      access_token: 'access-bytea',
+      refresh_token: 'refresh-bytea',
+      expires_at: '2026-06-12T12:00:00.000Z',
+    })
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it('payload indéchiffrable (clé changée) → null + warn, jamais de throw', async () => {

@@ -1,5 +1,15 @@
 # Runbook — Encryption OAuth Tokens (Plan B)
 
+> ⚠️ **OBSOLÈTE (2026-06-13, audit P2 — OAUT-3).** Ce runbook décrit le flux
+> pgcrypto v1, structurellement mort en prod (PostgREST n'expose pas
+> `set_config` ; les fonctions RPC référençaient `token_expiry`, colonne
+> inexistante). Le script `scripts/migrate-encrypt-oauth-tokens.ts` a été
+> **supprimé** (backfill sans objet : 0 token jamais persisté). Flux actuel :
+> chiffrement applicatif AES-256-GCM dans `lib/oauth/tokens.ts`
+> (`encryption_version = 2`) + purge DB par
+> `supabase/migrations/20260612000008_oauth_cleanup.sql`.
+> Conservé pour l'historique — **ne rien exécuter de ce qui suit.**
+
 > Bascule en 4 phases. Phases 1-3 sont du Plan B (déjà commitées). Phase 4 est différée Plan D.
 
 ## Pré-requis

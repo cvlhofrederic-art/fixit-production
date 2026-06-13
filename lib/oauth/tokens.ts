@@ -14,10 +14,20 @@
 //   - stockage dans access_token_enc / refresh_token_enc,
 //     encryption_version = 2
 //
-// ⚠️ Colonnes DÉPRÉCIÉES de syndic_oauth_tokens — ni lues ni écrites ici :
+// ⚠️ Compat lecture BYTEA (OAUT-1) : access_token_enc / refresh_token_enc ont
+// été créées en BYTEA par 20260512_encrypt_oauth_tokens.sql. L'écriture d'une
+// chaîne base64 dans un bytea passe, mais PostgREST RELIT un bytea au format
+// hex Postgres ('\x6261…'). normalizeStoredPayload() décode ce format avant
+// déchiffrement. La migration 20260612000008_oauth_cleanup.sql convertit les
+// colonnes en text (convert_from UTF8) — le helper devient alors un no-op.
+//
+// ⚠️ Colonnes legacy de syndic_oauth_tokens — ni lues ni écrites ici, et
+// PURGÉES par 20260612000008_oauth_cleanup.sql (0 ligne en prod, audit
+// 2026-06-12) :
 //   - access_token / refresh_token (clair, legacy)
 //   - access_token_encrypted / refresh_token_encrypted (pgcrypto v1, mort-né)
-// Le lot DB les purgera, ainsi que les fonctions get/set_encrypted_oauth_token.
+// Les fonctions DB get/set_encrypted_oauth_token (mortes) sont droppées par la
+// même migration.
 //
 // Une ligne avec encryption_version null/1 (ou colonnes *_enc vides) est
 // considérée SANS token : re-connexion OAuth requise (logger.warn explicite).
@@ -99,6 +109,20 @@ export async function encryptToken(plaintext: string): Promise<string> {
   return Buffer.from(payload).toString('base64')
 }
 
+// ── Compat lecture BYTEA (OAUT-1) ─────────────────────────────────────────────
+// Tant que les colonnes *_enc sont en BYTEA en live (état créé par 20260512,
+// corrigé par 20260612000008), PostgREST sérialise leur contenu au format hex
+// Postgres : la chaîne base64 'YWJj…' écrite par setEncryptedToken est relue
+// '\x59574a6a…'. Ce helper détecte le préfixe '\x' et décode l'hex vers UTF-8
+// pour retrouver la chaîne base64 d'origine. Sur une colonne text (état
+// cible), la valeur ne commence jamais par '\x' (base64 = [A-Za-z0-9+/=]) :
+// le helper rend la valeur inchangée. Un hex corrompu produit un base64
+// invalide → decryptToken throw → null + warn (chemin déjà couvert).
+export function normalizeStoredPayload(value: string): string {
+  if (!value.startsWith('\\x')) return value
+  return Buffer.from(value.slice(2), 'hex').toString('utf8')
+}
+
 // Déchiffre un payload produit par encryptToken. Throw si payload invalide,
 // clé différente ou données corrompues (tag GCM non vérifiable).
 export async function decryptToken(payload: string): Promise<string> {
@@ -178,8 +202,8 @@ export async function getDecryptedToken(
 
   try {
     const [accessToken, refreshToken] = await Promise.all([
-      decryptToken(data.access_token_enc),
-      decryptToken(data.refresh_token_enc),
+      decryptToken(normalizeStoredPayload(data.access_token_enc)),
+      decryptToken(normalizeStoredPayload(data.refresh_token_enc)),
     ])
     return {
       access_token: accessToken,

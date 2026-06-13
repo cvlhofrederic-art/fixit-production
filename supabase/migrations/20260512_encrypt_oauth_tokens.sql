@@ -3,9 +3,17 @@
 -- Date: 2026-05-12
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Phase 1 : Ajouter colonnes chiffrées en parallèle des plain.
--- Phase 2 : Backfill via scripts/migrate-encrypt-oauth-tokens.ts.
+-- Phase 2 : Backfill — OBSOLÈTE : jamais exécuté (0 token persisté par ce flux),
+--           script de backfill supprimé le 2026-06-13 (audit P2, OAUT-3).
 -- Phase 3 : Code applicatif utilise les colonnes chiffrées (refactor en suivant).
 -- Phase 4 : Drop des colonnes plain (Plan D, après 7 jours de stabilité prod).
+--
+-- ⚠️ 2026-06-13 (audit P2) : ce flux RPC pgcrypto (v1) est MORT — PostgREST
+-- n'expose pas set_config, et les fonctions ci-dessous référencent
+-- t.token_expiry, colonne inexistante en live. Remplacé par le chiffrement
+-- applicatif AES-256-GCM (lib/oauth/tokens.ts, encryption_version = 2).
+-- Colonnes legacy + fonctions purgées par 20260612000008_oauth_cleanup.sql
+-- (qui convertit aussi *_enc bytea -> text).
 --
 -- Algorithme : pgcrypto pgp_sym_encrypt (AES-256 symétrique).
 -- Clé : passée par RPC via SET LOCAL app.oauth_encryption_key (jamais stockée en PG).
