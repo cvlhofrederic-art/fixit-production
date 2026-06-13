@@ -28,20 +28,8 @@ interface MarcheRow {
   title: string
   location_lat: number | null
   location_lng: number | null
-  status?: string
-  created_at?: string
-  [key: string]: unknown
-}
-interface ArtisanCandidate {
-  id: string
-  user_id: string
-  latitude?: number | null
-  longitude?: number | null
-  category?: string
-  specialties?: string[]
-  rating_avg?: number
-  distance?: number
-  distance_km?: number
+  status?: string | null
+  created_at?: string | null
   [key: string]: unknown
 }
 
@@ -258,12 +246,16 @@ export async function GET(request: NextRequest) {
       .eq('user_id', artisanUserId)
       .single()
 
-    if (artisan?.latitude && artisan?.longitude) {
+    // Constantes locales : le narrowing de artisan.latitude/longitude (number | null)
+    // ne se propage pas dans le callback de map — on fige des `const` non-nulles avant.
+    const aLat = artisan?.latitude
+    const aLng = artisan?.longitude
+    if (aLat && aLng) {
       marches = marches.map((m: MarcheRow) => {
-        const mLat = m.location_lat as number | null
-        const mLng = m.location_lng as number | null
+        const mLat = m.location_lat
+        const mLng = m.location_lng
         if (mLat && mLng) {
-          const distance_km = Math.round(haversineDistance(artisan.latitude, artisan.longitude, mLat, mLng) * 10) / 10
+          const distance_km = Math.round(haversineDistance(aLat, aLng, mLat, mLng) * 10) / 10
           return { ...m, distance_km }
         }
         return { ...m, distance_km: null }
@@ -382,28 +374,28 @@ export async function POST(request: NextRequest) {
 
       if (artisans && artisans.length > 0) {
         // 3. Filter by category
-        const categoryMatched = artisans.filter((a: Record<string, unknown>) => {
-          const cats = a.marches_categories as string[] | null
+        const categoryMatched = artisans.filter((a) => {
+          const cats = a.marches_categories
           if (!cats || cats.length === 0) return true // no prefs = accept all
           return cats.includes(v.category)
         })
 
         // 4-5. Calculate distance & filter by zone
+        // (lat/lng non-null garantis par les .not('…', 'is', null) de la requête ;
+        // le flatMap re-vérifie pour narrower le type sans cast)
         const withDistance = categoryMatched
-          .map((a: ArtisanCandidate) => {
-            const dist = haversineDistance(
-              coords.lat, coords.lng,
-              a.latitude as number, a.longitude as number
-            )
-            return { ...a, distance_km: dist }
-          })
-          .filter((a: ArtisanCandidate & { distance_km: number }) => {
-            const radius = (a.zone_radius_km as number) || 50
+          .flatMap((a) =>
+            a.latitude == null || a.longitude == null
+              ? []
+              : [{ ...a, distance_km: haversineDistance(coords.lat, coords.lng, a.latitude, a.longitude) }]
+          )
+          .filter((a) => {
+            const radius = a.zone_radius_km || 50
             return a.distance_km <= radius
           })
 
         // 6. Check compliance requirements
-        const compliant = withDistance.filter((a: ArtisanCandidate) => {
+        const compliant = withDistance.filter((a) => {
           if (v.require_rc_pro && !a.rc_pro_valid) return false
           if (v.require_decennale && !a.decennale_valid) return false
           if (v.require_rge && !a.rge_valid) return false
@@ -412,14 +404,16 @@ export async function POST(request: NextRequest) {
         })
 
         // 7. Sort by distance ASC, then rating_avg DESC
-        compliant.sort((a: ArtisanCandidate, b: ArtisanCandidate) => {
-          const distDiff = (a.distance_km ?? 0) - (b.distance_km ?? 0)
+        compliant.sort((a, b) => {
+          const distDiff = a.distance_km - b.distance_km
           if (Math.abs(distDiff) > 0.5) return distDiff
-          return ((b.rating_avg as number) || 0) - ((a.rating_avg as number) || 0)
+          return (b.rating_avg || 0) - (a.rating_avg || 0)
         })
 
-        // 8. Store matched artisan user_ids
-        const matchedUserIds = compliant.map((a: ArtisanCandidate) => a.user_id as string)
+        // 8. Store matched artisan user_ids (user_id est nullable en base — on écarte les profils orphelins)
+        const matchedUserIds = compliant
+          .map((a) => a.user_id)
+          .filter((u): u is string => u !== null)
         if (matchedUserIds.length > 0) {
           await supabaseAdmin
             .from('marches')
@@ -427,7 +421,7 @@ export async function POST(request: NextRequest) {
             .eq('id', marcheId)
 
           // 9. Create notifications for matched artisans
-          const artisanIds = compliant.map((a: ArtisanCandidate) => a.id as string)
+          const artisanIds = compliant.map((a) => a.id)
           const notifications = artisanIds.map((artisanId: string) => ({
             artisan_id: artisanId,
             type: 'marche_new',

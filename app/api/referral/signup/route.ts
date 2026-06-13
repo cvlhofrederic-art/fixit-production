@@ -11,6 +11,7 @@ import { getParrainByCode, checkAutoParrainage, computeRiskScore, generateReferr
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, referralSignupSchema } from '@/lib/validation'
 import { sendReferralWelcomeFilleul, sendReferralNotifParrain } from '@/lib/email-referral'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     const isSelfReferral = await checkAutoParrainage(parrain.id, artisan_id)
     if (isSelfReferral) {
       // Logger silencieusement
-      console.warn(`[referral/signup] Auto-parrainage détecté: parrain=${parrain.id}, filleul=${artisan_id}`)
+      logger.warn('[referral/signup] Auto-parrainage détecté', { parrainId: parrain.id, filleulId: artisan_id })
 
       // Trouver le referral en_attente pour ce code et le bloquer
       const { data: pendingRef } = await supabaseAdmin
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (!referral) {
       // Pas de referral en attente → créer un nouveau
-      const { data: newRef } = await supabaseAdmin
+      const { data: newRef, error: insertError } = await supabaseAdmin
         .from('referrals')
         .insert({
           parrain_id: parrain.id,
@@ -105,6 +106,17 @@ export async function POST(request: NextRequest) {
         })
         .select('id')
         .single()
+
+      // Check-then-insert non atomique : une requête concurrente a pu créer la
+      // ligne entre-temps (contrainte UNIQUE partielle, code 23505). Doublon
+      // bénin → réponse idempotente, les effets de bord ont déjà été exécutés.
+      if (insertError?.code === '23505') {
+        logger.info('[referral/signup] Insert doublon (23505) — réponse idempotente', { parrainId: parrain.id, filleulId: artisan_id })
+        return NextResponse.json({ success: true, referral: true, parrain_name: parrain.company_name })
+      }
+      if (insertError) {
+        logger.error('[referral/signup] Insert referral failed', { parrainId: parrain.id, filleulId: artisan_id, error: insertError.message })
+      }
 
       if (newRef) {
         await computeRiskScore(newRef.id)
@@ -152,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, referral: true, parrain_name: parrain.company_name })
   } catch (err) {
-    console.error('[referral/signup] Error:', err)
+    logger.error('[referral/signup] Error:', {}, err)
     return NextResponse.json({ error: 'Erreur interne' }, { status: 500 })
   }
 }
@@ -190,21 +202,23 @@ async function generateCodeForArtisan(artisanId: string) {
   }).eq('id', artisanId)
 }
 
+// NB : profiles_artisan n'a PAS de colonne first_name (cf. lib/database-types.ts) —
+// l'ancien select la demandait, la requête échouait, et aucun email ne partait.
 async function sendReferralEmails(
   filleulArtisanId: string,
-  parrain: { id: string; company_name: string; email: string; referral_flagged: boolean }
+  parrain: { id: string; company_name: string | null; email: string | null; referral_flagged: boolean | null }
 ) {
   try {
     // Charger le filleul
     const { data: filleul } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('email, company_name, first_name')
+      .select('email, company_name')
       .eq('id', filleulArtisanId)
       .single()
 
     if (!filleul?.email) return
 
-    const filleulName = filleul.first_name || filleul.company_name || 'Un artisan'
+    const filleulName = filleul.company_name || 'Un artisan'
     const parrainName = parrain.company_name || 'Un parrain'
 
     // Charger le referral_code du parrain pour le lien de partage
@@ -232,6 +246,6 @@ async function sendReferralEmails(
     }
   } catch (err) {
     // Emails non-bloquants
-    console.error('[referral/signup] Email send error:', err)
+    logger.error('[referral/signup] Email send error:', {}, err)
   }
 }

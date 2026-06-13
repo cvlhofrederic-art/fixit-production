@@ -17,6 +17,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import type { Json } from '@/lib/database-types'
 
 // 5 MB par valeur pour absorber les cas legacy ou des fichiers sont
 // stockes en base64 directement dans le localStorage (logo cabinet syndic,
@@ -90,7 +91,9 @@ export async function POST(request: NextRequest) {
   const rows = v.data.entries.map(e => ({
     user_id: user.id,
     key: e.key,
-    value: e.value,
+    // Cast documenté métier → jsonb : la valeur sort d'un body JSON parsé
+    // (z.unknown()), elle est donc JSON-sérialisable par construction.
+    value: e.value as Json,
     updated_at: new Date().toISOString(),
   }))
 

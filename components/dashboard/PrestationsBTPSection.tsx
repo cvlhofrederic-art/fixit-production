@@ -220,7 +220,10 @@ function prestationToServicePayload(p: Omit<Prestation, 'id'>, artisanId: string
     artisan_id: artisanId,
     name: p.name,
     description,
-    duration_minutes: null,
+    // duration_minutes est NOT NULL sans défaut dans le schéma live : `null`
+    // faisait échouer insert ET update en silence (audit P2). 60 = défaut
+    // plateforme (cf. fixy-ai create_service et migration 052).
+    duration_minutes: 60,
     price_ht: p.price.min,
     price_ttc: p.price.max,
     active: true,

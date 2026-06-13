@@ -48,6 +48,12 @@ export async function GET(request: NextRequest) {
 
     for (const booking of bookings) {
       try {
+        // client_id nullable en base : sans client, pas de rappel possible
+        if (!booking.client_id) {
+          results.skipped++
+          continue
+        }
+
         // Fetch client email
         const { data: clientAuth } = await supabaseAdmin.auth.admin.getUserById(booking.client_id)
         if (!clientAuth?.user?.email) {
@@ -55,8 +61,8 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        const artisan = booking.profiles_artisan as any
-        const service = booking.services as any
+        const artisan = booking.profiles_artisan
+        const service = booking.services
         const clientLocale = clientAuth.user.user_metadata?.locale === 'pt' ? 'pt' : 'fr'
         const dateFmt = new Date(booking.booking_date + 'T12:00:00').toLocaleDateString(
           clientLocale === 'pt' ? 'pt-PT' : 'fr-FR',

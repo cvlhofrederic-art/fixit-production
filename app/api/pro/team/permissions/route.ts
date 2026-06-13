@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (memberId) {
-    const companyId = await resolveCompanyId(user, supabaseAdmin)
+    // resolveCompanyId retombe toujours sur user.id (le null déclaré est inatteignable)
+    const companyId = (await resolveCompanyId(user, supabaseAdmin)) ?? user.id
 
     // Verify member belongs to this company
     const { data: member } = await supabaseAdmin

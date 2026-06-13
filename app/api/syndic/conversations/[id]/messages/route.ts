@@ -1,6 +1,7 @@
 // app/api/syndic/conversations/[id]/messages/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { Json } from '@/lib/database-types'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { isSyndicRole } from '@/lib/auth-helpers'
@@ -89,8 +90,10 @@ export async function POST(
       conversation_id: id,
       role: parsed.data.role,
       content: parsed.data.content,
-      tool_calls: parsed.data.tool_calls ?? null,
-      metadata: parsed.data.metadata ?? null,
+      // Frontière jsonb : tool_calls/metadata sont validés par Zod depuis req.json(),
+      // donc JSON-sérialisables.
+      tool_calls: (parsed.data.tool_calls as Json) ?? null,
+      metadata: (parsed.data.metadata as Json) ?? null,
     })
     .select()
     .single()

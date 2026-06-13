@@ -1,120 +1,28 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// /api/portugal-fiscal/series — Manage document series
+// /api/portugal-fiscal/series — DISABLED (lockdown fiscal PT, audit FNC-08)
 // ══════════════════════════════════════════════════════════════════════════════
-// GET  — List artisan's series
-// POST — Create or update a series (with AT validation code)
+// La table `pt_fiscal_series` n'existe PAS dans le schéma live et n'est pas
+// dans le lot de migrations en attente (lockdown fiscal volontaire) : toute
+// requête échouait en 500. Même raison de fond que saft-export — Vitfix.io
+// n'est PAS un logiciel certifié AT (Decreto-Lei 28/2019) : gérer des séries
+// fiscales PT sans certification n'a pas de base légale.
+//
+// Code original (GET liste des séries / POST création-mise à jour) disponible
+// dans l'historique git si réactivation suite à certification AT
+// (cf. docs/integrations/pt-fatura-reactivation.md).
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { logger } from '@/lib/logger'
-import { validateBody, ptFiscalSeriesSchema } from '@/lib/validation'
+import { NextResponse } from 'next/server'
 
-// GET /api/portugal-fiscal/series — List artisan's document series
-export async function GET(request: NextRequest) {
-  try {
-    const user = await getAuthUser(request)
-    if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+const DISABLED_PAYLOAD = {
+  error: 'PT fiscal series management disabled',
+  reason: 'Vitfix is not AT-certified (Decreto-Lei 28/2019). Use third-party certified software (Moloni, InvoiceXpress) for fiscal series management in Portugal.',
+} as const
 
-    const { data, error } = await supabaseAdmin
-      .from('pt_fiscal_series')
-      .select('*')
-      .eq('artisan_id', user.id)
-      .order('fiscal_year', { ascending: false })
-      .order('doc_type', { ascending: true })
-
-    if (error) {
-      logger.error('[pt-series] GET error:', error.message)
-      return NextResponse.json({ error: 'Erro ao consultar séries' }, { status: 500 })
-    }
-
-    return NextResponse.json({ series: data || [] })
-  } catch (err) {
-    logger.error('[portugal-fiscal/series/GET] Unexpected error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export async function GET() {
+  return NextResponse.json(DISABLED_PAYLOAD, { status: 410 })
 }
 
-// POST /api/portugal-fiscal/series — Create or update a series
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getAuthUser(request)
-    if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-
-    const body = await request.json()
-    const validation = validateBody(ptFiscalSeriesSchema, body)
-    if (!validation.success) {
-      return NextResponse.json({ error: validation.error }, { status: 400 })
-    }
-    const {
-      seriesPrefix = 'VTF',
-      docType,           // "FT", "FR", "FS", "NC", "ND", "OR"
-      validationCode,    // AT-assigned code
-      fiscalYear,
-      fiscalSpace = 'PT',
-    } = validation.data
-
-    // Valid doc types
-    const validTypes = ['FT', 'FR', 'FS', 'NC', 'ND', 'OR']
-    if (!validTypes.includes(docType)) {
-      return NextResponse.json({ error: `Tipo de documento inválido. Valores aceites: ${validTypes.join(', ')}` }, { status: 400 })
-    }
-
-    // Check if series already exists
-    const { data: existing } = await supabaseAdmin
-      .from('pt_fiscal_series')
-      .select('id')
-      .eq('artisan_id', user.id)
-      .eq('series_prefix', seriesPrefix)
-      .eq('doc_type', docType)
-      .eq('fiscal_year', fiscalYear)
-      .single()
-
-    if (existing) {
-      // Update validation code
-      const { data, error } = await supabaseAdmin
-        .from('pt_fiscal_series')
-        .update({
-          validation_code: validationCode,
-          fiscal_space: fiscalSpace,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-        .select()
-        .single()
-
-      if (error) {
-        logger.error('[pt-series] Update error:', error.message)
-        return NextResponse.json({ error: 'Erro ao atualizar série' }, { status: 500 })
-      }
-
-      return NextResponse.json({ series: data, updated: true })
-    }
-
-    // Create new series
-    const { data, error } = await supabaseAdmin
-      .from('pt_fiscal_series')
-      .insert({
-        artisan_id: user.id,
-        series_prefix: seriesPrefix,
-        doc_type: docType,
-        validation_code: validationCode,
-        current_seq: 0,
-        fiscal_year: fiscalYear,
-        fiscal_space: fiscalSpace,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logger.error('[pt-series] Insert error:', error.message)
-      return NextResponse.json({ error: 'Erro ao criar série' }, { status: 500 })
-    }
-
-    return NextResponse.json({ series: data, created: true })
-  } catch (err) {
-    logger.error('[portugal-fiscal/series/POST] Unexpected error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export async function POST() {
+  return NextResponse.json(DISABLED_PAYLOAD, { status: 410 })
 }

@@ -11,7 +11,9 @@ interface ChantierItem {
   dateFin: string; statut: string; equipe: string
 }
 
-interface SousTache {
+// `type` (et non `interface`) : signature d'index implicite → assignable à Json
+// pour l'écriture jsonb `chantiers_btp.sous_taches` sans cast.
+type SousTache = {
   id: string; nom: string; chantierId: string; responsable: string
   debut: string; fin: string; avancement: number; couleur: string
 }

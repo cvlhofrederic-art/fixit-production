@@ -1,5 +1,5 @@
 // P1 Léa Documents — Panel collapsible avec drag & drop + liste paginée.
-// Référence /api/syndic/lea-documents{,/upload,/[id]} (cf 20260521_lea_documents.sql).
+// Référence /api/syndic/lea-documents{,/upload,/[id]} (cf 20260521000002_lea_documents.sql).
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'

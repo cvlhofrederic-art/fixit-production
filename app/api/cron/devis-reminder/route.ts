@@ -48,58 +48,87 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'No pending devis', results })
     }
 
+    // TSQ-08 : batcher les lookups AVANT la boucle (évitait ~4 round-trips par devis)
+    const bookingIds = [...new Set(messages.map(m => m.booking_id))]
+
+    // 1 seul SELECT : tous les devis_signed des bookings concernés
+    const { data: signedMsgs, error: signedError } = await supabaseAdmin
+      .from('booking_messages')
+      .select('booking_id')
+      .eq('type', 'devis_signed')
+      .in('booking_id', bookingIds)
+
+    if (signedError) {
+      logger.error('[cron/devis-reminder] Signed query error:', { error: signedError.message })
+      return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+    }
+    const signedBookingIds = new Set((signedMsgs || []).map(m => m.booking_id))
+
+    // 1 seul SELECT : tous les bookings + artisan associé
+    const { data: bookingRows, error: bookingsError } = await supabaseAdmin
+      .from('bookings')
+      .select('id, client_id, artisan_id, profiles_artisan:artisan_id(company_name, user_id)')
+      .in('id', bookingIds)
+
+    if (bookingsError) {
+      logger.error('[cron/devis-reminder] Bookings query error:', { error: bookingsError.message })
+      return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+    }
+    const bookingMap = new Map((bookingRows || []).map(b => [b.id, b]))
+
+    // getUserById reste par-utilisateur (API auth) mais dédupliqué (client + artisan)
+    type AuthUser = NonNullable<Awaited<ReturnType<typeof supabaseAdmin.auth.admin.getUserById>>['data']['user']>
+    const userCache = new Map<string, AuthUser | null>()
+    const getUserCached = async (userId: string): Promise<AuthUser | null> => {
+      const cached = userCache.get(userId)
+      if (cached !== undefined) return cached
+      const { data } = await supabaseAdmin.auth.admin.getUserById(userId)
+      const user = data?.user ?? null
+      userCache.set(userId, user)
+      return user
+    }
+
     for (const msg of messages) {
       try {
-        const meta = msg.metadata as Record<string, any> || {}
+        // Lecture jsonb → métier (champs posés par l'envoi du devis)
+        const meta = (msg.metadata ?? {}) as { signed?: boolean; docNumber?: string; totalStr?: string }
 
         // Skip if already signed
         if (meta.signed === true) { results.skipped++; continue }
 
-        // Check if a devis_signed message exists for this booking
-        const { data: signedMsg } = await supabaseAdmin
-          .from('booking_messages')
-          .select('id')
-          .eq('booking_id', msg.booking_id)
-          .eq('type', 'devis_signed')
-          .maybeSingle()
-
-        if (signedMsg) { results.skipped++; continue }
+        // Check if a devis_signed message exists for this booking (lookup batché)
+        if (signedBookingIds.has(msg.booking_id)) { results.skipped++; continue }
 
         // Check if we already sent a reminder for this devis (avoid spam)
         // Use a simple check: if created_at is older than 6 days, skip (only remind once at J+3)
         const sixDaysAgo = new Date()
         sixDaysAgo.setDate(sixDaysAgo.getDate() - 6)
-        if (new Date(msg.created_at) < sixDaysAgo) { results.skipped++; continue }
+        if (!msg.created_at || new Date(msg.created_at) < sixDaysAgo) { results.skipped++; continue }
 
-        // Fetch booking + client
-        const { data: booking } = await supabaseAdmin
-          .from('bookings')
-          .select('client_id, artisan_id, profiles_artisan:artisan_id(company_name, user_id)')
-          .eq('id', msg.booking_id)
-          .single()
-
+        // Booking + client (lookup batché)
+        const booking = bookingMap.get(msg.booking_id)
         if (!booking?.client_id) { results.skipped++; continue }
 
-        const { data: clientAuth } = await supabaseAdmin.auth.admin.getUserById(booking.client_id)
-        if (!clientAuth?.user?.email) { results.skipped++; continue }
+        const clientUser = await getUserCached(booking.client_id)
+        if (!clientUser?.email) { results.skipped++; continue }
 
-        const artisan = booking.profiles_artisan as any
+        const artisan = booking.profiles_artisan
         let artisanName = artisan?.company_name || 'Artisan'
         if (artisan?.user_id) {
-          const { data: artisanAuth } = await supabaseAdmin.auth.admin.getUserById(artisan.user_id)
-          if (artisanAuth?.user?.user_metadata?.full_name) artisanName = artisanAuth.user.user_metadata.full_name
+          const artisanUser = await getUserCached(artisan.user_id)
+          if (artisanUser?.user_metadata?.full_name) artisanName = artisanUser.user_metadata.full_name
         }
 
         const emailData = templateDevisReminder({
-          clientName: clientAuth.user.user_metadata?.full_name || clientAuth.user.email.split('@')[0],
+          clientName: clientUser.user_metadata?.full_name || clientUser.email.split('@')[0],
           artisanName,
           companyName: artisan?.company_name || 'Artisan',
           docNumber: meta.docNumber || '---',
           totalStr: meta.totalStr || '---',
-          locale: clientAuth.user.user_metadata?.locale === 'pt' ? 'pt' : 'fr',
+          locale: clientUser.user_metadata?.locale === 'pt' ? 'pt' : 'fr',
         })
 
-        const result = await sendEmail({ to: clientAuth.user.email, ...emailData })
+        const result = await sendEmail({ to: clientUser.email, ...emailData })
         if (result.success) results.sent++
         else { results.errors++; logger.warn('[cron/devis-reminder] Email failed:', { msgId: msg.id, error: result.error }) }
       } catch (e) {

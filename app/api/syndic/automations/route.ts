@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { Json } from '@/lib/database-types'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { evaluateCron } from '@/lib/scheduler/cron-evaluator'
@@ -90,7 +91,8 @@ export async function POST(req: NextRequest) {
       task_type: parsed.data.task_type,
       cron_expr: parsed.data.cron_expr,
       timezone: parsed.data.timezone,
-      params: parsed.data.params,
+      // Frontière jsonb : params est validé par Zod depuis req.json(), donc JSON-sérialisable.
+      params: parsed.data.params as Json,
       locale: parsed.data.locale,
       next_run_at: cronEval.next.toISOString(),
     })

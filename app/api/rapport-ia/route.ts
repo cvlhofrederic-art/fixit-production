@@ -58,17 +58,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Charger le client si disponible
+    // NB : la table `clients` n'existe pas dans le schéma live (audit P2 data
+    // layer) — l'ancienne requête échouait toujours et retombait sur les valeurs
+    // par défaut. Le profil client vit dans profiles_client (clé user_id =
+    // bookings.client_id). Pas de colonne civilite en live → reste undefined.
     let clientPrenom = 'le client'
-    let clientCivilite: string | undefined
+    const clientCivilite: string | undefined = undefined
     if (booking.client_id) {
       const { data: client } = await supabaseAdmin
-        .from('clients')
-        .select('first_name, last_name, civilite')
-        .eq('id', booking.client_id)
+        .from('profiles_client')
+        .select('first_name, last_name')
+        .eq('user_id', booking.client_id)
         .maybeSingle()
       if (client) {
         clientPrenom = client.first_name || client.last_name || 'le client'
-        clientCivilite = client.civilite || undefined
       }
     }
 

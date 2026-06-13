@@ -83,9 +83,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    // Colonnes réelles de marches_candidatures : `disponibilites` est aliasé depuis
+    // artisan_disponibilite (contrat front SousTraitanceOffresSection) ;
+    // `experience_years` et `artisan_phone` n'existent pas en base — le téléphone
+    // est tiré du profil artisan plus bas (usage front : bouton « Appeler »).
     const { data: candidatures, error } = await supabaseAdmin
       .from('marches_candidatures')
-      .select('id, artisan_id, artisan_user_id, price, timeline, description, disponibilites, experience_years, artisan_company_name, artisan_rating, artisan_phone, materials_included, guarantee, status, created_at')
+      .select('id, artisan_id, artisan_user_id, price, timeline, description, disponibilites:artisan_disponibilite, artisan_company_name, artisan_rating, materials_included, guarantee, status, created_at')
       .eq('marche_id', offerId)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -95,17 +99,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    // Enrich with artisan profile
-    const enriched = await Promise.all(
-      (candidatures || []).map(async (c: { artisan_id: string; [key: string]: unknown }) => {
-        const { data: profile } = await supabaseAdmin
+    // Enrich with artisan profiles — un seul .in() au lieu d'un .single() par candidature (N+1)
+    const artisanIds = [...new Set((candidatures || []).map((c) => c.artisan_id).filter(Boolean))]
+
+    const { data: profiles, error: profilesError } = artisanIds.length > 0
+      ? await supabaseAdmin
           .from('profiles_artisan')
-          .select('company_name, rating_avg, photo_url, city, services_offered, rc_pro_valid, decennale_valid, qualibat_valid')
-          .eq('id', c.artisan_id)
-          .single()
-        return { ...c, profile: profile || null }
-      })
-    )
+          .select('id, company_name, rating_avg, profile_photo_url, company_city, phone, rc_pro_valid, decennale_valid, qualibat_valid')
+          .in('id', artisanIds)
+      : { data: [], error: null }
+
+    if (profilesError) {
+      logger.error('[st] GET candidatures profiles error', { error: profilesError.message })
+    }
+
+    const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+
+    const enriched = (candidatures || []).map((c) => {
+      const p = profilesById.get(c.artisan_id)
+      return {
+        ...c,
+        // Pas de colonne artisan_phone sur marches_candidatures : contact via le profil.
+        artisan_phone: p?.phone ?? null,
+        // Contrat de réponse front (SousTraitanceOffresSection) : clés photo_url / city
+        // mappées depuis les colonnes réelles profile_photo_url / company_city.
+        profile: p
+          ? {
+              company_name: p.company_name,
+              rating_avg: p.rating_avg,
+              photo_url: p.profile_photo_url,
+              city: p.company_city,
+              rc_pro_valid: p.rc_pro_valid,
+              decennale_valid: p.decennale_valid,
+              qualibat_valid: p.qualibat_valid,
+            }
+          : null,
+      }
+    })
 
     return NextResponse.json({ candidatures: enriched })
   }
@@ -159,11 +189,15 @@ export async function GET(request: NextRequest) {
       .eq('user_id', artisanUserId)
       .single()
 
-    if (artisan?.latitude && artisan?.longitude) {
+    // Constantes locales : le narrowing de artisan.latitude/longitude (number | null)
+    // ne se propage pas dans le callback de map — on fige des `const` non-nulles avant.
+    const aLat = artisan?.latitude
+    const aLng = artisan?.longitude
+    if (aLat && aLng) {
       offers = offers.map((o) => {
         if (o.location_lat && o.location_lng) {
           const distance_km = Math.round(
-            haversineDistance(artisan.latitude, artisan.longitude, o.location_lat as number, o.location_lng as number) * 10
+            haversineDistance(aLat, aLng, o.location_lat as number, o.location_lng as number) * 10
           ) / 10
           return { ...o, distance_km }
         }

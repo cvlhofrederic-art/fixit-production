@@ -26,11 +26,20 @@ export async function GET(request: NextRequest) {
       .from('subscriptions')
       .select('*', { count: 'exact' })
 
+    // Colonnes réelles de `subscriptions` : plan_id / status (cf. lib/database-types.ts).
+    // Le filtre front envoie starter / pro / business, mais les valeurs réelles de
+    // plan_id sont artisan_starter / artisan_pro (lib/stripe.ts PLANS) → on matche les
+    // deux formes (valeur préfixée + éventuel legacy brut). `business` n'a aucun plan
+    // documenté : le filtre brut est conservé tel quel (résultat vide, comme avant).
+    const PLAN_FILTER_MAP: Record<string, string[]> = {
+      starter: ['artisan_starter', 'starter'],
+      pro: ['artisan_pro', 'pro'],
+    }
     if (planFilter) {
-      query = query.eq('subscription_plan', planFilter)
+      query = query.in('plan_id', PLAN_FILTER_MAP[planFilter] ?? [planFilter])
     }
     if (statusFilter) {
-      query = query.eq('subscription_status', statusFilter)
+      query = query.eq('status', statusFilter)
     }
 
     query = query
@@ -49,7 +58,11 @@ export async function GET(request: NextRequest) {
     const emailMap = new Map<string, string>()
 
     if (userIds.length > 0) {
-      const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000, page: 1 })
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000, page: 1 })
+      if (authError) {
+        // Mode dégradé : la liste des abonnements reste exploitable sans les emails
+        logger.warn('[admin/subscriptions] Auth list failed — emails non résolus', { error: authError.message })
+      }
       if (authData?.users) {
         for (const u of authData.users) {
           if (userIds.includes(u.id)) {
@@ -63,8 +76,8 @@ export async function GET(request: NextRequest) {
       id: s.id,
       user_id: s.user_id,
       user_email: emailMap.get(s.user_id) || '',
-      plan: s.subscription_plan || 'starter',
-      status: s.subscription_status || 'unknown',
+      plan: s.plan_id || 'starter',
+      status: s.status || 'unknown',
       stripe_customer_id: s.stripe_customer_id ? `***${s.stripe_customer_id.slice(-6)}` : null,
       current_period_end: s.current_period_end || null,
       cancel_at_period_end: s.cancel_at_period_end || false,

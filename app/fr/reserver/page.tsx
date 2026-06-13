@@ -46,10 +46,15 @@ function ReserverContent() {
   }, [artisanId, serviceId])
 
   const fetchData = async () => {
+    // Garde de narrowing : fetchData n'est appelé que si artisanId && serviceId
+    // (cf. useEffect ci-dessus) — rend la non-nullité visible au typage.
+    if (!artisanId || !serviceId) return
     try {
       // Fetch artisan + service data
+      // TSQ-07 : seul company_name est lu sur le profil artisan dans cette page
+      // (récapitulatif) — plus de select('*') qui exposait 89 colonnes (PII) à l'anon.
       const [artisanRes, serviceRes] = await Promise.all([
-        supabase.from('profiles_artisan').select('*').eq('id', artisanId).single(),
+        supabase.from('profiles_artisan').select('id, company_name').eq('id', artisanId).single(),
         supabase.from('services').select('*').eq('id', serviceId).single(),
       ])
 

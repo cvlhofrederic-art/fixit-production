@@ -141,17 +141,25 @@ export async function POST(request: NextRequest) {
 
 async function handleReferralPaymentVerification(userId: string, stripeCustomerId: string) {
   try {
+    // TSQ-10 : chaque requête capture { error } — une erreur DB n'est PAS
+    // une absence de ligne : on logge et on sort explicitement, sinon la
+    // validation anti-fraude serait sautée sans trace.
+
     // 1. Trouver le profil artisan
-    const { data: artisan } = await supabaseAdmin
+    const { data: artisan, error: artisanError } = await supabaseAdmin
       .from('profiles_artisan')
       .select('id, referral_parrain_id')
       .eq('user_id', userId)
       .maybeSingle()
 
+    if (artisanError) {
+      log.error('Referral verification aborted: artisan lookup failed', { userId: userId.substring(0, 8), dbError: artisanError.message })
+      return
+    }
     if (!artisan?.referral_parrain_id) return // Pas de parrain → rien à faire
 
     // 2. Trouver le referral en statut 'inscrit' pour ce filleul
-    const { data: referral } = await supabaseAdmin
+    const { data: referral, error: referralError } = await supabaseAdmin
       .from('referrals')
       .select('id, parrain_id, risk_score, statut')
       .eq('filleul_id', artisan.id)
@@ -160,17 +168,28 @@ async function handleReferralPaymentVerification(userId: string, stripeCustomerI
       .limit(1)
       .maybeSingle()
 
-    if (!referral) return
+    if (referralError) {
+      log.error('Referral verification aborted: referral lookup failed', { artisanId: artisan.id, dbError: referralError.message })
+      return
+    }
+    if (!referral) return // Pas de referral en attente → rien à faire
 
     // 3. Comparer les moyens de paiement (fingerprint Stripe)
     let memePaymentMethod = false
     const stripeClient = getStripe()
 
-    const { data: parrain } = await supabaseAdmin
+    // maybeSingle : distingue « parrain introuvable » (data null, toléré —
+    // la comparaison PM est simplement sautée) d'une vraie erreur DB (abort)
+    const { data: parrain, error: parrainError } = await supabaseAdmin
       .from('profiles_artisan')
       .select('user_id')
       .eq('id', referral.parrain_id)
-      .single()
+      .maybeSingle()
+
+    if (parrainError) {
+      log.error('Referral verification aborted: parrain lookup failed', { referralId: referral.id, dbError: parrainError.message })
+      return
+    }
 
     if (parrain?.user_id) {
       const parrainSub = await getUserSubscription(parrain.user_id)

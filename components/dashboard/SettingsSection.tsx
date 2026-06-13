@@ -279,16 +279,20 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
+      // ⚠️ Audit P2 : la colonne referral_notifications_enabled n'existe pas dans le
+      // schéma live de profiles_artisan — la sélectionner faisait échouer TOUTE la
+      // requête (400 PostgREST), donc code/crédits/parrainages ne se chargeaient
+      // jamais. On ne sélectionne que les colonnes réelles ; la préférence notif
+      // reste à sa valeur par défaut (true), comme avant.
       const { data } = await supabase
         .from('profiles_artisan')
-        .select('referral_code, credit_mois_gratuits, total_parrainages_reussis, referral_notifications_enabled')
+        .select('referral_code, credit_mois_gratuits, total_parrainages_reussis')
         .eq('id', artisanId)
         .single()
       if (data) {
         setReferralCode(data.referral_code || '')
         setCreditMois(data.credit_mois_gratuits || 0)
         setTotalParrainages(data.total_parrainages_reussis || 0)
-        setNotifEnabled(data.referral_notifications_enabled !== false)
       }
     } catch { /* silent */ }
     setLoading(false)
@@ -308,14 +312,12 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
 
   const toggleNotifications = async () => {
     setSavingNotif(true)
-    const newVal = !notifEnabled
-    try {
-      await supabase
-        .from('profiles_artisan')
-        .update({ referral_notifications_enabled: newVal })
-        .eq('id', artisanId)
-      setNotifEnabled(newVal)
-    } catch { /* silent */ }
+    // ⚠️ Audit P2 : referral_notifications_enabled n'existe pas en base — l'UPDATE
+    // échouait silencieusement depuis toujours (préférence jamais persistée).
+    // On conserve le toggle local (comportement visible inchangé) sans envoyer
+    // une requête vouée à l'échec. Persistance réelle = ajouter la colonne via
+    // migration, hors périmètre de ce lot.
+    setNotifEnabled(!notifEnabled)
     setSavingNotif(false)
   }
 
@@ -518,7 +520,9 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
           .eq('id', artisanId)
           .single()
         if (cancelled) return
-        const zones = data?.intervention_zones
+        // jsonb → métier : intervention_zones = { regions?, departments?, cities? }
+        // (forme écrite par /api/artisan-settings, cf. save() ci-dessous) — cast à la lecture.
+        const zones = data?.intervention_zones as { regions?: string[]; departments?: string[]; cities?: string[] } | null | undefined
         if (!error && zones && (Array.isArray(zones.regions) || Array.isArray(zones.departments) || Array.isArray(zones.cities))) {
           setSelectedRegions(Array.isArray(zones.regions) ? zones.regions : [])
           setSelectedDepts(Array.isArray(zones.departments) ? zones.departments : [])

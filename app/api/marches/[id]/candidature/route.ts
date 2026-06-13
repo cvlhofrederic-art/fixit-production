@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { createCandidatureSchema, validateBody, VALID_UUID } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { haversineDistance } from '@/lib/geo'
 
 // POST /api/marches/[id]/candidature — soumettre une candidature (artisan pro uniquement)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Vérifier que le marché existe et est ouvert
   const { data: marche, error: marcheError } = await supabaseAdmin
     .from('marches')
-    .select('id, status, deadline, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat')
+    .select('id, status, deadline, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, location_lat, location_lng')
     .eq('id', marcheId)
     .single()
 
@@ -39,14 +40,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // V2: Vérifier le nombre maximum de candidatures
-  if (marche.max_candidatures && marche.candidatures_count >= marche.max_candidatures) {
+  if (marche.max_candidatures && (marche.candidatures_count ?? 0) >= marche.max_candidatures) {
     return NextResponse.json({ error: 'Nombre maximum de candidatures atteint' }, { status: 409 })
   }
 
   // Vérifier que l'utilisateur est un artisan pro
+  // (colonne réelle : company_city — `city` n'existe pas sur profiles_artisan,
+  // la requête échouait en prod → 403 systématique sur toute candidature)
   const { data: artisan, error: artisanError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select('id, subscription_tier, company_name, city, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
+    .select('id, subscription_tier, company_name, company_city, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, rating_avg, rating_count, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
     .eq('user_id', user.id)
     .single()
 
@@ -55,16 +58,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // Vérifier l'abonnement Pro (via profil ou table subscriptions)
+  // (colonne réelle : plan_id — `plan` n'existe pas sur subscriptions, la requête
+  // échouait en prod → les abonnés Stripe sans subscription_tier étaient rejetés)
   let isPro = artisan.subscription_tier === 'artisan_pro'
   if (!isPro) {
     const { data: sub } = await supabaseAdmin
       .from('subscriptions')
-      .select('status, plan')
+      .select('status, plan_id')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .single()
 
-    isPro = !!sub && sub.plan === 'artisan_pro'
+    isPro = !!sub && sub.plan_id === 'artisan_pro'
   }
 
   if (!isPro) {
@@ -110,15 +115,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   const v = validation.data
 
+  // Distance artisan ↔ chantier (snapshot, en km arrondi à 0,1) si les deux
+  // couples de coordonnées sont connus.
+  const artisanDistanceKm =
+    artisan.latitude != null && artisan.longitude != null &&
+    marche.location_lat != null && marche.location_lng != null
+      ? Math.round(haversineDistance(artisan.latitude, artisan.longitude, marche.location_lat, marche.location_lng) * 10) / 10
+      : null
+
   // Insérer la candidature
+  // (colonne réelle : artisan_company_name — `artisan_name` et `artisan_city`
+  // n'existent pas sur marches_candidatures, l'insert échouait en prod)
+  // Les colonnes artisan_* sont un SNAPSHOT du profil au moment de la candidature :
+  // le publisher les lit via le GET (aliasées sans préfixe) — sans elles, les badges
+  // RC Pro / décennale / RGE / QualiBAT, la note et la distance restaient vides.
   const { data: candidature, error: insertError } = await supabaseAdmin
     .from('marches_candidatures')
     .insert({
       marche_id: marcheId,
       artisan_id: artisan.id,
       artisan_user_id: user.id,
-      artisan_name: artisan.company_name || 'Artisan',
-      artisan_city: artisan.city || null,
+      artisan_company_name: artisan.company_name || 'Artisan',
+      artisan_rc_pro_valid: artisan.rc_pro_valid,
+      artisan_decennale_valid: artisan.decennale_valid,
+      artisan_rge_valid: artisan.rge_valid,
+      artisan_qualibat_valid: artisan.qualibat_valid,
+      artisan_rating: artisan.rating_avg,
+      artisan_rating_count: artisan.rating_count,
+      artisan_distance_km: artisanDistanceKm,
+      artisan_work_mode: artisan.marches_work_mode,
+      artisan_tarif_journalier: artisan.marches_tarif_journalier,
+      artisan_tarif_horaire: artisan.marches_tarif_horaire,
       price: v.price,
       timeline: v.timeline,
       description: v.description,
@@ -134,18 +161,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  // Incrémenter le compteur de candidatures sur le marché
-  await supabaseAdmin.rpc('increment_counter', {
-    table_name: 'marches',
-    column_name: 'candidatures_count',
-    row_id: marcheId,
-  }).then(null, () => {
-    // Fallback : mise à jour directe si la fonction RPC n'existe pas
-    return supabaseAdmin
+  // Mettre à jour le compteur de candidatures sur le marché.
+  // La RPC increment_counter n'existe pas en base (l'appel échouait toujours) et
+  // l'ancien fallback read-modify-write (valeur lue + 1) perdait des incréments
+  // concurrents. À la place : COUNT serveur sur marches_candidatures (source de
+  // vérité) puis update — convergent même en cas de candidatures simultanées.
+  const { count, error: countError } = await supabaseAdmin
+    .from('marches_candidatures')
+    .select('id', { count: 'exact', head: true })
+    .eq('marche_id', marcheId)
+
+  if (countError) {
+    logger.error('[marches/candidature] candidatures count error', { error: countError.message, marcheId })
+  } else {
+    const { error: counterError } = await supabaseAdmin
       .from('marches')
-      .update({ candidatures_count: (marche as Record<string, unknown>).candidatures_count as number + 1 || 1 })
+      .update({ candidatures_count: count ?? 0 })
       .eq('id', marcheId)
-  })
+    if (counterError) {
+      logger.error('[marches/candidature] candidatures_count update error', { error: counterError.message, marcheId })
+    }
+  }
 
   return NextResponse.json({ candidature }, { status: 201 })
 }
@@ -203,10 +239,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .single()
 
     if (marche && token === marche.access_token) {
-      // Publisher : voir toutes les candidatures
+      // Publisher : voir toutes les candidatures.
+      // Le front (app/fr/marches/gerer/GererMarcheClient.tsx) lit les champs SANS
+      // préfixe (c.rc_pro_valid, c.rating, c.distance…) alors que les colonnes live
+      // sont préfixées artisan_* → alias PostgREST vers les noms attendus.
+      // NB : artisan_city n'a AUCUNE colonne sur marches_candidatures — le front la
+      // conditionne (rien ne s'affiche si absente) ; à ajouter via migration si besoin.
       const { data: candidatures, error } = await supabaseAdmin
         .from('marches_candidatures')
-        .select('*')
+        .select(
+          '*, artisan_name:artisan_company_name, rc_pro_valid:artisan_rc_pro_valid, decennale_valid:artisan_decennale_valid, rge_valid:artisan_rge_valid, qualibat_valid:artisan_qualibat_valid, rating:artisan_rating, review_count:artisan_rating_count, distance:artisan_distance_km, work_mode:artisan_work_mode, tarif_journalier:artisan_tarif_journalier, tarif_horaire:artisan_tarif_horaire'
+        )
         .eq('marche_id', marcheId)
         .order('created_at', { ascending: false })
         .range(from, to)

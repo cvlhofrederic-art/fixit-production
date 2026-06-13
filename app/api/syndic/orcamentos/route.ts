@@ -1,13 +1,12 @@
 // app/api/syndic/orcamentos/route.ts
 // Phase A — Orçamentos individuels par obra (comparaison « 3 orçamentos », Lei 8/2022).
 // GET (liste cabinet, triée par valeur croissante) + POST (création), via la factory CRUD.
-import type { z } from 'zod'
 import { createSyndicCrudRoute, str, num, bool, type Row } from '@/lib/syndic/v54/crud-route'
 import { syndicOrcamentoSchema } from '@/lib/validation'
 
-type OrcamentoIn = z.infer<typeof syndicOrcamentoSchema>
-
-export const { GET, POST } = createSyndicCrudRoute<OrcamentoIn>({
+// TIn (z.infer du schéma) et TTable (littéral `table`) s'infèrent de la config —
+// un argument générique explicite bloquerait l'inférence du nom de table.
+export const { GET, POST } = createSyndicCrudRoute({
   table: 'syndic_orcamentos',
   select: 'id, cabinet_id, obra_id, empresa, valor, prazo_dias, validade, notas, recomendado, created_at',
   orderBy: 'valor',

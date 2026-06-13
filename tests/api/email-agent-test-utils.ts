@@ -19,9 +19,11 @@ export const GMAIL_SECRET = 'gmail-webhook-secret-test'
 
 // ── Chaînes Supabase mockées ─────────────────────────────────────────────────
 
-// supabaseAdmin chaînable, chemin tokens du poll (syndic_oauth_tokens) :
-// select/eq/update/delete retournent la chaîne, single résout data:null par
-// défaut → la boucle `continue` immédiatement, aucun appel Gmail.
+// supabaseAdmin chaînable, chemin tokens du poll (syndic_oauth_tokens).
+// Depuis la refonte chiffrement applicatif (TSQ-02), la route ne lit plus les
+// colonnes claires : le lookup token passe par getDecryptedToken (mocké via
+// makeOauthTokensMock, null par défaut → la boucle `continue` immédiatement).
+// Cette chaîne couvre les accès résiduels (listing cron, update/delete refresh).
 export function makeTokensChain() {
   const single = vi.fn().mockResolvedValue({ data: null, error: null })
   const chain: Record<string, unknown> = {}
@@ -146,6 +148,17 @@ export function makePollRequest(opts: { internalToken?: string } = {}) {
     method: 'POST',
     headers,
     body: JSON.stringify({ syndic_id: SYNDIC_ID }),
+  })
+}
+
+// Requête du chemin cron : pas de syndic_id, auth par header x-cron-key.
+export function makeCronPollRequest(cronKey?: string) {
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (cronKey !== undefined) headers['x-cron-key'] = cronKey
+  return new Request('http://localhost:3000/api/email-agent/poll', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({}),
   })
 }
 

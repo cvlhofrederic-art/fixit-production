@@ -7,30 +7,55 @@
 -- devis, factures syndic, contrats, RIB, ata AG, relevés bancaires…). L'extraction
 -- OCR + embeddings + RAG search arrivent en P2/P3 (champs nullable préparés ici).
 --
+-- 2026-06-12 (audit Phase 2, réconciliation registre) : migration jamais
+-- appliquée en prod ; rendue idempotente (DROP POLICY IF EXISTS) avant le
+-- `supabase db push` du runbook supabase/REPAIR-RUNBOOK.md.
+-- 2026-06-13 (LOT-2/LOT-3) : storage.objects/storage.buckets appartiennent à
+-- supabase_storage_admin — le rôle de migration (postgres) ne peut pas y faire
+-- de DDL, et le SQL Editor a la même limite. Section storage wrappée
+-- DO $$ … EXCEPTION WHEN insufficient_privilege → WARNING + report manuel via
+-- Dashboard > Storage (REPAIR-RUNBOOK, étape 5-bis).
+--
 -- Patterns réutilisés :
 --   - Bucket privé + RLS folder = cabinet_id (cf 20260518_cabinet_backups_bucket.sql)
 --   - Table syndic_* avec cabinet_id (cf 20260516_lea_compta_tables.sql)
 --   - pgvector + HNSW (cf 20260520_legal_corpus_embeddings.sql)
 
 -- ── 1. Bucket Supabase Storage privé ─────────────────────────────────────────
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('syndic-documents', 'syndic-documents', false)
-ON CONFLICT (id) DO NOTHING;
+DO $$
+BEGIN
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('syndic-documents', 'syndic-documents', false)
+  ON CONFLICT (id) DO NOTHING;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'storage.buckets : privilèges insuffisants — créer le bucket "syndic-documents" (privé) via Dashboard > Storage > New bucket. Cf. REPAIR-RUNBOOK étape 5-bis.';
+END $$;
 
-CREATE POLICY syndic_documents_select ON storage.objects FOR SELECT USING (
-  bucket_id = 'syndic-documents'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
+-- Policies storage (DDL → owner supabase_storage_admin requis ; le bloc est
+-- atomique : en cas d'insufficient_privilege, AUCUNE des 3 policies n'est
+-- posée et le WARNING renvoie vers l'étape manuelle Dashboard).
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS syndic_documents_select ON storage.objects;
+  CREATE POLICY syndic_documents_select ON storage.objects FOR SELECT USING (
+    bucket_id = 'syndic-documents'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
 
-CREATE POLICY syndic_documents_insert ON storage.objects FOR INSERT WITH CHECK (
-  bucket_id = 'syndic-documents'
-  AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
-);
+  DROP POLICY IF EXISTS syndic_documents_insert ON storage.objects;
+  CREATE POLICY syndic_documents_insert ON storage.objects FOR INSERT WITH CHECK (
+    bucket_id = 'syndic-documents'
+    AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
+  );
 
-CREATE POLICY syndic_documents_delete ON storage.objects FOR DELETE USING (
-  bucket_id = 'syndic-documents'
-  AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
-);
+  DROP POLICY IF EXISTS syndic_documents_delete ON storage.objects;
+  CREATE POLICY syndic_documents_delete ON storage.objects FOR DELETE USING (
+    bucket_id = 'syndic-documents'
+    AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.role() = 'service_role')
+  );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'storage.objects : privilèges insuffisants (owner = supabase_storage_admin) — créer les policies syndic_documents_select/insert/delete via Dashboard > Storage > Policies (définitions dans ce fichier). Cf. REPAIR-RUNBOOK étape 5-bis.';
+END $$;
 
 -- ── 2. Enum types ────────────────────────────────────────────────────────────
 DO $$ BEGIN
@@ -101,18 +126,22 @@ CREATE INDEX IF NOT EXISTS idx_syndic_documents_embedding_hnsw
 -- ── 4. RLS — strict isolation par cabinet_id ─────────────────────────────────
 ALTER TABLE syndic_documents ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS syndic_documents_select_own ON syndic_documents;
 CREATE POLICY syndic_documents_select_own
   ON syndic_documents FOR SELECT
   USING (cabinet_id = auth.uid());
 
+DROP POLICY IF EXISTS syndic_documents_insert_own ON syndic_documents;
 CREATE POLICY syndic_documents_insert_own
   ON syndic_documents FOR INSERT
   WITH CHECK (cabinet_id = auth.uid());
 
+DROP POLICY IF EXISTS syndic_documents_update_own ON syndic_documents;
 CREATE POLICY syndic_documents_update_own
   ON syndic_documents FOR UPDATE
   USING (cabinet_id = auth.uid());
 
+DROP POLICY IF EXISTS syndic_documents_delete_own ON syndic_documents;
 CREATE POLICY syndic_documents_delete_own
   ON syndic_documents FOR DELETE
   USING (cabinet_id = auth.uid());

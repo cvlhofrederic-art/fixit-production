@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { Json } from '@/lib/database-types'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
@@ -62,7 +63,8 @@ async function execTempoTool(
           task_type: args.task_type,
           cron_expr: args.cron_expr,
           timezone: (args.timezone as string) ?? 'Europe/Paris',
-          params: (args.params as object) ?? {},
+          // Frontière jsonb : args sort d'un JSON.parse (tool call LLM), donc JSON-sérialisable.
+          params: (args.params as Json) ?? {},
           locale: (args.locale as string) ?? 'fr',
           next_run_at: cronEval.next.toISOString(),
         })

@@ -480,7 +480,7 @@ ALTER TABLE syndic_oauth_tokens
   ADD COLUMN refresh_token_enc bytea;
 
 -- Backfill (script TS one-shot, lit clé depuis env, écrit chiffré)
--- Voir scripts/migrate-encrypt-oauth-tokens.ts
+-- (script de backfill supprimé le 2026-06-13 — audit P2 OAUT-3 ; flux actuel : lib/oauth/tokens.ts)
 
 -- Une fois backfill validé : drop colonnes plain
 ALTER TABLE syndic_oauth_tokens

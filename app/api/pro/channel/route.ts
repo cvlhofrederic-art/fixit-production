@@ -32,9 +32,16 @@ export async function GET(request: NextRequest) {
 
     // Cherche les messages entre user.id et contactId dans la table syndic_messages
     // On réutilise la table syndic_messages avec cabinet_id = pro user_id
+    // NB : pas de colonnes `type` ni `metadata` dans le schéma live de
+    // syndic_messages (audit P2 data layer) — les requêter faisait échouer
+    // tout le select (400 PostgREST). Le type de message vit dans message_type,
+    // aliasé en `type` car le front lit msg.type (CanalProSection.tsx).
+    // `metadata` n'a pas de colonne de destination : non persisté, donc le bloc
+    // voice_location du front (msg.metadata) reste muet au rechargement — il ne
+    // s'affiche que sur le message optimiste local, jusqu'à une migration dédiée.
     let query = supabaseAdmin
       .from('syndic_messages')
-      .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, message_type, type, metadata, mission_id, read_at, created_at')
+      .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, type:message_type, mission_id, read_at, created_at')
       .order('created_at', { ascending: true })
       .limit(200)
 
@@ -83,12 +90,15 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { content, contact_id, type = 'text', metadata = {} } = validation.data
+    const { content, contact_id, type = 'text' } = validation.data
 
     if (!content?.trim() && type === 'text') {
       return NextResponse.json({ error: 'Contenu requis' }, { status: 400 })
     }
 
+    // NB : syndic_messages n'a ni colonne `type` ni `metadata` en live (audit P2) —
+    // l'ancien insert échouait (colonne inconnue). Le type est porté par message_type ;
+    // metadata n'a pas de colonne de destination et n'est pas persisté.
     const msgData = {
       cabinet_id: user.id,
       artisan_user_id: contact_id || user.id,
@@ -96,8 +106,7 @@ export async function POST(request: NextRequest) {
       sender_role: role,
       sender_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pro',
       content: content?.trim() || '',
-      type,
-      metadata: JSON.stringify(metadata),
+      message_type: type,
       created_at: new Date().toISOString(),
     }
 

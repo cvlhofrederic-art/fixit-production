@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`impayes_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { from, to } = parsePagination(new URL(request.url))
 
     const { data, error } = await supabaseAdmin
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`impayes_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const validation = validateBody(syndicImpayeSchema, body)
     if (!validation.success) return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
@@ -96,6 +98,7 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`impayes_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const validation = validateBody(syndicImpayeUpdateSchema, body)
     if (!validation.success) return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })

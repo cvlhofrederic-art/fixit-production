@@ -226,13 +226,16 @@ export async function POST(req: NextRequest) {
         if (inserted) {
           // alertId déjà assigné
         } else {
-          // Fallback : insérer dans syndic_notifications
+          // Fallback : insérer dans syndic_notifications.
+          // Schéma réel (database.types.ts) : syndic_id / title / body — pas de
+          // cabinet_id ni message ; l'ancien payload faisait échouer l'insert.
           const { data: notifData, error: notifError } = await supabaseAdmin
             .from('syndic_notifications')
             .insert({
-              cabinet_id: cabinetId,
+              syndic_id: cabinetId,
               type: a.severity ?? 'normal',
-              message: a.titre ?? a.message ?? 'Alerte',
+              title: a.titre ?? a.message ?? 'Alerte',
+              body: a.message ?? a.description ?? null,
             })
             .select()
             .maybeSingle()

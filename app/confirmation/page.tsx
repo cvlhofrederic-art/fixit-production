@@ -99,10 +99,12 @@ function ConfirmationContent() {
       setBooking(bookingData)
 
       // Fetch artisan (public read works with anon key)
+      // TSQ-07 : champs réellement lus par cette page (carte artisan : initiales,
+      // nom, catégories, note) — plus de select('*') exposant 89 colonnes (PII).
       if (bookingData.artisan_id) {
         const { data: artisanData } = await supabase
           .from('profiles_artisan')
-          .select('*')
+          .select('id, company_name, categories, rating_avg, rating_count')
           .eq('id', bookingData.artisan_id)
           .single()
 

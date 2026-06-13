@@ -11,6 +11,13 @@ import {
   type KycMarket,
   type KycChecks,
 } from '@/lib/kyc-verification'
+import type { Json } from '@/lib/database-types'
+
+// KycChecks (structure métier, uniquement booléens/nombres) → colonne jsonb kyc_checks.
+// Cast documenté : exception jsonb↔métier autorisée, la structure est sérialisable telle quelle.
+function checksToJson(checks: KycChecks): Json {
+  return checks as unknown as Json
+}
 
 // ---------------------------------------------------------------------------
 // Identifiant validators
@@ -202,17 +209,18 @@ async function checkPtRegistry(
 // Market determination
 // ---------------------------------------------------------------------------
 
+// La colonne `country` n'existe pas sur profiles_artisan (schéma live, audit P2) :
+// l'ancienne branche PT était morte → tout artisan PT (NIF 9 chiffres) tombait en
+// validateSiretFormat et finissait auto-rejeté. Le marché dérive désormais de
+// `language` ('fr' | 'pt'), colonne live posée à l'inscription.
 function determineMarket(artisan: {
-  country?: string | null
+  language?: string | null
   kyc_market?: string | null
 }): KycMarket {
   if (artisan.kyc_market === 'fr_artisan') return 'fr_artisan'
   if (artisan.kyc_market === 'fr_btp') return 'fr_btp'
   if (artisan.kyc_market === 'pt_artisan') return 'pt_artisan'
-  if (
-    artisan.country === 'PT' ||
-    artisan.country === 'pt'
-  ) return 'pt_artisan'
+  if (artisan.language === 'pt') return 'pt_artisan'
   return 'fr_artisan'
 }
 
@@ -247,11 +255,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch artisan profile
+  // NB : les colonnes first_name / last_name / id_document_url / country n'existent
+  // pas dans le schéma live de profiles_artisan (audit P2 data layer). Les requêter
+  // faisait échouer tout le select (400 PostgREST) → la route répondait toujours 404.
   const { data: artisan, error: fetchError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select(
-      'id, user_id, siret, first_name, last_name, company_name, kbis_url, id_document_url, country, kyc_market',
-    )
+    .select('id, user_id, siret, company_name, kbis_url, kyc_market, language')
     .eq('id', artisan_id)
     .single()
 
@@ -304,7 +313,7 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin.from('profiles_artisan').update({
       kyc_score: score,
-      kyc_checks: checks,
+      kyc_checks: checksToJson(checks),
       kyc_status: 'rejected',
       kyc_verified_at: new Date().toISOString(),
       kyc_market: market,
@@ -392,36 +401,11 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 6 — ID document OCR
-  if (artisan.id_document_url) {
-    try {
-      const buffer = await downloadBuffer(artisan.id_document_url)
-      if (buffer) {
-        const ocr = await ocrBuffer(buffer, ocrLang)
-        if (ocr.text.length > 20) {
-          // Build full name to search in OCR text
-          const fullName = [artisan.first_name, artisan.last_name]
-            .filter(Boolean)
-            .join(' ')
-            .trim()
-
-          if (fullName && ocrRepresentant) {
-            // Compare representant from KBIS vs ID document
-            checks.nameMatchDocVsId = nameMatchScore(ocrRepresentant, fullName)
-          } else if (fullName) {
-            // Fallback: check if name appears in ID text at all
-            const idText = ocr.text.toLowerCase()
-            const nameParts = fullName.toLowerCase().split(' ').filter(p => p.length > 1)
-            const foundParts = nameParts.filter(p => idText.includes(p))
-            checks.nameMatchDocVsId = nameParts.length > 0
-              ? Math.round((foundParts.length / nameParts.length) * 75)
-              : 0
-          }
-        }
-      }
-    } catch {
-      // ID OCR failure is non-blocking
-    }
-  }
+  // DÉSACTIVÉ : les colonnes id_document_url / first_name / last_name n'existent pas
+  // dans le schéma live de profiles_artisan (audit P2 data layer) — ce check n'a donc
+  // jamais pu s'exécuter (le select échouait avant même d'arriver ici).
+  // checks.nameMatchDocVsId reste à 0 (valeur d'initialisation), comme avant.
+  // À réactiver quand les colonnes seront ajoutées par migration.
 
   // Step 7 — compute score and decision
   const score = computeKycScore(checks, market)
@@ -439,7 +423,7 @@ export async function POST(request: NextRequest) {
   // Step 8 — persist to DB
   const updatePayload: Record<string, unknown> = {
     kyc_score: score,
-    kyc_checks: checks,
+    kyc_checks: checksToJson(checks),
     kyc_status: kycStatus,
     kyc_verified_at: new Date().toISOString(),
     kyc_market: market,

@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Vérifier si l'utilisateur est l'artisan (artisan_id = profil ID, pas user.id)
-    if (!canAccess) {
+    // artisan_id nullable en DB : sans artisan rattaché, pas d'accès artisan possible
+    if (!canAccess && data.artisan_id) {
       const { data: artisanProfile } = await supabaseAdmin
         .from('profiles_artisan')
         .select('id')

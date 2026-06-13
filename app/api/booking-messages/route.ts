@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { bookingMessageSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import type { Json, TablesInsert } from '@/lib/database-types'
 
 const MESSAGE_LIMIT = 200
 const VALID_MSG_TYPES = ['text', 'photo', 'voice', 'devis_sent', 'devis_signed'] as const
@@ -25,7 +26,8 @@ async function verifyBookingAccess(bookingId: string, userId: string) {
   let isArtisan = false
   let artisanUserId = ''
 
-  if (!isClient) {
+  // artisan_id nullable en DB : sans artisan rattaché, pas d'accès artisan possible
+  if (!isClient && booking.artisan_id) {
     const { data: artisanProfile } = await supabaseAdmin
       .from('profiles_artisan')
       .select('id, user_id')
@@ -33,7 +35,7 @@ async function verifyBookingAccess(bookingId: string, userId: string) {
       .eq('id', booking.artisan_id)
       .single()
     isArtisan = !!artisanProfile
-    if (artisanProfile) artisanUserId = artisanProfile.user_id
+    if (artisanProfile) artisanUserId = artisanProfile.user_id ?? ''
   }
 
   return { booking, isClient, isArtisan, artisanUserId }
@@ -127,7 +129,7 @@ export async function POST(request: NextRequest) {
     const senderName = user.user_metadata?.full_name || user.user_metadata?.company_name || user.email?.split('@')[0] || ''
     const trimmedContent = content ? String(content).trim().substring(0, 2000) : ''
 
-    const insertPayload: Record<string, unknown> = {
+    const insertPayload: TablesInsert<'booking_messages'> = {
       booking_id,
       sender_id: user.id,
       sender_role: senderRole,
@@ -150,7 +152,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Side effects are non-blocking — failures must not affect the HTTP response
-    if (isClient) {
+    // (artisan_id nullable en DB : pas de miroir/notification sans artisan rattaché)
+    if (isClient && booking.artisan_id) {
       mirrorClientMessage({
         bookingId: booking_id,
         artisanProfileId: booking.artisan_id,
@@ -162,7 +165,7 @@ export async function POST(request: NextRequest) {
       }).catch(err => logger.error('[booking-messages] mirror client→artisan error:', err))
     }
 
-    if (isArtisan && artisanUserId) {
+    if (isArtisan && artisanUserId && booking.client_id) {
       mirrorArtisanMessage({
         artisanUserId,
         clientId: booking.client_id,
@@ -192,7 +195,7 @@ async function mirrorClientMessage({
   clientName: string
   content: string
   finalType: MsgType
-  metadata: unknown
+  metadata: Json | undefined
 }) {
   const { data: artisanProfile } = await supabaseAdmin
     .from('profiles_artisan')
@@ -297,7 +300,7 @@ async function mirrorArtisanMessage({
   bookingId: string
   content: string
   finalType: MsgType
-  metadata: unknown
+  metadata: Json | undefined
 }) {
   const { data: conv } = await supabaseAdmin
     .from('conversations')

@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { createBookingSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { sendEmail, templateBookingCreated } from '@/lib/email'
+import type { TablesInsert } from '@/lib/database-types'
 
 // GET: Fetch future bookings for an artisan (public — only slot data, no personal info)
 export async function GET(request: NextRequest) {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Build insert data ──────────────────────────────────────────────
-    const insertData: Record<string, unknown> = {
+    const insertData: TablesInsert<'bookings'> = {
       artisan_id,
       client_id: user.id,
       booking_date,

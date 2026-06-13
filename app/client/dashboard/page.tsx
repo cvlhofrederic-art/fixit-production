@@ -333,22 +333,12 @@ export default function ClientDashboardPage() {
   // ── Charger GPS tracking ──
   const loadTracking = async (booking: Booking) => {
     setTrackingModal(booking)
-    try {
-      const { data } = await supabase
-        .from('tracking_sessions')
-        .select('*')
-        .eq('booking_id', booking.id)
-        .eq('status', 'active')
-        .single()
-      if (data) {
-        setTrackingData(prev => ({
-          ...prev,
-          [booking.id]: { lat: data.lat, lng: data.lng, eta: data.eta_minutes || 0, active: true }
-        }))
-      }
-    } catch (e) {
-      console.warn('[client/dashboard] loadTracking failed:', e)
-    }
+    // ⚠️ Audit P2 : la table tracking_sessions est ABSENTE du schéma live
+    // (cf. app/api/user/delete-account/route.ts) — la requête échouait
+    // silencieusement depuis toujours et trackingData restait vide. On ouvre
+    // la modale (branche « rendez-vous prévu », comme aujourd'hui) sans
+    // émettre une requête vouée à l'échec. Réactiver la requête si la table
+    // est recréée par migration.
   }
 
   // ── Toggle favori artisan ──

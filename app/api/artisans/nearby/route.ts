@@ -25,43 +25,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Try using RPC function first (faster, server-side distance calc)
-    const { data: rpcData, error: rpcError } = await supabaseAdmin
-      .rpc('search_artisans_nearby', {
-        user_lat: lat,
-        user_lng: lng,
-        radius_km: radius,
-        country_filter: country,
-        category_filter: category,
-      })
-
-    if (!rpcError && rpcData) {
-      return NextResponse.json({
-        artisans: rpcData,
-        count: rpcData.length,
-        search: { lat, lng, radius_km: radius, country },
-      }, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-        },
-      })
-    }
-
-    // Fallback: client-side distance calc if RPC function not available
-    logger.warn('[artisans/nearby] RPC fallback:', rpcError?.message)
-
-    let query = supabaseAdmin
+    // Calcul de distance côté Node (haversine) — c'est le chemin RÉEL :
+    // la RPC search_artisans_nearby n'existe plus en live (audit P2, FNC-04),
+    // l'ancien appel échouait systématiquement et déclenchait un warn permanent
+    // avant de retomber ici. L'appel RPC mort a été retiré.
+    // NB : la colonne `country` n'existe pas non plus sur profiles_artisan en
+    // live — l'ancien filtre .eq('country', …) faisait échouer tout le select
+    // (400 PostgREST). Le paramètre `country` est conservé dans l'écho de
+    // réponse mais ne filtre plus tant que la colonne n'existe pas.
+    const { data: artisans, error } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('id, user_id, company_name, bio, categories, hourly_rate, rating_avg, rating_count, verified, active, zone_radius_km, company_city, company_postal_code, profile_photo_url, country, latitude, longitude')
+      .select('id, user_id, company_name, bio, categories, hourly_rate, rating_avg, rating_count, verified, active, zone_radius_km, company_city, company_postal_code, profile_photo_url, latitude, longitude')
       .eq('active', true)
       .not('latitude', 'is', null)
       .not('longitude', 'is', null)
-
-    if (country) {
-      query = query.eq('country', country)
-    }
-
-    const { data: artisans, error } = await query.limit(200)
+      .limit(200)
 
     if (error) {
       logger.error('[artisans/nearby] Query error:', error)

@@ -7,6 +7,7 @@
 //   await auditLog(request, userId, 'CREATE', 'syndic_missions', missionId, { description: '...' })
 
 import { supabaseAdmin } from '@/lib/supabase-server'
+import type { Json } from '@/lib/database-types'
 
 type AuditAction =
   | 'CREATE' | 'READ' | 'UPDATE' | 'DELETE'
@@ -32,7 +33,9 @@ export async function auditLog(
       action,
       table_name: tableName || null,
       record_id: recordId || null,
-      details: details || {},
+      // Cast documenté métier → jsonb : les détails d'audit sont des objets
+      // construits aux call-sites, toujours JSON-sérialisables.
+      details: (details || {}) as Json,
       ip_address: ip,
       user_agent: ua,
     })

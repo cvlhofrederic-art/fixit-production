@@ -197,32 +197,43 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // ── Notifications ─────────────────────────────────────────────────────────
   if (v.sender_type === 'publisher') {
     // Notify the artisan
-    await supabaseAdmin
+    // (colonnes réelles : artisan_notifications n'a ni user_id ni metadata —
+    // le contexte va dans data_json ; l'ancien insert échouait en prod)
+    const { error: notifError } = await supabaseAdmin
       .from('artisan_notifications')
       .insert({
         artisan_id: candidature.artisan_id,
-        user_id: candidature.artisan_user_id,
         type: 'marche_message',
         title: 'Nouveau message sur votre candidature',
         body: v.content.substring(0, 200),
-        metadata: { marche_id: marcheId, candidature_id: v.candidature_id },
+        data_json: { marche_id: marcheId, candidature_id: v.candidature_id },
       })
-      .then(null, (err: unknown) => {
-        logger.warn('[marches/messages] Failed to create artisan notification', { error: String(err) })
-      })
+    if (notifError) {
+      logger.warn('[marches/messages] Failed to create artisan notification', { error: notifError.message })
+    }
   } else {
-    // Artisan sends → increment unread count on marche
-    await supabaseAdmin.rpc('increment_counter', {
-      table_name: 'marches',
-      column_name: 'unread_messages_count',
-      row_id: marcheId,
-    }).then(null, () => {
-      // Fallback: direct update
-      return supabaseAdmin
+    // Artisan envoie → mise à jour du compteur de messages non lus côté publisher.
+    // La RPC increment_counter n'existe pas en base (l'appel échouait toujours et
+    // le fallback écrasait le compteur à 1). À la place : COUNT serveur des
+    // messages artisan non lus (read IS NOT TRUE) puis update — convergent.
+    const { count, error: countError } = await supabaseAdmin
+      .from('marches_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('marche_id', marcheId)
+      .eq('sender_type', 'artisan')
+      .not('read', 'is', true)
+
+    if (countError) {
+      logger.error('[marches/messages] unread count error', { error: countError.message, marcheId })
+    } else {
+      const { error: counterError } = await supabaseAdmin
         .from('marches')
-        .update({ unread_messages_count: 1 })
+        .update({ unread_messages_count: count ?? 0 })
         .eq('id', marcheId)
-    })
+      if (counterError) {
+        logger.error('[marches/messages] unread_messages_count update error', { error: counterError.message, marcheId })
+      }
+    }
   }
 
   return NextResponse.json({ message }, { status: 201 })

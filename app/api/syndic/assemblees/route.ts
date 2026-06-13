@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`ag_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
     // Filtres optionnels
     const statut = request.nextUrl.searchParams.get('statut')
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`ag_post_${ip}`, 15, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const body = await request.json()
     const postValidation = validateBody(syndicAssembleePostSchema, body)
     if (!postValidation.success) {
@@ -269,6 +271,7 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`ag_patch_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const body = await request.json()
     const { action } = body
 
@@ -528,6 +531,7 @@ export async function DELETE(request: NextRequest) {
     if (!(await checkRateLimit(`ag_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const type = request.nextUrl.searchParams.get('type') || 'assemblee'
     const id = request.nextUrl.searchParams.get('id')
 

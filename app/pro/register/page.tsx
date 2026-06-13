@@ -384,7 +384,10 @@ function FormulaireArtisan() {
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
         const artisanLanguage = artisanCountry === 'PT' ? 'pt' : 'fr'
-        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', phone: formData.telephone, email: formData.email, language: artisanLanguage }
+        // kyc_market dérivé de la langue du flux (comme la branche BTP) : sans lui,
+        // kyc-orchestrate retombe sur le marché FR et auto-rejette les NIF portugais.
+        const artisanMarket = artisanLanguage === 'pt' ? 'pt_artisan' : 'fr_artisan'
+        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', kyc_market: artisanMarket, phone: formData.telephone, email: formData.email, language: artisanLanguage }
         if (verifiedCompany) Object.assign(profileInsert, { legal_form: verifiedCompany.legalForm, siren: verifiedCompany.siren, naf_code: verifiedCompany.nafCode, naf_label: verifiedCompany.nafLabel, company_address: verifiedCompany.address, company_city: verifiedCompany.city, company_postal_code: verifiedCompany.postalCode })
         const profileRes = await fetch('/api/auth/create-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileInsert) })
         const profileResult = await profileRes.json()
@@ -985,13 +988,22 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
 
           if (btpProfile?.id) {
-            // Mettre à jour les URLs de documents si uploadées
-            const updates: Record<string, string> = {}
+            // Mettre à jour l'URL du KBIS si uploadée.
+            // ⚠️ Ne PAS inclure id_document_url : cette colonne n'existe pas sur
+            // profiles_artisan (schéma live, audit P2) — l'ancien update en bloc
+            // { kbis_url, id_document_url } échouait entièrement et kbis_url n'était
+            // jamais persisté. La pièce d'identité reste dans auth user_metadata
+            // (posée plus haut), lue par admin/kyc.
             const { data: { user: currentUser } } = await supabase.auth.getUser()
-            if (currentUser?.user_metadata?.kbis_url) updates.kbis_url = currentUser.user_metadata.kbis_url
-            if (currentUser?.user_metadata?.id_document_url) updates.id_document_url = currentUser.user_metadata.id_document_url
-            if (Object.keys(updates).length > 0) {
-              await supabase.from('profiles_artisan').update(updates).eq('id', btpProfile.id)
+            if (currentUser?.user_metadata?.kbis_url) {
+              const { error: kbisUpdateError } = await supabase
+                .from('profiles_artisan')
+                .update({ kbis_url: currentUser.user_metadata.kbis_url })
+                .eq('id', btpProfile.id)
+              if (kbisUpdateError) {
+                console.warn('[register] kbis_url profile update failed:', kbisUpdateError.message)
+                toast.warning('Le document KBIS a été envoyé mais n\'a pas pu être rattaché au profil — la vérification pourra prendre plus de temps.')
+              }
             }
 
             // ── KYC anti-fraude en background ──

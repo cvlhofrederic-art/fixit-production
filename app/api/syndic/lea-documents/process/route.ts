@@ -7,6 +7,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import type { Json } from '@/lib/database-types'
 import { logger } from '@/lib/logger'
 import { extractPdfText, extractMetadataFromText, type ExtractedMetadata } from '@/lib/syndic/lea-documents-extract'
 import { embedText } from '@/lib/syndic/embed'
@@ -102,8 +103,11 @@ async function processOneInner(doc: PendingDoc): Promise<{ id: string; ok: boole
       .update({
         status: 'processed',
         extracted_text: extractedText || null,
-        extracted_metadata: metadata,
-        embedding: embedding,
+        // métier → jsonb : ExtractedMetadata est Json-compatible (string/number/null)
+        // mais une interface n'a pas de signature d'index — cast contrôlé pour la colonne jsonb.
+        extracted_metadata: metadata as Json,
+        // pgvector attend la représentation texte '[x,y,…]' (cf. formatVec, lib/syndic/max-legal-rag.ts)
+        embedding: embedding ? `[${embedding.join(',')}]` : null,
         processed_at: new Date().toISOString(),
         error_message: null,
       })

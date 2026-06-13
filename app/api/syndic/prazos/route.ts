@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`prazos_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { from, to } = parsePagination(new URL(request.url))
 
     const { data, error } = await supabaseAdmin
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`prazos_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
 
     const validation = validateBody(syndicPrazoSchema, body)
@@ -93,6 +95,7 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`prazos_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const validation = validateBody(syndicPrazoUpdateSchema, body)
     if (!validation.success) {
@@ -132,6 +135,7 @@ export async function DELETE(request: NextRequest) {
     if (!(await checkRateLimit(`prazos_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const id = request.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
 

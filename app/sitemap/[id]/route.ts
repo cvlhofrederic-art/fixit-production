@@ -194,18 +194,29 @@ function investorAndIntlPages(baseUrl: string): SitemapUrl[] {
 // Sub-sitemap 4 : profils artisans vérifiés (Supabase)
 // ────────────────────────────────────────────────────────────────────────────
 
+// Formes juridiques « société » — même heuristique que la redirection canonique
+// /societe|/empresa de app/fr/artisan/[id]/page.tsx (les URLs émises ici doivent
+// pointer vers la même cible canonique).
+const COMPANY_LEGAL_FORMS = ['sarl', 'sas', 'sasu', 'eurl', 'sa', 'lda', 'unipessoal']
+
 async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
   try {
     const supabase = await createServerSupabaseClient()
+    // ⚠️ Audit P2 : les colonnes org_role / country / is_verified n'existent pas
+    // dans le schéma live de profiles_artisan — l'ancienne requête échouait en
+    // silence (400 PostgREST) et le sub-sitemap 4 était toujours vide.
+    // Colonnes réelles : verified (filtre), language ('fr'|'pt') pour la locale,
+    // legal_form pour distinguer sociétés et artisans individuels.
     const { data: artisans } = await supabase
       .from('profiles_artisan')
-      .select('id, slug, updated_at, org_role, country')
-      .eq('is_verified', true)
+      .select('id, slug, updated_at, language, legal_form')
+      .eq('verified', true)
     return (artisans || []).map((a) => {
-      const isPT = a.country === 'PT' || a.country === 'Portugal'
-      const locale = isPT ? 'pt' : 'fr'
+      const locale = a.language === 'pt' ? 'pt' : 'fr'
+      const legalFormNorm = String(a.legal_form || '').replace(/[\s.]/g, '').toLowerCase()
+      const isCompany = COMPANY_LEGAL_FORMS.some((f) => legalFormNorm === f || legalFormNorm.startsWith(f))
       const profilePath = getProfilePath(
-        { slug: a.slug, id: a.id, org_role: a.org_role },
+        { slug: a.slug, id: a.id, org_role: isCompany ? 'pro_societe' : null },
         locale,
       )
       // lastmod uniquement si updated_at présent en DB (vrai signal),

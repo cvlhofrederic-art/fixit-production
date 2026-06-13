@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
+import type { Database } from '@/lib/database-types'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { validateBody } from '@/lib/validation'
@@ -25,9 +26,23 @@ export const str = (v: unknown, d = ''): string => (typeof v === 'string' ? v : 
 export const num = (v: unknown, d = 0): number => (typeof v === 'number' ? v : Number(v) || d)
 export const bool = (v: unknown): boolean => !!v
 
-interface CrudConfig<TIn> {
+// `table: string` forçait supabase-js à instancier l'union des ~138 tables du
+// schéma (TS2589 « type instantiation excessively deep »). On contraint donc la
+// config à un nom de table précis : chaque route passe un littéral, TTable
+// s'infère, et `from()`/`insert()` ne résolvent que la table concernée.
+type SyndicTableName = keyof Database['public']['Tables'] & string
+// Miroir exact de la contrainte du paramètre de `insert()` (postgrest-js) : avec un
+// TTable générique le conditionnel reste différé, et seule cette forme identique
+// permet à TS de prouver l'assignabilité sans résoudre les 138 tables.
+type TableInsert<TTable extends SyndicTableName> = Database['public']['Tables'][TTable] extends {
+  Insert: unknown
+}
+  ? Database['public']['Tables'][TTable]['Insert']
+  : never
+
+interface CrudConfig<TIn, TTable extends SyndicTableName> {
   /** Nom de la table Postgres (ex. `syndic_reservas`). */
-  table: string
+  table: TTable
   /** Colonnes du SELECT (inclure `cabinet_id`). */
   select: string
   /** Colonne de tri. */
@@ -45,10 +60,10 @@ interface CrudConfig<TIn> {
   /** Mapping ligne DB (snake) → objet client (camel). */
   mapRow: (row: Row) => Record<string, unknown>
   /** Mapping body validé → objet d'insertion DB (ajouter cabinet_id). */
-  mapInsert: (v: TIn, cabinetId: string) => Record<string, unknown>
+  mapInsert: (v: TIn, cabinetId: string) => TableInsert<TTable>
 }
 
-export function createSyndicCrudRoute<TIn>(cfg: CrudConfig<TIn>) {
+export function createSyndicCrudRoute<TIn, TTable extends SyndicTableName>(cfg: CrudConfig<TIn, TTable>) {
   async function GET(request: NextRequest) {
     try {
       const user = await getAuthUser(request)
@@ -63,7 +78,9 @@ export function createSyndicCrudRoute<TIn>(cfg: CrudConfig<TIn>) {
       const { data, error } = await supabaseAdmin
         .from(cfg.table)
         .select(cfg.select)
-        .eq('cabinet_id', cabinetId)
+        // `.filter(col, 'eq', v)` ≡ `.eq(col, v)` (même querystring PostgREST) ; avec
+        // TTable générique, `.eq` ne résout pas le type de la colonne (conditionnel différé).
+        .filter('cabinet_id', 'eq', cabinetId)
         .order(cfg.orderBy, { ascending: cfg.ascending ?? false })
         .range(from, to)
 

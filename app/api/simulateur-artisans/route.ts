@@ -43,9 +43,12 @@ export async function GET(req: NextRequest) {
     // Push category filter to DB to avoid fetching irrelevant rows
     const targetCats = SLUG_TO_CATEGORIES[service] || []
 
+    // NB : les colonnes `city` et `experience_years` n'existent pas dans le schéma
+    // live de profiles_artisan (audit P2 data layer) — les requêter faisait échouer
+    // tout le select (400 PostgREST). On s'appuie sur company_city uniquement.
     let query = supabaseAdmin
       .from('profiles_artisan')
-      .select('id, slug, company_name, bio, categories, hourly_rate, rating_avg, rating_count, verified, city, company_city, company_postal_code, profile_photo_url, experience_years, services(name, price_ttc, duration_minutes, active)')
+      .select('id, slug, company_name, bio, categories, hourly_rate, rating_avg, rating_count, verified, company_city, company_postal_code, profile_photo_url, services(name, price_ttc, duration_minutes, active)')
       .eq('active', true)
       .eq('language', 'fr')
       .order('rating_avg', { ascending: false, nullsFirst: false })
@@ -70,7 +73,6 @@ export async function GET(req: NextRequest) {
 
       results = results.filter((a) => {
         const haystack = normalizeStr([
-          a.city || '',
           a.company_city || '',
           a.company_postal_code || '',
           a.bio || '',
@@ -97,7 +99,7 @@ export async function GET(req: NextRequest) {
         }))
 
       const minPrice = prices.length > 0 ? Math.min(...prices.map(p => p.price_ttc)) : null
-      const displayCity = a.company_city || a.city || null
+      const displayCity = a.company_city || null
 
       return {
         id: a.id,
@@ -110,7 +112,8 @@ export async function GET(req: NextRequest) {
         verified: a.verified,
         city: displayCity,
         profile_photo_url: a.profile_photo_url,
-        experience_years: a.experience_years,
+        // Colonne absente du schéma live — clé conservée pour le contrat de réponse
+        experience_years: null,
         prices,          // ← services réels avec prix
         min_price: minPrice,
         source: 'registered' as const,

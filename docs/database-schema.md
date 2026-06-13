@@ -1219,7 +1219,7 @@ Liste chronologique des 37 fichiers de migration.
 | 011 | `011_rapport_ia_fields.sql` | Champs rapport IA sur bookings (source, texte brut, timestamp) |
 | 012 | `012_declaration_sociale.sql` | Profil fiscal artisan + table declarations_sociales |
 | 013 | `013_paiement_modes.sql` | Modes de paiement artisan (JSONB : virement, Stripe, cheque, etc.) |
-| 013b | `013b_service_etapes.sql` | Etapes par service (template pour devis) |
+| 015 | `015_service_etapes.sql` | Etapes par service (template pour devis) |
 | 014 | `014_artisan_logo.sql` | Colonne logo_url sur profiles_artisan |
 | 020 | `020_analyses_devis.sql` | Table analyses_devis (scores IA, alertes, recommandations) |
 | 021 | `021_conversations_simulateur.sql` | Historique conversations simulateur devis |

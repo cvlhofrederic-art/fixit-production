@@ -37,13 +37,17 @@ export async function GET(request: NextRequest) {
     // 8.1 — Distribution des récompenses (J+7 passé)
     // ══════════════════════════════════════════════════════════════════════
 
-    const { data: readyReferrals } = await supabaseAdmin
+    const { data: readyReferrals, error: readyError } = await supabaseAdmin
       .from('referrals')
       .select('id, parrain_id, filleul_id, code')
       .eq('statut', 'paiement_valide')
       .lte('date_fin_periode_verification', new Date().toISOString())
       .eq('en_revue_manuelle', false)
       .lt('risk_score', 5)
+
+    if (readyError) {
+      logger.error('[cron/referral] Ready referrals query failed:', { error: readyError.message })
+    }
 
     if (readyReferrals?.length) {
       for (const ref of readyReferrals) {
@@ -53,7 +57,8 @@ export async function GET(request: NextRequest) {
           case 'distributed':
             results.distributed++
             // Envoyer email 7.3 : récompense confirmée
-            await sendRewardEmail(ref.parrain_id, ref.filleul_id, ref.code)
+            // filleul_id non-null garanti quand result === 'distributed'
+            if (ref.filleul_id) await sendRewardEmail(ref.parrain_id, ref.filleul_id, ref.code)
             break
           case 'blocked':
             results.blocked++
@@ -77,34 +82,56 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
 
-    const { data: inactiveReferrals } = await supabaseAdmin
+    // TSQ-09 : borné à 200 lignes + I/O batchées (UPDATE .in + INSERT en array)
+    const { data: inactiveReferrals, error: inactiveError } = await supabaseAdmin
       .from('referrals')
       .select('id, parrain_id, filleul_id, code, rappel_envoye')
       .eq('statut', 'inscrit')
       .lte('date_inscription', sevenDaysAgo)
       .gte('date_inscription', eightDaysAgo)
       .eq('rappel_envoye', false)
+      .limit(200)
+
+    if (inactiveError) {
+      logger.error('[cron/referral] Inactive referrals query failed:', { error: inactiveError.message })
+    }
 
     if (inactiveReferrals?.length) {
+      // Envoi séquentiel ; on ne marque QUE les referrals dont l'email est parti
+      // (pas de doublons en cas d'échec partiel : les autres seront retentés)
+      const sentRefs: Array<{ id: string; parrain_id: string }> = []
       for (const ref of inactiveReferrals) {
         if (!ref.filleul_id || !ref.parrain_id) continue
 
-        await sendReminderEmail(ref.parrain_id, ref.filleul_id, ref.code)
+        const sent = await sendReminderEmail(ref.parrain_id, ref.filleul_id, ref.code)
+        if (sent) sentRefs.push({ id: ref.id, parrain_id: ref.parrain_id })
+      }
 
-        // Marquer le rappel comme envoyé
-        await supabaseAdmin.from('referrals').update({
+      if (sentRefs.length) {
+        // Marquer les rappels envoyés en un seul UPDATE
+        const { error: updateError } = await supabaseAdmin.from('referrals').update({
           rappel_envoye: true,
           updated_at: new Date().toISOString(),
-        }).eq('id', ref.id)
+        }).in('id', sentRefs.map(r => r.id))
 
-        // Logger dans referral_risk_log
-        await supabaseAdmin.from('referral_risk_log').insert({
-          referral_id: ref.id,
-          artisan_id: ref.parrain_id,
-          type_evenement: 'rappel_envoye',
-        })
+        if (updateError) {
+          logger.error('[cron/referral] Batch rappel_envoye update failed:', { error: updateError.message, ids: sentRefs.map(r => r.id) })
+        }
 
-        results.reminders_sent++
+        // Logger dans referral_risk_log en un seul INSERT
+        const { error: insertError } = await supabaseAdmin.from('referral_risk_log').insert(
+          sentRefs.map(r => ({
+            referral_id: r.id,
+            artisan_id: r.parrain_id,
+            type_evenement: 'rappel_envoye',
+          }))
+        )
+
+        if (insertError) {
+          logger.error('[cron/referral] Batch risk_log insert failed:', { error: insertError.message })
+        }
+
+        results.reminders_sent = sentRefs.length
       }
     }
 
@@ -118,17 +145,19 @@ export async function GET(request: NextRequest) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// NB : profiles_artisan n'a PAS de colonne first_name (cf. lib/database-types.ts) —
+// l'ancien select la demandait, la requête échouait, et aucun email ne partait.
 async function sendRewardEmail(parrainId: string, filleulId: string, code: string) {
   try {
     const { data: parrain } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('email, company_name, first_name, total_parrainages_reussis, referral_code')
+      .select('email, company_name, total_parrainages_reussis, referral_code')
       .eq('id', parrainId)
       .single()
 
     const { data: filleul } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('company_name, first_name')
+      .select('company_name')
       .eq('id', filleulId)
       .single()
 
@@ -136,8 +165,8 @@ async function sendRewardEmail(parrainId: string, filleulId: string, code: strin
 
     await sendReferralRewardConfirmed({
       parrainEmail: parrain.email,
-      parrainName: parrain.first_name || parrain.company_name || 'Artisan',
-      filleulName: filleul?.first_name || filleul?.company_name || 'Un artisan',
+      parrainName: parrain.company_name || 'Artisan',
+      filleulName: filleul?.company_name || 'Un artisan',
       totalParrainages: parrain.total_parrainages_reussis || 1,
       referralCode: parrain.referral_code || code,
     })
@@ -146,29 +175,32 @@ async function sendRewardEmail(parrainId: string, filleulId: string, code: strin
   }
 }
 
-async function sendReminderEmail(parrainId: string, filleulId: string, code: string) {
+/** @returns true si l'email est effectivement parti (sinon le rappel sera retenté) */
+async function sendReminderEmail(parrainId: string, filleulId: string, code: string): Promise<boolean> {
   try {
     const { data: parrain } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('email, company_name, first_name, referral_code')
+      .select('email, company_name, referral_code')
       .eq('id', parrainId)
       .single()
 
     const { data: filleul } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('company_name, first_name')
+      .select('company_name')
       .eq('id', filleulId)
       .single()
 
-    if (!parrain?.email) return
+    if (!parrain?.email) return false
 
-    await sendReferralReminderFilleul({
+    const result = await sendReferralReminderFilleul({
       parrainEmail: parrain.email,
-      parrainName: parrain.first_name || parrain.company_name || 'Artisan',
-      filleulName: filleul?.first_name || filleul?.company_name || 'Un artisan',
+      parrainName: parrain.company_name || 'Artisan',
+      filleulName: filleul?.company_name || 'Un artisan',
       referralCode: parrain.referral_code || code,
     })
+    return result.success
   } catch (err) {
     logger.error('[cron/referral] Reminder email error:', err)
+    return false
   }
 }

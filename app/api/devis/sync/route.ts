@@ -10,6 +10,7 @@ import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
 import { isStableDocId } from '@/lib/devis-utils'
+import type { TablesInsert } from '@/lib/database-types'
 
 export const maxDuration = 30
 
@@ -372,8 +373,17 @@ export async function POST(request: NextRequest) {
   //    La contrainte UNIQUE(numero, artisan_user_id) reste un garde-fou contre
   //    deux numéros émis identiques même via le chemin id.
   const conflictTarget = docId ? 'id' : 'numero,artisan_user_id'
+  // Cast documenté (frontière dynamique → typée) : le payload est volontairement
+  // un Record dynamique — les fallbacks ci-dessous strippent des colonnes selon
+  // les migrations réellement appliquées en prod (raw_data, régime TVA…). Les clés
+  // écrites correspondent aux colonnes communes devis/factures (l'intersection
+  // des deux types Insert) ; avoir_de_facture_id n'est ajouté que pour factures.
   const tryUpsert = async (p: Record<string, unknown>) =>
-    supabaseAdmin.from(table).upsert(p, { onConflict: conflictTarget }).select('id').single()
+    supabaseAdmin
+      .from(table)
+      .upsert(p as TablesInsert<'devis'> & TablesInsert<'factures'>, { onConflict: conflictTarget })
+      .select('id')
+      .single()
 
   let result = await tryUpsert(payload)
 

@@ -38,6 +38,24 @@ import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 // Helpers
 // ------------------------------------------------------------------
 
+// REGR-7 : page publique servie avec la clé ANON — projection énumérée, jamais `*`.
+// Uniquement les colonnes réellement lues par le pipeline de recherche
+// (mapping fetchData → filtres catégorie/lieu → tri/distance → ArtisanCard/getProfilePath) :
+// - identité/lien : id, user_id (source registered/catalogue), slug
+// - carte : company_name, bio, categories, hourly_rate, rating_avg, rating_count,
+//   verified, active, profile_photo_url
+// - localisation : company_city, company_postal_code, intervention_zones,
+//   zone_radius_km, latitude, longitude
+// - contact : phone (affiché uniquement pour les fiches sans user_id)
+// EXCLUES (sensibles, ne doivent JAMAIS partir côté ANON) : kbis_extracted,
+// kbis_extracted_encrypted, kyc_checks, kyc_rejection_reason, kyc_*,
+// insurance_scan_data, siret_encrypted, nif_encrypted, pii_encryption_version,
+// certidao_extracted, email, siret, siren, referral_*, marches_*, paiement_*…
+// `services(*)` conservé : la table services n'a aucune PII
+// (nom, description, durée, prix, flags de validation).
+const ARTISAN_SEARCH_COLUMNS =
+  'id, user_id, slug, company_name, bio, categories, hourly_rate, rating_avg, rating_count, verified, active, profile_photo_url, company_city, company_postal_code, phone, intervention_zones, zone_radius_km, latitude, longitude, services(*)'
+
 function generateTimeSlots(
   avail: Availability,
   dateStr: string,
@@ -223,7 +241,7 @@ function RechercheContent() {
 
       const query = supabase
         .from('profiles_artisan')
-        .select('*, services(*)')
+        .select(ARTISAN_SEARCH_COLUMNS)
         .eq('active', true)
         .eq('language', detectedLang)
 
@@ -256,6 +274,8 @@ function RechercheContent() {
           const h = sinLat * sinLat + Math.cos(userCoords.lat * Math.PI / 180) * Math.cos(a.latitude * Math.PI / 180) * sinLon * sinLon
           dist = R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
         }
+        // Row DB (colonnes nullable + jointure services) → type métier Artisan
+        // (ArtisanCard) : null au runtime depuis toujours, l'UI est tolérante (||, ?.).
         return {
           ...a,
           city: extractedCity,
@@ -263,7 +283,7 @@ function RechercheContent() {
           // Only real subscribers (user_id != null) get the booking button
           source: a.user_id ? 'registered' as const : 'catalogue' as const,
           telephone_pro: a.user_id ? null : (a.phone || null),
-        }
+        } as Artisan
       })
 
       // Client-side category filter for registered artisans
@@ -463,9 +483,11 @@ function RechercheContent() {
 
       // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
       // PT : uniquement Porto. FR : toutes les villes françaises (location filter affine).
+      // TSQ-07 : colonnes énumérées (au lieu de '*') — uniquement celles consommées
+      // par le mapping catalogList + les filtres ci-dessous.
       let catalogQuery = supabase
         .from('artisans_catalogue')
-        .select('*')
+        .select('id, nom_entreprise, specialite, metier, google_note, google_avis, pappers_verifie, ville, arrondissement, adresse, telephone_pro')
         .order('google_note', { ascending: false, nullsFirst: false })
 
       if (detectedCountry === 'PT') {
@@ -548,7 +570,8 @@ function RechercheContent() {
           .or('slot_type.eq.rdv,slot_type.is.null')
           .order('day_of_week')
 
-        setAllAvailability(availData || [])
+        // Row DB → type métier Availability (nullabilité près, l'UI est tolérante)
+        setAllAvailability((availData || []) as Availability[])
 
         const todayStr = format(new Date(), 'yyyy-MM-dd')
         const { data: bookingsData } = await supabase
@@ -558,7 +581,8 @@ function RechercheContent() {
           .gte('booking_date', todayStr)
           .in('status', ['confirmed', 'pending'])
 
-        setAllBookings(bookingsData || [])
+        // Row DB → type métier Booking (nullabilité près)
+        setAllBookings((bookingsData || []) as Booking[])
       } else {
         setAllAvailability([])
         setAllBookings([])

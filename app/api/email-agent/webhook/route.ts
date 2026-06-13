@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/database-types'
 import { logger } from '@/lib/logger'
 
 interface GmailPubSubMessage {
@@ -41,16 +42,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing_email' }, { status: 400 })
   }
 
-  const supabaseAdmin = createClient(
+  const supabaseAdmin = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data: tokenRow } = await supabaseAdmin
+  // Colonne réelle : `email` (l'ex-`email_compte` n'existe pas en live).
+  // TSQ-10 : erreur DB gérée — 500 pour que Pub/Sub retente (transient).
+  const { data: tokenRow, error: tokenError } = await supabaseAdmin
     .from('syndic_oauth_tokens')
-    .select('syndic_id, email_compte')
-    .eq('email_compte', payload.emailAddress)
+    .select('syndic_id, email')
+    .eq('email', payload.emailAddress)
     .maybeSingle()
+
+  if (tokenError) {
+    logger.error('webhook: lookup syndic_oauth_tokens failed', { error: tokenError.message })
+    return NextResponse.json({ error: 'db_error' }, { status: 500 })
+  }
 
   if (!tokenRow) {
     logger.warn('webhook: no syndic for email', { email: payload.emailAddress })

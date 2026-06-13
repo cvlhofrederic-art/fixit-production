@@ -242,15 +242,26 @@ export default function ArtisanProfilePage() {
     // UUID = format 8-4-4-4-12 hex, sinon c'est un slug
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paramId)
 
+    // TSQ-07 : colonnes énumérées (au lieu de '*') — exposition PII à l'anon
+    // (kbis_extracted, kyc_checks, *_encrypted…). Liste = tous les champs lus par
+    // cette page : header (company_name, profile_photo_url, rating_*, verified,
+    // categories), carnet de visite (legal_form, siret, naf_*, company_address/
+    // postal_code/city, phone, email), bio, zones (intervention_zones,
+    // zone_radius_km), redirection société (slug, legal_form), AvisSection (id,
+    // rating_*). NB : portfolio_photos et city, lus par le JSX, n'existent PAS
+    // dans le schéma live (audit P2) — déjà undefined avec '*', on ne les
+    // sélectionne pas (les requêter ferait échouer tout le select).
+    const ARTISAN_PUBLIC_COLUMNS = 'id, slug, company_name, legal_form, bio, categories, rating_avg, rating_count, verified, profile_photo_url, siret, naf_code, naf_label, company_address, company_postal_code, company_city, phone, email, intervention_zones, zone_radius_km'
+
     let artisanData: any = null
     if (isUuid) {
       const { data } = await supabase
-        .from('profiles_artisan').select('*').eq('id', paramId).single()
+        .from('profiles_artisan').select(ARTISAN_PUBLIC_COLUMNS).eq('id', paramId).single()
       artisanData = data
     } else {
       // Chercher par slug
       const { data } = await supabase
-        .from('profiles_artisan').select('*').eq('slug', paramId).single()
+        .from('profiles_artisan').select(ARTISAN_PUBLIC_COLUMNS).eq('slug', paramId).single()
       artisanData = data
     }
 

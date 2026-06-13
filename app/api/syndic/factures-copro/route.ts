@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     if (!(await checkRateLimit(`factcopro_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const { from, to } = parsePagination(new URL(request.url))
 
     const { data, error } = await supabaseAdmin
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`factcopro_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     const body = await request.json()
     const validation = validateBody(syndicFaturaSchema, body)
     if (!validation.success) return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
@@ -74,7 +76,9 @@ export async function POST(request: NextRequest) {
         coproprio_id: v.coproprioId && v.coproprioId.length > 0 ? v.coproprioId : null,
         immeuble_id: v.immeubleId && v.immeubleId.length > 0 ? v.immeubleId : null,
         numero_facture: v.numeroFatura || '',
-        emise_le: v.emiseLe || null,
+        // emise_le est NOT NULL sans défaut en DB : une fatura émise sans date
+        // explicite est émise aujourd'hui (un null faisait échouer l'insert).
+        emise_le: v.emiseLe || new Date().toISOString().slice(0, 10),
         echeance: v.echeance || null,
         montant_ht: ht,
         tva_taux: tva,

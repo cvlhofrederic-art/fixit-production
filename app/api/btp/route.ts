@@ -211,7 +211,9 @@ export async function POST(request: NextRequest) {
       if (error) throw error
 
       // Link membres to equipe if applicable
-      if (table === 'equipes_btp' && membreIds?.length > 0) {
+      // ('id' in inserted : narrowing nécessaire car settings_btp n'a pas de colonne id —
+      // sa PK est owner_id — et `inserted` est l'union des Rows des tables BTP valides)
+      if (table === 'equipes_btp' && membreIds?.length > 0 && 'id' in inserted) {
         await supabaseAdmin.from('equipe_membres_btp').insert(
           membreIds.map((mid: string) => ({ equipe_id: inserted.id, membre_id: mid }))
         )
