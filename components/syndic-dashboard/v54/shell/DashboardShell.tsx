@@ -4,7 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import Icon from '../primitives/icon/Icon'
 import { Button } from '../primitives/button'
-import { SIDEBAR, SIDE_TITLES, isItem } from './sidebar-config'
+import { SIDEBAR, SIDE_TITLES, isItem, applySidebarPrefs } from './sidebar-config'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import styles from './Shell.module.css'
 
 export interface DashboardShellProps {
@@ -32,6 +33,11 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [now, setNow] = useState('')
+
+  // Phase A3 : barre latérale réordonnée/filtrée selon les préférences du cabinet
+  // (gated : sans prefs → SIDEBAR par défaut, rendu byte-exact préservé).
+  const { dashboardPrefs } = useSyndicData()
+  const sidebar = applySidebarPrefs(SIDEBAR, dashboardPrefs)
 
   // Date côté client uniquement (évite un mismatch d'hydratation SSR vs client).
   useEffect(() => {
@@ -65,7 +71,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
           <kbd>⌘K</kbd>
         </button>
 
-        {SIDEBAR.map((sec) => {
+        {sidebar.map((sec) => {
           const isCol = !!collapsed[sec.title]
           return (
             <div key={sec.title} className={clsx(styles.navGroup, isCol && styles.collapsed)}>
