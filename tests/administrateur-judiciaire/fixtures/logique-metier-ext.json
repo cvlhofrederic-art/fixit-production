@@ -1,0 +1,2589 @@
+[
+ {
+  "id": "constante:EVENEMENTS_DEPART",
+  "fn": "constante:EVENEMENTS_DEPART",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "ordonnance": {
+    "libelle": "le prononcé de l'ordonnance",
+    "aide": "Date de la décision de désignation."
+   },
+   "finMission": {
+    "libelle": "la fin de la mission",
+    "aide": "Date fixée par l'ordonnance, ou date de l'ordonnance + durée."
+   },
+   "notificationOrdonnance": {
+    "libelle": "la notification de l'ordonnance",
+    "aide": "Date de transmission de l'avis électronique (D. 1967 art. 64) ou de première présentation de la lettre recommandée. Le délai court du lendemain."
+   },
+   "publicationOrdonnance": {
+    "libelle": "la publication de l'ordonnance (avis au BODACC)",
+    "aide": "Date de parution de l'avis prévu par D. 1967 art. 62-17."
+   },
+   "publicationListeCreances": {
+    "libelle": "la publication de la liste des créances",
+    "aide": "L. 1965 art. 29-4 II."
+   },
+   "envoiProjetEcheancier": {
+    "libelle": "l'envoi de la notification du projet d'échéancier",
+    "aide": "Date d'envoi de la lettre de notification aux créanciers."
+   },
+   "notificationPlanDefinitif": {
+    "libelle": "la notification du plan d'apurement définitif",
+    "aide": "Notification aux créanciers et au conseil syndical (L. 1965 art. 29-5 II)."
+   },
+   "cessationAncienSyndic": {
+    "libelle": "la cessation des fonctions de l'ancien syndic",
+    "aide": "Pour l'art. 29-1, le mandat du syndic en place cesse de plein droit à la désignation."
+   }
+  }
+ },
+ {
+  "id": "constante:NOTE_REMISE_ANCIEN_SYNDIC",
+  "fn": "constante:NOTE_REMISE_ANCIEN_SYNDIC",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": "Obligation de l'ancien syndic. Après mise en demeure restée infructueuse, référé devant le président du tribunal judiciaire pour obtenir la remise sous astreinte (L. 1965 art. 18-2). Pour l'administrateur provisoire de l'art. 29-1, le décret rend l'ancien syndic débiteur des mêmes obligations."
+ },
+ {
+  "id": "constante:REGLES_DELAIS_LEGAUX",
+  "fn": "constante:REGLES_DELAIS_LEGAUX",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   {
+    "id": "notification-ordonnance-46-47",
+    "regimes": [
+     "sj",
+     "ap47"
+    ],
+    "libelle": "Notifier l'ordonnance à tous les copropriétaires",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "59, dernier al."
+     }
+    ],
+    "depart": "ordonnance",
+    "delai": {
+     "valeur": 1,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Dans le mois du prononcé, par le syndic ou l'administrateur provisoire désigné (cas des art. 46 à 48). Forme : voie électronique par principe, lettre recommandée AR par exception (D. 1967 art. 64 et s., réécrits par le décret n° 2025-1292 du 22 décembre 2025). L'art. 64 régit la forme, pas le délai."
+   },
+   {
+    "id": "refere-coproprietaires-46-47",
+    "regimes": [
+     "sj",
+     "ap47"
+    ],
+    "libelle": "Fin du délai ouvert aux copropriétaires pour en référer au président du tribunal judiciaire",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "59, dernier al."
+     }
+    ],
+    "depart": "notificationOrdonnance",
+    "delai": {
+     "valeur": 15,
+     "unite": "jours",
+     "sens": "apres"
+    },
+    "lendemain": true,
+    "certitude": "TEXTE",
+    "note": "Quinze jours à compter de la notification. Report au premier jour ouvrable (CPC art. 642)."
+   },
+   {
+    "id": "compte-separe-sj",
+    "regimes": [
+     "sj"
+    ],
+    "libelle": "Ouvrir le compte bancaire séparé au nom du syndicat",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "18, II"
+     },
+     {
+      "texte": "D1967",
+      "article": "46"
+     }
+    ],
+    "depart": "ordonnance",
+    "delai": {
+     "valeur": 3,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "A_CONFIRMER",
+    "note": "Sanction : nullité de plein droit du mandat à l'expiration du délai de trois mois suivant la désignation (L. 1965 art. 18 II). Application au syndic désigné en justice déduite du renvoi de l'art. 46 aux art. 18 à 18-2 ; point de départ (prononcé ou notification) à confirmer."
+   },
+   {
+    "id": "convocation-ag-sj",
+    "regimes": [
+     "sj"
+    ],
+    "libelle": "Convoquer l'assemblée générale en vue de la désignation d'un syndic",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "46"
+     }
+    ],
+    "depart": "finMission",
+    "delai": {
+     "valeur": 2,
+     "unite": "mois",
+     "sens": "avant"
+    },
+    "certitude": "TEXTE",
+    "note": "« Il doit notamment convoquer l'assemblée générale en vue de la désignation d'un syndic deux mois avant la fin de ses fonctions. » La mission cesse de plein droit à l'acceptation de son mandat par le syndic désigné par l'assemblée. Convocation notifiée au moins 21 jours avant la réunion, sauf urgence (D. 1967 art. 9)."
+   },
+   {
+    "id": "fin-mission-sj",
+    "regimes": [
+     "sj"
+    ],
+    "libelle": "Fin de la mission fixée par l'ordonnance",
+    "nature": "repere",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "46"
+     }
+    ],
+    "depart": "finMission",
+    "delai": {
+     "valeur": 0,
+     "unite": "jours",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Durée fixée par l'ordonnance ; elle peut être prorogée, et il peut être mis fin à la mission, suivant la même procédure (requête)."
+   },
+   {
+    "id": "remise-documents-ap47",
+    "regimes": [
+     "ap47"
+    ],
+    "libelle": "Se faire remettre les références des comptes bancaires, les coordonnées de la banque, les documents et archives du syndicat",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "47"
+     }
+    ],
+    "depart": "ordonnance",
+    "delaiOrdonnance": "remiseDocuments",
+    "certitude": "TEXTE",
+    "note": "« Dans les délais fixés par l'ordonnance » : pas de délai légal par défaut. Reporter le délai de l'ordonnance."
+   },
+   {
+    "id": "convocation-ag-ap47",
+    "regimes": [
+     "ap47"
+    ],
+    "libelle": "Convoquer l'assemblée en vue de la désignation d'un syndic",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "47"
+     },
+     {
+      "texte": "D1967",
+      "article": "9"
+     }
+    ],
+    "depart": "ordonnance",
+    "delaiOrdonnance": "convocationAG",
+    "certitude": "TEXTE",
+    "note": "Délai fixé par l'ordonnance, convocation dans les conditions de l'art. 9. Les fonctions cessent de plein droit à l'acceptation de son mandat par le syndic désigné par l'assemblée."
+   },
+   {
+    "id": "fin-mission-ap47",
+    "regimes": [
+     "ap47"
+    ],
+    "libelle": "Fin de la mission fixée par l'ordonnance",
+    "nature": "repere",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "47"
+     }
+    ],
+    "depart": "finMission",
+    "delai": {
+     "valeur": 0,
+     "unite": "jours",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "La mission prend fin à la date prévue par l'ordonnance : pas de prorogation de fait (Cass. 3e civ., 14 janv. 2016, n° 14-24.989)."
+   },
+   {
+    "id": "information-coproprietaires-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Porter la décision de désignation à la connaissance des copropriétaires",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "62-5"
+     }
+    ],
+    "depart": "ordonnance",
+    "delai": {
+     "valeur": 1,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Dans le mois du prononcé, à l'initiative de l'administrateur provisoire : remise contre émargement, lettre recommandée AR ou voie électronique. Pour une ordonnance sur requête, la communication indique que tout intéressé peut en référer au juge dans les deux mois de la publication (Cass. 3e civ., 7 déc. 2022, n° 21-20.264)."
+   },
+   {
+    "id": "publicite-creanciers-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Procéder aux mesures de publicité à l'égard des créanciers (avis au BODACC)",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-4, I"
+     },
+     {
+      "texte": "D1967",
+      "article": "62-17"
+     }
+    ],
+    "depart": "ordonnance",
+    "delai": {
+     "valeur": 2,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "SOURCE_SECONDAIRE",
+    "note": "« Dans un délai de deux mois à compter de sa nomination » (texte cité en jurisprudence ; version consolidée à relire). L'avis indique le délai de déclaration des créances et la durée de la suspension d'exigibilité ; les créanciers connus sont informés par tout moyen."
+   },
+   {
+    "id": "rapport-intermediaire-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Rendre le rapport intermédiaire (mesures de redressement financier)",
+    "nature": "obligation",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-1, I"
+     }
+    ],
+    "depart": "ordonnance",
+    "delai": {
+     "valeur": 6,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "« Au plus tard à l'issue des six premiers mois de sa mission ». Le fondement est l'art. 29-1 : l'art. 29-1 B, cité par la maquette, concerne le rapport du mandataire ad hoc.",
+    "condition": {
+     "libelle": "Dû si aucun rapport de mandataire ad hoc (art. 29-1 B) n'a été établi au cours de l'année précédente",
+     "evaluer": "[fonction]"
+    }
+   },
+   {
+    "id": "fin-suspension-exigibilite-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin de la suspension de l'exigibilité des créances antérieures",
+    "nature": "effet",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-3, I et II"
+     }
+    ],
+    "depart": "ordonnance",
+    "delai": {
+     "valeur": 12,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Créances autres que publiques et sociales, nées avant la décision. Prorogation possible jusqu'à trente mois à la demande de l'administrateur provisoire (art. 29-3 II), avec la même publicité. Maintien tant que le plan d'apurement homologué est respecté (art. 29-5 III)."
+   },
+   {
+    "id": "fin-mission-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin de la mission fixée par la décision",
+    "nature": "repere",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-1, I"
+     }
+    ],
+    "depart": "finMission",
+    "delai": {
+     "valeur": 0,
+     "unite": "jours",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Durée qui ne peut être inférieure à douze mois. Le président du tribunal judiciaire peut à tout moment modifier la mission, la prolonger ou y mettre fin."
+   },
+   {
+    "id": "refere-ordonnance-requete-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin du délai pour en référer au juge ayant rendu l'ordonnance sur requête",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "D1967",
+      "article": "62-5"
+     }
+    ],
+    "depart": "publicationOrdonnance",
+    "delai": {
+     "valeur": 2,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Ouvert à tout intéressé. Si la décision est un jugement rendu selon la procédure accélérée au fond, ce délai ne s'applique pas (CPC art. 481-1).",
+    "condition": {
+     "libelle": "Applicable si la désignation résulte d'une ordonnance sur requête",
+     "evaluer": "[fonction]"
+    }
+   },
+   {
+    "id": "declaration-creances-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin du délai de déclaration des créances",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-4, II"
+     },
+     {
+      "texte": "D1967",
+      "article": "62-18"
+     }
+    ],
+    "depart": "publicationOrdonnance",
+    "delai": {
+     "valeur": 3,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Trois mois à compter de la publication prévue à l'art. 62-17. Créances non déclarées dans le délai : inopposables à la procédure (L. 1965 art. 29-4 III)."
+   },
+   {
+    "id": "releve-forclusion-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin du délai de l'action en relevé de forclusion",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-4, III"
+     },
+     {
+      "texte": "D1967",
+      "article": "62-18-1"
+     }
+    ],
+    "depart": "publicationOrdonnance",
+    "delai": {
+     "valeur": 6,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "SOURCE_SECONDAIRE",
+    "note": "Ouverte au créancier qui établit que sa défaillance n'est pas due à son fait ; six mois à compter de l'avis de publication (décret n° 2018-11 du 8 janvier 2018)."
+   },
+   {
+    "id": "contestation-liste-creances-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin du délai de contestation de la liste des créances",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-4, II"
+     }
+    ],
+    "depart": "publicationListeCreances",
+    "delai": {
+     "valeur": 2,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Contestation portée devant le président du tribunal judiciaire."
+   },
+   {
+    "id": "observations-echeancier-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin du délai d'observations des créanciers sur le projet d'échéancier",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-5, II"
+     }
+    ],
+    "depart": "envoiProjetEcheancier",
+    "delai": {
+     "valeur": 2,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Le délai court de la date d'envoi de la lettre de notification (décret de 1967, procédure d'apurement des dettes). Les créanciers peuvent proposer des remises de dettes. Plan d'une durée maximale de cinq ans (art. 29-5 I)."
+   },
+   {
+    "id": "contestation-plan-ap291",
+    "regimes": [
+     "ap291"
+    ],
+    "libelle": "Fin du délai de contestation du plan d'apurement définitif",
+    "nature": "fenetre_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "29-5, II"
+     }
+    ],
+    "depart": "notificationPlanDefinitif",
+    "delai": {
+     "valeur": 2,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "lendemain": true,
+    "certitude": "A_CONFIRMER",
+    "note": "À défaut de contestation dans ce délai, le juge homologue le plan à la demande de l'administrateur provisoire. Point de départ retenu : lendemain de la notification (D. 1967 art. 64), lecture prudente à confirmer."
+   },
+   {
+    "id": "ancien-syndic-tresorerie",
+    "regimes": [
+     "sj",
+     "ap47",
+     "ap291"
+    ],
+    "libelle": "Remise par l'ancien syndic de la situation de trésorerie, des références des comptes et des coordonnées de la banque",
+    "nature": "obligation_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "18-2"
+     }
+    ],
+    "depart": "cessationAncienSyndic",
+    "delai": {
+     "valeur": 15,
+     "unite": "jours",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Obligation de l'ancien syndic. Après mise en demeure restée infructueuse, référé devant le président du tribunal judiciaire pour obtenir la remise sous astreinte (L. 1965 art. 18-2). Pour l'administrateur provisoire de l'art. 29-1, le décret rend l'ancien syndic débiteur des mêmes obligations."
+   },
+   {
+    "id": "ancien-syndic-archives",
+    "regimes": [
+     "sj",
+     "ap47",
+     "ap291"
+    ],
+    "libelle": "Remise par l'ancien syndic des documents et archives du syndicat",
+    "nature": "obligation_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "18-2"
+     }
+    ],
+    "depart": "cessationAncienSyndic",
+    "delai": {
+     "valeur": 1,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "TEXTE",
+    "note": "Y compris les documents dématérialisés, dans un format téléchargeable et imprimable. Obligation de l'ancien syndic. Après mise en demeure restée infructueuse, référé devant le président du tribunal judiciaire pour obtenir la remise sous astreinte (L. 1965 art. 18-2). Pour l'administrateur provisoire de l'art. 29-1, le décret rend l'ancien syndic débiteur des mêmes obligations."
+   },
+   {
+    "id": "ancien-syndic-etat-comptes",
+    "regimes": [
+     "sj",
+     "ap47",
+     "ap291"
+    ],
+    "libelle": "Fourniture par l'ancien syndic de l'état des comptes des copropriétaires et du syndicat, après apurement et clôture",
+    "nature": "obligation_tiers",
+    "fondements": [
+     {
+      "texte": "L1965",
+      "article": "18-2"
+     }
+    ],
+    "depart": "cessationAncienSyndic",
+    "delai": {
+     "valeur": 3,
+     "unite": "mois",
+     "sens": "apres"
+    },
+    "certitude": "A_CONFIRMER",
+    "note": "« Dans le délai de deux mois suivant l'expiration du délai mentionné ci-dessus » : calculé à partir du délai d'un mois (cessation + 3 mois). Lecture alternative à partir du délai de quinze jours : à trancher."
+   }
+  ]
+ },
+ {
+  "id": "constante:BADGES_CERTITUDE_ECHEANCE",
+  "fn": "constante:BADGES_CERTITUDE_ECHEANCE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "A_CONFIRMER": {
+    "kind": "amber",
+    "label": "À confirmer"
+   },
+   "SOURCE_SECONDAIRE": {
+    "kind": "gold",
+    "label": "Source secondaire"
+   }
+  }
+ },
+ {
+  "id": "constante:REGLES_NOTIFICATION_ORDONNANCE",
+  "fn": "constante:REGLES_NOTIFICATION_ORDONNANCE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "notification-ordonnance-46-47",
+   "information-coproprietaires-ap291"
+  ]
+ },
+ {
+  "id": "constante:MESSAGES_ETAT_ECHEANCES",
+  "fn": "constante:MESSAGES_ETAT_ECHEANCES",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "chargement": "Chargement du mandat…",
+   "indisponible": "Base locale indisponible dans ce navigateur : échéances non calculées.",
+   "introuvable": "Copropriété introuvable dans la base locale.",
+   "ordonnance_manquante": "Date d'ordonnance absente : échéances non calculées.",
+   "hors_perimetre": "Mandat hors du périmètre du moteur de délais (mandat ad hoc ou fondement non reconnu).",
+   "ok": "Aucune échéance légale calculée."
+  }
+ },
+ {
+  "id": "constante:ECHEANCES_SUIVI_DOUBLONS_MOTEUR",
+  "fn": "constante:ECHEANCES_SUIVI_DOUBLONS_MOTEUR",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "O1",
+   "O2",
+   "O7"
+  ]
+ },
+ {
+  "id": "constante:FICHES_REGIMES",
+  "fn": "constante:FICHES_REGIMES",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "sj": {
+    "code": "sj",
+    "label": "Syndic judiciaire",
+    "short": "Syndic judiciaire",
+    "basis": "art. 17 L. 1965 · art. 46 décret 1967",
+    "duree": "fixée par l'ordonnance",
+    "mission": "Assurer la gestion et convoquer l'AG en vue d'élire un syndic.",
+    "pouvoirs": [
+     "Tous les pouvoirs du syndic (art. 18 à 18-2)",
+     "L'AG et le conseil syndical conservent leurs pouvoirs",
+     "Rémunération fixée / soumise à taxation"
+    ]
+   },
+   "ap47": {
+    "code": "ap47",
+    "label": "Administrateur provisoire — carence",
+    "short": "AP carence",
+    "basis": "art. 47 du décret du 17 mars 1967",
+    "duree": "fixée par le juge",
+    "mission": "Pallier l'absence de syndic et convoquer l'AG élective.",
+    "pouvoirs": [
+     "Pouvoirs du syndic",
+     "Aucune preuve de difficulté requise",
+     "Se faire remettre archives et fonds"
+    ]
+   },
+   "ap291": {
+    "code": "ap291",
+    "label": "Administrateur provisoire — difficulté",
+    "short": "AP art. 29-1",
+    "basis": "art. 29-1 de la loi du 10 juillet 1965",
+    "duree": "≥ 12 mois",
+    "mission": "Rétablir le fonctionnement normal et redresser la situation financière.",
+    "pouvoirs": [
+     "Pouvoirs du syndic",
+     "Tout ou partie des pouvoirs de l'AG (sauf art. 26 a et b)",
+     "Tout ou partie des pouvoirs du conseil syndical",
+     "Rapport intermédiaire au plus tard à 6 mois (art. 29-1 I), sauf rapport de mandataire ad hoc l'année précédente"
+    ]
+   }
+  }
+ },
+ {
+  "id": "constante:LIBELLES_REGIMES",
+  "fn": "constante:LIBELLES_REGIMES",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "sj": {
+    "libelle": "Syndic désigné en justice (carence de l'assemblée)",
+    "fondement": "L. 1965 art. 17 · D. 1967 art. 46"
+   },
+   "ap47": {
+    "libelle": "Administrateur provisoire · syndicat dépourvu de syndic",
+    "fondement": "L. 1965 art. 17 · D. 1967 art. 47"
+   },
+   "ap291": {
+    "libelle": "Administrateur provisoire · copropriété en difficulté",
+    "fondement": "L. 1965 art. 29-1 et s."
+   }
+  }
+ },
+ {
+  "id": "constante:TEXTES_REFERENCE",
+  "fn": "constante:TEXTES_REFERENCE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "L1965": {
+    "court": "L. 1965",
+    "long": "Loi n° 65-557 du 10 juillet 1965"
+   },
+   "D1967": {
+    "court": "D. 1967",
+    "long": "Décret n° 67-223 du 17 mars 1967"
+   },
+   "CPC": {
+    "court": "CPC",
+    "long": "Code de procédure civile"
+   }
+  }
+ },
+ {
+  "id": "constante:FONDEMENTS_FORMULAIRE_COPROPRIETE",
+  "fn": "constante:FONDEMENTS_FORMULAIRE_COPROPRIETE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "Syndic judiciaire (art. 46)",
+   "Administrateur provisoire (art. 47)",
+   "Administration provisoire (art. 29-1)",
+   "Mandat ad hoc"
+  ]
+ },
+ {
+  "id": "constante:FONDEMENTS_ASSISTANT_MANDAT",
+  "fn": "constante:FONDEMENTS_ASSISTANT_MANDAT",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "art. 46 décret du 17 mars 1967 (carence)",
+   "art. 47 décret du 17 mars 1967 (syndicat dépourvu de syndic)",
+   "art. 29-1 loi du 10 juillet 1965 (copropriété en difficulté)"
+  ]
+ },
+ {
+  "id": "constante:ETAPES_TAXATION",
+  "fn": "constante:ETAPES_TAXATION",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "Diligences",
+   "État de frais",
+   "Requête en taxation",
+   "Ordonnance de taxation",
+   "Recouvrement"
+  ]
+ },
+ {
+  "id": "constante:MAJORITES_AG",
+  "fn": "constante:MAJORITES_AG",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "art24": {
+    "libelle": "Majorité simple",
+    "base": "L. 1965 art. 24",
+    "exemples": "approbation des comptes, budget, travaux d'entretien"
+   },
+   "art25": {
+    "libelle": "Majorité absolue",
+    "base": "L. 1965 art. 25",
+    "exemples": "désignation du syndic, conseil syndical, travaux d'économie d'énergie"
+   },
+   "art26": {
+    "libelle": "Double majorité",
+    "base": "L. 1965 art. 26",
+    "exemples": "actes de disposition, modification du règlement"
+   },
+   "unanimite": {
+    "libelle": "Unanimité",
+    "base": "L. 1965 art. 26, dernier al.",
+    "exemples": "aliénation de parties communes nécessaires au respect de la destination"
+   }
+  }
+ },
+ {
+  "id": "constante:OBLIGATIONS_SUIVI_REMPLACEES_PAR_MOTEUR",
+  "fn": "constante:OBLIGATIONS_SUIVI_REMPLACEES_PAR_MOTEUR",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "O1",
+   "O2",
+   "O7"
+  ]
+ },
+ {
+  "id": "constante:LIBELLES_SOURCE_OBLIGATION",
+  "fn": "constante:LIBELLES_SOURCE_OBLIGATION",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "moteur": "Moteur de délais légaux",
+   "suivi": "Suivi du cabinet (indicatif, sans délai légal vérifié)"
+  }
+ },
+ {
+  "id": "constante:SERVICE_RESPONSABLE_PAR_REGLE",
+  "fn": "constante:SERVICE_RESPONSABLE_PAR_REGLE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "notification-ordonnance-46-47": "Secrétariat",
+   "information-coproprietaires-ap291": "Secrétariat",
+   "refere-coproprietaires-46-47": "Juridique",
+   "refere-ordonnance-requete-ap291": "Juridique",
+   "compte-separe-sj": "Comptabilité",
+   "convocation-ag-sj": "Juridique",
+   "convocation-ag-ap47": "Juridique",
+   "remise-documents-ap47": "Direction",
+   "publicite-creanciers-ap291": "Juridique",
+   "rapport-intermediaire-ap291": "Direction",
+   "fin-suspension-exigibilite-ap291": "Comptabilité",
+   "declaration-creances-ap291": "Comptabilité",
+   "releve-forclusion-ap291": "Juridique",
+   "contestation-liste-creances-ap291": "Juridique",
+   "observations-echeancier-ap291": "Comptabilité",
+   "contestation-plan-ap291": "Juridique",
+   "ancien-syndic-tresorerie": "Comptabilité",
+   "ancien-syndic-archives": "Secrétariat",
+   "ancien-syndic-etat-comptes": "Comptabilité",
+   "fin-mission-sj": "Direction",
+   "fin-mission-ap47": "Direction",
+   "fin-mission-ap291": "Direction"
+  }
+ },
+ {
+  "id": "constante:ACTES_PRE_REDIGES_RECHERCHE",
+  "fn": "constante:ACTES_PRE_REDIGES_RECHERCHE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   {
+    "cle": "convocation",
+    "label": "Convocation AG élective",
+    "icon": "bank"
+   },
+   {
+    "cle": "notification",
+    "label": "Notification d'ordonnance",
+    "icon": "doc"
+   },
+   {
+    "cle": "misedemeure",
+    "label": "Mise en demeure (impayés)",
+    "icon": "alert"
+   },
+   {
+    "cle": "requete",
+    "label": "Requête en prorogation",
+    "icon": "scale"
+   },
+   {
+    "cle": "etatfrais",
+    "label": "État de frais & honoraires",
+    "icon": "coin"
+   },
+   {
+    "cle": "pv",
+    "label": "Procès-verbal d'AG",
+    "icon": "pencil"
+   }
+  ]
+ },
+ {
+  "id": "constante:ORDRE_TYPES_RECHERCHE",
+  "fn": "constante:ORDRE_TYPES_RECHERCHE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "copro": 0,
+   "personne": 1,
+   "lot": 2,
+   "prestataire": 3,
+   "echeance": 4,
+   "acte": 5
+  }
+ },
+ {
+  "id": "constante:ETAPES_RECOUVREMENT",
+  "fn": "constante:ETAPES_RECOUVREMENT",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   {
+    "etape": "amiable",
+    "libelle": "Relance amiable",
+    "base": "gestion",
+    "conseil": "Relance simple, puis mise en demeure si elle reste sans effet."
+   },
+   {
+    "etape": "mise_en_demeure",
+    "libelle": "Mise en demeure",
+    "base": "L. 1965 art. 19-2",
+    "conseil": "Lettre recommandée, nature et montant de chaque provision impayée par exercice. Trente jours courent."
+   },
+   {
+    "etape": "exigibilite",
+    "libelle": "Exigibilité anticipée",
+    "base": "L. 1965 art. 19-2",
+    "conseil": "Passé trente jours, les provisions non échues et les sommes dues des exercices précédents sont exigibles."
+   },
+   {
+    "etape": "procedure",
+    "libelle": "Action en justice",
+    "base": "L. 1965 art. 19-2, 19-1, 20",
+    "conseil": "Procédure accélérée au fond devant le président du tribunal judiciaire ; hypothèque légale ; opposition sur le prix en cas de vente."
+   },
+   {
+    "etape": "solde",
+    "libelle": "Soldé",
+    "base": "gestion",
+    "conseil": "Dossier clos."
+   }
+  ]
+ },
+ {
+  "id": "constante:PARCOURS_RECOUVREMENT_DEBITEUR",
+  "fn": "constante:PARCOURS_RECOUVREMENT_DEBITEUR",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   {
+    "etape": "Mise en demeure",
+    "base": "L. 1965 art. 19-2",
+    "note": "Lettre recommandée, nature et montant de chaque provision impayée par exercice (avis Cass. 12 déc. 2024)."
+   },
+   {
+    "etape": "Exigibilité anticipée",
+    "base": "L. 1965 art. 19-2",
+    "note": "Passé trente jours sans paiement, les provisions non échues et les sommes dues des exercices précédents deviennent exigibles."
+   },
+   {
+    "etape": "Procédure accélérée au fond",
+    "base": "L. 1965 art. 19-2",
+    "note": "Président du tribunal judiciaire ; à défaut, injonction de payer ou assignation au fond."
+   },
+   {
+    "etape": "Garanties et exécution",
+    "base": "L. 1965 art. 19-1 et 20",
+    "note": "Hypothèque légale du syndicat ; opposition sur le prix en cas de vente (15 jours de l'avis de mutation) ; saisie des loyers."
+   },
+   {
+    "etape": "Prescription",
+    "base": "L. 1965 art. 42",
+    "note": "Cinq ans pour les charges : surveiller les créances les plus anciennes."
+   }
+  ]
+ },
+ {
+  "id": "constante:PIECES_REPRISE",
+  "fn": "constante:PIECES_REPRISE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   {
+    "cle": "tresorerie",
+    "libelle": "Situation de trésorerie, références des comptes bancaires, coordonnées de la banque",
+    "base": "L. 1965 art. 18-2",
+    "delai": "15 jours"
+   },
+   {
+    "cle": "archives",
+    "libelle": "Documents et archives du syndicat, dématérialisés en format téléchargeable et imprimable",
+    "base": "L. 1965 art. 18-2",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "comptes",
+    "libelle": "État des comptes des copropriétaires et du syndicat, après apurement et clôture",
+    "base": "L. 1965 art. 18-2",
+    "delai": "apurement"
+   },
+   {
+    "cle": "registre_pv",
+    "libelle": "Registre des procès-verbaux d'assemblée et feuilles de présence",
+    "base": "D. 1967 art. 17",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "reglement",
+    "libelle": "Règlement de copropriété, état descriptif de division, modificatifs",
+    "base": "archives",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "contrats",
+    "libelle": "Contrats en cours : assurance, entretien, ascenseur, énergie, gardien",
+    "base": "archives",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "carnet",
+    "libelle": "Carnet d'entretien, diagnostics (DTA amiante, DPE, DTG), fiche synthétique",
+    "base": "L. 1965 art. 8-2 et 18",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "sinistres",
+    "libelle": "Dossiers de sinistres et de contentieux en cours",
+    "base": "archives",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "personnel",
+    "libelle": "Dossier du gardien : contrat, bulletins, DUE, mutuelle",
+    "base": "archives",
+    "delai": "1 mois"
+   },
+   {
+    "cle": "immatriculation",
+    "libelle": "Accès au registre national des copropriétés (immatriculation)",
+    "base": "CCH art. L. 711-1",
+    "delai": "pratique"
+   },
+   {
+    "cle": "cles",
+    "libelle": "Clés, badges, codes d'accès, mots de passe (extranet, banque en ligne), chéquiers",
+    "base": "pratique",
+    "delai": "pratique"
+   },
+   {
+    "cle": "compteurs",
+    "libelle": "Références des compteurs (PDL, PCE, eau) pour la reprise des contrats",
+    "base": "pratique",
+    "delai": "pratique"
+   }
+  ]
+ },
+ {
+  "id": "constante:REGLE_MOTEUR_PAR_DELAI_PIECE",
+  "fn": "constante:REGLE_MOTEUR_PAR_DELAI_PIECE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "15 jours": "ancien-syndic-tresorerie",
+   "1 mois": "ancien-syndic-archives",
+   "apurement": "ancien-syndic-etat-comptes"
+  }
+ },
+ {
+  "id": "constante:COPRO_VIDE",
+  "fn": "constante:COPRO_VIDE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": {
+   "id": "",
+   "mandatId": "",
+   "code": "",
+   "nom": "Aucune copropriété enregistrée",
+   "adresse": "",
+   "lots": 0,
+   "budget": 0,
+   "depense": 0,
+   "impayes": 0,
+   "fondsTravaux": 0,
+   "fondement": "",
+   "motif": "",
+   "tribunal": "",
+   "rg": "",
+   "ordonnance": "",
+   "dureeMois": 0,
+   "echeance": "",
+   "statut": "",
+   "pill": "navy",
+   "notifOrdonnance": ""
+  }
+ },
+ {
+  "id": "cles:EVENEMENTS_DEPART",
+  "fn": "cles:EVENEMENTS_DEPART",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "ordonnance",
+   "finMission",
+   "notificationOrdonnance",
+   "publicationOrdonnance",
+   "publicationListeCreances",
+   "envoiProjetEcheancier",
+   "notificationPlanDefinitif",
+   "cessationAncienSyndic"
+  ]
+ },
+ {
+  "id": "cles:NOTE_REMISE_ANCIEN_SYNDIC",
+  "fn": "cles:NOTE_REMISE_ANCIEN_SYNDIC",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "0",
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91",
+   "92",
+   "93",
+   "94",
+   "95",
+   "96",
+   "97",
+   "98",
+   "99",
+   "100",
+   "101",
+   "102",
+   "103",
+   "104",
+   "105",
+   "106",
+   "107",
+   "108",
+   "109",
+   "110",
+   "111",
+   "112",
+   "113",
+   "114",
+   "115",
+   "116",
+   "117",
+   "118",
+   "119",
+   "120",
+   "121",
+   "122",
+   "123",
+   "124",
+   "125",
+   "126",
+   "127",
+   "128",
+   "129",
+   "130",
+   "131",
+   "132",
+   "133",
+   "134",
+   "135",
+   "136",
+   "137",
+   "138",
+   "139",
+   "140",
+   "141",
+   "142",
+   "143",
+   "144",
+   "145",
+   "146",
+   "147",
+   "148",
+   "149",
+   "150",
+   "151",
+   "152",
+   "153",
+   "154",
+   "155",
+   "156",
+   "157",
+   "158",
+   "159",
+   "160",
+   "161",
+   "162",
+   "163",
+   "164",
+   "165",
+   "166",
+   "167",
+   "168",
+   "169",
+   "170",
+   "171",
+   "172",
+   "173",
+   "174",
+   "175",
+   "176",
+   "177",
+   "178",
+   "179",
+   "180",
+   "181",
+   "182",
+   "183",
+   "184",
+   "185",
+   "186",
+   "187",
+   "188",
+   "189",
+   "190",
+   "191",
+   "192",
+   "193",
+   "194",
+   "195",
+   "196",
+   "197",
+   "198",
+   "199",
+   "200",
+   "201",
+   "202",
+   "203",
+   "204",
+   "205",
+   "206",
+   "207",
+   "208",
+   "209",
+   "210",
+   "211",
+   "212",
+   "213",
+   "214",
+   "215",
+   "216",
+   "217",
+   "218",
+   "219",
+   "220",
+   "221",
+   "222",
+   "223",
+   "224",
+   "225",
+   "226",
+   "227",
+   "228",
+   "229",
+   "230",
+   "231",
+   "232",
+   "233",
+   "234",
+   "235",
+   "236",
+   "237",
+   "238",
+   "239",
+   "240",
+   "241",
+   "242",
+   "243",
+   "244",
+   "245",
+   "246",
+   "247",
+   "248",
+   "249",
+   "250",
+   "251",
+   "252",
+   "253",
+   "254",
+   "255",
+   "256",
+   "257",
+   "258",
+   "259",
+   "260",
+   "261",
+   "262",
+   "263",
+   "264",
+   "265",
+   "266",
+   "267",
+   "268",
+   "269",
+   "270",
+   "271",
+   "272",
+   "273",
+   "274",
+   "275",
+   "276",
+   "277",
+   "278",
+   "279",
+   "280",
+   "281",
+   "282",
+   "283",
+   "284",
+   "285",
+   "286",
+   "287",
+   "288",
+   "289",
+   "290",
+   "291",
+   "292",
+   "293"
+  ]
+ },
+ {
+  "id": "cles:REGLES_DELAIS_LEGAUX",
+  "fn": "cles:REGLES_DELAIS_LEGAUX",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "lendemain",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delaiOrdonnance",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delaiOrdonnance",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note",
+    "condition"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note",
+    "condition"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "lendemain",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ],
+   [
+    "id",
+    "regimes",
+    "libelle",
+    "nature",
+    "fondements",
+    "depart",
+    "delai",
+    "certitude",
+    "note"
+   ]
+  ]
+ },
+ {
+  "id": "cles:BADGES_CERTITUDE_ECHEANCE",
+  "fn": "cles:BADGES_CERTITUDE_ECHEANCE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "A_CONFIRMER",
+   "SOURCE_SECONDAIRE"
+  ]
+ },
+ {
+  "id": "cles:REGLES_NOTIFICATION_ORDONNANCE",
+  "fn": "cles:REGLES_NOTIFICATION_ORDONNANCE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "string",
+   "string"
+  ]
+ },
+ {
+  "id": "cles:MESSAGES_ETAT_ECHEANCES",
+  "fn": "cles:MESSAGES_ETAT_ECHEANCES",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "chargement",
+   "indisponible",
+   "introuvable",
+   "ordonnance_manquante",
+   "hors_perimetre",
+   "ok"
+  ]
+ },
+ {
+  "id": "cles:ECHEANCES_SUIVI_DOUBLONS_MOTEUR",
+  "fn": "cles:ECHEANCES_SUIVI_DOUBLONS_MOTEUR",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "string",
+   "string",
+   "string"
+  ]
+ },
+ {
+  "id": "cles:FICHES_REGIMES",
+  "fn": "cles:FICHES_REGIMES",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "sj",
+   "ap47",
+   "ap291"
+  ]
+ },
+ {
+  "id": "cles:LIBELLES_REGIMES",
+  "fn": "cles:LIBELLES_REGIMES",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "sj",
+   "ap47",
+   "ap291"
+  ]
+ },
+ {
+  "id": "cles:TEXTES_REFERENCE",
+  "fn": "cles:TEXTES_REFERENCE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "L1965",
+   "D1967",
+   "CPC"
+  ]
+ },
+ {
+  "id": "cles:FONDEMENTS_FORMULAIRE_COPROPRIETE",
+  "fn": "cles:FONDEMENTS_FORMULAIRE_COPROPRIETE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "string",
+   "string",
+   "string",
+   "string"
+  ]
+ },
+ {
+  "id": "cles:FONDEMENTS_ASSISTANT_MANDAT",
+  "fn": "cles:FONDEMENTS_ASSISTANT_MANDAT",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "string",
+   "string",
+   "string"
+  ]
+ },
+ {
+  "id": "cles:ETAPES_TAXATION",
+  "fn": "cles:ETAPES_TAXATION",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "string",
+   "string",
+   "string",
+   "string",
+   "string"
+  ]
+ },
+ {
+  "id": "cles:MAJORITES_AG",
+  "fn": "cles:MAJORITES_AG",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "art24",
+   "art25",
+   "art26",
+   "unanimite"
+  ]
+ },
+ {
+  "id": "cles:OBLIGATIONS_SUIVI_REMPLACEES_PAR_MOTEUR",
+  "fn": "cles:OBLIGATIONS_SUIVI_REMPLACEES_PAR_MOTEUR",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "string",
+   "string",
+   "string"
+  ]
+ },
+ {
+  "id": "cles:LIBELLES_SOURCE_OBLIGATION",
+  "fn": "cles:LIBELLES_SOURCE_OBLIGATION",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "moteur",
+   "suivi"
+  ]
+ },
+ {
+  "id": "cles:SERVICE_RESPONSABLE_PAR_REGLE",
+  "fn": "cles:SERVICE_RESPONSABLE_PAR_REGLE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "notification-ordonnance-46-47",
+   "information-coproprietaires-ap291",
+   "refere-coproprietaires-46-47",
+   "refere-ordonnance-requete-ap291",
+   "compte-separe-sj",
+   "convocation-ag-sj",
+   "convocation-ag-ap47",
+   "remise-documents-ap47",
+   "publicite-creanciers-ap291",
+   "rapport-intermediaire-ap291",
+   "fin-suspension-exigibilite-ap291",
+   "declaration-creances-ap291",
+   "releve-forclusion-ap291",
+   "contestation-liste-creances-ap291",
+   "observations-echeancier-ap291",
+   "contestation-plan-ap291",
+   "ancien-syndic-tresorerie",
+   "ancien-syndic-archives",
+   "ancien-syndic-etat-comptes",
+   "fin-mission-sj",
+   "fin-mission-ap47",
+   "fin-mission-ap291"
+  ]
+ },
+ {
+  "id": "cles:ACTES_PRE_REDIGES_RECHERCHE",
+  "fn": "cles:ACTES_PRE_REDIGES_RECHERCHE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   [
+    "cle",
+    "label",
+    "icon"
+   ],
+   [
+    "cle",
+    "label",
+    "icon"
+   ],
+   [
+    "cle",
+    "label",
+    "icon"
+   ],
+   [
+    "cle",
+    "label",
+    "icon"
+   ],
+   [
+    "cle",
+    "label",
+    "icon"
+   ],
+   [
+    "cle",
+    "label",
+    "icon"
+   ]
+  ]
+ },
+ {
+  "id": "cles:ORDRE_TYPES_RECHERCHE",
+  "fn": "cles:ORDRE_TYPES_RECHERCHE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "copro",
+   "personne",
+   "lot",
+   "prestataire",
+   "echeance",
+   "acte"
+  ]
+ },
+ {
+  "id": "cles:ETAPES_RECOUVREMENT",
+  "fn": "cles:ETAPES_RECOUVREMENT",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   [
+    "etape",
+    "libelle",
+    "base",
+    "conseil"
+   ],
+   [
+    "etape",
+    "libelle",
+    "base",
+    "conseil"
+   ],
+   [
+    "etape",
+    "libelle",
+    "base",
+    "conseil"
+   ],
+   [
+    "etape",
+    "libelle",
+    "base",
+    "conseil"
+   ],
+   [
+    "etape",
+    "libelle",
+    "base",
+    "conseil"
+   ]
+  ]
+ },
+ {
+  "id": "cles:PARCOURS_RECOUVREMENT_DEBITEUR",
+  "fn": "cles:PARCOURS_RECOUVREMENT_DEBITEUR",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   [
+    "etape",
+    "base",
+    "note"
+   ],
+   [
+    "etape",
+    "base",
+    "note"
+   ],
+   [
+    "etape",
+    "base",
+    "note"
+   ],
+   [
+    "etape",
+    "base",
+    "note"
+   ],
+   [
+    "etape",
+    "base",
+    "note"
+   ]
+  ]
+ },
+ {
+  "id": "cles:PIECES_REPRISE",
+  "fn": "cles:PIECES_REPRISE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ],
+   [
+    "cle",
+    "libelle",
+    "base",
+    "delai"
+   ]
+  ]
+ },
+ {
+  "id": "cles:REGLE_MOTEUR_PAR_DELAI_PIECE",
+  "fn": "cles:REGLE_MOTEUR_PAR_DELAI_PIECE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "15 jours",
+   "1 mois",
+   "apurement"
+  ]
+ },
+ {
+  "id": "cles:COPRO_VIDE",
+  "fn": "cles:COPRO_VIDE",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "id",
+   "mandatId",
+   "code",
+   "nom",
+   "adresse",
+   "lots",
+   "budget",
+   "depense",
+   "impayes",
+   "fondsTravaux",
+   "fondement",
+   "motif",
+   "tribunal",
+   "rg",
+   "ordonnance",
+   "dureeMois",
+   "echeance",
+   "statut",
+   "pill",
+   "notifOrdonnance"
+  ]
+ },
+ {
+  "id": "liste:MOTS_IGNORES_RAPPROCHEMENT",
+  "fn": "liste:MOTS_IGNORES_RAPPROCHEMENT",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": [
+   "VIR",
+   "SEPA",
+   "PRLV",
+   "CB",
+   "CHQ",
+   "CHEQUE",
+   "VIREMENT",
+   "DE",
+   "DU",
+   "LA",
+   "LE",
+   "LES",
+   "ET",
+   "M",
+   "MME",
+   "MR",
+   "MLLE",
+   "SCI",
+   "COPRO",
+   "CHARGES",
+   "CHARGE",
+   "APPEL",
+   "FONDS",
+   "LOT",
+   "REF",
+   "REFERENCE"
+  ]
+ },
+ {
+  "id": "getTime:DATE_REFERENCE_SUIVI_DOSSIERS",
+  "fn": "getTime:DATE_REFERENCE_SUIVI_DOSSIERS",
+  "args": [],
+  "sortie": "valeur",
+  "attendu": 1781820000000
+ },
+ {
+  "id": "regex:trouverColonne#1",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "^DATE$"
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "regex:trouverColonne#2",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "DATE OP",
+   "DATE"
+  ],
+  "sortie": "valeur",
+  "attendu": 1
+ },
+ {
+  "id": "regex:trouverColonne#3",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "LIBELLE",
+   "LABEL"
+  ],
+  "sortie": "valeur",
+  "attendu": 2
+ },
+ {
+  "id": "regex:trouverColonne#4",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "^MONTANT",
+   "AMOUNT"
+  ],
+  "sortie": "valeur",
+  "attendu": 3
+ },
+ {
+  "id": "regex:trouverColonne#5",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "SOLDE"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "regex:trouverColonne#6",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ]
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "regex:trouverColonne#7",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "CREDIT",
+   "DEBIT"
+  ],
+  "sortie": "valeur",
+  "attendu": 5
+ },
+ {
+  "id": "regex:trouverColonne#8",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [
+    "DATE",
+    "DATE OPERATION",
+    "LIBELLE",
+    "MONTANT EUR",
+    "DEBIT",
+    "CREDIT"
+   ],
+   "OPERATION$"
+  ],
+  "sortie": "valeur",
+  "attendu": 1
+ },
+ {
+  "id": "regex:trouverColonne#9",
+  "fn": "regex:trouverColonne",
+  "args": [
+   [],
+   "X"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "liste:piecesRepriseRecues#1",
+  "fn": "liste:piecesRepriseRecues",
+  "args": [
+   [
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C2",
+     "type": "cles"
+    },
+    {
+     "entiteType": "mandat",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:"
+    }
+   ],
+   "C1"
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "tresorerie",
+   "comptes"
+  ]
+ },
+ {
+  "id": "liste:piecesRepriseRecues#2",
+  "fn": "liste:piecesRepriseRecues",
+  "args": [
+   [
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C2",
+     "type": "cles"
+    },
+    {
+     "entiteType": "mandat",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:"
+    }
+   ],
+   "C2"
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "cles"
+  ]
+ },
+ {
+  "id": "liste:piecesRepriseRecues#3",
+  "fn": "liste:piecesRepriseRecues",
+  "args": [
+   [
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C2",
+     "type": "cles"
+    },
+    {
+     "entiteType": "mandat",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:"
+    }
+   ],
+   "C3"
+  ],
+  "sortie": "valeur",
+  "attendu": []
+ },
+ {
+  "id": "liste:piecesRepriseRecues#4",
+  "fn": "liste:piecesRepriseRecues",
+  "args": [
+   [],
+   "C1"
+  ],
+  "sortie": "valeur",
+  "attendu": []
+ },
+ {
+  "id": "liste:piecesRepriseRecues#5",
+  "fn": "liste:piecesRepriseRecues",
+  "args": [
+   [
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:carnet"
+    },
+    {
+     "entiteType": "mandat",
+     "entiteId": "C1",
+     "type": "carnet"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C2",
+     "type": "cles"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "comptes"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "retrait:archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "archives"
+    },
+    {
+     "entiteType": "reprise",
+     "entiteId": "C1",
+     "type": "tresorerie"
+    }
+   ],
+   "C1"
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "tresorerie",
+   "comptes"
+  ]
+ },
+ {
+  "id": "selection:choisirCopro#1",
+  "fn": "selection:choisirCopro",
+  "args": [
+   "TL",
+   "LM"
+  ],
+  "sortie": "valeur",
+  "attendu": "TL"
+ },
+ {
+  "id": "selection:choisirCopro#2",
+  "fn": "selection:choisirCopro",
+  "args": [
+   "",
+   "LM"
+  ],
+  "sortie": "valeur",
+  "attendu": "LM"
+ },
+ {
+  "id": "selection:etat#1",
+  "fn": "selection:etat",
+  "args": [
+   "CV",
+   "P3"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "code": "CV",
+   "coproprietaireId": "P3",
+   "cles": [
+    "code",
+    "coproprietaireId",
+    "choisirCopro",
+    "choisirPersonne"
+   ]
+  }
+ }
+]
