@@ -39,6 +39,8 @@ const DASHBOARD_PATH_PREFIXES = [
    * et le header public se superposent au dashboard).
    */
   '/syndic/v54',
+  // Succursale Administrateur Judiciaire (son propre shell, flag ADMINISTRATEUR_JUDICIAIRE_LIVE)
+  '/administrateur-judiciaire',
   // Copropriétaire (dormant)
   '/coproprietaire/',
   // Admin
