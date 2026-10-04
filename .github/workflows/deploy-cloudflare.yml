@@ -60,10 +60,11 @@ jobs:
           command: deploy
           # Sans wranglerVersion, l'action installe SA version par défaut
           # (vieille) au lieu de celle du lockfile : les assets @vercel/og de
-          # next 16.2.9 cassent son module-collector. 4.100.0 = version validée
-          # par dry-run (clone propre, build OpenNext 1.19.11). Garder aligné
-          # avec devDependencies.wrangler.
-          wranglerVersion: "4.100.0"
+          # next 16.x cassent son module-collector. 4.143.1 = version validée
+          # par dry-run (npm ci, build OpenNext 1.20.8 sur next 16.3.8 ; OpenNext
+          # 1.20.x exige wrangler >= 4.125). Garder aligné avec
+          # devDependencies.wrangler.
+          wranglerVersion: "4.143.1"
 
       - name: Smoke test
         run: |

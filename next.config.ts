@@ -7,6 +7,9 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  // Next 16.3 : `next dev` réécrit CLAUDE.md (bloc « nextjs-agent-rules ») dès
+  // qu'il détecte un agent IA. CLAUDE.md est maintenu à la main : désactivé.
+  agentRules: false,
   experimental: {
     optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js', 'date-fns', 'lucide-react', 'pdf-lib', 'zod'],
   },
