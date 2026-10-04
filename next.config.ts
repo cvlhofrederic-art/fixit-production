@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
         { source: '/fr/confirmation/', destination: '/confirmation/' },
         { source: '/fr/confidentialite', destination: '/confidentialite' },
         { source: '/fr/confidentialite/', destination: '/confidentialite/' },
+        { source: '/fr/confidentialite/mes-donnees', destination: '/confidentialite/mes-donnees' },
+        { source: '/fr/confidentialite/mes-donnees/', destination: '/confidentialite/mes-donnees/' },
         { source: '/fr/cookies', destination: '/cookies' },
         { source: '/fr/cookies/', destination: '/cookies/' },
         { source: '/fr/tracking/:path*', destination: '/tracking/:path*' },

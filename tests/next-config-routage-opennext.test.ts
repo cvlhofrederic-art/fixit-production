@@ -149,3 +149,18 @@ describe('barre finale des redirections « /:path* »', () => {
     expect(resoudre(await redirections(), chemin)).toBe(attendu)
   })
 })
+
+describe('pages partagées servies sous /fr', () => {
+  // Le middleware préfixe toute URL par la locale : sans réécriture, la page RGPD « Mes données »
+  // (app/confidentialite/mes-donnees) répondait 404 pour un visiteur français.
+  it.each(['/fr/confidentialite/mes-donnees/', '/fr/confidentialite/mes-donnees'])('%s est servie par la page « Mes données »', async (chemin) => {
+    const [avantFichiers] = await reecritures()
+    expect(pageExiste('/confidentialite/mes-donnees')).toBe(true)
+    expect(resoudre(avantFichiers, chemin)?.replace(/\/$/, '')).toBe('/confidentialite/mes-donnees')
+  })
+
+  it('laisse /fr/confidentialite/ sur la politique de confidentialité', async () => {
+    const [avantFichiers] = await reecritures()
+    expect(resoudre(avantFichiers, '/fr/confidentialite/')?.replace(/\/$/, '')).toBe('/confidentialite')
+  })
+})
