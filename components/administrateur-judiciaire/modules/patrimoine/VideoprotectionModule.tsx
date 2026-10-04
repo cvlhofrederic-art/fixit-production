@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_CAMERAS_VIDEOPROTECTION,
   PILL_PAR_CONFORMITE_CNIL,
@@ -39,12 +40,7 @@ export function VideoprotectionModule() {
                 icon: 'shield',
                 title: 'Nouvelle caméra',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Emplacement',
                     placeholder: 'ex. Hall RDC',

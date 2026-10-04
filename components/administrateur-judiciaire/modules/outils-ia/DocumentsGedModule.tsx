@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { DEMO_DOCUMENTS_GED, type DocumentGedDemo } from '@/components/administrateur-judiciaire/data/documents-ged'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -34,12 +35,7 @@ export function DocumentsGedModule() {
                 icon: 'folder',
                 title: 'Téléverser un document',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Catégorie',
                     type: 'select',

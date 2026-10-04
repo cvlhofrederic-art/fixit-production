@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_EQUIPE_PLANNING,
   DEMO_EVENEMENTS_PLANNING,
@@ -40,12 +41,7 @@ const FORMULAIRE_NOUVEL_EVENEMENT: OptionsFormulaire = {
   icon: 'calendar',
   title: 'Nouvel événement',
   fields: [
-    {
-      label: 'Copropriété',
-      type: 'select',
-      options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-      full: true,
-    },
+    CHAMP_COPROPRIETE,
     {
       label: 'Type',
       type: 'select',

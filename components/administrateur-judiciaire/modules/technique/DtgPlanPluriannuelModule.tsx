@@ -6,6 +6,7 @@ import {
   PILL_PAR_STATUT_DTG_PPT,
   type DtgPptCoproprieteDemo,
 } from '@/components/administrateur-judiciaire/data/dtg-ppt'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -38,12 +39,7 @@ export function DtgPlanPluriannuelModule() {
                 icon: 'wrench',
                 title: 'Nouveau diagnostic technique global',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: "Bureau d'études",
                     placeholder: 'ex. Qualiconsult',

@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { ChampCoproprieteDemo } from '@/components/administrateur-judiciaire/modules/ChampCoproprieteDemo'
 import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
-import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
@@ -104,19 +104,7 @@ export function RapportMensuelModule() {
         }}
       >
         <Panel title="Configuration" icon="wrench">
-          <FieldRow>
-            <Field label="Copropriété">
-              <select
-                aria-label="Copropriété"
-                value={copropriete}
-                onChange={(evenement) => setCopropriete(evenement.target.value)}
-              >
-                {DEMO_NOMS_COPROPRIETES.map((nom) => (
-                  <option key={nom}>{nom}</option>
-                ))}
-              </select>
-            </Field>
-          </FieldRow>
+          <ChampCoproprieteDemo value={copropriete} onChange={setCopropriete} />
           <div
             style={{
               fontSize: 12,

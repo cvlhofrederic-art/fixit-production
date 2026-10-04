@@ -6,6 +6,7 @@ import {
   type DoleanceDemo,
   type PrioriteDoleance,
 } from '@/components/administrateur-judiciaire/data/doleances'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { DonutGauge } from '@/components/administrateur-judiciaire/ui/DonutGauge'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -60,12 +61,7 @@ export function DoleancesModule() {
                 icon: 'chat',
                 title: 'Nouvelle doléance',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Copropriétaire',
                     placeholder: 'Nom · lot',

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { DEMO_COPROPRIETAIRES } from '@/components/administrateur-judiciaire/data/coproprietaires'
 import { DEMO_TOTAL_IMPAYES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { FormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
@@ -41,41 +42,7 @@ export function ImpayesRecouvrementModule() {
         lede="Charges impayées et procédures de recouvrement — mise en demeure, mise en œuvre de l'article 19-2 (déchéance du terme)."
         actions={
           <>
-            <button
-              className="btn"
-              onClick={() =>
-                push({
-                  kind: 'doc',
-                  icon: 'download',
-                  title: 'Export de données',
-                  eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
-                  docTitle: "Récapitulatif d'export",
-                  meta: 'Généré le 19/06/2026 · format CSV / XLSX',
-                  lines: [
-                    "L'export contient l'ensemble des données du module sur la période sélectionnée.",
-                    {
-                      h: 'Contenu',
-                    },
-                    {
-                      k: 'Lignes exportées',
-                      v: '248',
-                    },
-                    {
-                      k: 'Période',
-                      v: '01/01/2026 — 19/06/2026',
-                    },
-                    {
-                      k: 'Format',
-                      v: 'CSV (UTF-8) et XLSX',
-                    },
-                    {
-                      k: 'Colonnes',
-                      v: '12',
-                    },
-                  ],
-                })
-              }
-            >
+            <button className="btn" onClick={() => push(DOCUMENT_EXPORT_DONNEES)}>
               <Icon name="download" />
               Exporter
             </button>

@@ -1,5 +1,6 @@
 'use client'
 
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
@@ -66,12 +67,7 @@ export function ReservationEspacesCommunsModule() {
                 icon: 'calendar',
                 title: 'Nouvelle réservation',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Espace',
                     type: 'select',

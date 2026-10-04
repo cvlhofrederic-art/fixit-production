@@ -7,6 +7,7 @@ import {
   DEMO_TOTAL_IMPAYES,
   DEMO_TOTAL_LOTS,
 } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DEMO_OBLIGATIONS } from '@/components/administrateur-judiciaire/data/obligations'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
@@ -255,41 +256,7 @@ export function TableauDeBordModule() {
         right={
           <>
             <Pill kind="sage">À jour</Pill>
-            <button
-              className="btn"
-              onClick={() =>
-                push({
-                  kind: 'doc',
-                  icon: 'download',
-                  title: 'Export de données',
-                  eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
-                  docTitle: "Récapitulatif d'export",
-                  meta: 'Généré le 19/06/2026 · format CSV / XLSX',
-                  lines: [
-                    "L'export contient l'ensemble des données du module sur la période sélectionnée.",
-                    {
-                      h: 'Contenu',
-                    },
-                    {
-                      k: 'Lignes exportées',
-                      v: '248',
-                    },
-                    {
-                      k: 'Période',
-                      v: '01/01/2026 — 19/06/2026',
-                    },
-                    {
-                      k: 'Format',
-                      v: 'CSV (UTF-8) et XLSX',
-                    },
-                    {
-                      k: 'Colonnes',
-                      v: '12',
-                    },
-                  ],
-                })
-              }
-            >
+            <button className="btn" onClick={() => push(DOCUMENT_EXPORT_DONNEES)}>
               <Icon name="download" />
               Exporter
             </button>

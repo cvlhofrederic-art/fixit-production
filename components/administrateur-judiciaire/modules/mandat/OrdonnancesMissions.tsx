@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { AssistantMandatModal } from '@/components/administrateur-judiciaire/modules/mandat/composants/AssistantMandatModal'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
@@ -157,41 +158,7 @@ export function OrdonnancesMissionsModule() {
         lede="Désignations prononcées par le Tribunal judiciaire — fondement, périmètre, durée et échéances de chaque mission."
         actions={
           <>
-            <button
-              className="btn"
-              onClick={() =>
-                push({
-                  kind: 'doc',
-                  icon: 'download',
-                  title: 'Export de données',
-                  eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
-                  docTitle: "Récapitulatif d'export",
-                  meta: 'Généré le 19/06/2026 · format CSV / XLSX',
-                  lines: [
-                    "L'export contient l'ensemble des données du module sur la période sélectionnée.",
-                    {
-                      h: 'Contenu',
-                    },
-                    {
-                      k: 'Lignes exportées',
-                      v: '248',
-                    },
-                    {
-                      k: 'Période',
-                      v: '01/01/2026 — 19/06/2026',
-                    },
-                    {
-                      k: 'Format',
-                      v: 'CSV (UTF-8) et XLSX',
-                    },
-                    {
-                      k: 'Colonnes',
-                      v: '12',
-                    },
-                  ],
-                })
-              }
-            >
+            <button className="btn" onClick={() => push(DOCUMENT_EXPORT_DONNEES)}>
               <Icon name="download" />
               Exporter
             </button>
