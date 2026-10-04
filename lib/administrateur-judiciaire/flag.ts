@@ -8,7 +8,7 @@
  * Totalement indépendante des flags syndic (lib/syndic/v54-flag.ts) : la succursale
  * se déploie et se retire sans toucher au logiciel Syndic.
  */
-export const ADMINISTRATEUR_JUDICIAIRE_LIVE = false
+export const ADMINISTRATEUR_JUDICIAIRE_LIVE = true
 
 export function administrateurJudiciaireActif(): boolean {
   return ADMINISTRATEUR_JUDICIAIRE_LIVE || process.env.NODE_ENV !== 'production'

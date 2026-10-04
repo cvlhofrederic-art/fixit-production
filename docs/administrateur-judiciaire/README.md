@@ -9,9 +9,9 @@ Logiciel du syndic judiciaire / administrateur provisoire de copropriété (loi 
   (`middleware.ts`). Non connecté → connexion syndic (`/syndic/login`, qui ramène ensuite au tableau de bord syndic :
   rouvrir l'adresse de la succursale) ; autre rôle → `/auth/login`, qui renvoie vers son propre espace.
   Tests : `tests/administrateur-judiciaire/acces-middleware.test.ts`.
-- Activation : `lib/administrateur-judiciaire/flag.ts` — `ADMINISTRATEUR_JUDICIAIRE_LIVE = false` : 404 en
-  production, accessible en développement. Passer à `true` pour ouvrir la route en production (derrière la connexion
-  ci-dessus) ; le repasser à `false` la retire sans supprimer de code.
+- Activation : `lib/administrateur-judiciaire/flag.ts` — `ADMINISTRATEUR_JUDICIAIRE_LIVE = true` : la route est
+  servie en production (derrière la connexion ci-dessus). Le repasser à `false` la retire (404 en production,
+  accessible en développement) sans supprimer de code.
 - Jamais indexée (`robots` noindex + en-tête `X-Robots-Tag`).
 - Données : base locale du navigateur (IndexedDB via Dexie, base `vitfix-administrateur-judiciaire`), mode
   **démonstration** (date figée au 04/06/2026, jeu de données de démo) ou **données réelles** (date du jour, base vide).
