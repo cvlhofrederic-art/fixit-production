@@ -117,6 +117,12 @@ export function datePaques(annee: number): string {
   return composerDateIso(annee, mois, jour)
 }
 
+/** Comparateur du tri par défaut des chaînes : pour des dates AAAA-MM-JJ, c'est l'ordre chronologique. */
+function comparerDatesIso(a: string, b: string): number {
+  if (a < b) return -1
+  return a > b ? 1 : 0
+}
+
 /** Jours fériés légaux de l'année (triés), avec en option les deux jours propres à l'Alsace-Moselle. */
 export function joursFeries(annee: number, options: OptionsJoursFeries = {}): string[] {
   const paques = datePaques(annee)
@@ -137,8 +143,7 @@ export function joursFeries(annee: number, options: OptionsJoursFeries = {}): st
     feries.push(ajouterJours(paques, -2))
     feries.push(composerDateIso(annee, 12, 26))
   }
-  // Comparateur explicite, identique au tri par défaut : l'ordre des chaînes AAAA-MM-JJ est l'ordre chronologique.
-  return feries.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  return feries.sort(comparerDatesIso)
 }
 
 export function estJourFerie(dateIso: string, options: OptionsJoursFeries = {}): boolean {

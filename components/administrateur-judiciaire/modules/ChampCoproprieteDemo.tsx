@@ -14,7 +14,7 @@ export interface ChampCoproprieteDemoProps {
  * Champ « Copropriété » des panneaux de paramètres (Rapport mensuel, Rédaction de PV) : select sur les noms des
  * copropriétés de démonstration.
  */
-export function ChampCoproprieteDemo({ value, onChange }: ChampCoproprieteDemoProps) {
+export function ChampCoproprieteDemo({ value, onChange }: Readonly<ChampCoproprieteDemoProps>) {
   return (
     <FieldRow>
       <Field label="Copropriété">

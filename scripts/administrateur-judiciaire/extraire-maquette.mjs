@@ -23,7 +23,7 @@ const racine = path.resolve(path.dirname(new URL(import.meta.url).pathname.repla
 // Outil de développement lancé à la main : le chemin est choisi par la personne qui lance le script, sur son propre
 // poste (aucune entrée distante). Seul un fichier .html existant est accepté.
 const source = process.argv[2] ? path.resolve(process.argv[2]) : ''
-if (path.extname(source).toLowerCase() !== '.html' || !fs.existsSync(source) || !fs.statSync(source).isFile()) {
+if (path.extname(source).toLowerCase() !== '.html' || !fs.existsSync(source)) {
   console.error('Chemin de la maquette HTML manquant, introuvable ou sans extension .html.')
   process.exit(1)
 }
