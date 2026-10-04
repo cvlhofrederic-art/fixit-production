@@ -6,6 +6,7 @@ import {
   PILL_PAR_ETAT_ASCENSEUR,
   type AscenseurDemo,
 } from '@/components/administrateur-judiciaire/data/ascenseurs'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -39,12 +40,7 @@ export function AscenseursModule() {
                 icon: 'building',
                 title: 'Nouvel ascenseur',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Référence appareil',
                     placeholder: 'ex. ASC-A-2024',

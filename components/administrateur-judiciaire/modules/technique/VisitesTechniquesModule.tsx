@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_VISITES_TECHNIQUES,
   PILL_PAR_ETAT_VISITE_TECHNIQUE,
@@ -38,12 +39,7 @@ export function VisitesTechniquesModule() {
                 icon: 'pin',
                 title: 'Nouvelle visite',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Objet',
                     placeholder: 'ex. Visite technique annuelle',

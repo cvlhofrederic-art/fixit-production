@@ -5,6 +5,7 @@ import {
   DEMO_DOCUMENTS_INTERVENTION,
   type DocumentInterventionDemo,
 } from '@/components/administrateur-judiciaire/data/documents-intervention'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -44,12 +45,7 @@ export function DocumentsInterventionModule() {
                     placeholder: 'Intitulé',
                     full: true,
                   },
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Détail',
                     type: 'textarea',

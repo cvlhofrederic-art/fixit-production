@@ -1,5 +1,6 @@
 'use client'
 
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { CarteCritere } from '@/components/administrateur-judiciaire/ui/CarteCritere'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -42,12 +43,7 @@ export function CentreRgpdModule() {
                 icon: 'chat',
                 title: 'Nouvelle demande',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Demandeur',
                     placeholder: 'Nom · lot',

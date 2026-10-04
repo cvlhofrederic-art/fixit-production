@@ -5,6 +5,7 @@ import {
   DEMO_COMPTES_EXTRANET,
   type CompteExtranetDemo,
 } from '@/components/administrateur-judiciaire/data/comptes-extranet'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -49,12 +50,7 @@ export function ExtranetCoproprietairesModule() {
                     options: ['Conseil syndical', 'Copropriétaire', 'Prestataire', 'Lecture seule'],
                     full: true,
                   },
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                 ],
                 submitLabel: 'Inviter',
                 toast: {

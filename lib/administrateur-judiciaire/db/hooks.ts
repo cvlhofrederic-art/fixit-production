@@ -19,6 +19,7 @@ import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Hooks de lecture de la base locale. Chacun déclenche le chargement du store (loadAll) tant qu'il n'a pas eu lieu.
+ * loadAll ne rejette jamais (un échec de lecture est porté par `erreur`) : sa promesse n'est pas attendue (`void`).
  */
 
 /** Fusionne chaque copropriété avec son mandat (le dernier mandat trouvé pour une copropriété l'emporte). */
@@ -47,7 +48,7 @@ export function useCoproprietes(): ResultatCoproprietes {
     updateCopropriete,
   } = useDonneesStore()
   useEffect(() => {
-    if (!loaded) loadAll()
+    if (!loaded) void loadAll()
   }, [loaded, loadAll])
   // Mémorisé sur les tableaux du store (remplacés à chaque écriture) : résultat identique à un recalcul par rendu.
   const copros = useMemo(() => fusionnerCoprosMandats(coproprietes, mandats), [coproprietes, mandats])
@@ -70,7 +71,7 @@ export interface ResultatPrestataires {
 export function usePrestataires(): ResultatPrestataires {
   const { prestataires, loaded, loadAll, createPrestataire, updatePrestataire } = useDonneesStore()
   useEffect(() => {
-    if (!loaded) loadAll()
+    if (!loaded) void loadAll()
   }, [loaded, loadAll])
   return {
     prestataires,
@@ -144,7 +145,7 @@ export function useDonneesLocales(): DonneesLocales {
   const etat = useDonneesStore(),
     { loaded, loadAll } = etat
   useEffect(() => {
-    if (!loaded) loadAll()
+    if (!loaded) void loadAll()
   }, [loaded, loadAll])
   // Mémorisé sur les tableaux du store (remplacés à chaque écriture) : résultat identique à un recalcul par rendu.
   const copros = useMemo(

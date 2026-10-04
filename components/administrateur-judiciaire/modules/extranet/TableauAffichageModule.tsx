@@ -1,6 +1,7 @@
 'use client'
 
 import { DEMO_AVIS_AFFICHAGE, type TeinteAvis } from '@/components/administrateur-judiciaire/data/avis-affichage'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
@@ -44,12 +45,7 @@ export function TableauAffichageModule() {
                 icon: 'bell',
                 title: "Nouvel avis d'affichage",
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Titre',
                     placeholder: "ex. Coupure d'eau programmée",

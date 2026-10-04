@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_NPS_PAR_PRESTATAIRE,
   PILL_PAR_PROFIL_NPS,
@@ -39,12 +40,7 @@ export function NpsPostInterventionModule() {
                 icon: 'poll',
                 title: 'Envoyer une enquête de satisfaction',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Destinataires',
                     type: 'select',

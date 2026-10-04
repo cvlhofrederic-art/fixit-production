@@ -1,5 +1,6 @@
 'use client'
 
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DEMO_POUVOIRS_AG } from '@/components/administrateur-judiciaire/data/procurations'
 import { CarteCritere } from '@/components/administrateur-judiciaire/ui/CarteCritere'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
@@ -43,12 +44,7 @@ export function ProcurationsModule() {
                 icon: 'handshake',
                 title: 'Enregistrer un pouvoir',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Mandant',
                     placeholder: 'Copropriétaire représenté · lot',

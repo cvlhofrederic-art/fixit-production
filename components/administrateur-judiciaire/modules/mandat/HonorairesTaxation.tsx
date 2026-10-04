@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -224,17 +225,7 @@ export function HonorairesTaxationModule() {
                 icon: 'clipboard',
                 title: 'Nouvelle diligence',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: [
-                      'Résidence Le Méridien',
-                      'Le Clos des Vignes',
-                      'Copropriété Les Tilleuls',
-                      'Villa Montaigne',
-                    ],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Nature',
                     placeholder: 'ex. Mise en demeure',

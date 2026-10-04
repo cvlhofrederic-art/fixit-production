@@ -5,6 +5,7 @@ import {
   DEMO_CARNET_ENTRETIEN,
   type InterventionCarnetDemo,
 } from '@/components/administrateur-judiciaire/data/carnet-entretien'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -39,12 +40,7 @@ export function CarnetEntretienModule() {
                 icon: 'wrench',
                 title: 'Nouvelle intervention',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Prestataire',
                     type: 'select',

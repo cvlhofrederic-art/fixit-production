@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_REMBOURSEMENTS_COPROPRIETAIRES,
   type RemboursementDemo,
@@ -38,12 +39,7 @@ export function RemboursementsModule() {
                 icon: 'coin',
                 title: 'Nouveau remboursement',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Bénéficiaire',
                     placeholder: 'ex. M. Bernard, lot 12',

@@ -422,10 +422,19 @@ describe('Canal de communication — identifiant de mission en collision (consta
 
   const cartes = () => Array.from(document.querySelectorAll<HTMLButtonElement>('.canal-mission-card'))
 
+  /** Fixe les prochains tirages de crypto.getRandomValues (un entier par appel ; le dernier vaut pour la suite). */
+  function fixerTirages(...valeurs: number[]) {
+    let appel = 0
+    return vi.spyOn(crypto, 'getRandomValues').mockImplementation((tableau) => {
+      ;(tableau as Uint16Array)[0] = valeurs[Math.min(appel++, valeurs.length - 1)]
+      return tableau
+    })
+  }
+
   it('le second tirage retombant sur l’identifiant de la première mission créée est refait', () => {
     const erreurConsole = vi.spyOn(console, 'error')
     // 5 missions de démonstration : m6 + 300 = « m306 » ; puis m7 + 299 = « m306 » (collision), puis m7 + 500.
-    vi.spyOn(Math, 'random').mockReturnValueOnce(0.3).mockReturnValueOnce(0.299).mockReturnValueOnce(0.5)
+    fixerTirages(300, 299, 500)
     rendre(<CanalCommunicationModule />)
     creerOrdre('Première intervention')
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Message sur la première mission' } })
@@ -452,11 +461,20 @@ describe('Canal de communication — identifiant de mission en collision (consta
   })
 
   it('sans collision : un seul tirage, comme dans la maquette', () => {
-    const tirage = vi.spyOn(Math, 'random').mockReturnValue(0.123)
+    const tirage = fixerTirages(123)
     rendre(<CanalCommunicationModule />)
     creerOrdre('Intervention unique')
     expect(tirage).toHaveBeenCalledTimes(1)
     expect(cartes()).toHaveLength(6)
     expect(cartes()[0].getAttribute('aria-current')).toBe('true')
+  })
+
+  it('tirage hors de la plage 0 à 999 : refait (tirage uniforme, sans modulo)', () => {
+    // Dix bits tirés : 1010 dépasse 999, le tirage est refait ; 42 est retenu.
+    const tirage = fixerTirages(1010, 42)
+    rendre(<CanalCommunicationModule />)
+    creerOrdre('Intervention unique')
+    expect(tirage).toHaveBeenCalledTimes(2)
+    expect(cartes()).toHaveLength(6)
   })
 })

@@ -14,6 +14,7 @@ import {
   DEMO_TOTAL_DEPENSES,
   DEMO_TOTAL_IMPAYES,
 } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
@@ -78,12 +79,7 @@ export function ComptabiliteModule() {
                 icon: 'coin',
                 title: 'Nouvelle écriture comptable',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Compte',
                     placeholder: 'ex. 614 — Charges',

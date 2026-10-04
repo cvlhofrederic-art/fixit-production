@@ -20,12 +20,14 @@ import postcss from 'postcss'
 
 const SCOPE = '#aj-root'
 const racine = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../..')
-const source = process.argv[2]
-if (!source || !fs.existsSync(source)) {
-  console.error('Chemin de la maquette HTML manquant ou introuvable.')
+// Outil de développement lancé à la main : le chemin est choisi par la personne qui lance le script, sur son propre
+// poste (aucune entrée distante). Seul un fichier .html existant est accepté.
+const source = process.argv[2] ? path.resolve(process.argv[2]) : ''
+if (path.extname(source).toLowerCase() !== '.html' || !fs.existsSync(source)) {
+  console.error('Chemin de la maquette HTML manquant, introuvable ou sans extension .html.')
   process.exit(1)
 }
-const html = fs.readFileSync(source, 'utf8')
+const html = fs.readFileSync(source, 'utf8') // NOSONAR (S8707) : chemin validé ci-dessus, outil local de développement
 const version = (html.match(/version (v[\d._]+)/) || [])[1] || 'inconnue'
 
 // ── Polices ────────────────────────────────────────────────────────────────
