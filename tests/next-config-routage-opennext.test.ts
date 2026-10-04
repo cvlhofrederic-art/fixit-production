@@ -123,3 +123,29 @@ describe('racine des règles « /:path* » sous OpenNext', () => {
     expect(resoudre(regles, '/pt/marches/gerer/')).toBe('/pt/mercados/gerir/')
   })
 })
+
+describe('barre finale des redirections « /:path* »', () => {
+  // Sans barre finale dans la destination, chaque ancienne URL coûte un saut 308 de plus :
+  // /servicos/canalizador-porto/ → /pt/servicos/canalizador-porto → /pt/servicos/canalizador-porto/.
+  it('les sous-chemins arrivent en un seul saut, barre finale comprise', async () => {
+    const regles = await redirections()
+    const fautives = reglesRacine(regles, 'redirection')
+      .map(({ racineSource, racineDestination }) => ({
+        chemin: `${racineSource}sous/chemin/`,
+        attendu: `${racineDestination}/sous/chemin/`,
+        resolue: resoudre(regles, `${racineSource}sous/chemin/`),
+      }))
+      .filter(({ attendu, resolue }) => resolue !== attendu)
+    expect(fautives).toEqual([])
+  })
+
+  it.each([
+    ['/servicos/canalizador-porto/', '/pt/servicos/canalizador-porto/'],
+    ['/urgencia/eletricista-urgente-porto/', '/pt/urgencia/eletricista-urgente-porto/'],
+    ['/artisan/dashboard/', '/fr/artisan/dashboard/'],
+    // Dernier segment en forme de fichier : la requête arrive sans barre finale, la règle doit encore s'appliquer.
+    ['/profissional/joao.silva', '/pt/profissional/joao.silva/'],
+  ])('%s redirige vers %s', async (chemin, attendu) => {
+    expect(resoudre(await redirections(), chemin)).toBe(attendu)
+  })
+})

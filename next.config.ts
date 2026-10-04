@@ -89,23 +89,24 @@ const nextConfig: NextConfig = {
       // Legacy root PT paths → redirect to /pt/ prefix
       // Racine en règle exacte AVANT chaque `:path*` : sur OpenNext/Cloudflare, `:path*` vide laisse la destination
       // non compilée (« Location: /pt/servicos/:path* ») → 404. Vérifié par tests/next-config-routage-opennext.test.ts.
+      // Destination `:path*/` avec barre finale (trailingSlash) : sinon chaque ancienne URL coûte un saut 308 de plus.
       { source: '/servicos/', destination: '/pt/servicos/', permanent: true },
-      { source: '/servicos/:path*', destination: '/pt/servicos/:path*', permanent: true },
+      { source: '/servicos/:path*', destination: '/pt/servicos/:path*/', permanent: true },
       { source: '/urgencia/', destination: '/pt/urgencia/', permanent: true },
-      { source: '/urgencia/:path*', destination: '/pt/urgencia/:path*', permanent: true },
+      { source: '/urgencia/:path*', destination: '/pt/urgencia/:path*/', permanent: true },
       { source: '/cidade/', destination: '/pt/cidade/', permanent: true },
-      { source: '/cidade/:path*', destination: '/pt/cidade/:path*', permanent: true },
+      { source: '/cidade/:path*', destination: '/pt/cidade/:path*/', permanent: true },
       { source: '/perto-de-mim/', destination: '/pt/perto-de-mim/', permanent: true },
-      { source: '/perto-de-mim/:path*', destination: '/pt/perto-de-mim/:path*', permanent: true },
+      { source: '/perto-de-mim/:path*', destination: '/pt/perto-de-mim/:path*/', permanent: true },
       { source: '/precos/', destination: '/pt/precos/', permanent: true },
-      { source: '/precos/:path*', destination: '/pt/precos/:path*', permanent: true },
+      { source: '/precos/:path*', destination: '/pt/precos/:path*/', permanent: true },
       { source: '/sobre/', destination: '/pt/sobre/', permanent: true },
       { source: '/como-funciona/', destination: '/pt/como-funciona/', permanent: true },
       { source: '/especialidades/', destination: '/pt/especialidades/', permanent: true },
       { source: '/profissionais-verificados/', destination: '/pt/profissionais-verificados/', permanent: true },
       // Pas de page racine /pt/profissional/ (seulement [id]) : 404 propre, comme `next start`, sans littéral.
       { source: '/profissional/', destination: '/pt/profissional/', permanent: true },
-      { source: '/profissional/:path*', destination: '/pt/profissional/:path*', permanent: true },
+      { source: '/profissional/:path*', destination: '/pt/profissional/:path*/', permanent: true },
       { source: '/torne-se-parceiro/', destination: '/pt/torne-se-parceiro/', permanent: true },
       { source: '/pesquisar/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/condominio/', destination: '/pt/condominio/', permanent: true },
@@ -121,14 +122,14 @@ const nextConfig: NextConfig = {
       { source: '/mentions-legales/', destination: '/fr/mentions-legales/', permanent: true },
       // Pas de page racine /fr/artisan/ (seulement [id]) : 404 propre, comme `next start`, sans littéral.
       { source: '/artisan/', destination: '/fr/artisan/', permanent: true },
-      { source: '/artisan/:path*', destination: '/fr/artisan/:path*', permanent: true },
+      { source: '/artisan/:path*', destination: '/fr/artisan/:path*/', permanent: true },
       { source: '/reserver/', destination: '/fr/reserver/', permanent: true },
       // French marketplace URLs → redirect to PT equivalents
       { source: '/pt/marches/publier/', destination: '/pt/mercados/publicar/', permanent: true },
       { source: '/pt/marches/gerer/', destination: '/pt/mercados/gerir/', permanent: true },
       // Pas de page racine /pt/mercados/ (seulement publicar et gerir) : 404 propre, sans littéral.
       { source: '/pt/marches/', destination: '/pt/mercados/', permanent: true },
-      { source: '/pt/marches/:path*', destination: '/pt/mercados/:path*', permanent: true },
+      { source: '/pt/marches/:path*', destination: '/pt/mercados/:path*/', permanent: true },
       // French root routes → redirect PT users to PT equivalents
       // Legal & info pages
       { source: '/pt/confidentialite/', destination: '/pt/privacidade/', permanent: true },
