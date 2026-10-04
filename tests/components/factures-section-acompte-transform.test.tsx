@@ -54,6 +54,7 @@ const FACTURE_STD = {
   id: 'doc-009', docNumber: 'FACT-2026-009', docType: 'facture' as const,
   status: 'pending', clientName: 'Nicolas Aractingi',
   regimeTva: 'classique', tvaEnabled: true,
+  iban: 'FR76 ANCIEN', bic: 'ANCIENBIC', // RIB figé à l'émission de la facture parente
   lines: [{ id: 1, description: "Main d'œuvre", qty: 1, priceHT: 5250, tvaRate: 20, totalHT: 5250 }],
   customTables: [{ id: 't1', name: 'Gros œuvre', lines: [
     { id: 2, description: 'Maçonnerie', qty: 1, priceHT: 40437, tvaRate: 10, totalHT: 40437 },
@@ -95,6 +96,17 @@ describe('FacturesSection — « → Acompte » émet direct au % choisi', () =>
     expect(emitted.status).toBe('envoye')           // émis (pas brouillon)
     // 50 % de 45 687 € = 22 843,50 € — customTables incluses
     expect(computeDocumentTotalHT(emitted as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(22843.5, 1)
+    // BTP : une ligne de synthèse par taux de TVA (et non les lignes de la facture au pourcentage).
+    const lignes = emitted.lines as { tvaRate: number; totalHT: number; description: string }[]
+    expect(lignes.map((l) => [l.tvaRate, l.totalHT, l.description])).toEqual([
+      [20, 2625, 'Acompte de 50 % sur travaux soumis à la TVA au taux de 20 %'],
+      [10, 20218.5, 'Acompte de 50 % sur travaux soumis à la TVA au taux de 10 %'],
+    ])
+    expect(emitted.customTables).toEqual([])
+    // RIB : celui de la facture parente n'est pas recopié. Profil illisible dans ce test
+    // (session absente) : aucun RIB dans le document, le PDF relira le profil.
+    expect(emitted).not.toHaveProperty('iban')
+    expect(emitted).not.toHaveProperty('bic')
     // Le formulaire éditable ne s'ouvre pas (création directe)
     expect(openFactureForm).not.toHaveBeenCalled()
   })
