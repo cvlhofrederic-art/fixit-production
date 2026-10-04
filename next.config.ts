@@ -32,6 +32,10 @@ const nextConfig: NextConfig = {
         { source: '/fr/artisan/dashboard/:path*', destination: '/artisan/dashboard/:path*' },
         { source: '/fr/client/:path*', destination: '/client/:path*' },
         { source: '/fr/syndic/:path*', destination: '/syndic/:path*' },
+        // Racine de la succursale en règles exactes : sur OpenNext/Cloudflare, `:path*` vide laisse la destination
+        // non compilée (« /administrateur-judiciaire/:path* ») → 404. Les règles exactes doivent précéder `:path*`.
+        { source: '/fr/administrateur-judiciaire', destination: '/administrateur-judiciaire' },
+        { source: '/fr/administrateur-judiciaire/', destination: '/administrateur-judiciaire/' },
         { source: '/fr/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
         { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
@@ -52,6 +56,8 @@ const nextConfig: NextConfig = {
         { source: '/pt/artisan/dashboard/:path*', destination: '/artisan/dashboard/:path*' },
         { source: '/pt/client/:path*', destination: '/client/:path*' },
         { source: '/pt/syndic/:path*', destination: '/syndic/:path*' },
+        { source: '/pt/administrateur-judiciaire', destination: '/administrateur-judiciaire' },
+        { source: '/pt/administrateur-judiciaire/', destination: '/administrateur-judiciaire/' },
         { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
