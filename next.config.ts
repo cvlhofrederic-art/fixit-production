@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
         { source: '/fr/artisan/dashboard/:path*', destination: '/artisan/dashboard/:path*' },
         { source: '/fr/client/:path*', destination: '/client/:path*' },
         { source: '/fr/syndic/:path*', destination: '/syndic/:path*' },
+        { source: '/fr/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
         { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
         { source: '/fr/contact', destination: '/contact' },
@@ -51,6 +52,7 @@ const nextConfig: NextConfig = {
         { source: '/pt/artisan/dashboard/:path*', destination: '/artisan/dashboard/:path*' },
         { source: '/pt/client/:path*', destination: '/client/:path*' },
         { source: '/pt/syndic/:path*', destination: '/syndic/:path*' },
+        { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
         { source: '/pt/contact', destination: '/contact' },
@@ -204,6 +206,19 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/fr/syndic/dev/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+      // Succursale Administrateur Judiciaire : outil métier, jamais indexable.
+      {
+        source: '/:locale(fr|pt)/administrateur-judiciaire/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+      {
+        source: '/administrateur-judiciaire/:path*',
         headers: [
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],

@@ -1,0 +1,691 @@
+[
+ {
+  "id": "anciennete#1",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 8 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780555920000
+ },
+ {
+  "id": "anciennete#2",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 0 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#3",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 1 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556340000
+ },
+ {
+  "id": "anciennete#4",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 90 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780551000000
+ },
+ {
+  "id": "anciennete#5",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 007 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780555980000
+ },
+ {
+  "id": "anciennete#6",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 5 minutes"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556100000
+ },
+ {
+  "id": "anciennete#7",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 2 h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780549200000
+ },
+ {
+  "id": "anciennete#8",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 0 h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#9",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 25 h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780466400000
+ },
+ {
+  "id": "anciennete#10",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 2 heures"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780549200000
+ },
+ {
+  "id": "anciennete#11",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 1 h 30 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780552800000
+ },
+ {
+  "id": "anciennete#12",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 3 j"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780297200000
+ },
+ {
+  "id": "anciennete#13",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 1 j"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780470000000
+ },
+ {
+  "id": "anciennete#14",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 45 j"
+  ],
+  "sortie": "getTime",
+  "attendu": 1776668400000
+ },
+ {
+  "id": "anciennete#15",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 120 j"
+  ],
+  "sortie": "getTime",
+  "attendu": 1770188400000
+ },
+ {
+  "id": "anciennete#16",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 400 j"
+  ],
+  "sortie": "getTime",
+  "attendu": 1745996400000
+ },
+ {
+  "id": "anciennete#17",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 3 jours"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780297200000
+ },
+ {
+  "id": "anciennete#18",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 99999 j"
+  ],
+  "sortie": "getTime",
+  "attendu": -6859357200000
+ },
+ {
+  "id": "anciennete#19",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "hier"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780470000000
+ },
+ {
+  "id": "anciennete#20",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "Hier"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#21",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "hier "
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#22",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   " hier"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#23",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "avant-hier"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#24",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   ""
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#25",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "à l’instant"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#26",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "Il y a 8 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#27",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a -5 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#28",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 2h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#29",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a  2 h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#30",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 3 sem"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#31",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 2 mois"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#32",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "Relance envoyée il y a 10 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780555800000
+ },
+ {
+  "id": "anciennete#33",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 4 h — urgent"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780542000000
+ },
+ {
+  "id": "anciennete#34",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 1,5 h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556400000
+ },
+ {
+  "id": "anciennete#35",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 12 min et 3 h"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780555680000
+ },
+ {
+  "id": "anciennete#36",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   "il y a 3 j puis il y a 2 min"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780556280000
+ },
+ {
+  "id": "anciennete#null",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   null
+  ],
+  "sortie": "erreur",
+  "attendu": "Cannot read properties of null (reading 'match')"
+ },
+ {
+  "id": "anciennete#undefined",
+  "fn": "dateDepuisAncienneteDemo",
+  "args": [
+   {
+    "$undefined": true
+   }
+  ],
+  "sortie": "erreur",
+  "attendu": "Cannot read properties of undefined (reading 'match')"
+ },
+ {
+  "id": "tantiemes#1",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "412/10000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 412,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#2",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "0/10000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#3",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "10000/10000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 10000,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#4",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "5"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 5,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#5",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "abc"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#6",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#7",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "/"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#8",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "/1000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 1000
+  }
+ },
+ {
+  "id": "tantiemes#9",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "12/"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 12,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#10",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "12/abc"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 12,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#11",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "abc/1000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 1000
+  }
+ },
+ {
+  "id": "tantiemes#12",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "1/2/3"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 1,
+   "denominateur": 2
+  }
+ },
+ {
+  "id": "tantiemes#13",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   " 350 / 10000 "
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 350,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#14",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "1e3/1e4"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 1000,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#15",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "0x10/10"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 16,
+   "denominateur": 10
+  }
+ },
+ {
+  "id": "tantiemes#16",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "3.5/100"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 3.5,
+   "denominateur": 100
+  }
+ },
+ {
+  "id": "tantiemes#17",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "-12/100"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": -12,
+   "denominateur": 100
+  }
+ },
+ {
+  "id": "tantiemes#18",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "12,5/1000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 1000
+  }
+ },
+ {
+  "id": "tantiemes#19",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "Infinity/1"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": null,
+   "denominateur": 1
+  }
+ },
+ {
+  "id": "tantiemes#20",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "NaN/NaN"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#21",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "١٢/١٠٠"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#22",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "412 / 10 000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 412,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#23",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "0/0"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 0
+  }
+ },
+ {
+  "id": "tantiemes#24",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "00412/010000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 412,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#25",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "+7/+100"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 7,
+   "denominateur": 100
+  }
+ },
+ {
+  "id": "tantiemes#26",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "412/10000/"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 412,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#27",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "\t88\n/\n1000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 88,
+   "denominateur": 1000
+  }
+ },
+ {
+  "id": "tantiemes#28",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   "1_000/10000"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "numerateur": 0,
+   "denominateur": 10000
+  }
+ },
+ {
+  "id": "tantiemes#null",
+  "fn": "decomposerTantiemesDemo",
+  "args": [
+   null
+  ],
+  "sortie": "erreur",
+  "attendu": "Cannot read properties of null (reading 'split')"
+ }
+]

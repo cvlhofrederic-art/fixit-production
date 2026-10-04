@@ -1,0 +1,3064 @@
+[
+ {
+  "id": "estDateIsoValide#0",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estDateIsoValide#1",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2024-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estDateIsoValide#2",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2023-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#3",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2026-12-31"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estDateIsoValide#4",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2026-01-31"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estDateIsoValide#5",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2025-13-01"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#6",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2026-4-01"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#7",
+  "fn": "estDateIsoValide",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#8",
+  "fn": "estDateIsoValide",
+  "args": [
+   "abc"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#9",
+  "fn": "estDateIsoValide",
+  "args": [
+   "2000-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estDateIsoValide#10",
+  "fn": "estDateIsoValide",
+  "args": [
+   "1900-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#11",
+  "fn": "estDateIsoValide",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estDateIsoValide#12",
+  "fn": "estDateIsoValide",
+  "args": [
+   20260604
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "decomposerDateIso#0",
+  "fn": "decomposerDateIso",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "a": 2026,
+   "m": 6,
+   "j": 4
+  }
+ },
+ {
+  "id": "dateIsoVersUtcMs#0",
+  "fn": "dateIsoVersUtcMs",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": 1780531200000
+ },
+ {
+  "id": "dateIsoVersFr#0",
+  "fn": "dateIsoVersFr",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": "04/06/2026"
+ },
+ {
+  "id": "jourSemaine#0",
+  "fn": "jourSemaine",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": 4
+ },
+ {
+  "id": "decomposerDateIso#1",
+  "fn": "decomposerDateIso",
+  "args": [
+   "2024-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "a": 2024,
+   "m": 2,
+   "j": 29
+  }
+ },
+ {
+  "id": "dateIsoVersUtcMs#1",
+  "fn": "dateIsoVersUtcMs",
+  "args": [
+   "2024-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": 1709164800000
+ },
+ {
+  "id": "dateIsoVersFr#1",
+  "fn": "dateIsoVersFr",
+  "args": [
+   "2024-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": "29/02/2024"
+ },
+ {
+  "id": "jourSemaine#1",
+  "fn": "jourSemaine",
+  "args": [
+   "2024-02-29"
+  ],
+  "sortie": "valeur",
+  "attendu": 4
+ },
+ {
+  "id": "decomposerDateIso#2",
+  "fn": "decomposerDateIso",
+  "args": [
+   "2026-12-31"
+  ],
+  "sortie": "valeur",
+  "attendu": {
+   "a": 2026,
+   "m": 12,
+   "j": 31
+  }
+ },
+ {
+  "id": "dateIsoVersUtcMs#2",
+  "fn": "dateIsoVersUtcMs",
+  "args": [
+   "2026-12-31"
+  ],
+  "sortie": "valeur",
+  "attendu": 1798675200000
+ },
+ {
+  "id": "dateIsoVersFr#2",
+  "fn": "dateIsoVersFr",
+  "args": [
+   "2026-12-31"
+  ],
+  "sortie": "valeur",
+  "attendu": "31/12/2026"
+ },
+ {
+  "id": "jourSemaine#2",
+  "fn": "jourSemaine",
+  "args": [
+   "2026-12-31"
+  ],
+  "sortie": "valeur",
+  "attendu": 4
+ },
+ {
+  "id": "decomposerDateIso#3",
+  "fn": "decomposerDateIso",
+  "args": [
+   "2026-02-30"
+  ],
+  "sortie": "erreur",
+  "attendu": "Date ISO invalide : « 2026-02-30 »"
+ },
+ {
+  "id": "dateIsoVersFr#3",
+  "fn": "dateIsoVersFr",
+  "args": [
+   "31/12/2026"
+  ],
+  "sortie": "erreur",
+  "attendu": "Date ISO invalide : « 31/12/2026 »"
+ },
+ {
+  "id": "decomposerDateIso#4",
+  "fn": "decomposerDateIso",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "erreur",
+  "attendu": "__PAS_D_ERREUR__"
+ },
+ {
+  "id": "composerDateIso#0",
+  "fn": "composerDateIso",
+  "args": [
+   26,
+   3,
+   7
+  ],
+  "sortie": "valeur",
+  "attendu": "0026-03-07"
+ },
+ {
+  "id": "composerDateIso#1",
+  "fn": "composerDateIso",
+  "args": [
+   2026,
+   12,
+   31
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-12-31"
+ },
+ {
+  "id": "utcMsVersDateIso#0",
+  "fn": "utcMsVersDateIso",
+  "args": [
+   1780531200000
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-04"
+ },
+ {
+  "id": "utcMsVersDateIso#1",
+  "fn": "utcMsVersDateIso",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "1970-01-01"
+ },
+ {
+  "id": "joursDansMois#0",
+  "fn": "joursDansMois",
+  "args": [
+   2026,
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": 31
+ },
+ {
+  "id": "joursDansMois#1",
+  "fn": "joursDansMois",
+  "args": [
+   2026,
+   2
+  ],
+  "sortie": "valeur",
+  "attendu": 28
+ },
+ {
+  "id": "joursDansMois#2",
+  "fn": "joursDansMois",
+  "args": [
+   2024,
+   2
+  ],
+  "sortie": "valeur",
+  "attendu": 29
+ },
+ {
+  "id": "joursDansMois#3",
+  "fn": "joursDansMois",
+  "args": [
+   1900,
+   2
+  ],
+  "sortie": "valeur",
+  "attendu": 28
+ },
+ {
+  "id": "joursDansMois#4",
+  "fn": "joursDansMois",
+  "args": [
+   2000,
+   2
+  ],
+  "sortie": "valeur",
+  "attendu": 29
+ },
+ {
+  "id": "joursDansMois#5",
+  "fn": "joursDansMois",
+  "args": [
+   2026,
+   12
+  ],
+  "sortie": "valeur",
+  "attendu": 31
+ },
+ {
+  "id": "estAnneeBissextile#0",
+  "fn": "estAnneeBissextile",
+  "args": [
+   2024
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estAnneeBissextile#1",
+  "fn": "estAnneeBissextile",
+  "args": [
+   2026
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estAnneeBissextile#2",
+  "fn": "estAnneeBissextile",
+  "args": [
+   1900
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estAnneeBissextile#3",
+  "fn": "estAnneeBissextile",
+  "args": [
+   2000
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "ajouterMois#0",
+  "fn": "ajouterMois",
+  "args": [
+   "2026-01-31",
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-02-28"
+ },
+ {
+  "id": "ajouterMois#1",
+  "fn": "ajouterMois",
+  "args": [
+   "2026-01-31",
+   13
+  ],
+  "sortie": "valeur",
+  "attendu": "2027-02-28"
+ },
+ {
+  "id": "ajouterMois#2",
+  "fn": "ajouterMois",
+  "args": [
+   "2024-02-29",
+   12
+  ],
+  "sortie": "valeur",
+  "attendu": "2025-02-28"
+ },
+ {
+  "id": "ajouterMois#3",
+  "fn": "ajouterMois",
+  "args": [
+   "2026-06-04",
+   -6
+  ],
+  "sortie": "valeur",
+  "attendu": "2025-12-04"
+ },
+ {
+  "id": "ajouterMois#4",
+  "fn": "ajouterMois",
+  "args": [
+   "2026-03-31",
+   -1
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-02-28"
+ },
+ {
+  "id": "ajouterMois#5",
+  "fn": "ajouterMois",
+  "args": [
+   "2026-06-04",
+   60
+  ],
+  "sortie": "valeur",
+  "attendu": "2031-06-04"
+ },
+ {
+  "id": "ajouterMois#6",
+  "fn": "ajouterMois",
+  "args": [
+   "2026-12-15",
+   -12
+  ],
+  "sortie": "valeur",
+  "attendu": "2025-12-15"
+ },
+ {
+  "id": "ajouterJours#0",
+  "fn": "ajouterJours",
+  "args": [
+   "2026-06-04",
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-05"
+ },
+ {
+  "id": "ajouterJours#1",
+  "fn": "ajouterJours",
+  "args": [
+   "2026-12-31",
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "2027-01-01"
+ },
+ {
+  "id": "ajouterJours#2",
+  "fn": "ajouterJours",
+  "args": [
+   "2026-03-01",
+   -1
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-02-28"
+ },
+ {
+  "id": "ajouterJours#3",
+  "fn": "ajouterJours",
+  "args": [
+   "2026-06-04",
+   365
+  ],
+  "sortie": "valeur",
+  "attendu": "2027-06-04"
+ },
+ {
+  "id": "ajouterJours#4",
+  "fn": "ajouterJours",
+  "args": [
+   "2026-03-28",
+   2
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-03-30"
+ },
+ {
+  "id": "ecartJours#0",
+  "fn": "ecartJours",
+  "args": [
+   "2026-06-04",
+   "2026-07-22"
+  ],
+  "sortie": "valeur",
+  "attendu": 48
+ },
+ {
+  "id": "ecartJours#1",
+  "fn": "ecartJours",
+  "args": [
+   "2026-07-22",
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": -48
+ },
+ {
+  "id": "ecartJours#2",
+  "fn": "ecartJours",
+  "args": [
+   "2026-03-28",
+   "2026-03-30"
+  ],
+  "sortie": "valeur",
+  "attendu": 2
+ },
+ {
+  "id": "ecartJours#3",
+  "fn": "ecartJours",
+  "args": [
+   "2024-01-01",
+   "2025-01-01"
+  ],
+  "sortie": "valeur",
+  "attendu": 366
+ },
+ {
+  "id": "datePaques#0",
+  "fn": "datePaques",
+  "args": [
+   2024
+  ],
+  "sortie": "valeur",
+  "attendu": "2024-03-31"
+ },
+ {
+  "id": "joursFeries#0",
+  "fn": "joursFeries",
+  "args": [
+   2024
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2024-01-01",
+   "2024-04-01",
+   "2024-05-01",
+   "2024-05-08",
+   "2024-05-09",
+   "2024-05-20",
+   "2024-07-14",
+   "2024-08-15",
+   "2024-11-01",
+   "2024-11-11",
+   "2024-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#1",
+  "fn": "joursFeries",
+  "args": [
+   2024,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2024-01-01",
+   "2024-03-29",
+   "2024-04-01",
+   "2024-05-01",
+   "2024-05-08",
+   "2024-05-09",
+   "2024-05-20",
+   "2024-07-14",
+   "2024-08-15",
+   "2024-11-01",
+   "2024-11-11",
+   "2024-12-25",
+   "2024-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#2",
+  "fn": "joursFeries",
+  "args": [
+   2024,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2024-01-01",
+   "2024-04-01",
+   "2024-05-01",
+   "2024-05-08",
+   "2024-05-09",
+   "2024-05-20",
+   "2024-07-14",
+   "2024-08-15",
+   "2024-11-01",
+   "2024-11-11",
+   "2024-12-25"
+  ]
+ },
+ {
+  "id": "datePaques#1",
+  "fn": "datePaques",
+  "args": [
+   2025
+  ],
+  "sortie": "valeur",
+  "attendu": "2025-04-20"
+ },
+ {
+  "id": "joursFeries#3",
+  "fn": "joursFeries",
+  "args": [
+   2025
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2025-01-01",
+   "2025-04-21",
+   "2025-05-01",
+   "2025-05-08",
+   "2025-05-29",
+   "2025-06-09",
+   "2025-07-14",
+   "2025-08-15",
+   "2025-11-01",
+   "2025-11-11",
+   "2025-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#4",
+  "fn": "joursFeries",
+  "args": [
+   2025,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2025-01-01",
+   "2025-04-18",
+   "2025-04-21",
+   "2025-05-01",
+   "2025-05-08",
+   "2025-05-29",
+   "2025-06-09",
+   "2025-07-14",
+   "2025-08-15",
+   "2025-11-01",
+   "2025-11-11",
+   "2025-12-25",
+   "2025-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#5",
+  "fn": "joursFeries",
+  "args": [
+   2025,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2025-01-01",
+   "2025-04-21",
+   "2025-05-01",
+   "2025-05-08",
+   "2025-05-29",
+   "2025-06-09",
+   "2025-07-14",
+   "2025-08-15",
+   "2025-11-01",
+   "2025-11-11",
+   "2025-12-25"
+  ]
+ },
+ {
+  "id": "datePaques#2",
+  "fn": "datePaques",
+  "args": [
+   2026
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-04-05"
+ },
+ {
+  "id": "joursFeries#6",
+  "fn": "joursFeries",
+  "args": [
+   2026
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2026-01-01",
+   "2026-04-06",
+   "2026-05-01",
+   "2026-05-08",
+   "2026-05-14",
+   "2026-05-25",
+   "2026-07-14",
+   "2026-08-15",
+   "2026-11-01",
+   "2026-11-11",
+   "2026-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#7",
+  "fn": "joursFeries",
+  "args": [
+   2026,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2026-01-01",
+   "2026-04-03",
+   "2026-04-06",
+   "2026-05-01",
+   "2026-05-08",
+   "2026-05-14",
+   "2026-05-25",
+   "2026-07-14",
+   "2026-08-15",
+   "2026-11-01",
+   "2026-11-11",
+   "2026-12-25",
+   "2026-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#8",
+  "fn": "joursFeries",
+  "args": [
+   2026,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2026-01-01",
+   "2026-04-06",
+   "2026-05-01",
+   "2026-05-08",
+   "2026-05-14",
+   "2026-05-25",
+   "2026-07-14",
+   "2026-08-15",
+   "2026-11-01",
+   "2026-11-11",
+   "2026-12-25"
+  ]
+ },
+ {
+  "id": "datePaques#3",
+  "fn": "datePaques",
+  "args": [
+   2027
+  ],
+  "sortie": "valeur",
+  "attendu": "2027-03-28"
+ },
+ {
+  "id": "joursFeries#9",
+  "fn": "joursFeries",
+  "args": [
+   2027
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2027-01-01",
+   "2027-03-29",
+   "2027-05-01",
+   "2027-05-06",
+   "2027-05-08",
+   "2027-05-17",
+   "2027-07-14",
+   "2027-08-15",
+   "2027-11-01",
+   "2027-11-11",
+   "2027-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#10",
+  "fn": "joursFeries",
+  "args": [
+   2027,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2027-01-01",
+   "2027-03-26",
+   "2027-03-29",
+   "2027-05-01",
+   "2027-05-06",
+   "2027-05-08",
+   "2027-05-17",
+   "2027-07-14",
+   "2027-08-15",
+   "2027-11-01",
+   "2027-11-11",
+   "2027-12-25",
+   "2027-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#11",
+  "fn": "joursFeries",
+  "args": [
+   2027,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2027-01-01",
+   "2027-03-29",
+   "2027-05-01",
+   "2027-05-06",
+   "2027-05-08",
+   "2027-05-17",
+   "2027-07-14",
+   "2027-08-15",
+   "2027-11-01",
+   "2027-11-11",
+   "2027-12-25"
+  ]
+ },
+ {
+  "id": "datePaques#4",
+  "fn": "datePaques",
+  "args": [
+   2030
+  ],
+  "sortie": "valeur",
+  "attendu": "2030-04-21"
+ },
+ {
+  "id": "joursFeries#12",
+  "fn": "joursFeries",
+  "args": [
+   2030
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2030-01-01",
+   "2030-04-22",
+   "2030-05-01",
+   "2030-05-08",
+   "2030-05-30",
+   "2030-06-10",
+   "2030-07-14",
+   "2030-08-15",
+   "2030-11-01",
+   "2030-11-11",
+   "2030-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#13",
+  "fn": "joursFeries",
+  "args": [
+   2030,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2030-01-01",
+   "2030-04-19",
+   "2030-04-22",
+   "2030-05-01",
+   "2030-05-08",
+   "2030-05-30",
+   "2030-06-10",
+   "2030-07-14",
+   "2030-08-15",
+   "2030-11-01",
+   "2030-11-11",
+   "2030-12-25",
+   "2030-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#14",
+  "fn": "joursFeries",
+  "args": [
+   2030,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2030-01-01",
+   "2030-04-22",
+   "2030-05-01",
+   "2030-05-08",
+   "2030-05-30",
+   "2030-06-10",
+   "2030-07-14",
+   "2030-08-15",
+   "2030-11-01",
+   "2030-11-11",
+   "2030-12-25"
+  ]
+ },
+ {
+  "id": "datePaques#5",
+  "fn": "datePaques",
+  "args": [
+   2038
+  ],
+  "sortie": "valeur",
+  "attendu": "2038-04-25"
+ },
+ {
+  "id": "joursFeries#15",
+  "fn": "joursFeries",
+  "args": [
+   2038
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2038-01-01",
+   "2038-04-26",
+   "2038-05-01",
+   "2038-05-08",
+   "2038-06-03",
+   "2038-06-14",
+   "2038-07-14",
+   "2038-08-15",
+   "2038-11-01",
+   "2038-11-11",
+   "2038-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#16",
+  "fn": "joursFeries",
+  "args": [
+   2038,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2038-01-01",
+   "2038-04-23",
+   "2038-04-26",
+   "2038-05-01",
+   "2038-05-08",
+   "2038-06-03",
+   "2038-06-14",
+   "2038-07-14",
+   "2038-08-15",
+   "2038-11-01",
+   "2038-11-11",
+   "2038-12-25",
+   "2038-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#17",
+  "fn": "joursFeries",
+  "args": [
+   2038,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "2038-01-01",
+   "2038-04-26",
+   "2038-05-01",
+   "2038-05-08",
+   "2038-06-03",
+   "2038-06-14",
+   "2038-07-14",
+   "2038-08-15",
+   "2038-11-01",
+   "2038-11-11",
+   "2038-12-25"
+  ]
+ },
+ {
+  "id": "datePaques#6",
+  "fn": "datePaques",
+  "args": [
+   1999
+  ],
+  "sortie": "valeur",
+  "attendu": "1999-04-04"
+ },
+ {
+  "id": "joursFeries#18",
+  "fn": "joursFeries",
+  "args": [
+   1999
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "1999-01-01",
+   "1999-04-05",
+   "1999-05-01",
+   "1999-05-08",
+   "1999-05-13",
+   "1999-05-24",
+   "1999-07-14",
+   "1999-08-15",
+   "1999-11-01",
+   "1999-11-11",
+   "1999-12-25"
+  ]
+ },
+ {
+  "id": "joursFeries#19",
+  "fn": "joursFeries",
+  "args": [
+   1999,
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "1999-01-01",
+   "1999-04-02",
+   "1999-04-05",
+   "1999-05-01",
+   "1999-05-08",
+   "1999-05-13",
+   "1999-05-24",
+   "1999-07-14",
+   "1999-08-15",
+   "1999-11-01",
+   "1999-11-11",
+   "1999-12-25",
+   "1999-12-26"
+  ]
+ },
+ {
+  "id": "joursFeries#20",
+  "fn": "joursFeries",
+  "args": [
+   1999,
+   {
+    "alsaceMoselle": false
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": [
+   "1999-01-01",
+   "1999-04-05",
+   "1999-05-01",
+   "1999-05-08",
+   "1999-05-13",
+   "1999-05-24",
+   "1999-07-14",
+   "1999-08-15",
+   "1999-11-01",
+   "1999-11-11",
+   "1999-12-25"
+  ]
+ },
+ {
+  "id": "estJourFerie#0",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-05-01"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourFerie#1",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-05-01",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#0",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-05-01"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#1",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-05-01",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "reporterAuJourOuvrable#0",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-05-01"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-05-04"
+ },
+ {
+  "id": "reporterAuJourOuvrable#1",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-05-01",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-05-04"
+ },
+ {
+  "id": "estJourFerie#2",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-05-14"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourFerie#3",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-05-14",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#2",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-05-14"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#3",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-05-14",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "reporterAuJourOuvrable#2",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-05-14"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-05-15"
+ },
+ {
+  "id": "reporterAuJourOuvrable#3",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-05-14",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-05-15"
+ },
+ {
+  "id": "estJourFerie#4",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-06-06"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourFerie#5",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-06-06",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#4",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-06-06"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#5",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-06-06",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "reporterAuJourOuvrable#4",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-06-06"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-08"
+ },
+ {
+  "id": "reporterAuJourOuvrable#5",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-06-06",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-08"
+ },
+ {
+  "id": "estJourFerie#6",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-06-08"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourFerie#7",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-06-08",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#6",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-06-08"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#7",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-06-08",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "reporterAuJourOuvrable#6",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-06-08"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-08"
+ },
+ {
+  "id": "reporterAuJourOuvrable#7",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-06-08",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-08"
+ },
+ {
+  "id": "estJourFerie#8",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-12-26"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourFerie#9",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-12-26",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#8",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-12-26"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#9",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-12-26",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "reporterAuJourOuvrable#8",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-12-26"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-12-28"
+ },
+ {
+  "id": "reporterAuJourOuvrable#9",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-12-26",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-12-28"
+ },
+ {
+  "id": "estJourFerie#10",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-04-03"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourFerie#11",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-04-03",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#10",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-04-03"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#11",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-04-03",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "reporterAuJourOuvrable#10",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-04-03"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-04-03"
+ },
+ {
+  "id": "reporterAuJourOuvrable#11",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-04-03",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-04-07"
+ },
+ {
+  "id": "estJourFerie#12",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-07-14"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourFerie#13",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-07-14",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#12",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-07-14"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#13",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-07-14",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "reporterAuJourOuvrable#12",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-07-14"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-07-15"
+ },
+ {
+  "id": "reporterAuJourOuvrable#13",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-07-14",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-07-15"
+ },
+ {
+  "id": "estJourFerie#14",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-06-05"
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourFerie#15",
+  "fn": "estJourFerie",
+  "args": [
+   "2026-06-05",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": false
+ },
+ {
+  "id": "estJourOuvrable#14",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-06-05"
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "estJourOuvrable#15",
+  "fn": "estJourOuvrable",
+  "args": [
+   "2026-06-05",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": true
+ },
+ {
+  "id": "reporterAuJourOuvrable#14",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-06-05"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-05"
+ },
+ {
+  "id": "reporterAuJourOuvrable#15",
+  "fn": "reporterAuJourOuvrable",
+  "args": [
+   "2026-06-05",
+   {
+    "alsaceMoselle": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-05"
+ },
+ {
+  "id": "dateFrVersIso#0",
+  "fn": "dateFrVersIso",
+  "args": [
+   "04/06/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-04"
+ },
+ {
+  "id": "dateFrVersIso#1",
+  "fn": "dateFrVersIso",
+  "args": [
+   " 4/6/2026 "
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-04"
+ },
+ {
+  "id": "dateFrVersIso#2",
+  "fn": "dateFrVersIso",
+  "args": [
+   "31/02/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersIso#3",
+  "fn": "dateFrVersIso",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersIso#4",
+  "fn": "dateFrVersIso",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersIso#5",
+  "fn": "dateFrVersIso",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersIso#6",
+  "fn": "dateFrVersIso",
+  "args": [
+   "1/13/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersIso#7",
+  "fn": "dateFrVersIso",
+  "args": [
+   "29/02/2024"
+  ],
+  "sortie": "valeur",
+  "attendu": "2024-02-29"
+ },
+ {
+  "id": "dateFrVersDate#0",
+  "fn": "dateFrVersDate",
+  "args": [
+   "04/06/2026"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780524000000
+ },
+ {
+  "id": "joursAvantDateFr#0",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "04/06/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "dateFrVersDate#1",
+  "fn": "dateFrVersDate",
+  "args": [
+   "22/07/2026"
+  ],
+  "sortie": "getTime",
+  "attendu": 1784671200000
+ },
+ {
+  "id": "joursAvantDateFr#1",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "22/07/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": 48
+ },
+ {
+  "id": "dateFrVersDate#2",
+  "fn": "dateFrVersDate",
+  "args": [
+   "05/05/2026"
+  ],
+  "sortie": "getTime",
+  "attendu": 1777932000000
+ },
+ {
+  "id": "joursAvantDateFr#2",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "05/05/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": -30
+ },
+ {
+  "id": "dateFrVersDate#3",
+  "fn": "dateFrVersDate",
+  "args": [
+   "31/02/2026"
+  ],
+  "sortie": "getTime",
+  "attendu": 1772492400000
+ },
+ {
+  "id": "joursAvantDateFr#3",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "31/02/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": -93
+ },
+ {
+  "id": "dateFrVersDate#4",
+  "fn": "dateFrVersDate",
+  "args": [
+   ""
+  ],
+  "sortie": "getTime",
+  "attendu": null
+ },
+ {
+  "id": "joursAvantDateFr#4",
+  "fn": "joursAvantDateFr",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersDate#5",
+  "fn": "dateFrVersDate",
+  "args": [
+   null
+  ],
+  "sortie": "getTime",
+  "attendu": null
+ },
+ {
+  "id": "joursAvantDateFr#5",
+  "fn": "joursAvantDateFr",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersDate#6",
+  "fn": "dateFrVersDate",
+  "args": [
+   "x/y/z"
+  ],
+  "sortie": "getTime",
+  "attendu": null
+ },
+ {
+  "id": "joursAvantDateFr#6",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "x/y/z"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateFrVersDate#7",
+  "fn": "dateFrVersDate",
+  "args": [
+   "01/01/2027"
+  ],
+  "sortie": "getTime",
+  "attendu": 1798758000000
+ },
+ {
+  "id": "joursAvantDateFr#7",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "01/01/2027"
+  ],
+  "sortie": "valeur",
+  "attendu": 211
+ },
+ {
+  "id": "dateFrVersDate#8",
+  "fn": "dateFrVersDate",
+  "args": [
+   "4/6/2026"
+  ],
+  "sortie": "getTime",
+  "attendu": 1780524000000
+ },
+ {
+  "id": "joursAvantDateFr#8",
+  "fn": "joursAvantDateFr",
+  "args": [
+   "4/6/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "dateVersIso#0",
+  "fn": "dateVersIso",
+  "args": [
+   {
+    "$date": [
+     2026,
+     5,
+     4,
+     23,
+     30
+    ]
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-06-04"
+ },
+ {
+  "id": "dateVersIso#1",
+  "fn": "dateVersIso",
+  "args": [
+   {
+    "$date": [
+     2026,
+     0,
+     1
+    ]
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "2026-01-01"
+ },
+ {
+  "id": "dateVersIso#2",
+  "fn": "dateVersIso",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateVersIso#3",
+  "fn": "dateVersIso",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "dateVersIso#4",
+  "fn": "dateVersIso",
+  "args": [
+   {
+    "$undefined": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": null
+ },
+ {
+  "id": "formatEuros#0",
+  "fn": "formatEuros",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "0 €"
+ },
+ {
+  "id": "formatEurosCentimes#0",
+  "fn": "formatEurosCentimes",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "0,00 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#0",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "0 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#0",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "0 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#0",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "0 €"
+ },
+ {
+  "id": "formatEuros#1",
+  "fn": "formatEuros",
+  "args": [
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "1 €"
+ },
+ {
+  "id": "formatEurosCentimes#1",
+  "fn": "formatEurosCentimes",
+  "args": [
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "1,00 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#1",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "1 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#1",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "1 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#1",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   1
+  ],
+  "sortie": "valeur",
+  "attendu": "1 €"
+ },
+ {
+  "id": "formatEuros#2",
+  "fn": "formatEuros",
+  "args": [
+   999
+  ],
+  "sortie": "valeur",
+  "attendu": "999 €"
+ },
+ {
+  "id": "formatEurosCentimes#2",
+  "fn": "formatEurosCentimes",
+  "args": [
+   999
+  ],
+  "sortie": "valeur",
+  "attendu": "999,00 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#2",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   999
+  ],
+  "sortie": "valeur",
+  "attendu": "999 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#2",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   999
+  ],
+  "sortie": "valeur",
+  "attendu": "999 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#2",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   999
+  ],
+  "sortie": "valeur",
+  "attendu": "999 €"
+ },
+ {
+  "id": "formatEuros#3",
+  "fn": "formatEuros",
+  "args": [
+   1234
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 €"
+ },
+ {
+  "id": "formatEurosCentimes#3",
+  "fn": "formatEurosCentimes",
+  "args": [
+   1234
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234,00 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#3",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   1234
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#3",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   1234
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#3",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   1234
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 €"
+ },
+ {
+  "id": "formatEuros#4",
+  "fn": "formatEuros",
+  "args": [
+   1234.5
+  ],
+  "sortie": "valeur",
+  "attendu": "1 235 €"
+ },
+ {
+  "id": "formatEurosCentimes#4",
+  "fn": "formatEurosCentimes",
+  "args": [
+   1234.5
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234,50 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#4",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   1234.5
+  ],
+  "sortie": "valeur",
+  "attendu": "1 235 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#4",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   1234.5
+  ],
+  "sortie": "valeur",
+  "attendu": "1 235 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#4",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   1234.5
+  ],
+  "sortie": "valeur",
+  "attendu": "1 235 €"
+ },
+ {
+  "id": "formatEuros#5",
+  "fn": "formatEuros",
+  "args": [
+   1234567.89
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 568 €"
+ },
+ {
+  "id": "formatEurosCentimes#5",
+  "fn": "formatEurosCentimes",
+  "args": [
+   1234567.89
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 567,89 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#5",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   1234567.89
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 568 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#5",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   1234567.89
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 568 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#5",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   1234567.89
+  ],
+  "sortie": "valeur",
+  "attendu": "1 234 568 €"
+ },
+ {
+  "id": "formatEuros#6",
+  "fn": "formatEuros",
+  "args": [
+   -5000
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 000 €"
+ },
+ {
+  "id": "formatEurosCentimes#6",
+  "fn": "formatEurosCentimes",
+  "args": [
+   -5000
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 000,00 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#6",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   -5000
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 000 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#6",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   -5000
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 000 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#6",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   -5000
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 000 €"
+ },
+ {
+  "id": "formatEuros#7",
+  "fn": "formatEuros",
+  "args": [
+   -0.4
+  ],
+  "sortie": "valeur",
+  "attendu": "-0 €"
+ },
+ {
+  "id": "formatEurosCentimes#7",
+  "fn": "formatEurosCentimes",
+  "args": [
+   -0.4
+  ],
+  "sortie": "valeur",
+  "attendu": "-0,40 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#7",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   -0.4
+  ],
+  "sortie": "valeur",
+  "attendu": "-0 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#7",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   -0.4
+  ],
+  "sortie": "valeur",
+  "attendu": "-0 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#7",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   -0.4
+  ],
+  "sortie": "valeur",
+  "attendu": "-0 €"
+ },
+ {
+  "id": "formatEuros#8",
+  "fn": "formatEuros",
+  "args": [
+   12.5
+  ],
+  "sortie": "valeur",
+  "attendu": "13 €"
+ },
+ {
+  "id": "formatEurosCentimes#8",
+  "fn": "formatEurosCentimes",
+  "args": [
+   12.5
+  ],
+  "sortie": "valeur",
+  "attendu": "12,50 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#8",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   12.5
+  ],
+  "sortie": "valeur",
+  "attendu": "13 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#8",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   12.5
+  ],
+  "sortie": "valeur",
+  "attendu": "13 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#8",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   12.5
+  ],
+  "sortie": "valeur",
+  "attendu": "13 €"
+ },
+ {
+  "id": "formatEuros#9",
+  "fn": "formatEuros",
+  "args": [
+   34800
+  ],
+  "sortie": "valeur",
+  "attendu": "34 800 €"
+ },
+ {
+  "id": "formatEurosCentimes#9",
+  "fn": "formatEurosCentimes",
+  "args": [
+   34800
+  ],
+  "sortie": "valeur",
+  "attendu": "34 800,00 €"
+ },
+ {
+  "id": "formatEurosIndexRecherche#9",
+  "fn": "formatEurosIndexRecherche",
+  "args": [
+   34800
+  ],
+  "sortie": "valeur",
+  "attendu": "34 800 €"
+ },
+ {
+  "id": "formatEurosReponseFixy#9",
+  "fn": "formatEurosReponseFixy",
+  "args": [
+   34800
+  ],
+  "sortie": "valeur",
+  "attendu": "34 800 €"
+ },
+ {
+  "id": "formatEurosCourrielFixy#9",
+  "fn": "formatEurosCourrielFixy",
+  "args": [
+   34800
+  ],
+  "sortie": "valeur",
+  "attendu": "34 800 €"
+ },
+ {
+  "id": "formatDateFr#0",
+  "fn": "formatDateFr",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": "04/06/2026"
+ },
+ {
+  "id": "formatDateFr#1",
+  "fn": "formatDateFr",
+  "args": [
+   "04/06/2026"
+  ],
+  "sortie": "valeur",
+  "attendu": "06/04/2026"
+ },
+ {
+  "id": "formatDateFr#2",
+  "fn": "formatDateFr",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "formatDateFr#3",
+  "fn": "formatDateFr",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "formatDateFr#4",
+  "fn": "formatDateFr",
+  "args": [
+   "x"
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "formatDateFr#5",
+  "fn": "formatDateFr",
+  "args": [
+   1780531200000
+  ],
+  "sortie": "valeur",
+  "attendu": "04/06/2026"
+ },
+ {
+  "id": "formatDateFr#6",
+  "fn": "formatDateFr",
+  "args": [
+   {
+    "$date": [
+     2026,
+     11,
+     31
+    ]
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "31/12/2026"
+ },
+ {
+  "id": "pourcentageBorne#0",
+  "fn": "pourcentageBorne",
+  "args": [
+   50,
+   100
+  ],
+  "sortie": "valeur",
+  "attendu": 50
+ },
+ {
+  "id": "pourcentageBorne#1",
+  "fn": "pourcentageBorne",
+  "args": [
+   150,
+   100
+  ],
+  "sortie": "valeur",
+  "attendu": 100
+ },
+ {
+  "id": "pourcentageBorne#2",
+  "fn": "pourcentageBorne",
+  "args": [
+   -5,
+   100
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "pourcentageBorne#3",
+  "fn": "pourcentageBorne",
+  "args": [
+   5,
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "pourcentageBorne#4",
+  "fn": "pourcentageBorne",
+  "args": [
+   1,
+   3
+  ],
+  "sortie": "valeur",
+  "attendu": 33.33333333333333
+ },
+ {
+  "id": "pourcentageBorne#5",
+  "fn": "pourcentageBorne",
+  "args": [
+   2,
+   -1
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "formatTantiemes#0",
+  "fn": "formatTantiemes",
+  "args": [
+   {
+    "numerateur": 412,
+    "denominateur": 10000
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "412/10000"
+ },
+ {
+  "id": "formatTantiemes#1",
+  "fn": "formatTantiemes",
+  "args": [
+   {
+    "numerateur": 1,
+    "denominateur": 0
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "·"
+ },
+ {
+  "id": "formatTantiemes#2",
+  "fn": "formatTantiemes",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": "·"
+ },
+ {
+  "id": "formatTantiemes#3",
+  "fn": "formatTantiemes",
+  "args": [
+   {
+    "$undefined": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "·"
+ },
+ {
+  "id": "formatDateOuPoint#0",
+  "fn": "formatDateOuPoint",
+  "args": [
+   {
+    "$date": [
+     2026,
+     5,
+     4
+    ]
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "04/06/2026"
+ },
+ {
+  "id": "formatDateOuPoint#1",
+  "fn": "formatDateOuPoint",
+  "args": [
+   null
+  ],
+  "sortie": "valeur",
+  "attendu": "·"
+ },
+ {
+  "id": "formatDateOuPoint#2",
+  "fn": "formatDateOuPoint",
+  "args": [
+   {
+    "$undefined": true
+   }
+  ],
+  "sortie": "valeur",
+  "attendu": "·"
+ },
+ {
+  "id": "formatDateOuPoint#3",
+  "fn": "formatDateOuPoint",
+  "args": [
+   "2026-06-04"
+  ],
+  "sortie": "valeur",
+  "attendu": "·"
+ },
+ {
+  "id": "formatDureeHms#0",
+  "fn": "formatDureeHms",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "00:00:00"
+ },
+ {
+  "id": "formatDureeHms#1",
+  "fn": "formatDureeHms",
+  "args": [
+   59
+  ],
+  "sortie": "valeur",
+  "attendu": "00:00:59"
+ },
+ {
+  "id": "formatDureeHms#2",
+  "fn": "formatDureeHms",
+  "args": [
+   3599
+  ],
+  "sortie": "valeur",
+  "attendu": "00:59:59"
+ },
+ {
+  "id": "formatDureeHms#3",
+  "fn": "formatDureeHms",
+  "args": [
+   3661
+  ],
+  "sortie": "valeur",
+  "attendu": "01:01:01"
+ },
+ {
+  "id": "formatDureeHms#4",
+  "fn": "formatDureeHms",
+  "args": [
+   -5
+  ],
+  "sortie": "valeur",
+  "attendu": "00:00:00"
+ },
+ {
+  "id": "formatDureeHms#5",
+  "fn": "formatDureeHms",
+  "args": [
+   360000
+  ],
+  "sortie": "valeur",
+  "attendu": "100:00:00"
+ },
+ {
+  "id": "formatDureeHms#6",
+  "fn": "formatDureeHms",
+  "args": [
+   59.9
+  ],
+  "sortie": "valeur",
+  "attendu": "00:00:59"
+ },
+ {
+  "id": "formatDureeMinutes#0",
+  "fn": "formatDureeMinutes",
+  "args": [
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": "0 min"
+ },
+ {
+  "id": "formatDureeMinutes#1",
+  "fn": "formatDureeMinutes",
+  "args": [
+   5
+  ],
+  "sortie": "valeur",
+  "attendu": "5 min"
+ },
+ {
+  "id": "formatDureeMinutes#2",
+  "fn": "formatDureeMinutes",
+  "args": [
+   45
+  ],
+  "sortie": "valeur",
+  "attendu": "45 min"
+ },
+ {
+  "id": "formatDureeMinutes#3",
+  "fn": "formatDureeMinutes",
+  "args": [
+   60
+  ],
+  "sortie": "valeur",
+  "attendu": "1 h 00"
+ },
+ {
+  "id": "formatDureeMinutes#4",
+  "fn": "formatDureeMinutes",
+  "args": [
+   125
+  ],
+  "sortie": "valeur",
+  "attendu": "2 h 05"
+ },
+ {
+  "id": "formatDureeMinutes#5",
+  "fn": "formatDureeMinutes",
+  "args": [
+   -5
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 min"
+ },
+ {
+  "id": "formatDureeMinutes#6",
+  "fn": "formatDureeMinutes",
+  "args": [
+   59.9
+  ],
+  "sortie": "valeur",
+  "attendu": "59 min"
+ },
+ {
+  "id": "formatDureeMinutes#7",
+  "fn": "formatDureeMinutes",
+  "args": [
+   600
+  ],
+  "sortie": "valeur",
+  "attendu": "10 h 00"
+ },
+ {
+  "id": "formatDureeMinutes#8",
+  "fn": "formatDureeMinutes",
+  "args": [
+   -125
+  ],
+  "sortie": "valeur",
+  "attendu": "-5 min"
+ },
+ {
+  "id": "normaliserTexte#0",
+  "fn": "normaliserTexte",
+  "args": [
+   "Résidence Le Méridien — Lot 12 / Apt B3"
+  ],
+  "sortie": "valeur",
+  "attendu": "RESIDENCE LE MERIDIEN LOT 12 APT B3"
+ },
+ {
+  "id": "normaliserNomPersonne#0",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   "Résidence Le Méridien — Lot 12 / Apt B3"
+  ],
+  "sortie": "valeur",
+  "attendu": "residence le meridien — lot 12 / apt b3"
+ },
+ {
+  "id": "sansAccentsMinuscules#0",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   "Résidence Le Méridien — Lot 12 / Apt B3"
+  ],
+  "sortie": "valeur",
+  "attendu": "residence le meridien — lot 12 / apt b3"
+ },
+ {
+  "id": "normaliserTexteLibre#0",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   "Résidence Le Méridien — Lot 12 / Apt B3"
+  ],
+  "sortie": "valeur",
+  "attendu": "residence le meridien lot 12 apt b3"
+ },
+ {
+  "id": "normaliserTexte#1",
+  "fn": "normaliserTexte",
+  "args": [
+   "  L’ASSEMBLÉE   générale (art. 19-2) "
+  ],
+  "sortie": "valeur",
+  "attendu": "L ASSEMBLEE GENERALE ART 19 2"
+ },
+ {
+  "id": "normaliserNomPersonne#1",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   "  L’ASSEMBLÉE   générale (art. 19-2) "
+  ],
+  "sortie": "valeur",
+  "attendu": "l’assemblee generale (art. 19-2)"
+ },
+ {
+  "id": "sansAccentsMinuscules#1",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   "  L’ASSEMBLÉE   générale (art. 19-2) "
+  ],
+  "sortie": "valeur",
+  "attendu": "  l’assemblee   generale (art. 19-2) "
+ },
+ {
+  "id": "normaliserTexteLibre#1",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   "  L’ASSEMBLÉE   générale (art. 19-2) "
+  ],
+  "sortie": "valeur",
+  "attendu": "l assemblee generale art 19 2"
+ },
+ {
+  "id": "normaliserTexte#2",
+  "fn": "normaliserTexte",
+  "args": [
+   "Crème brûlée çà&là"
+  ],
+  "sortie": "valeur",
+  "attendu": "CREME BRULEE CA LA"
+ },
+ {
+  "id": "normaliserNomPersonne#2",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   "Crème brûlée çà&là"
+  ],
+  "sortie": "valeur",
+  "attendu": "creme brulee ca&la"
+ },
+ {
+  "id": "sansAccentsMinuscules#2",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   "Crème brûlée çà&là"
+  ],
+  "sortie": "valeur",
+  "attendu": "creme brulee ca&la"
+ },
+ {
+  "id": "normaliserTexteLibre#2",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   "Crème brûlée çà&là"
+  ],
+  "sortie": "valeur",
+  "attendu": "creme brulee ca la"
+ },
+ {
+  "id": "normaliserTexte#3",
+  "fn": "normaliserTexte",
+  "args": [
+   "SCI Belvédère"
+  ],
+  "sortie": "valeur",
+  "attendu": "SCI BELVEDERE"
+ },
+ {
+  "id": "normaliserNomPersonne#3",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   "SCI Belvédère"
+  ],
+  "sortie": "valeur",
+  "attendu": "sci belvedere"
+ },
+ {
+  "id": "sansAccentsMinuscules#3",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   "SCI Belvédère"
+  ],
+  "sortie": "valeur",
+  "attendu": "sci belvedere"
+ },
+ {
+  "id": "normaliserTexteLibre#3",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   "SCI Belvédère"
+  ],
+  "sortie": "valeur",
+  "attendu": "sci belvedere"
+ },
+ {
+  "id": "normaliserTexte#4",
+  "fn": "normaliserTexte",
+  "args": [
+   "Œuvre ÉÈÊ ﬁ"
+  ],
+  "sortie": "valeur",
+  "attendu": "UVRE EEE FI"
+ },
+ {
+  "id": "normaliserNomPersonne#4",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   "Œuvre ÉÈÊ ﬁ"
+  ],
+  "sortie": "valeur",
+  "attendu": "œuvre eee ﬁ"
+ },
+ {
+  "id": "sansAccentsMinuscules#4",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   "Œuvre ÉÈÊ ﬁ"
+  ],
+  "sortie": "valeur",
+  "attendu": "œuvre eee ﬁ"
+ },
+ {
+  "id": "normaliserTexteLibre#4",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   "Œuvre ÉÈÊ ﬁ"
+  ],
+  "sortie": "valeur",
+  "attendu": "uvre eee"
+ },
+ {
+  "id": "normaliserTexte#5",
+  "fn": "normaliserTexte",
+  "args": [
+   "PRLV ELECTRICITE PARTIES COMMUNES"
+  ],
+  "sortie": "valeur",
+  "attendu": "PRLV ELECTRICITE PARTIES COMMUNES"
+ },
+ {
+  "id": "normaliserNomPersonne#5",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   "PRLV ELECTRICITE PARTIES COMMUNES"
+  ],
+  "sortie": "valeur",
+  "attendu": "prlv electricite parties communes"
+ },
+ {
+  "id": "sansAccentsMinuscules#5",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   "PRLV ELECTRICITE PARTIES COMMUNES"
+  ],
+  "sortie": "valeur",
+  "attendu": "prlv electricite parties communes"
+ },
+ {
+  "id": "normaliserTexteLibre#5",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   "PRLV ELECTRICITE PARTIES COMMUNES"
+  ],
+  "sortie": "valeur",
+  "attendu": "prlv electricite parties communes"
+ },
+ {
+  "id": "normaliserTexte#6",
+  "fn": "normaliserTexte",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "normaliserNomPersonne#6",
+  "fn": "normaliserNomPersonne",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "sansAccentsMinuscules#6",
+  "fn": "sansAccentsMinuscules",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "normaliserTexteLibre#6",
+  "fn": "normaliserTexteLibre",
+  "args": [
+   ""
+  ],
+  "sortie": "valeur",
+  "attendu": ""
+ },
+ {
+  "id": "pourcentageArrondi#0",
+  "fn": "pourcentageArrondi",
+  "args": [
+   16,
+   28
+  ],
+  "sortie": "valeur",
+  "attendu": 57
+ },
+ {
+  "id": "pourcentageArrondi#1",
+  "fn": "pourcentageArrondi",
+  "args": [
+   5,
+   0
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "pourcentageArrondi#2",
+  "fn": "pourcentageArrondi",
+  "args": [
+   0,
+   10
+  ],
+  "sortie": "valeur",
+  "attendu": 0
+ },
+ {
+  "id": "pourcentageArrondi#3",
+  "fn": "pourcentageArrondi",
+  "args": [
+   1,
+   3
+  ],
+  "sortie": "valeur",
+  "attendu": 33
+ },
+ {
+  "id": "pourcentageArrondi#4",
+  "fn": "pourcentageArrondi",
+  "args": [
+   2,
+   3
+  ],
+  "sortie": "valeur",
+  "attendu": 67
+ },
+ {
+  "id": "pourcentageArrondi#5",
+  "fn": "pourcentageArrondi",
+  "args": [
+   150,
+   100
+  ],
+  "sortie": "valeur",
+  "attendu": 150
+ },
+ {
+  "id": "pourcentageArrondi#6",
+  "fn": "pourcentageArrondi",
+  "args": [
+   -1,
+   4
+  ],
+  "sortie": "valeur",
+  "attendu": -25
+ },
+ {
+  "id": "pourcentageArrondi#7",
+  "fn": "pourcentageArrondi",
+  "args": [
+   1,
+   8
+  ],
+  "sortie": "valeur",
+  "attendu": 13
+ }
+]

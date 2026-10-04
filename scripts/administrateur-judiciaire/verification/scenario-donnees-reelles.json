@@ -1,0 +1,245 @@
+{
+ "nom": "mode-reel-complet",
+ "etapes": [
+  {
+   "capture": "01-demo-cockpit"
+  },
+  {
+   "clic": "Passer aux données réelles"
+  },
+  {
+   "clic": "Confirmer : vider la démonstration et passer à la date réelle"
+  },
+  {
+   "attendre": 3000
+  },
+  {
+   "rechargement": true
+  },
+  {
+   "capture": "02-reel-cockpit"
+  },
+  {
+   "aller": "copros"
+  },
+  {
+   "capture": "03-reel-copros-vide"
+  },
+  {
+   "clic": "Ajouter"
+  },
+  {
+   "remplir": {
+    "champ": "Nom",
+    "valeur": "Résidence Les Érables"
+   }
+  },
+  {
+   "remplir": {
+    "champ": "Nombre de lots",
+    "valeur": "18"
+   }
+  },
+  {
+   "remplir": {
+    "champ": "Adresse",
+    "valeur": "5 rue des Érables, 92000 Nanterre"
+   }
+  },
+  {
+   "remplir": {
+    "champ": "Référence RG",
+    "valeur": "RG 26/04512"
+   }
+  },
+  {
+   "choisir": {
+    "champ": "Régime",
+    "valeur": "Administrateur provisoire (art. 47)"
+   }
+  },
+  {
+   "capture": "04-formulaire-rempli"
+  },
+  {
+   "clic": "Enregistrer"
+  },
+  {
+   "attendre": 1000
+  },
+  {
+   "capture": "05-copros-apres-creation"
+  },
+  {
+   "aller": "fiche360"
+  },
+  {
+   "capture": "06-fiche360"
+  },
+  {
+   "aller": "mandats"
+  },
+  {
+   "capture": "07-mandats"
+  },
+  {
+   "aller": "reprise"
+  },
+  {
+   "capture": "sel-reprise-avant-choix"
+  },
+  {
+   "choisirDans": {
+    "selecteur": "main .content select",
+    "valeur": "Résidence Les Érables"
+   }
+  },
+  {
+   "saisir": {
+    "selecteur": "main .content textarea",
+    "valeur": "Nom;Lot;Tantièmes;Solde;Téléphone;E-mail\nGarnier Sophie;Lot 27 — Apt 4G;308/10000;-1840;06 22 11 90 04;sophie.garnier@email.fr\nBenali Karim;Lot 5 — Apt 1B;250/10000;-620,50;;\nMercier Laurent;Lot 12 — Apt B3;412;0;06 12 34 56 78;l.mercier@email.fr\nDubois Hélène;Lot 4;\"1 200/10000\";1 250,00;;\nLefèvre Inès;Lot 31;abc;;;\nGarnier Sophie;Lot 27 — Apt 4G;308/10000;-1840;;"
+   }
+  },
+  {
+   "clic": "Analyser"
+  },
+  {
+   "attendre": 600
+  },
+  {
+   "capture": "08-reprise-analyse"
+  },
+  {
+   "clicContient": "Importer "
+  },
+  {
+   "attendre": 1000
+  },
+  {
+   "capture": "09-reprise-import"
+  },
+  {
+   "clicContient": "Situation de trésorerie"
+  },
+  {
+   "attendre": 800
+  },
+  {
+   "capture": "09b-reprise-piece-recue"
+  },
+  {
+   "aller": "personne360"
+  },
+  {
+   "capture": "10-personne360"
+  },
+  {
+   "attendre": 4500
+  },
+  {
+   "aller": "lots"
+  },
+  {
+   "capture": "11-lots"
+  },
+  {
+   "aller": "tresorerie"
+  },
+  {
+   "capture": "sel-tresorerie-avant-choix"
+  },
+  {
+   "choisirDans": {
+    "selecteur": "main .content select",
+    "valeur": "Résidence Les Érables"
+   }
+  },
+  {
+   "saisir": {
+    "selecteur": "main .content textarea",
+    "valeur": "Date;Libellé;Montant\n04/06/2026;VIR SEPA GARNIER SOPHIE CHARGES T2;1840,00\n05/06/2026;PRLV ELECTRICITE PARTIES COMMUNES;-312,40\n06/06/2026;VIR BENALI K;620,50\n07/06/2026;CHQ 123456;150\n31/02/2026;DATE INVALIDE;10\n08/06/2026;VIR SEPA MERCIER LAURENT;\"1 000,00\""
+   }
+  },
+  {
+   "clic": "Analyser"
+  },
+  {
+   "attendre": 600
+  },
+  {
+   "capture": "12-tresorerie-analyse"
+  },
+  {
+   "clicContient": "Importer 5"
+  },
+  {
+   "attendre": 1000
+  },
+  {
+   "capture": "12b-tresorerie-enregistre"
+  },
+  {
+   "aller": "personne360"
+  },
+  {
+   "capture": "12c-personne360-apres-releve"
+  },
+  {
+   "aller": "prestataires"
+  },
+  {
+   "clic": "Ajouter un prestataire"
+  },
+  {
+   "remplirContient": {
+    "champ": "Raison sociale",
+    "valeur": "Plomberie Test SARL"
+   }
+  },
+  {
+   "capture": "13-form-prestataire"
+  },
+  {
+   "clic": "Ajouter"
+  },
+  {
+   "attendre": 1000
+  },
+  {
+   "capture": "14-prestataires-apres"
+  },
+  {
+   "aller": "dossierJuge"
+  },
+  {
+   "capture": "15-dossier-juge"
+  },
+  {
+   "aller": "fixy"
+  },
+  {
+   "capture": "16-fixy"
+  },
+  {
+   "aller": "cockpit"
+  },
+  {
+   "capture": "17-cockpit-final"
+  },
+  {
+   "clic": "Restaurer la démonstration"
+  },
+  {
+   "clic": "Confirmer : effacer les données de ce navigateur et restaurer la démonstration"
+  },
+  {
+   "attendre": 3000
+  },
+  {
+   "rechargement": true
+  },
+  {
+   "capture": "18-demo-restauree"
+  }
+ ]
+}
