@@ -137,7 +137,8 @@ export function joursFeries(annee: number, options: OptionsJoursFeries = {}): st
     feries.push(ajouterJours(paques, -2))
     feries.push(composerDateIso(annee, 12, 26))
   }
-  return feries.sort()
+  // Comparateur explicite, identique au tri par défaut : l'ordre des chaînes AAAA-MM-JJ est l'ordre chronologique.
+  return feries.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 }
 
 export function estJourFerie(dateIso: string, options: OptionsJoursFeries = {}): boolean {

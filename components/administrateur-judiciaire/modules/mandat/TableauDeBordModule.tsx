@@ -9,6 +9,7 @@ import {
 } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DEMO_OBLIGATIONS } from '@/components/administrateur-judiciaire/data/obligations'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
+import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
@@ -472,6 +473,9 @@ export function TableauDeBordModule() {
               onClick={() => {
                 naviguerVers('obligations')
               }}
+              onKeyDown={surActivationClavier(() => naviguerVers('obligations'))}
+              role="link"
+              tabIndex={0}
             >
               Voir tout →
             </a>
@@ -480,37 +484,42 @@ export function TableauDeBordModule() {
         >
           {DEMO_OBLIGATIONS.filter((obligation) => obligation.pill === 'rust' || obligation.pill === 'amber')
             .slice(0, 4)
-            .map((obligation, index) => (
-              <div
-                className="list-row"
-                onClick={() =>
-                  push({
-                    kind: 'info',
-                    title: obligation.objet,
-                    desc: `${obligation.copro} · ${obligation.base}`,
-                  })
-                }
-                key={index}
-              >
-                <div className="thumb">
-                  {obligation.copro
-                    .split(' ')
-                    .map((mot) => mot[0])
-                    .join('')
-                    .slice(0, 2)}
-                </div>
-                <div className="info">
-                  <b>{obligation.objet}</b>
-                  <div className="meta">
-                    <span>{obligation.copro}</span>
-                    <span className="dot" />
-                    <span>{obligation.date}</span>
+            .map((obligation, index) => {
+              const afficherObligation = () =>
+                push({
+                  kind: 'info',
+                  title: obligation.objet,
+                  desc: `${obligation.copro} · ${obligation.base}`,
+                })
+              return (
+                <div
+                  className="list-row"
+                  onClick={afficherObligation}
+                  onKeyDown={surActivationClavier(afficherObligation)}
+                  role="button"
+                  tabIndex={0}
+                  key={index}
+                >
+                  <div className="thumb">
+                    {obligation.copro
+                      .split(' ')
+                      .map((mot) => mot[0])
+                      .join('')
+                      .slice(0, 2)}
                   </div>
+                  <div className="info">
+                    <b>{obligation.objet}</b>
+                    <div className="meta">
+                      <span>{obligation.copro}</span>
+                      <span className="dot" />
+                      <span>{obligation.date}</span>
+                    </div>
+                  </div>
+                  <div />
+                  <Pill kind={obligation.pill}>{obligation.statut}</Pill>
                 </div>
-                <div />
-                <Pill kind={obligation.pill}>{obligation.statut}</Pill>
-              </div>
-            ))}
+              )
+            })}
         </Panel>
         <Panel
           title="État des mandats"
@@ -526,6 +535,9 @@ export function TableauDeBordModule() {
               onClick={() => {
                 naviguerVers('mandats')
               }}
+              onKeyDown={surActivationClavier(() => naviguerVers('mandats'))}
+              role="link"
+              tabIndex={0}
             >
               Voir les ordonnances →
             </a>
@@ -538,6 +550,9 @@ export function TableauDeBordModule() {
               onClick={() => {
                 naviguerVers('mandats')
               }}
+              onKeyDown={surActivationClavier(() => naviguerVers('mandats'))}
+              role="button"
+              tabIndex={0}
               key={copro.id}
             >
               <div className="thumb">{copro.code}</div>

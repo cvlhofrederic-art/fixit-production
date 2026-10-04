@@ -1,5 +1,6 @@
 'use client'
 
+import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
@@ -44,7 +45,8 @@ const CASES_CALENDRIER = construireCasesCalendrier()
  * l'écran est rangé dans la section Extranet de la barre latérale (conservé).
  * Calendrier figé sur juin 2026 : le jour 4 est « aujourd'hui » en dur et les réservations sont saisies en dur
  * (jours 5, 8, 11, 15, 22 et 27). Les boutons de navigation et de vue n'affichent qu'un toast ; les cases non vides
- * ont role=button sans tabIndex ni gestion clavier (comme dans la maquette).
+ * ont role=button (comme dans la maquette), ainsi que tabIndex et activation au clavier (écart volontaire : la
+ * maquette ne les rendait pas accessibles au clavier).
  */
 export function ReservationEspacesCommunsModule() {
   const { push } = useToast()
@@ -230,46 +232,50 @@ export function ReservationEspacesCommunsModule() {
               {jourSemaine}
             </div>
           ))}
-          {CASES_CALENDRIER.map((jour, index) => (
-            <div
-              className={`day ${jour === 4 ? 'today' : ''} ${jour === 0 ? 'muted' : ''}`}
-              onClick={() =>
-                jour &&
-                push({
-                  kind: 'info',
-                  title: `${jour} juin`,
-                  desc: 'Voir les réservations du jour',
-                })
-              }
-              role={jour ? 'button' : undefined}
-              key={index}
-            >
+          {CASES_CALENDRIER.map((jour, index) => {
+            const afficherJour = () =>
+              jour &&
+              push({
+                kind: 'info',
+                title: `${jour} juin`,
+                desc: 'Voir les réservations du jour',
+              })
+            return (
               <div
-                style={{
-                  fontWeight: 600,
-                  marginBottom: 2,
-                }}
+                className={`day ${jour === 4 ? 'today' : ''} ${jour === 0 ? 'muted' : ''}`}
+                onClick={afficherJour}
+                onKeyDown={jour ? surActivationClavier(afficherJour) : undefined}
+                role={jour ? 'button' : undefined}
+                tabIndex={jour ? 0 : undefined}
+                key={index}
               >
-                {jour || ''}
+                <div
+                  style={{
+                    fontWeight: 600,
+                    marginBottom: 2,
+                  }}
+                >
+                  {jour || ''}
+                </div>
+                {jour === 5 && <div className="ev gold">14:00 Salle réunion</div>}
+                {jour === 8 && (
+                  <>
+                    <div className="ev gold">10:00 Salle commune</div>
+                    <div className="ev green">18:00 Terrasse</div>
+                  </>
+                )}
+                {jour === 11 && <div className="ev green">17:30 Local vélos</div>}
+                {jour === 15 && (
+                  <>
+                    <div className="ev gold">09:00 Salle réunion</div>
+                    <div className="ev green">14:00 Terrasse</div>
+                  </>
+                )}
+                {jour === 22 && <div className="ev gold">18:30 Salle commune (CS)</div>}
+                {jour === 27 && <div className="ev green">11:00 Buanderie</div>}
               </div>
-              {jour === 5 && <div className="ev gold">14:00 Salle réunion</div>}
-              {jour === 8 && (
-                <>
-                  <div className="ev gold">10:00 Salle commune</div>
-                  <div className="ev green">18:00 Terrasse</div>
-                </>
-              )}
-              {jour === 11 && <div className="ev green">17:30 Local vélos</div>}
-              {jour === 15 && (
-                <>
-                  <div className="ev gold">09:00 Salle réunion</div>
-                  <div className="ev green">14:00 Terrasse</div>
-                </>
-              )}
-              {jour === 22 && <div className="ev gold">18:30 Salle commune (CS)</div>}
-              {jour === 27 && <div className="ev green">11:00 Buanderie</div>}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Panel>
     </>

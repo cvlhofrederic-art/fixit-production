@@ -747,7 +747,8 @@ export function TresorerieModule() {
                       className="btn"
                       onClick={(evenement) => {
                         // Second clic d'un double clic (detail 2 ou plus) ignoré ; clic simple (1) ou clavier (0) inchangés.
-                        if (evenement.detail < 2) avancer(personne.id, prochaine)
+                        // Promesse non attendue : avancer signale lui-même l'échec (toast « Mise à jour impossible »).
+                        if (evenement.detail < 2) void avancer(personne.id, prochaine)
                       }}
                     >
                       <Icon name="arrow" />

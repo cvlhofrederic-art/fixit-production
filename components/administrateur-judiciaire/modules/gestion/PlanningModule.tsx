@@ -328,10 +328,12 @@ export function PlanningModule() {
           {creneaux.map((creneau) => (
             <Fragment key={`row-${creneau.idx}`}>
               <div className="week-hour">{creneau.label}</div>
+              {/* Cases vides : raccourci à la souris du bouton « Ajouter » (même formulaire), masqué aux lecteurs d'écran. */}
               {joursAffiches.map((jour) => (
                 <div
                   className="week-cell"
                   onClick={() => push(FORMULAIRE_NOUVEL_EVENEMENT)}
+                  aria-hidden="true"
                   key={`c-${jour.key}-${creneau.idx}`}
                 />
               ))}

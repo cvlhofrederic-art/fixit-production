@@ -65,6 +65,12 @@ const ORIGINES_DEMANDE = ['Gardien — via app', 'Copropriétaire — via app', 
 const HEURES_INTERVENTION = ['08:00', '09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00']
 
 /**
+ * Suffixe aléatoire d'un identifiant de mission : entier de 0 à 999, la plage du tirage de la maquette
+ * (Math.floor(Math.random() * 1e3)), tiré avec crypto.getRandomValues comme les identifiants de la base locale.
+ */
+const tirerSuffixeMission = (): number => crypto.getRandomValues(new Uint32Array(1))[0] % 1e3
+
+/**
  * Canal de communication : ordres de mission, du signalement (gardien ou copropriétaire via l'app) au dispatch vers
  * l'artisan puis à la validation de la mission. Données de démonstration, actions simulées.
  */
@@ -176,14 +182,13 @@ export function CanalCommunicationModule() {
       })
       return
     }
-    // Identifiant non déterministe, comme dans la maquette (même tirage). Correctif d'un défaut hérité de la maquette :
-    // on tire à nouveau tant que l'identifiant désigne une mission existante. Une collision (environ une chance sur
-    // mille dès la deuxième création) effaçait le fil de messages de l'ancienne mission, dupliquait la clé React et
-    // rendait l'ancienne carte inaccessible (find renvoyait la nouvelle). Une valeur libre existe toujours : au plus
-    // 999 missions créées ont pu tirer dans la plage courante, qui compte mille valeurs.
-    let id = 'm' + (missions.length + 1 + Math.floor(Math.random() * 1e3))
-    while (missions.some((mission) => mission.id === id))
-      id = 'm' + (missions.length + 1 + Math.floor(Math.random() * 1e3))
+    // Identifiant non déterministe, comme dans la maquette (même plage de tirage). Correctif d'un défaut hérité de la
+    // maquette : on tire à nouveau tant que l'identifiant désigne une mission existante. Une collision (environ une
+    // chance sur mille dès la deuxième création) effaçait le fil de messages de l'ancienne mission, dupliquait la clé
+    // React et rendait l'ancienne carte inaccessible (find renvoyait la nouvelle). Une valeur libre existe toujours :
+    // au plus 999 missions créées ont pu tirer dans la plage courante, qui compte mille valeurs.
+    let id = 'm' + (missions.length + 1 + tirerSuffixeMission())
+    while (missions.some((mission) => mission.id === id)) id = 'm' + (missions.length + 1 + tirerSuffixeMission())
     const initialesArtisan = saisieOrdre.pro
       .split(/\s+/)
       .slice(0, 2)

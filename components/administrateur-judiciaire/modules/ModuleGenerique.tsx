@@ -2,6 +2,7 @@
 
 import { Fragment, useState, type ComponentType, type ReactNode } from 'react'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
+import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { DataTable, type ColonneTableau } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
@@ -185,36 +186,41 @@ export function creerModuleGenerique(config: ConfigModuleGenerique): ComponentTy
       if (panneau.kind === 'list')
         return (
           <Panel title={panneau.title} sub={panneau.sub} icon={panneau.icon} flush key={index}>
-            {panneau.items.map((element, indexElement) => (
-              <div
-                className="list-row"
-                onClick={() =>
-                  element.detail
-                    ? setDetail(element.detail)
-                    : push({
-                        kind: 'info',
-                        title: element.title,
-                        desc: element.meta,
-                      })
-                }
-                key={indexElement}
-              >
-                <div className="thumb">{element.thumb}</div>
-                <div className="info">
-                  <b>{element.title}</b>
-                  <div className="meta">
-                    {(element.metaParts || [element.meta]).map((morceau, indexMorceau) => (
-                      <Fragment key={indexMorceau}>
-                        {indexMorceau > 0 && <span className="dot" />}
-                        <span>{morceau}</span>
-                      </Fragment>
-                    ))}
+            {panneau.items.map((element, indexElement) => {
+              const ouvrirElement = () =>
+                element.detail
+                  ? setDetail(element.detail)
+                  : push({
+                      kind: 'info',
+                      title: element.title,
+                      desc: element.meta,
+                    })
+              return (
+                <div
+                  className="list-row"
+                  onClick={ouvrirElement}
+                  onKeyDown={surActivationClavier(ouvrirElement)}
+                  role="button"
+                  tabIndex={0}
+                  key={indexElement}
+                >
+                  <div className="thumb">{element.thumb}</div>
+                  <div className="info">
+                    <b>{element.title}</b>
+                    <div className="meta">
+                      {(element.metaParts || [element.meta]).map((morceau, indexMorceau) => (
+                        <Fragment key={indexMorceau}>
+                          {indexMorceau > 0 && <span className="dot" />}
+                          <span>{morceau}</span>
+                        </Fragment>
+                      ))}
+                    </div>
                   </div>
+                  <div />
+                  {element.pill && <Pill kind={element.pillKind}>{element.pill}</Pill>}
                 </div>
-                <div />
-                {element.pill && <Pill kind={element.pillKind}>{element.pill}</Pill>}
-              </div>
-            ))}
+              )
+            })}
           </Panel>
         )
       // Toute autre valeur de kind : tableau de données.
@@ -235,7 +241,7 @@ export function creerModuleGenerique(config: ConfigModuleGenerique): ComponentTy
       <>
         <PageHead eyebrow={config.eyebrow} title={config.title} lede={config.lede} actions={actions} />
         {config.kpis && <Kpis items={config.kpis} />}
-        {(config.panels || []).map(rendrePanneau)}
+        {(config.panels || []).map((panneau, index) => rendrePanneau(panneau, index))}
         {actionPrincipale && (
           <FormModal
             open={formulaireOuvert}

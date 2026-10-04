@@ -422,10 +422,19 @@ describe('Canal de communication — identifiant de mission en collision (consta
 
   const cartes = () => Array.from(document.querySelectorAll<HTMLButtonElement>('.canal-mission-card'))
 
+  /** Fixe les prochains tirages de crypto.getRandomValues (un entier par appel ; le dernier vaut pour la suite). */
+  function fixerTirages(...valeurs: number[]) {
+    let appel = 0
+    return vi.spyOn(crypto, 'getRandomValues').mockImplementation((tableau) => {
+      ;(tableau as Uint32Array)[0] = valeurs[Math.min(appel++, valeurs.length - 1)]
+      return tableau
+    })
+  }
+
   it('le second tirage retombant sur l’identifiant de la première mission créée est refait', () => {
     const erreurConsole = vi.spyOn(console, 'error')
     // 5 missions de démonstration : m6 + 300 = « m306 » ; puis m7 + 299 = « m306 » (collision), puis m7 + 500.
-    vi.spyOn(Math, 'random').mockReturnValueOnce(0.3).mockReturnValueOnce(0.299).mockReturnValueOnce(0.5)
+    fixerTirages(300, 299, 500)
     rendre(<CanalCommunicationModule />)
     creerOrdre('Première intervention')
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Message sur la première mission' } })
@@ -452,7 +461,7 @@ describe('Canal de communication — identifiant de mission en collision (consta
   })
 
   it('sans collision : un seul tirage, comme dans la maquette', () => {
-    const tirage = vi.spyOn(Math, 'random').mockReturnValue(0.123)
+    const tirage = fixerTirages(123)
     rendre(<CanalCommunicationModule />)
     creerOrdre('Intervention unique')
     expect(tirage).toHaveBeenCalledTimes(1)

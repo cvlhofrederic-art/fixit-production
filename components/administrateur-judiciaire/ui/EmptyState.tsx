@@ -23,6 +23,8 @@ export function EmptyState({ icon, kind, title, desc, action, illustration }: Em
           className="empty-illus"
           aria-hidden="true"
           dangerouslySetInnerHTML={{
+            // Contenu sans entrée utilisateur : `svg` vient de la constante ILLUSTRATIONS (clé typée NomIllustration).
+            // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml
             __html: svg,
           }}
         />
