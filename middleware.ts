@@ -209,6 +209,7 @@ export async function middleware(request: NextRequest) {
     strippedPathname.startsWith('/pro/login') ||
     strippedPathname.startsWith('/pro/espace-pro') ||
     strippedPathname.startsWith('/syndic/') ||
+    strippedPathname.startsWith('/administrateur-judiciaire') ||
     strippedPathname.startsWith('/admin/') ||
     strippedPathname.startsWith('/coproprietaire/')
   )
@@ -313,6 +314,13 @@ export async function middleware(request: NextRequest) {
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
     if (role === 'coproprio') return localeRedirect('/coproprietaire/dashboard')
     return localeRedirect('/client/dashboard')
+  }
+
+  // Succursale Administrateur Judiciaire : réservée aux comptes syndic (super_admin déjà servi plus haut).
+  // Non connecté → connexion syndic ; autre rôle → /auth/login, qui renvoie vers son propre espace.
+  if (strippedPathname.startsWith('/administrateur-judiciaire')) {
+    if (!user) return localeRedirect('/syndic/login')
+    if (!isSyndicRole(role)) return localeRedirect('/auth/login')
   }
 
   // Protected routes: redirect to login if not authenticated
