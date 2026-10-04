@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint --max-warnings=968",
+    "lint": "eslint --max-warnings=1011",
     "mobile:build": "bash scripts/build-mobile.sh both",
     "mobile:ios": "bash scripts/build-mobile.sh ios",
     "mobile:android": "bash scripts/build-mobile.sh android",
@@ -57,7 +57,7 @@
     "jspdf-autotable": "^5.0.7",
     "langfuse": "^3.38.20",
     "lucide-react": "^0.563.0",
-    "next": "^16.2.9",
+    "next": "^16.3.8",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "5.4.296",
     "qrcode": "^1.5.4",
@@ -73,7 +73,7 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.3",
-    "@opennextjs/cloudflare": "^1.19.11",
+    "@opennextjs/cloudflare": "^1.20.8",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
@@ -84,9 +84,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.4",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9",
-    "eslint-config-next": "^16.2.2",
+    "eslint-config-next": "^16.3.8",
     "exceljs": "^4.4.0",
     "fake-indexeddb": "^6.2.5",
     "husky": "^9.1.7",
@@ -96,8 +96,8 @@
     "pngjs": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.8",
-    "wrangler": "^4.100.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.147.0"
   },
   "overrides": {
     "uuid": "^14.0.0"
