@@ -426,7 +426,7 @@ describe('Canal de communication — identifiant de mission en collision (consta
   function fixerTirages(...valeurs: number[]) {
     let appel = 0
     return vi.spyOn(crypto, 'getRandomValues').mockImplementation((tableau) => {
-      ;(tableau as Uint32Array)[0] = valeurs[Math.min(appel++, valeurs.length - 1)]
+      ;(tableau as Uint16Array)[0] = valeurs[Math.min(appel++, valeurs.length - 1)]
       return tableau
     })
   }
@@ -467,5 +467,14 @@ describe('Canal de communication — identifiant de mission en collision (consta
     expect(tirage).toHaveBeenCalledTimes(1)
     expect(cartes()).toHaveLength(6)
     expect(cartes()[0].getAttribute('aria-current')).toBe('true')
+  })
+
+  it('tirage hors de la plage 0 à 999 : refait (tirage uniforme, sans modulo)', () => {
+    // Dix bits tirés : 1010 dépasse 999, le tirage est refait ; 42 est retenu.
+    const tirage = fixerTirages(1010, 42)
+    rendre(<CanalCommunicationModule />)
+    creerOrdre('Intervention unique')
+    expect(tirage).toHaveBeenCalledTimes(2)
+    expect(cartes()).toHaveLength(6)
   })
 })

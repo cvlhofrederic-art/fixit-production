@@ -67,8 +67,16 @@ const HEURES_INTERVENTION = ['08:00', '09:00', '10:00', '11:00', '14:00', '15:00
 /**
  * Suffixe aléatoire d'un identifiant de mission : entier de 0 à 999, la plage du tirage de la maquette
  * (Math.floor(Math.random() * 1e3)), tiré avec crypto.getRandomValues comme les identifiants de la base locale.
+ * Dix bits aléatoires (0 à 1023), retirés tant qu'ils dépassent 999 : tirage uniforme, sans biais de modulo.
  */
-const tirerSuffixeMission = (): number => crypto.getRandomValues(new Uint32Array(1))[0] % 1e3
+function tirerSuffixeMission(): number {
+  const tirage = new Uint16Array(1)
+  let suffixe: number
+  do {
+    suffixe = crypto.getRandomValues(tirage)[0] & 1023
+  } while (suffixe > 999)
+  return suffixe
+}
 
 /**
  * Canal de communication : ordres de mission, du signalement (gardien ou copropriétaire via l'app) au dispatch vers
