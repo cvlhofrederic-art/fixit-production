@@ -129,6 +129,19 @@ Effet sur la comparaison avec la maquette (section « Vérification ») :
 Changement visible au clavier seulement : ces éléments entrent dans l'ordre de tabulation et affichent l'anneau de
 focus de la maquette (`:focus-visible`) ; Entrée ou Espace a l'effet du clic. Rien ne change à la souris.
 
+### Changements demandés par le propriétaire du produit
+
+| Écran | Changement | Référence |
+|---|---|---|
+| Fixy | Deux onglets, comme Tempo : « Assistant » (ouvert par défaut) = page d'accueil de Fixy, agent secrétaire, reprise de la maquette `VitFix_Syndic_Judiciaire_13_M1` (conversation « Fixy — Assistant du mandat », réponses de démonstration comme Tempo, Max et Léa) ; « Tableau » = l'écran Fixy de la v0.13.1 (veille, demande, courriel, ordonnance, notes, données réelles), inchangé. Une fois ouvert, le Tableau reste monté (masqué sous l'onglet Assistant) : comme celui de Tempo, il garde son état d'un onglet à l'autre. Statut de l'écran inchangé : « Données réelles ». | Demande de Frédéric, octobre 2026 ; `tests/administrateur-judiciaire/fixy-onglets.test.tsx` |
+
+Effet sur la comparaison avec la maquette v0.13.1 : l'écran `fixy` diffère (puces, onglet Assistant ouvert par
+défaut). Son onglet Tableau, une fois la barre des puces retirée et son conteneur déballé, est identique à l'écran
+`fixy` de la v0.13.1 (pixels, texte et structure, en mode démo comme en mode réel). Dans le scénario
+`scenario-donnees-reelles.json`, l'étape `{"clic":"Tableau"}` qui suit `{"aller":"fixy"}` ouvre le Tableau du portage
+et échoue côté maquette (bouton absent) ; la capture `16-fixy` diffère donc de la seule ligne des puces
+(« Assistant », « Tableau »).
+
 ## Défauts de la maquette conservés, en attente de décision
 
 Ils changent un comportement visible ; ils ne seront corrigés qu'avec l'accord du propriétaire du produit :

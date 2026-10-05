@@ -1,11 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { AgentChatPage } from '@/components/administrateur-judiciaire/modules/agents-ia/AgentChatPage'
 import { FixyCourriel } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyCourriel'
 import { FixyDemande } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyDemande'
 import { FixyOrdonnance } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyOrdonnance'
 import { FixyVeille } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyVeille'
 import { useFixy } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useFixy'
+import { OngletsAgent, type OngletAgent } from '@/components/administrateur-judiciaire/modules/agents-ia/OngletsAgent'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
@@ -14,10 +17,84 @@ import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/
 import type { ActionFixy } from '@/lib/administrateur-judiciaire/domain/fixy/agents'
 
 /**
- * Écran Fixy (agents IA · pilotage, données réelles) : veille calculée depuis la base et le moteur d'échéances,
- * demande libre, analyse d'un courriel reçu, création d'un mandat depuis une ordonnance, notes au gestionnaire.
+ * Écran Fixy, comme Tempo : onglet « Assistant » (page d'accueil de Fixy, agent secrétaire, reprise de la maquette
+ * VitFix_Syndic_Judiciaire_13_M1 : conversation aux réponses simulées) et onglet « Tableau » (veille, demande,
+ * courriel, ordonnance et notes, sur les données réelles).
  */
 export function FixyModule() {
+  const [onglet, setOnglet] = useState<OngletAgent>('assistant')
+  // Une fois ouvert, le Tableau reste monté (masqué sous l'onglet Assistant) : comme celui de Tempo, il garde son
+  // état, et une demande, un courriel ou une ordonnance en cours survivent au changement d'onglet.
+  const [tableauOuvert, setTableauOuvert] = useState(false)
+
+  const changerOnglet = (nouvel: OngletAgent) => {
+    setOnglet(nouvel)
+    if (nouvel === 'tableau') setTableauOuvert(true)
+  }
+
+  return (
+    <>
+      <OngletsAgent onglet={onglet} onChange={changerOnglet} />
+      {onglet === 'assistant' && (
+        <AgentChatPage
+          mascot="fixy"
+          domain="ops"
+          conversations={[
+            {
+              id: 'f1',
+              title: 'Ordre de mission — fuite 4e étage',
+              bucket: 'hier',
+            },
+            {
+              id: 'f2',
+              title: 'Devis étanchéité Les Tilleuls',
+              bucket: 'cette-semaine',
+            },
+            {
+              id: 'f3',
+              title: 'Prestataires plomberie référencés',
+              bucket: 'cette-semaine',
+            },
+          ]}
+          name="Fixy — Assistant du mandat"
+          title="Coordination des interventions et de la gestion courante du syndicat"
+          intro="Bonjour, je suis Fixy."
+          introDetail="Je vous aide à piloter les interventions, les prestataires et le suivi opérationnel de vos copropriétés sous mandat."
+          contextSelector={{
+            label: 'Copropriété',
+            options: DEMO_NOMS_COPROPRIETES,
+          }}
+          showDocsBtn
+          suggestions={[
+            'Quelles interventions sont en attente de validation ?',
+            'Génère un ordre de service pour la fuite du 4e',
+            'Quels prestataires sont référencés pour la plomberie ?',
+            'Fais le point opérationnel du Clos des Vignes',
+          ]}
+        />
+      )}
+      {tableauOuvert && (
+        <div
+          style={
+            onglet === 'tableau'
+              ? undefined
+              : {
+                  display: 'none',
+                }
+          }
+        >
+          <FixyTableau />
+        </div>
+      )}
+    </>
+  )
+}
+
+/**
+ * Tableau de Fixy (agents IA · pilotage, données réelles) : veille calculée depuis la base et le moteur d'échéances,
+ * demande libre, analyse d'un courriel reçu, création d'un mandat depuis une ordonnance, notes au gestionnaire.
+ */
+function FixyTableau() {
   const fixy = useFixy()
   const [faites, setFaites] = useState<string[]>([])
   const [enCours, setEnCours] = useState<string | null>(null)

@@ -11,6 +11,7 @@ import {
   CreerAutomatisationModal,
   type NouvelleAutomatisation,
 } from '@/components/administrateur-judiciaire/modules/agents-ia/CreerAutomatisationModal'
+import { OngletsAgent, type OngletAgent } from '@/components/administrateur-judiciaire/modules/agents-ia/OngletsAgent'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -18,8 +19,6 @@ import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-
-type OngletTempo = 'assistant' | 'tableau'
 
 /** Prochaine exécution affichée (libellé t, moment w, couleur k de la pastille et du statut, statut s). */
 interface ProchaineExecution {
@@ -64,7 +63,7 @@ const PROCHAINES_EXECUTIONS: ProchaineExecution[] = [
  */
 export function TempoEcheancesModule() {
   const { push } = useToast()
-  const [onglet, setOnglet] = useState<OngletTempo>('assistant')
+  const [onglet, setOnglet] = useState<OngletAgent>('assistant')
   const [automatisations, setAutomatisations] = useState<Automatisation[]>(DEMO_AUTOMATISATIONS)
   const [creationOuverte, setCreationOuverte] = useState(false)
 
@@ -112,38 +111,7 @@ export function TempoEcheancesModule() {
 
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          marginBottom: 18,
-        }}
-      >
-        <button className={`chip ${onglet === 'assistant' ? 'active' : ''}`} onClick={() => setOnglet('assistant')}>
-          <Icon
-            name="bot"
-            style={{
-              width: 13,
-              height: 13,
-              verticalAlign: '-2px',
-              marginRight: 5,
-            }}
-          />
-          Assistant
-        </button>
-        <button className={`chip ${onglet === 'tableau' ? 'active' : ''}`} onClick={() => setOnglet('tableau')}>
-          <Icon
-            name="grid"
-            style={{
-              width: 13,
-              height: 13,
-              verticalAlign: '-2px',
-              marginRight: 5,
-            }}
-          />
-          Tableau
-        </button>
-      </div>
+      <OngletsAgent onglet={onglet} onChange={setOnglet} />
       {onglet === 'assistant' && (
         <AgentChatPage
           mascot="tempo"

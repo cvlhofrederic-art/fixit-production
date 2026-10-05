@@ -8,7 +8,7 @@ import { AVATARS_AGENTS, type IdAgentAvatar } from '@/components/administrateur-
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 
-/** Domaine des réponses simulées (« ops » n'a aucun écran appelant dans la maquette). */
+/** Domaine des réponses simulées (« ops » : onglet Assistant de Fixy, repris de la maquette 13_M1). */
 export type DomaineAgent = 'juridique' | 'compta' | 'ops' | 'echeances'
 
 /** Tranche de l'historique des conversations. */
@@ -111,7 +111,7 @@ export function repondreAgentSimule(domaine: DomaineAgent, question: string, pre
 }
 
 /**
- * Page de conversation d'un agent IA (Max, Léa, Tempo) : historique par tranche (masquable), en-tête, sélecteur de
+ * Page de conversation d'un agent IA (Fixy, Max, Léa, Tempo) : historique par tranche (masquable), en-tête, sélecteur de
  * contexte, suggestions (remplissent le champ sans envoyer) et réponses simulées. La recherche de conversation
  * n'est pas branchée (champ non contrôlé).
  */
