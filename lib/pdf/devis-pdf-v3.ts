@@ -590,12 +590,16 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       const ordreSuffix = (acompteOrdre && acompteTotal)
         ? ` N°${acompteOrdre} ${locale === 'pt' ? 'de' : 'sur'} ${acompteTotal}`
         : ''
-      const pctSuffix = acomptePourcentage != null ? ` — ${acomptePourcentage}%` : ''
+      // Virgule décimale, comme le titre et les lignes de l'acompte (33,33 et non 33.33).
+      const pctSuffix = acomptePourcentage != null ? ` — ${String(acomptePourcentage).replace('.', ',')}%` : ''
       // Mention du document source (méthode pro : un acompte référence toujours
       // la facture/le devis auquel il se rattache). Idem avoir → parentInvoiceNumber.
-      const refSuffix = parentInvoiceNumber
-        ? ` (${locale === 'pt' ? 'sobre fatura' : 'sur facture'} ${parentInvoiceNumber})`
-        : ''
+      // Le parent d'un acompte est un devis (série DEV-) ou une facture : le libellé le dit.
+      const parentEstDevis = /^DEV-/i.test(String(parentInvoiceNumber || ''))
+      const refLabel = locale === 'pt'
+        ? (parentEstDevis ? 'sobre orçamento' : 'sobre fatura')
+        : (parentEstDevis ? 'sur devis' : 'sur facture')
+      const refSuffix = parentInvoiceNumber ? ` (${refLabel} ${parentInvoiceNumber})` : ''
       subTypeLabel = `${base}${ordreSuffix}${pctSuffix}${refSuffix}`
     } else if (factureSubType === 'situation') {
       subTypeLabel = `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
