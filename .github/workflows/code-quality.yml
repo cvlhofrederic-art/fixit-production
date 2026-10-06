@@ -223,6 +223,11 @@ jobs:
         # continue-on-error: SonarCloud est configuré en "Automatic Analysis"
         # côté projet → il refuse le CI analysis en parallèle (exit code 3).
         # Ne bloque pas la PR, l'analyse automatique côté SonarCloud reste active.
+        # Dans ce mode, le périmètre (exclusions) vient de .sonarcloud.properties :
+        # ni les -D ci-dessous ni sonar-project.properties ne sont lus.
+        # Si l'on repasse en analyse CI, les -D écrasent sonar-project.properties
+        # et leurs listes sonar.tests et sonar.exclusions sont plus courtes que
+        # celles du fichier : les aligner avant.
         continue-on-error: true
         uses: SonarSource/sonarcloud-github-action@ba3875ecf642b2129de2b589510c81a8b53dbf4e # master
         env:
