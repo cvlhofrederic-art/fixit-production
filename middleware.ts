@@ -6,6 +6,7 @@
 // toute migration. middleware.ts en edge est le seul état fonctionnel.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { POLITIQUE_CSP } from '@/lib/securite/csp'
 
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
@@ -100,25 +101,9 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP header ──
-  // Seule source de la CSP : next.config.ts n'en déclare pas (sur OpenNext, ses en-têtes s'ajoutent à ceux du
-  // middleware et le navigateur appliquerait les deux politiques). Test : tests/securite/csp-politique-unique.test.ts.
-  // GA4 (Google Analytics 4) : script depuis www.googletagmanager.com,
-  // beacons collectés sur www.google-analytics.com / *.analytics.google.com.
-  // Chargé UNIQUEMENT après consent dans components/common/ConsentAnalytics.tsx.
-  const cspHeader = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io https://www.googletagmanager.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com https://www.google-analytics.com https://*.analytics.google.com https://*.g.doubleclick.net",
-    "frame-src 'self' https://js.stripe.com https://*.stripe.com",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-    "worker-src 'self' blob:",
-  ].join('; ')
+  // Politique unique (lib/securite/csp.ts), posée ici sur toutes les réponses du middleware ; next.config.ts ne la
+  // pose que sur les chemins exclus du matcher (jamais les deux : sur OpenNext elles s'additionneraient).
+  const cspHeader = POLITIQUE_CSP
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
   const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')

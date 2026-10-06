@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
@@ -184,12 +185,20 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
-          // Pas de Content-Security-Policy ici : middleware.ts est sa seule source. Sur OpenNext/Cloudflare, les
-          // en-têtes de cette config s'AJOUTENT à ceux du middleware (clés de casse différente, toutes deux gardées) :
-          // le navigateur appliquait alors deux politiques, et la plus stricte bloquait GA4 et le repli SIRET.
-          // Test : tests/securite/csp-politique-unique.test.ts.
+          // Pas de Content-Security-Policy ici : sur OpenNext/Cloudflare, les en-têtes de cette config s'AJOUTENT à
+          // ceux du middleware (clés de casse différente, toutes deux gardées) et le navigateur appliquait deux
+          // politiques, la plus stricte bloquant GA4 et le repli SIRET. Voir les règles CSP ci-dessous.
         ],
       },
+      // CSP des seules réponses que le middleware ne traite pas (chemins exclus de son matcher) : des routes
+      // dynamiques y servent aussi du HTML (ex. /fr/artisan/foo.png). Même politique que le middleware
+      // (lib/securite/csp.ts), jamais sur la même réponse. Test : tests/securite/csp-politique-unique.test.ts.
+      {
+        source: `/(.*)\\.(${EXTENSIONS_HORS_MIDDLEWARE})`,
+        headers: [{ key: 'Content-Security-Policy', value: POLITIQUE_CSP }],
+      },
+      { source: '/manifest.json', headers: [{ key: 'Content-Security-Policy', value: POLITIQUE_CSP }] },
+      { source: '/.well-known/:path*', headers: [{ key: 'Content-Security-Policy', value: POLITIQUE_CSP }] },
       // Syndic v54 dev sandbox : jamais indexable. Ceinture en plus du gate
       // hostname (404 hors localhost) et du <meta robots noindex>. Couvre le
       // cas où une URL preview/dev fuiterait à un crawler.
