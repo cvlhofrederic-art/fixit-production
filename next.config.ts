@@ -49,7 +49,8 @@ const nextConfig: NextConfig = {
         { source: '/fr/confidentialite/mes-donnees/', destination: '/confidentialite/mes-donnees/' },
         { source: '/fr/cookies', destination: '/cookies' },
         { source: '/fr/cookies/', destination: '/cookies/' },
-        // Pages ouvertes par un lien e-mail ou SMS sans locale : le middleware les préfixe par /fr/ ou /pt/ (sans réécriture : 404).
+        // Pages ouvertes par un lien e-mail ou SMS sans locale : le middleware les préfixe par la locale du visiteur (cookie,
+        // pays, Accept-Language), donc /fr/ et /pt/ mais aussi /en/, /nl/, /es/ (règles en fin de liste). Sans réécriture : 404.
         // Suivi par « :token » et non « :path* » : sur OpenNext, « :path* » vide envoyait le littéral « /tracking/:path* »
         // à la route [token], servie en 200 sous /fr/tracking/. Parrainage : ${SITE_URL}/rejoindre?ref=CODE (lib/email-referral.ts) ;
         // réponse fournisseur BTP : ${BASE_URL}/rfq/repondre/<jeton> (lib/email-rfq.ts).
@@ -79,6 +80,11 @@ const nextConfig: NextConfig = {
         { source: '/pt/rejoindre', destination: '/rejoindre' },
         { source: '/pt/rejoindre/', destination: '/rejoindre/' },
         { source: '/pt/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        // ── Mêmes liens e-mail suivis par un visiteur en/nl/es (pages partagées, contenu non traduit plutôt qu'un 404) ──
+        { source: '/:locale(en|nl|es)/tracking/:token', destination: '/tracking/:token' },
+        { source: '/:locale(en|nl|es)/rejoindre', destination: '/rejoindre' },
+        { source: '/:locale(en|nl|es)/rejoindre/', destination: '/rejoindre/' },
+        { source: '/:locale(en|nl|es)/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
       ],
       afterFiles: [],
       fallback: [],
@@ -145,6 +151,17 @@ const nextConfig: NextConfig = {
       { source: '/pt/mercados/', destination: '/pt/mercados/publicar/', permanent: true },
       { source: '/fr/marches/', destination: '/fr/marches/publier/', permanent: true },
       { source: '/pt/marches/:path*', destination: '/pt/mercados/:path*/', permanent: true },
+      // Anciennes cibles littérales : avant les règles exactes ci-dessus, ces racines partaient en 308 vers « …/:path* »,
+      // sans Cache-Control. Les navigateurs gardent ce 308 et retournent directement sur le littéral (« \\: » et « \\* » :
+      // caractères littéraux dans la source) ; on les ramène là où mène la racine.
+      { source: '/pt/servicos/\\:path\\*/', destination: '/pt/servicos/', permanent: true },
+      { source: '/pt/urgencia/\\:path\\*/', destination: '/pt/urgencia/', permanent: true },
+      { source: '/pt/cidade/\\:path\\*/', destination: '/pt/cidade/', permanent: true },
+      { source: '/pt/perto-de-mim/\\:path\\*/', destination: '/pt/perto-de-mim/', permanent: true },
+      { source: '/pt/precos/\\:path\\*/', destination: '/pt/precos/', permanent: true },
+      { source: '/pt/profissional/\\:path\\*/', destination: '/pt/pesquisar/', permanent: true },
+      { source: '/fr/artisan/\\:path\\*/', destination: '/fr/recherche/', permanent: true },
+      { source: '/pt/mercados/\\:path\\*/', destination: '/pt/mercados/publicar/', permanent: true },
       // French root routes → redirect PT users to PT equivalents
       // Legal & info pages
       { source: '/pt/confidentialite/', destination: '/pt/privacidade/', permanent: true },
@@ -156,12 +173,17 @@ const nextConfig: NextConfig = {
       { source: '/pt/tarifs/', destination: '/pt/precos/', permanent: true },
       // Aucune page /pt/reservar/ : la réservation se fait depuis la fiche, trouvée par la recherche.
       { source: '/pt/reserver/', destination: '/pt/pesquisar/', permanent: true },
+      // Ancienne cible de /pt/reserver/ (308 gardé en cache par les navigateurs).
+      { source: '/pt/reservar/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/pt/recherche/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/pt/avis/', destination: '/pt/avaliacoes/', permanent: true },
       // Sauf « dashboard » : /pt/artisan/dashboard/ est réécrit vers le tableau de bord artisan (beforeFiles), et les
       // redirections passent avant les réécritures. Classes [Dd]… : OpenNext teste la regex du manifeste en respectant
       // la casse mais extrait les paramètres sans casse (« :slug » littéral pour /pt/artisan/DASHBOARD/ sinon).
       { source: '/pt/artisan/:slug((?![Dd][Aa][Ss][Hh][Bb][Oo][Aa][Rr][Dd]/)[^/]+)/', destination: '/pt/profissional/:slug/', permanent: true },
+      // Navigateurs qui ont gardé en cache l'ancien 308 /pt/artisan/dashboard/ → /pt/profissional/dashboard/ (sans
+      // Cache-Control) : retour temporaire, jamais mis en cache ; « ?retour=1 » donne une URL distincte de l'entrée en cache.
+      { source: '/pt/profissional/dashboard/', destination: '/pt/artisan/dashboard/?retour=1', permanent: false },
       // Legacy Porto pages in French → redirect to PT equivalents
       { source: '/plombier-porto/', destination: '/pt/servicos/canalizador-porto/', permanent: true },
       { source: '/electricien-porto/', destination: '/pt/servicos/eletricista-porto/', permanent: true },

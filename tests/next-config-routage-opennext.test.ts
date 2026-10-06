@@ -4,8 +4,9 @@
  * OpenNext ne compile la destination d'une règle que si la source a capturé au moins un paramètre
  * (handleRewrites, appelé aussi par handleRedirects, dans @opennextjs/aws core/routing/matcher.js). Avec
  * « :path* » vide, la destination reste littérale : /servicos/ répondait « 308 Location: /pt/servicos/:path* »,
- * puis 404. `next start` ne reproduit pas ce défaut. Chaque règle « /:path* » doit donc être précédée d'une
- * règle exacte pour sa racine ; ce test le vérifie sur toutes les règles réelles, présentes et à venir.
+ * puis 404. `next start` ne reproduit pas ce défaut. Chaque redirection « /:path* » doit donc être précédée d'une
+ * règle exacte pour sa racine (l'en-tête Location est public). Pour une réécriture, le test ne l'exige que si la
+ * destination a une page racine ou un segment dynamique ; sinon la racine littérale répond 404, comme sous next start.
  *
  * Ordre en production : redirections → middleware (préfixe de locale forcé) → réécritures beforeFiles → pages.
  * Les gardes génériques ci-dessous vérifient aussi qu'une redirection aboutit sur une page, qu'elle ne masque
@@ -24,6 +25,23 @@ const requireOpenNext = createRequire(createRequire(import.meta.url).resolve('@o
 const { compile, match } = requireOpenNext('path-to-regexp') as typeof import('path-to-regexp')
 
 type Regle = { source: string; destination: string; has?: unknown[]; missing?: unknown[] }
+type Phase = 'redirect' | 'rewrite'
+
+// Regex du routes-manifest, construite comme au build par Next : OpenNext la teste telle quelle, sans drapeau i.
+const { buildCustomRoute } = createRequire(import.meta.url)('next/dist/lib/build-custom-route') as {
+  buildCustomRoute: (phase: Phase, regle: Regle, cheminsReserves?: string[]) => { regex: string }
+}
+const PHASES = new WeakMap<Regle, Phase>()
+const REGEX_MANIFESTE = new WeakMap<Regle, RegExp>()
+function regexDuManifeste(regle: Regle): RegExp {
+  let regex = REGEX_MANIFESTE.get(regle)
+  if (!regex) {
+    const phase = PHASES.get(regle) ?? 'rewrite'
+    regex = new RegExp(buildCustomRoute(phase, regle, phase === 'redirect' ? ['/_next'] : undefined).regex)
+    REGEX_MANIFESTE.set(regle, regex)
+  }
+  return regex
+}
 type Genre = 'réécriture' | 'redirection'
 type RegleRacine = { genre: Genre; regle: Regle; racineSource: string; racineDestination: string; resolue: string | null }
 
@@ -35,23 +53,32 @@ async function reecritures(): Promise<Regle[][]> {
   const regles = await configurationNext.rewrites?.()
   if (!regles || Array.isArray(regles)) throw new Error('rewrites() doit renvoyer { beforeFiles, afterFiles, fallback }')
   // OpenNext évalue chaque phase séparément : une règle exacte ne protège que les règles de sa propre phase.
-  return [regles.beforeFiles ?? [], regles.afterFiles ?? [], regles.fallback ?? []]
+  const phases = [regles.beforeFiles ?? [], regles.afterFiles ?? [], regles.fallback ?? []]
+  phases.flat().forEach((regle) => PHASES.set(regle, 'rewrite'))
+  return phases
 }
 
 async function redirections(): Promise<Regle[]> {
-  const regles = await configurationNext.redirects?.()
+  const regles: Regle[] | undefined = await configurationNext.redirects?.()
   if (!regles) throw new Error('redirects() doit renvoyer une liste')
+  regles.forEach((regle) => PHASES.set(regle, 'redirect'))
   return regles
 }
 
-/** Résolution d'une URL comme le fait handleRewrites d'OpenNext (core/routing/matcher.js). */
+/**
+ * Résolution d'une URL comme le fait handleRewrites d'OpenNext (core/routing/matcher.js, appelé aussi pour les
+ * redirections) : la règle est choisie par la regex du routes-manifest, sensible à la casse ; ses paramètres sont
+ * extraits par match() de path-to-regexp, insensible à la casse ; sans paramètre, la destination part telle quelle.
+ * La requête (?…) n'entre pas dans la comparaison.
+ */
 function resoudre(regles: Regle[], chemin: string): string | null {
+  const [cheminSeul] = chemin.split('?')
   for (const regle of regles) {
     // Aucune règle conditionnelle (has / missing) aujourd'hui : en ajouter une demande d'étendre ce rejeu.
     if (regle.has?.length || regle.missing?.length) throw new Error(`règle conditionnelle non rejouée : ${regle.source}`)
-    const correspondance = match(regle.source)(chemin)
-    if (!correspondance) continue
-    const parametres = correspondance.params as Record<string, unknown>
+    if (!regexDuManifeste(regle).test(cheminSeul)) continue
+    const correspondance = match(regle.source)(cheminSeul)
+    const parametres = (correspondance ? correspondance.params : {}) as Record<string, unknown>
     return Object.keys(parametres).length > 0 ? compile(regle.destination)(parametres) : regle.destination
   }
   return null
@@ -215,7 +242,7 @@ describe('aboutissement des redirections', () => {
       .flatMap(({ source, destination }) => {
         const enchainee = resoudre(regles, destination)
         if (enchainee !== null) return [`${source} → ${destination} → ${enchainee} (deux sauts)`]
-        const servie = resoudre(avantFichiers, destination) ?? destination
+        const servie = resoudre(avantFichiers, destination) ?? destination.split('?')[0]
         return routeExiste(servie) ? [] : [`${source} → ${destination} (aucune page)`]
       })
     expect(fautives).toEqual([])
@@ -253,6 +280,42 @@ describe('redirections et réécritures beforeFiles', () => {
     expect(sansBarreFinale(resoudre(avantFichiers, '/pt/artisan/dashboard/'))).toBe('/artisan/dashboard')
     expect(resoudre(regles, '/pt/artisan/joao-silva/')).toBe('/pt/profissional/joao-silva/')
     expect(resoudre(regles, '/pt/artisan/dashboard-joao/')).toBe('/pt/profissional/dashboard-joao/')
+  })
+
+  it.each(['/pt/artisan/DASHBOARD/', '/pt/artisan/Dashboard/'])("%s ne part jamais avec un Location littéral", async (chemin) => {
+    // OpenNext choisit la règle par la regex du manifeste (sensible à la casse) puis extrait « :slug » sans casse.
+    expect(resoudre(await redirections(), chemin) ?? '').not.toContain(':')
+  })
+
+  it("ramène vers le tableau de bord les navigateurs qui ont gardé en cache l'ancien 308 vers la fiche", async () => {
+    // Le 308 /pt/artisan/dashboard/ → /pt/profissional/dashboard/ partait sans Cache-Control : les navigateurs le
+    // gardent indéfiniment. Retour temporaire (jamais mis en cache), avec une requête qui évite l'entrée en cache.
+    const regles = await redirections()
+    expect(resoudre(regles, '/pt/profissional/dashboard/')).toBe('/pt/artisan/dashboard/?retour=1')
+    expect(regles.find(({ source }) => source === '/pt/profissional/dashboard/')).toMatchObject({ permanent: false })
+    const [avantFichiers] = await reecritures()
+    expect(resoudre(regles, '/pt/artisan/dashboard/?retour=1')).toBeNull()
+    expect(sansBarreFinale(resoudre(avantFichiers, '/pt/artisan/dashboard/?retour=1'))).toBe('/artisan/dashboard')
+  })
+})
+
+describe('anciennes cibles cassées gardées en cache par les navigateurs', () => {
+  // Les 308 corrigés partaient sans Cache-Control : un navigateur qui les a suivis retourne directement sur l'ancienne
+  // cible. Le littéral « :path* » arrive tel quel (puis avec la barre finale ajoutée par la redirection de barre finale).
+  it('chaque ancienne cible littérale « …/:path*/ » mène là où mène la racine', async () => {
+    const regles = await redirections()
+    const fautives = reglesRacine(regles, 'redirection')
+      .map(({ regle, racineSource }) => ({
+        litteral: regle.destination.replace(/\/?$/, '/'),
+        attendu: resoudre(regles, racineSource),
+      }))
+      .map(({ litteral, attendu }) => ({ litteral, attendu, obtenu: resoudre(regles, litteral) }))
+      .filter(({ attendu, obtenu }) => obtenu !== attendu)
+    expect(fautives).toEqual([])
+  })
+
+  it('/pt/reservar/ (ancienne cible de /pt/reserver/, jamais créée) mène à la recherche', async () => {
+    expect(resoudre(await redirections(), '/pt/reservar/')).toBe('/pt/pesquisar/')
   })
 })
 
@@ -321,6 +384,20 @@ describe('pages partagées servies sous /fr et /pt', () => {
     expect(resoudre(avantFichiers, '/pt/tracking/abc123/')?.replace(/\/$/, '')).toBe('/tracking/abc123')
     expect(resoudre(avantFichiers, '/fr/tracking/') ?? '').not.toContain(':')
     expect(resoudre(avantFichiers, '/pt/tracking/') ?? '').not.toContain(':')
+  })
+
+  it.each([
+    ['en', '/rejoindre/', '/rejoindre'],
+    ['nl', '/rejoindre/', '/rejoindre'],
+    ['es', '/rejoindre/', '/rejoindre'],
+    ['en', '/rfq/repondre/abc123/', '/rfq/repondre/abc123'],
+    ['es', '/rfq/repondre/abc123/', '/rfq/repondre/abc123'],
+    ['en', '/tracking/abc123/', '/tracking/abc123'],
+    ['nl', '/tracking/abc123/', '/tracking/abc123'],
+  ])('lien e-mail suivi en locale %s : %s est servi par %s', async (locale, chemin, page) => {
+    // Le middleware préfixe un lien sans locale par la locale du cookie ou de l'Accept-Language, en/nl/es compris.
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, `/${locale}${chemin}`))).toBe(page)
   })
 
   it('le lien « Avis » du Footer FR mène à une page', () => {
