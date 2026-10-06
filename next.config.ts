@@ -84,7 +84,6 @@ const nextConfig: NextConfig = {
       // Northern PT variant: picheleiro → canalizador
       { source: '/pt/servicos/picheleiro-:city/', destination: '/pt/servicos/canalizador-:city/', permanent: true },
       { source: '/pt/urgencia/picheleiro-urgente-:city/', destination: '/pt/urgencia/canalizador-urgente-:city/', permanent: true },
-      { source: '/pt/perto-de-mim/picheleiro/', destination: '/pt/perto-de-mim/canalizador/', permanent: true },
       { source: '/pt/precos/picheleiro/', destination: '/pt/precos/canalizador/', permanent: true },
       // Common misspelling: marido de aluguer → faz-tudo
       { source: '/pt/perto-de-mim/marido-de-aluguer/', destination: '/pt/perto-de-mim/faz-tudo/', permanent: true },
@@ -106,8 +105,9 @@ const nextConfig: NextConfig = {
       { source: '/como-funciona/', destination: '/pt/como-funciona/', permanent: true },
       { source: '/especialidades/', destination: '/pt/especialidades/', permanent: true },
       { source: '/profissionais-verificados/', destination: '/pt/profissionais-verificados/', permanent: true },
-      // Pas de page racine /pt/profissional/ (seulement [id]) : 404 propre, comme `next start`, sans littéral.
-      { source: '/profissional/', destination: '/pt/profissional/', permanent: true },
+      // Pas de page racine /pt/profissional/ (seulement [id]) : racine → recherche, parent des fiches, en un seul saut.
+      { source: '/profissional/', destination: '/pt/pesquisar/', permanent: true },
+      { source: '/pt/profissional/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/profissional/:path*', destination: '/pt/profissional/:path*/', permanent: true },
       { source: '/torne-se-parceiro/', destination: '/pt/torne-se-parceiro/', permanent: true },
       { source: '/pesquisar/', destination: '/pt/pesquisar/', permanent: true },
@@ -122,15 +122,18 @@ const nextConfig: NextConfig = {
       { source: '/tarifs/', destination: '/fr/tarifs/', permanent: true },
       { source: '/cgu/', destination: '/fr/cgu/', permanent: true },
       { source: '/mentions-legales/', destination: '/fr/mentions-legales/', permanent: true },
-      // Pas de page racine /fr/artisan/ (seulement [id]) : 404 propre, comme `next start`, sans littéral.
-      { source: '/artisan/', destination: '/fr/artisan/', permanent: true },
+      // Pas de page racine /fr/artisan/ (seulement [id] et le tableau de bord) : racine → recherche, en un seul saut.
+      { source: '/artisan/', destination: '/fr/recherche/', permanent: true },
+      { source: '/fr/artisan/', destination: '/fr/recherche/', permanent: true },
       { source: '/artisan/:path*', destination: '/fr/artisan/:path*/', permanent: true },
       { source: '/reserver/', destination: '/fr/reserver/', permanent: true },
       // French marketplace URLs → redirect to PT equivalents
       { source: '/pt/marches/publier/', destination: '/pt/mercados/publicar/', permanent: true },
       { source: '/pt/marches/gerer/', destination: '/pt/mercados/gerir/', permanent: true },
-      // Pas de page racine /pt/mercados/ (seulement publicar et gerir) : 404 propre, sans littéral.
-      { source: '/pt/marches/', destination: '/pt/mercados/', permanent: true },
+      // Pas de page racine /pt/mercados/ ni /fr/marches/ (seulement publier/publicar et gerer/gerir) : racine → publication.
+      { source: '/pt/marches/', destination: '/pt/mercados/publicar/', permanent: true },
+      { source: '/pt/mercados/', destination: '/pt/mercados/publicar/', permanent: true },
+      { source: '/fr/marches/', destination: '/fr/marches/publier/', permanent: true },
       { source: '/pt/marches/:path*', destination: '/pt/mercados/:path*/', permanent: true },
       // French root routes → redirect PT users to PT equivalents
       // Legal & info pages
@@ -141,7 +144,8 @@ const nextConfig: NextConfig = {
       { source: '/pt/cookies/', destination: '/pt/politica-cookies/', permanent: true },
       { source: '/pt/a-propos/', destination: '/pt/sobre/', permanent: true },
       { source: '/pt/tarifs/', destination: '/pt/precos/', permanent: true },
-      { source: '/pt/reserver/', destination: '/pt/reservar/', permanent: true },
+      // Aucune page /pt/reservar/ : la réservation se fait depuis la fiche, trouvée par la recherche.
+      { source: '/pt/reserver/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/pt/recherche/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/pt/avis/', destination: '/pt/avaliacoes/', permanent: true },
       // Sauf « dashboard » : /pt/artisan/dashboard/ est réécrit vers le tableau de bord artisan (beforeFiles), et les
@@ -173,13 +177,10 @@ const nextConfig: NextConfig = {
       { source: '/pt/blog/preparar-paredes-pintura/', destination: '/pt/blog/', permanent: true },
       // Orphan paths picked up by Google with no locale prefix
       { source: '/mois/', destination: '/fr/', permanent: true },
-      { source: '/mês/', destination: '/pt/', permanent: true },
+      // Forme encodée : le chemin arrive encodé (/m%C3%AAs/) et la source est comparée telle quelle (« /mês/ » ne correspondait jamais).
+      { source: '/m%C3%AAs/', destination: '/pt/', permanent: true },
       // Simulateur devis: Toulon not in supported FR_CITIES → hub
       { source: '/fr/simulateur-devis/toulon/', destination: '/fr/simulateur-devis/', permanent: true },
-      // Slug FR cassé : "debouchage-canalisation" n'existe pas dans FR_SERVICES
-      // (services valides : plombier, electricien, peintre, plaquiste, etc.)
-      // → 301 vers l'équivalent métier le plus proche (plombier).
-      { source: '/fr/services/debouchage-canalisation-:city/', destination: '/fr/services/plombier-:city/', permanent: true },
     ]
   },
   async headers() {
