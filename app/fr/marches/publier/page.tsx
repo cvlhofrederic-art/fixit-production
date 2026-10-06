@@ -18,6 +18,11 @@ export async function generateMetadata(): Promise<Metadata> {
       canonical: isPt
         ? 'https://vitfix.io/pt/mercados/publicar/'
         : 'https://vitfix.io/fr/marches/publier/',
+      // Réciproque de app/pt/mercados/publicar/page.tsx (même paire pour les deux branches).
+      languages: {
+        'fr-FR': 'https://vitfix.io/fr/marches/publier/',
+        'pt-PT': 'https://vitfix.io/pt/mercados/publicar/',
+      },
     },
   }
 }

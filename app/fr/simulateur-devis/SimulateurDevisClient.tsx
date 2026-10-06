@@ -238,6 +238,14 @@ export default function SimulateurDevisClient({ initialCity = '', citySlug }: Si
   const svcConfig = detectedService ? SERVICE_KEYWORDS[detectedService] : null
   const priceInfo = svcConfig ? (SERVICE_PRICES[svcConfig.slug] ?? (detectedService ? SERVICE_PRICES[detectedService] : null) ?? null) : null
 
+  // « Voir tous les artisans » : URL FR finale (la racine /recherche enchaîne
+  // deux 308) et « ? » présent même sans ville détectée.
+  const allArtisansQuery = [
+    detectedCity ? `loc=${encodeURIComponent(detectedCity)}` : '',
+    svcConfig ? `cat=${svcConfig.slug}` : '',
+  ].filter(Boolean).join('&')
+  const allArtisansUrl = `/fr/recherche/${allArtisansQuery ? `?${allArtisansQuery}` : ''}`
+
   return (
     <div className="min-h-screen bg-[#F8F7F2]">
       {/* ── Hero ── */}
@@ -371,7 +379,7 @@ export default function SimulateurDevisClient({ initialCity = '', citySlug }: Si
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {artisans.map(a => {
                   const pricesList = a.prices || []
-                  const profileUrl = a.slug ? `/artisan/${a.slug}` : `/recherche${detectedCity ? `?loc=${encodeURIComponent(detectedCity)}` : ''}`
+                  const profileUrl = a.slug ? `/fr/artisan/${a.slug}/` : `/fr/recherche/${detectedCity ? `?loc=${encodeURIComponent(detectedCity)}` : ''}`
                   return (
                     <div key={a.id} className="bg-white rounded-2xl border-2 border-yellow/40 overflow-hidden hover:shadow-lg hover:border-yellow transition-all">
                       <div className="p-5 pb-4">
@@ -431,7 +439,7 @@ export default function SimulateurDevisClient({ initialCity = '', citySlug }: Si
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link
-                  href={`/recherche${detectedCity ? `?loc=${encodeURIComponent(detectedCity)}` : ''}${svcConfig ? `&cat=${svcConfig.slug}` : ''}`}
+                  href={allArtisansUrl}
                   className="flex-1 text-center bg-dark text-white font-bold rounded-full py-3 text-sm hover:bg-dark/80 transition-colors"
                 >
                   Voir tous les artisans VITFIX →
@@ -552,7 +560,7 @@ export default function SimulateurDevisClient({ initialCity = '', citySlug }: Si
             ].filter(c => c.slug !== citySlug).map(c => (
               <a
                 key={c.slug}
-                href={`/fr/simulateur-devis/${c.slug}`}
+                href={`/fr/simulateur-devis/${c.slug}/`}
                 className="text-xs bg-white border border-border rounded-full px-3 py-1.5 text-text-muted hover:border-yellow hover:text-dark transition-colors"
               >
                 {c.name}

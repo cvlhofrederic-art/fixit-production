@@ -1,10 +1,15 @@
 import type { Metadata } from 'next'
+import { logger } from '@/lib/logger'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | null> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null
+// 'absent' : Supabase a répondu sans ligne (identifiant inconnu). 'indisponible' : configuration absente ou
+// réponse en erreur, on ne peut rien conclure sur l'existence du profil (pas de noindex sur une panne).
+type LectureProfil<T> = { statut: 'trouve'; profil: T } | { statut: 'absent' } | { statut: 'indisponible' }
+
+async function fetchArtisanProfile<T>(id: string, fields: string): Promise<LectureProfil<T>> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return { statut: 'indisponible' }
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const column = isUUID ? 'id' : 'slug'
   const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}&limit=1`
@@ -17,9 +22,12 @@ async function fetchArtisanProfile<T>(id: string, fields: string): Promise<T | n
     cache: 'no-store',
   })
 
-  if (!res.ok) return null
+  if (!res.ok) {
+    logger.warn('[fr/artisan] lecture Supabase en erreur', { id, status: res.status })
+    return { statut: 'indisponible' }
+  }
   const rows: T[] = await res.json()
-  return rows[0] ?? null
+  return rows[0] ? { statut: 'trouve', profil: rows[0] } : { statut: 'absent' }
 }
 
 type ArtisanMeta = {
@@ -49,21 +57,28 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
 
-  let artisan: ArtisanMeta | null = null
+  let lecture: LectureProfil<ArtisanMeta>
 
   try {
-    artisan = await fetchArtisanProfile<ArtisanMeta>(
+    lecture = await fetchArtisanProfile<ArtisanMeta>(
       id,
       'company_name,bio,categories,company_city,rating_avg,rating_count,language,profile_photo_url,slug'
     )
-  } catch {
+  } catch (error) {
+    logger.warn('[fr/artisan] métadonnées : profil illisible', { id, error: String(error) })
     return fallback
   }
 
-  if (!artisan) {
-    return { title: 'Artisan non trouvé - Vitfix', description: 'Cet artisan n\'existe pas ou a été supprimé.' }
+  if (lecture.statut !== 'trouve') {
+    return {
+      title: 'Artisan non trouvé - Vitfix',
+      description: 'Cet artisan n\'existe pas ou a été supprimé.',
+      // Profil inexistant : la page client répond 200 avec « Artisan non trouvé » (soft 404), jamais indexée.
+      ...(lecture.statut === 'absent' ? { robots: { index: false, follow: false } } : {}),
+    }
   }
 
+  const artisan = lecture.profil
   const isPT = artisan.language === 'pt'
   const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
   const categories = (artisan.categories || []).join(', ')
@@ -115,12 +130,13 @@ export default async function ArtisanLayout({
   let jsonLdString: string | null = null
 
   try {
-    const artisan = await fetchArtisanProfile<ArtisanJsonLd>(
+    const lecture = await fetchArtisanProfile<ArtisanJsonLd>(
       id,
       'company_name,categories,company_city,rating_avg,rating_count,language,latitude,longitude,profile_photo_url,slug,phone'
     )
 
-    if (artisan) {
+    if (lecture.statut === 'trouve') {
+      const artisan = lecture.profil
       const isPT = artisan.language === 'pt'
       const name = artisan.company_name || (isPT ? 'Profissional VITFIX' : 'Artisan Vitfix')
       const categories = artisan.categories || []
@@ -184,13 +200,13 @@ export default async function ArtisanLayout({
                 '@type': 'ListItem',
                 position: 1,
                 name: isPT ? 'VITFIX Portugal' : 'Vitfix',
-                item: isPT ? 'https://vitfix.io/pt/' : 'https://vitfix.io/',
+                item: isPT ? 'https://vitfix.io/pt/' : 'https://vitfix.io/fr/',
               },
               {
                 '@type': 'ListItem',
                 position: 2,
                 name: isPT ? 'Profissionais' : 'Artisans',
-                item: isPT ? 'https://vitfix.io/pt/pesquisar/' : 'https://vitfix.io/recherche/',
+                item: isPT ? 'https://vitfix.io/pt/pesquisar/' : 'https://vitfix.io/fr/recherche/',
               },
               {
                 '@type': 'ListItem',
@@ -205,8 +221,9 @@ export default async function ArtisanLayout({
 
       jsonLdString = JSON.stringify(jsonLd)
     }
-  } catch {
-    // DB error - render children without JSON-LD
+  } catch (error) {
+    // Lecture impossible : la fiche est rendue sans JSON-LD.
+    logger.warn('[fr/artisan] JSON-LD non généré', { id, error: String(error) })
   }
 
   return (

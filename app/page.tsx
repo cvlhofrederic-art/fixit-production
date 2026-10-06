@@ -63,10 +63,18 @@ export default function HomePage() {
     }
   }, [router])
 
-  const searchPath = locale === 'pt' ? '/pesquisar' : '/recherche'
-  const registerPath = '/pro/register'
-  const tariffsPath = '/pro/tarifs'
-  const consumerPricingPath = '/pro/tarifs'
+  // URL finales de la locale (page rendue uniquement par /fr/ et /pt/) : un
+  // chemin racine (/recherche/, /pro/register/, /contact/…) coûte un 308 ou un
+  // 302 du middleware, dont la locale vient du cookie, du pays ou de la langue.
+  const localePrefix = locale === 'pt' ? '/pt' : '/fr'
+  const searchPath = locale === 'pt' ? '/pt/pesquisar/' : '/fr/recherche/'
+  const registerPath = `${localePrefix}/pro/register/`
+  const tariffsPath = `${localePrefix}/pro/tarifs/`
+  const consumerPricingPath = `${localePrefix}/pro/tarifs/`
+  const loginPath = `${localePrefix}/auth/login/`
+  const contactPath = `${localePrefix}/contact/`
+  const proFaqPath = `${localePrefix}/pro/faq/`
+  const privacyPath = locale === 'pt' ? '/pt/privacidade/' : '/fr/confidentialite/'
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null))
@@ -216,7 +224,7 @@ export default function HomePage() {
               <li><a href="#pricing">{isPt ? 'Preços' : 'Tarifs'}</a></li>
             </ul>
             <div className={s.navRight}>
-              <Link href="/auth/login" className={s.btnConnect}>
+              <Link href={loginPath} className={s.btnConnect}>
                 {isPt ? 'Entrar' : 'Se connecter'}
               </Link>
             </div>
@@ -659,7 +667,7 @@ export default function HomePage() {
                 isPt ? '38 módulos para a sua atividade' : '38 modules pour votre activité',
               ].map((f, i) => <li key={i}><span className={s.pfCheck}>✓</span> {f}</li>)}
             </ul>
-            <Link href="/contact" className={s.btnPricingOutline}>
+            <Link href={contactPath} className={s.btnPricingOutline}>
               {isPt ? 'Pedir um orçamento' : 'Demander un devis'}
             </Link>
           </div>
@@ -755,7 +763,7 @@ export default function HomePage() {
             <h5>Vitfix</h5>
             <ul>
               <li><Link href={isPt ? '/pt/sobre' : '/fr/a-propos'}>{isPt ? 'Sobre nós' : 'À propos'}</Link></li>
-              <li><Link href="/contact">{isPt ? 'Contacto' : 'Contact'}</Link></li>
+              <li><Link href={contactPath}>{isPt ? 'Contacto' : 'Contact'}</Link></li>
               <li><Link href={isPt ? '/pt/blog' : '/fr/blog'}>Blog</Link></li>
               <li><Link href={isPt ? '/pt/avaliacoes' : '/fr/avis'}>{isPt ? 'Avaliações' : 'Avis'}</Link></li>
             </ul>
@@ -773,14 +781,14 @@ export default function HomePage() {
             <ul>
               <li><Link href={registerPath}>{isPt ? 'Torne-se parceiro' : 'Devenir partenaire'}</Link></li>
               <li><Link href={tariffsPath}>{isPt ? 'Preços profissionais' : 'Tarifs artisans'}</Link></li>
-              <li><Link href={isPt ? '/pro/faq' : '/pro/faq'}>FAQ</Link></li>
+              <li><Link href={proFaqPath}>FAQ</Link></li>
             </ul>
           </div>
           <div className={s.footerCol}>
             <h5>{isPt ? 'Legal' : 'Légal'}</h5>
             <ul>
               <li><Link href={isPt ? '/pt/termos' : '/fr/cgu'}>{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
-              <li><Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link></li>
+              <li><Link href={privacyPath}>{isPt ? 'Privacidade' : 'Confidentialité'}</Link></li>
               <li><Link href={isPt ? '/pt/avisos-legais' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
             </ul>
           </div>
@@ -788,7 +796,7 @@ export default function HomePage() {
         <div className={s.footerBottom}>
           © 2026 Vitfix · {isPt ? 'Todos os direitos reservados' : 'Tous droits réservés'} ·{' '}
           <Link href={isPt ? '/pt/avisos-legais' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
-          <Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link>
+          <Link href={privacyPath}>{isPt ? 'Privacidade' : 'Confidentialité'}</Link>
         </div>
       </footer>
 

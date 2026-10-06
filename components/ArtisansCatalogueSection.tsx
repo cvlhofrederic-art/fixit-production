@@ -107,7 +107,7 @@ export default function ArtisansCatalogueSection({ city, service, waPhone }: Pro
             Obtenir un devis via WhatsApp
           </a>
           <a
-            href={`/recherche?cat=${service}&loc=${encodeURIComponent(city)}`}
+            href={`/fr/recherche/?cat=${service}&loc=${encodeURIComponent(city)}`}
             className="text-sm text-text-muted hover:text-dark underline underline-offset-2 transition-colors"
           >
             Voir tous les artisans →

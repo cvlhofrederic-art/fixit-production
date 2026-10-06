@@ -56,7 +56,9 @@ export function BookingForm({
 }: BookingFormProps) {
   const pathname = usePathname()
   const isPt = pathname?.startsWith('/pt') ?? false
-  const cguHref = isPt ? '/pt/termos' : '/fr/cgu'
+  // <a> bruts : URL finales avec barre finale (sinon 308, voire 3 sauts pour /confidentialite côté PT)
+  const cguHref = isPt ? '/pt/termos/' : '/fr/cgu/'
+  const privacyHref = isPt ? '/pt/privacidade/' : '/fr/confidentialite/'
 
   return (
     <div className="bg-white rounded-2xl p-5 border-[1.5px] border-[#EFEFEF]">
@@ -189,7 +191,7 @@ export function BookingForm({
               conditions générales d&apos;utilisation
             </a>{' '}
             et la{' '}
-            <a href="/confidentialite" target="_blank" rel="noopener noreferrer" className="text-yellow underline hover:text-yellow-light">
+            <a href={privacyHref} target="_blank" rel="noopener noreferrer" className="text-yellow underline hover:text-yellow-light">
               politique de confidentialité
             </a>
             . <span className="text-red-400">*</span>

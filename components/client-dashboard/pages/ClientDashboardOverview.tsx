@@ -68,7 +68,7 @@ export default function ClientDashboardOverview(props: ClientDashboardOverviewPr
 
       {/* Promo banner */}
       <LocaleLink
-        href="/recherche"
+        href={locale === 'pt' ? '/pesquisar' : '/recherche'}
         className="flex items-center justify-between no-underline group mb-8"
         style={{ background: '#FFC107', borderRadius: 16, padding: '24px 28px' }}
       >
@@ -191,7 +191,7 @@ export default function ClientDashboardOverview(props: ClientDashboardOverviewPr
             <p style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', marginBottom: 16 }}>{locale === 'pt' ? 'Ações rápidas' : 'Actions rapides'}</p>
             <div className="space-y-2">
               {[
-                { label: t('clientDash.findArtisan'), icon: <Search className="w-4 h-4" />, onClick: () => {}, href: '/recherche' },
+                { label: t('clientDash.findArtisan'), icon: <Search className="w-4 h-4" />, onClick: () => {}, href: locale === 'pt' ? '/pesquisar' : '/recherche' },
                 { label: locale === 'pt' ? 'Mensagens' : 'Messages', icon: <MessageSquare className="w-4 h-4" />, onClick: () => setActiveTab('messages'), badge: totalUnread },
                 { label: locale === 'pt' ? 'Documentos' : 'Documents', icon: <FileText className="w-4 h-4" />, onClick: () => setActiveTab('documents') },
                 { label: t('clientDash.tabs.analyseDevis'), icon: <FileSearch className="w-4 h-4" />, onClick: () => setActiveTab('analyse') },
@@ -244,7 +244,7 @@ export default function ClientDashboardOverview(props: ClientDashboardOverviewPr
               ].map((m, i) => (
                 <LocaleLink
                   key={i}
-                  href={`/recherche?service=${m.service}`}
+                  href={`${locale === 'pt' ? '/pesquisar' : '/recherche'}?service=${m.service}`}
                   className="flex items-center gap-2 no-underline transition-colors"
                   style={{ padding: '10px 12px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: '#444444', background: '#F5F5F5' }}
                 >

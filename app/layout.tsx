@@ -234,15 +234,8 @@ export default async function RootLayout({
             Pertinent pour audience investisseurs étrangers ciblant Portugal
             (Yandex couvre marché CIS + diaspora russophone à Lisbonne/Algarve). */}
         <meta name="yandex-verification" content="20aba92ca9d2fbff" />
-        {/* hreflang SEO tags — codes régionaux (BCP 47) pour cibler explicitement
-            Portugal vs Brésil, France vs Canada. Cohérent avec inLanguage du
-            JSON-LD ci-dessous. Source : developers.google.com/search/docs/specialty/international/localized-versions */}
-        <link rel="alternate" hrefLang="fr-FR" href="https://vitfix.io/fr/" />
-        <link rel="alternate" hrefLang="pt-PT" href="https://vitfix.io/pt/" />
-        <link rel="alternate" hrefLang="en" href="https://vitfix.io/en/" />
-        <link rel="alternate" hrefLang="nl" href="https://vitfix.io/nl/" />
-        <link rel="alternate" hrefLang="es" href="https://vitfix.io/es/" />
-        <link rel="alternate" hrefLang="x-default" href="https://vitfix.io/" />
+        {/* hreflang : uniquement par l'API metadata (alternates.languages des layouts et des pages). Des balises
+            écrites en dur ici s'ajoutaient sur chaque page à celles de la page (doublons, fr-FR contradictoires). */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

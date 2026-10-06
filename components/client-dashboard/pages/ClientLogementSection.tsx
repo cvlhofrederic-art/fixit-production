@@ -135,7 +135,7 @@ export default function ClientLogementSection({
                 </p>
                 {cilEntries.length === 0 && (
                   <LocaleLink
-                    href="/recherche"
+                    href={locale === 'pt' ? '/pesquisar' : '/recherche'}
                     className="inline-block bg-[#FFC107] hover:bg-[#FFD54F] text-dark px-8 py-3 rounded-lg font-semibold transition"
                   >
                     {t('clientDash.logement.bookIntervention')}

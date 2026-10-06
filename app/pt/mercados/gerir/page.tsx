@@ -4,6 +4,9 @@ import GererMarcheClient from '@/app/fr/marches/gerer/GererMarcheClient'
 export const metadata: Metadata = {
   title: 'Gerir o meu pedido de orçamento',
   description: 'Acompanhe o seu pedido de orçamento e consulte as candidaturas recebidas dos profissionais.',
+  // Page de gestion par lien à jeton (?id&token) : jamais indexée, comme son jumeau /fr/marches/gerer/.
+  // Hors sitemaps (app/sitemap/[id]/route.ts, lib/sitemap-pt-pages.ts).
+  robots: { index: false, follow: false },
   alternates: {
     canonical: 'https://vitfix.io/pt/mercados/gerir/',
     languages: {

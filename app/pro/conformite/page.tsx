@@ -42,7 +42,7 @@ export default async function ConformitePage() {
   const headersList = await headers()
   const isPt = headersList.get('x-locale') === 'pt'
   const mentionsLegalesHref = isPt ? '/pt/avisos-legais/' : '/fr/mentions-legales/'
-  const confidentialiteHref = isPt ? '/pt/privacidade/' : '/confidentialite/'
+  const confidentialiteHref = isPt ? '/pt/privacidade/' : '/fr/confidentialite/'
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {

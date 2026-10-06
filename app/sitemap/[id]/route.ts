@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
+import { logger } from '@/lib/logger'
 import { getProfilePath } from '@/lib/utils'
 import { formatSitemapXml, parseSitemapId, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
 import { ptProgrammaticPages } from '@/lib/sitemap-pt-pages'
@@ -82,7 +83,7 @@ function staticAndHubPages(baseUrl: string): SitemapUrl[] {
     url('/pt/condominio/'),
     url('/pt/simulador-orcamento/'),
     url('/pt/mercados/publicar/'),
-    url('/pt/mercados/gerir/'),
+    // Pas de /pt/mercados/gerir/ : page de gestion par jeton, en noindex.
     url('/fr/services/'),
     url('/fr/urgence/'),
     url('/fr/blog/'),
@@ -197,10 +198,15 @@ function investorAndIntlPages(baseUrl: string): SitemapUrl[] {
 async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
   try {
     const supabase = await createServerSupabaseClient()
-    const { data: artisans } = await supabase
+    const { data: artisans, error } = await supabase
       .from('profiles_artisan')
       .select('id, slug, updated_at, org_role, country')
       .eq('is_verified', true)
+    // supabase-js ne lève pas d'exception sur une erreur de requête : elle arrive dans `error`.
+    if (error) {
+      logger.warn('[sitemap] fiches artisans indisponibles', error)
+      return []
+    }
     return (artisans || []).map((a) => {
       const isPT = a.country === 'PT' || a.country === 'Portugal'
       const locale = isPT ? 'pt' : 'fr'
@@ -216,7 +222,9 @@ async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
         lastModified,
       }
     })
-  } catch {
+  } catch (error) {
+    // Sitemap des fiches vide plutôt qu'en erreur, mais la panne reste visible dans les logs.
+    logger.warn('[sitemap] fiches artisans indisponibles', error)
     return []
   }
 }

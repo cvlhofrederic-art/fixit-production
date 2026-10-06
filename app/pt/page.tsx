@@ -19,13 +19,19 @@ export const metadata: Metadata = {
   title: 'Profissionais de construção em Portugal | Vitfix',
   description:
     'Encontre profissionais verificados em Marco de Canaveses, Penafiel, Amarante, Porto e região do Tâmega e Sousa. Canalizador, eletricista, pintor — orçamento grátis 24/7.',
+  // L'objet alternates de la page remplace celui de app/pt/layout.tsx (Next ne fusionne pas ses clés) : la
+  // canonical seule effaçait les hreflang. Les doublons constatés autrefois venaient des balises écrites en dur
+  // dans app/layout.tsx, retirées.
   alternates: {
     canonical: 'https://vitfix.io/pt/',
-    // hreflang complet hérité de app/pt/layout.tsx (fr-FR, pt-PT, en, nl,
-    // es, x-default → /). Pas de surcharge ici : Next.js merge les
-    // metadata, déclarer `languages` au niveau page produisait des
-    // doublons d'entrées (pt-PT × 2, x-default × 2 avec destinations
-    // contradictoires) que Google ignore ou pénalise.
+    languages: {
+      'fr-FR': 'https://vitfix.io/fr/',
+      'pt-PT': 'https://vitfix.io/pt/',
+      en: 'https://vitfix.io/en/',
+      nl: 'https://vitfix.io/nl/',
+      es: 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
+    },
   },
 }
 

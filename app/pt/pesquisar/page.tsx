@@ -6,5 +6,6 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Pesquisar profissionais | Vitfix',
   description: 'Pesquise e compare profissionais de construção disponíveis na sua zona.',
-  alternates: { canonical: 'https://vitfix.io/pt/pesquisar/' },
+  // Pas d'alternates ici : la canonical et les hreflang (fr-FR → /fr/recherche/) viennent de layout.tsx,
+  // et un alternates déclaré par la page remplacerait tout celui du layout.
 }

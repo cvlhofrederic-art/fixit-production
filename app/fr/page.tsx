@@ -17,7 +17,18 @@ import {
 export const metadata: Metadata = {
   title: 'Artisans à Marseille et PACA | Vitfix',
   description: 'Trouvez un artisan qualifié à Marseille et en région PACA. Devis gratuit, avis vérifiés.',
-  alternates: { canonical: 'https://vitfix.io/fr/' },
+  // L'objet alternates de la page remplace celui du layout : la canonical seule effaçait les hreflang.
+  alternates: {
+    canonical: 'https://vitfix.io/fr/',
+    languages: {
+      'fr-FR': 'https://vitfix.io/fr/',
+      'pt-PT': 'https://vitfix.io/pt/',
+      en: 'https://vitfix.io/en/',
+      nl: 'https://vitfix.io/nl/',
+      es: 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/',
+    },
+  },
 }
 
 const HOME_URL = 'https://vitfix.io/fr/'
