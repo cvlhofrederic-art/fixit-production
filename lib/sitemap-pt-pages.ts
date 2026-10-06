@@ -61,7 +61,7 @@ export function ptStaticPages(baseUrl: string): SitemapUrl[] {
     url('/pt/condominio/'),
     url('/pt/simulador-orcamento/'),
     url('/pt/mercados/publicar/'),
-    url('/pt/mercados/gerir/'),
+    // Pas de /pt/mercados/gerir/ : page de gestion par jeton, en noindex.
     url('/pt/mapa-do-site/'),
     url('/pt/sobre/'),
     url('/pt/termos/'),

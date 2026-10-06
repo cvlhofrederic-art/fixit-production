@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
+import { logger } from '@/lib/logger'
 import { getProfilePath } from '@/lib/utils'
 import { formatSitemapXml, parseSitemapId, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
 import { ptProgrammaticPages } from '@/lib/sitemap-pt-pages'
@@ -82,7 +83,7 @@ function staticAndHubPages(baseUrl: string): SitemapUrl[] {
     url('/pt/condominio/'),
     url('/pt/simulador-orcamento/'),
     url('/pt/mercados/publicar/'),
-    url('/pt/mercados/gerir/'),
+    // Pas de /pt/mercados/gerir/ : page de gestion par jeton, en noindex.
     url('/fr/services/'),
     url('/fr/urgence/'),
     url('/fr/blog/'),
@@ -216,7 +217,9 @@ async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
         lastModified,
       }
     })
-  } catch {
+  } catch (error) {
+    // Sitemap des fiches vide plutôt qu'en erreur, mais la panne reste visible dans les logs.
+    logger.warn('[sitemap] fiches artisans indisponibles', error)
     return []
   }
 }

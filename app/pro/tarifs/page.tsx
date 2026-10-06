@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: 'Offres artisans - Vitfix',
     description: 'Rejoignez Vitfix et développez votre activité. Découvrez nos offres pour les artisans.',
-    alternates: { canonical: 'https://vitfix.io/pro/tarifs/' },
+    alternates: { canonical: 'https://vitfix.io/fr/pro/tarifs/' },
   }
 }
 
