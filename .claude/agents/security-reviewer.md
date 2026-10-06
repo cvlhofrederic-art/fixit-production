@@ -47,7 +47,7 @@ Tu es un reviewer sécurité spécialisé sur **Vitfix.io** (SaaS Next.js + Clou
 ### Cloudflare Workers
 - Secrets via `wrangler secret put`, jamais en clair dans `wrangler.toml`
 - Pas de log de tokens / clés Supabase / Stripe en console
-- CSP / headers stricts dans `next.config.ts`
+- CSP définie une seule fois (`lib/securite/csp.ts`), posée par `middleware.ts` et, seulement pour les chemins exclus de son matcher, par `next.config.ts` headers() : jamais les deux sur une même réponse (sur OpenNext elles s'additionnent, cf. `tests/securite/csp-politique-unique.test.ts`). Autres en-têtes de sécurité (HSTS, X-Frame-Options…) dans `next.config.ts` headers()
 
 ### Code commun
 - `catch {}` vide → reject (cf. CLAUDE.md)

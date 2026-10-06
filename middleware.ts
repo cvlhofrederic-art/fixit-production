@@ -6,6 +6,7 @@
 // toute migration. middleware.ts en edge est le seul état fonctionnel.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { POLITIQUE_CSP } from '@/lib/securite/csp'
 
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
@@ -100,23 +101,9 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP header ──
-  // GA4 (Google Analytics 4) : script depuis www.googletagmanager.com,
-  // beacons collectés sur www.google-analytics.com / *.analytics.google.com.
-  // Chargé UNIQUEMENT après consent dans components/common/ConsentAnalytics.tsx.
-  const cspHeader = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io https://www.googletagmanager.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com https://www.google-analytics.com https://*.analytics.google.com https://*.g.doubleclick.net",
-    "frame-src 'self' https://js.stripe.com https://*.stripe.com",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-    "worker-src 'self' blob:",
-  ].join('; ')
+  // Politique unique (lib/securite/csp.ts), posée ici sur toutes les réponses du middleware ; next.config.ts ne la
+  // pose que sur les chemins exclus du matcher (jamais les deux : sur OpenNext elles s'additionneraient).
+  const cspHeader = POLITIQUE_CSP
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
   const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')
@@ -201,10 +188,15 @@ export async function middleware(request: NextRequest) {
 
   // ── PERF: Skip auth for public routes that never need authentication ──
   // These are SEO pages, blog, static content — no auth check saves 50-200ms per request
-  const needsAuth = !isInternalRoute && (
+  // /admin/ est une route interne (sans langue) mais protégée : seul /api/ et /_next/ restent sans contrôle.
+  // Tableau de bord artisan : segment exact, pas un préfixe de chaîne — /{locale}/artisan/<slug> est la fiche SEO
+  // publique, et un slug tiré du nom de l'entreprise peut commencer par « dashboard » (ex. dashboard-plomberie).
+  const estDashboardArtisan = strippedPathname === '/artisan/dashboard' || strippedPathname.startsWith('/artisan/dashboard/')
+  const needsAuth = (!isInternalRoute || pathname.startsWith('/admin/')) && (
     strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' ||
     strippedPathname.startsWith('/client/dashboard') ||
     strippedPathname.startsWith('/pro/dashboard') ||
+    estDashboardArtisan ||
     strippedPathname.startsWith('/pro/mobile') ||
     strippedPathname.startsWith('/pro/login') ||
     strippedPathname.startsWith('/pro/espace-pro') ||
@@ -300,7 +292,10 @@ export async function middleware(request: NextRequest) {
 
   // Super admin : accès libre à toutes les routes (pas de redirection forcée)
   if (role === 'super_admin') {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    // Routes internes (/admin/) : pas de langue dans l'URL, on ne réécrit pas le cookie avec la langue par défaut.
+    if (!isInternalRoute) {
+      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
     return supabaseResponse
@@ -390,7 +385,11 @@ export async function middleware(request: NextRequest) {
     }
 
     // Client (particulier): can't access pro or syndic dashboard
-    if (!isSyndicRole(role) && role !== 'artisan' && !isProRole && !isCoproRole) {
+    // Sauf rôle absent sur /artisan/dashboard : un artisan peut ne pas avoir app_metadata.role (init-role appelé sans
+    // session quand la confirmation e-mail est active ; /auth/confirmed l'envoie ici via user_metadata.role) et la page
+    // le traite comme artisan. Elle renvoie elle-même vers /auth/login un compte sans profil artisan.
+    const artisanSansRole = !role && estDashboardArtisan
+    if (!isSyndicRole(role) && role !== 'artisan' && !isProRole && !isCoproRole && !artisanSansRole) {
       if (strippedPathname.startsWith('/pro/dashboard') || strippedPathname.startsWith('/pro/mobile') || strippedPathname.startsWith('/artisan/dashboard')) {
         return localeRedirect('/client/dashboard')
       }

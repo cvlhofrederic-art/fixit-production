@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
@@ -236,23 +237,20 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
-          // F09: CSP — unsafe-inline requis pour l'hydration Next.js
-          { key: 'Content-Security-Policy', value: [
-            "default-src 'self'",
-            `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io`,
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' https://fonts.gstatic.com data:",
-            "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://ui-avatars.com https://*.stripe.com",
-            "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://api.groq.com https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://cloudflareinsights.com",
-            "frame-src 'self' https://js.stripe.com https://*.stripe.com",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            "object-src 'none'",
-            "worker-src 'self' blob:",
-          ].join('; ') },
+          // Pas de Content-Security-Policy ici : sur OpenNext/Cloudflare, les en-têtes de cette config s'AJOUTENT à
+          // ceux du middleware (clés de casse différente, toutes deux gardées) et le navigateur appliquait deux
+          // politiques, la plus stricte bloquant GA4 et le repli SIRET. Voir les règles CSP ci-dessous.
         ],
       },
+      // CSP des seules réponses que le middleware ne traite pas (chemins exclus de son matcher) : des routes
+      // dynamiques y servent aussi du HTML (ex. /fr/artisan/foo.png). Même politique que le middleware
+      // (lib/securite/csp.ts), jamais sur la même réponse. Test : tests/securite/csp-politique-unique.test.ts.
+      {
+        source: `/(.*)\\.(${EXTENSIONS_HORS_MIDDLEWARE})`,
+        headers: [{ key: 'Content-Security-Policy', value: POLITIQUE_CSP }],
+      },
+      { source: '/manifest.json', headers: [{ key: 'Content-Security-Policy', value: POLITIQUE_CSP }] },
+      { source: '/.well-known/:path*', headers: [{ key: 'Content-Security-Policy', value: POLITIQUE_CSP }] },
       // Syndic v54 dev sandbox : jamais indexable. Ceinture en plus du gate
       // hostname (404 hors localhost) et du <meta robots noindex>. Couvre le
       // cas où une URL preview/dev fuiterait à un crawler.
