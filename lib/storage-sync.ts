@@ -177,10 +177,21 @@ export function installStorageSync(): void {
   if (installed) return
   installed = true
 
-  const origSet = window.localStorage.setItem.bind(window.localStorage)
-  const origRemove = window.localStorage.removeItem.bind(window.localStorage)
+  // Stockage bloqué par le navigateur (réglage « bloquer les données des sites », iframe sandboxée, certaines
+  // webviews) : la simple lecture de window.localStorage lève une SecurityError. Appelé sur chaque page par
+  // Providers : sans ce garde, ces visiteurs tombaient sur une erreur. Pas de miroir possible, le site reste utilisable.
+  let stockage: Storage
+  try {
+    stockage = window.localStorage
+  } catch (error) {
+    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', error)
+    return
+  }
 
-  window.localStorage.setItem = (key: string, value: string) => {
+  const origSet = stockage.setItem.bind(stockage)
+  const origRemove = stockage.removeItem.bind(stockage)
+
+  stockage.setItem = (key: string, value: string) => {
     origSet(key, value)
     if (shouldSync(key)) {
       pendingWrites.set(key, value)
@@ -189,7 +200,7 @@ export function installStorageSync(): void {
     }
   }
 
-  window.localStorage.removeItem = (key: string) => {
+  stockage.removeItem = (key: string) => {
     origRemove(key)
     if (shouldSync(key)) {
       pendingDeletes.add(key)

@@ -105,7 +105,13 @@ function enforceConsent(consent: ConsentState) {
 }
 
 function saveConsent(consent: ConsentState) {
-  localStorage.setItem(COOKIE_KEY, JSON.stringify(consent))
+  try {
+    localStorage.setItem(COOKIE_KEY, JSON.stringify(consent))
+  } catch (error) {
+    // Stockage bloqué par le navigateur (SecurityError) ou plein : le choix s'applique à la visite en cours, le bandeau
+    // reviendra à la suivante. Sans ce garde, le clic levait une erreur et le bandeau ne se fermait plus.
+    console.warn('[cookie-consent] choix non mémorisé, localStorage inaccessible :', error)
+  }
   enforceConsent(consent)
 }
 
