@@ -144,7 +144,10 @@ const nextConfig: NextConfig = {
       { source: '/pt/reserver/', destination: '/pt/reservar/', permanent: true },
       { source: '/pt/recherche/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/pt/avis/', destination: '/pt/avaliacoes/', permanent: true },
-      { source: '/pt/artisan/:slug/', destination: '/pt/profissional/:slug/', permanent: true },
+      // Sauf « dashboard » : /pt/artisan/dashboard/ est réécrit vers le tableau de bord artisan (beforeFiles), et les
+      // redirections passent avant les réécritures. Classes [Dd]… : OpenNext teste la regex du manifeste en respectant
+      // la casse mais extrait les paramètres sans casse (« :slug » littéral pour /pt/artisan/DASHBOARD/ sinon).
+      { source: '/pt/artisan/:slug((?![Dd][Aa][Ss][Hh][Bb][Oo][Aa][Rr][Dd]/)[^/]+)/', destination: '/pt/profissional/:slug/', permanent: true },
       // Legacy Porto pages in French → redirect to PT equivalents
       { source: '/plombier-porto/', destination: '/pt/servicos/canalizador-porto/', permanent: true },
       { source: '/electricien-porto/', destination: '/pt/servicos/eletricista-porto/', permanent: true },

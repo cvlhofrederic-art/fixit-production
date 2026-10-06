@@ -164,3 +164,26 @@ describe('pages partagées servies sous /fr', () => {
     expect(resoudre(avantFichiers, '/fr/confidentialite/')?.replace(/\/$/, '')).toBe('/confidentialite')
   })
 })
+
+describe('redirections et réécritures beforeFiles', () => {
+  // Les redirections passent avant les réécritures (OpenNext comme Next) : une redirection qui capte la source
+  // d'une réécriture la rend inopérante. /pt/artisan/dashboard/ partait ainsi vers la fiche /pt/profissional/dashboard/.
+  it("aucune redirection ne capte la source exacte d'une réécriture", async () => {
+    const [avantFichiers] = await reecritures()
+    const regles = await redirections()
+    const masquees = avantFichiers
+      .map(({ source }) => source)
+      .filter((source) => !source.includes(':') && source.endsWith('/'))
+      .filter((source) => resoudre(regles, source) !== null)
+    expect(masquees).toEqual([])
+  })
+
+  it('le tableau de bord artisan PT est servi, les anciennes fiches /pt/artisan/ restent redirigées', async () => {
+    const [avantFichiers] = await reecritures()
+    const regles = await redirections()
+    expect(resoudre(regles, '/pt/artisan/dashboard/')).toBeNull()
+    expect(resoudre(avantFichiers, '/pt/artisan/dashboard/')?.replace(/\/$/, '')).toBe('/artisan/dashboard')
+    expect(resoudre(regles, '/pt/artisan/joao-silva/')).toBe('/pt/profissional/joao-silva/')
+    expect(resoudre(regles, '/pt/artisan/dashboard-joao/')).toBe('/pt/profissional/dashboard-joao/')
+  })
+})
