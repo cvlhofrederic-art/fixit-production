@@ -99,9 +99,48 @@ corrigés, chacun avec un test de régression (`tests/administrateur-judiciaire/
 | Dates | Années > 9999 (ordonnance, durée, prorogation, avis de mutation) : exception pendant le rendu | Bornes de saisie ; mêmes messages d'erreur existants |
 | Fixy | Réponse impossible (TypeError) pour une copropriété sans mandat ; double création de mandat ; dictée vocale non nettoyée | Garde, verrou, nettoyage |
 | Écrans | Doubles clics (import, imputation, étape de recouvrement) ; échec d'écriture silencieux (prestataires) ; identifiant de mission en collision | Verrous, toast « Enregistrement impossible », identifiant unique |
+| Accessibilité clavier | Éléments cliquables utilisables seulement à la souris : lignes de liste et liens « Voir tout → » / « Voir les ordonnances → » du tableau de bord, jours du calendrier de réservation | Rôle, `tabIndex` et activation par Entrée ou Espace (attributs seulement, voir ci-dessous) |
 
 Changements visibles uniquement dans ces cas d'erreur : Échap ne ferme plus que la modale du dessus ; un toast
 « Enregistrement impossible » en cas d'échec d'écriture d'un prestataire.
+
+### Attributs DOM ajoutés (accessibilité, règle SonarCloud S1082)
+
+Ces attributs n'existent pas dans la maquette ; balises, classes, textes et styles sont inchangés
+(tests : `tests/administrateur-judiciaire/correctifs-clavier.test.tsx`).
+
+| Élément | Attributs ajoutés |
+|---|---|
+| Tableau de bord : lignes « Échéances prioritaires » et « État des mandats » (`.list-row`) ; lignes de liste de l'écran générique | `role="button"`, `tabindex="0"` |
+| Tableau de bord : liens « Voir tout → » et « Voir les ordonnances → » (`<a>` sans `href`) | `role="link"`, `tabindex="0"` |
+| Réservation des espaces communs : jours du mois (`.day`, déjà `role="button"`) | `tabindex="0"` |
+| Planning : cases vides de la grille (`.week-cell`), raccourci à la souris du bouton « Ajouter » (même formulaire) | `aria-hidden="true"` |
+| Fond des modales (`.modal-backdrop`) et panneau de la palette de commandes (`.cmdk-panel`) | `role="presentation"` |
+
+Effet sur la comparaison avec la maquette (section « Vérification ») :
+
+- `capture.mjs` / `compare.mjs` comparent les pixels, le texte et la structure (balises et classes) : ces attributs
+  n'y entrent pas.
+- `explore.mjs` clique les éléments de son sélecteur (`button`, `[role="button"]`, `.list-row`…) : la liste est la
+  même, les `role="button"` ajoutés portant sur des `.list-row` déjà explorées ; `role="link"`, `role="presentation"`
+  et `aria-hidden` sont hors sélecteur.
+- Une comparaison du DOM attribut par attribut relèverait ces attributs : écart attendu.
+
+Changement visible au clavier seulement : ces éléments entrent dans l'ordre de tabulation et affichent l'anneau de
+focus de la maquette (`:focus-visible`) ; Entrée ou Espace a l'effet du clic. Rien ne change à la souris.
+
+### Changements demandés par le propriétaire du produit
+
+| Écran | Changement | Référence |
+|---|---|---|
+| Fixy | Deux onglets, comme Tempo : « Assistant » (ouvert par défaut) = page d'accueil de Fixy, agent secrétaire, reprise de la maquette `VitFix_Syndic_Judiciaire_13_M1` (conversation « Fixy — Assistant du mandat », réponses de démonstration comme Tempo, Max et Léa) ; « Tableau » = l'écran Fixy de la v0.13.1 (veille, demande, courriel, ordonnance, notes, données réelles), inchangé. Une fois ouvert, le Tableau reste monté (masqué sous l'onglet Assistant) : comme celui de Tempo, il garde son état d'un onglet à l'autre. Statut de l'écran inchangé : « Données réelles ». | Demande de Frédéric, octobre 2026 ; `tests/administrateur-judiciaire/fixy-onglets.test.tsx` |
+
+Effet sur la comparaison avec la maquette v0.13.1 : l'écran `fixy` diffère (puces, onglet Assistant ouvert par
+défaut). Son onglet Tableau, une fois la barre des puces retirée et son conteneur déballé, est identique à l'écran
+`fixy` de la v0.13.1 (pixels, texte et structure, en mode démo comme en mode réel). Dans le scénario
+`scenario-donnees-reelles.json`, l'étape `{"clic":"Tableau"}` qui suit `{"aller":"fixy"}` ouvre le Tableau du portage
+et échoue côté maquette (bouton absent) ; la capture `16-fixy` diffère donc de la seule ligne des puces
+(« Assistant », « Tableau »).
 
 ## Défauts de la maquette conservés, en attente de décision
 

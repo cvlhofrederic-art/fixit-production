@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_SUIVI_DELIBERATIONS,
   PILL_PAR_STATUT_DELIBERATION,
@@ -40,12 +41,7 @@ export function SuiviDeliberationsModule() {
                 icon: 'poll',
                 title: 'Nouvelle délibération',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Objet',
                     placeholder: 'ex. Vote de travaux',

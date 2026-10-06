@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_FACTURES_SAISIE_IA,
   PILL_PAR_STATUT_FACTURE_SAISIE,
@@ -40,12 +41,7 @@ export function SaisieFacturesModule() {
                 icon: 'folder',
                 title: 'Importer des factures',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Format',
                     type: 'select',

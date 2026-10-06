@@ -103,12 +103,14 @@ export function Modal({ open, onClose, labelledBy, size = 'md', children }: Moda
   }, [open])
 
   if (!open) return null
+  // Le fond n'est pas un contrôle (role="presentation") : l'équivalent clavier du clic sur le fond est Échap.
   return createPortal(
     <div
       className="modal-backdrop"
       onClick={(evenement: MouseEvent<HTMLDivElement>) => {
         if (evenement.target === evenement.currentTarget) onClose()
       }}
+      role="presentation"
     >
       <div ref={refDialogue} className={`modal modal-${size}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
         {children}

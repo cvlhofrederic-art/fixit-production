@@ -1,5 +1,6 @@
 'use client'
 
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DEMO_SONDAGES } from '@/components/administrateur-judiciaire/data/sondages'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -35,12 +36,7 @@ export function SondagesModule() {
                 icon: 'poll',
                 title: 'Nouveau sondage',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Question',
                     placeholder: "ex. Préférence pour la date d'AG",

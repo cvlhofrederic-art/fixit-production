@@ -96,6 +96,8 @@ describe('Artisan — Factures « → Acompte »', () => {
     expect(String(emitted.notes)).toMatch(/293\s?B/)
     expect(String(emitted.notes)).not.toMatch(/exigible à l'encaissement/i)
     expect(computeDocumentTotalHT(emitted as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(300, 2) // 30% de 1000
+    // Règle n° 1 : la ligne de la facture est conservée, au pourcentage (pas de ligne unique BTP).
+    expect((emitted.lines as { description: string; totalHT: number }[]).map((l) => [l.description, l.totalHT])).toEqual([['Dépannage', 300]])
   })
 })
 
@@ -128,5 +130,48 @@ describe('Artisan — Devis « Facturer » propose Totale ou Acompte', () => {
     expect(emitted.acomptePourcentage).toBe(40)
     expect(emitted.sourceDevisNumber).toBe('DEV-2026-100')
     expect(computeDocumentTotalHT(emitted as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(800, 2) // 40% de 2000
+    // Règle n° 1 : côté artisan, l'acompte garde les lignes du devis au pourcentage
+    // (la ligne unique par taux de TVA est réservée au BTP).
+    const lignes = emitted.lines as { description: string; totalHT: number }[]
+    expect(lignes.map((l) => [l.description, l.totalHT])).toEqual([['Réfection', 800]])
+  })
+
+  it('« Facture totale » (artisan) → conversion par le formulaire, aucune émission directe', async () => {
+    const convert = vi.fn()
+    const setSavedDocuments = vi.fn()
+    render(
+      <DevisSection
+        artisan={ARTISAN} services={[]} bookings={[]}
+        savedDocuments={[DEVIS_ARTISAN] as unknown as Parameters<typeof DevisSection>[0]['savedDocuments']}
+        setSavedDocuments={setSavedDocuments}
+        showDevisForm={false} setShowDevisForm={vi.fn()}
+        convertingDevis={null} setConvertingDevis={vi.fn()} openDevisForm={vi.fn()}
+        convertDevisToFacture={convert}
+      />
+    )
+    await waitFor(() => expect(screen.getByText('DEV-2026-100')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.devis.facturer'))
+    fireEvent.click(screen.getByRole('button', { name: /Facture totale/i }))
+    expect(convert).toHaveBeenCalledTimes(1)
+    expect((convert.mock.calls[0][0] as { docNumber: string }).docNumber).toBe('DEV-2026-100')
+    expect(setSavedDocuments).not.toHaveBeenCalled()
+    expect(localStorage.getItem('fixit_documents_art-1')).toBeNull()
+  })
+
+  it('« Dupliquer » (artisan) → identifiant historique inchangé', async () => {
+    const setConvertingDevis = vi.fn()
+    render(
+      <DevisSection
+        artisan={ARTISAN} services={[]} bookings={[]}
+        savedDocuments={[DEVIS_ARTISAN] as unknown as Parameters<typeof DevisSection>[0]['savedDocuments']}
+        setSavedDocuments={vi.fn()}
+        showDevisForm={false} setShowDevisForm={vi.fn()}
+        convertingDevis={null} setConvertingDevis={setConvertingDevis} openDevisForm={vi.fn()}
+        convertDevisToFacture={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(screen.getByText('DEV-2026-100')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.devis.dupliquer'))
+    expect((setConvertingDevis.mock.calls[0][0] as { id: string }).id).toMatch(/^\d+$/)
   })
 })

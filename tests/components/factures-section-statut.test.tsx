@@ -28,13 +28,19 @@ vi.mock('@/components/dashboard/useThemeVars', () => ({
     text: '#000', textMuted: '#666', accent: '#000', accentText: '#fff', red: '#dc2626', green: '#16a34a',
   }),
 }))
+// Rôle BTP par défaut ; les tests de non-régression artisan le basculent.
+const role = vi.hoisted(() => ({ valeur: 'pro_societe' as 'pro_societe' | 'artisan' }))
 vi.mock('@/lib/hooks/useOrgRoleContext', () => ({
-  useOrgRoleContext: () => ({ orgRole: 'pro_societe', isV5: true, useBtpDesign: true }),
+  useOrgRoleContext: () => ({ orgRole: role.valeur, isV5: true, useBtpDesign: role.valeur === 'pro_societe' }),
 }))
 vi.mock('@/components/DevisFactureForm', () => ({ default: () => null }))
 vi.mock('@/components/DevisFactureFormBTP', () => ({ default: () => null }))
-vi.mock('@/components/DocumentCancelModal', () => ({ default: () => null }))
-vi.mock('@/components/ConfirmDraftDeleteDialog', () => ({ default: () => null }))
+vi.mock('@/components/DocumentCancelModal', () => ({
+  default: (p: { open: boolean; docNumber: string }) => (p.open ? <div data-testid="annulation">{p.docNumber}</div> : null),
+}))
+vi.mock('@/components/ConfirmDraftDeleteDialog', () => ({
+  default: (p: { open: boolean }) => (p.open ? <div data-testid="suppression-brouillon" /> : null),
+}))
 vi.mock('@/lib/pdf/download-saved-devis', () => ({ downloadSavedDevis: vi.fn() }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn(() => 'tid') } }))
 
@@ -65,7 +71,7 @@ function props(setSavedDocuments = vi.fn(), docs: unknown[] = [FACT_EMISE, FACT_
   } as unknown as Parameters<typeof FacturesSection>[0]
 }
 
-beforeEach(() => { localStorage.clear(); from.mockClear(); update.mockClear(); eq.mockClear() })
+beforeEach(() => { localStorage.clear(); from.mockClear(); update.mockClear(); eq.mockClear(); role.valeur = 'pro_societe' })
 afterEach(() => { cleanup() })
 
 describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
@@ -134,5 +140,88 @@ describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
     expect(from).toHaveBeenCalledWith('factures')
     expect(update).toHaveBeenCalledWith({ status: 'paid' })
     expect(eq).toHaveBeenCalledWith('numero', 'FACT-2026-007')
+  })
+})
+
+describe('FacturesSection V5 — facture émise au statut local « envoye » (BTP)', () => {
+  // Une facture émise en un clic garde le statut local 'envoye' jusqu'au rechargement du
+  // tableau de bord. Elle porte un numéro définitif : elle s'annule, elle ne se supprime pas.
+  it('facture émise : bouton « Annuler » → fenêtre d\'annulation, aucune suppression', async () => {
+    const emise = { ...FACT_EMISE, docNumber: 'FACT-2026-043', status: 'envoye' }
+    const setSavedDocuments = vi.fn()
+    render(<FacturesSection {...props(setSavedDocuments, [emise])} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-043')).toBeInTheDocument())
+    expect(screen.queryByText('proDash.factures.supprimer')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Annuler'))
+
+    expect(screen.getByTestId('annulation')).toHaveTextContent('FACT-2026-043')
+    expect(screen.queryByTestId('suppression-brouillon')).not.toBeInTheDocument()
+    expect(setSavedDocuments).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('vrai brouillon (sans numéro) : « Supprimer » → confirmation de suppression du brouillon', async () => {
+    const brouillon = { ...FACT_EMISE, docNumber: '', status: 'brouillon', clientName: 'Client brouillon' }
+    render(<FacturesSection {...props(vi.fn(), [brouillon])} />)
+    await waitFor(() => expect(screen.getByText('Client brouillon')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.factures.supprimer'))
+
+    expect(screen.getByTestId('suppression-brouillon')).toBeInTheDocument()
+    expect(screen.queryByTestId('annulation')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['sans numéro', { docNumber: '', clientName: 'Client envoyé' }, 'Client envoyé'],
+    ['numéro provisoire BR-', { docNumber: 'BR-2026-001' }, 'BR-2026-001'],
+  ])('brouillon passé à « envoyé » (%s) : reste supprimable, pas de fenêtre d\'annulation', async (_cas, champs, repere) => {
+    // Sans numéro définitif, le document n'existe pas en base : l'annulation répondrait « introuvable ».
+    const envoye = { ...FACT_EMISE, status: 'envoye', ...champs }
+    render(<FacturesSection {...props(vi.fn(), [envoye])} />)
+    await waitFor(() => expect(screen.getByText(repere)).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.factures.supprimer'))
+
+    expect(screen.getByTestId('suppression-brouillon')).toBeInTheDocument()
+    expect(screen.queryByTestId('annulation')).not.toBeInTheDocument()
+  })
+
+  it('règle n° 1 — côté artisan, une facture « envoye » avec numéro garde le comportement historique (« Supprimer »)', async () => {
+    role.valeur = 'artisan'
+    const emise = { ...FACT_EMISE, docNumber: 'FACT-2026-043', status: 'envoye' }
+    render(<FacturesSection {...props(vi.fn(), [emise])} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-043')).toBeInTheDocument())
+    expect(screen.queryByText('Annuler')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('proDash.factures.supprimer'))
+
+    expect(screen.getByTestId('suppression-brouillon')).toBeInTheDocument()
+    expect(screen.queryByTestId('annulation')).not.toBeInTheDocument()
+  })
+})
+
+describe('FacturesSection V5 — total affiché d\'une facture de solde', () => {
+  // Facture de solde BTP : main d'œuvre 1 000 €, matériaux 9 000 €, acompte de 5 000 € déduit
+  // (table « Acomptes déjà facturés »). Montant réel : 5 000 € HT, 6 000 € TTC.
+  const SOLDE = {
+    id: 'solde-1', docNumber: 'FACT-2026-050', docType: 'facture' as const, status: 'pending',
+    clientName: 'C', regimeTva: 'classique', tvaEnabled: true, sentAt: '2026-06-06T10:00:00.000Z',
+    lines: [{ id: 1, description: 'Main d\'œuvre', qty: 1, priceHT: 1000, tvaRate: 20, totalHT: 1000 }],
+    materialLines: [{ id: 2, description: 'Matériaux', qty: 1, priceHT: 9000, tvaRate: 20, totalHT: 9000 }],
+    customTables: [{ id: 'acomptes-deduits', name: 'Acomptes déjà facturés (à déduire)', lines: [
+      { id: 101, description: 'Acompte déjà facturé — facture n° AC-2026-001 — TVA 20 %', qty: 1, priceHT: -5000, tvaRate: 20, totalHT: -5000 },
+    ] }],
+  }
+
+  it('BTP : même périmètre que le PDF (matériaux compris) → 6 000 € TTC, pas un montant négatif', async () => {
+    render(<FacturesSection {...props(vi.fn(), [SOLDE])} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-050')).toBeInTheDocument())
+    expect(screen.getByText(/^6\s000 €$/)).toBeInTheDocument()
+    expect(screen.queryByText(/4\s800 €/)).not.toBeInTheDocument()
+  })
+
+  it('règle n° 1 — côté artisan, le calcul historique de la liste est inchangé', async () => {
+    role.valeur = 'artisan'
+    render(<FacturesSection {...props(vi.fn(), [SOLDE])} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-050')).toBeInTheDocument())
+    // Lignes + tables seulement (matériaux hors périmètre) : (1 000 − 5 000) × 1,2.
+    expect(screen.getByText(/4\s800 €/)).toBeInTheDocument()
   })
 })

@@ -295,9 +295,22 @@ function PaletteCommandes({
     }
   }
 
+  // Équivalent clavier du clic sur le fond. Échap est aussi écouté sur window (basculerPalette) : même effet.
+  const fermerSurEchap = (evenement: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (evenement.key === 'Escape') onFermer()
+  }
+
   return (
-    <div className="cmdk-backdrop" onClick={onFermer} role="dialog" aria-modal="true" aria-label="Palette de commandes">
-      <div className="cmdk-panel" onClick={(evenement) => evenement.stopPropagation()}>
+    <div
+      className="cmdk-backdrop"
+      onClick={onFermer}
+      onKeyDown={fermerSurEchap}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Palette de commandes"
+    >
+      {/* Le panneau ne fait qu'arrêter les clics qui remontent vers le fond : aucun rôle interactif. */}
+      <div className="cmdk-panel" onClick={(evenement) => evenement.stopPropagation()} role="presentation">
         <div className="cmdk-input-row">
           <Icon
             name="search"

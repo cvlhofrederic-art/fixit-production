@@ -5,6 +5,7 @@ import {
   DEMO_ECHEANCES_REGLEMENTAIRES,
   PILL_PAR_STATUT_ECHEANCE_REGLEMENTAIRE,
 } from '@/components/administrateur-judiciaire/data/echeances-reglementaires'
+import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -59,41 +60,7 @@ export function CalendrierReglementaireModule() {
         title="Calendrier réglementaire"
         lede="Échéances légales et réglementaires des copropriétés sous mandat."
         actions={
-          <button
-            className="btn gold"
-            onClick={() =>
-              push({
-                kind: 'doc',
-                icon: 'download',
-                title: 'Export de données',
-                eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
-                docTitle: "Récapitulatif d'export",
-                meta: 'Généré le 19/06/2026 · format CSV / XLSX',
-                lines: [
-                  "L'export contient l'ensemble des données du module sur la période sélectionnée.",
-                  {
-                    h: 'Contenu',
-                  },
-                  {
-                    k: 'Lignes exportées',
-                    v: '248',
-                  },
-                  {
-                    k: 'Période',
-                    v: '01/01/2026 — 19/06/2026',
-                  },
-                  {
-                    k: 'Format',
-                    v: 'CSV (UTF-8) et XLSX',
-                  },
-                  {
-                    k: 'Colonnes',
-                    v: '12',
-                  },
-                ],
-              })
-            }
-          >
+          <button className="btn gold" onClick={() => push(DOCUMENT_EXPORT_DONNEES)}>
             <Icon name="download" />
             Exporter
           </button>

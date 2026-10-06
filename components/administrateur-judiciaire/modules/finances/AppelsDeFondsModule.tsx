@@ -6,6 +6,7 @@ import {
   type QuotePartAppelFonds,
 } from '@/components/administrateur-judiciaire/data/appels-de-fonds'
 import { DEMO_TOTAL_BUDGET, DEMO_TOTAL_IMPAYES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -41,12 +42,7 @@ export function AppelsDeFondsModule() {
                 icon: 'mail',
                 title: 'Nouvel appel de fonds',
                 fields: [
-                  {
-                    label: 'Copropriété',
-                    type: 'select',
-                    options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-                    full: true,
-                  },
+                  CHAMP_COPROPRIETE,
                   {
                     label: 'Période',
                     type: 'select',

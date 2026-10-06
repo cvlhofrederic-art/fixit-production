@@ -10,13 +10,16 @@ import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-import { computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
+import { buildDocumentLines, computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
 import { getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId } from '@/lib/devis-utils'
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
+import { buildAcompteParTauxPrefill } from '@/lib/acompte-par-taux'
+import { aNumeroDefinitif } from '@/lib/facture-depuis-devis'
+import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -34,6 +37,17 @@ interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 
   docDate?: string
   paymentDue?: string
   lines?: Array<{ totalHT?: number; [key: string]: unknown }>
+}
+
+/**
+ * Brouillon supprimable ? Côté BTP, une facture émise en un clic garde le statut local 'envoye'
+ * jusqu'au rechargement du tableau de bord : elle porte un numéro définitif, elle s'annule
+ * (fenêtre d'annulation) et ne se supprime pas. Un brouillon passé à « envoyé » sans numéro
+ * définitif (aucun, ou provisoire « BR- ») reste supprimable. Côté artisan : règle historique.
+ */
+function estFactureBrouillon(doc: { status?: string; docNumber?: string }, orgRole: OrgRole | undefined): boolean {
+  if (orgRole === 'pro_societe' && doc.status === 'envoye' && aNumeroDefinitif(doc)) return false
+  return isDocDraftStatus(doc.status, 'facture')
 }
 
 interface FacturesSectionProps {
@@ -87,8 +101,13 @@ export default function FacturesSection({
   // Wrapper : pour les brouillons on ouvre un modal stylé (vs `confirm()` natif
   // moche). Pour les docs émis, le hook gère déjà son propre DocumentCancelModal.
   const handleRemoveDoc = (doc: PersistedDocument) => {
-    if (isDocDraftStatus(doc.status, 'facture')) {
+    if (estFactureBrouillon(doc, orgRole)) {
       setPendingDraftDelete(doc)
+      return
+    }
+    // BTP : facture émise au statut local 'envoye' — le hook la supprimerait comme un brouillon.
+    if (isDocDraftStatus(doc.status, 'facture')) {
+      setCancellingDoc(doc)
       return
     }
     _handleRemoveDocRaw(doc)
@@ -118,11 +137,20 @@ export default function FacturesSection({
         // facture, sinon les useState(initialData?…) gardent les valeurs du doc
         // précédent (bug « ancien client qui reste »). 'new' pour une création.
         <DevisFactureFormBTP
-          key={`btp-fact-${(safeInitial as { docNumber?: string; id?: string } | null)?.docNumber || (safeInitial as { id?: string } | null)?.id || 'new'}`}
+          key={`btp-fact-${(safeInitial as { id?: string } | null)?.id || (safeInitial as { docNumber?: string } | null)?.docNumber || 'new'}`}
           artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="facture"
           initialData={safeInitial as any}
           onBack={() => { setShowFactureForm(false); setConvertingDevis(null); refreshDocuments() }}
-          onSave={() => { setConvertingDevis(null); refreshDocuments() }}
+          // onSave est aussi appelé par l'enregistrement automatique du brouillon : ne pas remettre
+          // convertingDevis à null ici, sinon la key change et le formulaire est remonté vide
+          // (onBack s'en charge à la fermeture). On garde en revanche la dernière version
+          // enregistrée du même document (key = id, inchangée) : un remontage ultérieur ne doit
+          // pas réafficher puis réenregistrer l'ancienne version.
+          onSave={(enregistre?: unknown) => {
+            const doc = enregistre as PersistedDocument | undefined
+            if (safeInitial && doc?.id && doc.id === (safeInitial as { id?: string }).id) setConvertingDevis(doc)
+            refreshDocuments()
+          }}
         />
       )
     }
@@ -324,7 +352,7 @@ export default function FacturesSection({
                             e.stopPropagation()
                             handleRemoveDoc(doc)
                           }}>
-                            {isDocDraftStatus(doc.status, 'facture')
+                            {estFactureBrouillon(doc, orgRole)
                               ? t('proDash.factures.supprimer')
                               : (locale === 'pt' ? 'Anular' : 'Annuler')}
                           </button>
@@ -704,7 +732,12 @@ function FacturesSectionV5({
                 ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
                 : []
               // Combine flat lines and customTables lines (BTP docs use both)
-              const allLines = [...flatLines, ...tableLines]
+              // BTP : même périmètre que le PDF et la base (Matériaux et Frais compris). Sans cela,
+              // une facture de solde — dont la déduction des acomptes est une table — s'afficherait
+              // sans ces sections, jusqu'à un montant négatif. Artisan : calcul historique inchangé.
+              const allLines: unknown[] = orgRole === 'pro_societe'
+                ? buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0])
+                : [...flatLines, ...tableLines]
               const tva = computeTva({
                 regime: effectiveRegime,
                 lines: allLines
@@ -837,7 +870,7 @@ function FacturesSectionV5({
                         e.stopPropagation()
                         onRemoveDoc(doc)
                       }}>
-                        {isDocDraftStatus(doc.status, 'facture')
+                        {estFactureBrouillon(doc, orgRole)
                           ? t('proDash.factures.supprimer')
                           : (locale === 'pt' ? 'Anular' : 'Annuler')}
                       </button>
@@ -866,12 +899,16 @@ function FacturesSectionV5({
             // les lignes (TVA conservées), puis l'acompte est émis en un clic —
             // numéro AC- définitif, statut émis, persistance + sync DB, modèle V3.
             const parent = acompteParent
-            const prefilled = buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
+            // BTP : une ligne par taux de TVA. Artisan : lignes de la facture au pourcentage, inchangé.
+            const prefilled = orgRole === 'pro_societe'
+              ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: locale === 'pt' ? 'pt' : 'fr' })
+              : buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
             setAcompteParent(null)
             const tid = toast.loading('Émission de l\'acompte…')
             try {
               const emitted = await emitDocument({
-                payload: prefilled,
+                // BTP : RIB du profil au jour de l'émission, pas celui figé dans la facture parente.
+                payload: orgRole === 'pro_societe' ? appliquerRibCourant(prefilled, await chargerRibProfil()) : prefilled,
                 artisanId: artisan.id,
                 getNumber: () => fetchNextDocNumber('acompte', artisan.id),
                 sync: syncDocumentSafe,

@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_EQUIPE_PLANNING,
   DEMO_EVENEMENTS_PLANNING,
@@ -40,12 +41,7 @@ const FORMULAIRE_NOUVEL_EVENEMENT: OptionsFormulaire = {
   icon: 'calendar',
   title: 'Nouvel événement',
   fields: [
-    {
-      label: 'Copropriété',
-      type: 'select',
-      options: ['Résidence Le Méridien', 'Le Clos des Vignes', 'Copropriété Les Tilleuls', 'Villa Montaigne'],
-      full: true,
-    },
+    CHAMP_COPROPRIETE,
     {
       label: 'Type',
       type: 'select',
@@ -328,10 +324,12 @@ export function PlanningModule() {
           {creneaux.map((creneau) => (
             <Fragment key={`row-${creneau.idx}`}>
               <div className="week-hour">{creneau.label}</div>
+              {/* Cases vides : raccourci à la souris du bouton « Ajouter » (même formulaire), masqué aux lecteurs d'écran. */}
               {joursAffiches.map((jour) => (
                 <div
                   className="week-cell"
                   onClick={() => push(FORMULAIRE_NOUVEL_EVENEMENT)}
+                  aria-hidden="true"
                   key={`c-${jour.key}-${creneau.idx}`}
                 />
               ))}

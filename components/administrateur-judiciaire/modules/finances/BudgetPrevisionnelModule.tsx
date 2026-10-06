@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { REPARTITION_POSTES_BUDGET } from '@/components/administrateur-judiciaire/data/budget-previsionnel'
 import { DEMO_COPROPRIETES, DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -47,41 +48,7 @@ export function BudgetPrevisionnelModule() {
                 <option key={nom}>{nom}</option>
               ))}
             </select>
-            <button
-              className="btn gold"
-              onClick={() =>
-                push({
-                  kind: 'doc',
-                  icon: 'download',
-                  title: 'Export de données',
-                  eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
-                  docTitle: "Récapitulatif d'export",
-                  meta: 'Généré le 19/06/2026 · format CSV / XLSX',
-                  lines: [
-                    "L'export contient l'ensemble des données du module sur la période sélectionnée.",
-                    {
-                      h: 'Contenu',
-                    },
-                    {
-                      k: 'Lignes exportées',
-                      v: '248',
-                    },
-                    {
-                      k: 'Période',
-                      v: '01/01/2026 — 19/06/2026',
-                    },
-                    {
-                      k: 'Format',
-                      v: 'CSV (UTF-8) et XLSX',
-                    },
-                    {
-                      k: 'Colonnes',
-                      v: '12',
-                    },
-                  ],
-                })
-              }
-            >
+            <button className="btn gold" onClick={() => push(DOCUMENT_EXPORT_DONNEES)}>
               <Icon name="download" />
               Exporter
             </button>

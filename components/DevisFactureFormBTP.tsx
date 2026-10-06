@@ -27,7 +27,8 @@ import {
   type DevisFactureFormProps,
   type ServiceBasic,
 } from '@/lib/devis-types'
-import { mapLegalFormToCode, titleCaseAddress, stableDocId } from '@/lib/devis-utils'
+import { mapLegalFormToCode, titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
+import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/facture-depuis-devis'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { localFallbackDocNumber } from '@/lib/doc-number'
@@ -493,6 +494,12 @@ export default function DevisFactureFormBTP({
     () => (v: string | number) => parseDecimalInput4(v, undefined, { allowNegative: factureSubType === 'avoir' }),
     [factureSubType],
   )
+  // Table « Acomptes déjà facturés (à déduire) » d'une facture de solde : montants négatifs.
+  // Sans cela, retoucher une déduction la remettrait à 0 sans pouvoir la ressaisir.
+  const priceHtParserDeduction = React.useMemo(
+    () => (v: string | number) => parseDecimalInput4(v, undefined, { allowNegative: true }),
+    [],
+  )
   // Date de prestation = jour effectif des travaux (différente de la date d'émission
   // qui est la date de rédaction du devis). Optionnelle : si vide, le PDF affiche
   // "À convenir" (même logique que executionDelay vide).
@@ -931,7 +938,7 @@ export default function DevisFactureFormBTP({
         ...(materialLinesEnabled ? materialLines : []),
         ...(fraisLinesEnabled ? fraisLines : []),
         ...customTables.flatMap(t => t.lines || []),
-      ].some((l) => l.description.trim().length > 0 && l.priceHT > 0),
+      ].some((l) => (l.description || '').trim().length > 0 && l.priceHT > 0),
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
@@ -1527,11 +1534,17 @@ export default function DevisFactureFormBTP({
         filtered.push(payload)
         localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(filtered))
       }
-      syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
+      // Ancien brouillon à identifiant horodaté et sans numéro (conversion devis → facture
+      // d'avant, duplication) : la synchronisation exige un UUID ou un numéro et répondrait 400
+      // (« Document invalide — sync refusée »). Il reste local jusqu'à sa validation, qui lui
+      // attribue un numéro.
+      if (isStableDocId(payload.id) || payload.docNumber) {
+        syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
+      }
       if (opts?.silent) {
         setLastAutosaveAt(Date.now())
       } else {
-        toast.success(isExistingEmitted ? 'Devis mis à jour' : 'Brouillon enregistré')
+        toast.success(isExistingEmitted ? (docType === 'facture' ? 'Facture mise à jour' : 'Devis mis à jour') : 'Brouillon enregistré')
       }
       onSave?.(payload as never)
     } catch (err) {
@@ -1554,7 +1567,7 @@ export default function DevisFactureFormBTP({
     const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
     if (isEmitted || !artisan?.id) return
     const hasContent = clientName.trim().length > 0 ||
-      [...lines, ...materialLines, ...fraisLines].some((l) => l.description.trim().length > 0)
+      [...lines, ...materialLines, ...fraisLines].some((l) => (l.description || '').trim().length > 0)
     if (!hasContent) return
     const t = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
     return () => clearTimeout(t)
@@ -1567,7 +1580,7 @@ export default function DevisFactureFormBTP({
     // Avoir : prix négatifs autorisés (annulation). Le check ≠ 0 reste.
     const isAvoir = factureSubType === 'avoir'
     const hasChiffredLine = [...lines, ...materialLines, ...fraisLines].some((l) =>
-      l.description.trim().length > 0 && (isAvoir ? l.priceHT !== 0 : l.priceHT > 0),
+      (l.description || '').trim().length > 0 && (isAvoir ? l.priceHT !== 0 : l.priceHT > 0),
     )
     if (!hasChiffredLine) {
       toast.error(isAvoir
@@ -1613,12 +1626,12 @@ export default function DevisFactureFormBTP({
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
       const newDrafts = drafts.filter((d: { id?: string }) => d.id !== payload.id)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(newDrafts))
-      toast.success('Devis validé')
+      toast.success(docType === 'facture' ? 'Facture validée' : 'Devis validé')
       onSave?.(payload as never)
       onBack()
     } catch (err) {
       console.error('[DevisBTP] saveAndSend failed', err)
-      toast.error('Impossible de valider le devis')
+      toast.error(docType === 'facture' ? 'Impossible de valider la facture' : 'Impossible de valider le devis')
     } finally {
       setSaving(false)
     }
@@ -1760,7 +1773,9 @@ export default function DevisFactureFormBTP({
       if (line.id !== lineId) return line
       return { ...line, description: service.name, lineDetail: prestDescription || line.lineDetail || '',
                unit: serviceUnit, priceHT: price,
-               tvaRate: 20, totalHT: 1 * price,
+               // Total = quantité déjà saisie × prix (et non 1 × prix) : sinon le total stocké
+               // diverge du total affiché et part tel quel dans la liste, la base et le PDF téléchargé.
+               tvaRate: 20, totalHT: mulMoney(line.qty || 0, price),
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3174,7 +3189,7 @@ export default function DevisFactureFormBTP({
                             {UNITES_TABLEAU.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                           </select>
                         </td>
-                        <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                        <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={tbl.id === ID_TABLE_ACOMPTES_DEDUITS ? priceHtParserDeduction : priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
                         <td>
                           <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}

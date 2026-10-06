@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
@@ -13,10 +13,13 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { getDocSeq, dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
+import { buildAcompteParTauxPrefill, formaterMontantCents } from '@/lib/acompte-par-taux'
+import { acomptesDejaFacturesPourDevis, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
+import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -134,11 +137,20 @@ export default function DevisSection({
         // key par document : remonte le form à chaque doc ouvert pour éviter
         // que les useState(initialData?…) conservent les valeurs du précédent.
         <DevisFactureFormBTP
-          key={`btp-devis-${(convertingDevis as { docNumber?: string; id?: string } | null)?.docNumber || (convertingDevis as { id?: string } | null)?.id || 'new'}`}
+          key={`btp-devis-${(convertingDevis as { id?: string } | null)?.id || (convertingDevis as { docNumber?: string } | null)?.docNumber || 'new'}`}
           artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
           initialData={convertingDevis as any}
           onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
-          onSave={() => { setConvertingDevis(null); refreshDocuments() }}
+          // onSave est aussi appelé par l'enregistrement automatique du brouillon : ne pas remettre
+          // convertingDevis à null ici, sinon la key change et le formulaire est remonté vide
+          // (onBack s'en charge à la fermeture). On garde en revanche la dernière version
+          // enregistrée du même document (key = id, inchangée) : un remontage ultérieur ne doit
+          // pas réafficher puis réenregistrer l'ancienne version.
+          onSave={(enregistre?: unknown) => {
+            const doc = enregistre as DevisDocument | undefined
+            if (convertingDevis?.id && doc?.id === convertingDevis.id) setConvertingDevis(doc)
+            refreshDocuments()
+          }}
         />
       )
     }
@@ -180,6 +192,7 @@ export default function DevisSection({
           artisan={artisan}
           setSavedDocuments={setSavedDocuments}
           emittedAcomptes={emittedAcomptes}
+          factures={savedDocuments.filter(d => d.docType === 'facture' || d.docType === 'avoir')}
           dateLocale={dateLocale}
           locale={locale}
           t={t}
@@ -419,7 +432,7 @@ export default function DevisSection({
    ═══════════════════════════════════════════════════════ */
 function DevisSectionV5({
   devisDocs, setShowDevisForm, setConvertingDevis, openDevisForm, convertDevisToFacture,
-  artisan, setSavedDocuments, emittedAcomptes, dateLocale, locale, t, orgRole, onRemoveDoc,
+  artisan, setSavedDocuments, emittedAcomptes, factures, dateLocale, locale, t, orgRole, onRemoveDoc,
 }: {
   devisDocs: DevisDocument[]
   setShowDevisForm: (v: boolean) => void
@@ -429,6 +442,8 @@ function DevisSectionV5({
   artisan: Artisan | null
   setSavedDocuments: (docs: DevisDocument[] | ((prev: DevisDocument[]) => DevisDocument[])) => void
   emittedAcomptes: DevisDocument[]
+  /** Factures et avoirs connus : facture déjà émise et acomptes à déduire (émission directe BTP). */
+  factures: DevisDocument[]
   dateLocale: string
   locale: string
   t: (k: string) => string
@@ -443,6 +458,60 @@ function DevisSectionV5({
   // émission directe d'une facture d'acompte reliée au devis).
   const [factureChoiceDevis, setFactureChoiceDevis] = useState<DevisDocument | null>(null)
   const [acompteParentDevis, setAcompteParentDevis] = useState<DevisDocument | null>(null)
+  // Verrou des émissions BTP en un clic (facture totale et acompte) : une seule à la fois. Une
+  // référence et non un état : elle est lue avant le rendu suivant, et chaque émission voit
+  // l'autre (un acompte en cours n'est pas encore dans la liste que lit la facture totale).
+  const emissionEnCours = useRef(false)
+  const refuserSiEmissionEnCours = (): boolean => {
+    if (!emissionEnCours.current) return false
+    toast.error(isPt ? 'Já está a ser emitido um documento. Tente novamente dentro de instantes.' : 'Un document est déjà en cours d\'émission. Réessayez dans un instant.')
+    return true
+  }
+  // « Facture totale » côté BTP : le devis devient une facture émise, sans repasser par le
+  // formulaire (montants du devis repris, acomptes déjà facturés déduits).
+  const emettreFactureTotale = async (devis: DevisDocument) => {
+    if (!artisan?.id) return
+    if (refuserSiEmissionEnCours()) return
+    const resultat = buildFactureDepuisDevis(devis as unknown as Record<string, unknown>, {
+      factures: factures as unknown as Record<string, unknown>[],
+      locale: isPt ? 'pt' : 'fr',
+    })
+    if (!resultat.ok) {
+      toast.error(resultat.message)
+      // Avant la prestation, le bon document est la facture d'acompte : on ouvre son sélecteur.
+      if (resultat.erreur === 'prestation_future') setAcompteParentDevis(devis)
+      return
+    }
+    emissionEnCours.current = true
+    const tid = toast.loading(isPt ? 'A emitir a fatura…' : 'Émission de la facture…')
+    try {
+      // RIB du profil au jour de l'émission (comme le formulaire), pas celui figé dans le devis.
+      const rib = await chargerRibProfil()
+      const emitted = await emitDocument({
+        payload: appliquerRibCourant(resultat.payload, rib),
+        artisanId: artisan.id,
+        getNumber: () => fetchNextDocNumber('facture', artisan.id),
+        sync: syncDocumentSafe,
+      })
+      setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
+      const deduits = resultat.acomptesDeduits.length
+      const numero = String(emitted.docNumber)
+      // En franchise, aucune TVA n'est facturée : le montant n'est pas « hors taxes ».
+      const franchise = resultat.payload.regimeTva === 'franchise_293b'
+      const montant = `${formaterMontantCents(resultat.totalHtCents)} €${franchise ? '' : isPt ? ' sem IVA' : ' HT'}`
+      toast.success(
+        isPt
+          ? `Fatura ${numero} emitida — ${montant} (orçamento ${devis.docNumber})${deduits ? ` — ${deduits} adiantamento(s) deduzido(s)` : ''}`
+          : `Facture ${numero} émise — ${montant} (devis ${devis.docNumber})${deduits ? ` — ${deduits} acompte(s) déduit(s)` : ''}`,
+        { id: tid },
+      )
+    } catch (err) {
+      console.warn('[DevisFactureEmit] émission échouée', err)
+      toast.error(isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.', { id: tid })
+    } finally {
+      emissionEnCours.current = false
+    }
+  }
   // Ordres d'acomptes déjà émis pour un devis (factures d'acompte le référençant)
   // → marqués « déjà émis » dans le sélecteur (ré-émission permise).
   const emittedOrdresForDevis = (devisNumber: string): number[] =>
@@ -608,7 +677,10 @@ function DevisSectionV5({
                           // Strip les champs liés à l'identité/état du devis d'origine
                           // pour que le nouveau reçoive un numéro chrono frais via fetchDocNumber
                           const { docNumber: _dn, id: _id, status: _st, sentAt: _sa, savedAt: _svd, signatureData: _sig, ...rest } = doc
-                          setConvertingDevis({ ...rest, id: Date.now().toString(), docType: 'devis', isDuplicate: true })
+                          // BTP : identifiant UUID, sinon l'enregistrement automatique du duplicata (sans
+                          // numéro) est refusé par la synchronisation. Artisan : identifiant historique.
+                          const idDuplicata = orgRole === 'pro_societe' ? stableDocId() : Date.now().toString()
+                          setConvertingDevis({ ...rest, id: idDuplicata, docType: 'devis', isDuplicate: true })
                           setShowDevisForm(true)
                         }}
                       >
@@ -716,11 +788,21 @@ function DevisSectionV5({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button
                 type="button"
-                onClick={() => { const d = factureChoiceDevis; setFactureChoiceDevis(null); convertDevisToFacture(d) }}
+                onClick={() => {
+                  const d = factureChoiceDevis
+                  setFactureChoiceDevis(null)
+                  // BTP : émission directe. Artisan : conversion historique (formulaire), inchangée.
+                  if (orgRole === 'pro_societe') void emettreFactureTotale(d)
+                  else convertDevisToFacture(d)
+                }}
                 style={{ padding: '12px 16px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', textAlign: 'left', fontSize: 14, fontWeight: 600 }}
               >
                 Facture totale
-                <div style={{ fontSize: 12, color: '#666', fontWeight: 400, marginTop: 2 }}>Convertit le devis en facture (montant total).</div>
+                <div style={{ fontSize: 12, color: '#666', fontWeight: 400, marginTop: 2 }}>
+                  {orgRole === 'pro_societe'
+                    ? 'Émet directement la facture avec les montants du devis (acomptes déjà facturés déduits).'
+                    : 'Convertit le devis en facture (montant total).'}
+                </div>
               </button>
               <button
                 type="button"
@@ -750,9 +832,40 @@ function DevisSectionV5({
             const parent = acompteParentDevis
             setAcompteParentDevis(null)
             if (!parent || !artisan?.id) return
-            const tid = toast.loading('Émission de l\'acompte…')
+            const estBtp = orgRole === 'pro_societe'
+            // BTP : l'acompte part sans relecture — mêmes garde-fous que la facture totale
+            // (devis validé et non refusé, client, régime de TVA, ni double emploi ni dépassement).
+            if (estBtp) {
+              if (refuserSiEmissionEnCours()) return
+              const controle = controlerAcompteSurDevis(parent as unknown as Record<string, unknown>, params.percentage, {
+                factures: factures as unknown as Record<string, unknown>[],
+                locale: isPt ? 'pt' : 'fr',
+              })
+              if (!controle.ok) {
+                toast.error(controle.message)
+                return
+              }
+              emissionEnCours.current = true
+            }
+            const tid = toast.loading(isPt && estBtp ? 'A emitir o adiantamento…' : 'Émission de l\'acompte…')
             try {
-              const prefilled = buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
+              // BTP : une ligne par taux de TVA ; la dernière échéance solde le devis au centime
+              // (acomptes déjà facturés pris en compte). Artisan : lignes du devis au pourcentage, inchangé.
+              const parentDoc = parent as unknown as Record<string, unknown>
+              const prefilled = estBtp
+                ? appliquerRibCourant(
+                    buildAcompteParTauxPrefill(parentDoc, params, {
+                      locale: isPt ? 'pt' : 'fr',
+                      dejaFacture: acomptesDejaFacturesPourDevis(parentDoc, factures as unknown as Record<string, unknown>[]),
+                    }),
+                    // RIB du profil au jour de l'émission, pas celui figé dans le devis.
+                    await chargerRibProfil(),
+                  )
+                : buildAcomptePrefill(parentDoc, params)
+              if (estBtp && (prefilled.lines as unknown[]).length === 0) {
+                toast.error(isPt ? 'Este orçamento não tem nenhum montante: adiantamento não emitido.' : 'Ce devis n\'a aucun montant : acompte non émis.', { id: tid })
+                return
+              }
               const emitted = await emitDocument({
                 payload: prefilled,
                 artisanId: artisan.id,
@@ -760,10 +873,17 @@ function DevisSectionV5({
                 sync: syncDocumentSafe,
               })
               setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
-              toast.success(`Acompte ${params.percentage}% émis : ${String(emitted.docNumber)} (devis ${parent.docNumber})`, { id: tid })
+              toast.success(
+                isPt && estBtp
+                  ? `Adiantamento de ${params.percentage}% emitido: ${String(emitted.docNumber)} (orçamento ${parent.docNumber})`
+                  : `Acompte ${params.percentage}% émis : ${String(emitted.docNumber)} (devis ${parent.docNumber})`,
+                { id: tid },
+              )
             } catch (err) {
               console.warn('[DevisAcompteEmit] émission échouée', err)
-              toast.error('Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+              toast.error(isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+            } finally {
+              if (estBtp) emissionEnCours.current = false
             }
           }}
         />

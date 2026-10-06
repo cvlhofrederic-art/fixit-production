@@ -139,7 +139,8 @@ function enFileImportCoproprietaires<T>(executer: () => Promise<T>): Promise<T> 
       () => undefined,
     )
   dernierImportCoproprietaires = fin
-  fin.then(() => {
+  // `fin` ne rejette jamais (les deux issues de l'exécution y sont absorbées) : promesse non attendue.
+  void fin.then(() => {
     if (dernierImportCoproprietaires === fin) dernierImportCoproprietaires = null
   })
   return execution
