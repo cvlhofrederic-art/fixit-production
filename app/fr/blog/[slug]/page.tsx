@@ -48,12 +48,14 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
     .filter(a => a.slug !== slug && a.relatedServices.some(rs => article.relatedServices.includes(rs)))
     .slice(0, 3)
 
-  // Map service slugs to display names
-  const serviceNames: Record<string, { name: string; icon: string }> = {
-    plomberie: { name: 'Plomberie', icon: '🔧' },
-    electricite: { name: 'Électricité', icon: '⚡' },
-    peinture: { name: 'Peinture', icon: '🎨' },
-    plaquiste: { name: 'Plaquiste', icon: '🏗️' },
+  // Map service slugs to display names. `slug` = métier des pages
+  // /fr/services/<métier>-<ville>/ (FR_SERVICES) : les clés des articles
+  // (plomberie, electricite, peinture) sont les anciens slugs, redirigés en 308.
+  const serviceNames: Record<string, { name: string; icon: string; slug: string }> = {
+    plomberie: { name: 'Plomberie', icon: '🔧', slug: 'plombier' },
+    electricite: { name: 'Électricité', icon: '⚡', slug: 'electricien' },
+    peinture: { name: 'Peinture', icon: '🎨', slug: 'peintre' },
+    plaquiste: { name: 'Plaquiste', icon: '🏗️', slug: 'plaquiste' },
   }
 
   // Word count rough - article.intro + each section
@@ -160,7 +162,7 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
                 return (
                   <Link
                     key={sSlug}
-                    href={`/fr/services/${sSlug}-marseille/`}
+                    href={`/fr/services/${svc.slug}-marseille/`}
                     className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-6 py-3 text-[0.9rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
                   >
                     {svc.icon} {svc.name} à Marseille
@@ -173,7 +175,7 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
               {['Aix-en-Provence', 'Aubagne', 'La Ciotat', 'Cassis'].map((c, i) => (
                 <span key={c}>
                   {i > 0 && ', '}
-                  <Link href={`/fr/services/${article.relatedServices[0]}-${c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ /g, '-')}/`} className="text-yellow hover:underline">
+                  <Link href={`/fr/services/${serviceNames[article.relatedServices[0]]?.slug ?? article.relatedServices[0]}-${c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ /g, '-')}/`} className="text-yellow hover:underline">
                     {c}
                   </Link>
                 </span>
@@ -193,7 +195,7 @@ export default async function FrBlogArticlePage({ params }: { params: Promise<{ 
                   return (
                     <Link
                       key={`${sSlug}-${citySlug}`}
-                      href={`/fr/services/${sSlug}-${citySlug}/`}
+                      href={`/fr/services/${svc.slug}-${citySlug}/`}
                       className="text-sm text-text-muted hover:text-yellow transition p-2 rounded-lg hover:bg-yellow/5"
                     >
                       {svc.icon} {svc.name} {cityName}

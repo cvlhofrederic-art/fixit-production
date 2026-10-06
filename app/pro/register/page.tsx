@@ -1370,7 +1370,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <p className="font-semibold mt-2 text-amber-700">✅ {t('register.trialDays')}</p>
           </div>
 
-          <p className="text-xs text-text-muted">{t('register.cguAccept')} <LocaleLink href="/cgu" className="text-purple-600 hover:underline">{t('register.cgu')}</LocaleLink> {t('register.and')} <LocaleLink href="/confidentialite" className="text-purple-600 hover:underline">{t('register.privacyPolicy')}</LocaleLink>.</p>
+          <p className="text-xs text-text-muted">{t('register.cguAccept')} <LocaleLink href={isPt ? '/termos' : '/cgu'} className="text-purple-600 hover:underline">{t('register.cgu')}</LocaleLink> {t('register.and')} <LocaleLink href={isPt ? '/privacidade' : '/confidentialite'} className="text-purple-600 hover:underline">{t('register.privacyPolicy')}</LocaleLink>.</p>
 
           <div className="flex gap-3">
             <button type="button" onClick={() => setStep(2)} className="flex-1 border-2 border-[#EFEFEF] text-text-muted py-3 rounded-xl font-semibold hover:bg-warm-gray transition">{t('register.back')}</button>

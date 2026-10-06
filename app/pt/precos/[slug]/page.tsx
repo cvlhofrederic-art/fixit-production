@@ -21,7 +21,10 @@ interface PriceGuideData {
   regionContext: string
   faqs: { question: string; answer: string }[]
   relatedCities: { name: string; slug: string }[]
-  relatedBlogSlugs: string[]
+  // Cartes « Artigos relacionados » : `label` = titre affiché, `slug` = article
+  // publié de BLOG_ARTICLES (lib/data/seo-pages-data.ts) ; null = hub /pt/blog/
+  // quand aucun article publié ne traite le sujet.
+  relatedBlogs: { label: string; slug: string | null }[]
 }
 
 const PRICE_GUIDES: Record<string, PriceGuideData> = {
@@ -76,7 +79,11 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       { name: 'Penafiel', slug: 'penafiel' },
       { name: 'Amarante', slug: 'amarante' },
     ],
-    relatedBlogSlugs: ['como-desentupir-canos', 'poupar-agua-casa', 'sinais-fuga-agua'],
+    relatedBlogs: [
+      { label: 'como desentupir canos', slug: 'cano-entupido-como-resolver' },
+      { label: 'poupar agua casa', slug: null },
+      { label: 'sinais fuga agua', slug: 'fuga-agua-como-agir' },
+    ],
   },
 
   eletricista: {
@@ -127,7 +134,11 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       { name: 'Penafiel', slug: 'penafiel' },
       { name: 'Amarante', slug: 'amarante' },
     ],
-    relatedBlogSlugs: ['seguranca-eletrica-casa', 'certificacao-eletrica', 'paineis-solares-portugal'],
+    relatedBlogs: [
+      { label: 'seguranca eletrica casa', slug: null },
+      { label: 'certificacao eletrica', slug: null },
+      { label: 'paineis solares portugal', slug: null },
+    ],
   },
 
   pintor: {
@@ -178,7 +189,11 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       { name: 'Penafiel', slug: 'penafiel' },
       { name: 'Amarante', slug: 'amarante' },
     ],
-    relatedBlogSlugs: ['como-escolher-tinta', 'preparar-paredes-pintura', 'humidade-paredes-solucoes'],
+    relatedBlogs: [
+      { label: 'como escolher tinta', slug: null },
+      { label: 'preparar paredes pintura', slug: null },
+      { label: 'humidade paredes solucoes', slug: 'humidade-parede-causas-reparacao' },
+    ],
   },
 }
 
@@ -474,10 +489,10 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
             Artigos relacionados
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {guide.relatedBlogSlugs.map(blogSlug => (
+            {guide.relatedBlogs.map(blog => (
               <Link
-                key={blogSlug}
-                href={`/pt/blog/${blogSlug}/`}
+                key={blog.label}
+                href={blog.slug ? `/pt/blog/${blog.slug}/` : '/pt/blog/'}
                 className="p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-sm transition-all group"
               >
                 <div className="flex items-center gap-2 mb-3">
@@ -485,7 +500,7 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
                   <span className="text-xs font-semibold uppercase tracking-wider text-yellow">Guia</span>
                 </div>
                 <h3 className="font-display font-bold text-dark group-hover:text-yellow transition-colors mb-2 capitalize">
-                  {blogSlug.replace(/-/g, ' ')}
+                  {blog.label}
                 </h3>
                 <p className="text-sm text-text-muted">Ler artigo completo</p>
               </Link>

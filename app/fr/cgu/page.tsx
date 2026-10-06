@@ -173,7 +173,7 @@ export default async function CGUPage() {
             </p>
             <p className="mt-3">
               {t('cgu.art10.p5')}{' '}
-              <a href="/confidentialite" className="text-yellow hover:underline">{t('cgu.art10.privacyLink')}</a>.
+              <a href="/fr/confidentialite/" className="text-yellow hover:underline">{t('cgu.art10.privacyLink')}</a>.
             </p>
           </section>
 

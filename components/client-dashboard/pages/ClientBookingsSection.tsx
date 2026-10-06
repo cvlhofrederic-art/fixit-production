@@ -60,7 +60,7 @@ export default function ClientBookingsSection(props: ClientBookingsSectionProps)
           </p>
           {activeTab === 'upcoming' && (
             <LocaleLink
-              href="/recherche"
+              href={locale === 'pt' ? '/pesquisar' : '/recherche'}
               className="inline-block bg-[#FFC107] hover:bg-[#FFD54F] text-dark px-8 py-3 rounded-lg font-semibold transition"
             >
               {t('clientDash.bookings.findArtisan')}
@@ -231,10 +231,10 @@ export default function ClientBookingsSection(props: ClientBookingsSectionProps)
                   {t('clientDash.bookings.reviewLockedAfterBilling')}
                 </div>
               )}
-              {/* Re-réserver */}
+              {/* Re-réserver : URL finale de la locale (/recherche part en 308 vers /fr/, client PT compris) */}
               {!isUpcoming && booking.status === 'completed' && (
                 <a
-                  href={`/recherche?artisan=${artisanId}`}
+                  href={`/${locale === 'pt' ? 'pt/pesquisar' : 'fr/recherche'}/?artisan=${artisanId}`}
                   className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl bg-[#FFC107]/10 text-amber-700 hover:bg-[#FFC107]/20 border border-amber-200 transition"
                 >
                   {t('clientDash.bookings.rebook')}
