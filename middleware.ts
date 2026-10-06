@@ -100,6 +100,8 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP header ──
+  // Seule source de la CSP : next.config.ts n'en déclare pas (sur OpenNext, ses en-têtes s'ajoutent à ceux du
+  // middleware et le navigateur appliquerait les deux politiques). Test : tests/securite/csp-politique-unique.test.ts.
   // GA4 (Google Analytics 4) : script depuis www.googletagmanager.com,
   // beacons collectés sur www.google-analytics.com / *.analytics.google.com.
   // Chargé UNIQUEMENT après consent dans components/common/ConsentAnalytics.tsx.

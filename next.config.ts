@@ -184,21 +184,10 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
-          // F09: CSP — unsafe-inline requis pour l'hydration Next.js
-          { key: 'Content-Security-Policy', value: [
-            "default-src 'self'",
-            `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} https://js.stripe.com https://static.cloudflareinsights.com https://*.sentry.io`,
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' https://fonts.gstatic.com data:",
-            "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://ui-avatars.com https://*.stripe.com",
-            "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://api.groq.com https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://cloudflareinsights.com",
-            "frame-src 'self' https://js.stripe.com https://*.stripe.com",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            "object-src 'none'",
-            "worker-src 'self' blob:",
-          ].join('; ') },
+          // Pas de Content-Security-Policy ici : middleware.ts est sa seule source. Sur OpenNext/Cloudflare, les
+          // en-têtes de cette config s'AJOUTENT à ceux du middleware (clés de casse différente, toutes deux gardées) :
+          // le navigateur appliquait alors deux politiques, et la plus stricte bloquait GA4 et le repli SIRET.
+          // Test : tests/securite/csp-politique-unique.test.ts.
         ],
       },
       // Syndic v54 dev sandbox : jamais indexable. Ceinture en plus du gate
