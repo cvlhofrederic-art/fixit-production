@@ -198,10 +198,15 @@ function investorAndIntlPages(baseUrl: string): SitemapUrl[] {
 async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
   try {
     const supabase = await createServerSupabaseClient()
-    const { data: artisans } = await supabase
+    const { data: artisans, error } = await supabase
       .from('profiles_artisan')
       .select('id, slug, updated_at, org_role, country')
       .eq('is_verified', true)
+    // supabase-js ne lève pas d'exception sur une erreur de requête : elle arrive dans `error`.
+    if (error) {
+      logger.warn('[sitemap] fiches artisans indisponibles', error)
+      return []
+    }
     return (artisans || []).map((a) => {
       const isPT = a.country === 'PT' || a.country === 'Portugal'
       const locale = isPT ? 'pt' : 'fr'
