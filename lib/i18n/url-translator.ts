@@ -38,7 +38,6 @@ const ROUTE_EQUIVALENTS: RouteEquivalent[] = [
   { fr: '/fr/comment-ca-marche', pt: '/pt/como-funciona' },
   { fr: '/fr/tarifs', pt: '/pt/precos' },
   { fr: '/fr/plan-du-site', pt: '/pt/mapa-do-site' },
-  { fr: '/fr/marches', pt: '/pt/mercados' },
   { fr: '/fr/marches/publier', pt: '/pt/mercados/publicar' },
   { fr: '/fr/marches/gerer', pt: '/pt/mercados/gerir' },
   { fr: '/fr/devenir-partenaire', pt: '/pt/torne-se-parceiro' },

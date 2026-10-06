@@ -39,7 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
       type: 'website',
     },
     alternates: {
-      canonical: 'https://vitfix.io/avis/',
+      canonical: 'https://vitfix.io/fr/avis/',
     },
   }
 }
@@ -47,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AvisPage() {
   const { locale } = await getServerTranslation()
   const isPt = locale === 'pt'
-  const searchPath = isPt ? '/pesquisar' : '/recherche'
+  const searchPath = isPt ? '/pt/pesquisar/' : '/fr/recherche/'
 
   return (
     <div className="min-h-screen bg-warm-gray">
