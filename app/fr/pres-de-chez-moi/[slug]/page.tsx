@@ -128,9 +128,10 @@ export default async function FrPresDeChezMoiPage({ params }: { params: Promise<
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
+          // Pas de niveau « Près de chez moi » : le hub /fr/pres-de-chez-moi/ n'a pas de page (308 vers /fr/),
+          // et tout niveau non final doit porter une URL. Le fil visible l'affiche sans lien.
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/fr/' },
-          { '@type': 'ListItem', position: 2, name: 'Près de chez moi', item: 'https://vitfix.io/fr/pres-de-chez-moi/' },
-          { '@type': 'ListItem', position: 3, name: `${service.name}${cityLabel}`, item: `https://vitfix.io/fr/pres-de-chez-moi/${slug}/` },
+          { '@type': 'ListItem', position: 2, name: `${service.name}${cityLabel}`, item: `https://vitfix.io/fr/pres-de-chez-moi/${slug}/` },
         ],
       },
       {

@@ -139,7 +139,7 @@ const jsonLd = {
       breadcrumb: {
         '@type': 'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Vitfix', item: 'https://vitfix.io/' },
+          { '@type': 'ListItem', position: 1, name: 'Vitfix', item: 'https://vitfix.io/fr/' },
           { '@type': 'ListItem', position: 2, name: 'Artisans Vérifiés', item: 'https://vitfix.io/fr/artisans-verifies/' },
         ],
       },
