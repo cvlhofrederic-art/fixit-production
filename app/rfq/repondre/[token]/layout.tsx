@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
 
 // IBM Plex Sans/Mono utilisé sur la page de réponse RFQ par token (route privée
@@ -15,6 +16,11 @@ const ibmPlexMono = IBM_Plex_Mono({
   subsets: ['latin'],
   weight: ['400', '500'],
 })
+
+// Page privée (lien à jeton envoyé par e-mail au fournisseur) : jamais indexée.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 export default function RfqTokenLayout({
   children,

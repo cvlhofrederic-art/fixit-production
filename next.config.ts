@@ -49,7 +49,14 @@ const nextConfig: NextConfig = {
         { source: '/fr/confidentialite/mes-donnees/', destination: '/confidentialite/mes-donnees/' },
         { source: '/fr/cookies', destination: '/cookies' },
         { source: '/fr/cookies/', destination: '/cookies/' },
-        { source: '/fr/tracking/:path*', destination: '/tracking/:path*' },
+        // Pages ouvertes par un lien e-mail ou SMS sans locale : le middleware les préfixe par /fr/ ou /pt/ (sans réécriture : 404).
+        // Suivi par « :token » et non « :path* » : sur OpenNext, « :path* » vide envoyait le littéral « /tracking/:path* »
+        // à la route [token], servie en 200 sous /fr/tracking/. Parrainage : ${SITE_URL}/rejoindre?ref=CODE (lib/email-referral.ts) ;
+        // réponse fournisseur BTP : ${BASE_URL}/rfq/repondre/<jeton> (lib/email-rfq.ts).
+        { source: '/fr/tracking/:token', destination: '/tracking/:token' },
+        { source: '/fr/rejoindre', destination: '/rejoindre' },
+        { source: '/fr/rejoindre/', destination: '/rejoindre/' },
+        { source: '/fr/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
         // ── Shared root pages accessible via /pt/ prefix ──
         { source: '/pt/auth/:path*', destination: '/auth/:path*' },
         { source: '/pt/pro/:path*', destination: '/pro/:path*' },
@@ -68,7 +75,10 @@ const nextConfig: NextConfig = {
         { source: '/pt/confirmation', destination: '/confirmation' },
         { source: '/pt/confirmation/', destination: '/confirmation/' },
         // PT legal pages now have dedicated routes: /pt/privacidade/, /pt/politica-cookies/
-        { source: '/pt/tracking/:path*', destination: '/tracking/:path*' },
+        { source: '/pt/tracking/:token', destination: '/tracking/:token' },
+        { source: '/pt/rejoindre', destination: '/rejoindre' },
+        { source: '/pt/rejoindre/', destination: '/rejoindre/' },
+        { source: '/pt/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
       ],
       afterFiles: [],
       fallback: [],

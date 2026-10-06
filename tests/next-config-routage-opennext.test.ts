@@ -9,7 +9,7 @@
  *
  * Ordre en production : redirections → middleware (préfixe de locale forcé) → réécritures beforeFiles → pages.
  * Les gardes génériques ci-dessous vérifient aussi qu'une redirection aboutit sur une page, qu'elle ne masque
- * ni une réécriture ni une page publiée.
+ * ni une réécriture ni une page publiée, et que chaque page racine de app/ est servie sous /fr/.
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -95,6 +95,20 @@ function routeExiste(chemin: string): boolean {
   return parcourir(join(RACINE_DEPOT, 'app'), chemin.split('/').filter(Boolean))
 }
 
+function segmentDynamique(chemin: string): boolean {
+  const dossier = join(RACINE_DEPOT, 'app', chemin)
+  return existsSync(dossier) && readdirSync(dossier).some((nom) => nom.startsWith('['))
+}
+
+/** Routes de toutes les pages de app/, segments dynamiques conservés (« /rfq/repondre/[token] »). */
+function routesDesPages(dossier = join(RACINE_DEPOT, 'app'), prefixe = ''): string[] {
+  const routes = FICHIERS_PAGE.some((fichier) => existsSync(join(dossier, fichier))) ? [prefixe || '/'] : []
+  for (const entree of readdirSync(dossier, { withFileTypes: true })) {
+    if (entree.isDirectory()) routes.push(...routesDesPages(join(dossier, entree.name), `${prefixe}/${entree.name}`))
+  }
+  return routes
+}
+
 const decrire = ({ genre, racineSource, resolue }: RegleRacine) => `${genre} ${racineSource} → ${resolue}`
 const sansBarreFinale = (chemin: string | null | undefined) => chemin?.replace(/\/$/, '')
 
@@ -120,6 +134,14 @@ describe('racine des règles « /:path* » sous OpenNext', () => {
   it('la racine mène à la page racine de la destination quand elle existe', async () => {
     const fautives = (await toutesLesReglesRacine()).filter(
       ({ racineDestination, resolue }) => pageExiste(racineDestination) && sansBarreFinale(resolue) !== racineDestination,
+    )
+    expect(fautives.map(decrire)).toEqual([])
+  })
+
+  it('aucune racine de réécriture ne tombe en littéral sur une route dynamique', async () => {
+    // /fr/tracking/ → « /tracking/:path* » était servi en 200 indexable par app/tracking/[token] (jeton « :path* »).
+    const fautives = (await toutesLesReglesRacine()).filter(
+      ({ genre, racineDestination, resolue }) => genre === 'réécriture' && !!resolue?.includes(':') && segmentDynamique(racineDestination),
     )
     expect(fautives.map(decrire)).toEqual([])
   })
@@ -249,9 +271,26 @@ describe('pages publiées jamais masquées par une redirection', () => {
   })
 })
 
-describe('pages partagées servies sous /fr', () => {
-  // Le middleware préfixe toute URL par la locale : sans réécriture, la page RGPD « Mes données »
-  // (app/confidentialite/mes-donnees) répondait 404 pour un visiteur français.
+describe('pages partagées servies sous /fr et /pt', () => {
+  // Le middleware préfixe toute URL par la locale : une page placée à la racine de app/ n'est joignable que par
+  // une réécriture /fr/… (et /pt/…). Sans elle, la page RGPD, le parrainage et la réponse fournisseur étaient en 404.
+  const EXCEPTIONS: Record<string, string> = {
+    '/': "app/page.tsx sert de composant aux pages d'accueil de locale ; « / » est redirigé par le middleware",
+    '/simulateur': 'remplacée par /fr/simulateur-devis/ ; ouverture ou suppression à décider',
+  }
+  const HORS_PERIMETRE = /^\/(fr|pt|en|es|nl|api|admin|coproprietaire|syndic)(\/|$)/ // locales, API, admin sans locale, zones dormantes
+
+  it('toute page racine de app/ est servie sous /fr/', async () => {
+    const [avantFichiers] = await reecritures()
+    const injoignables = routesDesPages()
+      .filter((route) => !HORS_PERIMETRE.test(route) && !(route in EXCEPTIONS))
+      .filter((route) => {
+        const exemple = route.replace(/\[[^\]]+\]/g, 'exemple')
+        return sansBarreFinale(resoudre(avantFichiers, `/fr${exemple}/`)) !== exemple
+      })
+    expect(injoignables).toEqual([])
+  })
+
   it.each(['/fr/confidentialite/mes-donnees/', '/fr/confidentialite/mes-donnees'])('%s est servie par la page « Mes données »', async (chemin) => {
     const [avantFichiers] = await reecritures()
     expect(pageExiste('/confidentialite/mes-donnees')).toBe(true)
@@ -261,5 +300,30 @@ describe('pages partagées servies sous /fr', () => {
   it('laisse /fr/confidentialite/ sur la politique de confidentialité', async () => {
     const [avantFichiers] = await reecritures()
     expect(sansBarreFinale(resoudre(avantFichiers, '/fr/confidentialite/'))).toBe('/confidentialite')
+  })
+
+  it.each(['/fr/rejoindre/', '/fr/rejoindre', '/pt/rejoindre/', '/pt/rejoindre'])('%s est servie par la page de parrainage', async (chemin) => {
+    // Lien des e-mails de parrainage : ${SITE_URL}/rejoindre?ref=CODE (lib/email-referral.ts).
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/rejoindre')
+  })
+
+  it.each(['/fr/rfq/repondre/abc123/', '/pt/rfq/repondre/abc123/'])('%s est servie par la page de réponse fournisseur', async (chemin) => {
+    // Lien de l'e-mail d'appel d'offres BTP : ${BASE_URL}/rfq/repondre/<jeton> (lib/email-rfq.ts).
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/rfq/repondre/abc123')
+    expect(routeExiste('/rfq/repondre/abc123')).toBe(true)
+  })
+
+  it('le suivi par jeton est servi, sa racine sans jeton ne reçoit plus le littéral', async () => {
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, '/fr/tracking/abc123/'))).toBe('/tracking/abc123')
+    expect(resoudre(avantFichiers, '/pt/tracking/abc123/')?.replace(/\/$/, '')).toBe('/tracking/abc123')
+    expect(resoudre(avantFichiers, '/fr/tracking/') ?? '').not.toContain(':')
+    expect(resoudre(avantFichiers, '/pt/tracking/') ?? '').not.toContain(':')
+  })
+
+  it('le lien « Avis » du Footer FR mène à une page', () => {
+    expect(routeExiste('/fr/avis')).toBe(true)
   })
 })
