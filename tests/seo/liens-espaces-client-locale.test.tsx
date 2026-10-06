@@ -15,6 +15,8 @@
 // Chaque lien doit viser l'URL finale de la locale du client.
 
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
@@ -183,5 +185,18 @@ describe('« Republier ce marché » (marché attribué)', () => {
     render(<GererMarcheClient isPt={isPt} />)
     const lien = (await screen.findByText(libelle)).closest('a')
     expect(lien?.getAttribute('href')).toBe(attendu)
+  })
+})
+
+describe('autres liens « Trouver un artisan » du tableau de bord client', () => {
+  // Même motif que dans ClientBookingsSection : le slug FR /recherche confié à LocaleLink donne /pt/recherche/ côté PT,
+  // puis un 308. Ces composants reçoivent la locale en props : le slug suit la locale (garde statique, rendu trop lourd).
+  it.each([
+    'components/client-dashboard/pages/ClientDashboardOverview.tsx',
+    'components/client-dashboard/pages/ClientLogementSection.tsx',
+  ])('%s ne confie pas le slug FR seul à LocaleLink', (fichier) => {
+    const source = readFileSync(join(process.cwd(), fichier), 'utf8')
+    expect(source).not.toMatch(/href(=|:\s*)["'`]\/recherche/)
+    expect(source).toContain("locale === 'pt' ? '/pesquisar' : '/recherche'")
   })
 })

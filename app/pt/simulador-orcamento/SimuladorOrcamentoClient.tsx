@@ -140,6 +140,14 @@ export default function SimuladorOrcamentoClient() {
   const svcConfig = detectedService ? SERVICE_KEYWORDS_PT[detectedService] : null
   const priceInfo = svcConfig ? (SERVICE_PRICES_PT[svcConfig.slug] ?? SERVICE_PRICES_PT[detectedService!] ?? null) : null
 
+  // « Ver profissionais disponíveis » : URL PT final (la racine /pesquisar enchaîne deux 308) et « ? » présent même
+  // sans cidade détectée (sinon /pesquisar&cat=…, en 404).
+  const pesquisaQuery = [
+    detectedCity ? `loc=${encodeURIComponent(detectedCity)}` : '',
+    svcConfig ? `cat=${svcConfig.slug}` : '',
+  ].filter(Boolean).join('&')
+  const pesquisaUrl = `/pt/pesquisar/${pesquisaQuery ? `?${pesquisaQuery}` : ''}`
+
   return (
     <div className="min-h-screen bg-[#F8F7F2]">
       {/* Hero */}
@@ -248,7 +256,7 @@ export default function SimuladorOrcamentoClient() {
             <p className="text-white/60 text-sm mb-4">Profissionais certificados, preços transparentes, reserva direta.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                href={`/pesquisar${detectedCity ? `?loc=${encodeURIComponent(detectedCity)}` : ''}${svcConfig ? `&cat=${svcConfig.slug}` : ''}`}
+                href={pesquisaUrl}
                 className="inline-flex items-center justify-center gap-2 bg-yellow text-dark font-bold rounded-full px-7 py-3 text-sm hover:bg-yellow/80 transition-colors"
               >
                 🔍 Ver profissionais disponíveis
