@@ -203,10 +203,15 @@ export async function middleware(request: NextRequest) {
 
   // ── PERF: Skip auth for public routes that never need authentication ──
   // These are SEO pages, blog, static content — no auth check saves 50-200ms per request
-  const needsAuth = !isInternalRoute && (
+  // /admin/ est une route interne (sans langue) mais protégée : seul /api/ et /_next/ restent sans contrôle.
+  // Tableau de bord artisan : segment exact, pas un préfixe de chaîne — /{locale}/artisan/<slug> est la fiche SEO
+  // publique, et un slug tiré du nom de l'entreprise peut commencer par « dashboard » (ex. dashboard-plomberie).
+  const estDashboardArtisan = strippedPathname === '/artisan/dashboard' || strippedPathname.startsWith('/artisan/dashboard/')
+  const needsAuth = (!isInternalRoute || pathname.startsWith('/admin/')) && (
     strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' ||
     strippedPathname.startsWith('/client/dashboard') ||
     strippedPathname.startsWith('/pro/dashboard') ||
+    estDashboardArtisan ||
     strippedPathname.startsWith('/pro/mobile') ||
     strippedPathname.startsWith('/pro/login') ||
     strippedPathname.startsWith('/pro/espace-pro') ||
@@ -302,7 +307,10 @@ export async function middleware(request: NextRequest) {
 
   // Super admin : accès libre à toutes les routes (pas de redirection forcée)
   if (role === 'super_admin') {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    // Routes internes (/admin/) : pas de langue dans l'URL, on ne réécrit pas le cookie avec la langue par défaut.
+    if (!isInternalRoute) {
+      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
     return supabaseResponse
@@ -392,7 +400,11 @@ export async function middleware(request: NextRequest) {
     }
 
     // Client (particulier): can't access pro or syndic dashboard
-    if (!isSyndicRole(role) && role !== 'artisan' && !isProRole && !isCoproRole) {
+    // Sauf rôle absent sur /artisan/dashboard : un artisan peut ne pas avoir app_metadata.role (init-role appelé sans
+    // session quand la confirmation e-mail est active ; /auth/confirmed l'envoie ici via user_metadata.role) et la page
+    // le traite comme artisan. Elle renvoie elle-même vers /auth/login un compte sans profil artisan.
+    const artisanSansRole = !role && estDashboardArtisan
+    if (!isSyndicRole(role) && role !== 'artisan' && !isProRole && !isCoproRole && !artisanSansRole) {
       if (strippedPathname.startsWith('/pro/dashboard') || strippedPathname.startsWith('/pro/mobile') || strippedPathname.startsWith('/artisan/dashboard')) {
         return localeRedirect('/client/dashboard')
       }
