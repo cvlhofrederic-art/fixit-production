@@ -33,12 +33,12 @@
     "prepare": "husky || true"
   },
   "dependencies": {
-    "@capacitor/android": "^8.1.0",
+    "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.0.1",
-    "@capacitor/cli": "^8.1.0",
-    "@capacitor/core": "^8.1.0",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@capacitor/haptics": "^8.0.0",
-    "@capacitor/ios": "^8.1.0",
+    "@capacitor/ios": "^8.5.2",
     "@capacitor/local-notifications": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
