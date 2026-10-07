@@ -27,10 +27,16 @@ export const fetchImmeubles = (token: string): Promise<Immeuble[]> =>
  * Artisan v54 (camelCase). GET /api/syndic/artisans renvoie les colonnes Supabase brutes
  * (vitfix_certifie, rc_pro_valide, nb_interventions…) : sans conversion, les modules qui lisent
  * rcProValide / vitfixCertifie voyaient tous les prestataires sans RC valide et non certifiés.
+ *
+ * `nom` est le nom affiché complet : POST /api/syndic/artisans enregistre `nom` = « Prénom Nom »
+ * à côté de ses composantes `prenom` et `nom_famille`. Les modules l'affichent tel quel, sans lui
+ * rajouter le prénom (sinon « João João Silva »). Colonne vide : composé de `prenom` et
+ * `nom_famille`, même règle que l'ancien tableau de bord (ArtisansPageSection).
  */
 export function normaliserArtisan(a: Artisan): Artisan {
   return {
     ...a,
+    nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
     rcProValide: a.rcProValide ?? a.rc_pro_valide ?? false,
     rcProExpiration: a.rcProExpiration ?? a.rc_pro_expiration ?? '',
     decennaleValide: a.decennaleValide ?? a.assurance_decennale_valide ?? false,
