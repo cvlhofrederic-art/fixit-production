@@ -13,7 +13,8 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MASQUES_FR } from '@/components/syndic-dashboard/v54/shell/sidebar-config.fr'
 import { installCrawlEnvironment } from './crawl'
-import { capturerEcran, capturerShell, navIds, routesACapturer, tousLesTextes } from './ecrans'
+import { AGENT_ROUTES, capturerEcran, capturerShell, navIds, routesACapturer, tousLesTextes } from './ecrans'
+import { MODULE_ENTRIES } from './modules'
 import { residusPortugais } from './residus-pt'
 
 vi.mock('@/lib/supabase', () => ({
@@ -60,6 +61,13 @@ describe('Version française — aucun texte portugais', () => {
 
   it('les modules sans objet en France sont absents de la sidebar FR', () => {
     for (const id of MASQUES_FR) expect(navIds('fr-FR')).not.toContain(id)
+  })
+
+  it('le registre du parcours couvre chaque entrée de la sidebar (et inversement)', () => {
+    const modules = new Set(MODULE_ENTRIES.map((e) => e.route))
+    const nav = navIds('pt-PT').filter((id) => id !== 'logout' && !AGENT_ROUTES.includes(id))
+    expect(nav.filter((id) => !modules.has(id))).toEqual([])
+    expect([...modules].filter((r) => !nav.includes(r))).toEqual([])
   })
 
   for (const route of selectedRoutes()) {
