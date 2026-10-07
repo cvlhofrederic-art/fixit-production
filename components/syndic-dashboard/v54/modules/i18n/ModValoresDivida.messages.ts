@@ -107,7 +107,7 @@ export const VALORES_DIVIDA_MESSAGES = defineMessages<ValoresDividaTextes>({
       annuler: 'Annuler',
       enregistrer: 'Enregistrer',
     },
-    erreurs: { condomino: 'Le copropriétaire est obligatoire.', montante: 'Indiquez un montant supérieur à 0 €.' },
+    erreurs: { condomino: 'Indiquez le nom du copropriétaire.', montante: 'Indiquez un montant supérieur à 0 €.' },
     toastEnregistre: 'Impayé enregistré',
   },
 })

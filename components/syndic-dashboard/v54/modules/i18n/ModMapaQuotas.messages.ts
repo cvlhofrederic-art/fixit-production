@@ -126,7 +126,7 @@ export const MAPA_QUOTAS_MESSAGES = defineMessages<MapaQuotasTextes>({
       perm: { titre: 'Mode : tantièmes', desc: 'Mode actif' },
     },
     colonnes: { frac: 'Lot', cond: 'Copropriétaire', perm: 'Tantièmes', area: 'Surface (m²)', quota: 'Provision trimestrielle', fcr: 'Fonds de travaux', total: 'Total trimestriel', estado: 'Statut' },
-    etats: { emDia: 'À jour', atraso: 'Retard', divida: 'Impayé' },
+    etats: { emDia: 'À jour', atraso: 'En retard', divida: 'Impayé' },
     enDette: (montant) => `Reste dû : ${montant}`,
     demo: [
       { frac: 'Lot 1 - RDC gauche', cond: 'Anne Simon', perm: 70, area: 65, quota: '0,00 €', fcr: '0,00 €', total: '0,00 €', estado: 'emDia' },
