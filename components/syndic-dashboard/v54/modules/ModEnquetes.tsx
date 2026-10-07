@@ -16,7 +16,8 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import type { Enquete } from '@/lib/syndic/v54/api'
 import { ENQUETES_MESSAGES } from './i18n/ModEnquetes.messages'
 
@@ -43,6 +44,7 @@ const surveyCard = { background: '#fff', border: '1px solid var(--v54-line)', bo
 
 export default function ModEnquetes() {
   const t = useMessages(ENQUETES_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
   const all: EnqueteAffichee[] = real ? (data.enquetes ?? []) : t.demo
@@ -115,7 +117,7 @@ export default function ModEnquetes() {
                 {s.tipo && <Pill noDot>{tipoLabel(s.tipo)}</Pill>}
                 {s.edificio && <Pill noDot>{s.edificio}</Pill>}
                 {s.anonima && <Pill kind="gold" noDot>{t.anonyme}</Pill>}
-                {s.prazo && <Pill kind={prazoExpire(s) ? 'rust' : 'gold'} noDot>{s.prazo}</Pill>}
+                {s.prazo && <Pill kind={prazoExpire(s) ? 'rust' : 'gold'} noDot>{dateApi(s.prazo, locale)}</Pill>}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>

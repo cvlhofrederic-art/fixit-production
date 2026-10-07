@@ -19,6 +19,7 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { CADERNETA_MESSAGES } from './i18n/ModCadernetaMan.messages'
 
 /** Caderneta de Manutenção & Técnica — port byte-exact V5.7 + Phase 3 : interventions réelles.
@@ -89,7 +90,7 @@ export default function ModCadernetaMan() {
         { label: p.kpi.coutTotal, value: eur(total) },
         { label: p.kpi.immeubles, value: String(edifSet.size) },
       ],
-      tables: [{ headers: [...p.colonnes], rows: all.map((i) => [i.data || '—', naturezaLabel(i.natureza), i.edificio || '—', i.prestador || '—', eur(Number(i.custo) || 0), estadoLabel(i.estado)]) }],
+      tables: [{ headers: [...p.colonnes], rows: all.map((i) => [dateApi(i.data, locale) || '—', naturezaLabel(i.natureza), i.edificio || '—', i.prestador || '—', eur(Number(i.custo) || 0), estadoLabel(i.estado)]) }],
     }, locale)
   }
 
@@ -120,7 +121,7 @@ export default function ModCadernetaMan() {
               <thead><tr><th>{t.colonnes.date}</th><th>{t.colonnes.nature}</th><th>{t.colonnes.immeuble}</th><th>{t.colonnes.prestataire}</th><th>{t.colonnes.cout}</th><th>{t.colonnes.garantie}</th><th>{t.colonnes.statut}</th></tr></thead>
               <tbody>{all.map(it => (
                 <tr key={it.id}>
-                  <td>{it.data}</td>
+                  <td>{dateApi(it.data, locale)}</td>
                   <td>{naturezaLabel(it.natureza)}</td>
                   <td>{it.edificio || '—'}</td>
                   <td>{it.prestador || '—'}</td>

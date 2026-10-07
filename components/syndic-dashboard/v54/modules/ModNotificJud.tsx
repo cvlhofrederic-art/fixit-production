@@ -21,6 +21,7 @@ import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { ProcessoJud } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { NOTIFIC_JUD_MESSAGES } from './i18n/ModNotificJud.messages'
 
 /** Centro de Notificações Judiciais — port V5.7 + lot 2 fonctionnel.
@@ -96,7 +97,7 @@ export default function ModNotificJud() {
             <table className={m.tbl}>
               <thead><tr><th>{t.colonnes.type}</th><th>{t.colonnes.contrepartie}</th><th>{t.colonnes.numero}</th><th>{t.colonnes.date}</th><th>{t.colonnes.valeur}</th><th>{t.colonnes.statut}</th></tr></thead>
               <tbody>{all.map(p => (
-                <tr key={p.id}><td><b>{p.tipo}</b></td><td>{p.contraparte || '—'}</td><td>{p.processo || '—'}</td><td>{p.data || '—'}</td><td className={m.numCell}>{p.valor ? fmtEUR(Number(p.valor), locale) : '—'}</td><td><Pill kind={estadoKind(p.estado)} noDot>{estadoLabel(p.estado, t.statuts)}</Pill></td></tr>
+                <tr key={p.id}><td><b>{p.tipo}</b></td><td>{p.contraparte || '—'}</td><td>{p.processo || '—'}</td><td>{dateApi(p.data, locale) || '—'}</td><td className={m.numCell}>{p.valor ? fmtEUR(Number(p.valor), locale) : '—'}</td><td><Pill kind={estadoKind(p.estado)} noDot>{estadoLabel(p.estado, t.statuts)}</Pill></td></tr>
               ))}</tbody>
             </table>
           </div>

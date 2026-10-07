@@ -17,7 +17,8 @@ import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { OBRIG_PRAZOS_MESSAGES, type BucketPrazo } from './i18n/ModObrigPrazos.messages'
 
 /** Obrigações Legais — port byte-exact V5.7 + Phase 3 : réutilise la table syndic_prazos.
@@ -49,6 +50,7 @@ const status = (prazo: string): { kind: PillKind; bucket: BucketPrazo } => {
 
 export default function ModObrigPrazos() {
   const t = useMessages(OBRIG_PRAZOS_MESSAGES)
+  const locale = useV54Locale()
   const f = t.formulaire
   const types: Record<string, string> = t.types
   // Phase 3 : une obligation = un prazo (table syndic_prazos, partagée avec ModPrazosLegais).
@@ -122,7 +124,7 @@ export default function ModObrigPrazos() {
                     <td>{it.edificio}</td>
                     <td>{(types[it.tipo] || it.tipo).split(' (')[0]}</td>
                     <td>{it.descricao}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{it.prazo}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{dateApi(it.prazo, locale)}</td>
                     <td><Pill kind={st.kind}>{t.statuts[st.bucket]}</Pill></td>
                   </tr>
                 )

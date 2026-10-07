@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { FATURACAO_MESSAGES } from './i18n/ModFaturacao.messages'
 
 /**
@@ -106,8 +107,8 @@ export default function ModFaturacao() {
                 <tr key={f.id}>
                   <td>{f.numeroFatura || '—'}</td>
                   <td>{coName(f.coproprioId)}</td>
-                  <td>{f.emiseLe || '—'}</td>
-                  <td>{f.echeance || '—'}</td>
+                  <td>{dateApi(f.emiseLe, locale) || '—'}</td>
+                  <td>{dateApi(f.echeance, locale) || '—'}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(f.montantTtc, locale)}</td>
                   <td><Pill kind={statutKind(f.statut)}>{statutLabel(f.statut)}</Pill></td>
                 </tr>

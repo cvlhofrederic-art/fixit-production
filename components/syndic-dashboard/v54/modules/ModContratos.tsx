@@ -20,6 +20,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { CONTRATOS_MESSAGES, type CategorieContrat, type OngletContrat } from './i18n/ModContratos.messages'
 
 /** Contratos com Prestadores — port byte-exact V5.7 + Phase 3 : contrats réels. */
@@ -116,7 +117,7 @@ export default function ModContratos() {
                 <Pill kind={statusKind(c.statut)} noDot>{t.statuts[statusKey(c.statut)]}</Pill>
                 <div style={{ textAlign: 'right', minWidth: 120 }}>
                   <div className={m.mono} style={{ fontWeight: 600 }}>{eur(c.custoMensal, locale)}{t.parMois}</div>
-                  {c.dataFim && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.fin}{c.dataFim}</div>}
+                  {c.dataFim && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.fin}{dateApi(c.dataFim, locale)}</div>}
                 </div>
               </div>
             ))}

@@ -18,7 +18,8 @@ import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { CERT_ENERG_MESSAGES } from './i18n/ModCertEnerg.messages'
 
 /** Certificação Energética — port byte-exact V5.7 + Phase 3 : certificats SCE réels.
@@ -32,6 +33,7 @@ const classePill = (c: string, performantes: string[], energivores: string[]): P
 
 export default function ModCertEnerg() {
   const t = useMessages(CERT_ENERG_MESSAGES)
+  const locale = useV54Locale()
   const f = t.formulaire
   // Phase 3 : vrais certificats SCE du cabinet si syndic connecté, sinon preview vide.
   const data = useSyndicData()
@@ -110,8 +112,8 @@ export default function ModCertEnerg() {
                   <td>{it.numero}</td>
                   <td>{it.edificio}</td>
                   <td><Pill kind={classePill(it.classe, t.classesPerformantes, t.classesEnergivores)}>{it.classe}</Pill></td>
-                  <td>{it.dataEmissao}</td>
-                  <td>{it.dataValidade}</td>
+                  <td>{dateApi(it.dataEmissao, locale)}</td>
+                  <td>{dateApi(it.dataValidade, locale)}</td>
                   <td>{it.perito || '—'}</td>
                 </tr>
               ))}</tbody>

@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { COBR_AUTO_MESSAGES, type NatureImpaye } from './i18n/ModCobrAuto.messages'
 
 /** Cobrança Automática · Juros & Sanções — port byte-exact V5.7 + Phase 3.
@@ -124,7 +125,7 @@ export default function ModCobrAuto() {
                   <td>{imName(it.immeubleId)}</td>
                   <td>{natureLabel(it.nature)}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.montant, locale)}</td>
-                  <td>{it.depuis || '—'}</td>
+                  <td>{dateApi(it.depuis, locale) || '—'}</td>
                   <td>{it.nbRelances}</td>
                   <td><Pill kind={statutKind(it.statut)}>{statutLabel(it.statut)}</Pill></td>
                   <td>{(it.statut === 'ouvert' || it.statut === 'en_recouvrement') && <Button size="sm" onClick={() => relancar(it.id, it.nbRelances)} disabled={busy}><Icon name="mail" />{t.relancer}</Button>}</td>

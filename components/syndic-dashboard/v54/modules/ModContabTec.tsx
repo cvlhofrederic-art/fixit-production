@@ -7,6 +7,7 @@ import { Pill, type PillKind } from '../primitives/pill'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { CONTAB_TEC_MESSAGES } from './i18n/ModContabTec.messages'
 
 /** Contabilidade Técnica — port byte-exact V5.7 + Phase 3 : suivi des interventions calculé
@@ -87,7 +88,7 @@ export default function ModContabTec() {
                   <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>{t.aucuneIntervention}</td></tr>
                 ) : missions.map((mi) => (
                   <tr key={mi.id}>
-                    <td className={m.numCell}>{mi.dateIntervention || mi.dateCreation || '—'}</td><td>{mi.immeuble || '—'}</td><td>{mi.type || '—'}</td><td>{mi.artisan || '—'}</td>
+                    <td className={m.numCell}>{dateApi(mi.dateIntervention || mi.dateCreation, locale) || '—'}</td><td>{mi.immeuble || '—'}</td><td>{mi.type || '—'}</td><td>{mi.artisan || '—'}</td>
                     <td><Pill kind={prioKind(mi.priorite)} noDot>{prioLabel(mi.priorite)}</Pill></td>
                     <td><Pill kind={estadoKind(mi.statut)} noDot>{statutLabel(mi.statut)}</Pill></td>
                     <td className={m.numCell}>{valOf(mi) ? fmtEUR(valOf(mi), locale) : '—'}</td>

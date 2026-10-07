@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { SEGUROS_MESSAGES } from './i18n/ModSeguros.messages'
 
 /** Gestão de Seguros — port byte-exact V5.7 + Phase 3 : apólices réelles. */
@@ -111,7 +112,7 @@ export default function ModSeguros() {
                 <div style={{ textAlign: 'right', minWidth: 130 }}>
                   <div className={m.mono} style={{ fontWeight: 600 }}>{eur(s.premioAnual, locale)}{t.liste.parAn}</div>
                   {s.capital > 0 && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.liste.capital}{eur(s.capital, locale)}</div>}
-                  {s.dataFim && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.liste.fin}{s.dataFim}</div>}
+                  {s.dataFim && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.liste.fin}{dateApi(s.dataFim, locale)}</div>}
                 </div>
               </div>
             ))}

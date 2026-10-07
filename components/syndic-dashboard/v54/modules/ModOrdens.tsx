@@ -14,7 +14,8 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import type { Mission } from '@/components/syndic-dashboard/types'
 import { ORDENS_MESSAGES, type OrdreDemo, type StatutOrdre } from './i18n/ModOrdens.messages'
 
@@ -36,7 +37,7 @@ function missionStatut(statut: string): StatutOrdre {
   }
 }
 
-function missionToRow(mi: Mission, lot: (numero: string) => string): OrdreDemo {
+function missionToRow(mi: Mission, lot: (numero: string) => string, locale: V54Locale): OrdreDemo {
   return {
     statut: missionStatut(mi.statut),
     ref: `#${(mi.id || '').slice(0, 8)}`,
@@ -44,12 +45,13 @@ function missionToRow(mi: Mission, lot: (numero: string) => string): OrdreDemo {
     intervention: [mi.type, mi.description].filter(Boolean).join(' · '),
     lieu: mi.numLot ? lot(mi.numLot) : (mi.batiment || mi.etage || ''),
     prestataire: mi.artisan || '—',
-    date: mi.dateIntervention || mi.dateCreation || '—',
+    date: dateApi(mi.dateIntervention || mi.dateCreation, locale) || '—',
   }
 }
 
 export default function ModOrdens() {
   const t = useMessages(ORDENS_MESSAGES)
+  const locale = useV54Locale()
   const [tab, setTab] = useState<string>('todas')
   const [showFilter, setShowFilter] = useState(false)
   const [query, setQuery] = useState('')
@@ -57,7 +59,7 @@ export default function ModOrdens() {
   const data = useSyndicData()
   const real = data.authenticated
   const orders: ReadonlyArray<OrderItem> = real
-    ? data.missions.map((mi) => ({ row: missionToRow(mi, t.lot), id: mi.id, statut: mi.statut, artisan: mi.artisan, priorite: mi.priorite }))
+    ? data.missions.map((mi) => ({ row: missionToRow(mi, t.lot, locale), id: mi.id, statut: mi.statut, artisan: mi.artisan, priorite: mi.priorite }))
     : t.demo.map((r) => ({ row: r }))
   const tabs: { id: string; label: string; count?: number }[] = real
     ? [

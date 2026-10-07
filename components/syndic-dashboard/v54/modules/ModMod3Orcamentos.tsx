@@ -18,6 +18,7 @@ import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Obra, Orcamento } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { MOD3_ORCAMENTOS_MESSAGES } from './i18n/ModMod3Orcamentos.messages'
 
 /** Orçamentos & Obras (3 orçamentos) — port V5.7 + lot 7 fonctionnel.
@@ -123,7 +124,7 @@ export default function ModMod3Orcamentos() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 6 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{o.titulo}</div><Pill kind={cor as PillKind} noDot>{o.tipo || '—'}</Pill></div>
                     <div style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', marginBottom: 8 }}>{o.descricao}</div>
                     <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginBottom: 4 }}>{o.local || '—'}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginBottom: 4 }}>{ca.echeance}{o.prazo || '—'}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginBottom: 4 }}>{ca.echeance}{dateApi(o.prazo, locale) || '—'}</div>
                     {o.orcamento > 0 && <div style={{ fontSize: 12, color: 'var(--v54-gold-700)', fontWeight: 600, marginBottom: 4 }}>{ca.montant}{fmtEUR(o.orcamento, locale)}</div>}
                     {o.empresa && <div style={{ fontSize: 11.5, marginBottom: 4 }}>{o.empresa}</div>}
                     <Pill kind="sage" noDot>{o.numOrcamentos}{ca.nbDevis}</Pill>

@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { COBR_JUD_MESSAGES, type EtapeRecouvrement } from './i18n/ModCobrJud.messages'
 
 /** Cobrança Judicial — port byte-exact V5.7 + Phase 3 : pipeline réel (table syndic_recouvrement).
@@ -141,7 +142,7 @@ export default function ModCobrJud() {
                       <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, color: 'var(--v54-gold-700)', marginTop: 6, fontWeight: 600 }}>{fmtEUR(Math.max(0, p.montantInitial - p.montantRecouvre), locale)}</div>
                       <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                         <Pill kind={p.statut === 'en_cours' ? 'amber' : p.statut === 'cloture_succes' ? 'sage' : 'rust'} noDot>{statutLabel(p.statut, t.statuts)}</Pill>
-                        {p.prochaineEcheance && <Pill kind="gold" noDot>{t.echeance}{p.prochaineEcheance}</Pill>}
+                        {p.prochaineEcheance && <Pill kind="gold" noDot>{t.echeance}{dateApi(p.prochaineEcheance, locale)}</Pill>}
                       </div>
                       {ADVANCE.indexOf(p.procedure) >= 0 && ADVANCE.indexOf(p.procedure) < ADVANCE.length - 1 && (
                         <Button size="sm" onClick={() => avancar(p.id, p.procedure)} disabled={busy} style={{ marginTop: 8 }}><Icon name="arrow" />{t.avancer}</Button>

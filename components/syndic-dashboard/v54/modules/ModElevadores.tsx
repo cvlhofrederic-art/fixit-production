@@ -18,7 +18,8 @@ import { useDocumentUpload } from './use-document-upload'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { ELEVADORES_MESSAGES } from './i18n/ModElevadores.messages'
 
 /** Gestão de Elevadores — port byte-exact V5.7 + Phase 3 : parc réel. */
@@ -27,6 +28,7 @@ const estadoKind = (s: string): 'sage' | 'amber' | 'rust' => (s === 'atraso' ? '
 
 export default function ModElevadores() {
   const t = useMessages(ELEVADORES_MESSAGES)
+  const locale = useV54Locale()
   const estadoLabel = (s: string): string => (s === 'atraso' ? t.etats.atraso : s === 'prazo' ? t.etats.prazo : t.etats.conforme)
   // Phase 3 : vrai parc d'ascenseurs si syndic connecté, sinon mock/empty (preview).
   const data = useSyndicData()
@@ -112,8 +114,8 @@ export default function ModElevadores() {
                   <td>{e.marca || '—'}</td>
                   <td>{t.categories[e.categoria] ?? e.categoria}</td>
                   <td>{t.periodicites[e.categoria] ?? '—'}</td>
-                  <td>{e.ultimaInspecao || '—'}</td>
-                  <td>{e.proximaInspecao || '—'}</td>
+                  <td>{dateApi(e.ultimaInspecao, locale) || '—'}</td>
+                  <td>{dateApi(e.proximaInspecao, locale) || '—'}</td>
                   <td>{e.ema || '—'}</td>
                   <td><Pill kind={estadoKind(e.estado)} noDot>{estadoLabel(e.estado)}</Pill></td>
                 </tr>

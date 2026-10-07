@@ -21,7 +21,8 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Deliberacao } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { TRACKER_DELIBS_MESSAGES, type CouleurEtape } from './i18n/ModTrackerDelibs.messages'
 
 /** Tracker de Deliberações — port V5.7 + lot 2 fonctionnel.
@@ -43,6 +44,7 @@ const daysTo = (d: string) => { const t = new Date(d).getTime(); return Number.i
 
 export default function ModTrackerDelibs() {
   const t = useMessages(TRACKER_DELIBS_MESSAGES)
+  const locale = useV54Locale()
   const estadoLabel = (v: string) => (t.estados as Record<string, string>)[v] || v
   const data = useSyndicData()
   const real = data.authenticated
@@ -113,7 +115,7 @@ export default function ModTrackerDelibs() {
             <table className={m.tbl}>
               <thead><tr><th>{t.colonnes.deliberation}</th><th>{t.colonnes.ag}</th><th>{t.colonnes.responsable}</th><th>{t.colonnes.echeance}</th><th>{t.colonnes.statut}</th></tr></thead>
               <tbody>{shown.map(d => (
-                <tr key={d.id}><td><b>{d.deliberacao}</b></td><td>{d.ag || '—'}</td><td>{d.responsavel || '—'}</td><td>{d.prazo || '—'}</td><td><Pill kind={estadoKind(d.estado)} noDot>{estadoLabel(d.estado)}</Pill></td></tr>
+                <tr key={d.id}><td><b>{d.deliberacao}</b></td><td>{d.ag || '—'}</td><td>{d.responsavel || '—'}</td><td>{dateApi(d.prazo, locale) || '—'}</td><td><Pill kind={estadoKind(d.estado)} noDot>{estadoLabel(d.estado)}</Pill></td></tr>
               ))}</tbody>
             </table>
           </div>

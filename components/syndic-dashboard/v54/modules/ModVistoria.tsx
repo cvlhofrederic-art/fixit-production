@@ -17,7 +17,8 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { VISTORIA_MESSAGES } from './i18n/ModVistoria.messages'
 
 /** Vistoria Técnica — port byte-exact V5.7 + Phase 3 : vistorias réelles. */
@@ -26,6 +27,7 @@ const statutKind = (s: string): PillKind => (s === 'concluida' ? 'sage' : s === 
 
 export default function ModVistoria() {
   const t = useMessages(VISTORIA_MESSAGES)
+  const locale = useV54Locale()
   const statutLabel: Record<string, string> = t.statuts
   // Phase 3 : vraies vistorias du cabinet si syndic connecté, sinon mock/empty (preview).
   const data = useSyndicData()
@@ -100,7 +102,7 @@ export default function ModVistoria() {
             <div key={v.id} style={{ padding: '16px 22px', borderBottom: '1px solid var(--v54-line)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 17, fontWeight: 500 }}>{v.titulo || t.titreParDefaut}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{[v.immeuble, v.dataVistoria].filter(Boolean).join(' · ')}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{[v.immeuble, dateApi(v.dataVistoria, locale)].filter(Boolean).join(' · ')}</div>
               </div>
               {v.pontosVigiar > 0 && <Pill kind="amber" noDot>{v.pontosVigiar}{t.suffixeASurveiller(v.pontosVigiar)}</Pill>}
               {v.pontosDeficientes > 0 && <Pill kind="rust" noDot>{v.pontosDeficientes}{t.suffixeDefaillants(v.pontosDeficientes)}</Pill>}

@@ -9,6 +9,7 @@ import { KPIGrid } from '../primitives/kpi'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { HIST_EDIFICIO_MESSAGES } from './i18n/ModHistEdificio.messages'
 
 /** Histórico Edifício — page net-new (module catalogue-only en V5.7, aucune source byte-exact).
@@ -76,7 +77,7 @@ export default function ModHistEdificio() {
                   ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '28px 20px', color: 'var(--v54-navy-300)' }}>{ti.vide}</td></tr>
                   : intervencoes.map((mi) => (
                       <tr key={mi.id}>
-                        <td className={m.numCell}>{mi.dateIntervention || mi.dateCreation || '—'}</td>
+                        <td className={m.numCell}>{dateApi(mi.dateIntervention || mi.dateCreation, locale) || '—'}</td>
                         <td><b>{mi.type || mi.description || ti.parDefaut}</b></td>
                         <td>{mi.artisan || '—'}</td>
                         <td className={m.numCell}>{(mi.montantFacture ?? mi.montantDevis) ? fmtEUR(mi.montantFacture ?? mi.montantDevis ?? 0, locale) : '—'}</td>
@@ -101,9 +102,9 @@ export default function ModHistEdificio() {
                   : equipamentos.map((e) => (
                       <tr key={e.id}>
                         <td><b>{e.marca || te.parDefaut}</b></td>
-                        <td>{e.ultimaInspecao ? te.derniereInspection(e.ultimaInspecao) : '—'}</td>
+                        <td>{e.ultimaInspecao ? te.derniereInspection(dateApi(e.ultimaInspecao, locale)) : '—'}</td>
                         <td><Pill kind={EQUIP_KIND[e.estado] ?? 'amber'} noDot>{t.conformiteEquipement[e.estado] ?? e.estado}</Pill></td>
-                        <td>{e.proximaInspecao ? te.prochaine(e.proximaInspecao) : '—'}</td>
+                        <td>{e.proximaInspecao ? te.prochaine(dateApi(e.proximaInspecao, locale)) : '—'}</td>
                       </tr>
                     ))
               ) : t.demo.equipements.map((r, i) => (
@@ -126,7 +127,7 @@ export default function ModHistEdificio() {
                         <td><b>{t.categoriesContrat[c.categoria] ?? c.categoria}</b></td>
                         <td>{c.fornecedor || '—'}</td>
                         <td className={m.numCell}>{c.custoAnual ? tc.parAn(fmtEUR(c.custoAnual, locale)) : c.custoMensal ? tc.parMois(fmtEUR(c.custoMensal, locale)) : '—'}</td>
-                        <td><Pill kind={CONTRATO_KIND[c.statut] ?? 'amber'} noDot>{c.dataFim ? tc.jusquau(c.dataFim) : tc.statut(c.statut)}</Pill></td>
+                        <td><Pill kind={CONTRATO_KIND[c.statut] ?? 'amber'} noDot>{c.dataFim ? tc.jusquau(dateApi(c.dataFim, locale)) : tc.statut(c.statut)}</Pill></td>
                       </tr>
                     ))
               ) : t.demo.contrats.map((r, i) => (

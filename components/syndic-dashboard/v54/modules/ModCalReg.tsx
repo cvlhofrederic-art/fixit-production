@@ -17,7 +17,8 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Obrigacao } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { CAL_REG_MESSAGES } from './i18n/ModCalReg.messages'
 
 /** Calendário Regulamentar — port V5.7 + lot 3 fonctionnel.
@@ -50,6 +51,7 @@ const selectStyle = { padding: '10px 12px', borderRadius: 8, border: '1px solid 
 
 export default function ModCalReg() {
   const t = useMessages(CAL_REG_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Obrigacao[] = real ? (data.obrigacoes ?? []) : t.demo
@@ -114,7 +116,7 @@ export default function ModCalReg() {
                       <td><Pill kind="gold" noDot>{o.tipo}</Pill></td>
                       <td>{o.descricao || '—'}</td>
                       <td>
-                        <div className={m.numCell}>{o.prazo || '—'}</div>
+                        <div className={m.numCell}>{dateApi(o.prazo, locale) || '—'}</div>
                         <div style={{ fontSize: 11, color: b === 'expirado' ? 'var(--v54-rust-700)' : 'var(--v54-navy-300)' }}>{relLabel(o, t.relatif)}</div>
                       </td>
                       <td><span className={clsx(m.dotStatus, b === 'expirado' && m.dotStatusRust, (b === 'urgente' || b === 'proximo') && m.dotStatusAmber)} /></td>

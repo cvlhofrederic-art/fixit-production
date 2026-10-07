@@ -21,6 +21,7 @@ import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { CONTAB_COND_MESSAGES, type TypeLot } from './i18n/ModContabCond.messages'
 
 /** Contabilidade Condomínio — port byte-exact V5.7 + Phase 3 : 4 entités réelles (route /api/syndic/contab).
@@ -217,7 +218,7 @@ export default function ModContabCond() {
               <table className={m.tbl}>
                 <thead><tr><th>{t.cq.colonnes.titre}</th><th>{t.cq.colonnes.immeuble}</th><th>{t.cq.colonnes.emission}</th><th>{t.cq.colonnes.echeance}</th><th>{t.cq.colonnes.montant}</th><th>{t.cq.colonnes.regles}</th></tr></thead>
                 <tbody>{chamadas.map(c => (
-                  <tr key={c.id}><td>{c.titulo}</td><td>{c.edificio || '—'}</td><td>{c.dataEmissao}</td><td>{c.dataVencimento}</td><td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(c.montante, locale)}</td><td>{c.liquidadas} / {fracoes.length || '?'}</td></tr>
+                  <tr key={c.id}><td>{c.titulo}</td><td>{c.edificio || '—'}</td><td>{dateApi(c.dataEmissao, locale)}</td><td>{dateApi(c.dataVencimento, locale)}</td><td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(c.montante, locale)}</td><td>{c.liquidadas} / {fracoes.length || '?'}</td></tr>
                 ))}</tbody>
               </table>
             </div>
@@ -250,7 +251,7 @@ export default function ModContabCond() {
               <table className={m.tbl}>
                 <thead><tr><th>{t.diar.colonnes.date}</th><th>{t.diar.colonnes.compte}</th><th>{t.diar.colonnes.libelle}</th><th>{t.diar.colonnes.sens}</th><th>{t.diar.colonnes.montant}</th></tr></thead>
                 <tbody>{diario.map(d => (
-                  <tr key={d.id}><td>{d.data}</td><td>{d.conta}</td><td>{d.descricao}</td><td><Pill kind={d.tipo === 'credito' ? 'sage' : 'rust'}>{d.tipo === 'credito' ? t.sens.credito : t.sens.debito}</Pill></td><td style={{ fontVariantNumeric: 'tabular-nums', color: d.tipo === 'credito' ? 'var(--v54-sage-700)' : 'var(--v54-rust-700)' }}>{d.tipo === 'credito' ? '+' : '−'}{fmtEUR(d.montante, locale)}</td></tr>
+                  <tr key={d.id}><td>{dateApi(d.data, locale)}</td><td>{d.conta}</td><td>{d.descricao}</td><td><Pill kind={d.tipo === 'credito' ? 'sage' : 'rust'}>{d.tipo === 'credito' ? t.sens.credito : t.sens.debito}</Pill></td><td style={{ fontVariantNumeric: 'tabular-nums', color: d.tipo === 'credito' ? 'var(--v54-sage-700)' : 'var(--v54-rust-700)' }}>{d.tipo === 'credito' ? '+' : '−'}{fmtEUR(d.montante, locale)}</td></tr>
                 ))}</tbody>
               </table>
             </div>

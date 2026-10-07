@@ -19,6 +19,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { SEG_EDIFICIO_MESSAGES } from './i18n/ModSegEdificio.messages'
 
 /** Segurança Contra Incêndio — port byte-exact V5.7 + Phase 3 : classifications réelles. */
@@ -130,7 +131,7 @@ export default function ModSegEdificio() {
             <div key={s.id} style={{ padding: '16px 22px', borderBottom: '1px solid var(--v54-line)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 17, fontWeight: 500 }}>{s.immeuble}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{s.encarregado ? t.ligne.referent(s.encarregado) : t.ligne.sansReferent}{s.ultimoExercicio ? t.ligne.dernierExercice(s.ultimoExercicio) : ''}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{s.encarregado ? t.ligne.referent(s.encarregado) : t.ligne.sansReferent}{s.ultimoExercicio ? t.ligne.dernierExercice(dateApi(s.ultimoExercicio, locale)) : ''}</div>
               </div>
               {s.planoEmergencia && <Pill kind="sage" noDot>{t.ligne.planOk}</Pill>}
               <Pill kind={catKind(s.categoria)} noDot>{t.ligne.categorie(s.categoria)}</Pill>

@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { REEMBOLSOS_MESSAGES, type StatutReembolso } from './i18n/ModReembolsos.messages'
 
 /** Reembolsos Automáticos — port byte-exact V5.7 + Phase 3 : reembolsos réels. */
@@ -107,7 +108,7 @@ export default function ModReembolsos() {
                 <tr key={r.id}>
                   <td>{r.antigoProprietario || '—'}</td>
                   <td>{r.fracao || '—'}</td>
-                  <td>{r.dataVenda || '—'}</td>
+                  <td>{dateApi(r.dataVenda, locale) || '—'}</td>
                   <td className={m.mono}>{eur(r.quotasPagas, locale)}</td>
                   <td>—</td>
                   <td className={m.mono}>{eur(r.montanteReembolso, locale)}</td>

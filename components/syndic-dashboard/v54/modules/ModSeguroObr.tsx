@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { SEGURO_OBR_MESSAGES } from './i18n/ModSeguroObr.messages'
 
 /** Seguro Obrigatório de Condomínio — port byte-exact V5.7 + Phase 3 : réutilise syndic_seguros + syndic_sinistros.
@@ -152,8 +153,8 @@ export default function ModSeguroObr() {
                   <td>{a.seguradora}</td>
                   <td>{a.numero}</td>
                   <td>{a.edificio}</td>
-                  <td>{a.dataInicio}</td>
-                  <td>{a.dataFim}</td>
+                  <td>{dateApi(a.dataInicio, locale)}</td>
+                  <td>{dateApi(a.dataFim, locale)}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(a.premio, locale)}</td>
                   <td><Pill kind="sage">{t.active}</Pill></td>
                 </tr>

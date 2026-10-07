@@ -19,6 +19,7 @@ import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { VALORES_DIVIDA_MESSAGES } from './i18n/ModValoresDivida.messages'
 
 /** Valores em dívida — port byte-exact du ModValoresDivida du bundle V5.7 (stateful : Modal + Toast). */
@@ -98,7 +99,7 @@ export default function ModValoresDivida() {
                   <td>{it.condomino}</td>
                   <td>{it.fracao || '—'}</td>
                   <td>{it.edificio || '—'}</td>
-                  <td>{it.vencimento || '—'}</td>
+                  <td>{dateApi(it.vencimento, locale) || '—'}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.montante, locale)}</td>
                   <td><Pill kind="rust">{t.pastilleImpaye}</Pill></td>
                 </tr>

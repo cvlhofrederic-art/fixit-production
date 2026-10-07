@@ -16,7 +16,8 @@ import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import type { Reserva } from '@/lib/syndic/v54/api'
 import { RESERVA_ESP_MESSAGES, type EstadoReserva } from './i18n/ModReservaEsp.messages'
 
@@ -44,6 +45,7 @@ const DAYS = [0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
 
 export default function ModReservaEsp() {
   const t = useMessages(RESERVA_ESP_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Reserva[] = real ? (data.reservas ?? []) : t.demo
@@ -135,7 +137,7 @@ export default function ModReservaEsp() {
             <div key={r.id} style={{ padding: '14px 22px', borderBottom: i < all.length - 1 ? '1px solid var(--v54-line)' : 'none', display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--v54-cream)', display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}><Icon name={reservaIcon(r.espaco, t.motsBarbecue)} /></div>
               <div style={{ flex: 1 }}><b>{r.espaco}</b><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{r.quem}</div></div>
-              <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600 }}>{r.data}</div><div style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{r.hora}</div></div>
+              <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600 }}>{dateApi(r.data, locale)}</div><div style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{r.hora}</div></div>
               <Pill kind={estadoKind(r.estado)} noDot>{estadoLabel(r.estado)}</Pill>
               <Button variant="danger" size="sm" onClick={() => push({ kind: 'info', title: t.annulerReservation, desc: real ? t.annulationBientot : t.connexionSyndic })}>{t.annuler}</Button>
             </div>

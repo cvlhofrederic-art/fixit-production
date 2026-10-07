@@ -15,7 +15,8 @@ import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { PRAZOS_LEGAIS_MESSAGES, type PrazoLigne as Prazo } from './i18n/ModPrazosLegais.messages'
 
 /** Prazos Legais — port byte-exact V5.7 + Phase 3 : obligations réelles (CRUD).
@@ -46,6 +47,7 @@ const prazoKind = (d: string): PillKind => {
 
 export default function ModPrazosLegais() {
   const t = useMessages(PRAZOS_LEGAIS_MESSAGES)
+  const locale = useV54Locale()
   const f = t.formulaire
   // Phase 3 : vraies obligations du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
@@ -143,7 +145,7 @@ export default function ModPrazosLegais() {
         ) : rows.map((r, i) => (
           <div key={r.id ?? i} style={{ padding: '14px 22px', borderBottom: i < rows.length - 1 ? '1px solid var(--v54-line)' : 'none', display: 'flex', alignItems: 'center', gap: 14, opacity: r.realizado ? 0.6 : 1 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--v54-cream)', display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}><Icon name={r.icon} /></div>
-            <div style={{ flex: 1 }}><b>{r.titulo}</b> {r.edificio && <Pill kind={r.kind} noDot>{r.edificio}</Pill>}<div style={{ fontSize: 11, color: 'var(--v54-navy-300)', marginTop: 2 }}>{r.data}</div></div>
+            <div style={{ flex: 1 }}><b>{r.titulo}</b> {r.edificio && <Pill kind={r.kind} noDot>{r.edificio}</Pill>}<div style={{ fontSize: 11, color: 'var(--v54-navy-300)', marginTop: 2 }}>{dateApi(r.data, locale)}</div></div>
             <Pill kind={r.kind} noDot>{r.prazo}</Pill>
             <Button size="sm" style={checkBtn} disabled={busyId === r.id} onClick={() => mark(r.id)} aria-label={t.marquerRealise} title={t.marquerRealise}><Icon name="check" /></Button>
             <Button size="sm" variant="ghost" disabled={busyId === r.id} onClick={() => remove(r.id)} aria-label={t.supprimerAria} title={t.supprimer}><Icon name="trash" /></Button>

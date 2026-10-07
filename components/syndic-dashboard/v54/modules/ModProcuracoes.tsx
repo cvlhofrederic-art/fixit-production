@@ -20,6 +20,7 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { PROCURACOES_MESSAGES } from './i18n/ModProcuracoes.messages'
 
 /** Procurações & Lista de Presenças — port byte-exact V5.7 + Phase 3 : tracker réel. */
@@ -74,7 +75,7 @@ export default function ModProcuracoes() {
     downloadReportPdf(t.pdf.fichier, {
       title: t.pdf.titre,
       subtitle: t.pdf.sousTitre,
-      tables: [{ headers: t.pdf.colonnes, rows: all.map((p) => [p.condomino || '—', p.fracao || '—', p.procurador || '—', p.dataValidade || '—', statutLabel(p.statut), '']) }],
+      tables: [{ headers: t.pdf.colonnes, rows: all.map((p) => [p.condomino || '—', p.fracao || '—', p.procurador || '—', dateApi(p.dataValidade, locale) || '—', statutLabel(p.statut), '']) }],
     }, locale)
   }
 
@@ -113,7 +114,7 @@ export default function ModProcuracoes() {
                 <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 17, fontWeight: 500 }}>{p.condomino}{p.fracao ? ` · ${p.fracao}` : ''}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{t.representePar}{p.procurador || '—'}{p.agRef ? ` · ${p.agRef}` : ''}{p.immeuble ? ` · ${p.immeuble}` : ''}</div>
               </div>
-              {p.dataValidade && <span style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.validite}{p.dataValidade}</span>}
+              {p.dataValidade && <span style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.validite}{dateApi(p.dataValidade, locale)}</span>}
               <Pill kind={statutKind(p.statut)} noDot>{p.statut === 'expirada' ? t.statuts.expire : t.statuts.valide}</Pill>
             </div>
           ))}

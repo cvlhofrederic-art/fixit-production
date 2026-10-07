@@ -11,7 +11,8 @@ import { Empty } from '../primitives/empty'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import styles from './ModDashboard.module.css'
-import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { DASHBOARD_MESSAGES, type ActionRapideId } from './i18n/ModDashboard.messages'
 
 /**
@@ -66,9 +67,9 @@ function missionStatus(statut: string, statuts: Statuts): { label: string; color
   }
 }
 
-function missionToRow(m: Mission, statuts: Statuts): RecentRow {
+function missionToRow(m: Mission, statuts: Statuts, locale: V54Locale): RecentRow {
   const st = missionStatus(m.statut, statuts)
-  return [initials(m.immeuble), m.immeuble, m.type, m.artisan || '—', m.dateIntervention || m.dateCreation || '', st.label, st.color]
+  return [initials(m.immeuble), m.immeuble, m.type, m.artisan || '—', dateApi(m.dateIntervention || m.dateCreation, locale), st.label, st.color]
 }
 
 export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
@@ -83,7 +84,7 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
     setDateStr(new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()))
   }, [locale])
   const recent: ReadonlyArray<RecentRow> = real
-    ? data.missions.slice(0, 4).map((mi) => missionToRow(mi, t.statuts))
+    ? data.missions.slice(0, 4).map((mi) => missionToRow(mi, t.statuts, locale))
     : t.recentes.map((r) => {
         const st = missionStatus(r.statut, t.statuts)
         return [r.initiales, r.immeuble, r.type, r.prestataire, r.quand, st.label, st.color] as const

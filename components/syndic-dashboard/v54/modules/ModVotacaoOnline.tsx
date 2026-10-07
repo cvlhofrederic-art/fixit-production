@@ -18,7 +18,8 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Votacao } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { VOTACAO_ONLINE_MESSAGES } from './i18n/ModVotacaoOnline.messages'
 
 /** Votação Online AG — port V5.7 + lot 4 fonctionnel.
@@ -35,6 +36,7 @@ const pctOf = (v: Votacao) => (v.permTotal > 0 ? Math.min(100, Math.round((somaP
 
 export default function ModVotacaoOnline() {
   const t = useMessages(VOTACAO_ONLINE_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
   const all: Votacao[] = real ? (data.votacoes ?? []) : t.demo
@@ -86,7 +88,7 @@ export default function ModVotacaoOnline() {
       ) : all.filter(v => tab === 'hist' ? v.estado !== 'aberta' : tab === 'ativ' ? v.estado === 'aberta' : true).map((v) => (
         <div key={v.id} className={m.card} style={{ padding: 22, marginBottom: 14, position: 'relative' }}>
           {v.prazo && (
-            <div style={{ position: 'absolute', top: 18, right: 22, fontSize: 11, color: 'var(--v54-navy-300)' }}>{t.echeance}{v.prazo}</div>
+            <div style={{ position: 'absolute', top: 18, right: 22, fontSize: 11, color: 'var(--v54-navy-300)' }}>{t.echeance}{dateApi(v.prazo, locale)}</div>
           )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             <Pill kind={estadoKind(v.estado)} noDot>● {libelle(v.estado, t.etats)}</Pill>
