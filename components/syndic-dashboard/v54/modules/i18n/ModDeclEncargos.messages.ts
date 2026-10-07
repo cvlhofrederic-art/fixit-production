@@ -13,6 +13,8 @@ interface DeclEncargosTextes {
   onglets: { todas: (n: number) => string; pen: (n: number) => string; em: string; conc: (n: number) => string }
   videTitre: string
   videDesc: string
+  /** Onglet filtré sans aucune déclaration (alors que la liste n'est pas vide). */
+  vueVide: string
   colonnes: { lot: string; coproprietaire: string; immeuble: string; demande: string; dateLimite: string; charges: string; statut: string }
   /** Pastille de statut de chaque ligne (clé = valeur API `estado`). */
   statuts: Record<StatutDecl, string>
@@ -48,7 +50,11 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     chapeau: 'Obrigação legal — Lei n.° 8/2022 de 10 de janeiro · Transmissão de frações',
     nouvelle: '+ Nova declaração',
     alerteTitre: 'Obrigação legal — Lei n.° 8/2022 de 10 de janeiro (alteração ao Código Civil)',
-    alerteTexte: 'O administrador é obrigado a emitir a declaração de encargos em 10 dias úteis após o pedido. Após a escritura, o novo proprietário deve notificar o administrador no prazo de 15 dias.',
+    // Art. 1424.º-A, n.º 2, CC : 10 jours à compter du lendemain de la demande (« no prazo máximo de 10 dias »),
+    // terme reporté au premier jour ouvrable s'il tombe un dimanche ou un férié (art. 279.º, b) et e), via l'art. 296.º) ;
+    // DL 268/94, art. 3.º, n.º 3 :
+    // c'est le condómino alienante qui communique la vente, par correio registado, sous 15 jours.
+    alerteTexte: 'O administrador é obrigado a emitir a declaração de encargos no prazo máximo de 10 dias a contar do pedido (art. 1424.º-A, n.º 2, do Código Civil). Após a alienação, o condómino alienante deve comunicá-la ao administrador por correio registado, no prazo máximo de 15 dias, com o nome completo e o NIF do novo proprietário (art. 3.º, n.º 3, do Decreto-Lei n.º 268/94).',
     kpi: { total: 'Total de declarações', pendentes: 'Pendentes', horsDelai: 'Fora do prazo', concluidas: 'Concluídas' },
     onglets: {
       todas: (n) => `Todas (${n})`,
@@ -58,6 +64,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     },
     videTitre: 'Nenhuma declaração registada',
     videDesc: 'Crie uma declaração de encargos quando um condómino solicitar a venda da sua fração.',
+    vueVide: 'Sem declarações nesta vista.',
     colonnes: { lot: 'Fração', coproprietaire: 'Condómino', immeuble: 'Edifício', demande: 'Pedido', dateLimite: 'Prazo limite', charges: 'Encargos', statut: 'Estado' },
     statuts: { pendente: 'Pendente', emitida: 'Emitida', concluida: 'Concluída' },
     formulaire: {
@@ -78,7 +85,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     erreurs: { lot: 'A fração é obrigatória.', coproprietaire: 'Indique o condómino.' },
     toasts: {
       enregistree: 'Declaração registada',
-      enregistreeDesc: (lot) => `Fração ${lot} · prazo legal 10 dias úteis`,
+      enregistreeDesc: (lot) => `Fração ${lot} · prazo legal 10 dias`,
       erreur: 'Erro ao registar',
       reessayerPlusTard: 'Tente novamente mais tarde',
       enregistreeDemo: 'Declaração registada (demo)',
@@ -100,6 +107,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     },
     videTitre: 'Aucun état daté enregistré',
     videDesc: "Créez un état daté lorsque le notaire ou le copropriétaire vendeur vous le demande pour la vente d'un lot.",
+    vueVide: 'Aucun état daté dans cette vue.',
     colonnes: { lot: 'Lot', coproprietaire: 'Copropriétaire vendeur', immeuble: 'Immeuble', demande: 'Demande', dateLimite: 'Date limite', charges: 'Charges courantes', statut: 'Statut' },
     statuts: { pendente: 'À établir', emitida: 'Délivré', concluida: 'Clôturé' },
     formulaire: {
