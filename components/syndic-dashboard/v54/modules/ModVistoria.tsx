@@ -17,13 +17,16 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { VISTORIA_MESSAGES } from './i18n/ModVistoria.messages'
 
 /** Vistoria Técnica — port byte-exact V5.7 + Phase 3 : vistorias réelles. */
 
-const STATUT_LABEL: Record<string, string> = { em_curso: 'Em curso', concluida: 'Concluída', enviada: 'Enviada' }
 const statutKind = (s: string): PillKind => (s === 'concluida' ? 'sage' : s === 'enviada' ? 'gold' : 'amber')
 
 export default function ModVistoria() {
+  const t = useMessages(VISTORIA_MESSAGES)
+  const statutLabel: Record<string, string> = t.statuts
   // Phase 3 : vraies vistorias du cabinet si syndic connecté, sinon mock/empty (preview).
   const data = useSyndicData()
   const real = data.authenticated
@@ -45,7 +48,7 @@ export default function ModVistoria() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!form.titulo.trim()) errs.titulo = 'O título é obrigatório.'
+    if (!form.titulo.trim()) errs.titulo = t.erreurTitre
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       setBusy(true)
@@ -55,40 +58,40 @@ export default function ModVistoria() {
         body: JSON.stringify({ titulo: form.titulo, immeuble: form.immeuble, statut: form.statut, pontosVigiar: Number(form.pontosVigiar) || 0, pontosDeficientes: Number(form.pontosDeficientes) || 0, dataVistoria: form.dataVistoria }),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Vistoria criada', desc: form.titulo }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao criar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.creee, desc: form.titulo }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurCreation, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Vistoria criada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.creeeDemo, desc: t.toasts.connexionRequise })
   }
 
   return (
     <>
       <PageHead
-        title="Vistoria Técnica"
-        lede="Checklist de terreno → Relatório PDF · DL 555/99 · DL 97/2017 · DL 320/2002"
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />+ Nova vistoria</Button>}
+        title={t.titre}
+        lede={t.chapeau}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.nouvelleVisite}</Button>}
       />
       <KPIGrid items={[
-        { icon: 'check', num: real ? realizadas : 0, lbl: 'Vistorias realizadas', accent: 'sage' },
-        { icon: 'alert', num: real ? vigiar : 0, lbl: 'Pontos a vigiar', accent: 'amber' },
-        { icon: 'alert', num: real ? deficientes : 0, lbl: 'Pontos deficientes', accent: 'rust' },
+        { icon: 'check', num: real ? realizadas : 0, lbl: t.kpi.realisees, accent: 'sage' },
+        { icon: 'alert', num: real ? vigiar : 0, lbl: t.kpi.aSurveiller, accent: 'amber' },
+        { icon: 'alert', num: real ? deficientes : 0, lbl: t.kpi.defaillants, accent: 'rust' },
       ]} />
       <Tabs defaultActive="todas" tabs={[
-        { id: 'todas', label: 'Todas' },
-        { id: 'conc', label: 'Concluídas' },
-        { id: 'curso', label: 'Em curso' },
-        { id: 'env', label: 'Enviadas' },
+        { id: 'todas', label: t.onglets.todas },
+        { id: 'conc', label: t.onglets.conc },
+        { id: 'curso', label: t.onglets.curso },
+        { id: 'env', label: t.onglets.env },
       ]} />
       {all.length === 0 ? (
         <Panel>
           <Empty
             illustration="documentos"
-            title="Nenhuma vistoria registada"
-            desc="Comece a sua primeira vistoria técnica."
-            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />+ Nova vistoria</Button>}
+            title={t.vide.titre}
+            desc={t.vide.desc}
+            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />{t.nouvelleVisite}</Button>}
           />
         </Panel>
       ) : (
@@ -96,51 +99,51 @@ export default function ModVistoria() {
           {all.map((v) => (
             <div key={v.id} style={{ padding: '16px 22px', borderBottom: '1px solid var(--v54-line)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 17, fontWeight: 500 }}>{v.titulo || 'Vistoria'}</div>
+                <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 17, fontWeight: 500 }}>{v.titulo || t.titreParDefaut}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{[v.immeuble, v.dataVistoria].filter(Boolean).join(' · ')}</div>
               </div>
-              {v.pontosVigiar > 0 && <Pill kind="amber" noDot>{v.pontosVigiar} a vigiar</Pill>}
-              {v.pontosDeficientes > 0 && <Pill kind="rust" noDot>{v.pontosDeficientes} deficientes</Pill>}
-              <Pill kind={statutKind(v.statut)} noDot>{STATUT_LABEL[v.statut] ?? v.statut}</Pill>
+              {v.pontosVigiar > 0 && <Pill kind="amber" noDot>{v.pontosVigiar}{t.suffixeASurveiller(v.pontosVigiar)}</Pill>}
+              {v.pontosDeficientes > 0 && <Pill kind="rust" noDot>{v.pontosDeficientes}{t.suffixeDefaillants(v.pontosDeficientes)}</Pill>}
+              <Pill kind={statutKind(v.statut)} noDot>{statutLabel[v.statut] ?? v.statut}</Pill>
             </div>
           ))}
         </Panel>
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="nv-title" size="md">
-        <ModalHead icon="clipboard" id="nv-title" title="Nova vistoria" onClose={() => setOpen(false)} />
+        <ModalHead icon="clipboard" id="nv-title" title={t.modal.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Título" required full name="nv-tit" error={errors.titulo}>
-              <input type="text" placeholder="Ex.: Vistoria anual partes comuns" value={form.titulo} onChange={(e) => upd('titulo', e.target.value)} />
+            <Field label={t.modal.champTitre} required full name="nv-tit" error={errors.titulo}>
+              <input type="text" placeholder={t.modal.titrePlaceholder} value={form.titulo} onChange={(e) => upd('titulo', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Edifício" name="nv-imovel">
-                <input type="text" placeholder="Opcional" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+              <Field label={t.modal.immeuble} name="nv-imovel">
+                <input type="text" placeholder={t.modal.facultatif} value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
               </Field>
-              <Field label="Estado" name="nv-statut">
+              <Field label={t.modal.statut} name="nv-statut">
                 <select value={form.statut} onChange={(e) => upd('statut', e.target.value)}>
-                  <option value="em_curso">Em curso</option>
-                  <option value="concluida">Concluída</option>
-                  <option value="enviada">Enviada</option>
+                  <option value="em_curso">{t.statuts.em_curso}</option>
+                  <option value="concluida">{t.statuts.concluida}</option>
+                  <option value="enviada">{t.statuts.enviada}</option>
                 </select>
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Pontos a vigiar" name="nv-vig">
+              <Field label={t.modal.aSurveiller} name="nv-vig">
                 <input type="number" min="0" inputMode="numeric" placeholder="0" value={form.pontosVigiar} onChange={(e) => upd('pontosVigiar', e.target.value)} />
               </Field>
-              <Field label="Pontos deficientes" name="nv-def">
+              <Field label={t.modal.defaillants} name="nv-def">
                 <input type="number" min="0" inputMode="numeric" placeholder="0" value={form.pontosDeficientes} onChange={(e) => upd('pontosDeficientes', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Data da vistoria" full name="nv-data">
-              <input type="text" placeholder="AAAA-MM-DD" value={form.dataVistoria} onChange={(e) => upd('dataVistoria', e.target.value)} />
+            <Field label={t.modal.date} full name="nv-data">
+              <input type="text" placeholder={t.modal.datePlaceholder} value={form.dataVistoria} onChange={(e) => upd('dataVistoria', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{t.modal.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{t.modal.creer}</button>
           </ModalFoot>
         </form>
       </Modal>
