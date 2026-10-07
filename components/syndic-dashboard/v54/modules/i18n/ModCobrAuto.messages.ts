@@ -101,7 +101,7 @@ export const COBR_AUTO_MESSAGES = defineMessages<CobrAutoTextes>({
   },
   'fr-FR': {
     titre: 'Relances automatiques · Intérêts & frais',
-    chapeau: "Relances amiables graduées · Relances rédigées par l'IA · Mise en demeure (art. 19-2) · Intérêts au taux légal (art. 36 du décret de 1967) · Frais imputables (art. 10-1)",
+    chapeau: "Relances amiables graduées · Rédaction par l'IA · Mise en demeure (loi de 1965, art. 19-2) · Intérêts au taux légal (décret de 1967, art. 36) · Frais imputables au débiteur (loi de 1965, art. 10-1)",
     nouveau: '+ Nouveau dossier',
     kpi: { enCours: 'En cours de recouvrement', actifs: 'Dossiers actifs', recouvres: 'Recouvrés' },
     onglets: { proc: 'Dossiers de relance', js: 'Intérêts & frais' },

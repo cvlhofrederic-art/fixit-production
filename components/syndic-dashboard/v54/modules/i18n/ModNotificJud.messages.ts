@@ -151,7 +151,7 @@ export const NOTIFIC_JUD_MESSAGES = defineMessages<NotificJudTextes>({
       l2Fort: 'Art. 55',
       l2Avant: ' — Rendre compte ',
       l2Fort2: 'à la prochaine assemblée générale',
-      l2Apres: " des actions introduites. Sauf exceptions (recouvrement des charges, mesures conservatoires, référé, défense du syndicat), le syndic ne peut agir en justice qu'avec l'autorisation préalable de l'AG.",
+      l2Apres: " des actions introduites. Sauf exceptions (recouvrement de créances, mesures conservatoires, référé, défense du syndicat), le syndic ne peut agir en justice qu'avec l'autorisation préalable de l'AG.",
     },
     kpi: {
       actifs: 'Procédures en cours',
@@ -171,7 +171,7 @@ export const NOTIFIC_JUD_MESSAGES = defineMessages<NotificJudTextes>({
     },
     vide: {
       titre: 'Aucune procédure judiciaire en cours',
-      desc: "Dès qu'un acte arrive, enregistrez-le. Léa le classe (assignation · injonction · jugement) et en extrait les parties et les délais, puis Fixy rédige l'information des copropriétaires concernés.",
+      desc: "Dès qu'un acte arrive, enregistrez-le. Léa le classe (assignation · injonction · jugement) et en extrait les parties et les délais, puis Fixy rédige l'avis destiné à chaque copropriétaire.",
       action: '+ Premier acte reçu',
     },
     colonnes: { type: 'Type', contrepartie: 'Partie adverse', numero: 'N° de procédure', date: 'Date', valeur: 'Montant', statut: 'Statut' },

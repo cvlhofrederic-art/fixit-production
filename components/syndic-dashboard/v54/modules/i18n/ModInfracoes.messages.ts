@@ -128,7 +128,7 @@ export const INFRACOES_MESSAGES = defineMessages<InfracoesTextes>({
     onglets: { pipeline: 'Étapes', infracoes: 'Infractions', modelos: 'Modèles de lettres', hist: 'Historique' },
     alerte: {
       titre: 'Faire respecter le règlement de copropriété',
-      texte: "Le syndic veille à l'exécution du règlement de copropriété (art. 18 de la loi du 10 juillet 1965) mais ne peut infliger aucune amende. Chaque infraction suit les étapes signalement → constat → mise en demeure → action en justice du syndicat, en principe autorisée par l'assemblée générale (art. 55 du décret du 17 mars 1967), avec conservation des preuves et modèles de lettres générés automatiquement.",
+      texte: "Le syndic est chargé d'assurer l'exécution du règlement de copropriété (art. 18 de la loi du 10 juillet 1965), mais il ne peut infliger aucune amende. Chaque infraction suit les étapes signalement → constat → mise en demeure puis, si nécessaire, action en justice du syndicat, en principe autorisée par l'assemblée générale (art. 55 du décret du 17 mars 1967). Les preuves sont conservées et les modèles de lettres générés automatiquement.",
     },
     kpi: { ouvertes: 'Infractions ouvertes', enCours: 'En cours de traitement', montants: 'Montants réclamés', resolues: 'Résolues' },
     montant: (n) => `${n} €`,
@@ -138,7 +138,7 @@ export const INFRACOES_MESSAGES = defineMessages<InfracoesTextes>({
       analise: 'Constat & preuves',
       notificacao: 'Mise en demeure',
       multa: 'Action en justice',
-      resolvida: 'Résolues',
+      resolvida: 'Résolution',
     },
     etapes: {
       sinalizada: 'Signalée',
@@ -148,7 +148,7 @@ export const INFRACOES_MESSAGES = defineMessages<InfracoesTextes>({
       resolvida: 'Résolue',
     },
     panneauModeles: 'Modèles de lettres',
-    modeles: ['Rappel au règlement de copropriété', 'Mise en demeure (LRAR)', "Saisine de l'avocat du syndicat", 'Proposition de règlement amiable'],
+    modeles: ['Rappel au règlement de copropriété', 'Mise en demeure (LRAR)', "Saisine de l'avocat du syndicat", 'Proposition de résolution amiable'],
     panneauListe: 'Infractions en cours',
     vide: { titre: 'Aucune infraction enregistrée', desc: 'Signalez la première infraction au règlement de copropriété' },
     colonnes: { type: 'Type', coproprietaire: 'Copropriétaire', immeuble: 'Immeuble', etape: 'Étape', montant: 'Montant réclamé' },

@@ -91,9 +91,9 @@ export const RGPD_CENTER_MESSAGES = defineMessages<RGPDCenterTextes>({
       fort1: 'registre des activités de traitement',
       b: " (art. 30). Répondre aux demandes d'exercice des droits (accès, rectification, opposition, effacement, portabilité) dans un délai d'",
       fort2: 'un mois',
-      c: ' (art. 12, prolongeable de deux mois). Notifier toute violation de données à la CNIL dans les ',
+      c: ', prolongeable de deux mois si nécessaire (art. 12). Notifier à la CNIL toute violation de données présentant un risque pour les personnes, si possible dans les ',
       fort3: '72 heures',
-      d: ' (art. 33).',
+      d: ' suivant sa découverte (art. 33).',
     },
     kpi: {
       traitements: 'Traitements enregistrés',

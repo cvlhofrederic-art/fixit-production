@@ -107,7 +107,7 @@ export const CERT_ENERG_MESSAGES = defineMessages<CertEnergTextes>({
     ajouter: '+ Ajouter un DPE',
     alerte: {
       titre: 'DPE collectif obligatoire — loi Climat et résilience',
-      texte: "Le DPE collectif est obligatoire pour les immeubles en copropriété dont le permis de construire a été déposé avant le 1er janvier 2013 : depuis le 1er janvier 2024 au-delà de 200 lots, depuis le 1er janvier 2025 de 50 à 200 lots et depuis le 1er janvier 2026 pour 50 lots au plus (art. L126-31 du code de la construction et de l'habitation). Il est renouvelé tous les 10 ans, sauf si un DPE réalisé après le 1er juillet 2021 classe l'immeuble en A, B ou C. Location : les logements classés G sont exclus des nouveaux baux depuis 2025, les F le seront en 2028 et les E en 2034.",
+      texte: "Le DPE collectif est obligatoire pour les immeubles en copropriété dont le permis de construire a été déposé avant le 1er janvier 2013 : depuis le 1er janvier 2024 au-delà de 200 lots, depuis le 1er janvier 2025 de 50 à 200 lots et depuis le 1er janvier 2026 pour 50 lots au plus (art. L126-31 du code de la construction et de l'habitation). Il est renouvelé tous les 10 ans, sauf si un DPE réalisé après le 1er juillet 2021 classe l'immeuble en A, B ou C. Location (critère de décence énergétique, métropole) : un logement classé G ne peut plus faire l'objet d'un nouveau bail ni d'un renouvellement depuis le 1er janvier 2025 ; il en sera de même pour la classe F au 1er janvier 2028 et pour la classe E au 1er janvier 2034.",
     },
     kpi: {
       certificats: 'DPE enregistrés',

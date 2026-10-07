@@ -90,20 +90,20 @@ export const EXTRANET_MESSAGES = defineMessages<ExtranetTextes>({
   },
   'fr-FR': {
     titre: 'Extranet copropriétaires',
-    chapeau: "Registre · Accès à l'extranet (décret n° 2019-502) · Demandes d'intervention",
+    chapeau: "Liste des copropriétaires · Accès à l'extranet (décret n° 2019-502) · Demandes d'intervention",
     ajouter: '+ Copropriétaire',
     onglets: {
       coproprietaires: (n) => `Copropriétaires (${n})`,
       demandes: (n) => `Demandes d'intervention (${n})`,
     },
     kpi: { coproprietaires: 'Copropriétaires', acces: 'Accès actifs', solde: 'Solde global', retard: 'En retard' },
-    vide: { titre: 'Registre vide', desc: "Ajoutez vos copropriétaires pour leur ouvrir l'accès à l'extranet", action: '+ Premier copropriétaire' },
+    vide: { titre: 'Aucun copropriétaire inscrit', desc: "Ajoutez vos copropriétaires pour leur ouvrir l'accès à l'extranet", action: '+ Premier copropriétaire' },
     colonnes: { nom: 'Nom', email: 'E-mail', telephone: 'Téléphone', lot: 'Lot', solde: 'Solde', acces: 'Accès' },
     actif: 'Actif',
     inactif: 'Inactif',
     portail: {
       titre: 'Espace copropriétaires',
-      texte: "Chaque copropriétaire accède à son espace personnel pour consulter ses appels de fonds, les PV d'AG et les documents de la copropriété (accès en ligne sécurisé dû par le syndic professionnel : art. 18 de la loi du 10 juillet 1965 et décret n° 2019-502 du 23 mai 2019).",
+      texte: "Chaque copropriétaire accède à son espace personnel pour consulter ses appels de fonds, les PV d'AG et les documents de la copropriété (accès en ligne sécurisé que le syndic professionnel doit proposer, sauf décision contraire de l'AG : art. 18 de la loi du 10 juillet 1965 et décret n° 2019-502 du 23 mai 2019).",
       urlAria: "URL de l'extranet",
       copier: 'Copier',
     },
