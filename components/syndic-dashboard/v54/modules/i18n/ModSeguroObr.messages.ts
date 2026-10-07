@@ -141,7 +141,7 @@ export const SEGURO_OBR_MESSAGES = defineMessages<SeguroObrTextes>({
   },
   'fr-FR': {
     titre: 'Assurance obligatoire du syndicat',
-    chapeau: 'Responsabilité civile obligatoire du syndicat · Art. 9-1 de la loi n° 65-557 du 10 juillet 1965 · Multirisque immeuble',
+    chapeau: 'Responsabilité civile obligatoire du syndicat · Art. 9-1 de la loi n° 65-557 du 10 juillet 1965 · Généralement couverte par la multirisque immeuble',
     nouvellePolice: '+ Nouvelle police',
     declarerSinistre: 'Déclarer un sinistre',
     kpi: { actives: 'Polices actives', aRenouveler: 'À renouveler (< 60 jours)', expirees: 'Expirées', primeTotale: 'Prime annuelle totale', sinistresOuverts: 'Sinistres en cours', totalIndemnise: 'Total indemnisé' },
