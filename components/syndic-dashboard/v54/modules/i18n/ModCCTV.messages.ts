@@ -4,7 +4,8 @@ import { defineMessages } from '@/lib/syndic/v54/i18n'
  * Textes de l'écran « Câmaras de Vigilância » / « Vidéoprotection ».
  * FR : vidéoprotection des parties communes d'une copropriété — vote de l'AG
  * (loi n° 65-557 du 10 juillet 1965), aucune formalité préalable auprès de la
- * CNIL depuis le RGPD (inscription au registre des traitements), panneau
+ * CNIL depuis le RGPD (inscription au registre des traitements), autorisation
+ * préfectorale si la caméra filme un lieu ouvert au public, panneau
  * d'information (RGPD art. 13, loi Informatique et libertés art. 104),
  * conservation d'un mois au plus et accès réservé aux personnes habilitées
  * (fiche CNIL « La vidéosurveillance – vidéoprotection dans les immeubles d'habitation »).
@@ -104,13 +105,13 @@ export const CCTV_MESSAGES = defineMessages<CctvTextes>({
     alerte: {
       titre: 'Vidéoprotection en copropriété — règles',
       fort1: "Vote de l'assemblée générale",
-      suite1: " obligatoire avant toute installation dans les parties communes (aucune autorisation préalable de la CNIL : inscription au registre des traitements). ",
+      suite1: " obligatoire avant toute installation dans les parties communes (aucune formalité auprès de la CNIL, inscription au registre des traitements ; autorisation préfectorale si un lieu ouvert au public est filmé). ",
       fort2: "Panneau d'information visible",
       suite2: ' à chaque entrée (pictogramme · finalités · responsable · durée de conservation · droits · contact CNIL). ',
       fort3: "Conservation d'un mois au plus",
       suite3: '. ',
       fort4: 'Accès réservé',
-      suite4: ' aux personnes habilitées : syndic, conseil syndical, gardien (accès journalisés).',
+      suite4: ' aux personnes habilitées : syndic, membres du conseil syndical, gardien (accès journalisés).',
     },
     kpi: {
       cameras: 'Caméras enregistrées',

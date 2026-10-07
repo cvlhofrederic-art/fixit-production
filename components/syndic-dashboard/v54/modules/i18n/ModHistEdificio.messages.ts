@@ -137,7 +137,7 @@ export const HIST_EDIFICIO_MESSAGES = defineMessages<HistEdificioTextes>({
       vide: 'Aucun équipement enregistré.',
       parDefaut: 'Ascenseur',
       derniereInspection: (date) => `Dernier contrôle : ${date}`,
-      prochaine: (date) => `Prochain : ${date}`,
+      prochaine: (date) => `Prochain contrôle : ${date}`,
     },
     contrats: {
       titre: 'Contrats',
@@ -159,8 +159,8 @@ export const HIST_EDIFICIO_MESSAGES = defineMessages<HistEdificioTextes>({
         ['02/02/2026', 'Remplacement de la pompe à eau', 'HydroPro SARL', '890 €'],
       ],
       equipements: [
-        ['Ascenseur OTIS A', 'Dernier contrôle : 28/04/2026', 'Conforme', 'Prochain : 04/2031', 'sage'],
-        ['Centrale CVC', 'Dernier contrôle : 10/01/2026', 'Conforme', 'Prochain : 01/2027', 'sage'],
+        ['Ascenseur OTIS A', 'Dernier contrôle : 28/04/2026', 'Conforme', 'Prochain contrôle : 04/2031', 'sage'],
+        ['Installation CVC', 'Dernier contrôle : 10/01/2026', 'Conforme', 'Prochain contrôle : 01/2027', 'sage'],
         ['Surpresseur', 'Remplacé le 02/02/2026', 'Opérationnel', '—', 'sage'],
         ['Portail automatique', 'Entretien en attente', 'À planifier', '12 jours de retard', 'amber'],
       ],

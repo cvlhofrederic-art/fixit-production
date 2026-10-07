@@ -4,10 +4,12 @@ import { defineMessages } from '@/lib/syndic/v54/i18n'
  * Textes de l'écran « Gestão de Elevadores » / « Gestion des ascenseurs ».
  * FR : code de la construction et de l'habitation, art. L134-1 et s. et R134-1 et s.
  * (dispositions issues du décret n° 2004-964 du 9 septembre 2004) :
- *  - entretien : visite au plus toutes les six semaines (CCH art. R134-6), en pratique
- *    confié par contrat écrit à un ascensoriste ;
- *  - contrôle technique tous les cinq ans par un contrôleur indépendant, rapport remis
- *    au propriétaire dans le mois (CCH art. R134-11) ;
+ *  - entretien : visite toutes les six semaines (CCH art. R134-6) ;
+ *  - contrat d'entretien écrit, carnet d'entretien et rapport annuel d'activité de
+ *    l'entreprise d'entretien (CCH art. R134-7) ;
+ *  - contrôle technique tous les cinq ans (CCH art. R134-11) par un contrôleur habilité
+ *    ou certifié (CCH art. R134-12) ; rapport remis au propriétaire dans le mois, puis
+ *    transmis par lui à l'entreprise d'entretien (CCH art. R134-13) ;
  *  - défauts présentant un danger repérés par le contrôle : mesures d'entretien
  *    spécifiques (CCH art. R134-6). Aucune déclaration à la mairie (spécificité PT).
  * Les codes de catégorie (comercial / misto / habitacional) et d'état (conforme /
@@ -174,21 +176,21 @@ export const ELEVADORES_MESSAGES = defineMessages<ElevadoresTextes>({
     },
   },
   'fr-FR': {
-    surtitre: 'OBLIGATION LÉGALE · CCH, ART. L134-1 ET R134-1 ET S.',
+    surtitre: 'OBLIGATION LÉGALE · CCH, ART. L134-1 ET S. ET R134-1 ET S.',
     titre: 'Gestion des ascenseurs',
     chapeau: "Contrat d'entretien écrit · Visite au moins toutes les 6 semaines · Contrôle technique tous les 5 ans",
     enregistrer: '+ Enregistrer un ascenseur',
     importerRapport: 'Importer un rapport de contrôle',
     alerte: {
-      titre: 'Obligations périodiques — CCH, art. R134-1 et suivants',
+      titre: 'Obligations périodiques — CCH, art. R134-6 à R134-13',
       lignes: [
         ['6 semaines', " — intervalle maximal entre deux visites d'entretien de l'ascensoriste (contrat d'entretien écrit)."],
-        ['5 ans', " — contrôle technique par un contrôleur indépendant, quel que soit le type d'immeuble."],
-        ['Chaque année', " — rapport d'activité remis par l'ascensoriste, reprenant le carnet d'entretien de l'appareil."],
+        ['5 ans', " — contrôle technique par un contrôleur habilité ou certifié, quel que soit le type d'immeuble."],
+        ['Chaque année', " — rapport d'activité remis par l'ascensoriste ; chaque visite est consignée dans le carnet d'entretien de l'appareil."],
       ],
-      finAvant: 'Rapport du contrôle technique remis au syndicat ',
+      finAvant: 'Rapport du contrôle technique remis au syndicat des copropriétaires ',
       finFort: 'dans le mois',
-      finApres: ' suivant le contrôle.',
+      finApres: " suivant l'intervention, puis transmis à l'ascensoriste.",
     },
     kpi: {
       enregistres: 'Ascenseurs enregistrés',
@@ -220,11 +222,11 @@ export const ELEVADORES_MESSAGES = defineMessages<ElevadoresTextes>({
     etats: { atraso: 'En retard', prazo: 'Échéance proche', conforme: 'Conforme' },
     procedure: {
       titre: 'Procédure en cas de défaut dangereux',
-      sousTitre: 'CCH, art. R134-6 et R134-11',
+      sousTitre: 'CCH, art. R134-6, R134-11 et R134-13',
       etapes: [
         ['1', "Le contrôleur ou l'ascensoriste repère un défaut dangereux", 'Freinage · câbles · portes palières · boîte à boutons'],
-        ['2', "L'ascensoriste prévient le syndic", "E-mail / SMS automatique · mise à l'arrêt de l'appareil si nécessaire"],
-        ['3', 'Le syndic informe les occupants', 'Avis généré automatiquement · affiché dans le hall'],
+        ['2', 'Alerte immédiate du syndic', "E-mail / SMS automatique · mise à l'arrêt de l'appareil si nécessaire"],
+        ['3', "Le syndic transmet le rapport à l'ascensoriste", 'Courrier généré automatiquement · demande de mise en sécurité'],
         ['4', 'Affichage « ascenseur hors service »', 'Affiche générée automatiquement en PDF'],
         ['5', "Suivi jusqu'à la remise en service", 'Mise à jour de la maintenance prédictive'],
       ],

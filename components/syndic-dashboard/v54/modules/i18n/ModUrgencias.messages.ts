@@ -93,7 +93,7 @@ export const URGENCIAS_MESSAGES = defineMessages<UrgenciasTextes>({
     interventionParDefaut: 'Intervention',
     prioriteUrgente: 'Urgente',
     priorites: { critica: 'Critique', alta: 'Haute', media: 'Moyenne' },
-    etats: { procura: 'Recherche en cours', despacho: "En cours d'affectation", despachada: 'Affectée', curso: 'En cours', concluida: 'Terminée', anulada: 'Annulée' },
+    etats: { procura: "Recherche d'un prestataire", despacho: "En cours d'affectation", despachada: 'Affectée', curso: 'En cours', concluida: 'Terminée', anulada: 'Annulée' },
     demo: [
       { tipo: "Fuite d'eau au parking, niveau -2", edificio: 'Résidence Aurore', prioridade: 'critica', profissional: 'HydroPro SARL', estado: 'despachada', tempo: '6 min' },
       { tipo: 'Ascenseur bloqué au 4e étage', edificio: 'Résidence Belle Vue', prioridade: 'alta', profissional: 'ElevaTech', estado: 'despacho', tempo: '11 min' },
