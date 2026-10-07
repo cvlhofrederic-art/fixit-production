@@ -92,9 +92,9 @@ export const OCORRENCIAS_MESSAGES = defineMessages<OcorrenciasTextes>({
     demo: [
       { icone: 'water', titre: 'Infiltration au plafond du parking B2', lieu: 'Résidence Aurore — Anne Simon', etat: 'En réparation', priorite: 'urgente', kind: 'rust' },
       { icone: 'elevator', titre: 'Ascenseur bloqué au 4e étage', lieu: 'Résidence Aurore — Michel Costes', etat: 'Prestataire contacté', priorite: 'haute', kind: 'amber' },
-      { icone: 'lightning', titre: "Court-circuit sur l'éclairage du hall", lieu: 'Résidence Bellevue — Marie Laporte', etat: "En cours d'analyse", priorite: 'haute', kind: 'amber' },
+      { icone: 'lightning', titre: "Court-circuit sur l'éclairage du hall", lieu: 'Résidence Belle Vue — Marie Laporte', etat: "En cours d'analyse", priorite: 'haute', kind: 'amber' },
       { icone: 'water', titre: "Fuite d'eau sur la canalisation du RDC", lieu: 'Résidence Aurore — Pierre Sanchez', etat: 'Ouvert', priorite: 'urgente', kind: 'rust' },
-      { icone: 'bank', titre: 'Graffitis sur la façade nord', lieu: 'Résidence Bellevue — Carole Martin', etat: 'Résolu', priorite: 'normale', kind: 'sage' },
+      { icone: 'bank', titre: 'Graffitis sur la façade nord', lieu: 'Résidence Belle Vue — Carole Martin', etat: 'Résolu', priorite: 'normale', kind: 'sage' },
     ],
   },
 })

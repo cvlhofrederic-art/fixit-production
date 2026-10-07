@@ -143,7 +143,7 @@ export const RESERVA_ESP_MESSAGES = defineMessages<ReservaEspTextes>({
     vueActive: 'Vue active',
     mois: 'Mois',
     jours: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
-    evenements: { piscina: 'Piscine', salao: 'Salle commune', campo: 'Terrain', ginasio: 'Salle de sport', churrasqueira: 'Barbecue', sala: 'Salle réunion' },
+    evenements: { piscina: 'Piscine', salao: 'Salle commune', campo: 'Terrain', ginasio: 'Salle de sport', churrasqueira: 'Barbecue', sala: 'Salle de réunion' },
     prochaines: 'Prochaines réservations',
     aucuneReservation: 'Aucune réservation',
     aucuneReservationDesc: "Créez la première réservation d'un espace commun de la copropriété",

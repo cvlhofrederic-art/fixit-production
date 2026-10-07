@@ -142,15 +142,15 @@ export const REEMBOLSOS_MESSAGES = defineMessages<ReembolsosTextes>({
   'fr-FR': {
     surtitre: 'OPÉRATIONNEL · MUTATION DE LOT',
     titre: 'Remboursements automatisés',
-    chapeau: "Trop-perçus, soldes créditeurs et apurement du compte vendeur lors d'une vente de lot · Max Expert calcule · Open Banking exécute · délais de l'art. 20 de la loi de 1965",
+    chapeau: "Apurement du compte vendeur lors d'une vente de lot · Max Expert calcule · Open Banking exécute · délais de l'art. 20 de la loi de 1965",
     enregistrerMutation: 'Enregistrer une mutation de lot',
     voirEnAttente: 'Voir les remboursements en attente',
     alerte: {
-      titre: "Remboursements aux copropriétaires et vente d'un lot",
-      debut: "Un trop-perçu ou un solde créditeur est remboursé au copropriétaire ou déduit de son prochain appel de fonds. Lors de la vente d'un lot, le syndic rembourse au vendeur ses avances (art. 45-1 du décret du 17 mars 1967) et les provisions versées d'avance non encore exigibles ; le trop-perçu révélé ensuite par l'approbation des comptes revient au copropriétaire en place à cette date (art. 6-2 du même décret). ",
+      titre: "Remboursements lors de la vente d'un lot",
+      debut: "Lors de la vente d'un lot, le vendeur récupère ses avances (art. 45-1 du décret du 17 mars 1967) et les provisions versées d'avance non encore exigibles ; le trop-perçu révélé ensuite par l'approbation des comptes revient au copropriétaire en place à cette date (art. 6-2 du même décret). ",
       libelleCalcul: 'Calcul',
       separateur: ' : ',
-      formule: 'sommes_versées - sommes_exigibles + avances',
+      formule: 'provisions_versées - sommes_exigibles + avances',
       fin: ". Le fonds de travaux reste acquis au syndicat et n'est pas remboursé lors de la vente (art. 14-2-1 de la loi du 10 juillet 1965).",
     },
     kpi: {
