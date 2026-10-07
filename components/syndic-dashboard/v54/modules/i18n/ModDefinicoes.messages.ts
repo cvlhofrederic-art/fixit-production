@@ -1,13 +1,5 @@
 import { defineMessages } from '@/lib/syndic/v54/i18n'
 
-/** Champ d'identité du cabinet (id HTML, libellé, valeur de démonstration, aide à la saisie). */
-export interface ChampCabinet {
-  id: string
-  libelle: string
-  valeur?: string
-  autoComplete?: string
-}
-
 interface DefinicoesTextes {
   titre: string
   chapeau: string
@@ -33,8 +25,10 @@ interface DefinicoesTextes {
   }
   cabinet: {
     titre: string
-    /** Identité du cabinet : en France, avec les mentions professionnelles du syndic (loi Hoguet). */
-    champs: ChampCabinet[]
+    nom: string
+    nomValeur: string
+    email: string
+    emailValeur: string
     adresse: string
     adressePlaceholder: string
     logo: string
@@ -76,10 +70,10 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
     },
     cabinet: {
       titre: 'O Meu Gabinete',
-      champs: [
-        { id: 'def-nome', libelle: 'Nome do gabinete', valeur: 'VitFix Admin', autoComplete: 'name' },
-        { id: 'def-email', libelle: 'Email', valeur: 'admincvlho@gmail.com', autoComplete: 'email' },
-      ],
+      nom: 'Nome do gabinete',
+      nomValeur: 'VitFix Admin',
+      email: 'Email',
+      emailValeur: 'admincvlho@gmail.com',
       adresse: 'Morada do gabinete',
       adressePlaceholder: 'Ex: Rua das Flores 123, 1000-001 Lisboa',
       logo: 'Logo do gabinete',
@@ -128,17 +122,11 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
     },
     cabinet: {
       titre: 'Mon cabinet',
-      // Loi n° 70-9 du 2 janvier 1970 (loi Hoguet), art. 3 : l'activité de syndic de copropriété exige
-      // une carte professionnelle délivrée par la CCI, une garantie financière et une assurance de
-      // responsabilité civile professionnelle. Données fictives (SIRET et n° de carte de démonstration).
-      champs: [
-        { id: 'def-nome', libelle: 'Nom du cabinet', valeur: 'Cabinet VitFix', autoComplete: 'name' },
-        { id: 'def-email', libelle: 'E-mail', valeur: 'contact@exemple.fr', autoComplete: 'email' },
-        { id: 'def-siret', libelle: 'SIRET', valeur: '492 118 332 00027' },
-        { id: 'def-carte', libelle: 'N° de carte professionnelle (loi Hoguet)', valeur: 'CPI 6901 2026 000 012 345' },
-        { id: 'def-garantie', libelle: 'Garantie financière', valeur: 'Caisse Rhodanienne — 120 000 €' },
-        { id: 'def-rcp', libelle: 'Assurance RC professionnelle', valeur: 'Mutuelle Rhodanienne — RCP-2026-0412' },
-      ],
+      nom: 'Nom du cabinet',
+      nomValeur: 'Cabinet VitFix',
+      // Adresse fictive de démonstration : l'adresse personnelle de la version PT n'est pas reprise.
+      email: 'E-mail',
+      emailValeur: 'contact@exemple.fr',
       adresse: 'Adresse du cabinet',
       adressePlaceholder: 'Ex. : 12 rue de la République, 69002 Lyon',
       logo: 'Logo du cabinet',

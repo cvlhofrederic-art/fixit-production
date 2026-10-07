@@ -61,7 +61,7 @@ export const COMUNIC_DIGITAL_MESSAGES = defineMessages<ComunicDigitalTextes>({
     // si le copropriétaire le demande.
     chapeau: "Notifications et envois électroniques aux copropriétaires (art. 42-1 de la loi du 10 juillet 1965) — envoi postal sur demande",
     onglets: { msg: 'Messages', mod: 'Modèles', gp: 'Envoi groupé', def: 'Paramètres' },
-    kpi: { total: 'Total envoyés', attente: 'En attente', distribues: 'Distribués', lus: 'Lus' },
+    kpi: { total: 'Total des envois', attente: 'En attente', distribues: 'Distribués', lus: 'Lus' },
     filtres: {
       typeAria: 'Filtrer par type',
       tousLesTypes: 'Tous les types',

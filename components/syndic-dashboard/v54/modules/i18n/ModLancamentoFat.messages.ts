@@ -23,7 +23,7 @@ export const LANCAMENTO_FAT_MESSAGES = defineMessages<LancamentoFatTextes>({
   'fr-FR': {
     titre: 'Saisie IA des factures',
     chapeau: 'Import, extraction automatique et validation des factures fournisseurs',
-    kpi: { total: 'Total factures', attente: 'En attente', validees: 'Validées', anomalies: 'Anomalies' },
+    kpi: { total: 'Total des factures', attente: 'En attente', validees: 'Validées', anomalies: 'Anomalies' },
     onglets: { imp: 'Importer des factures', esp: 'En attente', trat: 'Traitées', an: 'Anomalies', cfg: 'Configuration' },
     depot: { titre: 'Glissez-déposez vos factures ici', formats: 'Formats acceptés : PDF, JPG, PNG — import par lots possible' },
     parcourir: 'Parcourir les fichiers',

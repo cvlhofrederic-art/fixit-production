@@ -52,9 +52,8 @@ export default function ModDefinicoes() {
       </Panel>
       <Panel title={cab.titre}>
         <div className={m.cardGrid}>
-          {cab.champs.map((c) => (
-            <div key={c.id}><label htmlFor={c.id} style={fieldLabel}>{c.libelle}</label><input id={c.id} defaultValue={c.valeur} autoComplete={c.autoComplete} style={fieldCtrl} /></div>
-          ))}
+          <div><label htmlFor="def-nome" style={fieldLabel}>{cab.nom}</label><input id="def-nome" defaultValue={cab.nomValeur} autoComplete="name" style={fieldCtrl} /></div>
+          <div><label htmlFor="def-email" style={fieldLabel}>{cab.email}</label><input id="def-email" defaultValue={cab.emailValeur} autoComplete="email" style={fieldCtrl} /></div>
         </div>
         <div style={{ marginTop: 14 }}><label htmlFor="def-morada" style={fieldLabel}>{cab.adresse}</label><textarea id="def-morada" rows={2} placeholder={cab.adressePlaceholder} style={fieldCtrl} /></div>
         <div style={{ marginTop: 14 }}>
