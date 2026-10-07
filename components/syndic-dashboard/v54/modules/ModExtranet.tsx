@@ -80,8 +80,18 @@ export default function ModExtranet() {
   const acessosAtivos = displayItems.filter(i => i.acessoAtivo).length
   const saldoGlobal = displayItems.reduce((s, i) => s + (i.saldo || 0), 0)
   const emAtraso = displayItems.filter(i => (i.saldo || 0) < 0).length
-  const copyPortalUrl = () => {
-    if (navigator.clipboard) navigator.clipboard.writeText(URL_PORTAIL)
+  /** Copie l'URL du portail : « copié » seulement une fois la copie confirmée par le navigateur. */
+  const copyPortalUrl = async () => {
+    const echec = () => push({ kind: 'error', title: t.toasts.copieImpossible, desc: t.toasts.copierManuellement })
+    // Presse-papiers absent hors contexte sécurisé (http) et sur certains navigateurs : rien n'est copié.
+    if (!navigator.clipboard?.writeText) { echec(); return }
+    try {
+      await navigator.clipboard.writeText(URL_PORTAIL)
+    } catch {
+      // Copie refusée (permission, document sans focus : NotAllowedError) : l'utilisateur copie à la main.
+      echec()
+      return
+    }
     push({ kind: 'info', title: t.toasts.lienCopie, desc: t.toasts.urlCopiee })
   }
 

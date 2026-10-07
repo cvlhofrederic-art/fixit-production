@@ -40,6 +40,9 @@ interface ExtranetTextes {
     reessayerPlusTard: string
     lienCopie: string
     urlCopiee: string
+    /** Copie refusée par le navigateur ou presse-papiers indisponible (toast d'erreur). */
+    copieImpossible: string
+    copierManuellement: string
   }
 }
 
@@ -86,6 +89,8 @@ export const EXTRANET_MESSAGES = defineMessages<ExtranetTextes>({
       reessayerPlusTard: 'Tente novamente mais tarde',
       lienCopie: 'Link copiado',
       urlCopiee: 'URL do portal copiado para o clipboard',
+      copieImpossible: 'Não foi possível copiar o link',
+      copierManuellement: 'Selecione o URL do portal e copie-o manualmente',
     },
   },
   'fr-FR': {
@@ -130,6 +135,8 @@ export const EXTRANET_MESSAGES = defineMessages<ExtranetTextes>({
       reessayerPlusTard: 'Veuillez réessayer plus tard',
       lienCopie: 'Lien copié',
       urlCopiee: "URL de l'extranet copiée dans le presse-papiers",
+      copieImpossible: 'Impossible de copier le lien',
+      copierManuellement: "Sélectionnez l'URL de l'extranet et copiez-la manuellement",
     },
   },
 })
