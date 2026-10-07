@@ -19,7 +19,7 @@ import {
   type SectionMenu,
 } from './i18n/ModOsMeusModulos.messages'
 
-/** Os Meus Módulos — port byte-exact du ModOsMeusModulos du bundle V5.7 (catalogue 90 módulos + ordem menu). */
+/** Os Meus Módulos — port byte-exact du ModOsMeusModulos du bundle V5.7 (catalogue de módulos + ordem menu ; compteurs calculés sur les cartes affichées). */
 
 /**
  * Structure commune aux deux langues : sections, modules (ids de la sidebar) et icônes.

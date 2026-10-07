@@ -263,8 +263,9 @@ const libelleFr = (id: string): string => LIBELLES_FR[id] ?? id
 export const OS_MEUS_MODULOS_MESSAGES = defineMessages<OsMeusModulosTextes>({
   'pt-PT': {
     titre: 'Os meus módulos',
-    chapeau: () => '90 módulos profissionais · Ative só o que precisa · Os desativados deixam de aparecer no menu lateral · 4 módulos V5 fusionados como secções nos módulos parentes',
-    actifs: () => '90/90 ativos',
+    // Compteurs calculés sur le catalogue affiché (comme en FR) : l'ancien « 90 » en dur ne correspondait pas aux cartes.
+    chapeau: (total) => `${total} módulos profissionais · Ative só o que precisa · Os desativados deixam de aparecer no menu lateral · 4 módulos V5 fusionados como secções nos módulos parentes`,
+    actifs: (total) => `${total}/${total} ativos`,
     masques: new Set<string>(),
     sectionsCatalogue: {
       gestaoCorrente: 'GESTÃO CORRENTE',

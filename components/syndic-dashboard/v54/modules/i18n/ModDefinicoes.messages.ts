@@ -73,7 +73,8 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
       nom: 'Nome do gabinete',
       nomValeur: 'VitFix Admin',
       email: 'Email',
-      emailValeur: 'admincvlho@gmail.com',
+      // Adresse fictive de démonstration : aucune adresse réelle n'est montrée aux visiteurs.
+      emailValeur: 'contacto@exemplo.pt',
       adresse: 'Morada do gabinete',
       adressePlaceholder: 'Ex: Rua das Flores 123, 1000-001 Lisboa',
       logo: 'Logo do gabinete',
@@ -124,8 +125,8 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
       titre: 'Mon cabinet',
       nom: 'Nom du cabinet',
       nomValeur: 'Cabinet VitFix',
-      // Adresse fictive de démonstration : l'adresse personnelle de la version PT n'est pas reprise.
       email: 'E-mail',
+      // Adresse fictive de démonstration : aucune adresse réelle n'est montrée aux visiteurs.
       emailValeur: 'contact@exemple.fr',
       adresse: 'Adresse du cabinet',
       adressePlaceholder: 'Ex. : 12 rue de la République, 69002 Lyon',

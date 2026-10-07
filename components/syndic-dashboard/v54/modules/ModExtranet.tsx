@@ -25,6 +25,9 @@ import { EXTRANET_MESSAGES } from './i18n/ModExtranet.messages'
 type ExtForm = { nome: string; email: string; telefone: string; fracao: string; edificio: string; notas: string }
 type Cond = ExtForm & { id: number; acessoAtivo: boolean; saldo: number }
 
+/** URL du portail : la même valeur est affichée dans le champ et copiée dans le presse-papiers (route réelle, sans accent). */
+const URL_PORTAIL = 'https://vitfix.io/coproprietaire/portail'
+
 const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
 
 export default function ModExtranet() {
@@ -78,7 +81,7 @@ export default function ModExtranet() {
   const saldoGlobal = displayItems.reduce((s, i) => s + (i.saldo || 0), 0)
   const emAtraso = displayItems.filter(i => (i.saldo || 0) < 0).length
   const copyPortalUrl = () => {
-    if (navigator.clipboard) navigator.clipboard.writeText('https://vitfix.io/copropriétaire/portail')
+    if (navigator.clipboard) navigator.clipboard.writeText(URL_PORTAIL)
     push({ kind: 'info', title: t.toasts.lienCopie, desc: t.toasts.urlCopiee })
   }
 
@@ -123,7 +126,7 @@ export default function ModExtranet() {
           <p style={{ flex: 1, fontSize: 13, color: 'var(--v54-navy-500)', margin: 0 }}>{t.portail.texte}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input type="text" readOnly aria-label={t.portail.urlAria} value="https://vitfix.io/coproprietaire/portail" style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, background: '#fff', fontFamily: 'ui-monospace,monospace', fontSize: 12 }} />
+          <input type="text" readOnly aria-label={t.portail.urlAria} value={URL_PORTAIL} style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, background: '#fff', fontFamily: 'ui-monospace,monospace', fontSize: 12 }} />
           <Button onClick={copyPortalUrl}><Icon name="doc" />{t.portail.copier}</Button>
         </div>
       </Panel>
