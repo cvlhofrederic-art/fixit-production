@@ -1,5 +1,8 @@
 import { defineMessages } from '@/lib/syndic/v54/i18n'
 
+/** Statut d'une déclaration, valeur stockée par l'API (contrainte CHECK de syndic_decl_encargos). */
+export type StatutDecl = 'pendente' | 'emitida' | 'concluida'
+
 interface DeclEncargosTextes {
   titre: string
   chapeau: string
@@ -11,7 +14,8 @@ interface DeclEncargosTextes {
   videTitre: string
   videDesc: string
   colonnes: { lot: string; coproprietaire: string; immeuble: string; demande: string; dateLimite: string; charges: string; statut: string }
-  pillPendente: string
+  /** Pastille de statut de chaque ligne (clé = valeur API `estado`). */
+  statuts: Record<StatutDecl, string>
   formulaire: {
     titre: string
     lot: string
@@ -55,7 +59,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     videTitre: 'Nenhuma declaração registada',
     videDesc: 'Crie uma declaração de encargos quando um condómino solicitar a venda da sua fração.',
     colonnes: { lot: 'Fração', coproprietaire: 'Condómino', immeuble: 'Edifício', demande: 'Pedido', dateLimite: 'Prazo limite', charges: 'Encargos', statut: 'Estado' },
-    pillPendente: 'Pendente',
+    statuts: { pendente: 'Pendente', emitida: 'Emitida', concluida: 'Concluída' },
     formulaire: {
       titre: 'Nova declaração de encargos',
       lot: 'Fração',
@@ -97,7 +101,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     videTitre: 'Aucun état daté enregistré',
     videDesc: "Créez un état daté lorsque le notaire ou le copropriétaire vendeur vous le demande pour la vente d'un lot.",
     colonnes: { lot: 'Lot', coproprietaire: 'Copropriétaire vendeur', immeuble: 'Immeuble', demande: 'Demande', dateLimite: 'Date limite', charges: 'Charges courantes', statut: 'Statut' },
-    pillPendente: 'À établir',
+    statuts: { pendente: 'À établir', emitida: 'Délivré', concluida: 'Clôturé' },
     formulaire: {
       titre: 'Nouvel état daté',
       lot: 'Lot',

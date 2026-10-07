@@ -1,7 +1,7 @@
 import { defineMessages } from '@/lib/syndic/v54/i18n'
 
 /**
- * Carte de prestataire : [nom, métier, certification ('' = certifié), note, interventions,
+ * Carte de prestataire : [nom, métier, certification ('check' = certifié VitFix, '' = non certifié), note, interventions,
  * téléphone, e-mail, fin de validité RC Pro, fin de validité décennale, technicien interne].
  * FR : attestations d'assurance RC professionnelle et décennale (C. civ. art. 1792,
  * C. assur. art. L241-1) ; SIRET à la place du NIF.

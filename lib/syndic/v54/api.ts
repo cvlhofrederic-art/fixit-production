@@ -22,8 +22,25 @@ export const fetchMissions = (token: string): Promise<Mission[]> =>
 export const fetchImmeubles = (token: string): Promise<Immeuble[]> =>
   getList<Immeuble>('/api/syndic/immeubles', token, 'immeubles')
 
-export const fetchArtisans = (token: string): Promise<Artisan[]> =>
-  getList<Artisan>('/api/syndic/artisans', token, 'artisans')
+/**
+ * Artisan v54 (camelCase). GET /api/syndic/artisans renvoie les colonnes Supabase brutes
+ * (vitfix_certifie, rc_pro_valide, nb_interventions…) : sans conversion, les modules qui lisent
+ * rcProValide / vitfixCertifie voyaient tous les prestataires sans RC valide et non certifiés.
+ */
+export function normaliserArtisan(a: Artisan): Artisan {
+  return {
+    ...a,
+    rcProValide: a.rcProValide ?? a.rc_pro_valide ?? false,
+    rcProExpiration: a.rcProExpiration ?? a.rc_pro_expiration ?? '',
+    decennaleValide: a.decennaleValide ?? a.assurance_decennale_valide ?? false,
+    decennaleExpiration: a.decennaleExpiration ?? a.assurance_decennale_expiration ?? '',
+    nbInterventions: a.nbInterventions ?? a.nb_interventions ?? 0,
+    vitfixCertifie: a.vitfixCertifie ?? a.vitfix_certifie ?? false,
+  }
+}
+
+export const fetchArtisans = async (token: string): Promise<Artisan[]> =>
+  (await getList<Artisan>('/api/syndic/artisans', token, 'artisans')).map(normaliserArtisan)
 
 /**
  * Copropriétaire/lot — forme v54 (camelCase). La route /api/syndic/coproprios

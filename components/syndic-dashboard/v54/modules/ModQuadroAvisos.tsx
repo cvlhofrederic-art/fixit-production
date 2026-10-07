@@ -25,8 +25,16 @@ const COR: Record<string, string> = { rust: 'var(--v54-rust-500)', amber: 'var(-
 const avisoCard = { background: '#fff', border: '1px solid var(--v54-line)', borderRadius: 14, boxShadow: 'var(--v54-shadow-card)', padding: '18px 20px', marginBottom: 12 } as const
 const fieldInput = { width: '100%', padding: '10px 12px 10px 36px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, fontSize: 13 } as const
 const prioKind = (p: PrioriteAviso): PillKind | undefined => (p === 'urgente' ? 'rust' : p === 'importante' ? 'gold' : undefined)
-/** Actions rapides : icône, clé du libellé, catégorie passée au formulaire. */
-const ACOES: [IconName, 'urgent' | 'ag' | 'financier', string][] = [['siren', 'urgent', 'urgente'], ['bank', 'ag', 'assembleia'], ['coin', 'financier', 'financeiro']]
+/**
+ * Actions rapides : icône, clé du libellé, catégorie et priorité pré-remplies dans le formulaire.
+ * « Aviso urgente » ne fixe que la priorité : 'urgente' est une priorité de l'API, pas une
+ * catégorie (absente de l'enum Zod, rejetée en 400) ; la catégorie reste celle par défaut du formulaire.
+ */
+const ACOES: [IconName, 'urgent' | 'ag' | 'financier', CategorieAviso | undefined, 'urgente' | 'importante'][] = [
+  ['siren', 'urgent', undefined, 'urgente'],
+  ['bank', 'ag', 'assembleia', 'importante'],
+  ['coin', 'financier', 'financeiro', 'importante'],
+]
 /** Ordre des catégories (répartition et liste du formulaire). */
 const CATEGORIES: CategorieAviso[] = ['manutencao', 'assembleia', 'financeiro', 'seguranca', 'social', 'outro']
 const DISTRIB_DEMO: Record<CategorieAviso, number> = { manutencao: 4, assembleia: 1, financeiro: 1, seguranca: 1, social: 1, outro: 0 }
@@ -147,7 +155,7 @@ export default function ModQuadroAvisos() {
           </Panel>
           <Panel title={t.actionsTitre}>
             {ACOES.map((q, i) => (
-              <Button key={i} onClick={() => openNew(q[2], q[2] === 'urgente' ? 'urgente' : 'importante')} style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 8, padding: '10px 14px', background: 'var(--v54-cream)' }}><Icon name={q[0]} /> <span>{t.actionsRapides[q[1]]}</span></Button>
+              <Button key={i} onClick={() => openNew(q[2], q[3])} style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 8, padding: '10px 14px', background: 'var(--v54-cream)' }}><Icon name={q[0]} /> <span>{t.actionsRapides[q[1]]}</span></Button>
             ))}
           </Panel>
         </div>

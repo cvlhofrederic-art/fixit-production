@@ -8,7 +8,7 @@ import { Tabs } from '../primitives/tabs'
 import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
 import { Alert } from '../primitives/alert'
-import { Pill } from '../primitives/pill'
+import { Pill, type PillKind } from '../primitives/pill'
 import { Button } from '../primitives/button'
 import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
 import { Field } from '../primitives/field'
@@ -19,7 +19,8 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { DECL_ENCARGOS_MESSAGES } from './i18n/ModDeclEncargos.messages'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { DECL_ENCARGOS_MESSAGES, type StatutDecl } from './i18n/ModDeclEncargos.messages'
 
 /** Declaração de Encargos — port byte-exact V5.7 + Phase 3 : déclarations réelles.
  * Syndic connecté → vraies déclarations du cabinet (data.declaracoes) + création POST ;
@@ -28,6 +29,12 @@ import { DECL_ENCARGOS_MESSAGES } from './i18n/ModDeclEncargos.messages'
 type DeclForm = { fracao: string; condomino: string; edificio: string; dataPedido: string; encargosCorrentes: string; divida: string; notas: string }
 
 const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
+
+/** Couleur de la pastille selon le statut API (même code couleur que les KPI : à établir ambre, clôturé sauge). */
+const STATUT_KIND: Record<StatutDecl, PillKind> = { pendente: 'amber', emitida: 'gold', concluida: 'sage' }
+const estStatut = (s: string): s is StatutDecl => Object.prototype.hasOwnProperty.call(STATUT_KIND, s)
+const statutKind = (s: string): PillKind => (estStatut(s) ? STATUT_KIND[s] : 'amber')
+
 
 export default function ModDeclEncargos() {
   const t = useMessages(DECL_ENCARGOS_MESSAGES)
@@ -76,6 +83,8 @@ export default function ModDeclEncargos() {
   const pendentes = all.filter(i => i.estado === 'pendente').length
   const foraPrazo = all.filter(i => new Date(i.prazoLimite) < new Date() && i.estado === 'pendente').length
   const concluidas = all.filter(i => i.estado === 'concluida').length
+  // Statut API inconnu : valeur brute.
+  const statutLabel = (s: string) => (estStatut(s) ? t.statuts[s] : s)
 
   return (
     <>
@@ -109,10 +118,10 @@ export default function ModDeclEncargos() {
                   <td>{it.fracao}</td>
                   <td>{it.condomino}</td>
                   <td>{it.edificio || '—'}</td>
-                  <td>{it.dataPedido}</td>
-                  <td>{it.prazoLimite}</td>
+                  <td>{dateApi(it.dataPedido, locale)}</td>
+                  <td>{dateApi(it.prazoLimite, locale)}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{it.encargosCorrentes ? fmtEUR(Number(it.encargosCorrentes), locale) : '—'}</td>
-                  <td><Pill kind="amber">{t.pillPendente}</Pill></td>
+                  <td><Pill kind={statutKind(it.estado)}>{statutLabel(it.estado)}</Pill></td>
                 </tr>
               ))}</tbody>
             </table>

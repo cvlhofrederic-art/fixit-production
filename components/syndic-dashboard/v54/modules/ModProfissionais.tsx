@@ -15,7 +15,8 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { NovaMissaoModal } from './NovaMissaoModal'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import type { Artisan } from '@/components/syndic-dashboard/types'
 import { PROFISSIONAIS_MESSAGES, type ProDemo } from './i18n/ModProfissionais.messages'
 
@@ -25,36 +26,67 @@ type Pro = ProDemo
 
 const badge = (bg: string, color: string): React.CSSProperties => ({ padding: '8px 12px', background: bg, borderRadius: 8, fontSize: 12, color, marginBottom: 6 })
 
+/** Date du jour (locale) au format AAAA-MM-JJ, comparable aux dates de fin ISO. */
+const aujourdhuiIso = (): string => {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** Attestation réellement valide : déposée et, si sa date de fin est connue (ISO), non échue. */
+const attestationValide = (deposee: boolean | undefined, fin: string | null | undefined, aujourdhui: string): boolean => {
+  if (!deposee) return false
+  const iso = fin ? /^\d{4}-\d{2}-\d{2}/.exec(fin) : null
+  return !iso || iso[0] >= aujourdhui
+}
+
+/** Lit la conformité d'un artisan (champs camelCase, normalisés par fetchArtisans). */
+function lireArtisan(a: Artisan, aujourdhui: string) {
+  return {
+    certifie: !!a.vitfixCertifie,
+    rcValide: attestationValide(a.rcProValide, a.rcProExpiration, aujourdhui),
+    rcFin: a.rcProExpiration || null,
+    decennaleValide: attestationValide(a.decennaleValide, a.decennaleExpiration, aujourdhui),
+    decennaleFin: a.decennaleExpiration || null,
+    interventions: a.nbInterventions ?? 0,
+  }
+}
+
 /** Mappe un artisan réel vers la tuple de rendu d'une carte (Phase 2). */
-function artisanToPro(a: Artisan): Pro {
+function artisanToPro(a: Artisan, aujourdhui: string): Pro {
   const name = [a.prenom, a.nom].filter(Boolean).join(' ').trim() || a.nom
+  const l = lireArtisan(a, aujourdhui)
   return [
     name,
     a.metier,
-    a.vitfixCertifie ? '' : 'check',
+    l.certifie ? 'check' : '',
     String(a.note ?? ''),
-    a.nbInterventions ?? 0,
+    l.interventions,
     a.telephone ?? '',
     a.email ?? '',
-    a.rcProValide ? (a.rcProExpiration ?? null) : null,
-    a.decennaleValide ? (a.decennaleExpiration ?? null) : null,
+    l.rcValide ? l.rcFin : null,
+    l.decennaleValide ? l.decennaleFin : null,
   ]
 }
 
 export default function ModProfissionais() {
   const t = useMessages(PROFISSIONAIS_MESSAGES)
+  const locale = useV54Locale()
   // Phase 2 : vrais artisans du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
-  const items: ReadonlyArray<{ pro: Pro; id: string | null }> = real
-    ? data.artisans.map((a) => ({ pro: artisanToPro(a), id: a.id }))
-    : t.demo.map((p) => ({ pro: p, id: null }))
+  const aujourdhui = aujourdhuiIso()
+  const conformite = real ? data.artisans.map((a) => lireArtisan(a, aujourdhui)) : []
+  // Démo : les 9 exemples ont une RC Pro valide (« 9 com Seguro RC válido » / « 9 avec RC Pro valide »).
+  const items: ReadonlyArray<{ pro: Pro; id: string | null; rcValide: boolean }> = real
+    ? data.artisans.map((a, i) => ({ pro: artisanToPro(a, aujourdhui), id: a.id, rcValide: conformite[i].rcValide }))
+    : t.demo.map((p) => ({ pro: p, id: null, rcValide: true }))
   const lede = real
     ? t.chapeau({
         total: data.artisans.length,
-        certifies: data.artisans.filter((a) => a.vitfixCertifie).length,
-        rcValide: data.artisans.filter((a) => a.rcProValide).length,
-        decennale: data.artisans.filter((a) => a.decennaleValide).length,
+        certifies: conformite.filter((c) => c.certifie).length,
+        rcValide: conformite.filter((c) => c.rcValide).length,
+        decennale: conformite.filter((c) => c.decennaleValide).length,
       })
     : t.chapeauDemo
 
@@ -125,13 +157,13 @@ export default function ModProfissionais() {
         </>}
       />
       <div className={m.cardGrid}>
-        {items.map(({ pro: p, id }) => (
+        {items.map(({ pro: p, id, rcValide }) => (
           <Panel key={p[6]}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 22, fontWeight: 500 }}>{p[0]}</div>
-                  {p[2] === '' && <Pill kind="gold" noDot>{c.certifie}</Pill>}
+                  {p[2] === 'check' && <Pill kind="gold" noDot>{c.certifie}</Pill>}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--v54-navy-500)', marginTop: 2 }}>{p[1]}</div>
               </div>
@@ -144,10 +176,10 @@ export default function ModProfissionais() {
               <div style={{ color: 'var(--v54-navy-500)' }}>{p[5]}</div>
               <div style={{ color: 'var(--v54-navy-500)' }}>{p[6]}</div>
               <div style={{ color: 'var(--v54-navy-500)' }}>{p[4]}{c.interventions}</div>
-              <div><Pill kind="sage" noDot>{c.rcValide}</Pill></div>
+              <div>{rcValide && <Pill kind="sage" noDot>{c.rcValide}</Pill>}</div>
             </div>
-            {p[7] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.rcValideJusquau}{p[7]}</div>}
-            {p[8] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.decennaleJusquau}{p[8]}</div>}
+            {p[7] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.rcValideJusquau}{dateApi(p[7], locale)}</div>}
+            {p[8] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.decennaleJusquau}{dateApi(p[8], locale)}</div>}
             {p[9] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.decennaleValide}</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <Button style={{ flex: 1, justifyContent: 'center' }} onClick={() => push({ kind: 'info', title: t.toasts.messages, desc: t.toasts.aucunCompteMessagerie })}><Icon name="chat" />{c.aucunCompte}</Button>
