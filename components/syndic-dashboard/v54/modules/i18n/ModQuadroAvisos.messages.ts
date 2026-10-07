@@ -168,7 +168,7 @@ export const QUADRO_AVISOS_MESSAGES = defineMessages<QuadroAvisosTextes>({
     auteurGeneral: 'Syndic',
     auteurImmeuble: 'Gestionnaire',
     resumeTitre: 'Résumé',
-    resume: { actifs: 'Avis actifs', vues: 'Vues au total', epingles: 'Avis épinglés', ceMois: 'Avis ce mois-ci', plusVu: "Ascenseur à l'arrêt — Répar…" },
+    resume: { actifs: 'Avis actifs', vues: 'Vues au total', epingles: 'Avis épinglés', ceMois: 'Avis ce mois-ci', plusVu: "Ascenseur à l'arrêt — répar…" },
     distributionTitre: 'Répartition par catégorie',
     actionsTitre: 'Actions rapides',
     actionsRapides: { urgent: 'Avis urgent', ag: 'Information AG', financier: 'Avis financier' },
