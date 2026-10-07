@@ -21,7 +21,7 @@ import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { CONTAB_COND_MESSAGES, type TypeLot } from './i18n/ModContabCond.messages'
 
 /** Contabilidade Condomínio — port byte-exact V5.7 + Phase 3 : 4 entités réelles (route /api/syndic/contab).
@@ -49,7 +49,7 @@ export default function ModContabCond() {
   const diario = real ? (data.contab?.diario ?? []) : []
   const orcamentos = real ? (data.contab?.orcamentos ?? []) : []
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState('painel')
   const [openMod, setOpenMod] = useState<'frac' | 'cq' | 'diar' | 'orc' | null>(null)

@@ -28,3 +28,23 @@ export function dateApi(valeur: string | null | undefined, locale: V54Locale): s
   const instant = new Date(texteIso)
   return Number.isNaN(instant.getTime()) ? valeur : new Intl.DateTimeFormat(locale, options).format(instant)
 }
+
+/**
+ * Jour civil courant dans le fuseau du navigateur, au format « AAAA-MM-JJ » : directement
+ * comparable (ordre lexicographique) aux colonnes DATE renvoyées par l'API.
+ * Pas de toISOString(), qui donne le jour UTC : entre 0 h et 1 h (Lisbonne, heure d'été) ou
+ * 2 h (Paris), il renverrait encore la veille.
+ */
+export function jourCivilLocal(maintenant: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${maintenant.getFullYear()}-${p(maintenant.getMonth() + 1)}-${p(maintenant.getDate())}`
+}
+
+/**
+ * Échéance « AAAA-MM-JJ » (colonne DATE) dépassée : jour strictement antérieur au jour civil
+ * courant du navigateur (le jour même n'est pas dépassé). Règle de calendrier, la même en PT et
+ * en FR. Toute autre valeur (vide, texte libre, horodatage) → false.
+ */
+export function echeanceDepassee(valeur: string | null | undefined, maintenant: Date = new Date()): boolean {
+  return !!valeur && /^\d{4}-\d{2}-\d{2}$/.test(valeur) && valeur < jourCivilLocal(maintenant)
+}

@@ -19,7 +19,7 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { CADERNETA_MESSAGES } from './i18n/ModCadernetaMan.messages'
 
 /** Caderneta de Manutenção & Técnica — port byte-exact V5.7 + Phase 3 : interventions réelles.
@@ -41,7 +41,7 @@ export default function ModCadernetaMan() {
   const real = data.authenticated
   const all = real ? (data.caderneta ?? []) : []
 
-  const blank: CadForm = { data: new Date().toISOString().slice(0, 10), estado: 'realizado', natureza: '', edificio: '', localizacao: '', prestador: '', custo: '', garantia: '', cee: 'na', notas: '' }
+  const blank: CadForm = { data: jourCivilLocal(), estado: 'realizado', natureza: '', edificio: '', localizacao: '', prestador: '', custo: '', garantia: '', cee: 'na', notas: '' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<CadForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof CadForm, string>>>({})
@@ -49,7 +49,7 @@ export default function ModCadernetaMan() {
   const { push } = useToast()
 
   const upd = (k: keyof CadForm, v: string) => setForm(s => ({ ...s, [k]: v }))
-  const openNew = () => { setForm({ ...blank, data: new Date().toISOString().slice(0, 10) }); setErrors({}); setOpen(true) }
+  const openNew = () => { setForm({ ...blank, data: jourCivilLocal() }); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Partial<Record<keyof CadForm, string>> = {}

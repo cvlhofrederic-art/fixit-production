@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, echeanceDepassee, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import type { V54Locale } from '@/lib/syndic/v54/i18n'
 
 /**
@@ -80,5 +80,69 @@ describe('dateApi — valeur non ISO rendue telle quelle', () => {
     expect(dateApi(null, 'fr-FR')).toBe('')
     expect(dateApi(undefined, 'pt-PT')).toBe('')
     expect(dateApi(undefined, 'pt-PT') || '—').toBe('—')
+  })
+})
+
+/**
+ * Jour civil courant du navigateur et échéance dépassée (colonne DATE « AAAA-MM-JJ ») :
+ * comparaison en jour civil local, jamais en UTC (toISOString se tromperait entre 0 h et
+ * 1 h / 2 h à Lisbonne ou à Paris). Règle de calendrier, identique en PT et en FR.
+ */
+describe('jourCivilLocal', () => {
+  it('jour civil du fuseau du navigateur, au format AAAA-MM-JJ', () => {
+    expect(jourCivilLocal(new Date(2026, 9, 7, 10))).toBe('2026-10-07')
+    expect(jourCivilLocal(new Date(2026, 0, 5, 0, 0))).toBe('2026-01-05')
+    expect(jourCivilLocal(new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31')
+  })
+
+  it('même instant, jour différent selon le fuseau (Lisbonne / Los Angeles)', () => {
+    const instant = new Date('2026-10-07T23:30:00Z')
+    process.env.TZ = 'Europe/Lisbon'
+    expect(jourCivilLocal(instant)).toBe('2026-10-08')
+    process.env.TZ = 'America/Los_Angeles'
+    expect(jourCivilLocal(instant)).toBe('2026-10-07')
+  })
+
+  it('heure d’hiver : 23 h 30 UTC = 0 h 30 le lendemain à Paris (UTC+1)', () => {
+    process.env.TZ = 'Europe/Paris'
+    expect(jourCivilLocal(new Date('2026-01-10T23:30:00Z'))).toBe('2026-01-11')
+  })
+
+  it('sans argument : date du jour', () => {
+    expect(jourCivilLocal()).toBe(jourCivilLocal(new Date()))
+  })
+})
+
+describe('echeanceDepassee', () => {
+  const maintenant = new Date(2026, 9, 7, 10)
+
+  it('jour strictement antérieur : dépassé ; jour même et jours suivants : non', () => {
+    expect(echeanceDepassee('2026-10-06', maintenant)).toBe(true)
+    expect(echeanceDepassee('2025-12-31', maintenant)).toBe(true)
+    expect(echeanceDepassee('2026-10-07', maintenant)).toBe(false)
+    expect(echeanceDepassee('2026-10-08', maintenant)).toBe(false)
+    expect(echeanceDepassee('2031-03-17', maintenant)).toBe(false)
+  })
+
+  it.each([
+    '',
+    null,
+    undefined,
+    'Prazo expirado',
+    'Délai dépassé',
+    '8 dias restantes',
+    '06/10/2026',
+    '2026-10-06T10:00:00Z',
+    ' 2026-10-06',
+  ])('valeur absente ou non « AAAA-MM-JJ » (%s) : non dépassée', (valeur) => {
+    expect(echeanceDepassee(valeur, maintenant)).toBe(false)
+  })
+
+  it('fuseau : à 0 h 30 le 08/10 à Lisbonne, le 07/10 est dépassé ; à Los Angeles (16 h 30 le 07/10), non', () => {
+    const instant = new Date('2026-10-07T23:30:00Z')
+    process.env.TZ = 'Europe/Lisbon'
+    expect(echeanceDepassee('2026-10-07', instant)).toBe(true)
+    process.env.TZ = 'America/Los_Angeles'
+    expect(echeanceDepassee('2026-10-07', instant)).toBe(false)
   })
 })

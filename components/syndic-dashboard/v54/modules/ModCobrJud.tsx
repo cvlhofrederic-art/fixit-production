@@ -18,7 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { COBR_JUD_MESSAGES, type EtapeRecouvrement } from './i18n/ModCobrJud.messages'
 
 /** Cobrança Judicial — port byte-exact V5.7 + Phase 3 : pipeline réel (table syndic_recouvrement).
@@ -53,7 +53,7 @@ export default function ModCobrJud() {
   const emTribunal = all.filter((r) => r.procedure === 'tribunal' || r.procedure === 'saisie').length
 
   const { push } = useToast()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blank = { immeubleId: '', coproprioId: '', procedure: 'amiable', montantInitial: '', avocatHuissier: '', prochaineEcheance: '', dateOuverture: today, notas: '' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(blank)
