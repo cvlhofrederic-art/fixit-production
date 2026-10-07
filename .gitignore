@@ -18,6 +18,8 @@
 # next.js
 /.next/
 /out/
+# copie de next.config.ts le temps de scripts/build-mobile.sh (restaurée par son trap EXIT)
+/next.config.backup.ts
 
 # production
 /build

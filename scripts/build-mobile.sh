@@ -8,18 +8,38 @@
 
 set -e
 
+# Chemins relatifs (next.config.ts, out/) : toujours depuis la racine du dépôt.
+cd "$(dirname "$0")/.."
+
 PLATFORM="${1:-both}"
 echo "🏗️  Build Fixit Pro Mobile — Plateforme: $PLATFORM"
 
 # 0. Pré-flight : valider la compatibilité mobile (SSR-only imports interdits)
 echo ""
 echo "🧪 Étape 0 : Vérification compatibilité mobile..."
-bash "$(dirname "$0")/check-mobile-compat.sh"
+bash scripts/check-mobile-compat.sh
 
 # 1. Build Next.js en mode export statique
 echo ""
 echo "📦 Étape 1/4 : Build Next.js (export statique)..."
-cp next.config.ts next.config.backup.ts 2>/dev/null || true
+# next.config.ts est remplacé le temps du build. Le trap EXIT le restaure dans tous les cas : build en échec
+# (set -e), Ctrl+C ou kill. Une copie déjà présente vient d'un build interrompu sans restauration (kill -9…) :
+# c'est peut-être la seule version de la configuration web, on ne l'écrase pas.
+if [ -e next.config.backup.ts ]; then
+  echo "❌ next.config.backup.ts existe déjà : un build mobile précédent n'a pas restauré next.config.ts." >&2
+  echo "   Comparer les deux fichiers, remettre la bonne version dans next.config.ts, supprimer la copie, relancer." >&2
+  exit 1
+fi
+cp next.config.ts next.config.backup.ts
+restaurer_next_config() {
+  if [ -f next.config.backup.ts ]; then
+    mv -f next.config.backup.ts next.config.ts
+  fi
+}
+# Posé après une copie réussie : un cp en échec ne doit rien « restaurer ».
+trap restaurer_next_config EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cat > next.config.ts << 'EOF'
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
@@ -40,8 +60,7 @@ export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://vitfix.io}"
 
 npm run build
 
-# Restore original config
-cp next.config.backup.ts next.config.ts 2>/dev/null || true
+restaurer_next_config
 
 echo "✅ Build Next.js terminé — dossier 'out/' créé"
 
